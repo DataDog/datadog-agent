@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
@@ -84,24 +84,24 @@ func (c *ECSFargateCollector) Pull() error {
 
 // Fetch parses tags for a container on cache miss. We avoid races with Pull,
 // we re-parse the whole list, but don't send updates on other containers.
-func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, error) {
+func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, []string, error) {
 	meta, err := ecsutil.GetTaskMetadata()
 	if err != nil {
-		return []string{}, []string{}, err
+		return []string{}, []string{}, []string{}, err
 	}
 	// Force a full parse to avoid missing the container in a race with Pull
 	updates, err := c.parseMetadata(meta, true)
 	if err != nil {
-		return []string{}, []string{}, err
+		return []string{}, []string{}, []string{}, err
 	}
 
 	for _, info := range updates {
 		if info.Entity == container {
-			return info.LowCardTags, info.HighCardTags, nil
+			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
 	// container not found in updates
-	return []string{}, []string{}, errors.NewNotFound(container)
+	return []string{}, []string{}, []string{}, errors.NewNotFound(container)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects
@@ -110,7 +110,7 @@ func (c *ECSFargateCollector) parseExpires(idList []string) ([]*TagInfo, error) 
 	for _, id := range idList {
 		info := &TagInfo{
 			Source:       ecsFargateCollectorName,
-			Entity:       docker.ContainerIDToEntityName(id),
+			Entity:       containers.BuildTaggerEntityName(id),
 			DeleteEntity: true,
 		}
 		output = append(output, info)

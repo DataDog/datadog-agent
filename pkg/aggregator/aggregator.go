@@ -1,18 +1,20 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package aggregator
 
 import (
 	"expvar"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -77,20 +79,25 @@ var (
 	flushTimeStats    = make(map[string]*Stats)
 	flushCountStats   = make(map[string]*Stats)
 
-	aggregatorSeriesFlushed           = expvar.Int{}
-	aggregatorSeriesFlushErrors       = expvar.Int{}
-	aggregatorServiceCheckFlushErrors = expvar.Int{}
-	aggregatorServiceCheckFlushed     = expvar.Int{}
-	aggregatorSketchesFlushErrors     = expvar.Int{}
-	aggregatorSketchesFlushed         = expvar.Int{}
-	aggregatorEventsFlushErrors       = expvar.Int{}
-	aggregatorEventsFlushed           = expvar.Int{}
-	aggregatorNumberOfFlush           = expvar.Int{}
-	aggregatorDogstatsdMetricSample   = expvar.Int{}
-	aggregatorChecksMetricSample      = expvar.Int{}
-	aggregatorServiceCheck            = expvar.Int{}
-	aggregatorEvent                   = expvar.Int{}
-	aggregatorHostnameUpdate          = expvar.Int{}
+	aggregatorSeriesFlushed                    = expvar.Int{}
+	aggregatorSeriesFlushErrors                = expvar.Int{}
+	aggregatorServiceCheckFlushErrors          = expvar.Int{}
+	aggregatorServiceCheckFlushed              = expvar.Int{}
+	aggregatorSketchesFlushErrors              = expvar.Int{}
+	aggregatorSketchesFlushed                  = expvar.Int{}
+	aggregatorEventsFlushErrors                = expvar.Int{}
+	aggregatorEventsFlushed                    = expvar.Int{}
+	aggregatorNumberOfFlush                    = expvar.Int{}
+	aggregatorDogstatsdMetricSample            = expvar.Int{}
+	aggregatorChecksMetricSample               = expvar.Int{}
+	aggregatorCheckHistogramBucketMetricSample = expvar.Int{}
+	aggregatorServiceCheck                     = expvar.Int{}
+	aggregatorEvent                            = expvar.Int{}
+	aggregatorHostnameUpdate                   = expvar.Int{}
+
+	// Hold series to be added to aggregated series on each flush
+	recurrentSeries     metrics.Series
+	recurrentSeriesLock sync.Mutex
 )
 
 func init() {
@@ -118,18 +125,19 @@ func init() {
 	aggregatorExpvars.Set("NumberOfFlush", &aggregatorNumberOfFlush)
 	aggregatorExpvars.Set("DogstatsdMetricSample", &aggregatorDogstatsdMetricSample)
 	aggregatorExpvars.Set("ChecksMetricSample", &aggregatorChecksMetricSample)
+	aggregatorExpvars.Set("ChecksHistogramBucketMetricSample", &aggregatorCheckHistogramBucketMetricSample)
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 }
 
 // InitAggregator returns the Singleton instance
-func InitAggregator(s *serializer.Serializer, hostname, agentName string) *BufferedAggregator {
+func InitAggregator(s serializer.MetricSerializer, hostname, agentName string) *BufferedAggregator {
 	return InitAggregatorWithFlushInterval(s, hostname, agentName, DefaultFlushInterval)
 }
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
-func InitAggregatorWithFlushInterval(s *serializer.Serializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregatorInit.Do(func() {
 		aggregatorInstance = NewBufferedAggregator(s, hostname, agentName, flushInterval)
 		go aggregatorInstance.run()
@@ -145,43 +153,66 @@ func SetDefaultAggregator(agg *BufferedAggregator) {
 	go aggregatorInstance.run()
 }
 
+// StopDefaultAggregator stops the default aggregator. Based on 'flushData'
+// waiting metrics (from checks or closed dogstatsd buckets) will be sent to
+// the serializer before stopping.
+func StopDefaultAggregator() {
+	if aggregatorInstance != nil {
+		aggregatorInstance.Stop()
+	}
+}
+
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	dogstatsdIn        chan *metrics.MetricSample
-	checkMetricIn      chan senderMetricSample
-	serviceCheckIn     chan metrics.ServiceCheck
-	eventIn            chan metrics.Event
-	sampler            TimeSampler
+	bufferedMetricIn       chan []*metrics.MetricSample
+	bufferedServiceCheckIn chan []*metrics.ServiceCheck
+	bufferedEventIn        chan []*metrics.Event
+
+	metricIn       chan *metrics.MetricSample
+	eventIn        chan metrics.Event
+	serviceCheckIn chan metrics.ServiceCheck
+
+	checkMetricIn          chan senderMetricSample
+	checkHistogramBucketIn chan senderHistogramBucket
+
+	statsdSampler      TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
-	distSampler        distSampler
 	serviceChecks      metrics.ServiceChecks
 	events             metrics.Events
 	flushInterval      time.Duration
 	mu                 sync.Mutex // to protect the checkSamplers field
-	serializer         *serializer.Serializer
+	serializer         serializer.MetricSerializer
 	hostname           string
 	hostnameUpdate     chan string
 	hostnameUpdateDone chan struct{}    // signals that the hostname update is finished
 	TickerChan         <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
+	stopChan           chan struct{}
 	health             *health.Handle
 	agentName          string // Name of the agent for telemetry metrics (agent / cluster-agent)
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s *serializer.Serializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		dogstatsdIn:        make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
-		checkMetricIn:      make(chan senderMetricSample, 100),    // TODO make buffer size configurable
-		serviceCheckIn:     make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
-		eventIn:            make(chan metrics.Event, 100),         // TODO make buffer size configurable
-		sampler:            *NewTimeSampler(bucketSize),
+		bufferedMetricIn:       make(chan []*metrics.MetricSample, 100), // TODO make buffer size configurable
+		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, 100), // TODO make buffer size configurable
+		bufferedEventIn:        make(chan []*metrics.Event, 100),        // TODO make buffer size configurable
+
+		metricIn:       make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
+		serviceCheckIn: make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
+		eventIn:        make(chan metrics.Event, 100),         // TODO make buffer size configurable
+
+		checkMetricIn:          make(chan senderMetricSample, 100),    // TODO make buffer size configurable
+		checkHistogramBucketIn: make(chan senderHistogramBucket, 100), // TODO make buffer size configurable
+
+		statsdSampler:      *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
-		distSampler:        newDistSampler(bucketSize),
 		flushInterval:      flushInterval,
 		serializer:         s,
 		hostname:           hostname,
 		hostnameUpdate:     make(chan string),
 		hostnameUpdateDone: make(chan struct{}),
+		stopChan:           make(chan struct{}),
 		health:             health.Register("aggregator"),
 		agentName:          agentName,
 	}
@@ -190,23 +221,33 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname, agentName string,
 }
 
 func deduplicateTags(tags []string) []string {
-	seen := make(map[string]bool, len(tags))
-	idx := 0
-	for _, v := range tags {
-		if _, ok := seen[v]; ok {
+	if len(tags) == 0 {
+		return tags
+	}
+	sort.Strings(tags)
+
+	j := 0
+	for i := 1; i < len(tags); i++ {
+		if tags[j] == tags[i] {
 			continue
 		}
-		seen[v] = true
-		tags[idx] = v
-		idx++
+		j++
+		tags[j] = tags[i]
 	}
-	return tags[:idx]
+	return tags[:j+1]
+}
+
+// AddRecurrentSeries adds a serie to the series that are sent at every flush
+func AddRecurrentSeries(newSerie *metrics.Serie) {
+	recurrentSeriesLock.Lock()
+	defer recurrentSeriesLock.Unlock()
+	recurrentSeries = append(recurrentSeries, newSerie)
 }
 
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
 // empty. This is mainly useful for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
-	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn) == 0 {
+	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.checkHistogramBucketIn) == 0 {
 		return true
 	}
 	return false
@@ -214,7 +255,12 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 
 // GetChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
 func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan metrics.Event, chan metrics.ServiceCheck) {
-	return agg.dogstatsdIn, agg.eventIn, agg.serviceCheckIn
+	return agg.metricIn, agg.eventIn, agg.serviceCheckIn
+}
+
+// GetBufferedChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
+func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.MetricSample, chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+	return agg.bufferedMetricIn, agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
 // SetHostname sets the hostname that the aggregator uses by default on all the data it sends
@@ -224,15 +270,27 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 	<-agg.hostnameUpdateDone
 }
 
-// AddAgentStartupEvent adds the startup event to the events that'll be sent on the next flush
-func (agg *BufferedAggregator) AddAgentStartupEvent(agentVersion string) {
-	event := metrics.Event{
-		Text:           fmt.Sprintf("Version %s", agentVersion),
-		SourceTypeName: "System",
-		Host:           agg.hostname,
-		EventType:      "Agent Startup",
+// AddAgentStartupTelemetry adds a startup event and count to be sent on the next flush
+func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
+	metric := &metrics.MetricSample{
+		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
+		Value:      1,
+		Tags:       []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		Host:       agg.hostname,
+		Mtype:      metrics.CountType,
+		SampleRate: 1,
+		Timestamp:  0,
 	}
-	agg.eventIn <- event
+	agg.metricIn <- metric
+	if agg.hostname != "" {
+		// Send startup event only when we have a valid hostname
+		agg.eventIn <- metrics.Event{
+			Text:           fmt.Sprintf("Version %s", agentVersion),
+			SourceTypeName: "System",
+			Host:           agg.hostname,
+			EventType:      "Agent Startup",
+		}
+	}
 }
 
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
@@ -267,6 +325,18 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 	}
 }
 
+func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBucket) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
+	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
+		checkBucket.bucket.Tags = deduplicateTags(checkBucket.bucket.Tags)
+		checkSampler.addBucket(checkBucket.bucket)
+	} else {
+		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
+	}
+}
+
 // addServiceCheck adds the service check to the slice of current service checks
 func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	if sc.Ts == 0 {
@@ -287,38 +357,87 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	agg.events = append(agg.events, &e)
 }
 
-// addSample adds the metric sample to either the sampler or distSampler
+// addSample adds the metric sample
 func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	metricSample.Tags = deduplicateTags(metricSample.Tags)
-
-	switch metricSample.Mtype {
-	case metrics.DistributionType:
-		agg.distSampler.addSample(metricSample, timestamp)
-	default:
-		agg.sampler.addSample(metricSample, timestamp)
-	}
+	agg.statsdSampler.addSample(metricSample, timestamp)
 }
 
-// GetSeries grabs all the series from the queue and clears the queue
-func (agg *BufferedAggregator) GetSeries() metrics.Series {
-	series := agg.sampler.flush(timeNowNano())
+// GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
+func (agg *BufferedAggregator) GetSeriesAndSketches() (metrics.Series, metrics.SketchSeriesList) {
 	agg.mu.Lock()
+	series, sketches := agg.statsdSampler.flush(timeNowNano())
+
 	for _, checkSampler := range agg.checkSamplers {
-		series = append(series, checkSampler.flush()...)
+		s, sk := checkSampler.flush()
+		series = append(series, s...)
+		sketches = append(sketches, sk...)
 	}
 	agg.mu.Unlock()
-	return series
+	return series, sketches
 }
 
-func (agg *BufferedAggregator) flushSeries() {
-	start := time.Now()
-	series := agg.GetSeries()
+func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
+	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
+	err := agg.serializer.SendSketch(sketches)
+	if err != nil {
+		log.Warnf("Error flushing sketch: %v", err)
+		aggregatorSketchesFlushErrors.Add(1)
+	}
+	addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
+	aggregatorSketchesFlushed.Add(int64(len(sketches)))
+}
+
+func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
+	log.Debugf("Flushing %d series to the forwarder", len(series))
+	err := agg.serializer.SendSeries(series)
+	if err != nil {
+		log.Warnf("Error flushing series: %v", err)
+		aggregatorSeriesFlushErrors.Add(1)
+	}
+	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
+	aggregatorSeriesFlushed.Add(int64(len(series)))
+}
+
+func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
+	recurrentSeriesLock.Lock()
+	// Adding recurrentSeries to the flushed ones
+	for _, extra := range recurrentSeries {
+		if extra.Host == "" {
+			extra.Host = agg.hostname
+		}
+		if extra.SourceTypeName == "" {
+			extra.SourceTypeName = "System"
+		}
+
+		newSerie := &metrics.Serie{
+			Name:           extra.Name,
+			Tags:           extra.Tags,
+			Host:           extra.Host,
+			MType:          extra.MType,
+			SourceTypeName: extra.SourceTypeName,
+		}
+
+		// Updating Ts for every points
+		updatedPoints := []metrics.Point{}
+		for _, point := range extra.Points {
+			updatedPoints = append(updatedPoints,
+				metrics.Point{
+					Value: point.Value,
+					Ts:    float64(start.Unix()),
+				})
+		}
+		newSerie.Points = updatedPoints
+		series = append(series, newSerie)
+	}
+	recurrentSeriesLock.Unlock()
 
 	// Send along a metric that showcases that this Agent is running (internally, in backend,
 	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
 	series = append(series, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -343,17 +462,30 @@ func (agg *BufferedAggregator) flushSeries() {
 		}
 	}
 
-	// Serialize and forward in a separate goroutine
-	go func() {
-		log.Debug("Flushing ", len(series), " series to the forwarder")
-		err := agg.serializer.SendSeries(series)
-		if err != nil {
-			log.Warnf("Error flushing series: %v", err)
-			aggregatorSeriesFlushErrors.Add(1)
+	if waitForSerializer {
+		agg.pushSeries(start, series)
+	} else {
+		go agg.pushSeries(start, series)
+	}
+}
+
+func (agg *BufferedAggregator) sendSketches(start time.Time, sketches metrics.SketchSeriesList, waitForSerializer bool) {
+	// Serialize and forward sketches in a separate goroutine
+	addFlushCount("Sketches", int64(len(sketches)))
+	if len(sketches) != 0 {
+		if waitForSerializer {
+			agg.pushSketches(start, sketches)
+		} else {
+			go agg.pushSketches(start, sketches)
 		}
-		addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
-		aggregatorSeriesFlushed.Add(int64(len(series)))
-	}()
+	}
+}
+
+func (agg *BufferedAggregator) flushSeriesAndSketches(start time.Time, waitForSerializer bool) {
+	series, sketches := agg.GetSeriesAndSketches()
+
+	agg.sendSketches(start, sketches, waitForSerializer)
+	agg.sendSeries(start, series, waitForSerializer)
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
@@ -366,9 +498,18 @@ func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 	return serviceChecks
 }
 
-func (agg *BufferedAggregator) flushServiceChecks() {
+func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metrics.ServiceChecks) {
+	log.Debugf("Flushing %d service checks to the forwarder", len(serviceChecks))
+	if err := agg.serializer.SendServiceChecks(serviceChecks); err != nil {
+		log.Warnf("Error flushing service checks: %v", err)
+		aggregatorServiceCheckFlushErrors.Add(1)
+	}
+	addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
+	aggregatorServiceCheckFlushed.Add(int64(len(serviceChecks)))
+}
+
+func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerializer bool) {
 	// Add a simple service check for the Agent status
-	start := time.Now()
 	agg.addServiceCheck(metrics.ServiceCheck{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
@@ -386,46 +527,11 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 		}
 	}
 
-	// Serialize and forward in a separate goroutine
-	go func() {
-		log.Debug("Flushing ", len(serviceChecks), " service checks to the forwarder")
-		err := agg.serializer.SendServiceChecks(serviceChecks)
-		if err != nil {
-			log.Warnf("Error flushing service checks: %v", err)
-			aggregatorServiceCheckFlushErrors.Add(1)
-		}
-		addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
-		aggregatorServiceCheckFlushed.Add(int64(len(serviceChecks)))
-	}()
-}
-
-// GetSketches grabs all the sketches from the queue and clears the queue
-func (agg *BufferedAggregator) GetSketches() metrics.SketchSeriesList {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-
-	return agg.distSampler.flush(timeNowNano())
-}
-
-func (agg *BufferedAggregator) flushSketches() {
-	// Serialize and forward in a separate goroutine
-	start := time.Now()
-	sketchSeries := agg.GetSketches()
-	addFlushCount("Sketches", int64(len(sketchSeries)))
-	if len(sketchSeries) == 0 {
-		return
+	if waitForSerializer {
+		agg.sendServiceChecks(start, serviceChecks)
+	} else {
+		go agg.sendServiceChecks(start, serviceChecks)
 	}
-
-	go func() {
-		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
-		err := agg.serializer.SendSketch(sketchSeries)
-		if err != nil {
-			log.Warnf("Error flushing sketch: %v", err)
-			aggregatorSketchesFlushErrors.Add(1)
-		}
-		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
-		aggregatorSketchesFlushed.Add(int64(len(sketchSeries)))
-	}()
 }
 
 // GetEvents grabs the events from the queue and clears it
@@ -437,10 +543,20 @@ func (agg *BufferedAggregator) GetEvents() metrics.Events {
 	return events
 }
 
+func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events) {
+	log.Debugf("Flushing %d events to the forwarder", len(events))
+	err := agg.serializer.SendEvents(events)
+	if err != nil {
+		log.Warnf("Error flushing events: %v", err)
+		aggregatorEventsFlushErrors.Add(1)
+	}
+	addFlushTime("EventFlushTime", int64(time.Since(start)))
+	aggregatorEventsFlushed.Add(int64(len(events)))
+}
+
 // flushEvents serializes and forwards events in a separate goroutine
-func (agg *BufferedAggregator) flushEvents() {
+func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bool) {
 	// Serialize and forward in a separate goroutine
-	start := time.Now()
 	events := agg.GetEvents()
 	if len(events) == 0 {
 		return
@@ -455,23 +571,39 @@ func (agg *BufferedAggregator) flushEvents() {
 		}
 	}
 
-	go func() {
-		log.Debug("Flushing ", len(events), " events to the forwarder")
-		err := agg.serializer.SendEvents(events)
-		if err != nil {
-			log.Warnf("Error flushing events: %v", err)
-			aggregatorEventsFlushErrors.Add(1)
-		}
-		addFlushTime("EventFlushTime", int64(time.Since(start)))
-		aggregatorEventsFlushed.Add(int64(len(events)))
-	}()
+	if waitForSerializer {
+		agg.sendEvents(start, events)
+	} else {
+		go agg.sendEvents(start, events)
+	}
 }
 
-func (agg *BufferedAggregator) flush() {
-	agg.flushSeries()
-	agg.flushSketches()
-	agg.flushServiceChecks()
-	agg.flushEvents()
+func (agg *BufferedAggregator) flush(start time.Time, waitForSerializer bool) {
+	agg.flushSeriesAndSketches(start, waitForSerializer)
+	agg.flushServiceChecks(start, waitForSerializer)
+	agg.flushEvents(start, waitForSerializer)
+}
+
+// Stop stops the aggregator. Based on 'flushData' waiting metrics (from checks
+// or closed dogstatsd buckets) will be sent to the serializer before stopping.
+func (agg *BufferedAggregator) Stop() {
+	agg.stopChan <- struct{}{}
+
+	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
+	if timeout > 0 {
+		done := make(chan struct{})
+		go func() {
+			agg.flush(time.Now(), true)
+			done <- struct{}{}
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(timeout):
+			log.Errorf("flushing data after stop timed out")
+		}
+	}
+
 }
 
 func (agg *BufferedAggregator) run() {
@@ -481,24 +613,49 @@ func (agg *BufferedAggregator) run() {
 	}
 	for {
 		select {
+		case <-agg.stopChan:
+			log.Info("Stopping aggregator")
+			return
 		case <-agg.health.C:
 		case <-agg.TickerChan:
 			start := time.Now()
-			agg.flush()
+			agg.flush(start, false)
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
-		case sample := <-agg.dogstatsdIn:
-			aggregatorDogstatsdMetricSample.Add(1)
-			agg.addSample(sample, timeNowNano())
-		case ss := <-agg.checkMetricIn:
+
+		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
-			agg.handleSenderSample(ss)
-		case sc := <-agg.serviceCheckIn:
-			aggregatorServiceCheck.Add(1)
-			agg.addServiceCheck(sc)
-		case e := <-agg.eventIn:
+			agg.handleSenderSample(checkMetric)
+		case checkHistogramBucket := <-agg.checkHistogramBucketIn:
+			aggregatorCheckHistogramBucketMetricSample.Add(1)
+			agg.handleSenderBucket(checkHistogramBucket)
+
+		case metric := <-agg.metricIn:
+			aggregatorDogstatsdMetricSample.Add(1)
+			agg.addSample(metric, timeNowNano())
+		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
-			agg.addEvent(e)
+			agg.addEvent(event)
+		case serviceCheck := <-agg.serviceCheckIn:
+			aggregatorServiceCheck.Add(1)
+			agg.addServiceCheck(serviceCheck)
+
+		case metrics := <-agg.bufferedMetricIn:
+			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
+			for _, sample := range metrics {
+				agg.addSample(sample, timeNowNano())
+			}
+		case serviceChecks := <-agg.bufferedServiceCheckIn:
+			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
+			for _, serviceCheck := range serviceChecks {
+				agg.addServiceCheck(*serviceCheck)
+			}
+		case events := <-agg.bufferedEventIn:
+			aggregatorEvent.Add(int64(len(events)))
+			for _, event := range events {
+				agg.addEvent(*event)
+			}
+
 		case h := <-agg.hostnameUpdate:
 			aggregatorHostnameUpdate.Add(1)
 			agg.hostname = h

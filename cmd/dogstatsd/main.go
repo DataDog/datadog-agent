@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 //go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
 
 package main
 
 import (
+	"context"
 	_ "expvar"
 	"fmt"
 	"net/http"
@@ -15,16 +16,17 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,7 +57,7 @@ extensions for special Datadog features.`,
 		Short: "Print the version number",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.New(version.AgentVersion, version.Commit)
+			av, _ := version.Agent()
 			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s - Serialization version: %s", av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion))
 		},
 	}
@@ -64,8 +66,10 @@ extensions for special Datadog features.`,
 	socketPath string
 )
 
-// run the host metadata collector every 14400 seconds (4 hours)
-const hostMetadataCollectorInterval = 14400
+const (
+	// loggerName is the name of the dogstatsd logger
+	loggerName config.LoggerName = "DSD"
+)
 
 func init() {
 	// attach the command to the root
@@ -80,6 +84,10 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
+	// Main context passed to components
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel() // Calling cancel twice is safe
+
 	configFound := false
 
 	// a path to the folder containing the config file was passed
@@ -112,6 +120,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	err := config.SetupLogger(
+		loggerName,
 		config.Datadog.GetString("log_level"),
 		logFile,
 		syslogURI,
@@ -127,6 +136,16 @@ func start(cmd *cobra.Command, args []string) error {
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
+	}
+
+	// Setup healthcheck port
+	var healthPort = config.Datadog.GetInt("health_port")
+	if healthPort > 0 {
+		err := healthprobe.Serve(mainCtx, healthPort)
+		if err != nil {
+			return log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
 	// setup the forwarder
@@ -146,31 +165,25 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Debugf("Using hostname: %s", hname)
 
 	// setup the metadata collector
-	var metaScheduler *metadata.Scheduler
-	if config.Datadog.GetBool("enable_metadata_collection") {
-		// start metadata collection
-		metaScheduler = metadata.NewScheduler(s, hname)
+	metaScheduler := metadata.NewScheduler(s)
+	if err := metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
+		metaScheduler.Stop()
+		return err
+	}
 
-		// add the host metadata collector
-		err = metaScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
-		if err != nil {
-			metaScheduler.Stop()
-			return log.Error("Host metadata is supposed to be always available in the catalog!")
+	if config.Datadog.GetBool("inventories_enabled") {
+		if err := metadata.SetupInventories(metaScheduler, nil, nil); err != nil {
+			return err
 		}
-	} else {
-		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
 	}
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
-		err = tagger.Init()
-		if err != nil {
-			log.Criticalf("Unable to start tagging system: %s", err)
-		}
+		tagger.Init()
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
-	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
+	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return nil
@@ -183,9 +196,19 @@ func start(cmd *cobra.Command, args []string) error {
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
-	if metaScheduler != nil {
-		metaScheduler.Stop()
+	// retrieve the agent health before stopping the components
+	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetStatusNonBlocking()
+	if err != nil {
+		log.Warnf("Dogstatsd health unknown: %s", err)
+	} else if len(health.Unhealthy) > 0 {
+		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
+
+	// gracefully shut down any component
+	mainCtxCancel()
+
+	metaScheduler.Stop()
 	statsd.Stop()
 	log.Info("See ya!")
 	log.Flush()

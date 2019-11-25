@@ -16,8 +16,6 @@ ssh-keygen -f $(pwd)/ssh-key -P "" -t rsa -b 2048
 
 export AZURE_SSH_KEY_PATH="$(pwd)/ssh-key"
 
-eval "$(chef shell-init bash)"
-
 if [ ! -f /root/.azure/credentials ]; then
   mkdir -p /root/.azure
   touch /root/.azure/credentials
@@ -54,6 +52,5 @@ eval $(ssh-agent -s)
 
 ssh-add "$AZURE_SSH_KEY_PATH"
 
-chef gem install net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-kitchen
-cp .kitchen-azure.yml .kitchen.yml
+cp kitchen-azure.yml kitchen.yml
 kitchen diagnose --no-instances --loader

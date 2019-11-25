@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build !windows
 
 package system
@@ -32,7 +32,6 @@ type diskConfig struct {
 	excludedMountpointRe *regexp.Regexp
 	allPartitions        bool
 	deviceTagRe          map[*regexp.Regexp][]string
-	customTags           []string
 }
 
 func (c *DiskCheck) excludeDisk(mountpoint, device, fstype string) bool {
@@ -147,16 +146,6 @@ func (c *DiskCheck) instanceConfigure(data integration.Data) error {
 		}
 	}
 
-	tags, found := conf["tags"]
-	if tags, ok := tags.([]interface{}); found && ok {
-		c.cfg.customTags = make([]string, 0, len(tags))
-		for _, tag := range tags {
-			if tag, ok := tag.(string); ok {
-				c.cfg.customTags = append(c.cfg.customTags, tag)
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -179,7 +168,6 @@ func (c *DiskCheck) applyDeviceTags(device, mountpoint string, tags []string) []
 			for _, tag := range deviceTags {
 				tags = append(tags, tag)
 			}
-
 		}
 	}
 	return tags

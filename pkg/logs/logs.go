@@ -1,11 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package logs
 
 import (
+	"errors"
+	"fmt"
+	"sync/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -14,9 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
+const (
+	// key used to display a warning message on the agent status
+	invalidProcessingRules = "invalid_global_processing_rules"
+	invalidEndpoints       = "invalid_endpoints"
+)
+
 var (
 	// isRunning indicates whether logs-agent is running or not
-	isRunning bool
+	isRunning int32
 	// logs-agent
 	agent *Agent
 	// scheduler is plugged to autodiscovery to collect integration configs
@@ -29,27 +41,38 @@ func Start() error {
 	if IsAgentRunning() {
 		return nil
 	}
-	// setup the server config
-	endpoints, err := config.BuildEndpoints()
-	if err != nil {
-		return err
-	}
 
 	// setup the sources and the services
 	sources := config.NewLogSources()
 	services := service.NewServices()
 
-	// initialize the config scheduler
+	// setup the config scheduler
 	adScheduler = scheduler.NewScheduler(sources, services)
 
+	// setup the server config
+	endpoints, err := config.BuildEndpoints()
+	if err != nil {
+		message := fmt.Sprintf("Invalid endpoints: %v", err)
+		status.AddGlobalError(invalidEndpoints, message)
+		return errors.New(message)
+	}
+
 	// setup the status
-	status.Initialize(sources)
+	status.Init(&isRunning, endpoints, sources, metrics.LogsExpvars)
+
+	// setup global processing rules
+	processingRules, err := config.GlobalProcessingRules()
+	if err != nil {
+		message := fmt.Sprintf("Invalid processing rules: %v", err)
+		status.AddGlobalError(invalidProcessingRules, message)
+		return errors.New(message)
+	}
 
 	// setup and start the agent
-	agent = NewAgent(sources, services, endpoints)
+	agent = NewAgent(sources, services, processingRules, endpoints)
 	log.Info("Starting logs-agent...")
 	agent.Start()
-	isRunning = true
+	atomic.StoreInt32(&isRunning, 1)
 	log.Info("logs-agent started")
 
 	// add the default sources
@@ -64,7 +87,7 @@ func Start() error {
 // it only returns when the whole pipeline is flushed.
 func Stop() {
 	log.Info("Stopping logs-agent")
-	if isRunning {
+	if IsAgentRunning() {
 		if agent != nil {
 			agent.Stop()
 			agent = nil
@@ -74,21 +97,18 @@ func Stop() {
 			adScheduler = nil
 		}
 		status.Clear()
-		isRunning = false
+		atomic.StoreInt32(&isRunning, 0)
 	}
 	log.Info("logs-agent stopped")
 }
 
 // IsAgentRunning returns true if the logs-agent is running.
 func IsAgentRunning() bool {
-	return isRunning
+	return status.Get().IsRunning
 }
 
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
-	if !IsAgentRunning() {
-		return status.Status{IsRunning: false}
-	}
 	return status.Get()
 }
 

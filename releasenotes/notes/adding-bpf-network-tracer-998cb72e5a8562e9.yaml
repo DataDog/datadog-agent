@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Adds eBPF-based network collection component called network-tracer.
+

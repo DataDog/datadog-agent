@@ -1,124 +1,130 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/suite"
+
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func TestDefaultDatadogConfig(t *testing.T) {
-	assert.Equal(t, false, LogsAgent.GetBool("log_enabled"))
-	assert.Equal(t, false, LogsAgent.GetBool("logs_enabled"))
-	assert.Equal(t, "", LogsAgent.GetString("logset"))
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", LogsAgent.GetString("logs_config.dd_url"))
-	assert.Equal(t, 10516, LogsAgent.GetInt("logs_config.dd_port"))
-	assert.Equal(t, false, LogsAgent.GetBool("logs_config.dev_mode_no_ssl"))
-	assert.Equal(t, "agent-443-intake.logs.datadoghq.com", LogsAgent.GetString("logs_config.dd_url_443"))
-	assert.Equal(t, false, LogsAgent.GetBool("logs_config.use_port_443"))
-	assert.Equal(t, true, LogsAgent.GetBool("logs_config.dev_mode_use_proto"))
-	assert.Equal(t, 100, LogsAgent.GetInt("logs_config.open_files_limit"))
-	assert.Equal(t, 9000, LogsAgent.GetInt("logs_config.frame_size"))
-	assert.Equal(t, -1, LogsAgent.GetInt("logs_config.tcp_forward_port"))
-	assert.Equal(t, "", LogsAgent.GetString("logs_config.socks5_proxy_address"))
-	assert.Equal(t, "", LogsAgent.GetString("logs_config.logs_dd_url"))
-	assert.Equal(t, false, LogsAgent.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, 30, LogsAgent.GetInt("logs_config.stop_grace_period"))
+type ConfigTestSuite struct {
+	suite.Suite
+	config *coreConfig.MockConfig
 }
 
-func TestDefaultSources(t *testing.T) {
+func (suite *ConfigTestSuite) SetupTest() {
+	suite.config = coreConfig.Mock()
+}
+
+func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
+	suite.Equal(false, suite.config.GetBool("log_enabled"))
+	suite.Equal(false, suite.config.GetBool("logs_enabled"))
+	suite.Equal("", suite.config.GetString("logs_config.dd_url"))
+	suite.Equal(10516, suite.config.GetInt("logs_config.dd_port"))
+	suite.Equal(false, suite.config.GetBool("logs_config.dev_mode_no_ssl"))
+	suite.Equal("agent-443-intake.logs.datadoghq.com", suite.config.GetString("logs_config.dd_url_443"))
+	suite.Equal(false, suite.config.GetBool("logs_config.use_port_443"))
+	suite.Equal(true, suite.config.GetBool("logs_config.dev_mode_use_proto"))
+	suite.Equal(100, suite.config.GetInt("logs_config.open_files_limit"))
+	suite.Equal(9000, suite.config.GetInt("logs_config.frame_size"))
+	suite.Equal("", suite.config.GetString("logs_config.socks5_proxy_address"))
+	suite.Equal("", suite.config.GetString("logs_config.logs_dd_url"))
+	suite.Equal(false, suite.config.GetBool("logs_config.logs_no_ssl"))
+	suite.Equal(30, suite.config.GetInt("logs_config.stop_grace_period"))
+	suite.Equal(nil, suite.config.Get("logs_config.processing_rules"))
+	suite.Equal("", suite.config.GetString("logs_config.processing_rules"))
+	suite.Equal(false, suite.config.GetBool("logs_config.use_http"))
+	suite.Equal(false, suite.config.GetBool("logs_config.k8s_container_use_file"))
+}
+
+func (suite *ConfigTestSuite) TestDefaultSources() {
 	var sources []*LogSource
 	var source *LogSource
 
-	LogsAgent.Set("logs_config.tcp_forward_port", 1234)
-	LogsAgent.Set("logs_config.container_collect_all", true)
+	suite.config.Set("logs_config.container_collect_all", true)
 
 	sources = DefaultSources()
-	assert.Equal(t, 2, len(sources))
+	suite.Equal(1, len(sources))
 
 	source = sources[0]
-	assert.Equal(t, "tcp_forward", source.Name)
-	assert.Equal(t, TCPType, source.Config.Type)
-	assert.Equal(t, 1234, source.Config.Port)
-
-	source = sources[1]
-	assert.Equal(t, "container_collect_all", source.Name)
-	assert.Equal(t, DockerType, source.Config.Type)
-	assert.Equal(t, "docker", source.Config.Source)
-	assert.Equal(t, "docker", source.Config.Service)
+	suite.Equal("container_collect_all", source.Name)
+	suite.Equal(DockerType, source.Config.Type)
+	suite.Equal("docker", source.Config.Source)
+	suite.Equal("docker", source.Config.Service)
 }
 
-func TestBuildEndpointsShouldSucceedWithDefaultAndValidOverride(t *testing.T) {
-	var endpoints *Endpoints
-	var err error
-	var endpoint Endpoint
+func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnNoRulesWithEmptyValues() {
+	var (
+		rules []*ProcessingRule
+		err   error
+	)
 
-	LogsAgent.Set("api_key", "azerty")
-	LogsAgent.Set("logset", "baz")
-	LogsAgent.Set("logs_config.socks5_proxy_address", "boz:1234")
+	suite.config.Set("logs_config.processing_rules", nil)
 
-	endpoints, err = BuildEndpoints()
-	assert.Nil(t, err)
-	endpoint = endpoints.Main
-	assert.Equal(t, "azerty", endpoint.APIKey)
-	assert.Equal(t, "baz", endpoint.Logset)
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoint.Host)
-	assert.Equal(t, 10516, endpoint.Port)
-	assert.True(t, endpoint.UseSSL)
-	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
-	assert.Equal(t, 0, len(endpoints.Additionals))
+	rules, err = GlobalProcessingRules()
+	suite.Nil(err)
+	suite.Equal(0, len(rules))
 
-	LogsAgent.Set("logs_config.use_port_443", true)
-	endpoints, err = BuildEndpoints()
-	assert.Nil(t, err)
-	endpoint = endpoints.Main
-	assert.Equal(t, "azerty", endpoint.APIKey)
-	assert.Equal(t, "baz", endpoint.Logset)
-	assert.Equal(t, "agent-443-intake.logs.datadoghq.com", endpoint.Host)
-	assert.Equal(t, 443, endpoint.Port)
-	assert.True(t, endpoint.UseSSL)
-	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
-	assert.Equal(t, 0, len(endpoints.Additionals))
+	suite.config.Set("logs_config.processing_rules", "")
 
-	LogsAgent.Set("logs_config.logs_dd_url", "host:1234")
-	LogsAgent.Set("logs_config.logs_no_ssl", true)
-	endpoints, err = BuildEndpoints()
-	assert.Nil(t, err)
-	endpoint = endpoints.Main
-	assert.Equal(t, "azerty", endpoint.APIKey)
-	assert.Equal(t, "baz", endpoint.Logset)
-	assert.Equal(t, "host", endpoint.Host)
-	assert.Equal(t, 1234, endpoint.Port)
-	assert.False(t, endpoint.UseSSL)
-	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
-	assert.Equal(t, 0, len(endpoints.Additionals))
-
-	LogsAgent.Set("logs_config.logs_dd_url", ":1234")
-	LogsAgent.Set("logs_config.logs_no_ssl", false)
-	endpoints, err = BuildEndpoints()
-	assert.Nil(t, err)
-	endpoint = endpoints.Main
-	assert.Equal(t, "azerty", endpoint.APIKey)
-	assert.Equal(t, "baz", endpoint.Logset)
-	assert.Equal(t, "", endpoint.Host)
-	assert.Equal(t, 1234, endpoint.Port)
-	assert.True(t, endpoint.UseSSL)
-	assert.Equal(t, "boz:1234", endpoint.ProxyAddress)
-	assert.Equal(t, 0, len(endpoints.Additionals))
+	rules, err = GlobalProcessingRules()
+	suite.Nil(err)
+	suite.Equal(0, len(rules))
 }
 
-func TestBuildEndpointsShouldFailWithInvalidOverride(t *testing.T) {
-	invalidURLs := []string{
-		"host:foo",
-		"host",
-	}
+func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithValidMap() {
+	var (
+		rules []*ProcessingRule
+		rule  *ProcessingRule
+		err   error
+	)
 
-	for _, url := range invalidURLs {
-		LogsAgent.Set("logs_config.logs_dd_url", url)
-		_, err := BuildEndpoints()
-		assert.NotNil(t, err)
-	}
+	suite.config.Set("logs_config.processing_rules", []map[string]interface{}{
+		{
+			"type":    "exclude_at_match",
+			"name":    "exclude_foo",
+			"pattern": "foo",
+		},
+	})
+
+	rules, err = GlobalProcessingRules()
+	suite.Nil(err)
+	suite.Equal(1, len(rules))
+
+	rule = rules[0]
+	suite.Equal(ExcludeAtMatch, rule.Type)
+	suite.Equal("exclude_foo", rule.Name)
+	suite.Equal("foo", rule.Pattern)
+	suite.NotNil(rule.Regex)
+}
+
+func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithValidJSONString() {
+	var (
+		rules []*ProcessingRule
+		rule  *ProcessingRule
+		err   error
+	)
+
+	suite.config.Set("logs_config.processing_rules", `[{"type":"mask_sequences","name":"mask_api_keys","replace_placeholder":"****************************","pattern":"([A-Fa-f0-9]{28})"}]`)
+
+	rules, err = GlobalProcessingRules()
+	suite.Nil(err)
+	suite.Equal(1, len(rules))
+
+	rule = rules[0]
+	suite.Equal(MaskSequences, rule.Type)
+	suite.Equal("mask_api_keys", rule.Name)
+	suite.Equal("([A-Fa-f0-9]{28})", rule.Pattern)
+	suite.Equal("****************************", rule.ReplacePlaceholder)
+	suite.NotNil(rule.Regex)
+}
+
+func TestConfigTestSuite(t *testing.T) {
+	suite.Run(t, new(ConfigTestSuite))
 }

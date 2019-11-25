@@ -1,10 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !android
-//go:generate go run ../../pkg/config/render_config.go agent ../../pkg/config/config_template.yaml ./dist/datadog.yaml
 
 package main
 
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -34,7 +34,7 @@ func main() {
 	if len(os.Args) == 1 {
 		isIntSess, err := svc.IsAnInteractiveSession()
 		if err != nil {
-			fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
+			fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 		}
 		if !isIntSess {
 			common.EnableLoggingToFile()
@@ -72,7 +72,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
-	elog.Info(0x40000003, app.ServiceName)
+	elog.Info(0x40000003, config.ServiceName)
 
 loop:
 	for {
@@ -86,23 +86,23 @@ loop:
 				changes <- c.CurrentStatus
 			case svc.Stop:
 				log.Info("Received stop message from service control manager")
-				elog.Info(0x4000000c, app.ServiceName)
+				elog.Info(0x4000000c, config.ServiceName)
 				break loop
 			case svc.Shutdown:
 				log.Info("Received shutdown message from service control manager")
-				elog.Info(0x4000000d, app.ServiceName)
+				elog.Info(0x4000000d, config.ServiceName)
 				break loop
 			default:
 				log.Warnf("unexpected control request #%d", c)
 				elog.Warning(0xc0000009, string(c.Cmd))
 			}
 		case <-signals.Stopper:
-			elog.Info(0x4000000a, app.ServiceName)
+			elog.Info(0x4000000a, config.ServiceName)
 			break loop
 
 		}
 	}
-	elog.Info(0x4000000d, app.ServiceName)
+	elog.Info(0x4000000d, config.ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
 	app.StopAgent()
@@ -113,22 +113,22 @@ loop:
 func runService(isDebug bool) {
 	var err error
 	if isDebug {
-		elog = debug.New(app.ServiceName)
+		elog = debug.New(config.ServiceName)
 	} else {
-		elog, err = eventlog.Open(app.ServiceName)
+		elog, err = eventlog.Open(config.ServiceName)
 		if err != nil {
 			return
 		}
 	}
 	defer elog.Close()
 
-	elog.Info(0x40000007, app.ServiceName)
+	elog.Info(0x40000007, config.ServiceName)
 	run := svc.Run
 
-	err = run(app.ServiceName, &myservice{})
+	err = run(config.ServiceName, &myservice{})
 	if err != nil {
 		elog.Error(0xc0000008, err.Error())
 		return
 	}
-	elog.Info(0x40000004, app.ServiceName)
+	elog.Info(0x40000004, config.ServiceName)
 }

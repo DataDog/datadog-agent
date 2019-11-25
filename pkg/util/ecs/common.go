@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,12 +25,17 @@ const (
 )
 
 // GetTaskMetadata extracts the metadata payload for the task the agent is in.
-func GetTaskMetadata() (TaskMetadata, error) {
-	var meta TaskMetadata
+func GetTaskMetadata() (metadata.TaskMetadata, error) {
+	return GetTaskMetadataWithURL(metadataURL)
+}
+
+// GetTaskMetadataWithURL extracts the metadata payload for a task given a metadata URL.
+func GetTaskMetadataWithURL(url string) (metadata.TaskMetadata, error) {
+	var meta metadata.TaskMetadata
 	client := http.Client{
 		Timeout: timeout,
 	}
-	resp, err := client.Get(metadataURL)
+	resp, err := client.Get(url)
 	if err != nil {
 		return meta, err
 	}
@@ -39,19 +44,9 @@ func GetTaskMetadata() (TaskMetadata, error) {
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&meta)
 	if err != nil {
-		log.Errorf("decoding task metadata failed - %s", err)
+		log.Errorf("Decoding task metadata failed - %s", err)
 	}
 	return meta, err
-}
-
-// getECSContainers returns all containers exposed by the ECS API as plain ECSContainers
-func getECSContainers() ([]Container, error) {
-	meta, err := GetTaskMetadata()
-	if err != nil || len(meta.Containers) == 0 {
-		log.Errorf("unable to retrieve task metadata")
-		return nil, err
-	}
-	return meta.Containers, nil
 }
 
 // ListContainers returns all containers exposed by the ECS API and their metrics
@@ -60,29 +55,30 @@ func ListContainers() ([]*containers.Container, error) {
 
 	ecsContainers, err := getECSContainers()
 	if err != nil {
-		log.Error("unable to get the container list from ecs")
+		log.Error("Unable to get the container list from ecs")
 		return cList, err
 	}
 	for _, c := range ecsContainers {
-		entityID := docker.ContainerIDToEntityName(c.DockerID)
+		entityID := containers.BuildTaggerEntityName(c.DockerID)
 		ctr := &containers.Container{
-			Type:     "ECS",
-			ID:       c.DockerID,
-			EntityID: entityID,
-			Name:     c.DockerName,
-			Image:    c.Image,
-			ImageID:  c.ImageID,
+			Type:        "ECS",
+			ID:          c.DockerID,
+			EntityID:    entityID,
+			Name:        c.DockerName,
+			Image:       c.Image,
+			ImageID:     c.ImageID,
+			AddressList: metadata.ParseECSContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName),
 		}
 
 		createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
 		if err != nil {
-			log.Errorf("unable to determine creation time for container %s - %s", c.DockerID, err)
+			log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
 		} else {
 			ctr.Created = createdAt.Unix()
 		}
 		startedAt, err := time.Parse(time.RFC3339, c.StartedAt)
 		if err != nil {
-			log.Errorf("unable to determine creation time for container %s - %s", c.DockerID, err)
+			log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
 		} else {
 			ctr.StartedAt = startedAt.Unix()
 		}
@@ -106,7 +102,7 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 	for _, ctr := range cList {
 		stats, err := getContainerStats(ctr.ID)
 		if err != nil {
-			log.Debugf("unable to get stats from ECS for container %s: %s", ctr.ID, err)
+			log.Debugf("Unable to get stats from ECS for container %s: %s", ctr.ID, err)
 			continue
 		}
 		// TODO: add metrics - complete for https://github.com/DataDog/datadog-process-agent/blob/970729924e6b2b6fe3a912b62657c297621723cc/checks/container_rt.go#L110-L128
@@ -121,6 +117,16 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 		}
 	}
 	return nil
+}
+
+// getECSContainers returns all containers exposed by the ECS API as plain ECSContainers
+func getECSContainers() ([]metadata.ContainerMetadata, error) {
+	meta, err := GetTaskMetadata()
+	if err != nil || len(meta.Containers) == 0 {
+		log.Errorf("Unable to retrieve task metadata")
+		return nil, err
+	}
+	return meta.Containers, nil
 }
 
 // getContainerStats retrives stats about a container from the ECS stats endpoint

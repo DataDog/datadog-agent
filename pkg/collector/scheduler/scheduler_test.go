@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package scheduler
 
@@ -17,15 +17,16 @@ import (
 // FIXTURE
 type TestCheck struct{ intl time.Duration }
 
-func (c *TestCheck) String() string                                     { return "TestCheck" }
-func (c *TestCheck) Version() string                                    { return "" }
-func (c *TestCheck) Configure(integration.Data, integration.Data) error { return nil }
-func (c *TestCheck) Interval() time.Duration                            { return c.intl }
-func (c *TestCheck) Run() error                                         { return nil }
-func (c *TestCheck) Stop()                                              {}
-func (c *TestCheck) ID() check.ID                                       { return check.ID(c.String()) }
-func (c *TestCheck) GetWarnings() []error                               { return []error{} }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error)          { return make(map[string]int64), nil }
+func (c *TestCheck) String() string                                             { return "TestCheck" }
+func (c *TestCheck) Version() string                                            { return "" }
+func (c *TestCheck) ConfigSource() string                                       { return "" }
+func (c *TestCheck) Configure(integration.Data, integration.Data, string) error { return nil }
+func (c *TestCheck) Interval() time.Duration                                    { return c.intl }
+func (c *TestCheck) Run() error                                                 { return nil }
+func (c *TestCheck) Stop()                                                      {}
+func (c *TestCheck) ID() check.ID                                               { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                                       { return []error{} }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error)                  { return make(map[string]int64), nil }
 
 var initialMinAllowedInterval = minAllowedInterval
 

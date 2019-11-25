@@ -191,8 +191,15 @@ type configFormat struct {
 func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	fileName := mux.Vars(r)["fileName"]
 	checkFolder := mux.Vars(r)["checkFolder"]
+
+	var checkConfFolderPath, defaultCheckConfFolderPath string
+
 	if checkFolder != "" {
-		fileName = filepath.Join(checkFolder, fileName)
+		checkConfFolderPath = filepath.Join(config.Datadog.GetString("confd_path"), checkFolder)
+		defaultCheckConfFolderPath = filepath.Join(common.GetDistPath(), "conf.d", checkFolder)
+	} else {
+		checkConfFolderPath = config.Datadog.GetString("confd_path")
+		defaultCheckConfFolderPath = filepath.Join(common.GetDistPath(), "conf.d")
 	}
 
 	if r.Method == "POST" {
@@ -215,12 +222,14 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Attempt to write new configs to custom checks directory
-		path := filepath.Join(config.Datadog.GetString("confd_path"), fileName)
+		path := filepath.Join(checkConfFolderPath, fileName)
+		os.MkdirAll(checkConfFolderPath, os.FileMode(0755))
 		e = ioutil.WriteFile(path, data, 0600)
 
 		// If the write didn't work, try writing to the default checks directory
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-			path = filepath.Join(common.GetDistPath(), "conf.d", fileName)
+			path = filepath.Join(defaultCheckConfFolderPath, fileName)
+			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755))
 			e = ioutil.WriteFile(path, data, 0600)
 		}
 
@@ -234,12 +243,12 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Success"))
 	} else if r.Method == "DELETE" {
 		// Attempt to write new configs to custom checks directory
-		path := filepath.Join(config.Datadog.GetString("confd_path"), fileName)
+		path := filepath.Join(checkConfFolderPath, fileName)
 		e := os.Rename(path, path+".disabled")
 
 		// If the move didn't work, try writing to the dev checks directory
 		if e != nil {
-			path = filepath.Join(common.GetDistPath(), "conf.d", fileName)
+			path = filepath.Join(defaultCheckConfFolderPath, fileName)
 			e = os.Rename(path, path+".disabled")
 		}
 
@@ -252,6 +261,25 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		log.Infof("Successfully disabled integration " + fileName + " config file.")
 		w.Write([]byte("Success"))
 	}
+}
+
+func getWheelsChecks() ([]string, error) {
+	pyChecks := []string{}
+
+	// The integration list includes JMX integrations, they ship as wheels too.
+	// JMX wheels just contain sample configs, but they do ship.
+	integrations, err := getPythonChecks()
+	if err != nil {
+		return []string{}, err
+	}
+
+	for _, integration := range integrations {
+		if _, ok := config.StandardJMXIntegrations[integration]; !ok {
+			pyChecks = append(pyChecks, integration)
+		}
+	}
+
+	return pyChecks, nil
 }
 
 // Sends a list containing the names of all the checks
@@ -270,22 +298,24 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Get wheels
-	pyIntegrations, err := getPythonChecks()
+	wheelsIntegrations, err := getWheelsChecks()
 	if err != nil {
 		log.Errorf("Unable to compile list of installed integrations: %v", err)
 		w.Write([]byte("Unable to compile list of installed integrations."))
 		return
 	}
 
-	integrations = append(integrations, pyIntegrations...)
+	// Get python wheels
+	integrations = append(integrations, wheelsIntegrations...)
 
 	// Get go-checks
 	goIntegrations := core.GetRegisteredFactoryKeys()
 	integrations = append(integrations, goIntegrations...)
 
 	// Get jmx-checks
-	integrations = append(integrations, check.JMXChecks...)
+	for integration := range config.StandardJMXIntegrations {
+		integrations = append(integrations, integration)
+	}
 
 	if len(integrations) == 0 {
 		w.Write([]byte("No check (.py) files found."))
@@ -297,29 +327,51 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(res))
 }
 
+// collects the configs in the specified path
+func getConfigsInPath(path string) ([]string, error) {
+	filenames := []string{}
+
+	files, e := readConfDir(path)
+	if e != nil {
+		return []string{}, nil
+	}
+
+	// If a default config is found but a non-default version exists, ignore default
+	sort.Strings(files)
+	lookup := make(map[string]bool)
+	for _, file := range files {
+		checkName := file[:strings.Index(file, ".")]
+		fileName := filepath.Base(file)
+
+		// metrics yaml does not contain the actual check config - skip
+		match, _ := filepath.Match(fileName, "metrics.yaml")
+		if checkName != "metrics" && match {
+			continue
+		}
+
+		if ext := filepath.Ext(fileName); ext == ".default" {
+			if _, exists := lookup[checkName]; exists {
+				continue
+			}
+		}
+
+		filenames = append(filenames, file)
+		lookup[checkName] = true
+	}
+	return filenames, nil
+}
+
 // Sends a list containing the names of all the config files
 func listConfigs(w http.ResponseWriter, r *http.Request) {
 	filenames := []string{}
 	for _, path := range configPaths {
-		files, e := readConfDir(path)
 
-		if e == nil {
-			// If a default config is found but a non-default version exists, ignore default
-			sort.Strings(files)
-			lookup := make(map[string]bool)
-			for _, file := range files {
-				checkName := file[:strings.Index(file, ".")]
-
-				if ext := filepath.Ext(file); ext == ".default" {
-					if _, exists := lookup[checkName]; exists {
-						continue
-					}
-				}
-
-				filenames = append(filenames, file)
-				lookup[checkName] = true
-			}
+		configs, e := getConfigsInPath(path)
+		if e != nil {
+			log.Errorf("Unable to list configurations from %s: %v", path, e)
+			continue
 		}
+		filenames = append(filenames, configs...)
 	}
 
 	if len(filenames) == 0 {

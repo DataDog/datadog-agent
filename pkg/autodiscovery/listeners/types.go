@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package listeners
 
@@ -26,6 +26,7 @@ type ContainerPort struct {
 // ADIdentifiers field.
 type Service interface {
 	GetEntity() string                         // unique entity name
+	GetTaggerEntity() string                   // tagger entity name
 	GetADIdentifiers() ([]string, error)       // identifiers on which templates will be matched
 	GetHosts() (map[string]string, error)      // network --> IP address
 	GetPorts() ([]ContainerPort, error)        // network ports
@@ -33,6 +34,7 @@ type Service interface {
 	GetPid() (int, error)                      // process identifier
 	GetHostname() (string, error)              // hostname.domainname for the entity
 	GetCreationTime() integration.CreationTime // created before or after the agent start
+	IsReady() bool                             // is the service ready
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

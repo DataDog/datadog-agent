@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build zk
 
@@ -67,6 +67,11 @@ func (z *ZookeeperConfigProvider) Collect() ([]integration.Config, error) {
 	}
 	for _, id := range identifiers {
 		c := z.getTemplates(id)
+
+		for idx := range c {
+			c[idx].Source = "zookeeper:" + id
+		}
+
 		configs = append(configs, c...)
 	}
 	return configs, nil
@@ -184,7 +189,7 @@ func (z *ZookeeperConfigProvider) getTemplates(key string) []integration.Config 
 	return buildTemplates(key, checkNames, initConfigs, instances)
 }
 
-func (z *ZookeeperConfigProvider) getJSONValue(key string) ([]integration.Data, error) {
+func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
 	rawValue, _, err := z.client.Get(key)
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't get key '%s' from zookeeper: %s", key, err)

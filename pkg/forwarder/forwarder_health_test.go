@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package forwarder
 
@@ -33,9 +33,9 @@ func TestHasValidAPIKey(t *testing.T) {
 	fh.init()
 	assert.True(t, fh.hasValidAPIKey())
 
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key1 on endpoint "+ts1.URL))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key2 on endpoint "+ts1.URL))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3 on endpoint "+ts2.URL))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key1"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key2"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 }
 
 func TestHasValidAPIKeyErrors(t *testing.T) {
@@ -64,7 +64,7 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	fh.init()
 	assert.True(t, fh.hasValidAPIKey())
 
-	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending with _key1 on endpoint "+ts1.URL))
-	assert.Equal(t, &apiKeyStatusUnknown, apiKeyStatus.Get("API key ending with _key2 on endpoint "+ts1.URL))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3 on endpoint "+ts2.URL))
+	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending with _key1"))
+	assert.Equal(t, &apiKeyStatusUnknown, apiKeyStatus.Get("API key ending with _key2"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 }

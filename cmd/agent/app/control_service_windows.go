@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package app
 
@@ -9,10 +9,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"syscall"
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/windows"
@@ -50,7 +50,7 @@ var restartsvcCommand = &cobra.Command{
 }
 
 var (
-	modadvapi32 = syscall.NewLazyDLL("advapi32.dll")
+	modadvapi32 = windows.NewLazyDLL("advapi32.dll")
 
 	procEnumDependentServices = modadvapi32.NewProc("EnumDependentServicesW")
 )
@@ -66,30 +66,43 @@ const (
 
 // StartService starts the agent service via the Service Control Manager
 func StartService(cmd *cobra.Command, args []string) error {
-	m, err := mgr.Connect()
+	/*
+	 * default go impolementations of mgr.Connect and mgr.OpenService use way too
+	 * open permissions by default.  Use those structures so the other methods
+	 * work properly, but initialize them here using restrictive enough permissions
+	 * that we can actually open/start the service when running as non-root.
+	 */
+	h, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
 	if err != nil {
+		log.Warnf("Failed to connect to scm %v", err)
 		return err
 	}
+	m := &mgr.Mgr{Handle: h}
 	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
+
+	hSvc, err := windows.OpenService(m.Handle, windows.StringToUTF16Ptr(config.ServiceName),
+		windows.SERVICE_START|windows.SERVICE_STOP)
 	if err != nil {
+		log.Warnf("Failed to open service %v", err)
 		return fmt.Errorf("could not access service: %v", err)
 	}
-	defer s.Close()
-	err = s.Start("is", "manual-started")
+	scm := &mgr.Service{Name: config.ServiceName, Handle: hSvc}
+	defer scm.Close()
+	err = scm.Start("is", "manual-started")
 	if err != nil {
+		log.Warnf("Failed to start service %v", err)
 		return fmt.Errorf("could not start service: %v", err)
 	}
 	return nil
 }
 
 func stopService(cmd *cobra.Command, args []string) error {
-	return StopService(ServiceName, true)
+	return StopService(config.ServiceName, true)
 }
 
 func restartService(cmd *cobra.Command, args []string) error {
 	var err error
-	if err = StopService(ServiceName, true); err == nil {
+	if err = StopService(config.ServiceName, true); err == nil {
 		err = StartService(cmd, args)
 	}
 	return err
@@ -97,15 +110,27 @@ func restartService(cmd *cobra.Command, args []string) error {
 
 // StopService stops the agent service via the Service Control Manager
 func StopService(serviceName string, withDeps bool) error {
-	m, err := mgr.Connect()
+	/*
+	 * default go impolementations of mgr.Connect and mgr.OpenService use way too
+	 * open permissions by default.  Use those structures so the other methods
+	 * work properly, but initialize them here using restrictive enough permissions
+	 * that we can actually open/start the service when running as non-root.
+	 */
+	h, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
 	if err != nil {
+		log.Warnf("Failed to connect to scm %v", err)
 		return err
 	}
+	m := &mgr.Mgr{Handle: h}
 	defer m.Disconnect()
-	s, err := m.OpenService(serviceName)
+
+	hSvc, err := windows.OpenService(m.Handle, windows.StringToUTF16Ptr(serviceName),
+		windows.SERVICE_START|windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS|windows.SERVICE_ENUMERATE_DEPENDENTS)
 	if err != nil {
+		log.Warnf("Failed to open service %v", err)
 		return fmt.Errorf("could not access service: %v", err)
 	}
+	s := &mgr.Service{Name: serviceName, Handle: hSvc}
 	defer s.Close()
 	if withDeps {
 		deps, err := enumDependentServices(s.Handle, enumServiceActive)
@@ -205,7 +230,7 @@ func enumDependentServices(h windows.Handle, state enumServiceState) (services [
 		uintptr(unsafe.Pointer(&bufsz)),
 		uintptr(unsafe.Pointer(&count)))
 
-	if err != error(syscall.ERROR_MORE_DATA) {
+	if err != error(windows.ERROR_MORE_DATA) {
 		log.Warnf("Error getting buffer %v", err)
 		return
 	}

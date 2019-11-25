@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -17,7 +17,7 @@ import (
 )
 
 func TestParsePods(t *testing.T) {
-	dockerEntityID := "docker://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerEntityID := "container_id://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -26,6 +26,7 @@ func TestParsePods(t *testing.T) {
 				Name:  "dd-agent",
 			},
 		},
+		Phase: "Running",
 	}
 	dockerContainerSpec := kubelet.Spec{
 		Containers: []kubelet.ContainerSpec{
@@ -36,7 +37,7 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
-	dockerEntityID2 := "docker://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerEntityID2 := "container_id://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerTwoContainersStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -50,6 +51,7 @@ func TestParsePods(t *testing.T) {
 				Name:  "filter",
 			},
 		},
+		Phase: "Pending",
 	}
 	dockerTwoContainersSpec := kubelet.Spec{
 		Containers: []kubelet.ContainerSpec{
@@ -64,7 +66,58 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
-	criEntityId := "cri-containerd://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
+	dockerEntityIDCassandra := "container_id://6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d"
+	dockerContainerStatusCassandra := kubelet.Status{
+		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityIDCassandra,
+				Image: "gcr.io/google-samples/cassandra:v13",
+				Name:  "cassandra",
+			},
+		},
+		Phase: "Running",
+	}
+	dockerContainerSpecCassandra := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "cassandra",
+				Image: "gcr.io/google-samples/cassandra:v13",
+			},
+		},
+		Volumes: []kubelet.VolumeSpec{
+			{
+				Name: "cassandra-data",
+				PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
+					ClaimName: "cassandra-data-cassandra-0",
+				},
+			},
+		},
+	}
+
+	dockerContainerSpecCassandraMultiplePvcs := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "cassandra",
+				Image: "gcr.io/google-samples/cassandra:v13",
+			},
+		},
+		Volumes: []kubelet.VolumeSpec{
+			{
+				Name: "cassandra-data",
+				PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
+					ClaimName: "cassandra-data-cassandra-0",
+				},
+			},
+			{
+				Name: "another-pvc",
+				PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
+					ClaimName: "another-pvc-data-0",
+				},
+			},
+		},
+	}
+
+	criEntityId := "container_id://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
 	criContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -73,6 +126,7 @@ func TestParsePods(t *testing.T) {
 				Name:  "redis-master",
 			},
 		},
+		Phase: "Running",
 	}
 	criContainerSpec := kubelet.Spec{
 		Containers: []kubelet.ContainerSpec{
@@ -124,10 +178,13 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"pod_name:dd-agent-rc-qd876",
 				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"pod_name:dd-agent-rc-qd876",
 					"display_container_name:dd-agent_dd-agent-rc-qd876",
 				},
 			}},
@@ -154,14 +211,16 @@ func TestParsePods(t *testing.T) {
 			expectedInfo: []*TagInfo{
 				{
 					Source: "kubelet",
-					Entity: "kubernetes_pod://5e8e05",
+					Entity: "kubernetes_pod_uid://5e8e05",
 					LowCardTags: []string{
 						"kube_namespace:default",
 						"kube_daemon_set:dd-agent-rc",
+						"pod_phase:pending",
 					},
-					HighCardTags: []string{
+					OrchestratorCardTags: []string{
 						"pod_name:dd-agent-rc-qd876",
 					},
+					HighCardTags: []string{},
 				},
 				{
 					Source: "kubelet",
@@ -173,10 +232,13 @@ func TestParsePods(t *testing.T) {
 						"image_tag:latest5",
 						"image_name:datadog/docker-dd-agent",
 						"short_image:docker-dd-agent",
+						"pod_phase:pending",
+					},
+					OrchestratorCardTags: []string{
+						"pod_name:dd-agent-rc-qd876",
 					},
 					HighCardTags: []string{
 						"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-						"pod_name:dd-agent-rc-qd876",
 						"display_container_name:dd-agent_dd-agent-rc-qd876",
 					},
 				},
@@ -190,10 +252,13 @@ func TestParsePods(t *testing.T) {
 						"image_tag:latest",
 						"image_name:datadog/docker-filter",
 						"short_image:docker-filter",
+						"pod_phase:pending",
+					},
+					OrchestratorCardTags: []string{
+						"pod_name:dd-agent-rc-qd876",
 					},
 					HighCardTags: []string{
 						"container_id:ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-						"pod_name:dd-agent-rc-qd876",
 						"display_container_name:filter_dd-agent-rc-qd876",
 					},
 				},
@@ -223,7 +288,9 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
 				},
+				OrchestratorCardTags: []string{},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 				},
@@ -253,10 +320,13 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"kube_replica_set:frontend-2891696001",
 				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"kube_replica_set:frontend-2891696001",
 				},
 			}},
 		},
@@ -284,10 +354,13 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"kube_replica_set:front-end-768dd754b7",
 				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"kube_replica_set:front-end-768dd754b7",
 				},
 			}},
 		},
@@ -324,7 +397,9 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_phase:running",
 				},
+				OrchestratorCardTags: []string{},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
@@ -342,9 +417,11 @@ func TestParsePods(t *testing.T) {
 						"pod-template-hash": "490794276",
 					},
 					Annotations: map[string]string{
-						"noTag":     "don't collect",
-						"GitCommit": "ea38b55f07e40b68177111a2bff1e918132fd5fb",
-						"OwnerTeam": "Kenafeh",
+						"noTag":                          "don't collect",
+						"GitCommit":                      "ea38b55f07e40b68177111a2bff1e918132fd5fb",
+						"OwnerTeam":                      "Kenafeh",
+						"ad.datadoghq.com/tags":          `{"pod_template_version": "1.0.0"}`,
+						"ad.datadoghq.com/dd-agent.tags": `{"agent_version": "6.9.0"}`,
 					},
 				},
 				Status: dockerContainerStatus,
@@ -369,7 +446,11 @@ func TestParsePods(t *testing.T) {
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",
+					"pod_template_version:1.0.0",
+					"agent_version:6.9.0",
+					"pod_phase:running",
 				},
+				OrchestratorCardTags: []string{},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
 					"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb",
@@ -390,12 +471,18 @@ func TestParsePods(t *testing.T) {
 			},
 			labelsAsTags: map[string]string{},
 			expectedInfo: []*TagInfo{{
-				Source:      "kubelet",
-				Entity:      dockerEntityID,
-				LowCardTags: []string{"kube_container_name:dd-agent", "oshift_deployment_config:gitlab-ce"},
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_container_name:dd-agent",
+					"oshift_deployment_config:gitlab-ce",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"oshift_deployment:gitlab-ce-1",
+				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
-					"oshift_deployment:gitlab-ce-1",
 				},
 			}},
 		},
@@ -424,12 +511,163 @@ func TestParsePods(t *testing.T) {
 					"image_name:gcr.io/google_containers/redis",
 					"image_tag:e2e",
 					"short_image:redis",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"kube_replica_set:redis-master-546dc4865f",
+					"pod_name:redis-master-bpnn6",
 				},
 				HighCardTags: []string{
-					"pod_name:redis-master-bpnn6",
 					"display_container_name:redis-master_redis-master-bpnn6",
 					"container_id:acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1",
-					"kube_replica_set:redis-master-546dc4865f",
+				},
+			}},
+		},
+		{
+			desc: "pod labels as tags with wildcards",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Labels: map[string]string{
+						"component":         "kube-proxy",
+						"tier":              "node",
+						"k8s-app":           "kubernetes-dashboard",
+						"pod-template-hash": "490794276",
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			labelsAsTags: map[string]string{
+				"*":         "foo_%%label%%",
+				"component": "component",
+			},
+			annotationsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"foo_component:kube-proxy",
+					"component:kube-proxy",
+					"foo_tier:node",
+					"foo_k8s-app:kubernetes-dashboard",
+					"foo_pod-template-hash:490794276",
+					"image_name:datadog/docker-dd-agent",
+					"image_tag:latest5",
+					"kube_container_name:dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
+			}},
+		}, {
+			desc: "cronjob",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "hello-1562187720-xzbzh",
+					Namespace: "default",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "Job",
+							Name: "hello-1562187720",
+							ID:   "d0dcc17b-9dd5-11e9-b6f0-42010a840064",
+						},
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"image_name:datadog/docker-dd-agent",
+					"image_tag:latest5",
+					"kube_container_name:dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+					"kube_cronjob:hello",
+				},
+				OrchestratorCardTags: []string{"kube_job:hello-1562187720", "pod_name:hello-1562187720-xzbzh"},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"display_container_name:dd-agent_hello-1562187720-xzbzh",
+				},
+			}},
+		},
+		{
+			desc: "statefulset",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "cassandra-0",
+					Namespace: "default",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "StatefulSet",
+							Name: "cassandra",
+							ID:   "0fa7e650-da09-11e9-b8b8-42010af002dd",
+						},
+					},
+				},
+				Status: dockerContainerStatusCassandra,
+				Spec:   dockerContainerSpecCassandra,
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityIDCassandra,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"image_name:gcr.io/google-samples/cassandra",
+					"image_tag:v13",
+					"kube_container_name:cassandra",
+					"short_image:cassandra",
+					"pod_phase:running",
+					"kube_stateful_set:cassandra",
+					"persistentvolumeclaim:cassandra-data-cassandra-0",
+				},
+				OrchestratorCardTags: []string{"pod_name:cassandra-0"},
+				HighCardTags: []string{
+					"container_id:6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d",
+					"display_container_name:cassandra_cassandra-0",
+				},
+			}},
+		},
+		{
+			desc: "statefulset 2 pvcs",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "cassandra-0",
+					Namespace: "default",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "StatefulSet",
+							Name: "cassandra",
+							ID:   "0fa7e650-da09-11e9-b8b8-42010af002dd",
+						},
+					},
+				},
+				Status: dockerContainerStatusCassandra,
+				Spec:   dockerContainerSpecCassandraMultiplePvcs,
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityIDCassandra,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"image_name:gcr.io/google-samples/cassandra",
+					"image_tag:v13",
+					"kube_container_name:cassandra",
+					"short_image:cassandra",
+					"pod_phase:running",
+					"kube_stateful_set:cassandra",
+					"persistentvolumeclaim:cassandra-data-cassandra-0",
+					"persistentvolumeclaim:another-pvc-data-0",
+				},
+				OrchestratorCardTags: []string{"pod_name:cassandra-0"},
+				HighCardTags: []string{
+					"container_id:6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d",
+					"display_container_name:cassandra_cassandra-0",
 				},
 			}},
 		},
@@ -474,8 +712,25 @@ func TestParseDeploymentForReplicaset(t *testing.T) {
 		"frontend-56a89cfff7": "", // no vowels allowed
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
-			collector := &KubeletCollector{}
-			assert.Equal(t, out, collector.parseDeploymentForReplicaset(in))
+			assert.Equal(t, out, parseDeploymentForReplicaset(in))
+		})
+	}
+}
+
+func TestParseCronJobForJob(t *testing.T) {
+	for in, out := range map[string]string{
+		"hello-1562319360": "hello",
+		"hello-600":        "hello",
+		"hello-world":      "",
+		"hello":            "",
+		"-hello1562319360": "",
+		"hello1562319360":  "",
+		"hello60":          "",
+		"hello-60":         "",
+		"hello-1562319a60": "",
+	} {
+		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+			assert.Equal(t, out, parseCronJobForJob(in))
 		})
 	}
 }

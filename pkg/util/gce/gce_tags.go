@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build gce
 
@@ -14,7 +14,7 @@ import (
 )
 
 // Slice of attributes to exclude from the tags (because they're too long, useless or sensitive)
-var excludedAttributes = []string{"kube-env", "startup-script", "shutdown-script", "configure-sh",
+var excludedAttributes = []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh",
 	"sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"}
 
 // GetTags gets the tags from the GCE api

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package metadata
 
@@ -12,4 +12,11 @@ import "github.com/DataDog/datadog-agent/pkg/serializer"
 // A Metadata Collector normally uses a Metadata Provider to fill the payload.
 type Collector interface {
 	Send(s *serializer.Serializer) error
+}
+
+// CollectorWithInit is an optional interface that collectors that need to be
+// initialized can implement. If implemented, the Init method will be called
+// when the collector is scheduled
+type CollectorWithInit interface {
+	Init() error
 }

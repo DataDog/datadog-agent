@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -21,6 +22,8 @@ import (
 
 	"github.com/docker/docker/api/types"
 )
+
+const dockerCommandMaxLength = 29
 
 func zipDockerSelfInspect(tempDir, hostname string) error {
 	du, err := docker.GetDockerUtil()
@@ -91,14 +94,8 @@ func zipDockerPs(tempDir, hostname string) error {
 
 	fmt.Fprintln(w, "CONTAINER ID\tIMAGE\tCOMMAND\tSTATUS\tPORTS\tNAMES\t")
 	for _, c := range containerList {
-		// Trimming command if too large
-		var command_limit = 18
-		command := c.Command
-		if len(c.Command) >= command_limit {
-			command = c.Command[:command_limit] + "…"
-		}
 		fmt.Fprintf(w, "%s\t%s\t%q\t%s\t%v\t%v\t\n",
-			c.ID[:12], c.Image, command, c.Status, c.Ports, c.Names)
+			c.ID[:12], c.Image, trimCommand(c.Command), c.Status, c.Ports, c.Names)
 	}
 	err = w.Flush()
 	if err != nil {
@@ -118,4 +115,25 @@ func zipDockerPs(tempDir, hostname string) error {
 	}
 
 	return nil
+}
+
+// trimCommand removes arguments from command string
+// and trims it to 29 characters max.
+func trimCommand(command string) string {
+	cutoff := strings.Index(command, " ")
+	if cutoff > 0 {
+		// Add a trailing space between cmd and … to
+		// differentiate removed args vs max length
+		cutoff += 1
+	} else {
+		cutoff = len(command)
+	}
+	if cutoff > dockerCommandMaxLength {
+		cutoff = dockerCommandMaxLength
+	}
+
+	if cutoff == len(command) {
+		return command
+	}
+	return command[:cutoff] + "…"
 }

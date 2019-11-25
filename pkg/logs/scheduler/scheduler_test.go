@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package scheduler
 
@@ -35,7 +35,7 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
-	assert.Equal(t, "", logSource.GetSourceType())
+	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
@@ -47,7 +47,7 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 	services := service.NewServices()
 	scheduler := NewScheduler(logSources, services)
 
-	servicesStream := services.GetAddedServices(service.Docker)
+	servicesStream := services.GetAddedServicesForType(config.DockerType)
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
@@ -84,7 +84,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	logSource := <-logSourcesStream
 	assert.Equal(t, config.DockerType, logSource.Name)
 	// We use the docker socket, not sourceType here
-	assert.Equal(t, "", logSource.GetSourceType())
+	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
@@ -95,7 +95,7 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()
 	scheduler := NewScheduler(logSources, services)
-	servicesStream := services.GetRemovedServices(service.Docker)
+	servicesStream := services.GetRemovedServicesForType(config.DockerType)
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),

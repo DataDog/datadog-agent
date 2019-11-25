@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package autodiscovery
 
@@ -76,11 +76,11 @@ func (cache *TemplateCache) Get(adID string) ([]integration.Config, error) {
 }
 
 // GetUnresolvedTemplates returns templates yet to be resolved
-func (cache *TemplateCache) GetUnresolvedTemplates() map[string]integration.Config {
-	tpls := make(map[string]integration.Config)
+func (cache *TemplateCache) GetUnresolvedTemplates() map[string][]integration.Config {
+	tpls := make(map[string][]integration.Config)
 	for d, config := range cache.digestToTemplate {
 		ids := strings.Join(cache.digestToADId[d][:], ",")
-		tpls[ids] = config
+		tpls[ids] = append(tpls[ids], config)
 	}
 	return tpls
 }

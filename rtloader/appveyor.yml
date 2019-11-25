@@ -1,0 +1,62 @@
+version: '{branch}.{build}'
+shallow_clone: false
+platform: x64
+skip_branch_with_pr: true
+
+branches:
+  only:
+    - master
+    - /^\d+\.\d+\.\d+$/
+
+environment:
+  GOPATH: C:\gopath
+  # Give hints to CMake to find Pythons
+  Python2_ROOT_DIR: C:\Python27-x64
+  Python3_ROOT_DIR: C:\Python37-x64
+  PIP2: pip2 -q
+  PIP3: pip3 -q
+  MSYS_ROOT: C:\msys64
+
+install:
+  - set PATH=%APPVEYOR_BUILD_FOLDER%\bin;%GOPATH%\bin;%Python2_ROOT_DIR%;%Python2_ROOT_DIR%\Scripts;%Python3_ROOT_DIR%;%Python3_ROOT_DIR%\Scripts;%MSYS_ROOT%\mingw64\bin;%MSYS_ROOT%\usr\bin\;%PATH%
+  - git clone --depth 1 https://github.com/datadog/integrations-core
+  - "%PIP2% install pyyaml requests prometheus_client rtloader"
+  - "%PIP3% install pyyaml requests prometheus_client rtloader"
+
+cache:
+  - '%LOCALAPPDATA%\pip\Cache'
+
+build: off
+
+test_script:
+  - cmake -G "MSYS Makefiles" .
+  - bash -c "make clang-format"
+  - bash -c "make && make -C test run"
+  # we install the base check here because tests must run in a clean env
+  - "%PIP2% install -r integrations-core/directory/requirements.in"
+  - "%PIP2% install integrations-core/datadog_checks_base integrations-core/directory"
+  - bash -c "./bin/demo 2"
+  - "%PIP3% install -r integrations-core/directory/requirements.in"
+  - "%PIP3% install integrations-core/datadog_checks_base integrations-core/directory"
+  - bash -c "./bin/demo 3"
+  # archive binaries
+  - 7z a "datadog-agent-rtloader.zip" "./bin/*.dll" "./rtloader/libdatadog-agent-rtloader.a"
+
+artifacts:
+  - path: "datadog-agent-rtloader.zip"
+
+deploy:
+  provider: GitHub
+  description: "Datadog Agent RtLoader"
+  force_update: true
+  auth_token:
+    secure: 89PR5NjCO2AajmsJBlM/lr5EpYMefvZaVve8Tkyxu2X9xqVcxKGcq25C9ywMySDI
+  artifact: "datadog-agent-rtloader.zip"
+  tag: $(APPVEYOR_REPO_TAG_NAME)
+  on:
+    # deploy on tag push only
+    appveyor_repo_tag: true
+
+# uncomment to debug builds
+# on_finish:
+#   - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))

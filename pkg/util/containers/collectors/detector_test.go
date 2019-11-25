@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package collectors
 
@@ -66,6 +66,7 @@ func (suite *DetectorTestSuite) SetupSuite() {
 	suite.originalCatalog = defaultCatalog
 	suite.originalPriorities = collectorPriorities
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",
@@ -134,13 +135,13 @@ func (suite *DetectorTestSuite) TestConfigureOneUnknown() {
 // TestConfigureOneRetry makes sure we retry collectors,
 // then select the new one based on higher priority
 func (suite *DetectorTestSuite) TestConfigureRetry() {
-	ok := registerMock("ok", NodeOrchestrator)
+	ok := registerMock("ok", NodeRuntime)
 	ok.On("Detect").Return(nil)
-	noRetry := registerMock("noretry", NodeOrchestrator)
+	noRetry := registerMock("noretry", NodeRuntime)
 	noRetry.On("Detect").Return(errors.New("retry not implemented"))
-	fail := registerMock("fail", NodeRuntime)
+	fail := registerMock("fail", NodeOrchestrator)
 	fail.On("Detect").Return(permaFailRetryError)
-	retry := registerMock("retry", NodeRuntime)
+	retry := registerMock("retry", NodeOrchestrator)
 	retry.On("Detect").Return(willRetryError).Once()
 	retry.On("Detect").Return(nil).Once()
 
@@ -213,9 +214,9 @@ func (suite *DetectorTestSuite) TestConfigureTwoByName() {
 // TestConfigureTwoByPrio autodetects between two valid collectors,
 // selected by priority
 func (suite *DetectorTestSuite) TestConfigureTwoByPrio() {
-	one := registerMock("one", NodeOrchestrator)
+	one := registerMock("one", NodeRuntime)
 	one.On("Detect").Return(nil).Once()
-	two := registerMock("two", NodeRuntime)
+	two := registerMock("two", NodeOrchestrator)
 	two.On("Detect").Return(nil).Once()
 
 	d := NewDetector("")

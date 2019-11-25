@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package collector
 
@@ -23,12 +23,12 @@ type TestCheck struct {
 	stop     chan bool
 }
 
-func (c *TestCheck) Stop()                                     { c.stop <- true }
-func (c *TestCheck) Configure(a, b integration.Data) error     { return nil }
-func (c *TestCheck) Interval() time.Duration                   { return 1 * time.Minute }
-func (c *TestCheck) Run() error                                { <-c.stop; return nil }
-func (c *TestCheck) GetWarnings() []error                      { return []error{} }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) Stop()                                                { c.stop <- true }
+func (c *TestCheck) Configure(a, b integration.Data, source string) error { return nil }
+func (c *TestCheck) Interval() time.Duration                              { return 1 * time.Minute }
+func (c *TestCheck) Run() error                                           { <-c.stop; return nil }
+func (c *TestCheck) GetWarnings() []error                                 { return []error{} }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error)            { return make(map[string]int64), nil }
 func (c *TestCheck) ID() check.ID {
 	if c.uniqueID != "" {
 		return c.uniqueID
@@ -43,6 +43,10 @@ func (c *TestCheck) String() string {
 }
 
 func (c *TestCheck) Version() string {
+	return ""
+}
+
+func (c *TestCheck) ConfigSource() string {
 	return ""
 }
 
@@ -109,12 +113,12 @@ func (suite *CollectorTestSuite) TestReloadCheck() {
 	_, err := suite.c.RunCheck(ch)
 
 	// check doesn't exist
-	err = suite.c.ReloadCheck("foo", empty, empty)
+	err = suite.c.ReloadCheck("foo", empty, empty, "test")
 	assert.NotNil(suite.T(), err)
 	assert.Equal(suite.T(), "cannot find a check with ID foo", err.Error())
 
 	// all good
-	err = suite.c.ReloadCheck("TestCheck", empty, empty)
+	err = suite.c.ReloadCheck("TestCheck", empty, empty, "test")
 	assert.Nil(suite.T(), err)
 }
 
@@ -172,7 +176,7 @@ func (suite *CollectorTestSuite) TestGetAllInstanceIDs() {
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 3, len(suite.c.checks))
 
-	ids := suite.c.getAllInstanceIDs("TestCheck1")
+	ids := suite.c.GetAllInstanceIDs("TestCheck1")
 	assert.Equal(suite.T(), 2, len(ids))
 	sort.Sort(ChecksList(ids))
 	expected := []check.ID{"bar", "foo"}

@@ -1,0 +1,12 @@
+comment: off
+
+coverage:
+  range: 20..100
+  round: down
+  precision: 2
+
+  status:
+    project: off
+    patch:
+      default:
+        target: '30'

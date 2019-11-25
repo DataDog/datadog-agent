@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package message
 
@@ -18,6 +18,7 @@ func TestSetTagsEmpty(t *testing.T) {
 	origin := NewOrigin(source)
 	origin.SetTags([]string{})
 	assert.Equal(t, []string{}, origin.Tags())
+	assert.Equal(t, "", origin.TagsToString())
 	assert.Equal(t, []byte{}, origin.TagsPayload())
 }
 
@@ -31,6 +32,7 @@ func TestTagsWithConfigTagsOnly(t *testing.T) {
 	origin := NewOrigin(source)
 	assert.Equal(t, []string{"sourcecategory:b", "c:d", "e"}, origin.Tags())
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"c:d,e\"]", string(origin.TagsPayload()))
+	assert.Equal(t, "ddsourcecategory:b,c:d,e", origin.TagsToString())
 }
 
 func TestSetTagsWithNoConfigTags(t *testing.T) {
@@ -42,6 +44,7 @@ func TestSetTagsWithNoConfigTags(t *testing.T) {
 	origin := NewOrigin(source)
 	origin.SetTags([]string{"foo:bar", "baz"})
 	assert.Equal(t, []string{"foo:bar", "baz", "sourcecategory:b"}, origin.Tags())
+	assert.Equal(t, "foo:bar,baz,ddsourcecategory:b", origin.TagsToString())
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"foo:bar,baz\"]", string(origin.TagsPayload()))
 }
 
@@ -55,6 +58,7 @@ func TestSetTagsWithConfigTags(t *testing.T) {
 	origin := NewOrigin(source)
 	origin.SetTags([]string{"foo:bar", "baz"})
 	assert.Equal(t, []string{"foo:bar", "baz", "sourcecategory:b", "c:d", "e"}, origin.Tags())
+	assert.Equal(t, "foo:bar,baz,ddsourcecategory:b,c:d,e", origin.TagsToString())
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"c:d,e,foo:bar,baz\"]", string(origin.TagsPayload()))
 }
 

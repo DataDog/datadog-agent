@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package host
 
@@ -40,6 +40,7 @@ func GetPayload(hostname string) *Payload {
 		Meta:          meta,
 		HostTags:      getHostTags(),
 		ContainerMeta: getContainerMeta(1 * time.Second),
+		NetworkMeta:   getNetworkMeta(),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -106,11 +107,11 @@ func getHostAliases() []string {
 		aliases = append(aliases, gceAlias)
 	}
 
-	cfAlias, err := cloudfoudry.GetHostAlias()
+	cfAliases, err := cloudfoundry.GetHostAliases()
 	if err != nil {
 		log.Debugf("no Cloud Foundry Host Alias: %s", err)
-	} else if cfAlias != "" {
-		aliases = append(aliases, cfAlias)
+	} else if cfAliases != nil {
+		aliases = append(aliases, cfAliases...)
 	}
 
 	k8sAlias, err := k8s.GetHostAlias()
@@ -143,6 +144,15 @@ func getMeta() *Meta {
 	cache.Cache.Set(key, m, cache.NoExpiration)
 
 	return m
+}
+
+func getNetworkMeta() *NetworkMeta {
+	nid, err := util.GetNetworkID()
+	if err != nil {
+		log.Infof("could not get network metadata: %s", err)
+		return nil
+	}
+	return &NetworkMeta{ID: nid}
 }
 
 func getContainerMeta(timeout time.Duration) map[string]string {

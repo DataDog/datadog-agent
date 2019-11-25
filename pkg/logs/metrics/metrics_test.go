@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package metrics
 
@@ -12,5 +12,5 @@ import (
 )
 
 func TestMetrics(t *testing.T) {
-	assert.Equal(t, logsExpvars.String(), `{"DestinationErrors": 0, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "Warnings": ""}`)
+	assert.Equal(t, LogsExpvars.String(), `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0}`)
 }

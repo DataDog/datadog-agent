@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build linux
 
@@ -64,7 +64,7 @@ func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 
 func TestDefaultConfiguration(t *testing.T) {
 	check := NetworkCheck{}
-	check.Configure([]byte(``), []byte(``))
+	check.Configure([]byte(``), []byte(``), "test")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
 	assert.Equal(t, []string(nil), check.config.instance.ExcludedInterfaces)
@@ -79,18 +79,13 @@ excluded_interfaces:
     - eth0
     - lo0
 excluded_interface_re: "eth.*"
-
-tags:
-    - "a:test1"
-    - "b:test2"
 `)
-	err := check.Configure(rawInstanceConfig, []byte(``))
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
 	assert.Nil(t, err)
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
 	assert.ElementsMatch(t, []string{"eth0", "lo0"}, check.config.instance.ExcludedInterfaces)
 	assert.Equal(t, "eth.*", check.config.instance.ExcludedInterfaceRe)
-	assert.ElementsMatch(t, []string{"a:test1", "b:test2"}, check.config.instance.CustomTags)
 }
 
 func TestNetworkCheck(t *testing.T) {
@@ -269,12 +264,9 @@ func TestNetworkCheck(t *testing.T) {
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
-tags:
-    - "test:tag"
-    - "test:another_tag"
 `)
 
-	err := networkCheck.Configure(rawInstanceConfig, []byte(``))
+	err := networkCheck.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -287,8 +279,9 @@ tags:
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	customTags := []string{"test:tag", "test:another_tag"}
-	eth0Tags := append(customTags, "device:eth0")
+	var customTags []string
+
+	eth0Tags := []string{"device:eth0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -296,7 +289,7 @@ tags:
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(14), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(15), "", eth0Tags)
 
-	lo0Tags := append(customTags, "device:lo0")
+	lo0Tags := []string{"device:lo0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(16), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(17), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(18), "", lo0Tags)
@@ -385,7 +378,7 @@ excluded_interfaces:
     - lo0
 `)
 
-	networkCheck.Configure(rawInstanceConfig, []byte(``))
+	networkCheck.Configure(rawInstanceConfig, []byte(``), "test")
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 
@@ -455,7 +448,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 excluded_interface_re: "eth[0-9]"
 `)
 
-	err := networkCheck.Configure(rawInstanceConfig, []byte(``))
+	err := networkCheck.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())

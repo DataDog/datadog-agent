@@ -1,22 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build windows
 
 package winutil
 
 import (
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
 
 var (
-	modkernel32 = syscall.NewLazyDLL("kernel32.dll")
-	modPsapi    = syscall.NewLazyDLL("psapi.dll")
+	modkernel32 = windows.NewLazyDLL("kernel32.dll")
+	modPsapi    = windows.NewLazyDLL("psapi.dll")
 
 	procGlobalMemoryStatusEx = modkernel32.NewProc("GlobalMemoryStatusEx")
 	procGetPerformanceInfo   = modPsapi.NewProc("GetPerformanceInfo")
@@ -40,6 +39,24 @@ type VirtualMemoryStat struct {
 	// Percentage of RAM used by programs
 	//
 	// This value is computed from the kernel specific values.
+	UsedPercent float64
+}
+
+// PagefileStat contains basic metrics for the windows pagefile
+type PagefileStat struct {
+	// The current committed memory limit for the system or
+	// the current process, whichever is smaller, in bytes
+	Total uint64
+
+	// The maximum amount of memory the current process can commit, in bytes.
+	// This value is equal to or smaller than the system-wide available commit
+	// value.
+	Available uint64
+
+	// Used is Total - Available
+	Used uint64
+
+	// UsedPercent is used as a percentage of the total pagefile
 	UsedPercent float64
 }
 
@@ -82,21 +99,26 @@ func VirtualMemory() (*VirtualMemoryStat, error) {
 	return ret, nil
 }
 
-type performanceInformation struct {
-	cb                uint32
-	commitTotal       uint64
-	commitLimit       uint64
-	commitPeak        uint64
-	physicalTotal     uint64
-	physicalAvailable uint64
-	systemCache       uint64
-	kernelTotal       uint64
-	kernelPaged       uint64
-	kernelNonpaged    uint64
-	pageSize          uint64
-	handleCount       uint32
-	processCount      uint32
-	threadCount       uint32
+// PagefileMemory returns paging (swap) file metrics
+func PagefileMemory() (*PagefileStat, error) {
+	var memInfo memoryStatusEx
+	memInfo.cbSize = uint32(unsafe.Sizeof(memInfo))
+	mem, _, _ := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memInfo)))
+	if mem == 0 {
+		return nil, windows.GetLastError()
+	}
+	total := memInfo.ullTotalPageFile
+	free := memInfo.ullAvailPageFile
+	used := total - free
+	percent := (float64(used) / float64(total)) * 100
+	ret := &PagefileStat{
+		Total:       total,
+		Available:   free,
+		Used:        used,
+		UsedPercent: percent,
+	}
+
+	return ret, nil
 }
 
 // SwapMemory returns swapfile statistics
@@ -107,8 +129,8 @@ func SwapMemory() (*SwapMemoryStat, error) {
 	if mem == 0 {
 		return nil, windows.GetLastError()
 	}
-	tot := perfInfo.commitLimit * perfInfo.pageSize
-	used := perfInfo.commitTotal * perfInfo.pageSize
+	tot := uint64(perfInfo.commitLimit * perfInfo.pageSize)
+	used := uint64(perfInfo.commitTotal * perfInfo.pageSize)
 	free := tot - used
 	ret := &SwapMemoryStat{
 		Total:       tot,

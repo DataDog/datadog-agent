@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build windows
 
@@ -15,9 +15,11 @@ import "C"
 
 import (
 	"syscall"
+	"unicode/utf16"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows"
 )
 
 // Start starts tailing the event log.
@@ -75,19 +77,19 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 	goctx := *(*eventContext)(unsafe.Pointer(uintptr(ctx)))
 	log.Debug("Callback from ", goctx.id)
 
-	xml, err := EvtRender(handle)
+	richEvt, err := EvtRender(handle)
 	if err != nil {
-		log.Warn("Error rendering xml: %v", err)
+		log.Warnf("Error rendering xml: %v", err)
 		return
 	}
 	t, exists := tailerForIndex(goctx.id)
 	if !exists {
-		log.Warnf("Got invalid eventContext id %s when map is %s", goctx.id, eventContextToTailerMap)
+		log.Warnf("Got invalid eventContext id %d when map is %v", goctx.id, eventContextToTailerMap)
 		return
 	}
-	msg, err := t.toMessage(xml)
+	msg, err := t.toMessage(richEvt)
 	if err != nil {
-		log.Warnf("Couldn't convert xml to json: %s for event %s", err, xml)
+		log.Warnf("Couldn't convert xml to json: %s for event %s", err, richEvt.xmlEvent)
 		return
 	}
 
@@ -95,7 +97,7 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 }
 
 var (
-	modWinEvtAPI = syscall.NewLazyDLL("wevtapi.dll")
+	modWinEvtAPI = windows.NewLazyDLL("wevtapi.dll")
 
 	procEvtSubscribe       = modWinEvtAPI.NewProc("EvtSubscribe")
 	procEvtClose           = modWinEvtAPI.NewProc("EvtClose")
@@ -105,8 +107,8 @@ var (
 	procEvtNext            = modWinEvtAPI.NewProc("EvtNext")
 )
 
-// EvtRender takes an event handle and reders it to XML
-func EvtRender(h C.ULONGLONG) (xml string, err error) {
+// EvtRender takes an event handle and renders it to XML
+func EvtRender(h C.ULONGLONG) (richEvt *richEvent, err error) {
 	var bufSize uint32
 	var bufUsed uint32
 
@@ -117,8 +119,8 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 		uintptr(0),                        // no buffer for now, just getting necessary size
 		uintptr(unsafe.Pointer(&bufUsed)), // filled in with necessary buffer size
 		uintptr(0))                        // not used but must be provided
-	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
-		log.Warnf("Couldn't render xml event: ", err)
+	if err != error(windows.ERROR_INSUFFICIENT_BUFFER) {
+		log.Warnf("Couldn't render xml event: %s", err)
 		return
 	}
 	bufSize = bufUsed
@@ -135,9 +137,56 @@ func EvtRender(h C.ULONGLONG) (xml string, err error) {
 	}
 	// Call will set error anyway.  Clear it so we don't return an error
 	err = nil
-	xml = ConvertWindowsString(buf)
+
+	xml := ConvertWindowsString(buf)
+
+	richEvt = enrichEvent(h, xml)
+
 	return
 
+}
+
+// enrichEvent renders data, and set the rendered fields to the richEvent.
+// We need this some fields in the Windows Events are coded with numerical
+// value. We then call a function in the Windows API that match the code to
+// a human readable value.
+// enrichEvent also takes care of freeing the memory allocated in the C code
+func enrichEvent(h C.ULONGLONG, xml string) *richEvent {
+	var message, task, opcode, level string
+	// Enrich event with rendered
+	richEvtCStruct := C.EnrichEvent(h)
+	if richEvtCStruct != nil {
+		if richEvtCStruct.message != nil {
+			message = LPWSTRToString(richEvtCStruct.message)
+		}
+		if richEvtCStruct.task != nil {
+			task = LPWSTRToString(richEvtCStruct.task)
+		}
+		if richEvtCStruct.opcode != nil {
+			opcode = LPWSTRToString(richEvtCStruct.opcode)
+		}
+		if richEvtCStruct.level != nil {
+			level = LPWSTRToString(richEvtCStruct.level)
+		}
+
+		C.free(unsafe.Pointer(richEvtCStruct.message))
+		C.free(unsafe.Pointer(richEvtCStruct.task))
+		C.free(unsafe.Pointer(richEvtCStruct.opcode))
+		C.free(unsafe.Pointer(richEvtCStruct.level))
+		C.free(unsafe.Pointer(richEvtCStruct))
+	}
+
+	if len(message) >= maxRunes {
+		message = message + truncatedFlag
+	}
+
+	return &richEvent{
+		xmlEvent: xml,
+		message:  message,
+		task:     task,
+		opcode:   opcode,
+		level:    level,
+	}
 }
 
 type evtSubscribeNotifyAction int32
@@ -156,6 +205,9 @@ const (
 	EvtRenderBookmark    = 2 // Bookmark
 
 	ERROR_NO_MORE_ITEMS syscall.Errno = 259
+
+	maxRunes      = 1<<17 - 1 // 128 kB
+	truncatedFlag = "...TRUNCATED..."
 )
 
 type EVT_SUBSCRIBE_FLAGS int
@@ -181,4 +233,23 @@ func ConvertWindowsString(winput []uint8) string {
 		retstring += string(rune(dbyte))
 	}
 	return retstring
+}
+
+// LPWSTRToString converts a C.LPWSTR to a string. It also truncates the
+// strings to 128kB as a basic protection mechanism to avoid allocating an
+// array too big. Messages with more than 128kB are likely to be bigger
+// than 256kB when serialized and then dropped
+func LPWSTRToString(cwstr C.LPWSTR) string {
+	ptr := unsafe.Pointer(cwstr)
+	sz := C.wcslen((*C.wchar_t)(ptr))
+	sz = min(sz, maxRunes)
+	wstr := (*[maxRunes]uint16)(ptr)[:sz:sz]
+	return string(utf16.Decode(wstr))
+}
+
+func min(x, y C.size_t) C.size_t {
+	if x > y {
+		return y
+	}
+	return x
 }

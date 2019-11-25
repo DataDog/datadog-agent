@@ -1,0 +1,30 @@
+--- a/reader.py
++++ b/reader.py
+@@ -71,6 +71,7 @@ class Reader(object):
+         self.index = 0
+         self.line = 0
+         self.column = 0
++        self._non_printable = None
+         if isinstance(stream, unicode):
+             self.name = "<unicode string>"
+             self.check_printable(stream)
+@@ -136,10 +137,15 @@ class Reader(object):
+                 self.encoding = 'utf-8'
+         self.update(1)
+
+-    if has_ucs4:
+-        NON_PRINTABLE = re.compile(u'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010ffff]')
+-    else:
+-        NON_PRINTABLE = re.compile(u'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD]')
++    @property
++    def NON_PRINTABLE(self):
++        if self._non_printable is None:
++            if has_ucs4:
++                self._non_printable = re.compile(u'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010ffff]')
++            else:
++                self._non_printable = re.compile(u'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD]')
++        return self._non_printable
++
+     def check_printable(self, data):
+         match = self.NON_PRINTABLE.search(data)
+         if match:

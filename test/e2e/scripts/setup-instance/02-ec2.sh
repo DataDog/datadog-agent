@@ -8,7 +8,7 @@ cd "$(dirname $0)"
 
 export COMMIT_ID=$(git rev-parse --verify HEAD)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
-COMMIT_USER=$(git log -1 --pretty=format:'%an' | tr -d [:space:])
+COMMIT_USER=$(git log -1 --pretty=format:'%ae' | tr -d [:space:])
 
 # If not using the default value, remember to change the following settings:
 # - AMI

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package status
 
@@ -37,20 +37,25 @@ func FormatStatus(data []byte) (string, error) {
 	forwarderStats := stats["forwarderStats"]
 	runnerStats := stats["runnerStats"]
 	pyLoaderStats := stats["pyLoaderStats"]
+	pythonInit := stats["pythonInit"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	aggregatorStats := stats["aggregatorStats"]
+	dogstatsdStats := stats["dogstatsdStats"]
 	jmxStats := stats["JMXStatus"]
 	logsStats := stats["logsStats"]
 	dcaStats := stats["clusterAgentStatus"]
+	endpointsInfos := stats["endpointsInfos"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats, "")
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, "")
 	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
+	renderEndpointsInfos(b, endpointsInfos)
 	renderLogsStatus(b, logsStats)
-	renderDogstatsdStatus(b, aggregatorStats)
+	renderAggregatorStatus(b, aggregatorStats)
+	renderDogstatsdStatus(b, dogstatsdStats)
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		renderDatadogClusterAgentStatus(b, dcaStats)
 	}
@@ -68,11 +73,13 @@ func FormatDCAStatus(data []byte) (string, error) {
 	runnerStats := stats["runnerStats"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
+	endpointsInfos := stats["endpointsInfos"]
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, nil, autoConfigStats, checkSchedulerStats, "")
+	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, "")
 	renderForwarderStatus(b, forwarderStats)
+	renderEndpointsInfos(b, endpointsInfos)
 
 	return b.String(), nil
 }
@@ -108,9 +115,17 @@ func renderHeader(w io.Writer, stats map[string]interface{}) {
 	}
 }
 
-func renderDogstatsdStatus(w io.Writer, aggregatorStats interface{}) {
-	t := template.Must(template.New("dogstatsd.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "dogstatsd.tmpl")))
+func renderAggregatorStatus(w io.Writer, aggregatorStats interface{}) {
+	t := template.Must(template.New("aggregator.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "aggregator.tmpl")))
 	err := t.Execute(w, aggregatorStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderDogstatsdStatus(w io.Writer, dogstatsdStats interface{}) {
+	t := template.Must(template.New("dogstatsd.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "dogstatsd.tmpl")))
+	err := t.Execute(w, dogstatsdStats)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -119,6 +134,15 @@ func renderDogstatsdStatus(w io.Writer, aggregatorStats interface{}) {
 func renderForwarderStatus(w io.Writer, forwarderStats interface{}) {
 	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "forwarder.tmpl")))
 	err := t.Execute(w, forwarderStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderEndpointsInfos(w io.Writer, endpointsInfos interface{}) {
+	t := template.Must(template.New("endpoints.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "endpoints.tmpl")))
+
+	err := t.Execute(w, endpointsInfos)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -140,10 +164,11 @@ func renderHPAStats(w io.Writer, hpaStats interface{}) {
 	}
 }
 
-func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats interface{}, onlyCheck string) {
+func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats interface{}, onlyCheck string) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["pyLoaderStats"] = pyLoaderStats
+	checkStats["pythonInit"] = pythonInit
 	checkStats["AutoConfigStats"] = autoConfigStats
 	checkStats["CheckSchedulerStats"] = checkSchedulerStats
 	checkStats["OnlyCheck"] = onlyCheck
@@ -162,9 +187,10 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	json.Unmarshal(data, &stats)
 	runnerStats := stats["runnerStats"]
 	pyLoaderStats := stats["pyLoaderStats"]
+	pythonInit := stats["pythonInit"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
-	renderChecksStats(b, runnerStats, pyLoaderStats, autoConfigStats, checkSchedulerStats, checkName)
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, checkName)
 
 	return b.String(), nil
 }

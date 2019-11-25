@@ -1,13 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package service
-
-import (
-	"fmt"
-)
 
 // CreationTime represents the moment when the service was created compared to the agent start.
 type CreationTime int
@@ -37,5 +33,5 @@ func NewService(providerType string, identifier string, createdTime CreationTime
 
 // GetEntityID return the entity identifier of the service
 func (s *Service) GetEntityID() string {
-	return fmt.Sprintf("%s://%s", s.Type, s.Identifier)
+	return s.Type + "://" + s.Identifier
 }

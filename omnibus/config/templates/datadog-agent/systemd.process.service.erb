@@ -1,16 +1,18 @@
 [Unit]
-Description="Datadog Process Agent"
+Description=Datadog Process Agent
 After=network.target datadog-agent.service
 BindsTo=datadog-agent.service
-StartLimitIntervalSec=10
-StartLimitBurst=5
 
 [Service]
 Type=simple
 PIDFile=<%= install_dir %>/run/process-agent.pid
 User=dd-agent
 Restart=on-failure
-ExecStart=<%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --pid=<%= install_dir %>/run/process-agent.pid
+ExecStart=<%= install_dir %>/embedded/bin/process-agent --config=<%= etc_dir %>/datadog.yaml --sysprobe-config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/process-agent.pid
+# Since systemd 229, should be in [Unit] but in order to support systemd <229,
+# it is also supported to have it here.
+StartLimitInterval=10
+StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target

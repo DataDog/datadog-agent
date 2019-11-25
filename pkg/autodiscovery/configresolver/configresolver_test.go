@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package configresolver
 
@@ -32,6 +32,11 @@ type dummyService struct {
 
 // GetEntity returns the service entity name
 func (s *dummyService) GetEntity() string {
+	return s.ID
+}
+
+// GetEntity returns the service entity name
+func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }
 
@@ -70,26 +75,9 @@ func (s *dummyService) GetCreationTime() integration.CreationTime {
 	return s.CreationTime
 }
 
-func TestParseTemplateVar(t *testing.T) {
-	name, key := parseTemplateVar([]byte("%%host%%"))
-	assert.Equal(t, "host", string(name))
-	assert.Equal(t, "", string(key))
-
-	name, key = parseTemplateVar([]byte("%%host_0%%"))
-	assert.Equal(t, "host", string(name))
-	assert.Equal(t, "0", string(key))
-
-	name, key = parseTemplateVar([]byte("%%host 0%%"))
-	assert.Equal(t, "host0", string(name))
-	assert.Equal(t, "", string(key))
-
-	name, key = parseTemplateVar([]byte("%%host_0_1%%"))
-	assert.Equal(t, "host", string(name))
-	assert.Equal(t, "0_1", string(key))
-
-	name, key = parseTemplateVar([]byte("%%host_network_name%%"))
-	assert.Equal(t, "host", string(name))
-	assert.Equal(t, "network_name", string(key))
+// IsReady returns if the service is ready
+func (s *dummyService) IsReady() bool {
+	return true
 }
 
 func TestGetFallbackHost(t *testing.T) {

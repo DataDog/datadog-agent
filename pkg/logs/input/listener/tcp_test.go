@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package listener
 
@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
-// FIXME: Use a randomly assigned port, but this means allowing '0' in the config.
-const tcpTestPort = 10512
+// use a randomly assigned port
+var tcpTestPort = 0
 
 func TestTCPShouldReceivesMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
@@ -27,7 +27,7 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 9000)
 	listener.Start()
 
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s", listener.listener.Addr()))
 	assert.Nil(t, err)
 
 	var msg *message.Message
@@ -46,7 +46,7 @@ func TestTCPDoesNotTruncateMessagesThatAreBiggerThanTheReadBufferSize(t *testing
 	listener := NewTCPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 100)
 	listener.Start()
 
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s", listener.listener.Addr()))
 	assert.Nil(t, err)
 
 	var msg *message.Message

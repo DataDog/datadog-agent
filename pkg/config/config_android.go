@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
@@ -15,12 +15,17 @@ import (
 	"golang.org/x/mobile/asset"
 )
 
+// called by init in config.go, to ensure any os-specific config is done
+// in time
+func osinit() {
+}
+
 const (
 	defaultConfdPath            = ""
 	defaultAdditionalChecksPath = ""
 	defaultRunPath              = ""
 	defaultSyslogURI            = ""
-	defaultGuiPort              = "5002"
+	defaultGuiPort              = 5002
 )
 
 func setAssetFs(config Config) {

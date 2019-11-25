@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package health
 
@@ -78,19 +78,19 @@ func (c *catalog) run() {
 
 	for {
 		<-pingTicker.C
-		c.Lock()
-		if len(c.components) == 0 {
+		empty := c.pingComponents()
+		if empty {
 			break
 		}
-		c.pingComponents()
-		c.Unlock()
 	}
 	pingTicker.Stop()
 }
 
-// pingComponents is the actual pinging logic, separated for unit tests
-// lock is handled by the parent run method
-func (c *catalog) pingComponents() {
+// pingComponents is the actual pinging logic, separated for unit tests.
+// Returns true if the component list is empty, to make the pooling logic stop.
+func (c *catalog) pingComponents() bool {
+	c.Lock()
+	defer c.Unlock()
 	for _, component := range c.components {
 		select {
 		case component.healthChan <- struct{}{}:
@@ -100,6 +100,7 @@ func (c *catalog) pingComponents() {
 		}
 	}
 	c.latestRun = time.Now()
+	return len(c.components) == 0
 }
 
 // deregister a component from the healthcheck

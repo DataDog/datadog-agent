@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 
@@ -33,7 +33,7 @@ func init() {
 
 func stop(*cobra.Command, []string) error {
 	// Global Agent configuration
-	err := common.SetupConfig(confFilePath)
+	err := common.SetupConfigWithoutSecrets(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
@@ -44,8 +44,11 @@ func stop(*cobra.Command, []string) error {
 	if e != nil {
 		return e
 	}
-
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/stop", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	_, e = util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {

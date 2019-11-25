@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build cri
 
@@ -9,13 +9,14 @@ package containers
 
 import (
 	yaml "gopkg.in/yaml.v2"
-	pb "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,8 +28,7 @@ const (
 
 // CRIConfig holds the config of the check
 type CRIConfig struct {
-	Tags        []string `yaml:"tags"`
-	CollectDisk bool     `yaml:"collect_disk"`
+	CollectDisk bool `yaml:"collect_disk"`
 }
 
 // CRICheck grabs CRI metrics
@@ -61,8 +61,8 @@ func (c *CRIConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *CRICheck) Configure(config, initConfig integration.Data) error {
-	err := c.CommonConfigure(config)
+func (c *CRICheck) Configure(config, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}
@@ -97,13 +97,12 @@ func (c *CRICheck) Run() error {
 // processContainerStats extracts metrics from the protobuf object
 func (c *CRICheck) processContainerStats(sender aggregator.Sender, runtime string, containerStats map[string]*pb.ContainerStats) {
 	for cid, stats := range containerStats {
-		entityID := containers.BuildEntityName(runtime, cid)
-		tags, err := tagger.Tag(entityID, true)
+		entityID := containers.BuildTaggerEntityName(cid)
+		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", cid[:12], err)
 		}
 		tags = append(tags, "runtime:"+runtime)
-		tags = append(tags, c.instance.Tags...)
 		sender.Gauge("cri.mem.rss", float64(stats.GetMemory().GetWorkingSetBytes().GetValue()), "", tags)
 		// Cumulative CPU usage (sum across all cores) since object creation.
 		sender.Rate("cri.cpu.usage", float64(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()), "", tags)

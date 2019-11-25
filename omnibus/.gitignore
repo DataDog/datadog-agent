@@ -2,6 +2,7 @@
 .bundle
 .kitchen/
 .kitchen.local.yml
+kitchen.local.yml
 vendor/bundle
 pkg/*
 .vagrant

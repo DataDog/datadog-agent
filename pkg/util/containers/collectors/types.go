@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package collectors
 
@@ -18,8 +18,8 @@ type Collector interface {
 type CollectorPriority int
 
 // List of collector priorities
-// Order is reverse from the tagger: docker > kubelet
+// Same order as the tagger: docker < kubelet
 const (
-	NodeOrchestrator CollectorPriority = iota
-	NodeRuntime
+	NodeRuntime CollectorPriority = iota
+	NodeOrchestrator
 )

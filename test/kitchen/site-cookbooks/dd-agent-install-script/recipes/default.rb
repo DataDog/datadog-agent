@@ -29,8 +29,8 @@ execute 'update Agent install script repository' do
   command <<-EOF
     sed -i 's/apt\\.datadoghq\\.com/#{node['dd-agent-install-script']['candidate_repo_domain_apt']}/' install-script
     sed -i 's/yum\\.datadoghq\\.com/#{node['dd-agent-install-script']['candidate_repo_domain_yum']}/' install-script
-    sed -i 's/apt.${dd_url}/#{node['dd-agent-install-script']['candidate_repo_domain_apt']}/' install-script
-    sed -i 's/yum.${dd_url}/#{node['dd-agent-install-script']['candidate_repo_domain_yum']}/' install-script
+    sed -i 's/apt.${repo_url}/#{node['dd-agent-install-script']['candidate_repo_domain_apt']}/' install-script
+    sed -i 's/yum.${repo_url}/#{node['dd-agent-install-script']['candidate_repo_domain_yum']}/' install-script
     sed -i 's~stable/x86_64~#{node['dd-agent-install-script']['candidate_repo_branch']}/x86_64~' install-script
     sed -i 's~rpm/x86_64~#{node['dd-agent-install-script']['candidate_repo_branch']}/x86_64~' install-script
     sed -i 's~beta/x86_64~#{node['dd-agent-install-script']['candidate_repo_branch']}/x86_64~' install-script
@@ -41,6 +41,8 @@ execute 'update Agent install script repository' do
     sed -i 's~stable main~#{node['dd-agent-install-script']['candidate_repo_branch']} main~' install-script
     sed -i 's~stable 6~#{node['dd-agent-install-script']['candidate_repo_branch']} main~' install-script
     sed -i 's~stable/6~#{node['dd-agent-install-script']['candidate_repo_branch']}~' install-script
+    sed -i 's~${dd_agent_dist_channel} ${dd_agent_major_version}~#{node['dd-agent-install-script']['candidate_repo_branch']} main~' install-script
+    sed -i 's~${dd_agent_dist_channel}/${dd_agent_major_version}~#{node['dd-agent-install-script']['candidate_repo_branch']}~' install-script
   EOF
 
   only_if { node['dd-agent-install-script']['install_candidate'] }

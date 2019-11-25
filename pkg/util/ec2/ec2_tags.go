@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build ec2
 
@@ -105,7 +105,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole + "/")
+	res, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}

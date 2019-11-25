@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
 import (
 	"bytes"
+	"log"
 	"os"
 	"strings"
 	"testing"
@@ -23,9 +24,12 @@ func setupConf() Config {
 
 func setupConfFromYAML(yamlConfig string) Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	conf.SetConfigType("yaml")
-	conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
 	initConfig(conf)
+	conf.SetConfigType("yaml")
+	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
+	if e != nil {
+		log.Println(e)
+	}
 	return conf
 }
 
@@ -45,8 +49,8 @@ api_key: fakeapikey
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
-	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
@@ -66,8 +70,8 @@ api_key: fakeapikey
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
-	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
@@ -80,6 +84,24 @@ api_key: fakeapikey
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
 
+func TestUnknownKeysWarning(t *testing.T) {
+	yamlBase := `
+site: datadoghq.eu
+`
+	confBase := setupConfFromYAML(yamlBase)
+	assert.Len(t, findUnknownKeys(confBase), 0)
+
+	yamlWithUnknownKeys := `
+site: datadoghq.eu
+unknown_key.unknown_subkey: true
+`
+	confWithUnknownKeys := setupConfFromYAML(yamlWithUnknownKeys)
+	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 1)
+
+	confWithUnknownKeys.SetKnown("unknown_key.*")
+	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 0)
+}
+
 func TestSiteEnvVar(t *testing.T) {
 	os.Setenv("DD_API_KEY", "fakeapikey")
 	os.Setenv("DD_SITE", "datadoghq.eu")
@@ -87,8 +109,8 @@ func TestSiteEnvVar(t *testing.T) {
 	defer os.Unsetenv("DD_SITE")
 	testConfig := setupConfFromYAML("")
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
-	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
@@ -111,8 +133,8 @@ func TestDDURLEnvVar(t *testing.T) {
 	testConfig := setupConfFromYAML("")
 	testConfig.BindEnv("external_config.external_agent_dd_url")
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
-	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
@@ -136,8 +158,8 @@ external_config:
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
-	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
@@ -160,8 +182,8 @@ external_config:
 `
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
-	externalAgentURL := getMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
@@ -188,7 +210,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://foo.datadoghq.com": {
@@ -220,7 +242,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.eu": {
@@ -254,7 +276,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://foo.datadoghq.com": {
@@ -279,7 +301,7 @@ api_key: fakeapikey
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
@@ -307,7 +329,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
@@ -340,7 +362,7 @@ additional_endpoints:
 
 	testConfig := setupConfFromYAML(datadogYaml)
 
-	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
 		"https://app.datadoghq.com": {
@@ -594,4 +616,80 @@ func TestSanitizeAPIKey(t *testing.T) {
 	config.Set("api_key", " \n  foo   \n")
 	sanitizeAPIKey(config)
 	assert.Equal(t, "foo", config.GetString("api_key"))
+}
+
+// TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
+// key includes the key delimiter. Affects the config package when both secrets and multiple
+// endpoints are configured.
+// Refer to https://github.com/DataDog/viper/pull/2 for more details.
+func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
+	conf := setupConf()
+	conf.SetConfigFile("./tests/datadog_secrets.yaml")
+	// load the configuration
+	err := load(conf, "datadog_secrets.yaml", true)
+	assert.NoError(t, err)
+
+	expectedKeysPerDomain := map[string][]string{
+		"https://app.datadoghq.com": {"someapikey", "someotherapikey"},
+	}
+	keysPerDomain, err := getMultipleEndpointsWithConfig(conf)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
+}
+
+func TestNumWorkers(t *testing.T) {
+	config := setupConf()
+
+	config.Set("python_version", "2")
+	config.Set("tracemalloc_debug", true)
+	config.Set("check_runners", 4)
+
+	setNumWorkers(config)
+	workers := config.GetInt("check_runners")
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("tracemalloc_debug", false)
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("python_version", "3")
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("tracemalloc_debug", true)
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
+	assert.Equal(t, workers, 1)
+}
+
+// TestOverrides validates that the config overrides system works well.
+func TestApplyOverrides(t *testing.T) {
+	assert := assert.New(t)
+
+	datadogYaml := `
+dd_url: "https://app.datadoghq.eu"
+api_key: fakeapikey
+
+external_config:
+  external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
+`
+	AddOverrides(map[string]interface{}{
+		"api_key": "overrided",
+	})
+
+	config := setupConfFromYAML(datadogYaml)
+	applyOverrides(config)
+
+	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
+	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
+
+	AddOverrides(map[string]interface{}{
+		"dd_url": "http://localhost",
+	})
+	applyOverrides(config)
+
+	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
+	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
 }

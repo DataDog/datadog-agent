@@ -10,8 +10,9 @@ ALL_TAGS = set([
     "apm",
     "clusterchecks",
     "consul",
-    "cpython",
+    "python",
     "cri",
+    "containerd",
     "docker",
     "ec2",
     "etcd",
@@ -20,11 +21,12 @@ ALL_TAGS = set([
     "kubeapiserver",
     "kubelet",
     "log",
+    "netcgo", # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "process",
-    "snmp",
     "systemd",
     "zk",
     "zlib",
+    "secrets",
 ])
 
 # PUPPY_TAGS lists the tags needed when building the Puppy Agent
@@ -37,6 +39,8 @@ LINUX_ONLY_TAGS = [
     "kubelet",
     "kubeapiserver",
     "cri",
+    "containerd",
+    "netcgo",
 ]
 
 REDHAT_AND_DEBIAN_ONLY_TAGS = [
@@ -88,7 +92,7 @@ def get_build_tags(include, exclude):
 
 
 @task
-def audit_tag_impact(ctx, build_exclude=None, use_embedded_libs=False, csv=False):
+def audit_tag_impact(ctx, build_exclude=None, csv=False):
     """
     Measure each tag's contribution to the binary size
     """
@@ -96,17 +100,17 @@ def audit_tag_impact(ctx, build_exclude=None, use_embedded_libs=False, csv=False
 
     tags_to_audit = ALL_TAGS.difference(set(build_exclude)).difference(set(PUPPY_TAGS))
 
-    max_size = _compute_build_size(ctx, build_exclude=','.join(build_exclude), use_embedded_libs=use_embedded_libs)
+    max_size = _compute_build_size(ctx, build_exclude=','.join(build_exclude))
     print("size with all tags is {} kB".format(max_size / 1000))
 
-    puppy_size = _compute_build_size(ctx, puppy=True, use_embedded_libs=use_embedded_libs)
+    puppy_size = _compute_build_size(ctx, puppy=True)
     print("puppy size is {} kB\n".format(puppy_size / 1000))
 
     report = {"unaccounted": max_size - puppy_size, "puppy": puppy_size}
 
     for tag in tags_to_audit:
         exclude_string = ','.join(build_exclude + [tag])
-        size = _compute_build_size(ctx, build_exclude=exclude_string, use_embedded_libs=use_embedded_libs)
+        size = _compute_build_size(ctx, build_exclude=exclude_string)
         delta = (max_size - size)
         print("tag {} adds {} kB (excludes: {})".format(tag, delta / 1000, exclude_string))
         report[tag] = delta
@@ -118,11 +122,10 @@ def audit_tag_impact(ctx, build_exclude=None, use_embedded_libs=False, csv=False
             print("{};{}".format(k, v))
 
 
-def _compute_build_size(ctx, build_exclude=None, use_embedded_libs=False, puppy=False):
+def _compute_build_size(ctx, build_exclude=None, puppy=False):
     import os
     from .agent import build as agent_build
-    agent_build(ctx, build_exclude=build_exclude, use_embedded_libs=use_embedded_libs,
-                skip_assets=True, puppy=puppy)
+    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, puppy=puppy)
 
     statinfo = os.stat('bin/agent/agent')
     return statinfo.st_size

@@ -1,0 +1,53 @@
+---
+collapse_pre_releases: true
+no_show_source: true
+release_tag_re: '^([\d.-]|rc)+$'
+pre_release_tag_re: '(?P<pre_release>-rc\.\d+)$'
+template: |
+          # Each section from every releasenote are combined when the
+          # CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+          # it does not depend on any information only available in another
+          # section. This may mean repeating some details, but each section
+          # must be readable independently of the other.
+          #
+          # Each section note must be formatted as reStructuredText.
+          ---
+          features:
+            - |
+              List new features here, or remove this section.
+          enhancements:
+            - |
+              List enhancements (new behavior that is too small to be
+              considered a new feature), or remove this section.
+          issues:
+            - |
+              List known issues here, or remove this section.
+          upgrade:
+            - |
+              List upgrade notes here, or remove this section.
+              Only list known/potential breaking changes, or behavior changes
+              that users should absolutely know about before upgrading.
+          deprecations:
+            - |
+              List deprecations notes here, or remove this section.
+          security:
+            - |
+              Add security notes here, or remove this section.
+          fixes:
+            - |
+              Add normal bug fixes here, or remove this section.
+          other:
+            - |
+              Add here every other information you want in the CHANGELOG that
+              don't fit in any other section. This section should rarely be
+              used.
+sections:
+  # The prelude section is implicitly included.
+  - [features, New Features]
+  - [enhancements, Enhancement Notes]
+  - [issues, Known Issues]
+  - [upgrade, Upgrade Notes]
+  - [deprecations, Deprecation Notes]
+  - [security, Security Issues]
+  - [fixes, Bug Fixes]
+  - [other, Other Notes]

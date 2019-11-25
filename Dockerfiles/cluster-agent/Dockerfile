@@ -9,7 +9,7 @@ WORKDIR /output
 COPY datadog-cluster-agent opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
-COPY ./dist opt/datadog-agent/bin/dist
+COPY ./dist/templates opt/datadog-agent/bin/dist/templates
 COPY entrypoint.sh .
 
 RUN chmod 755 entrypoint.sh \
@@ -29,9 +29,43 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH"
 
 RUN apt-get update \
  && apt-get install --no-install-recommends -y ca-certificates curl \
+ # https://security-tracker.debian.org/tracker/CVE-2018-15686
+ && apt-get install -y libudev1 libsystemd0 \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder /output /
+
+# We need to set the NET_BIND_SERVICE capability to allow the cluster-agent to bind
+# port 443 for metrics provider.
+# And we need to do it here because capabilities set in `builder` stage are not kept
+# by the `COPY --from=builder`.
+RUN apt-get update \
+ && apt-get install -y libcap2-bin \
+ && setcap cap_net_bind_service+ep /opt/datadog-agent/bin/datadog-cluster-agent \
+ && apt-get remove -y libcap2-bin \
+ && apt-get autoremove -y \
+ && apt-get clean
+
+# Allow running as an unprivileged user:
+# - General case is the dd-agent user
+# - OpenShift uses a random UID in the root group
+#
+# Containerd does not preserve permissions when mounting a volume on top
+# of an empty folder. Creating .placeholder files as a workaround.
+#
+RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+ && mkdir -p /var/log/datadog/ /conf.d \
+ && touch /var/log/datadog/.placeholder \
+ && touch /tmp/.placeholder \
+ && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ \
+ && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/
+
+# Incompatible with the custom metrics API on port 443
+# Set DD_EXTERNAL_METRICS_PROVIDER_PORT to a higher value to run as non-root
+# USER dd-agent
+
+# Leave following directories RW to allow use of readonly rootfs
+VOLUME ["/etc/datadog-agent", "/var/log/datadog", "/tmp"]
 
 ENTRYPOINT ["/entrypoint.sh"]
 

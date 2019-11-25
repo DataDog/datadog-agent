@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 
@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 type ScannerTestSuite struct {
@@ -62,10 +63,12 @@ func (suite *ScannerTestSuite) SetupTest() {
 	sleepDuration := 20 * time.Millisecond
 	suite.s = NewScanner(config.NewLogSources(), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
+	status.InitStatus(config.CreateSources([]*config.LogSource{suite.source}))
 	suite.s.scan()
 }
 
 func (suite *ScannerTestSuite) TearDownTest() {
+	status.Clear()
 	suite.testFile.Close()
 	suite.testRotatedFile.Close()
 	os.Remove(suite.testDir)
@@ -210,7 +213,11 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
-	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}))
+	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
+	scanner.activeSources = append(scanner.activeSources, source)
+	status.Clear()
+	status.InitStatus(config.CreateSources([]*config.LogSource{source}))
+	defer status.Clear()
 
 	// create file
 	path = fmt.Sprintf("%s/test.log", testDir)
@@ -258,7 +265,11 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
-	scanner.activeSources = append(scanner.activeSources, config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path}))
+	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
+	scanner.activeSources = append(scanner.activeSources, source)
+	status.Clear()
+	status.InitStatus(config.CreateSources([]*config.LogSource{source}))
+	defer status.Clear()
 
 	// test at scan
 	scanner.scan()

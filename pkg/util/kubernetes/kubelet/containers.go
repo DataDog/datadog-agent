@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet,linux
 
@@ -9,6 +9,7 @@ package kubelet
 
 import (
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -16,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ListContainers lists all non-excluded running containers, and retrives their performance metrics
+// ListContainers lists all non-excluded running containers, and retrieves their performance metrics
 func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 	pods, err := ku.GetLocalPodList()
 	if err != nil {
@@ -31,7 +32,7 @@ func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 	var ctrList []*containers.Container
 
 	for _, pod := range pods {
-		for _, c := range pod.Status.Containers {
+		for _, c := range pod.Status.GetAllContainers() {
 			if ku.filter.IsExcluded(c.Name, c.Image) {
 				continue
 			}
@@ -82,10 +83,14 @@ func (ku *KubeUtil) UpdateContainerMetrics(ctrList []*containers.Container) erro
 }
 
 func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Container, error) {
+	entity, err := KubeContainerIDToTaggerEntityID(status.ID)
+	if err != nil {
+		return nil, fmt.Errorf("Skipping container %s from pod %s: %s", status.Name, pod.Metadata.Name, err)
+	}
 	c := &containers.Container{
 		Type:     "kubelet",
 		ID:       TrimRuntimeFromCID(status.ID),
-		EntityID: status.ID,
+		EntityID: entity,
 		Name:     fmt.Sprintf("%s-%s", pod.Metadata.Name, status.Name),
 		Image:    status.Image,
 	}
@@ -99,6 +104,7 @@ func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Containe
 		c.State = containers.ContainerRunningState
 		c.Created = status.State.Running.StartedAt.Unix()
 		c.Health = parseContainerReadiness(status, pod)
+		c.AddressList = parseContainerNetworkAddresses(status, pod)
 	case status.State.Terminated != nil:
 		if status.State.Terminated.ExitCode == 0 {
 			c.State = containers.ContainerExitedState
@@ -111,6 +117,44 @@ func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Containe
 	}
 
 	return c, nil
+}
+
+func parseContainerNetworkAddresses(status ContainerStatus, pod *Pod) []containers.NetworkAddress {
+	addrList := []containers.NetworkAddress{}
+	podIP := net.ParseIP(pod.Status.PodIP)
+	if podIP == nil {
+		log.Warnf("Unable to parse pod IP: %v for pod: %s", pod.Status.PodIP, pod.Metadata.Name)
+		return addrList
+	}
+	hostIP := net.ParseIP(pod.Status.HostIP)
+	if hostIP == nil {
+		log.Warnf("Unable to parse host IP: %v for pod: %s", pod.Status.HostIP, pod.Metadata.Name)
+		return addrList
+	}
+	// Look for the ports in container spec
+	for _, s := range pod.Spec.Containers {
+		if s.Name == status.Name {
+			for _, port := range s.Ports {
+				if port.HostPort > 0 {
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       hostIP,
+						Port:     port.HostPort,
+						Protocol: port.Protocol,
+					})
+				}
+				if port.ContainerPort > 0 && !pod.Spec.HostNetwork {
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       podIP,
+						Port:     port.ContainerPort,
+						Protocol: port.Protocol,
+					})
+				}
+			}
+			break
+		}
+	}
+
+	return addrList
 }
 
 func parseContainerReadiness(status ContainerStatus, pod *Pod) string {

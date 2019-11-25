@@ -36,9 +36,21 @@ func (c *Container) FillCgroupLimits() error {
 	if err != nil {
 		return fmt.Errorf("mem limit: %s", err)
 	}
+	c.KernMemUsage, err = c.cgroup.KernelMemoryUsage()
+	if err != nil {
+		return fmt.Errorf("kernel mem usage: %s", err)
+	}
 	c.SoftMemLimit, err = c.cgroup.SoftMemLimit()
 	if err != nil {
 		return fmt.Errorf("soft mem limit: %s", err)
+	}
+	c.MemFailCnt, err = c.cgroup.FailedMemoryCount()
+	if err != nil {
+		return fmt.Errorf("failed mem count: %s", err)
+	}
+	c.ThreadLimit, err = c.cgroup.ThreadLimit()
+	if err != nil {
+		return fmt.Errorf("thread limit: %s", err)
 	}
 
 	return nil
@@ -71,6 +83,10 @@ func (c *Container) FillCgroupMetrics() error {
 	c.StartedAt, err = c.cgroup.ContainerStartTime()
 	if err != nil {
 		return fmt.Errorf("start time: %s", err)
+	}
+	c.ThreadCount, err = c.cgroup.ThreadCount()
+	if err != nil {
+		return fmt.Errorf("thread count: %s", err)
 	}
 
 	return nil

@@ -1,44 +1,54 @@
-name 'datadog-puppy'
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2016-2019 Datadog, Inc.
+
 require './lib/ostools.rb'
+require 'pathname'
+
+name 'datadog-puppy'
+
+license "Apache-2.0"
+license_file "../LICENSE"
 
 source path: '..'
-
-relative_path 'datadog-puppy'
-
-whitelist_file ".*"  # temporary hack, TODO: build libz with omnibus
+relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
-  ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  # the go deps needs to be installed (invoke dep) before running omnibus
-  # TODO: enable omnibus to run invoke deps while building the project
-  command "invoke agent.build --puppy --rebuild --use-embedded-libs --no-development"
+  # set GOPATH on the omnibus source dir for this software
+  gopath = Pathname.new(project_dir) + '../../../..'
+  etc_dir = "/etc/datadog-agent"
+  env = {
+    'GOPATH' => gopath.to_path,
+    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+  }
+  # include embedded path (mostly for `pkg-config` binary)
+  env = with_embedded_path(env)
+
+  command "invoke agent.build --puppy --rebuild --no-development", env: env
   copy('bin', install_dir)
 
   mkdir "#{install_dir}/run/"
 
   if linux?
     # Config
-    mkdir '/etc/dd-agent'
-    move 'bin/agent/dist/datadog.yaml', '/etc/dd-agent/datadog.yaml.example'
-    mkdir '/etc/dd-agent/checks.d'
+    mkdir '/etc/datadog-agent'
+    mkdir "/var/log/datadog"
+
+    move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
+    move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
 
     if debian?
       erb source: "upstart.conf.erb",
-          dest: "/etc/init/datadog-agent6.conf",
+          dest: "/etc/init/datadog-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir }
-    end
 
-    if redhat? || debian? || suse?
       erb source: "systemd.service.erb",
-          dest: "/lib/systemd/system/datadog-agent6.service",
+          dest: "/lib/systemd/system/datadog-agent.service",
           mode: 0644,
           vars: { install_dir: install_dir }
     end
-  end
-
-  if windows?
-    copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
   end
 
   # The file below is touched by software builds that don't put anything in the installation

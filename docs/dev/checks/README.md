@@ -1,14 +1,21 @@
-# Developer Guide for Checks
+# Custom checks developer guide
 
-This section of the docs will help you understanding how checks work and how to
-provide custom or new ones.
-
-Existing checks live in the [integrations-core](https://github.com/DataDog/integrations-core) and [integrations-extras](https://github.com/DataDog/integrations-extras) repositories.
+For more informations about what a Custom check is and whether they are a good
+fit for your use case, please [refer to the official documentation][custom-checks].
 
 ## Configuration
 
 Every check has its own YAML configuration file. The file has one mandatory key,
 `instances` and one optional, `init_config`.
+
+Note:
+If you want to run a custom check inside your development workspace 
+(github.com/DataDog/datadog-agent), you must put `MyCheck.yaml` and
+`MyCheck.py` in the `bin/agent/dist` folder located at the root of the 
+datadog-agent repository. 
+Please keep in mind that the `invoke agent.build` task will copy the
+contents inside `dev/dist` to `bin/agent/dist` when ran, so you can use
+that path if you need alonger-lived location for your custom checks.
 
 ### init_config
 
@@ -49,21 +56,80 @@ It's up to the check author how to structure configuration data.
 Each instances of a check are completely independent from one another and might
 run at different intervals.
 
-## Python Checks
+## Anatomy of a Python Check
 
-### API
+Same as any built-in integration, a Custom Check consists of a Python class that
+inherits from `AgentCheck` and implements the `check` method:
 
-Read more about the [Python Checks API](python/check_api.md).
+```python
+from datadog_checks.checks import AgentCheck
 
-### Built-in packages
+class MyCheck(AgentCheck):
+    def check(self, instance):
+        # Collect metrics, emit events, submit service checks,
+        # ...
+```
 
-The Agent provides a set of python packages that are built-in and only available
-within the embedded CPython interpreter:
+The Agent creates an object of type `MyCheck` for each element contained in the
+`instances` sequence within the corresponding config file:
 
-- [aggregator](python/aggregator.md)
-- [datadog-agent](python/datadog_agent.md)
+```
+instances:
+  - host: localhost
+    port: 6379
 
+  - host: example.com
+    port: 6379
+```
 
-## Core Checks (or Go Checks)
+Any mapping contained in `instances` is passed to the `check` method through the
+named parameter `instance`. The `check` method is invoked at every run of the
+[collector][collector].
 
-TODO
+The `AgentCheck` base class provides several useful attributes and methods,
+refer to the [Python docs][datadog_checks_base] and the developer
+[documentation pages][developer_docs] for more details.
+
+### Running subprocesses
+
+Due to the Python interpreter being embedded in an inherently multi-threaded environment (the go runtime)
+there are some limitations to the way Python Checks can run subprocesses.
+
+To run a subprocess from your check, use the `get_subprocess_output` function
+provided in `datadog_checks.utils.subprocess_output`:
+
+```python
+from datadog_checks.utils.subprocess_output import get_subprocess_output
+
+class MyCheck(AgentCheck):
+    def check(self, instance):
+    # [...]
+    out, err, retcode = get_subprocess_output(cmd, self.log, raise_on_empty_output=True)
+```
+
+Using the `subprocess` and `multiprocessing` modules provided by the Python standard library is _not
+supported_, and may result in your Agent crashing and/or creating processes that remain in a stuck or zombie
+state.
+
+### Custom built-in modules
+
+A set of Python modules is provided capable to interact with a running Agent at
+a quite low level. These modules are built-in but only available in the embedded
+CPython interpreter within a running Agent and are mostly used in the `AgentCheck`
+base class which exposes convenient wrappers to be used in integrations and custom
+checks code.
+
+**These modules should never be used directly.**
+
+- [_util](builtins/_util.md)
+- [aggregator](builtins/aggregator.md)
+- [containers](builtins/containers.md)
+- [datadog_agent](builtins/datadog_agent.md)
+- [kubeutil](builtins/kubeutil.md)
+- [tagger](builtins/tagger.md)
+- [util](builtins/util.md)
+
+[custom-checks]: https://docs.datadoghq.com/developers/write_agent_check/?tab=agentv6
+[collector]: /pkg/collector
+[datadog_checks_base]: https://datadog-checks-base.readthedocs.io/en/latest/
+[developer_docs]: https://docs.datadoghq.com/developers/

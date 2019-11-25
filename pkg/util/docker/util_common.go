@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package docker
 
@@ -9,11 +9,6 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-)
-
-const (
-	// DockerEntityPrefix is the entity prefix for docker containers
-	DockerEntityPrefix = "docker://"
 )
 
 var (
@@ -34,4 +29,9 @@ var (
 // ContainerIDToEntityName returns a prefixed entity name from a container ID
 func ContainerIDToEntityName(cid string) string {
 	return containers.BuildEntityName(containers.RuntimeNameDocker, cid)
+}
+
+// ContainerIDToTaggerEntityName returns a prefixed entity name from a container ID
+func ContainerIDToTaggerEntityName(cid string) string {
+	return containers.BuildTaggerEntityName(cid)
 }

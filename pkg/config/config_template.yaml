@@ -1,671 +1,1359 @@
 {{ if .Common }}
-# The Datadog api key to associate your Agent's data with your organization.
-# Can be found here:
-# https://app.datadoghq.com/account/settings
+#########################
+## Basic Configuration ##
+#########################
+
+## @param api_key - string - required
+## The Datadog API key to associate your Agent's data with your organization.
+## Create a new API key here: https://app.datadoghq.com/account/settings
+#
 api_key:
 
-# The site of the Datadog intake to send Agent data to.
-# Defaults to 'datadoghq.com', set to 'datadoghq.eu' to send data to the EU site.
+## @param site - string - optional - default: datadoghq.com
+## The site of the Datadog intake to send Agent data to.
+## Set to 'datadoghq.eu' to send data to the EU site.
+#
 # site: datadoghq.com
 
-# The host of the Datadog intake server to send Agent data to, only set this option
-# if you need the Agent to send data to a custom URL.
-# Overrides the site setting defined in "site".
+## @param dd_url - string - optional - default: https://app.datadoghq.com
+## The host of the Datadog intake server to send Agent data to, only set this option
+## if you need the Agent to send data to a custom URL, it overrides the site setting defined in "site".
+#
 # dd_url: https://app.datadoghq.com
 
-# If you need a proxy to connect to the Internet, provide it here (default:
-# disabled). You can use the 'no_proxy' list to specify hosts that should
-# bypass the proxy. These settings might impact your checks requests, please
-# refer to the specific check documentation for more details. Environment
-# variables DD_PROXY_HTTP, DD_PROXY_HTTPS and DD_PROXY_NO_PROXY (space-separated string)
-# will override the values set here. See https://docs.datadoghq.com/agent/proxy/.
+## @param proxy - custom object - optional
+## If you need a proxy to connect to the Internet, provide it here (default:
+## disabled). Refer to https://docs.datadoghq.com/agent/proxy/ to understand how to use these settings.
+## For Logs proxy information, refer to https://docs.datadoghq.com/agent/proxy/#proxy-for-logs
 #
 # proxy:
-#   http: http://user:password@proxy_for_http:port
-#   https: http://user:password@proxy_for_https:port
+#   https: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>
+#   http: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>
 #   no_proxy:
-#     - host1
-#     - host2
+#     - <HOSTNAME-1>
+#     - <HOSTNAME-2>
 
-# Setting this option to "true" will tell the agent to skip validation of SSL/TLS certificates.
-# This may be necessary if the agent is running behind a proxy. See this page for details:
-# https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
+## @param skip_ssl_validation - boolean - optional - default: false
+## Setting this option to "true" tells the Agent to skip validation of SSL/TLS certificates.
+#
 # skip_ssl_validation: false
 
-# Setting this option to "true" will force the agent to only use TLS 1.2 when
-# pushing data to the Datadog intake specified in "site" or "dd_url".
+## @param force_tls_12 - boolean - optional - default: false
+## Setting this option to "true" forces the Agent to only use TLS 1.2 when
+## pushing data to the Datadog intake specified in "site" or "dd_url".
+#
 # force_tls_12: false
 
-# Force the hostname to whatever you want. (default: auto-detected)
-# hostname: mymachine.mydomain
+## @param hostname - string - optional - default: auto-detected
+## Force the hostname name.
+#
+# hostname: <HOSTNAME_NAME>
 
-# Make the agent use "hostname -f" on unix-based systems as a last resort
-# way of determining the hostname instead of Golang "os.Hostname()"
-# This will be enabled by default in version 6.6
-# More information at  https://dtdg.co/flag-hostname-fqdn
+## @param hostname_fqdn - boolean - optional - default: false
+## When the Agent relies on the OS to determine the hostname, make it use the
+## FQDN instead of the short hostname. Recommended value: true
+## More information at https://dtdg.co/flag-hostname-fqdn
+#
 # hostname_fqdn: false
 
-# Set the host's tags (optional)
+## @param tags  - list of key:value elements - optional
+## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+##
+## Learn more about tagging: https://docs.datadoghq.com/tagging/
+#
 # tags:
-#   - mytag
-#   - env:prod
-#   - role:database
+#   - environment:dev
+#   - <TAG_KEY>:<TAG_VALUE>
 
-# Split tag values according to a given separator.
-# Only applies to host tags, tags coming from container integrations.
-# Does not apply to tags on dogstatsd metrics, and tags collected by other
-# integrations.
-# This option is useful when the native tags do not support repeating multiple
-# tags with the same name and different values.
+## @param tag_value_split_separator - list of key:value elements - optional
+## Split tag values according to a given separator. Only applies to host tags,
+## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
+## and tags collected by other integrations.
+##
+## Example use-case:
+##
+##  With a raw collected tag "foo:1;2;3", using the following configuration:
+##
+##  tag_value_split_separator:
+##    foo: ;
+##
+##  results in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
 #
-# Example use-case:
-#
-#  With a raw collected tag "foo:1;2;3"
-#  Using the following configuration:
-#
-#    tag_value_split_separator:
-#      foo: ;
-#
-#  will result in the raw tag being transformed into "foo:1", "foo:2", "foo:3" tags
+# tag_value_split_separator:
+#   - <TAG_KEY>: <SEPARATOR>
 
-# Histogram and Historate configuration
+## @param checks_tag_cardinality - string - optional - default: low
+## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
+##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
+##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
+##   * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+## WARNING: sending container tags for checks metrics may create more metrics
+## (one per container instead of one per host). This may impact your custom metrics billing.
 #
-# Configure which aggregated value to compute. Possible values are: min, max,
-# median, avg, sum and count.
+# checks_tag_cardinality: low
+
+## @param dogstatsd_tag_cardinality - string - optional - default: low
+## Configure the level of granularity of tags to send for DogStatsD metrics and events. Choices are:
+##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
+##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
+##   * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+##
+## WARNING: sending container tags for dogstatsd metrics may create more metrics
+## (one per container instead of one per host). This may impact your custom metrics billing.
 #
-# histogram_aggregates: ["max", "median", "avg", "count"]
+# dogstatsd_tag_cardinality: low
+
+## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
+## Configure which aggregated value to compute.
+## Possible values are: min, max, median, avg, sum and count.
 #
-# Configure which percentiles will be computed. Must be a list of float
-# between 0 and 1.
-# Warning: percentiles must be specified as yaml strings
+# histogram_aggregates:
+#   - max
+#   - median
+#   - avg
+#   - count
+
+## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
+## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
+## Warning: percentiles must be specified as yaml strings
 #
-# histogram_percentiles: ["0.95"]
+# histogram_percentiles:
+#   - "0.95"
+
+## @param histogram_copy_to_distribution - boolean - optional - default: false
+## Copy histogram values to distributions for true global distributions (in beta)
+## Note: This increases the number of custom metrics created.
 #
-# Copy histogram values to distributions for true global distributions (in beta)
-# This will increase the number of custom metrics created
 # histogram_copy_to_distribution: false
-#
-# A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
-# histogram_copy_to_distribution_prefix: ""
 
-# Forwarder timeout in seconds
+## @param histogram_copy_to_distribution_prefix - string - optional
+## A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
+#
+# histogram_copy_to_distribution_prefix: "<PREFIX>"
+
+## @param aggregator_stop_timeout - integer - optional - default: 2
+## When stopping the agent, the Aggregator will try to flush out data ready for
+## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
+## to be sent to DataDog, therefore the Agent might take at most
+## 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+##
+## You can set the maximum amount of time, in seconds, allocated to the
+## Aggregator to do so. You can disable this feature by setting
+## 'aggregator_stop_timeout' to 0.
+#
+# aggregator_stop_timeout: 2
+
+## @param forwarder_timeout - integer - optional - default: 20
+## Forwarder timeout in seconds
+#
 # forwarder_timeout: 20
 
-# The forwarder retries failed requests. Use this setting to change the
-# maximum length of the forwarder's retry queue (each request in the queue
-# takes no more than 2MB in memory)
+## @param forwarder_retry_queue_max_size - integer - optional - default: 30
+## The forwarder retries failed requests. Use this setting to change the
+## maximum length of the forwarder's retry queue (each request in the queue
+## takes no more than 2MB in memory)
+#
 # forwarder_retry_queue_max_size: 30
 
-# The number of workers used by the forwarder. Please note each worker will
-# open an outbound HTTP connection towards Datadog's metrics intake at every
-# flush.
+## @param forwarder_num_workers - integer - optional - default: 1
+## The number of workers used by the forwarder.
+#
 # forwarder_num_workers: 1
 
-# Collect AWS EC2 custom tags as agent tags
+## @param forwarder_stop_timeout - integer - optional - default: 2
+## When stopping the agent, the Forwarder will try to flush all new
+## transactions (not the ones in retry state).  New transactions will be created
+## as the Aggregator flush it's internal data too, therefore the Agent might take
+## at most 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+##
+## You can set the maximum amount of time, in seconds, allocated to the
+## Forwarder to send those transactions.  You can disable this feature by setting
+## 'forwarder_stop_timeout' to 0.
+#
+# forwarder_stop_timeout: 2
+
+## @param collect_ec2_tags - boolean - optional - default: false
+## Collect AWS EC2 custom tags as host tags.
+#
 # collect_ec2_tags: false
 
-# Collect Google Cloud Engine metadata as agent tags
+## @param collect_gce_tags - boolean - optional - default: true
+## Collect Google Cloud Engine metadata as host tags
+#
 # collect_gce_tags: true
+
 {{ end }}
 {{- if .Agent }}
-# The path containing check configuration files
-# By default, uses the conf.d folder located in the agent configuration folder.
-# confd_path:
+{{- if .BothPythonPresent -}}
+## @param python_version - integer - optional - default: 2
+## The major version of Python used to run integrations and custom checks.
+## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
+## Do not change this option when using the official Docker Agent images.
+#
+# python_version: 2
 
-# Additional path where to search for Python checks
-# By default, uses the checks.d folder located in the agent configuration folder.
-# additional_checksd:
+{{ end }}
 
-# The port for the go_expvar server
+############################
+## Advanced Configuration ##
+############################
+
+## @param confd_path - string - optional
+## The path containing check configuration files. By default, uses the conf.d folder
+## located in the Agent configuration folder.
+#
+# confd_path: ""
+
+## @param additional_checksd - string - optional
+## Additional path indicating where to search for Python checks. By default, uses the checks.d folder
+## located in the Agent configuration folder.
+#
+# additional_checksd: <CHECKD_FOLDER_PATH>
+
+## @param expvar_port - integer - optional - default: 5000
+## The port for the go_expvar server.
+#
 # expvar_port: 5000
 
-# The port on which the IPC api listens
+## @param cmd_port - integer - optional - default: 5001
+## The port on which the IPC api listens.
+#
 # cmd_port: 5001
 
-# The port for the browser GUI to be served
-# Setting 'GUI_port: -1' turns off the GUI completely
-# Default is '5002' on Windows and macOS ; turned off on Linux
-# GUI_port: -1
+## @param GUI_port - integer - optional
+## The port for the browser GUI to be served.
+## Setting 'GUI_port: -1' turns off the GUI completely
+## Default is:
+##  * Windows & macOS : `5002`
+##  * Linux: `-1`
+##
+#
+# GUI_port: <GUI_PORT>
 
-# The `check_runners` refers to the number of concurrent check runners available
-# for check instance execution. The scheduler will attempt to spread the
-# instances over the collection interval and will _at most_ be running the
-# number of check runners instances concurrently. Setting the value to 1
-# would result in checks running sequentially.
+## @param health_port - integer - optional - default: 0
+## The Agent can expose its health check on a dedicated http port.
+## This is useful for orchestrators that support http probes.
+## Default is 0 (disabled), set a valid port number (eg. 5555) to enable.
 #
-# NOTE: due to the nature of the python interpreter and its global interpreter
-# lock (GIL) only one native thread may be running on the python interpreter at
-# a time. Concurrent check runners imply concurrently executing checks must contend
-# for the GIL. This has the side-effect of increasing wall-time execution times for
-# the checks. The aggregate system/user-time for all checks however, should be
-# decreased. Concurrency works particularly well with I/O bound tasks (or at least
-# IO intensive) as the GIL will typically be released while waiting for IO, allowing
-# for other checks to grab a hold of the GIL and continue execution. For CPU-bound
-# checks with a low activity, it's likely that the check instances will contend for
-# the GIL, which will cause a CPU overhead compared to running these check instances
-# sequentially (i.e. on one check runner).
-#
-# This is a sensitive setting and we do NOT recommend changing the default number
-# of check runners in the general case. The level of concurrency has effects on
-# the agent's: RSS memory, CPU load, resource contention overhead, etc.
+# health_port: 0
+
+## @param check_runners - integer - optional - default: 4
+## The `check_runners` refers to the number of concurrent check runners available for check instance execution.
+## The scheduler attempts to spread the instances over the collection interval and will _at most_ be
+## running the number of check runners instances concurrently.
+## Setting the value to 1 would result in checks running sequentially.
+##
+## This is a sensitive setting, and we do NOT recommend changing the default number
+## of check runners in the general case. The level of concurrency has effects on
+## the Agent's: RSS memory, CPU load, resource contention overhead, etc.
 #
 # check_runners: 4
 
-# Metadata collection should always be enabled, except if you are running several
-# agents/dsd instances per host. In that case, only one agent should have it on.
-# WARNING: disabling it on every agent will lead to display and billing issues
+## @param enable_metadata_collection - boolean - optional - default: true
+## Metadata collection should always be enabled, except if you are running several
+## agents/dsd instances per host. In that case, only one Agent should have it on.
+## WARNING: disabling it on every Agent leads to display and billing issues.
+#
 # enable_metadata_collection: true
 
-# Enable the gohai collection of systems data
+## @param enable_gohai - boolean - optional - default: true
+## Enable the gohai collection of systems data.
+#
 # enable_gohai: true
 
-# IPC api server timeout in seconds
+## @param server_timeout - integer - optional - default: 15
+## IPC api server timeout in seconds.
+#
 # server_timeout: 15
 
-# Some environments may have the procfs file system mounted in a miscellaneous
-# location. The procfs_path configuration parameter provides a mechanism to
-# override the standard default location: '/proc' - this setting will trickle
-# down to integrations and affect their behavior if they rely on the psutil
-# python package.
-# procfs_path: /proc
+## @param procfs_path - string - optional
+## Some environments may have the procfs file system mounted in a miscellaneous
+## location. The procfs_path configuration parameter provides a mechanism to
+## override the standard default location: '/proc' - this setting trickles down to
+## integrations and affect their behavior if they rely on the psutil python package.
+#
+# procfs_path: <PROCFS_PATH>
 
+## @param disable_py3_validation - boolean - optional - default: false
+## Disable Python3 validation of python checks.
+#
+# disable_py3_validation: false
+#
+## @param python3_linter_timeout - integer - optional - default: 120
+## Timeout in seconds for validation of compatibility with python 3 when running python 2.
+#
+# python3_linter_timeout: 120
 
-# BETA: Encrypted Secrets (Linux only)
+## @param memtrack_enabled - boolean - optional - default: true
+## Enables tracking of memory allocations made from the python runtime loader.
 #
-# This feature is in beta and its options or behaviour might break between
-# minor or bugfix releases of the Agent.
+# memtrack_enabled: true
+
+## @param tracemalloc_debug - boolean - optional - default: false
+## Enables debugging with tracemalloc for python checks.
+## Please note that this option is only available when python_version is set to "3".
+## Additionally when this option becomes effective the number of check runners is
+## overridden to 1.
 #
-# The agent can call an external command to fetch secrets. The command will be
-# executed maximum once per instance containing an encrypted password.
-# Secrets are cached by the agent, this will avoid executing again the
-# secret_backend_command to fetch an already known secret (useful when combine
-# with Autodiscovery). This feature is still in beta.
+# tracemalloc_debug: false
+
+## @param tracemalloc_whitelist - string - optional
+## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
+## By default, all Python checks are enabled.
 #
-# For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
+# tracemalloc_whitelist: <TRACEMALLOC_WHITELIST>
+
+## @param tracemalloc_blacklist - string - optional
+## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
+## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_whitelist`.
 #
-# Path to the script to execute. The script must belong to the same user used
-# to run the agent. Executable right must be given to the agent and no rights
-# for 'group' or 'other'.
-# secret_backend_command: /path/to/command
+# tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
+
+## @param secret_backend_command - string - optional
+## `secret_backend_command` is the path to the script to execute to fetch secrets.
+## The executable must have specific rights that differ on Windows and Linux.
+##
+## For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
 #
-# A list of arguments to give to the command at each run (optional)
+# secret_backend_command: <COMMAND_PATH>
+
+## @param secret_backend_arguments - list of strings - optional
+## If secret_backend_command is set, specify here a list of arguments to give to the command at each run.
+#
 # secret_backend_arguments:
-#   - argument1
-#   - argument2
+#   - <ARGUMENT_1>
+#   - <ARGUMENT_2>
+
+## @param secret_backend_output_max_size - integer - optional - default: 1024
+## The size in bytes of the buffer used to store the command answer (apply to both stdout and stderr)
 #
-# The size in bytes of the buffer used to store the command answer (apply to
-# both stdout and stderr)
 # secret_backend_output_max_size: 1024
+
+## @param secret_backend_timeout - integer - optional - default: 5
+## The timeout to execute the command in second
 #
-# The timeout to execute the command in second
 # secret_backend_timeout: 5
 
 {{ end -}}
-{{- if .Metadata }}
-# Metadata providers, add or remove from the list to enable or disable collection.
-# Intervals are expressed in seconds. You can also set a provider's interval to 0
-# to disable it.
-# metadata_providers:
-#  - name: k8s
-#    interval: 60
+{{- if .LogsAgent }}
+
+##################################
+## Log collection Configuration ##
+##################################
+
+## @param logs_enabled - boolean - optional - default: false
+## Enable Datadog Agent log collection by setting logs_enabled to true.
+#
+# logs_enabled: false
+
+## @param logs_config - custom object - optional
+## Enter specific configurations for your Log collection.
+## Uncomment this parameter and the one below to enable them.
+## See https://docs.datadoghq.com/agent/logs/
+#
+# logs_config:
+
+  ## @param container_collect_all - boolean - optional - default: false
+  ## Enable container log collection for all the containers (see ac_exclude to filter out containers)
+  #
+  # container_collect_all: false
+
+  ## @param logs_dd_url - string - optional
+  ## Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
+  ## therefore the proxy must be able to handle TCP connections.
+  #
+  # logs_dd_url: <ENDPOINT>:<PORT>
+
+  ## @param logs_no_ssl - boolean - optional - default: false
+  ## Disable the SSL encryption. This parameter should only be used when logs are
+  ## forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption
+  ## on the proxy side.
+  #
+  # logs_no_ssl: false
+
+  ## @param processing_rules - list of custom objects - optional
+  ## Global processing rules that are applied to all logs. The available rules are
+  ## "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
+  ## https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
+  #
+  # processing_rules:
+  #   - type: <RULE_TYPE>
+  #     name: <RULE_NAME>
+  #     pattern: <RULE_PATTERN>
+
+  ## @param use_port_443 - boolean - optional - default: false
+  ## By default, logs are sent to port 10516 *for the US site*, use this parameter
+  ## to force the Agent to send logs in TCP to port 443.
+  #
+  # use_port_443: false
+
+{{ end -}}
+{{- if .TraceAgent }}
+
+####################################
+## Trace Collection Configuration ##
+####################################
+
+## @param apm_config - custom object - optional
+## Enter specific configurations for your trace collection.
+## Uncomment this parameter and the one below to enable them.
+## See https://docs.datadoghq.com/agent/apm/
+#
+# apm_config:
+
+  ## @param enabled - boolean - optional - default: true
+  ## Set to true to enable the APM Agent.
+  #
+  # enabled: true
+
+  ## @param env - string - optional - default: none
+  ## The environment tag that Traces should be tagged with.
+  ## Inherits from "env" tag if "none" is applied here.
+  #
+  # env: none
+
+  ## @param receiver_port - integer - optional - default: 8126
+  ## The port that the trace receiver should listen on.
+  #
+  # receiver_port: 8126
+
+  ## @param apm_non_local_traffic - boolean - optional - default: false
+  ## Set to true so the Trace Agent listens for non local traffic,
+  ## i.e if Traces are being sent to this Agent from another host/container
+  #
+  # apm_non_local_traffic: false
+
+  ## @param apm_dd_url - string - optional
+  ## Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
+  ## therefore the proxy must be able to handle TCP connections.
+  #
+  # apm_dd_url: <ENDPOINT>:<PORT>
+
+  ## @param extra_sample_rate - float - optional - default: 1.0
+  ## Extra global sample rate to apply on all the traces
+  ## This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces.
+  ## From 1 (no extra rate) to 0 (don't sample at all)
+  #
+  # extra_sample_rate: 1.0
+
+  ## @param max_traces_per_second - integer - optional - default: 10
+  ## Maximum number of traces per second to sample. The limit is applied over an average over
+  ## a few minutes ; much bigger spikes are possible. Set to 0 to disable the limit.
+  #
+  # max_traces_per_second: 10
+
+  ## @param max_events_per_second - integer - optional - default: 200
+  ## Maximum number of APM events per second to sample.
+  #
+  # max_events_per_second: 200
+
+  ## @param max_memory - integer - optional - default: 500000000
+  ## This value is what the Agent aims to use in terms of memory. If surpassed, the API
+  ## rate limits incoming requests to aim and stay below this value.
+  ## Note: The Agent process is killed if it uses more than 150% of `max_memory`.
+  ## Set the `max_memory` parameter to `0` to disable the memory limitation.
+  #
+  # max_memory: 500000000
+
+  ## @param max_cpu_percent - integer - optional - default: 50
+  ## The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
+  ## incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
+  ## Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
+  #
+  # max_cpu_percent: 50
+
+  ## @param obfuscation - object - optional
+  ## Defines obfuscation rules for sensitive data. Disabled by default.
+  ## See https://docs.datadoghq.com/tracing/guide/agent-obfuscation
+  #
+  # obfuscation:
+  #     <OBFUSCATION_CONFIGURATION>
+
+  ## @param replace_tags - list of objects - optional
+  ## Defines a set of rules to replace or remove certain services, resources, tags containing
+  ## potentially sensitive information.
+  ## Each rules has to contain:
+  ##  * name - string - The tag name to replace, for services or resources use "service.name" or "resource.name".
+  ##  * pattern - string - The pattern to match the desired content to replace
+  ##  * repl - string - what to inline if the pattern is matched
+  ##
+  ## For instance to remove all query parameters from the http.url tag you would use:
+  ##
+  ##   - name: "http.url"
+  ##     pattern: "\?.*$"
+  ##     repl: "?"
+  ##
+  #
+  # replace_tags:
+  #   - name: "<TAG_NAME>"
+  #     pattern: "<REGEX_PATTERN>"
+  #     repl: "<PATTERN_TO_INLINE>"
+
+  ## @param ignore_resources - list of strings - optional
+  ## A blacklist of regular expressions can be provided to disable certain traces based on their resource name
+  ## all entries must be surrounded by double quotes and separated by commas.
+  #
+  # ignore_resources: ["(GET|POST) /healthcheck"]
+
+  ## @param log_file - string - optional
+  ## The full path to the file where APM-agent logs are written.
+  #
+  # log_file: <APM_LOG_FILE_PATH>
+
+  ## @param log_throttling - boolean - default: true
+  ## Limits the total number of warnings and errors to 10 for every 10 second interval.
+  #
+  # log_throttling: true
+
+{{ end -}}
+{{- if .ProcessAgent }}
+
+######################################
+## Process Collection Configuration ##
+######################################
+
+## @param process_config - custom object - optional
+## Enter specific configurations for your Process data collection.
+## Uncomment this parameter and the one below to enable them.
+## See https://docs.datadoghq.com/graphing/infrastructure/process/
+#
+# process_config:
+
+  ## @param enabled - string - optional - default: "false"
+  ##  A string indicating the enabled state of the Process Agent:
+  ##    * "false"    : The Agent collects only containers information.
+  ##    * "true"     : The Agent collects containers and processes information.
+  ##    * "disabled" : The Agent process collection is disabled.
+  #
+  # enabled: "true"
+
+  ## @param expvar_port - string - optional - default: 6062
+  ## Port for the debug endpoints for the process Agent.
+  #
+  # expvar_port: 6062
+
+  ## @param log_file - string - optional
+  ## The full path to the file where process Agent logs are written.
+  #
+  # log_file: <PROCESS_LOG_FILE_PATH>
+
+  ## @param intervals - custom object - optional - default: 10s for normal checks and 2s for others.
+  ## The interval, in seconds, at which the Agent runs each check. If you want consistent
+  ## behavior between real-time, set the `container_realtime` and `process_realtime` intervals to 10.
+  #
+  # intervals:
+  #   container: 10
+  #   container_realtime: 2
+  #   process: 10
+  #   process_realtime: 2
+
+  ## @param blacklist_patterns - list of strings - optional
+  ## A list of regex patterns that exclude processes if matched.
+  #
+  # blacklist_patterns:
+  #   - <REGEX>
+
+  ## @param queue_size - integer - optional - default: 20
+  ## How many check results to buffer in memory when POST fails.
+  #
+  # queue_size: 20
+
+  ## @param max_per_message - integer - optional - default: 100
+  ## The maximum number of processes or containers per message.
+  #
+  # max_per_message: 100
+
+  ## @param dd_agent_bin - string - optional
+  ## Overrides the path to the Agent bin used for getting the hostname. Defaults are:
+  ##   * Windows: <AGENT_DIRECTORY>\embedded\\agent.exe
+  ##   * Unix: /opt/datadog-agent/bin/agent/agent
+  #
+  # dd_agent_bin: <AGENT_BIN_PATH>
+
+  ## @param dd_agent_env - string - optional - default: ""
+  ## Overrides of the environment we pass to fetch the hostname.
+  #
+  # dd_agent_env: ""
+
+  ## @param scrub_args - boolean - optional - default: true
+  ## Hide sensitive data on the Live Processes page.
+  #
+  # scrub_args: true
+
+  ## @param custom_sensitive_words - list of strings - optional
+  ## Define your own list of sensitive data to be merged with the default one.
+  ## Read more on Datadog documentation:
+  ## https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
+  #
+  # custom_sensitive_words:
+  #   - 'personal_key'
+  #   - '*token'
+  #   - 'sql*'
+  #   - '*pass*d*'
+
+{{ end -}}
+{{- if .SystemProbe }}
+
+##################################
+## System Probe Configuration ##
+##################################
+
+## @param system_probe_config - custom object - optional
+## Beta Agent
+## Enter specific configurations for your System Probe data collection.
+## Uncomment this parameter and the one below to enable them.
+#
+# system_probe_config:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the System Probe.
+  #
+  # enabled: false
+
+  ## @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
+  ## The full path to the location of the unix socket where system probes are accessed.
+  #
+  # sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
+
+  ## @param log_file - string - optional - default: /var/log/datadog/system-probe.log
+  ## The full path to the file where system-probe logs are written.
+  #
+  # log_file: /var/log/datadog/system-probe.log
+
 {{ end -}}
 {{- if .Dogstatsd }}
-# DogStatsd
+
+############################
+## DogStatsD Configuration ##
+############################
+
+## @param use_dogstatsd - boolean - optional - default: true
+## Set this option to false to disable the Agent DogStatsD server.
 #
-# If you don't want to enable the DogStatsd server, set this option to false
 # use_dogstatsd: true
+
+## @param dogstatsd_port - integer - optional - default: 8125
+## Override the Agent DogStatsD port.
+## Note: Make sure your client is sending to the same UDP port.
 #
-# Make sure your client is sending to the same UDP port
 # dogstatsd_port: 8125
+
+## @param bind_host - string - optional - default: localhost
+## The host to listen on for Dogstatsd and traces. This is ignored by APM when
+## `apm_config.non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
+## is enabled. The trace-agent uses this host to send metrics to.
+## The `localhost` default value is invalid in IPv6 environments where dogstatsd listens on "::1".
+## To solve this problem, ensure Dogstatsd is listening on IPv4 by setting this value to "127.0.0.1".
 #
-# The host to bind to receive external metrics (used only by the dogstatsd
-# server for now). For dogstatsd this is ignored if
-# 'dogstatsd_non_local_traffic' is set to true
 # bind_host: localhost
+
+## @param dogstatsd_socket - string - optional - default: ""
+## Listen for Dogstatsd metrics on a Unix Socket (*nix only). Set to a valid filesystem path to enable.
 #
-# Dogstatsd can also listen for metrics on a Unix Socket (*nix only).
-# Set to a valid filesystem path to enable.
-# dogstatsd_socket: /var/run/dogstatsd/dsd.sock
+# dogstatsd_socket: ""
+
+## @param dogstatsd_origin_detection - boolean - optional - default: false
+## When using Unix Socket, DogStatsD can tag metrics with container metadata.
+## If running DogStatsD in a container, host PID mode (e.g. with --pid=host) is required.
 #
-# When using Unix Socket, dogstatsd can tag metrics with container metadata.
-# If running dogstatsd in a container, host PID mode (e.g. with --pid=host) is required.
 # dogstatsd_origin_detection: false
+
+## @param dogstatsd_buffer_size - integer - optional - default: 8192
+## The buffer size use to receive statsd packets, in bytes.
 #
-# The buffer size use to receive statsd packet, in bytes
-# dogstatsd_buffer_size: 1024
+# dogstatsd_buffer_size: 8192
+
+## @param dogstatsd_non_local_traffic - boolean - optional - default: false
+## Set to true to make DogStatsD listen to non local UDP traffic.
 #
-# Whether dogstatsd should listen to non local UDP traffic
 # dogstatsd_non_local_traffic: false
+
+## @param dogstatsd_stats_enable - boolean - optional - default: false
+## Publish DogStatsD's internal stats as Go expvars.
 #
-# Publish dogstatsd's internal stats as Go expvars
 # dogstatsd_stats_enable: false
+
+## @param dogstatsd_stats_buffer - integer - optional - default: 10
+## Set how many items should be in the DogStatsD's stats circular buffer.
 #
-# How many items in the dogstatsd's stats circular buffer
 # dogstatsd_stats_buffer: 10
+
+## @param dogstatsd_stats_port - integer - optional - default: 5000
+## The port for the go_expvar server.
 #
-# The port for the go_expvar server
 # dogstatsd_stats_port: 5000
+
+## @param dogstatsd_so_rcvbuf - integer - optional - default: 0
+## The number of bytes allocated to DogStatsD's socket receive buffer (POSIX system only).
+## By default, the system sets this value. If you need to increase the size of this buffer
+## but keep the OS default value the same, you can set DogStatsD's receive buffer size here.
+## The maximum accepted value might change depending on the OS.
 #
-# The number of bytes allocated to dogstatsd's socket receive buffer (POSIX
-# system only). By default, this value is set by the system. If you need to
-# increase the size of this buffer but keep the OS default value the same, you
-# can set dogstatsd's receive buffer size here. The maximum accepted value
-# might change depending on the OS.
-# dogstatsd_so_rcvbuf:
+# dogstatsd_so_rcvbuf: 0
+
+## @param dogstatsd_metrics_stats_enable - boolean - optional - default: false
+## Set this parameter to true to have DogStatsD collects basic statistics (count/last seen)
+## about the metrics it processsed. Use the Agent command "dogstatsd-stats" to visualize
+## those statistics.
 #
-# Additional tags to append to all metrics received by this server. Useful for
-# tagging all metrics reporting from a single host without resorting to host tags.
+# dogstatsd_metrics_stats_enable: false
+
+## @param dogstatsd_tags - list of key:value elements - optional
+## Additional tags to append to all metrics, events and service checks received by
+## this DogStatsD server.
+#
 # dogstatsd_tags:
-#   - name:value
+#   - <TAG_KEY>:<TAG_VALUE>
+
+## @param statsd_forward_host - string - optional - default: ""
+## Forward every packet received by the DogStatsD server to another statsd server.
+## WARNING: Make sure that forwarded packets are regular statsd packets and not "DogStatsD" packets,
+## as your other statsd server might not be able to handle them.
 #
-# If you want to forward every packet received by the dogstatsd server
-# to another statsd server, uncomment these lines.
-# WARNING: Make sure that forwarded packets are regular statsd packets and not "dogstatsd" packets,
-# as your other statsd server might not be able to handle them.
-# statsd_forward_host: address_of_own_statsd_server
-# statsd_forward_port: 8125
+# statsd_forward_host: ""
+
+## @param statsd_forward_port - integer - optional - default: 0
+## Port or the "statsd_forward_host" to forward StatsD packet to.
 #
-# If you want all statsd metrics coming from this host to be namespaced
-# you can configure the namspace below. Each metric received will be prefixed
-# with the namespace before it's sent to Datadog.
-# statsd_metric_namespace:
+# statsd_forward_port: 0
+
+## @param statsd_metric_namespace - string - optional - default: ""
+## Set a namespace for all StatsD metrics coming from this host.
+## Each metric received is prefixed with the namespace before it's sent to Datadog.
+#
+# statsd_metric_namespace: ""
+
 {{ end -}}
-{{- if .LogsAgent }}
-# Logs agent
+{{- if .Metadata }}
+
+## @param metadata_providers - list of custom object - optional
+## Metadata providers, add or remove from the list to enable or disable collection.
+## Intervals are expressed in seconds. You can also set a provider's interval to 0
+## to disable it.
 #
-# Logs agent is disabled by default
-# logs_enabled: false
-#
-# Enable logs collection for all containers, disabled by default
-# logs_config:
-#   container_collect_all: false
-#
+# metadata_providers:
+#   - name: k8s
+#     interval: 60
+
 {{ end -}}
 {{- if .JMX }}
-# JMX
+
+#######################
+## JMX Configuration ##
+#######################
+
+## @param jmx_custom_jars - list of strings - optional
+## If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
+## set in the check templates. If that is the case, force custom jars here.
 #
-# jmx_pipe_path:
-# jmx_pipe_name: dd-auto_discovery
-#
-# If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
-# set in the check templates. If that is the case, you can force custom jars here.
 # jmx_custom_jars:
 #   - /jmx-jars/jboss-cli-client.jar
+
+## @param jmx_use_cgroup_memory_limit - boolean - optional - default: false
+## When running in a memory cgroup, openjdk 8u131 and higher can automatically adjust
+## its heap memory usage in accordance to the cgroup/container's memory limit.
+## The Agent set a Xmx of 200MB if none is configured.
+## Note: OpenJDK version < 8u131 or >= 10 as well as other JVMs might fail
+## to start if this option is set.
 #
-# When running in a memory cgroup, openjdk 8u131 and higher can automatically adjust
-# its heap memory usage in accordance to the cgroup/container's memory limit.
-# Default is false: we'll set a Xmx of 200MB if none is configured.
-# Note: older openjdk versions and other jvms might fail to start if this option is set
+# jmx_use_cgroup_memory_limit: false
+
+## @param jmx_use_container_support - boolean - optional - default: false
+## When running in a container, openjdk 10 and higher can automatically detect
+## container specific configuration instead of querying the operating system
+## to adjust resources allotted to the JVM.
+## Note: openjdk versions prior to 10 and other JVMs might fail to start if
+## this option is set.
 #
-# jmx_use_cgroup_memory_limit: true
+# jmx_use_container_support: false
+
+## @param jmx_max_restarts - integer - optional - default: 3
+## Number of JMX restarts allowed in the restart-interval before giving up.
 #
-{{ end -}}
-{{- if .Autoconfig }}
-# Autoconfig
+# jmx_max_restarts: 3
+
+## @param jmx_restart_interval - integer - optional - default: 5
+## Duration of the restart interval in seconds.
 #
-# Directory containing configuration templates
-# autoconf_template_dir: /datadog/check_configs
+# jmx_restart_interval: 5
+
+## @param jmx_check_period - integer - optional - default: 15000
+## Duration of the period for check collections in milliseconds.
 #
-# The providers the Agent should call to collect checks configurations.
-# Please note the File Configuration Provider is enabled by default and cannot
-# be configured.
-# config_providers:
+# jmx_check_period: 15000
 
-## The kubelet provider handles templates embedded in pod annotations, see
-## https://docs.datadoghq.com/guides/autodiscovery/#template-source-kubernetes-pod-annotations
-#   - name: kubelet
-#     polling: true
+## @param jmx_thread_pool_size - integer - optional - default: 3
+## JMXFetch collects multiples instances concurrently. Defines the maximum level of concurrency:
+##   * Higher concurrency increases CPU utilization during metric collection.
+##   * Lower concurrency results in lower CPU usage but may increase the total collection time.
+## A value of 1 processes instances serially.
+#
+# jmx_thread_pool_size: 3
 
-## The docker provider handles templates embedded in container labels, see
-## https://docs.datadoghq.com/guides/autodiscovery/#template-source-docker-label-annotations
-#   - name: docker
-#     polling: true
+## @param jmx_collection_timeout - integer - optional - default: 60
+## Defines the maximum waiting period in seconds before timing up on metric collection.
+#
+# jmx_collection_timeout: 60
 
-## The clustercheck provider retrieves cluster-level check configurations
-## from the cluster-agent
-#   - name: clusterchecks
-#      grace_time_seconds: 60
+## @param jmx_reconnection_thread_pool_size - integer - optional - default: 3
+## JMXFetch reconnects to multiples instances concurrently. Defines the maximum level of concurrency:
+##   * Higher concurrency increases CPU utilization during reconnection.
+##   * Lower concurrency results in lower CPU usage but may increase the total reconnection time
+## A value of 1 processes instance reconnections serially.
+#
+# jmx_reconnection_thread_pool_size: 3
 
-#   - name: etcd
-#     polling: true
-#     template_dir: /datadog/check_configs
-#     template_url: http://127.0.0.1
-#     username:
-#     password:
+## @param jmx_reconnection_timeout - integer - optional - default: 10
+## Determines the maximum waiting period in seconds before timing up on instance reconnection.
+#
+# jmx_reconnection_timeout: 10
 
-#   - name: consul
-#     polling: true
-#     template_dir: datadog/check_configs
-#     template_url: http://127.0.0.1
-#     ca_file:
-#     ca_path:
-#     cert_file:
-#     key_file:
-#     username:
-#     password:
-#     token:
-
-#   - name: zookeeper
-#     polling: true
-#     template_dir: /datadog/check_configs
-#     template_url: 127.0.0.1
-#     username:
-#     password:
 {{ end -}}
 {{- if .Logging }}
-# Logging
+
+###########################
+## Logging Configuration ##
+###########################
+
+## @param log_level - string - optional - default: info
+## Minum log level of the Datadog Agent.
 #
 # log_level: info
-# log_file: /var/log/datadog/agent.log
 
-# Set to 'true' to output logs in JSON format
+## @param log_file - string - optional
+## Path of the log file for the Datadog Agent.
+## See https://docs.datadoghq.com/agent/guide/agent-log-files/
+#
+# log_file: <AGENT_LOG_FILE_PATH>
+
+## @param log_format_json - boolean - optional - default: false
+## Set to 'true' to output Agent logs in JSON format.
+#
 # log_format_json: false
 
-# Set to 'false' to disable logging to stdout
+## @param log_to_console - boolean - optional - default: true
+## Set to 'false' to disable Agent logging to stdout.
+#
 # log_to_console: true
 
-# Set to 'true' to disable logging to the log file
+## @param disable_file_logging - boolean - optional - default: false
+## Set to 'true' to disable logging to the log file.
+#
 # disable_file_logging: false
 
-# Set to 'true' to enable logging to syslog.
-# Note: Even if this option is set to 'false', the service launcher of your environment
-# may redirect the agent process' stdout/stderr to syslog. In that case, if you wish
-# to disable logging to syslog entirely, please set 'log_to_console' to 'false' as well.
+## @param log_file_max_size - custom - optional - default: 10MB
+## Maximum size of one log file. Use either a size (e.g. 10MB) or
+## provide value in bytes: 10485760
+#
+# log_file_max_size: 10MB
+
+## @param log_file_max_rolls - integer - optional - default: 1
+## Maximum amount of "old" log files to keep.
+## Set to 0 to not limit the number of files to create.
+#
+# log_file_max_rolls: 1
+
+## @param log_to_syslog - boolean - optional - default: false
+## Set to 'true' to enable logging to syslog.
+## Note: Even if this option is set to 'false', the service launcher of your environment
+## may redirect the Agent process' stdout/stderr to syslog. In that case, if you wish
+## to disable logging to syslog entirely, set 'log_to_console' to 'false' as well.
+#
 # log_to_syslog: false
+
+## @param syslog_uri - string - optional
+## Define a custom remote syslog uri if needed. If 'syslog_uri' is left undefined/empty,
+## a local domain socket connection is attempted.
 #
-# If 'syslog_uri' is left undefined/empty, a local domain socket connection will be attempted
-#
-# syslog_uri:
-#
-# Set to 'true' to output in an RFC 5424-compliant format
+# syslog_uri: <SYSLOG_URI>
+
+## @param syslog_rfc - boolean - optional - default: false
+## Set to 'true' to output in an RFC 5424-compliant format for Agent logs.
 #
 # syslog_rfc: false
+
+## @param syslog_pem - string - optional
+## If TLS enabled, you must specify a path to a PEM certificate here.
 #
-# If TLS enabled, you must specify a path to a PEM certificate here
+# syslog_pem: <PEM_CERTIFICATE_PATH>
+
+## @param syslog_key - string - optional
+## If TLS enabled, you must specify a path to a private key here.
 #
-# syslog_pem: /path/to/certificate.pem
-#
-# If TLS enabled, you must specify a path to a private key here
-#
-# syslog_key: /path/to/key.pem
-#
-# If TLS enabled, you may enforce TLS verification here (defaults to true)
+# syslog_key: <PEM_KEY_PATH>
+
+## @param syslog_tls_verify - boolean - optional - default: true
+## If TLS enabled, you may enforce TLS verification here.
 #
 # syslog_tls_verify: true
+
+{{ end -}}
+{{- if .Autoconfig }}
+
+##############################
+## Autoconfig Configuration ##
+##############################
+
+## @param autoconf_template_dir - string - optional - default: /datadog/check_configs
+## Directory containing configuration templates for Autoconfig.
 #
+# autoconf_template_dir: /datadog/check_configs
+
+## @param config_providers - List of custom object - optional
+## The providers the Agent should call to collect checks configurations. Available providers are:
+##   * kubelet - The kubelet provider handles templates embedded in pod annotations.
+##   * docker -  The Docker provider handles templates embedded in container labels.
+##   * clusterchecks - The clustercheck provider retrieves cluster-level check configurations from the cluster-agent.
+##   * kube_services - The kube_services provider watches Kubernetes services for cluster-checks
+##
+## See https://docs.datadoghq.com/guides/autodiscovery/ to learn more
+#
+# config_providers:
+#  - name: kubelet
+#    polling: true
+#  - name: docker
+#    polling: true
+#  - name: clusterchecks
+#    grace_time_seconds: 60
+{{ if .ClusterChecks }}
+#  - name: kube_services
+#    polling: true
+{{ end -}}
+#  - name: etcd
+#    polling: true
+#    template_dir: /datadog/check_configs
+#    template_url: http://127.0.0.1
+#    username:
+#    password:
+#  - name: consul
+#    polling: true
+#    template_dir: datadog/check_configs
+#    template_url: http://127.0.0.1
+#    ca_file:
+#    ca_path:
+#    cert_file:
+#    key_file:
+#    username:
+#    password:
+#    token:
+#  - name: zookeeper
+#    polling: true
+#    template_dir: /datadog/check_configs
+#    template_url: 127.0.0.1
+#    username:
+#    password:
+
+## @param extra_config_providers - list of strings - optional
+## Add additional config providers by name using their default settings, and pooling enabled.
+## This list is available as an environment variable binding.
+#
+# extra_config_providers:
+#   - clusterchecks
+
 {{ end -}}
 {{- if .Autodiscovery }}
-# Autodiscovery
-#
-# Change the root directory to look at to get cgroup statistics. Useful when running inside a
-# container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set
-# "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
+
+###########################################
+## Container Autodiscovery Configuration ##
+###########################################
+
+## @param container_cgroup_root - string - optional - default: /host/sys/fs/cgroup/
+## Change the root directory to look at to get cgroup statistics.
+## Default if environment variable "DOCKER_DD_AGENT" is set to "/host/sys/fs/cgroup"
+## and "/sys/fs/cgroup" if not.
 #
 # container_cgroup_root: /host/sys/fs/cgroup/
-#
-# Change the root directory to look at to get proc statistics. Useful when running inside a
-# container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set
-# "/host/proc" and "/proc" if not.
+
+## @param container_proc_root - string - optional - default: /host/proc
+## Change the root directory to look at to get proc statistics.
+## Default if environment variable "DOCKER_DD_AGENT" is set "/host/proc" and "/proc" if not.
 #
 # container_proc_root: /host/proc
+
+## @param listeners - list of key:value elements - optional
+## Choose "auto" if you want to let the Agent find any relevant listener on your host
+## At the moment, the only auto listener supported is Docker
+## If you have already set Docker anywhere in the listeners, the auto listener is ignored
 #
-# Choose "auto" if you want to let the agent find any relevant listener on your host
-# At the moment, the only auto listener supported is docker
-# If you have already set docker anywhere in the listeners, the auto listener is ignored
 # listeners:
 #   - name: auto
 #   - name: docker
+
+## @param extra_listeners - list of strings - optional
+## You can also add additional listeners by name using their default settings.
+## This list is available as an environment variable binding.
 #
-# Exclude containers from metrics and AD based on their name or image:
-# An excluded container will not get any individual container metric reported for it.
-# Please note that the `docker.containers.running`, `.stopped`, `.running.total` and
-# `.stopped.total` metrics are not affected by these settings and always count all
-# containers. This does not affect your per-container billing.
-#
-# How it works: include first.
-# If a container matches an exclude rule, it won't be included unless it first matches an include rule.
-#
-# Rules are regexp.
-#
-# Examples:
-# exclude all, except containers based on the 'ubuntu' image or the 'debian' image.
-# ac_exclude: ["image:.*"]
-# ac_include: ["image:ubuntu", "image:debian"]
-#
-# include all, except containers based on the 'ubuntu' image.
-# ac_exclude: ["image:ubuntu"]
-# ac_include: []
-#
-# exclude all debian images except containers with a name starting with 'frontend'.
-# ac_exclude: ["image:debian"]
-# ac_include: ["name:frontend.*"]
+# extra_listeners:
+#   - kubelet
+
+## @param ac_exclude - list of comma separated strings - optional
+## Exclude containers from metrics and AD based on their name or image.
+## If a container matches an exclude rule, it won't be included unless it first matches an include rule.
+## An excluded container won't get any individual container metric reported for it.
+## See: https://docs.datadoghq.com/agent/autodiscovery/#include-or-exclude-containers
 #
 # ac_exclude: []
+
+## @param ac_include - list of comma separated strings - optional
+## Include containers from metrics and AD based on their name or image:
+## See: https://docs.datadoghq.com/agent/autodiscovery/#include-or-exclude-containers
+#
 # ac_include: []
-#
-#
-# Exclude default pause containers from orchestrators.
-#
-# By default the agent will not monitor kubernetes/openshift pause
-# container. They will still be counted in the container count (just like
-# excluded containers) since ignoring them would give a wrong impression
-# about the docker daemon load.
+
+## @param exclude_pause_container - boolean - optional - default: true
+## Exclude default pause containers from orchestrators.
+## By default the Agent doesn't monitor kubernetes/openshift pause container.
+## They are still counted in the container count (just like excluded containers).
 #
 # exclude_pause_container: true
 
-# Exclude default containers from DockerCloud:
-# The following configuration will instruct the agent to ignore the containers from Docker Cloud.
-# You can remove the ones you want to collect.
-# ac_exclude: ["image:dockercloud/network-daemon","image:dockercloud/cleanup","image:dockercloud/logrotate","image:dockercloud/events","image:dockercloud/ntpd"]
-# ac_include: []
+## @param docker_query_timeout - integer - optional - default: 5
+## Set the default timeout value when connecting to the Docker daemon.
 #
-# You can also use the regex to ignore them all:
-# ac_exclude: ["image:dockercloud/*"]
-# ac_include: []
-#
-# The default timeout value when connecting to the docker daemon
-# is 5 seconds. It can be configured with this option.
 # docker_query_timeout: 5
+
+## @param ad_config_poll_interval - integer - optional - default: 10
+## The default interval in second to check for new autodiscovery configurations
+## on all registered configuration providers.
 #
-# The default interval in second to check for new autodiscovery configurations
-# On all registered configuration providers
 # ad_config_poll_interval: 10
+
+{{ end -}}
+{{- if .ClusterChecks }}
+
+#################################
+## Cluster check Configuration ##
+#################################
+
+## @param cluster_checks - custom object - optional
+## Enter specific configurations for your cluster check.
+## The cluster-agent is able to autodiscover cluster resources and dispatch checks on
+## the node-agents (provided the clustercheck config provider is enabled on them).
+## Uncomment this parameter and the one below to enable them.
+## See https://docs.datadoghq.com/agent/kubernetes/cluster/
 #
+# cluster_checks:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the dispatching logic on the leader cluster-agent.
+  #
+  # enabled: false
+
+  ## @param node_expiration_timeout - integer - optional - default: 30
+  ## Set "node_expiration_timeout" time in second after which Node-agents that have not
+  ## queried the cluster-agent are deleted, and their checks re-dispatched to other nodes.
+  #
+  # node_expiration_timeout: 30
+
+  ## @param warmup_duration - integer - optional - default: 30
+  ## Set the "warmup_duration" duration in second for the cluster-agent to wait for all
+  ## node-agents to report to it before dispatching configurations.
+  #
+  # warmup_duration: 30
+
+  ## @param cluster_tag_name - string - optional - default: cluster_name
+  ## If a cluster_name value is set or autodetected, a "<CLUSTER_NAME>" tag is added
+  ## to all cluster-check configurations sent to the node-agents.
+  ## Set a custom tag name here, or disable it by setting an empty name.
+  #
+  # cluster_tag_name: cluster_name
+
+  ## @param extra_tags - list of key:value elements - optional
+  ## Set a list of additionnal tags can to be added to every cluster-check configuration.
+  #
+  # extra_tags:
+  #   - <TAG_KEY>:<TAG_VALUE>
+
+  ## @param advanced_dispatching_enabled - boolean - optional - default: false
+  ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
+  ## from the cluster level check runners to optimize the check dispatching logic.
+  #
+  # advanced_dispatching_enabled: false
+
+  ## @param clc_runners_port - integer - optional - default: 5005
+  ## Set the "clc_runners_port" used by the cluster-agent client to reach cluster level
+  ## check runners and collect their stats.
+  #
+  # clc_runners_port: 5005
+
 {{ end -}}
 {{- if .DockerTagging }}
-# Docker tag extraction
+
+#########################
+## Container detection ##
+#########################
+
+## @param container_cgroup_prefix - string - optional - default: /docker/
+## On hosts with mixed workloads, non-containernized processes can
+## mistakenly be detected as containerized. Use this parameter to
+## tune the detection logic to your system and avoid false-positives.
 #
-# We can extract container label or environment variables
-# as metric tags. If you prefix your tag name with +, it
-# will only be added to high cardinality metrics (docker check)
+# container_cgroup_prefix: "/docker/"
+
+###########################
+## Docker tag extraction ##
+###########################
+
+## @param docker_labels_as_tags - map - optional
+## The Agent can extract container label values and set them as metric tags values associated to a <TAG_KEY>.
+## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
 #
 # docker_labels_as_tags:
-#   label_name:                  tag_name
-#   high_cardinality_label_name: +tag_name
+#   <LABEL_NAME>: <TAG_KEY>
+#   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+
+## @param docker_env_as_tags - map - optional
+## The Agent can extract environment variables values and set them as metric tags values associated to a <TAG_KEY>.
+## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
+#
 # docker_env_as_tags:
-#   ENVVAR_NAME: tag_name
-#
-# Example:
-# docker_labels_as_tags:
-#   com.docker.compose.service: service_name
-#   com.docker.compose.project: +project_name
-#
+#   <ENVVAR_NAME>: <TAG_KEY>
+
 {{ end -}}
 {{- if .KubernetesTagging }}
-# Kubernetes tag extraction
-#
-# We can extract pod labels and annotations as metric tags. If you prefix your
-# tag name with +, it will only be added to high cardinality metrics
+
+###############################
+## Kubernetes tag extraction ##
+###############################
+
+## @param kubernetes_pod_labels_as_tags - map - optional
+## The Agent can extract pod labels values and set them as metric tags values associated to a <TAG_KEY>.
+## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
 # kubernetes_pod_labels_as_tags:
-#   app:               kube_app
-#   pod-template-hash: +kube_pod-template-hash
+#   <POD_LABEL>: <TAG_KEY>
+#   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+
+## @param kubernetes_pod_annotations_as_tags - map - optional
+## The Agent can extract annotations values and set them as metric tags values associated to a <TAG_KEY>.
+## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
 # kubernetes_pod_annotations_as_tags:
-#   app:               kube_app
-#   pod-template-hash: +kube_pod-template-hash
-#
+#   <ANNOTATION>: <TAG_KEY>
+#   <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
+
 {{ end -}}
 {{- if .ECS }}
-# ECS integration
+
+###################################
+## ECS integration Configuration ##
+###################################
+
+## @param ecs_agent_container_name - string - optional - default: ecs-agent
+## The ECS Agent container should be autodetected when running with the
+## default (ecs-agent) name. If not, change the container name here:
 #
-# The ECS agent container should be autodetected when running with the
-# default (ecs-agent) name. Else, you can change the container name the
-# agent will look for, or force a fixed url:
 # ecs_agent_container_name: ecs-agent
+
+## @param ecs_agent_url - string - optional - default: http://localhost:51678
+## The ECS Agent container should be autodetected when running with the
+## default (ecs-agent) name. If not, change the container name the
+## Agent should look for with ecs_agent_container_name, or force a fixed url here:
+#
 # ecs_agent_url: http://localhost:51678
-#
-# Fargate clusters use other endpoints and are not affected by these options.
-#
+
 {{ end -}}
 {{- if .CRI }}
-# CRI integration
+
+###################################
+## CRI integration Configuration ##
+###################################
+
+## @param cri_socket_path - string - optional - default: ""
+## To activate the CRI check, indicate the path of the CRI socket you're using
+## and mount it in the container if needed.
+## If left empty, the CRI check is disabled.
+## see: https://docs.datadoghq.com/integrations/cri/
 #
-# To activate the CRI check you'll need to indicate the path of the
-# CRI runtime you're using (and mount it in the container if needed)
-# cri_socket_path: /var/run/containerd/containerd.sock
+# cri_socket_path: ""
+
+## @param cri_connection_timeout - integer - optional - default: 5
+## Configure the initial connection timeout in seconds.
 #
-# You can configure the initial connection timeout (in seconds)
-# cri_connection_timeout: 1
+# cri_connection_timeout: 5
+
+## @param cri_query_timeout - integer - optional - default: 5
+## Configure the timeout in seconds for querying the CRI.
 #
-# You can configure the timeout (in seconds) for querying the CRI
 # cri_query_timeout: 5
+
+{{ end -}}
+{{- if .Containerd}}
+
+##########################################
+## Containerd integration Configuration ##
+##########################################
+
+## @param cri_socket_path - string - optional - default: /var/run/containerd/containerd.sock
+## To activate the Containerd check, indicate the path of the Containerd socket you're using
+## and mount it in the container if needed.
+## see: https://docs.datadoghq.com/integrations/containerd/
 #
+# cri_socket_path: /var/run/containerd/containerd.sock
+
+## @param cri_query_timeout - integer - optional - default: 5
+## Configure the timeout in seconds for querying the Containerd API.
+#
+# cri_query_timeout: 5
+
+## @param containerd_namespace - string - optional - default: k8s.io
+## Activating the Containerd check also activates the CRI check, as it contains an additional subset of useful metrics.
+## Specify here the namespace that Containerd is using on your system. As the Containerd check
+## only supports Kubernetes, the default value is `k8s.io`
+## https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
+#
+# containerd_namespace: k8s.io
+
 {{ end -}}
 {{- if .Kubelet }}
-# Kubernetes kubelet connectivity
+
+###################################################
+## Kubernetes kubelet connectivity Configuration ##
+###################################################
+
+## @param kubernetes_kubelet_host - string - optional
+## The kubelet host should be autodetected when running inside a pod.
+## If you run into connectivity issues, set the host here according to your cluster setup.
 #
-# The kubelet host and port should be autodetected when running inside a pod.
-# If you run into connectivity issues, you can set these options according to
-# your cluster setup:
-# kubernetes_kubelet_host: autodetected
+# kubernetes_kubelet_host: <KUBLET_HOST>
+
+## @param kubernetes_http_kubelet_port - integer - optional - default: 10255
+## The kubelet http port should be autodetected when running inside a pod.
+## If you run into connectivity issues, set the http port here according to your cluster setup.
+#
 # kubernetes_http_kubelet_port: 10255
+
+## @param kubernetes_https_kubelet_port - integer - optional - default: 10250
+## The kubelet https port should be autodetected when running inside a pod.
+## If you run into connectivity issues, set the https port here according to your cluster setup.
+#
 # kubernetes_https_kubelet_port: 10250
+
+## @param kubelet_tls_verify - boolean - optional - default: true
+## Set to false if you don't want the Agent to verify the kubelet's certificate when using HTTPS.
 #
-# When using HTTPS, we verify the kubelet's certificate, you can tune this:
 # kubelet_tls_verify: true
+
+## @param kubelet_client_ca - string - optional - default: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+## Kublet client CA file path.
+#
 # kubelet_client_ca: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+## @param kubelet_auth_token_path - string - optional
+## If authentication is needed, the Agent uses the pod's service account's
+## credentials. If you want to use a different account, or are running the Agent
+## on the host, set a custom token file path here.
 #
-# If authentication is needed, the agent will use the pod's serviceaccount's
-# credentials. If you want to use a different account, or are running the agent
-# on the host, you can set the credentials to use here:
-# kubelet_auth_token_path: /path/to/file
-# kubelet_client_crt: /path/to/key
-# kubelet_client_key: /path/to/key
+# kubelet_auth_token_path: <TOKEN_FILE_PATH>
+
+## @param kubelet_client_crt - string - optional
+## Set a custom Client CRT file path.
 #
-# On some kubelet versions, containers can take up to a second to
-# register in the podlist. This option allows to wait for up to a given
-# number of seconds (in 250ms chunks) when a container does not exist in the podlist.
+# kubelet_client_crt: <CRT_FILE_PATH>
+
+## @param kubelet_client_key - string - optional
+## Set a custom Client key file path.
+#
+# kubelet_client_key: <CLIENT_KEY_FILE_PATH>
+
+## @param kubelet_wait_on_missing_container - integer - optional - default: 0
+## On some kubelet versions, containers can take up to a second to
+## register in the podlist. This option allows to wait for up to a given
+## number of seconds (in 250ms chunks) when a container does not exist in the podlist.
+#
 # kubelet_wait_on_missing_container: 0
+
+## @param kubelet_cache_pods_duration - integer - optional - default: 5
+## Polling frequency in seconds of the Agent to the kubelet "/pods" endpoint.
 #
+# kubelet_cache_pods_duration: 5
+
+## @param kubernetes_pod_expiration_duration - integer - optional - default: 900
+## Set the time in second after which the Agent ignores the pods that have exited.
+## Set the duration to 0 to disable this filtering.
+#
+# kubernetes_pod_expiration_duration: 900
+
+## @param kubelet_listener_polling_interval - integer - optional - default: 5
+## Polling frequency in seconds at which autodiscovery will query the pod watcher to detect new pods/containers.
+## Note that kubelet_cache_pods_duration needs to be lower than this setting, or autodiscovery will only poll more frequently the same cached data (kubelet_cache_pods_duration controls the cache refresh frequency).
+#
+# kubelet_listener_polling_interval: 5
+
 {{ end -}}
 {{- if .KubeApiServer }}
-# Kubernetes apiserver integration
+
+####################################################
+## Kubernetes apiserver integration Configuration ##
+####################################################
+
+## @param kubernetes_kubeconfig_path - string - optional - default: ""
+## When running in a pod, the Agent automatically uses the pod's service account
+## to authenticate with the API server.
+## Provide the path to a custom KubeConfig file if you wish to install the Agent out of a pod
+## or customize connection parameters.
+## See https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
 #
-# When running in a pod, the agent will automatically use the pod's serviceaccount
-# to authenticate with the apiserver. If you wish to install the agent out of a pod
-# or customise connection parameters, you can provide the path to a KubeConfig file
-# see https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
+# kubernetes_kubeconfig_path: ""
+
+## @param kubernetes_apiserver_use_protobuf - boolean - optional - default: false
+## By default, communication with the apiserver is in json format. Setting the following
+## option to true allows communication in the binary protobuf format.
 #
-# kubernetes_kubeconfig_path: /path/to/file
-#
-# By default, communication with the apiserver is in json format. Setting the following
-# option to true will allow communication in the binary protobuf format, with a potential
-# performance improvement on both the agent and the apiserver.
 # kubernetes_apiserver_use_protobuf: false
+
+## @param kubernetes_collect_metadata_tags - boolean - optional - default: true
+## Set this to false to disable tag collection for the Agent.
+## Note: In order to collect Kubernetes service names, the Agent needs certain rights.
+## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes
 #
-# In order to collect Kubernetes service names, the agent needs certain rights (see RBAC documentation in
-# [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
-# You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
-# ContainerIDs with the following options:
 # kubernetes_collect_metadata_tags: true
+
+## @param kubernetes_metadata_tag_update_freq - integer - optional - default: 60
+## Set how often in secons the Agent refreshes the internal mapping of services to ContainerIDs.
+#
 # kubernetes_metadata_tag_update_freq: 60
+
+## @param kubernetes_apiserver_client_timeout - integer - optional - default: 10
+## Set the timeout for the Agent when connecting to the Kubernetes API server.
+#
 # kubernetes_apiserver_client_timeout: 10
+
+## @param collect_kubernetes_events - boolean - optional - default: false
+## Set `collect_kubernetes_events` to true to enable log collection.
+## Note: leader election must be enabled must be enabled  bellow to to collect events.
+##       Only the leader Agent collects events.
+## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#event-collection
 #
-# To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
-# Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#event-collection).
 # collect_kubernetes_events: false
+
+## @param kubernetes_event_collection_timeout - integer - optional - default: 100
+## Set the timeout between two successful event collections in milliseconds.
 #
+# kubernetes_event_collection_timeout: 100
+
+## @param leader_election - boolean - optional - default: false
+## Set the parameter to true to enable leader election on this node.
+## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#leader-election
 #
-# Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#leader-election)
-# To enable the leader election on this node, set the leader_election variable to true.
 # leader_election: false
-# The leader election lease is an integer in seconds.
-# leader_lease_duration: 60
+
+## @param leader_lease_duration - integer - optional - default: 60
+## Set the leader election lease in seconds.
 #
-# Node labels that should be collected and their name in host tags. Off by default.
-# Some of these labels are redundant with metadata collected by
-# cloud provider crawlers (AWS, GCE, Azure)
+# leader_lease_duration: 60
+
+## @param kubernetes_node_labels_as_tags - map - optional
+## Configure node labels that should be collected and their name as host tags.
+## Note: Some of these labels are redundant with metadata collected by cloud provider crawlers (AWS, GCE, Azure)
 #
 # kubernetes_node_labels_as_tags:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
-#
-# Kubernetes cluster identifier used to avoid host alias collisions. Empty by default.
-# clustername: cluster_identifier
-{{ end -}}
 
-{{- if .ProcessAgent }}
-# Process agent specific settings
+## @param clustername - string - optional
+## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 #
-# process_config:
-#   A string indicating the enabled state of the Process Agent.
-#   If "false" (the default) it will only collect containers.
-#   If "true" it will collect containers and processes.
-#   If "disabled" it will be disabled altogether and won't start.
-#   enabled: "true"
-#   The full path to the file where process-agent logs will be written.
-#   log_file:
-#   The interval, in seconds, at which we will run each check. If you want consistent
-#   behavior between real-time you may set the Container/ProcessRT intervals to 10.
-#   Defaults to 10s for normal checks and 2s for others.
-#   intervals:
-#     container:
-#     container_realtime:
-#     process:
-#     process_realtime:
-#   A list of regex patterns that will exclude a process if matched.
-#   blacklist_patterns:
-#   How many check results to buffer in memory when POST fails. The default is usually fine.
-#   queue_size:
-#   The maximum number of file descriptors to open when collecting net connections.
-#   Only change if you are running out of file descriptors from the Agent.
-#   max_proc_fds:
-#   The maximum number of processes or containers per message.
-#   Only change if the defaults are causing issues.
-#   max_per_message:
-#   Overrides the path to the Agent bin used for getting the hostname. The default is usually fine.
-#   dd_agent_bin:
-#   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
-#   dd_agent_env:
-{{ end -}}
+# clustername: <CLUSTER_IDENTIFIER>
 
-{{- if .TraceAgent }}
-# Trace Agent Specific Settings
-#
-# apm_config:
-#   Whether or not the APM Agent should run
-#   enabled: true
-#   The environment tag that Traces should be tagged with
-#   Will inherit from "env" tag if none is applied here
-#   env: none
-#   The port that the Receiver should listen on
-#   receiver_port: 8126
-#   Whether the Trace Agent should listen for non local traffic
-#   Only enable if Traces are being sent to this Agent from another host/container
-#   apm_non_local_traffic: false
-#   Extra global sample rate to apply on all the traces
-#   This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces
-#   From 1 (no extra rate) to 0 (don't sample at all)
-#   extra_sample_rate: 1.0
-#   Maximum number of traces per second to sample.
-#   The limit is applied over an average over a few minutes ; much bigger spikes are possible.
-#   Set to 0 to disable the limit.
-#   max_traces_per_second: 10
-#   A blacklist of regular expressions can be provided to disable certain traces based on their resource name
-#   all entries must be surrounded by double quotes and separated by commas
-#   Example: ["(GET|POST) /healthcheck", "GET /V1"]
-#   ignore_resources: []
 {{ end -}}

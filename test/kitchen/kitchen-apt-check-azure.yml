@@ -1,0 +1,86 @@
+---
+<%
+  ENV['AZURE_LOCATION'] ||= "East US"
+%>
+
+driver:
+  name: azurerm
+
+driver_config:
+  subscription_id: <%= ENV['AZURE_SUBSCRIPTION_ID'] %>
+  location: <%= ENV['AZURE_LOCATION'] %>
+
+transport:
+  ssh_key: <%= ENV['AZURE_SSH_KEY_PATH'] %>
+
+provisioner:
+  product_name: chef
+  product_version: 14.12.9
+  install_strategy: always
+
+platforms:
+# Loop through two lists and output a total matrix of all possible platform + chef versions,
+# for both drivers
+<% azure_test_platforms = [
+      ['ubuntu-1604', 'Canonical:UbuntuServer:16.04.0-LTS:16.04.201611150'],
+      ['centos-74', 'OpenLogic:CentOS:7.4:7.4.20171110'],
+    ]
+    chef_versions = %w(
+      12.2.1
+    )
+
+    sizes = %w(
+      Standard_A1
+      Standard_D1
+    )
+
+    # we wanna spread out our quotas
+    locations = [
+      "West US",
+      "West US 2",
+      "North Central US",
+      "Central US",
+      "West Central US",
+    ]
+
+    drivers = %w(
+      azurerm
+    )
+
+    platforms_x64 = azure_test_platforms.product(chef_versions, drivers).select{|p, c, d| not p[0].include? "i386"}.collect{|p, c, d| p[0] + "-" + c + "-" + d}
+
+    idx = 0
+    azure_test_platforms.product(chef_versions).each do |platform, chef_version|
+    idx += 1
+    size = sizes[idx % sizes.length]
+    location = locations[idx % locations.length]
+%>
+- name: <%= platform[0] %>-<%= chef_version %>-azurerm
+  driver_config:
+    machine_size: <%= size %>
+    image_urn: <%= platform[1] %>
+    location: <%= location %>
+    vm_name: dd-agent-testing-<%= platform[0] %>-<%= chef_version %>-azure
+    server_name: dd-agent-testing-<%= platform[0] %>-<%= chef_version %>
+<% end %>
+
+suites:
+
+- name: dd-test-install
+  includes:
+    <% platforms_x64.each do |platform| %>
+    - <%= platform %>
+    <% end %>
+  run_list:
+    - "recipe[datadog::dd-agent]"
+  attributes:
+    datadog: &dd-agent-conf-x64
+      api_key: &api_key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      # The api key needs to be 32 characters long
+      application_key: &application_key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      # For testing pre-release agent
+      url: &staging_url https://app.datad0g.com
+      # we need to get the latest release agent.
+      aptrepo: http://apt.datadoghq.com/
+      aptrepo_dist: stable
+      yumrepo: http://yum.datadoghq.com/rpm/x86_64/

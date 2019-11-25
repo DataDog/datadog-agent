@@ -2,6 +2,7 @@
 Golang related tasks go here
 """
 from __future__ import print_function
+import datetime
 import os
 import shutil
 import sys
@@ -9,24 +10,41 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
-from .utils import pkg_config_path, get_build_flags
+from .utils import get_build_flags
 from .bootstrap import get_deps, process_deps
 
+#We use `basestring` in the code for compat with python2 unicode strings.
+#This makes the same code work in python3 as well.
+try:
+    basestring
+except NameError:
+    basestring = str
 
-# List of modules to ignore when running lint on Windows platform
-WIN_MODULE_WHITELIST = [
+# List of modules to ignore when running lint
+MODULE_WHITELIST = [
+    # Windows
     "doflare.go",
     "iostats_pdh_windows.go",
     "iostats_wmi_windows.go",
     "pdh.go",
+    "pdh_amd64.go",
+    "pdh_386.go",
     "pdhhelper.go",
+    "shutil.go",
     "tailer_windows.go",
+    "winsec.go",
+    "allprocesses_windows.go",
+    "allprocesses_windows_test.go",
+    # All
+    "agent.pb.go"
 ]
 
 # List of paths to ignore in misspell's output
 MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "dist", "checks", "prometheus_check"),
     os.path.join("cmd", "agent", "gui", "views", "private"),
+    os.path.join("pkg", "collector", "corechecks", "system", "testfiles"),
+    os.path.join("pkg", "ebpf", "testdata"),
 ]
 
 @task
@@ -74,7 +92,7 @@ def lint(ctx, targets):
         skipped_files = set()
         for line in (out for out in result.stdout.split('\n') if out):
             fname = os.path.basename(line.split(":")[0])
-            if fname in WIN_MODULE_WHITELIST:
+            if fname in MODULE_WHITELIST:
                 skipped_files.add(fname)
                 continue
             files.append(fname)
@@ -91,7 +109,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets, use_embedded_libs=False):
+def vet(ctx, targets, rtloader_root=None, build_tags=None):
     """
     Run go vet on targets.
 
@@ -105,11 +123,12 @@ def vet(ctx, targets, use_embedded_libs=False):
 
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
-    build_tags = get_default_build_tags()
+    tags = build_tags or get_default_build_tags()
+    tags.append("dovet")
 
-    _, _, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
+    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
 
-    ctx.run("go vet -tags \"{}\" ".format(" ".join(build_tags)) + " ".join(args), env=env)
+    ctx.run("go vet -tags \"{}\" ".format(" ".join(tags)) + " ".join(args), env=env)
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")
@@ -181,11 +200,10 @@ def misspell(ctx, targets):
         print("misspell found no issues")
 
 @task
-def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
+def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_vendor_only=False, no_dep_ensure=False):
     """
     Setup Go dependencies
     """
-    verbosity = ' -v' if verbose else ''
     deps = get_deps('deps')
     order = deps.get("order", deps.keys())
     for dependency in order:
@@ -193,13 +211,15 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         if not tool:
             print("Malformed bootstrap JSON, dependency {} not found". format(dependency))
             raise Exit(code=1)
-
+        print("processing checkout tool {}".format(dependency))
         process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
 
     order = deps.get("order", deps.keys())
     for dependency in order:
         tool = deps.get(dependency)
-        process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', verbose=verbose)
+        if tool.get('install', True):
+            print("processing get tool {}".format(dependency))
+            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', verbose=verbose)
 
     if android:
         ndkhome = os.environ.get('ANDROID_NDK_HOME')
@@ -211,50 +231,59 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
         print("gomobile command {}". format(cmd))
         ctx.run(cmd)
 
-    # source level deps
-    ctx.run("dep ensure{}".format(verbosity))
+    if not no_dep_ensure:
+        # source level deps
+        print("calling dep ensure")
+        start = datetime.datetime.now()
+        verbosity = ' -v' if verbose else ''
+        vendor_only = ' --vendor-only' if dep_vendor_only else ''
+        ctx.run("dep ensure{}{}".format(verbosity, vendor_only))
+        dep_done = datetime.datetime.now()
 
-    # If github.com/DataDog/datadog-agent gets vendored too - nuke it
-    #
-    # This may happen as a result of having to introduce DEPPROJECTROOT
-    # in our builders to get around a known-issue with go dep, and the
-    # strange GOPATH situation in our builders.
-    #
-    # This is only a workaround, we should eliminate the need to resort
-    # to DEPPROJECTROOT.
-    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
-        print("Removing vendored github.com/DataDog/datadog-agent")
-        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
+        # If github.com/DataDog/datadog-agent gets vendored too - nuke it
+        #
+        # This may happen as a result of having to introduce DEPPROJECTROOT
+        # in our builders to get around a known-issue with go dep, and the
+        # strange GOPATH situation in our builders.
+        #
+        # This is only a workaround, we should eliminate the need to resort
+        # to DEPPROJECTROOT.
+        if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+            print("Removing vendored github.com/DataDog/datadog-agent")
+            shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
 
-    # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
-    # in because it's necessary on other platforms
-    if not android and sys.platform == 'win32':
-        print("Removing PSUTIL on Windows")
-        ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
+        # make sure PSUTIL is gone on windows; the dep ensure above will vendor it
+        # in because it's necessary on other platforms
+        if not android and sys.platform == 'win32':
+            print("Removing PSUTIL on Windows")
+            ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
 
-    # Make sure that golang.org/x/mobile is deleted.  It will get vendored in
-    # because we use it, and there's no way to exclude; however, we must use
-    # the version from $GOPATH
-    if os.path.exists('vendor/golang.org/x/mobile'):
-        print("Removing vendored golang.org/x/mobile")
-        shutil.rmtree('vendor/golang.org/x/mobile')
+        # Make sure that golang.org/x/mobile is deleted.  It will get vendored in
+        # because we use it, and there's no way to exclude; however, we must use
+        # the version from $GOPATH
+        if os.path.exists('vendor/golang.org/x/mobile'):
+            print("Removing vendored golang.org/x/mobile")
+            shutil.rmtree('vendor/golang.org/x/mobile')
 
+    checks_start = datetime.datetime.now()
     if not no_checks:
         verbosity = 'v' if verbose else 'q'
         core_dir = core_dir or os.getenv('DD_CORE_DIR')
 
         if core_dir:
             checks_base = os.path.join(os.path.abspath(core_dir), 'datadog_checks_base')
-            ctx.run('pip install -{} -e {}'.format(verbosity, checks_base))
-            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+            ctx.run('pip install -{} -e "{}[deps]"'.format(verbosity, checks_base))
         else:
             core_dir = os.path.join(os.getcwd(), 'vendor', 'integrations-core')
             checks_base = os.path.join(core_dir, 'datadog_checks_base')
             if not os.path.isdir(core_dir):
                 ctx.run('git clone -{} https://github.com/DataDog/integrations-core {}'.format(verbosity, core_dir))
-            ctx.run('pip install -{} {}'.format(verbosity, checks_base))
-            ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
+            ctx.run('pip install -{} "{}[deps]"'.format(verbosity, checks_base))
+    checks_done = datetime.datetime.now()
 
+    if not no_dep_ensure:
+        print("dep ensure, elapsed:    {}".format(dep_done - start))
+    print("checks install elapsed: {}".format(checks_done - checks_start))
 
 @task
 def lint_licenses(ctx):

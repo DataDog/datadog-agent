@@ -26,12 +26,15 @@ spec:
 
     - name: redis-deployment
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: redis
           namespace: default
         spec:
+          selector:
+            matchLabels:
+              app: redis
           replicas: 1
           template:
             metadata:
@@ -68,15 +71,56 @@ spec:
                     memory: "128Mi"
                     cpu: "100m"
 
+    - name: redis-deployment-unready
+      value: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: redis-unready
+          namespace: default
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: redis
+          template:
+            metadata:
+              labels:
+                app: redis
+              annotations:
+                ad.datadoghq.com/tolerate-unready: "true"
+            spec:
+              containers:
+              - name: redis-unready
+                image: redis
+                ports:
+                - name: redis
+                  containerPort: 6379
+                resources:
+                  requests:
+                    memory: "64Mi"
+                    cpu: "50m"
+                  limits:
+                    memory: "128Mi"
+                    cpu: "100m"
+                readinessProbe:
+                  tcpSocket:
+                    port: 8080
+                  initialDelaySeconds: 1
+                  periodSeconds: 1
+
     - name: cpu-stress
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: cpu-stress
           namespace: default
         spec:
           replicas: 1
+          selector:
+            matchLabels:
+              app: cpu-stress
           template:
             metadata:
               labels:
@@ -98,13 +142,16 @@ spec:
 
     - name: dsd-hostname
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: dsd-hostname
           namespace: default
         spec:
           replicas: 1
+          selector:
+            matchLabels:
+              app: dsd-hostname
           template:
             metadata:
               labels:
@@ -255,7 +302,7 @@ spec:
 
     - name: agent-daemonset
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: DaemonSet
         metadata:
           name: datadog-agent
@@ -264,6 +311,9 @@ spec:
           updateStrategy:
             rollingUpdate:
               maxUnavailable: 1
+          selector:
+            matchLabels:
+              app: datadog-agent
           template:
             metadata:
               labels:
@@ -371,13 +421,16 @@ spec:
 
     - name: fake-datadog-deployment
       value: |
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: fake-datadog
           namespace: default
         spec:
           replicas: 1
+          selector:
+            matchLabels:
+              app: fake-datadog
           strategy:
             type: RollingUpdate
             rollingUpdate:
@@ -457,7 +510,7 @@ spec:
 
     - name: kube-state-metrics-deployment
       value: |
-        apiVersion: apps/v1beta2
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: kube-state-metrics
@@ -520,6 +573,7 @@ spec:
       - name: dsd-hostname
       - name: redis-service
       - name: redis-deployment
+      - name: redis-deployment-unready
       - name: agent-configmap
       - name: agent-service-account
       - name: agent-cluster-role
@@ -553,6 +607,17 @@ spec:
             value: "{{item}}"
         withItems:
         - "{{inputs.parameters.redis-deployment}}"
+
+      - name: redis-deployment-unready-setup
+        template: manifest
+        arguments:
+          parameters:
+          - name: action
+            value: "apply"
+          - name: manifest
+            value: "{{item}}"
+        withItems:
+        - "{{inputs.parameters.redis-deployment-unready}}"
 
       - name: kube-state-metrics-setup
         template: manifest
@@ -625,6 +690,9 @@ spec:
       - name: find-metrics-redis
         template: find-metrics-redis
 
+      - name: find-metrics-redis-unready
+        template: find-metrics-redis-unready
+
       - name: find-metrics-cpu-docker
         template: find-metrics-cpu-docker
 
@@ -664,6 +732,7 @@ spec:
             value: "{{item}}"
         withItems:
         - "{{inputs.parameters.redis-deployment}}"
+        - "{{inputs.parameters.redis-deployment-unready}}"
         - "{{inputs.parameters.redis-service}}"
 
     - - name: no-more-redis
@@ -685,6 +754,7 @@ spec:
       parameters:
       - name: redis-service
       - name: redis-deployment
+      - name: redis-deployment-unready
       - name: cpu-stress
       - name: dsd-hostname
       - name: agent-configmap
@@ -709,6 +779,7 @@ spec:
         withItems:
         - "{{inputs.parameters.redis-service}}"
         - "{{inputs.parameters.redis-deployment}}"
+        - "{{inputs.parameters.redis-deployment-unready}}"
         - "{{inputs.parameters.cpu-stress}}"
         - "{{inputs.parameters.dsd-hostname}}"
         - "{{inputs.parameters.agent-configmap}}"
@@ -1170,6 +1241,25 @@ spec:
             {"container-meta.docker_swarm":"inactive"},
             {"container-meta.docker_version":{$exists: 1}} ]
           }).count();
+          print("find: " + nb)
+          if (nb != 0) {
+            break;
+          }
+          sleep(2000);
+        }
+
+  - name: find-metrics-redis-unready
+    activeDeadlineSeconds: 200
+    script:
+      image: mongo:3.6.3
+      command: [mongo, "fake-datadog.default.svc.cluster.local/datadog"]
+      source: |
+        while (1) {
+          var nb = db.series.find({
+            metric: {$regex: "redis*"},
+            tags: {$all: ["kube_deployment:redis-unready", "kube_container_name:redis-unready"]}
+          }).count();
+
           print("find: " + nb)
           if (nb != 0) {
             break;

@@ -1,9 +1,12 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: datadog-agent
   namespace: default
 spec:
+  selector:
+    matchLabels:
+      app: datadog-agent
   template:
     metadata:
       labels:
@@ -16,17 +19,12 @@ spec:
         imagePullPolicy: Always
         name: datadog-agent
         ports:
-          - containerPort: 8125
-            name: dogstatsdport
-            protocol: UDP
-          - containerPort: 8126
-            name: traceport
-            protocol: TCP
+          - {containerPort: 8125, name: dogstatsdport, protocol: UDP}
+          - {containerPort: 8126, name: traceport, protocol: TCP}
         env:
-          - name: DD_API_KEY
-            value: <YOUR_API_KEY>
-          - name: KUBERNETES
-            value: "true"
+          - {name: DD_API_KEY, value: <YOUR_API_KEY>}
+          - {name: KUBERNETES, value: "true"}
+          - {name: DD_HEALTH_PORT, value: "5555"}
           - name: DD_KUBERNETES_KUBELET_HOST
             valueFrom:
               fieldRef:
@@ -39,28 +37,21 @@ spec:
             memory: "256Mi"
             cpu: "200m"
         volumeMounts:
-          - name: dockersocket
-            mountPath: /var/run/docker.sock
-          - name: procdir
-            mountPath: /host/proc
-            readOnly: true
-          - name: cgroups
-            mountPath: /host/sys/fs/cgroup
-            readOnly: true
+          - {name: dockersocket, mountPath: /var/run/docker.sock}
+          - {name: procdir, mountPath: /host/proc, readOnly: true}
+          - {name: cgroups, mountPath: /host/sys/fs/cgroup, readOnly: true}
+          - {name: s6-run, mountPath: /var/run/s6}
         livenessProbe:
-          exec:
-            command:
-            - ./probe.sh
+          httpGet:
+            path: /health
+            port: 5555
           initialDelaySeconds: 15
-          periodSeconds: 5
+          periodSeconds: 15
           timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
       volumes:
-        - hostPath:
-            path: /var/run/docker.sock
-          name: dockersocket
-        - hostPath:
-            path: /proc
-          name: procdir
-        - hostPath:
-            path: /sys/fs/cgroup
-          name: cgroups
+        - {name: dockersocket, hostPath: {path: /var/run/docker.sock}}
+        - {name: procdir, hostPath: {path: /proc}}
+        - {name: cgroups, hostPath: {path: /sys/fs/cgroup}}
+        - {name: s6-run, emptyDir: {}}

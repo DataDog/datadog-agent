@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package forwarder
 
@@ -59,15 +59,35 @@ func TestStart(t *testing.T) {
 	assert.NotNil(t, forwarder.Start())
 }
 
-func TestStop(t *testing.T) {
+func TestStopWithoutPurgingTransaction(t *testing.T) {
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
+	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.Set("forwarder_stop_timeout", 0)
+
+	testStop(t)
+}
+
+func TestStopWithPurgingTransaction(t *testing.T) {
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
+	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.Set("forwarder_stop_timeout", 1)
+
+	testStop(t)
+}
+
+func testStop(t *testing.T) {
 	forwarder := NewDefaultForwarder(keysPerDomains)
 	assert.Equal(t, Stopped, forwarder.State())
 	forwarder.Stop() // this should be a noop
 	forwarder.Start()
+	domainForwarders := forwarder.domainForwarders
 	forwarder.Stop()
 	assert.Equal(t, Stopped, forwarder.State())
 	assert.Nil(t, forwarder.healthChecker)
 	assert.Len(t, forwarder.domainForwarders, 0)
+	for _, df := range domainForwarders {
+		assert.Equal(t, Stopped, df.internalState)
+	}
 }
 
 func TestSubmitIfStopped(t *testing.T) {
@@ -105,10 +125,11 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, endpoint, transactions[1].Endpoint)
 	assert.Equal(t, endpoint, transactions[2].Endpoint)
 	assert.Equal(t, endpoint, transactions[3].Endpoint)
-	assert.Len(t, transactions[0].Headers, 3)
+	assert.Len(t, transactions[0].Headers, 4)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
+	assert.Equal(t, "datadog-agent/"+version.AgentVersion, transactions[0].Headers.Get("User-Agent"))
 	assert.Equal(t, p1, *(transactions[0].Payload))
 	assert.Equal(t, p1, *(transactions[1].Payload))
 	assert.Equal(t, p2, *(transactions[2].Payload))
@@ -179,9 +200,10 @@ func TestForwarderEndtoEnd(t *testing.T) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusOK)
 	}))
-	ddURL := config.Datadog.Get("dd_url")
-	config.Datadog.Set("dd_url", ts.URL)
-	defer config.Datadog.Set("dd_url", ddURL)
+	mockConfig := config.Mock()
+	ddURL := mockConfig.Get("dd_url")
+	mockConfig.Set("dd_url", ts.URL)
+	defer mockConfig.Set("dd_url", ddURL)
 
 	f := NewDefaultForwarder(map[string][]string{
 		ts.URL:     {"api_key1", "api_key2"},

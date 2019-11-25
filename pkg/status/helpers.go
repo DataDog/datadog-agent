@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package status
 
@@ -36,6 +36,10 @@ func Fmap() template.FuncMap {
 		"formatTitle":        formatTitle,
 		"add":                add,
 		"status":             status,
+		"redText":            redText,
+		"yellowText":         yellowText,
+		"greenText":          greenText,
+		"ntpWarning":         ntpWarning,
 		"version":            getVersion,
 	}
 }
@@ -181,6 +185,30 @@ func status(check map[string]interface{}) string {
 		return fmt.Sprintf("[%s]", color.YellowString("WARNING"))
 	}
 	return fmt.Sprintf("[%s]", color.GreenString("OK"))
+}
+
+// Renders the message in a red color
+func redText(message string) string {
+	return color.RedString(message)
+}
+
+// Renders the message in a yellow color
+func yellowText(message string) string {
+	return color.YellowString(message)
+}
+
+// Renders the message in a green color
+func greenText(message string) string {
+	return color.GreenString(message)
+}
+
+// Tells if the ntp offset may be too large, resulting in metrics
+// from the agent being dropped by metrics-intake
+func ntpWarning(ntpOffset float64) bool {
+	// Negative offset => clock is in the future, 10 minutes (600s) allowed
+	// Positive offset => clock is in the past, 60 minutes (3600s) allowed
+	// According to https://docs.datadoghq.com/developers/metrics/#submitting-metrics
+	return ntpOffset <= -600 || ntpOffset >= 3600
 }
 
 func getVersion(instances map[string]interface{}) string {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package forwarder
 
@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -38,8 +39,7 @@ func initForwarderHealthExpvars() {
 }
 
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
-// unhealthy if the API keys are not longer valid or if to many transactions
-// were dropped
+// unhealthy if the API keys are not longer valid
 type forwarderHealth struct {
 	health         *health.Handle
 	stop           chan bool
@@ -85,7 +85,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	defer close(fh.stopped)
 
 	valid := fh.hasValidAPIKey()
-	// If no key is valid, no need to keep checking, they won't magicaly become valid
+	// If no key is valid, no need to keep checking, they won't magically become valid
 	if !valid {
 		log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
 		return
@@ -102,10 +102,6 @@ func (fh *forwarderHealth) healthCheckLoop() {
 				return
 			}
 		case <-fh.health.C:
-			if transactionsDroppedOnInput.Value() != 0 {
-				log.Errorf("Detected dropped transaction, reporting the forwarder as unhealthy: %v.", transactionsDroppedOnInput)
-				return
-			}
 		}
 	}
 }
@@ -114,21 +110,29 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status 
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}
-	obfuscatedKey := fmt.Sprintf("API key ending with %s on endpoint %s", apiKey, domain)
+	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
 	apiKeyStatus.Set(obfuscatedKey, status)
 }
 
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 	url := fmt.Sprintf("%s%s?api_key=%s", domain, v1ValidateEndpoint, apiKey)
 
-	transport := util.CreateHTTPTransport()
+	transport := httputils.CreateHTTPTransport()
 
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   fh.timeout,
 	}
 
-	resp, err := client.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+		return false, err
+	}
+
+	req.Header.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+
+	resp, err := client.Do(req)
 	if err != nil {
 		fh.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
 		return false, err

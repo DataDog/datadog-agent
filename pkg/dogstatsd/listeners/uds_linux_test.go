@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build linux
 // Origin detection is linux-only
@@ -29,8 +29,9 @@ func TestUDSPassCred(t *testing.T) {
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	config.Datadog.Set("dogstatsd_socket", socketPath)
-	config.Datadog.Set("dogstatsd_origin_detection", true)
+	mockConfig := config.Mock()
+	mockConfig.Set("dogstatsd_socket", socketPath)
+	mockConfig.Set("dogstatsd_origin_detection", true)
 
 	packetPoolUDS := NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	s, err := NewUDSListener(nil, packetPoolUDS)

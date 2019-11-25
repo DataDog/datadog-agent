@@ -1,0 +1,22 @@
+## Provides autodetected defaults, for kubernetes environments
+## where configuration templates are set as docker labels
+## please see datadog.yaml.example for all supported options
+
+# Autodiscovery for Kubernetes
+listeners:
+  - name: kubelet
+config_providers:
+  - name: kubelet
+    polling: true
+  # needed to support legacy docker label config templates
+  - name: docker
+    polling: true
+    poll_interval: 1s
+
+# Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
+apm_config:
+  enabled: false
+  apm_non_local_traffic: true
+
+# Use java container support
+jmx_use_container_support: true

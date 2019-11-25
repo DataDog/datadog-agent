@@ -9,7 +9,6 @@ KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 INSTALL_DIR=/opt/datadog-agent
-TUF_REPO_DIR=/etc/datadog-agent/repositories
 LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
 
@@ -38,7 +37,6 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         0)
             # We're uninstalling.
             # We don't delete the dd-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
-            rm -rf $TUF_REPO_DIR
         ;;
         1)
             # We're upgrading.

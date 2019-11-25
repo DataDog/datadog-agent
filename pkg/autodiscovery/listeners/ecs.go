@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +24,7 @@ import (
 // It pulls its tasks container list periodically and checks for
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
-	task       ecs.TaskMetadata
+	task       metadata.TaskMetadata
 	filter     *containers.Filter
 	services   map[string]Service // maps container IDs to services
 	newService chan<- Service
@@ -148,7 +149,7 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 }
 
-func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService, error) {
+func (l *ECSListener) createService(c metadata.ContainerMetadata, firstRun bool) (ECSService, error) {
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before
@@ -180,7 +181,7 @@ func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService,
 	svc.hosts = ips
 
 	// Tags
-	tags, err := tagger.Tag(svc.GetEntity(), tagger.IsFullCardinality())
+	tags, err := tagger.Tag(svc.GetTaggerEntity(), tagger.ChecksCardinality)
 	if err != nil {
 		log.Errorf("Failed to extract tags for container %s - %s", c.DockerID[:12], err)
 	}
@@ -192,6 +193,10 @@ func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService,
 // GetEntity returns the unique entity name linked to that service
 func (s *ECSService) GetEntity() string {
 	return containers.BuildEntityName(s.runtime, s.cID)
+}
+
+func (s *ECSService) GetTaggerEntity() string {
+	return containers.BuildTaggerEntityName(s.cID)
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.
@@ -239,4 +244,8 @@ func (s *ECSService) GetHostname() (string, error) {
 // GetCreationTime returns the creation time of the container compare to the agent start.
 func (s *ECSService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
+}
+
+func (s *ECSService) IsReady() bool {
+	return true
 }

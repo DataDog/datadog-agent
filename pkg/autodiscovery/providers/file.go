@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package providers
 
@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
 
 	"gopkg.in/yaml.v2"
 
@@ -254,9 +256,12 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	}
 
 	// Parse configuration
-	err = yaml.Unmarshal(yamlFile, &cf)
-	if err != nil {
-		return config, err
+	// Try UnmarshalStrict first, so we can warn about duplicated keys
+	if strictErr := yaml.UnmarshalStrict(yamlFile, &cf); strictErr != nil {
+		if err := yaml.Unmarshal(yamlFile, &cf); err != nil {
+			return config, err
+		}
+		log.Warnf("reading config file %v: %v\n", fpath, strictErr)
 	}
 
 	// If no valid instances were found & this is neither a metrics file, nor a logs file
@@ -301,6 +306,11 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {
 		return config, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
 	}
+
+	// Interpolate env vars. Returns an error a variable wasn't subsituted, ignore it.
+	_ = configresolver.SubstituteTemplateEnvVars(&config)
+
+	config.Source = "file:" + fpath
 
 	return config, err
 }

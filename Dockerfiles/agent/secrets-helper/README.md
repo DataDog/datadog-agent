@@ -1,7 +1,4 @@
-# Helper script to access secret files (BETA)
-
-
-**This feature is in beta and its options or behaviour might break between minor or bugfix releases of the Agent.**
+# Helper script to access secret files
 
 Many of our integrations require credentials to retrieve metrics. To avoid hardcoding these credentials in the [Autodiscovery templates](https://docs.datadoghq.com/agent/autodiscovery/), you can use this feature to separate them from the template itself.
 
@@ -14,7 +11,7 @@ to be used with [the agent's external secret feature](https://github.com/DataDog
 
 - For now, this script is incompatible with [OpenShift restricted SCC operations](https://github.com/DataDog/datadog-agent/blob/6.4.x/Dockerfiles/agent/OPENSHIFT.md#restricted-scc-operations) and requires that the Agent runs as the `root` user.
 
-- `ENC[]` tokens found in `datadog.yaml` and in Autodiscovery templates will be replaced, but replacing `ENC[]` tokens in config values passed as enviroment variables is not supported as of 6.5.0
+- Starting with version 6.10.0, `ENC[]` tokens in config values passed as environment variables are supported. Previous versions only support `ENC[]` tokens found in `datadog.yaml` and in Autodiscovery templates.
 
 ## Setup examples
 

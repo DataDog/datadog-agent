@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package listeners
 
@@ -44,6 +44,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	tagger.Init()
 
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",
@@ -235,7 +236,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	suite.stopContainers()
 
 	// We should get 2 stopped services
-	services, err = suite.getServices(containerIDs, excludedIDs, suite.delSvc, 5*time.Millisecond)
+	services, err = suite.getServices(containerIDs, excludedIDs, suite.delSvc, 5*time.Second)
 	assert.Error(suite.T(), err)
 	assert.Len(suite.T(), services, 2)
 

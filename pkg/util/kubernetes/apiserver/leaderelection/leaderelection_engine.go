@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -18,6 +18,7 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 
+	"context"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -77,7 +78,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 
 			log.Infof("New leader %q", identity)
 		},
-		OnStartedLeading: func(stop <-chan struct{}) {
+		OnStartedLeading: func(ctx context.Context) {
 			le.leaderIdentityMutex.Lock()
 			le.leaderIdentity = le.HolderIdentity
 			le.leaderIdentityMutex.Unlock()
@@ -105,11 +106,13 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		Identity:      le.HolderIdentity,
 		EventRecorder: evRec,
 	}
+
 	leaderElectorInterface, err := rl.New(
 		rl.ConfigMapsResourceLock,
 		configMap.ObjectMeta.Namespace,
 		configMap.ObjectMeta.Name,
 		le.coreClient,
+		nil, // relying on CM so unnecessary.
 		resourceLockConfig,
 	)
 	if err != nil {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -48,4 +48,16 @@ func (p *Pod) Owners() []PodOwner {
 
 	owners = []PodOwner{ref.Reference}
 	return owners
+}
+
+// GetPersistentVolumeClaimNames gets the persistent volume names from a statefulset pod
+// returns empty slice if no persistent volume claim was found
+func (p *Pod) GetPersistentVolumeClaimNames() []string {
+	pvcs := []string{}
+	for _, volume := range p.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			pvcs = append(pvcs, volume.PersistentVolumeClaim.ClaimName)
+		}
+	}
+	return pvcs
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package integration
 
@@ -57,6 +57,24 @@ func TestConfigEqual(t *testing.T) {
 	assert.Equal(t, checkConfigWithOrderedTags.Digest(), checkConfigWithUnorderedTags.Digest())
 }
 
+func TestIsLogConfig(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsLogConfig())
+	config.Instances = []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")}
+	assert.False(t, config.IsLogConfig())
+	config.LogsConfig = Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]")
+	assert.True(t, config.IsLogConfig())
+}
+
+func TestIsCheckConfig(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsCheckConfig())
+	config.Instances = []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")}
+	assert.True(t, config.IsCheckConfig())
+	config.ClusterCheck = true
+	assert.False(t, config.IsCheckConfig())
+}
+
 func TestString(t *testing.T) {
 	config := &Config{}
 	assert.False(t, config.Equal(nil))
@@ -65,10 +83,12 @@ func TestString(t *testing.T) {
 	config.InitConfig = Data("fooBarBaz: test")
 	config.Instances = []Data{Data("justFoo")}
 
-	expected := `init_config:
+	expected := `check_name: foo
+init_config:
   fooBarBaz: test
 instances:
 - justFoo
+logs_config: null
 `
 	assert.Equal(t, config.String(), expected)
 }
@@ -103,22 +123,81 @@ func TestMergeAdditionalTags(t *testing.T) {
 	assert.Contains(t, rawConfig["tags"], "bar")
 }
 
+func TestSetField(t *testing.T) {
+	instance := Data("onefield: true\ntags: [\"foo\", \"foo:bar\"]")
+
+	// Add new field
+	instance.SetField("otherfield", 50)
+	rawConfig := RawMap{}
+	err := yaml.Unmarshal(instance, &rawConfig)
+	assert.Nil(t, err)
+	assert.Contains(t, rawConfig["tags"], "foo")
+	assert.Contains(t, rawConfig["tags"], "foo:bar")
+	assert.Equal(t, true, rawConfig["onefield"])
+	assert.Equal(t, 50, rawConfig["otherfield"])
+
+	// Override existing field
+	instance.SetField("onefield", "testing")
+	rawConfig = RawMap{}
+	err = yaml.Unmarshal(instance, &rawConfig)
+	assert.Nil(t, err)
+	assert.Contains(t, rawConfig["tags"], "foo")
+	assert.Contains(t, rawConfig["tags"], "foo:bar")
+	assert.Equal(t, "testing", rawConfig["onefield"])
+	assert.Equal(t, 50, rawConfig["otherfield"])
+}
+
 func TestDigest(t *testing.T) {
 	emptyConfig := &Config{}
 	assert.Equal(t, "cbf29ce484222325", emptyConfig.Digest())
 	simpleConfig := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Instances:  []Data{Data("{foo:bar}")},
 	}
 	assert.Equal(t, "d8cbc7186ba13533", simpleConfig.Digest())
 	simpleConfigWithLogs := &Config{
 		Name:       "foo",
 		InitConfig: Data(""),
-		Instances:  []Data{Data("{foo:bar}")},
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 	assert.Equal(t, "6253da85b1624771", simpleConfigWithLogs.Digest())
+	simpleConfigWithInstances := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("{foo:bar}")},
+	}
+	assert.Equal(t, "148659939ea7642e", simpleConfigWithInstances.Digest())
+	simpleConfigWithInstancesAndLogs := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Instances:  []Data{Data("{foo:bar}")},
+		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+	}
+	assert.Equal(t, "acb889a316f2b01a", simpleConfigWithInstancesAndLogs.Digest())
+}
+
+func TestGetNameForInstance(t *testing.T) {
+	config := &Config{}
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("name: foobar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "foobar")
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("namespace: foobar\nname: bar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "bar")
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("namespace: foobar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "foobar")
+
+	config.Name = "foo"
+	config.InitConfig = Data("fooBarBaz")
+	config.Instances = []Data{Data("foo: bar")}
+	assert.Equal(t, config.Instances[0].GetNameForInstance(), "")
 }
 
 // this is here to prevent compiler optimization on the benchmarking code

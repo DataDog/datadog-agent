@@ -2,5 +2,9 @@ LIBRARY customaction
 
 EXPORTS
 	DllMain
-	AddDatadogSecretUser
-	RemoveDatadogSecretUser
+    FinalizeInstall
+	PreStopServices
+	PostStartServices
+	DoUninstall
+    DoRollback
+	

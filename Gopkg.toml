@@ -1,13 +1,18 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "4.7.1"
+  version = "4.15.0"
+
+[[constraint]]
+  name = "github.com/google/gopacket"
+  revision = "c340012d34adb8462b1e23ad4d7a73944f4224b8"
 
 [[constraint]]
   name = "github.com/DataDog/gohai"
   branch = "master"
 
 [[constraint]]
-  name = "github.com/DataDog/zstd"
+  name = "github.com/DataDog/zstd.v1.3"
+  source = "github.com/DataDog/zstd"
   version = "~v1.3.0"
 
 [[constraint]]
@@ -20,7 +25,7 @@
 
 [[constraint]]
   name = "github.com/beevik/ntp"
-  revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
+  version = "~0.2.0"
 
 [[constraint]]
   name = "github.com/cihub/seelog"
@@ -31,56 +36,84 @@
   version = "~3.2.0"
 
 [[constraint]]
+  name = "github.com/coreos/go-semver"
+  version = "~v0.2.0"
+
+[[constraint]]
   name = "github.com/docker/docker"
   version = "~v1.13.1"
 
 [[constraint]]
+  name = "github.com/containerd/containerd"
+  version = "~v1.2.2"
+
+[[override]]
+  version = "kubernetes-1.15.0"
+  name = "k8s.io/cloud-provider"
+
+[[override]]
   name = "github.com/gogo/protobuf"
-  version = "~v1.0.0"
+  version = "v1.0.0"
+
+[[override]]
+  name = "github.com/golang/protobuf"
+  version = "v1.1.0"
+
+[[override]]
+  name = "github.com/gogo/googleapis"
+  version = "v1.0.0"
 
 [[override]]
   name = "github.com/kubernetes/apimachinery"
-  branch = "release-1.11"
+  branch = "release-1.15"
+
+[[constraint]]
+  name = "k8s.io/cri-api"
+  branch = "release-1.15"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "github.com/kubernetes/client-go"
-  branch = "release-8.0"
+  branch = "release-12.0"
 
 [[override]]
-    name = "k8s.io/client-go"
-    branch = "release-8.0"
+  name = "k8s.io/client-go"
+  branch = "release-12.0"
 
 [[override]]
   name = "github.com/kubernetes/api"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "k8s.io/api"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "github.com/kubernetes/apiserver"
-  branch = "release-1.11"
+  branch = "release-1.15"
+
+[[override]]
+  name = "github.com/prometheus/client_golang"
+  revision = "e7e903064f5e9eb5da98208bae10b475d4db0f8c"
 
 [[override]]
   name = "k8s.io/apiserver"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "github.com/kubernetes/metrics"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
   name = "k8s.io/metrics"
-  branch = "release-1.11"
+  branch = "release-1.15"
 
 [[override]]
-  name = "github.com/CharlyF/custom-metrics-apiserver"
-  revision = "56ec6921a4cfec971e5a8c89d5f4629c17cbb21a"
+  name = "github.com/kubernetes-incubator/custom-metrics-apiserver"
+  revision = "3d9be26a50eb64531fc40eb31a5f3e6720956dc6"
 
 [[constraint]]
   name = "github.com/gorilla/mux"
@@ -91,28 +124,16 @@
   revision = "26cf5bb32d07aa4e8d0de15f56ce516f4641d7df"
 
 [[constraint]]
-  name = "github.com/k-sone/snmpgo"
-  version = "~v3.2.0"
-
-[[constraint]]
   name = "github.com/kardianos/osext"
   revision = "ae77be60afb1dcacde03767a8c37337fad28ac14"
-
-[[constraint]]
-  name = "github.com/mitchellh/reflectwalk"
-  revision = "63d60e9d0dbc60cf9164e6510889b0db6683d98c"
 
 [[constraint]]
   name = "github.com/patrickmn/go-cache"
   version = "~v2.1.0"
 
 [[constraint]]
-  name = "github.com/sbinet/go-python"
-  branch = "master"
-
-[[constraint]]
   name = "github.com/shirou/gopsutil"
-  version = "^v2.18.4"
+  version = "^v2.18.12"
 
 [[constraint]]
   name = "github.com/spf13/cobra"
@@ -123,8 +144,8 @@
   version = "~1.1.4"
 
 [[constraint]]
-  name = "github.com/spf13/viper"
-  version = "=v1.0.2"
+  name = "github.com/DataDog/viper"
+  version = "~v1.7.0"
 
 [[constraint]]
   name = "github.com/coreos/go-systemd"
@@ -136,8 +157,7 @@
 
 [[constraint]]
   name = "gopkg.in/yaml.v2"
-  # branch = "v2"
-  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
+  version = "~v2.2.2"
 
 [[constraint]]
   name = "gopkg.in/zorkian/go-datadog-api.v2"
@@ -169,8 +189,65 @@
 
 [[constraint]]
   name = "k8s.io/kubernetes"
-  version = "1.11.2"
+  version = "1.13.1"
+
+[[override]]
+  name = "sigs.k8s.io/structured-merge-diff"
+  revision = "e85c7b244fd2cc57bb829d73a061f93a441e63ce"
+
+[[override]]
+  name = "k8s.io/kube-openapi"
+  revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[override]]
   name = "github.com/docker/distribution"
-  revision = "83389a148052d74ac602f5f1d62f86ff2f3c4aa5"
+  revision = "0ac367fd6bee057d404c405a298b4b7aedf301ec"
+
+[[override]]
+  name = "bitbucket.org/ww/goautoneg"
+  source = "github.com/adjust/goautoneg"
+  revision = "d788f35a0315672bc90f50a6145d1252a230ee0d"
+
+[[override]]
+  name = "github.com/spf13/cast"
+  source = "github.com/DataDog/cast"
+  revision = "1ee8c8bd14a3d768a7ff681617ed56bc6c204940"
+
+[[constraint]]
+  name = "github.com/DataDog/gopsutil"
+  revision = "833e93ecbcfd25e491eceea5e42c49c22dac7ed1"
+
+[[constraint]]
+  name = "github.com/iovisor/gobpf"
+  source = "github.com/DataDog/gobpf"
+  revision = "a14c39bf99c7539b5578baf2449ff2e37dd35901"
+
+[[constraint]]
+  name = "github.com/florianl/go-conntrack"
+  revision = "6d50e184fe3ef7ba0640303db5e6a5610bf4a297"
+
+[[override]]
+  name = "golang.org/x/sys"
+  revision = "61b9204099cb1bebc803c9ffb9b2d3acd9d457d9"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/benesch/cgosymbolizer"
+
+[[override]]
+  name = "github.com/ianlancetaylor/cgosymbolizer"
+  source = "github.com/ianlancetaylor/cgosymbolizer"
+  revision = "f5072df9c550dc687157e5d7efb50825cdf8f0eb"
+
+[[override]]
+  name = "sigs.k8s.io/controller-runtime"
+  source = "https://github.com/kubernetes-sigs/controller-runtime"
+  version = "v0.2.0"
+
+[[override]]
+  name = "gopkg.in/fsnotify.v1"
+  source = "https://github.com/fsnotify/fsnotify.git"
+
+[[constraint]]
+  name = "github.com/DataDog/watermarkpodautoscaler"
+  revision = "0efcebe266331b85b12ef5ea734bc0cf5216bcbe"

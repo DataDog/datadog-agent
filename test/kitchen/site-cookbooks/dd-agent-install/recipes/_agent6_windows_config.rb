@@ -41,9 +41,7 @@ template trace_agent_config_file do
     end
   )
   if is_windows
-    owner 'Administrators'
-    rights :full_control, 'Administrators'
-    inherits false
+  # the windows installer takes care of setting the correct permissions
   else
     owner 'dd-agent'
     group 'dd-agent'
@@ -106,9 +104,6 @@ template agent6_config_file do # rubocop:disable Metrics/BlockLength
   end
 
   if node['platform_family'] == 'windows'
-    owner 'Administrators'
-    rights :full_control, 'Administrators'
-    inherits false
   else
     owner 'dd-agent'
     mode '600'

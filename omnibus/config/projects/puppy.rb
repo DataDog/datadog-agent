@@ -1,32 +1,30 @@
-#
-# Copyright 2016 Datadog
-#
-# All Rights Reserved.
-#
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2016-2019 Datadog, Inc.
+
 require "./lib/ostools.rb"
 
-name 'datadog-puppy'
-if windows?
-  # Windows doesn't want our e-mail address :(
-  maintainer 'Datadog Inc.'
-else
-  maintainer 'Datadog Packages <package@datadoghq.com>'
-end
+name 'puppy'
+package_name 'datadog-puppy'
+
 homepage 'http://www.datadoghq.com'
+
 if ohai['platform'] == "windows"
   # Note: this is not the final install dir, not even the default one, just a convenient
   # spaceless dir in which the agent will be built.
   # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
   # to put a space here...
-  install_dir "C:/opt/datadog-agent6/"
+  install_dir "C:/opt/datadog-agent/"
+  maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir '/opt/datadog-agent6'
+  install_dir '/opt/datadog-agent'
+  maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
-build_version do
-  source :git, from_dependency: 'datadog-puppy'
-  output_format :dd_agent_format
-end
+# build_version is computed by an invoke command/function.
+# We can't call it directly from there, we pass it through the environment instead.
+build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
 
@@ -48,57 +46,9 @@ description 'Datadog Monitoring Agent
 package :deb do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
-  license 'Simplified BSD License'
+  license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
-end
-
-# .rpm specific flags
-package :rpm do
-  vendor 'Datadog <package@datadoghq.com>'
-  epoch 1
-  dist_tag ''
-  license 'Simplified BSD License'
-  category 'System Environment/Daemons'
-  priority 'extra'
-  if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
-    signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
-  end
-end
-
-# OSX .pkg specific flags
-package :pkg do
-  identifier 'com.datadoghq.agent'
-  #signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
-end
-compress :dmg do
-  window_bounds '200, 200, 750, 600'
-  pkg_position '10, 10'
-end
-
-# Windows .msi specific flags
-package :msi do
-  # previous upgrade code was used for older installs, and generated
-  # per-user installs.  Changing upgrade code, and switching to
-  # per-machine
-  per_user_upgrade_code = '82210ed1-bbe4-4051-aa15-002ea31dde15'
-
-  # For a consistent package management, please NEVER change this code
-  upgrade_code '0c50421b-aefb-4f15-a809-7af256d608a5'
-  bundle_msi true
-  bundle_theme true
-  wix_candle_extension 'WixUtilExtension'
-  wix_light_extension 'WixUtilExtension'
-  if ENV['SIGN_WINDOWS']
-    signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
-  end
-  parameters({
-    'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/bin/agent",
-    'DistFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/pkg/collector/dist",
-    'PerUserUpgradeCode' => per_user_upgrade_code
-  })
 end
 
 # ------------------------------------
@@ -108,19 +58,16 @@ end
 # Linux
 if linux?
   if debian?
-    extra_package_file '/etc/init/datadog-agent6.conf'
-    extra_package_file '/lib/systemd/system/datadog-agent6.service'
-  end
-
-  if redhat? || suse?
-    extra_package_file '/lib/systemd/system/datadog-agent6.service'
+    extra_package_file '/etc/init/datadog-agent.conf'
+    extra_package_file '/lib/systemd/system/datadog-agent.service'
   end
 
   # Example configuration files for the agent and the checks
-  extra_package_file '/etc/dd-agent/datadog.yaml.example'
+  extra_package_file '/etc/datadog-agent/datadog.yaml.example'
+  extra_package_file '/etc/datadog-agent/conf.d/'
 
-  # Custom checks directory
-  extra_package_file '/etc/dd-agent/checks.d'
+  # Logs directory
+  extra_package_file '/var/log/datadog/'
 end
 
 # ------------------------------------
@@ -132,10 +79,6 @@ dependency 'preparation'
 
 # Datadog agent
 dependency 'datadog-puppy'
-
-if windows?
-  dependency 'datadog-upgrade-helper'
-end
 
 # version manifest file
 dependency 'version-manifest'

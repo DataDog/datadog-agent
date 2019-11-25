@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package check
 
@@ -26,9 +26,13 @@ func BuildID(checkName string, instance, initConfig integration.Data) ID {
 	h := fnv.New64()
 	h.Write([]byte(instance))
 	h.Write([]byte(initConfig))
+	name := instance.GetNameForInstance()
 
-	id := fmt.Sprintf("%s:%x", checkName, h.Sum64())
-	return ID(id)
+	if name != "" {
+		return ID(fmt.Sprintf("%s:%s:%x", checkName, name, h.Sum64()))
+	}
+
+	return ID(fmt.Sprintf("%s:%x", checkName, h.Sum64()))
 }
 
 // IDToCheckName returns the check name from a check ID

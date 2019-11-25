@@ -7,7 +7,10 @@
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}
       {{end}}
-      <br>Log File: {{.config.log_file}}
+      <br>Agent start: {{.agent_start}}
+      {{- if .config.log_file}}
+        <br>Log File: {{.config.log_file}}
+      {{end}}
       <br>Log Level: {{.config.log_level}}
       <br>Config File: {{if .conf_file}}{{.conf_file}}
                        {{else}}There is no config file
@@ -23,8 +26,11 @@
       System UTC Time: {{.time}}
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
+        {{- if ntpWarning .ntpOffset}}
+        <br><span class="warning">NTP Offset is high. Datadog may ignore metrics sent by this Agent.</span>
+        {{- end}}
       {{end}}
-      <br>Go Version: {{.platform.goV}}
+      <br>Go Version: {{.go_version}}
       <br>Python Version: {{.python_version}}
     </span>
   </div>
@@ -57,6 +63,15 @@
           {{end -}}
         {{- end -}}
       {{- end}}
+      {{- if gt (len .hostTags) 0 }}
+        <span>Host tags: <br>
+          <span class="stat_subdata">
+            {{- range $tag := .hostTags}}
+              {{$tag}}<br>
+            {{- end }}
+          </span>
+        </span>
+      {{- end }}
       Hostname Provider: {{.hostnameStats.provider}}<br>
       {{- if gt (len .hostnameStats.errors) 0 }}
         <span>Unused Hostname Providers: <br>
@@ -134,7 +149,7 @@
               Errors By Type:<br>
               <span class="stat_subdata">
                 {{- range $type, $count := .Transactions.ErrorsByType }}
-                    {{$type}}: {{$count}}<br>
+                    {{$type}}: {{humanize $count}}<br>
                 {{- end}}
               </span>
             </span>
@@ -147,7 +162,7 @@
               HTTP Errors By Code:<br>
               <span class="stat_subdata">
                 {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
-                    {{$code}}: {{$count}}<br>
+                    {{$code}}: {{humanize $count}}<br>
                 {{- end}}
               </span>
             </span>
@@ -166,20 +181,64 @@
   </div>
 
   <div class="stat">
+    <span class="stat_title">Endpoints</span>
+    <span class="stat_data">
+    {{- with .endpointsInfos}}
+      {{- range $key, $value := .}}
+        {{$key}}
+          - API Key{{ if gt (len $value) 1}}s{{end}} ending with: <br>
+          {{- range $idx, $apikey := $value }}
+          &nbsp;&nbsp;- {{$apikey}} <br>
+          {{- end}}
+        <br>
+      {{- end}}
+    {{- else }}
+      No endpoints information. The agent may be misconfigured.
+    {{- end}}
+    </span>
+  </div>
+
+  <div class="stat">
     <span class="stat_title">Logs Agent</span>
     <span class="stat_data">
     {{- with .logsStats -}}
-      {{ if (not .is_running) }}
+      {{- if eq .is_running false }}
+
         Logs Agent is not running </br>
-      {{ else }}
-      {{- if .messages }}
-        <span class="warning stat_subtitle">Warnings</span>
+      {{- end }}
+      {{- if .endpoints }}
+
+        {{- range $endpoint := .endpoints }}
+          {{ $endpoint }}
+        {{- end }}
+      {{- end }}
+      {{- if .metrics }}
+
+        {{- range $metric_name, $metric_value := .metrics }}
+          {{$metric_name}}: {{$metric_value}}
+        {{- end }}
+      {{- end }}
+      {{- if .errors }}
+
+        <span class="error stat_subtitle">Errors</span>
         <span class="stat_subdata">
-          {{ range $warning := .messages }}{{ $warning }}</br>{{ end }}
+        {{- range $error := .errors }}
+          {{ $error }}</br>
+        {{- end }}
         </span>
       {{- end}}
-      {{- range .integrations -}}
-        <span class="stat_subtitle">{{- .name }}</span>
+      {{- if .warnings }}
+
+        <span class="warning stat_subtitle">Warnings</span>
+        <span class="stat_subdata">
+        {{- range $warning := .warnings }}
+          {{ $warning }}</br>
+        {{- end }}
+        </span>
+      {{- end}}
+      {{- range .integrations }}
+
+        <span class="stat_subtitle">{{ .name }}</span>
         <span class="stat_subdata">
           {{- range .sources }}
             Type: {{ .type }}</br>
@@ -188,33 +247,38 @@
             {{- end }}
             {{- if .status }}
             Status: {{ .status }}</br>
-              {{- if .messages }}
-              &nbsp&nbsp{{range $message := .messages }}{{ $message }}</br>{{end}}
-              {{- end }}
+            {{- range $message := .messages }}
+              {{ $message }}</br>
+            {{- end }}
             {{- end }}
             {{- if .inputs }}
             Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
             {{- end }}
           {{- end }}
         </span>
-        {{ end }}
       {{- end }}
     {{- end -}}
     </span>
   </div>
 
   <div class="stat">
-    <span class="stat_title">DogStatsD</span>
+    <span class="stat_title">Aggregator</span>
     <span class="stat_data">
       {{- with .aggregatorStats -}}
         {{- if .ChecksMetricSample}}
           Checks Metric Sample: {{humanize .ChecksMetricSample}}<br>
         {{- end -}}
+        {{- if .DogstatsdMetricSample}}
+          Dogstatsd Metric Sample: {{.DogstatsdMetricSample}}<br>
+        {{- end}}
         {{- if .Event}}
           Event: {{humanize .Event}}<br>
         {{- end -}}
         {{- if .EventsFlushed}}
           Events Flushed: {{humanize .EventsFlushed}}<br>
+        {{- end -}}
+        {{- if .EventsFlushErrors}}
+          Events Flush Errors: {{.EventsFlushErrors}}<br>
         {{- end -}}
         {{- if .NumberOfFlush}}
           Number Of Flushes: {{humanize .NumberOfFlush}}<br>
@@ -222,21 +286,38 @@
         {{- if .SeriesFlushed}}
           Series Flushed: {{humanize .SeriesFlushed}}<br>
         {{- end -}}
+        {{- if .SeriesFlushErrors}}
+          Series Flush Errors: {{.SeriesFlushErrors}}<br>
+        {{- end -}}
         {{- if .ServiceCheck}}
           Service Check: {{humanize .ServiceCheck}}<br>
         {{- end -}}
         {{- if .ServiceCheckFlushed}}
           Service Checks Flushed: {{humanize .ServiceCheckFlushed}}<br>
         {{- end -}}
+        {{- if .ServiceCheckFlushErrors}}
+          Service Checks Flush Errors: {{.ServiceCheckFlushErrors}}<br>
+        {{- end -}}
         {{- if .SketchesFlushed}}
           Sketches Flushed: {{humanize .SketchesFlushed}}<br>
         {{- end -}}
+        {{- if .SketchesFlushErrors}}
+          Sketches Flush Errors: {{.SketchesFlushErrors}}<br>
+        {{- end -}}
         {{- if .HostnameUpdate}}
           Hostname Update: {{humanize .HostnameUpdate}}<br>
-        {{- end -}}
-        {{- if .DogstatsdMetricSample}}
-          Dogstatsd Metric Sample: {{humanize .DogstatsdMetricSample}}<br>
-        {{- end}}
+        {{- end }}
+      {{- end -}}
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">DogStatsD</span>
+    <span class="stat_data">
+      {{- with .dogstatsdStats -}}
+        {{- range $key, $value := .}}
+          {{formatTitle $key}}: {{humanize $value}}<br>
+        {{- end }}
       {{- end -}}
     </span>
   </div>

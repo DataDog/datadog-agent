@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package processor
 
 import (
+	"encoding/json"
 	"testing"
 
 	"strings"
@@ -17,11 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pb"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestNewEncoder(t *testing.T) {
-	assert.Equal(t, &protoEncoder, NewEncoder(true))
-	assert.Equal(t, &rawEncoder, NewEncoder(false))
-}
 
 func TestRawEncoder(t *testing.T) {
 
@@ -41,7 +37,7 @@ func TestRawEncoder(t *testing.T) {
 
 	redactedMessage := "redacted"
 
-	raw, err := rawEncoder.encode(msg, []byte(redactedMessage))
+	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
@@ -71,7 +67,7 @@ func TestRawEncoderDefaults(t *testing.T) {
 
 	redactedMessage := "a"
 
-	raw, err := rawEncoder.encode(msg, []byte(redactedMessage))
+	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
@@ -101,17 +97,17 @@ func TestRawEncoderEmpty(t *testing.T) {
 
 	redactedMessage := "foo"
 
-	raw, err := rawEncoder.encode(msg, []byte(redactedMessage))
+	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 	assert.Equal(t, redactedMessage, string(raw))
 
 }
 
 func TestIsRFC5424Formatted(t *testing.T) {
-	assert.False(t, rawEncoder.isRFC5424Formatted([]byte("<- test message ->")))
-	assert.False(t, rawEncoder.isRFC5424Formatted([]byte("- test message ->")))
-	assert.False(t, rawEncoder.isRFC5424Formatted([]byte("<46> the rest of the message")))
-	assert.True(t, rawEncoder.isRFC5424Formatted([]byte("<46>0 the rest of the message")))
+	assert.False(t, isRFC5424Formatted([]byte("<- test message ->")))
+	assert.False(t, isRFC5424Formatted([]byte("- test message ->")))
+	assert.False(t, isRFC5424Formatted([]byte("<46> the rest of the message")))
+	assert.True(t, isRFC5424Formatted([]byte("<46>0 the rest of the message")))
 }
 
 func TestProtoEncoder(t *testing.T) {
@@ -132,7 +128,7 @@ func TestProtoEncoder(t *testing.T) {
 
 	redactedMessage := "redacted"
 
-	proto, err := protoEncoder.encode(msg, []byte(redactedMessage))
+	proto, err := ProtoEncoder.Encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -162,7 +158,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 	redactedMessage := ""
 
-	raw, err := protoEncoder.encode(msg, []byte(redactedMessage))
+	raw, err := ProtoEncoder.Encode(msg, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -185,14 +181,49 @@ func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
 	cfg := &config.LogsConfig{}
 	src := config.NewLogSource("", cfg)
 	msg := newMessage([]byte(""), src, "")
-	encoded, err := protoEncoder.encode(msg, []byte("a\xfez"))
+	encoded, err := ProtoEncoder.Encode(msg, []byte("a\xfez"))
 	assert.NotNil(t, encoded)
 	assert.Nil(t, err)
 }
 
-func TestProtoEncoderToValidUTF8(t *testing.T) {
-	assert.Equal(t, "a�z", protoEncoder.toValidUtf8([]byte("a\xfez")))
-	assert.Equal(t, "a��z", protoEncoder.toValidUtf8([]byte("a\xc0\xafz")))
-	assert.Equal(t, "a���z", protoEncoder.toValidUtf8([]byte("a\xed\xa0\x80z")))
-	assert.Equal(t, "a����z", protoEncoder.toValidUtf8([]byte("a\xf0\x8f\xbf\xbfz")))
+func TestJsonEncoder(t *testing.T) {
+	logsConfig := &config.LogsConfig{
+		Service:        "Service",
+		Source:         "Source",
+		SourceCategory: "SourceCategory",
+		Tags:           []string{"foo:bar", "baz"},
+	}
+
+	source := config.NewLogSource("", logsConfig)
+
+	rawMessage := "message"
+	msg := newMessage([]byte(rawMessage), source, message.StatusError)
+	msg.Origin.LogSource = source
+	msg.Origin.SetTags([]string{"a", "b:c"})
+
+	redactedMessage := "redacted"
+
+	jsonMessage, err := JSONEncoder.Encode(msg, []byte(redactedMessage))
+	assert.Nil(t, err)
+
+	log := &jsonPayload{}
+	err = json.Unmarshal(jsonMessage, log)
+	assert.Nil(t, err)
+
+	assert.NotEmpty(t, log.Hostname)
+
+	assert.Equal(t, logsConfig.Service, log.Service)
+	assert.Equal(t, logsConfig.Source, log.Source)
+	assert.Equal(t, "a,b:c,ddsourcecategory:"+logsConfig.SourceCategory+",foo:bar,baz", log.Tags)
+
+	assert.Equal(t, redactedMessage, log.Message)
+	assert.Equal(t, message.StatusError, log.Status)
+	assert.NotEmpty(t, log.Timestamp)
+}
+
+func TestEncoderToValidUTF8(t *testing.T) {
+	assert.Equal(t, "a�z", toValidUtf8([]byte("a\xfez")))
+	assert.Equal(t, "a��z", toValidUtf8([]byte("a\xc0\xafz")))
+	assert.Equal(t, "a���z", toValidUtf8([]byte("a\xed\xa0\x80z")))
+	assert.Equal(t, "a����z", toValidUtf8([]byte("a\xf0\x8f\xbf\xbfz")))
 }

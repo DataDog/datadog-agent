@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package listener
 
@@ -16,12 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-const port = 10493
-
 func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
-	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{Port: port}), r, msgChan, read)
+	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
 	tailer.Start()
 
 	var msg *message.Message
@@ -45,7 +43,7 @@ func TestReadShouldFailWithError(t *testing.T) {
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
 	read := func(*Tailer) ([]byte, error) { return nil, errors.New("") }
-	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{Port: port}), r, msgChan, read)
+	tailer := NewTailer(config.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
 	tailer.Start()
 
 	w.Write([]byte("foo\n"))

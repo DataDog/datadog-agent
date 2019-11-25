@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package autodiscovery
 
@@ -22,6 +22,11 @@ type dummyService struct {
 
 // GetEntity returns the service entity name
 func (s *dummyService) GetEntity() string {
+	return s.ID
+}
+
+// GetEntity returns the service entity name
+func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }
 
@@ -58,4 +63,9 @@ func (s *dummyService) GetHostname() (string, error) {
 // GetCreationTime return a dummy creation time
 func (s *dummyService) GetCreationTime() integration.CreationTime {
 	return s.CreationTime
+}
+
+// IsReady returns if the service is ready
+func (s *dummyService) IsReady() bool {
+	return true
 }

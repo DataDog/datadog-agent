@@ -1,21 +1,22 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build windows
 
 package system
 
 import (
-	"syscall"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 // For testing purpose
 var uptime = calcUptime
 
 var (
-	modkernel = syscall.NewLazyDLL("kernel32.dll")
+	modkernel = windows.NewLazyDLL("kernel32.dll")
 
 	procGetTickCount64 = modkernel.NewProc("GetTickCount64")
 )

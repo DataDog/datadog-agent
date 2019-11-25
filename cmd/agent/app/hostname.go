@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package app
 
@@ -27,11 +27,19 @@ var getHostnameCommand = &cobra.Command{
 
 // query for the version
 func doGetHostname(cmd *cobra.Command, args []string) error {
-	config.SetupLogger("off", "", "", false, true, false)
-	err := common.SetupConfig(confFilePath)
+
+	err := common.SetupConfigWithoutSecrets(confFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
+
+	// log level is always off since this might be use by other agent to get the hostname
+	err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
+	if err != nil {
+		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		return err
+	}
+
 	hname, err := util.GetHostname()
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)

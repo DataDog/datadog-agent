@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package log
 
@@ -28,6 +28,7 @@ var (
 	logsBuffer           = []func(){}
 	bufferLogsBeforeInit = true
 	bufferMutex          sync.Mutex
+	defaultStackDepth    = 2
 )
 
 // DatadogLogger wrapper structure for seelog
@@ -35,7 +36,7 @@ type DatadogLogger struct {
 	inner seelog.LoggerInterface
 	level seelog.LogLevel
 	extra map[string]seelog.LoggerInterface
-	l     sync.Mutex
+	l     sync.RWMutex
 }
 
 // SetupDatadogLogger configure logger singleton with seelog interface
@@ -58,7 +59,7 @@ func SetupDatadogLogger(l seelog.LoggerInterface, level string) {
 	// The fact we need a constant "additional depth" means some
 	// theoretical refactor to avoid duplication in the functions
 	// below cannot be performed.
-	logger.inner.SetAdditionalStackDepth(2)
+	logger.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	// Flushing logs since the logger is now initialized
 	bufferMutex.Lock()
@@ -100,10 +101,11 @@ func (sw *DatadogLogger) changeLogLevel(level string) error {
 }
 
 func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
-	sw.l.Lock()
-	defer sw.l.Unlock()
+	sw.l.RLock()
+	shouldLog := level >= sw.level
+	sw.l.RUnlock()
 
-	return (level >= sw.level)
+	return shouldLog
 }
 
 func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
@@ -211,6 +213,23 @@ func (sw *DatadogLogger) error(s string) error {
 	return err
 }
 
+// error logs at the error level and the current stack depth plus the additional given one
+func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
+	err := sw.inner.Error(scrubbed)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth)
+
+	for _, l := range sw.extra {
+		l.Error(scrubbed)
+	}
+
+	return err
+}
+
 // critical logs at the critical level
 func (sw *DatadogLogger) critical(s string) error {
 	sw.l.Lock()
@@ -310,6 +329,14 @@ func (sw *DatadogLogger) criticalf(format string, params ...interface{}) error {
 	return err
 }
 
+// getLogLevel returns the current log level
+func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
+	sw.l.RLock()
+	defer sw.l.RUnlock()
+
+	return sw.level
+}
+
 func buildLogEntry(v ...interface{}) string {
 	var fmtBuffer bytes.Buffer
 
@@ -387,6 +414,20 @@ func Error(v ...interface{}) error {
 		return logger.error(logger.scrub(s))
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(func() { Error(v...) })
+	}
+	// We print the error to Stderr in case the agent exit before initializing the log module
+	err := formatError(v...)
+	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+	return err
+}
+
+// ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message
+func ErrorStackDepth(depth int, v ...interface{}) error {
+	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.ErrorLvl) {
+		s := buildLogEntry(v...)
+		return logger.errorStackDepth(logger.scrub(s), depth)
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(func() { ErrorStackDepth(depth, v...) })
 	}
 	// We print the error to Stderr in case the agent exit before initializing the log module
 	err := formatError(v...)
@@ -505,9 +546,20 @@ func UnregisterAdditionalLogger(n string) error {
 	return errors.New("cannot unregister: logger not initialized")
 }
 
+// GetLogLevel returns a seelog native representation of the current
+// log level
+func GetLogLevel() (seelog.LogLevel, error) {
+	if logger != nil && logger.inner != nil {
+		return logger.getLogLevel(), nil
+	}
+
+	// need to return something, just set to Info (expected default)
+	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
+}
+
 func changeLogLevel(level string) error {
 	if logger == nil {
-		return errors.New("logger initialized, cant set log-level")
+		return errors.New("cannot set log-level: logger not initialized")
 	}
 
 	return logger.changeLogLevel(level)

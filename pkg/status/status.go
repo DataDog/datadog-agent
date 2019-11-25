@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package status
 
@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"expvar"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -25,7 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var timeFormat = "2006-01-02 15:04:05.000000 UTC"
+var startTime = time.Now()
+var timeFormat = "2006-01-02 15:04:05.000000 MST"
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
@@ -37,24 +40,29 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["version"] = version.AgentVersion
 	hostname, err := util.GetHostname()
+
+	var metadata *host.Payload
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache("unknown")
+		metadata = host.GetPayloadFromCache("unknown")
 	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostname)
+		metadata = host.GetPayloadFromCache(hostname)
 	}
+	stats["metadata"] = metadata
+
+	hostTags := make([]string, 0, len(metadata.HostTags.System)+len(metadata.HostTags.GoogleCloudPlatform))
+	hostTags = append(hostTags, metadata.HostTags.System...)
+	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
+	stats["hostTags"] = hostTags
 
 	stats["config"] = getPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 
-	platformPayload, err := getPlatformPayload()
-	if err != nil {
-		return nil, err
-	}
 	stats["pid"] = os.Getpid()
+	stats["go_version"] = runtime.Version()
 	pythonVersion := host.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
-	stats["platform"] = platformPayload
+	stats["agent_start"] = startTime.Format(timeFormat)
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
@@ -62,6 +70,13 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["JMXStatus"] = GetJMXStatus()
 
 	stats["logsStats"] = logs.GetStatus()
+
+	endpointsInfos, err := getEndpointsInfos()
+	if endpointsInfos != nil && err == nil {
+		stats["endpointsInfos"] = endpointsInfos
+	} else {
+		stats["endpointsInfos"] = nil
+	}
 
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		stats["clusterAgentStatus"] = getDCAStatus()
@@ -90,8 +105,8 @@ func GetAndFormatStatus() ([]byte, error) {
 	return []byte(st), nil
 }
 
-// GetCheckStatus gets the status of a single check
-func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
+// GetCheckStatusJSON gets the status of a single check as JSON
+func GetCheckStatusJSON(c check.Check, cs *check.Stats) ([]byte, error) {
 	s, err := GetStatus()
 	if err != nil {
 		return nil, err
@@ -101,6 +116,16 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	checks[c.String()].(map[check.ID]interface{})[c.ID()] = cs
 
 	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	return statusJSON, nil
+}
+
+// GetCheckStatus gets the status of a single check as human-readable text
+func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
+	statusJSON, err := GetCheckStatusJSON(c, cs)
 	if err != nil {
 		return nil, err
 	}
@@ -135,12 +160,28 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
 
+	endpointsInfos, err := getEndpointsInfos()
+	if endpointsInfos != nil && err == nil {
+		stats["endpointsInfos"] = endpointsInfos
+	} else {
+		stats["endpointsInfos"] = nil
+	}
+
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
-		return stats, nil
+	} else {
+		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	}
-	stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
+
+	if config.Datadog.GetBool("cluster_checks.enabled") {
+		cchecks, err := clusterchecks.GetStats()
+		if err != nil {
+			log.Errorf("Error grabbing clusterchecks stats: %s", err)
+		} else {
+			stats["clusterchecks"] = cchecks
+		}
+	}
 
 	return stats, nil
 }
@@ -168,7 +209,6 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 // getDCAPartialConfig returns config parameters of interest for the status page.
 func getDCAPartialConfig() map[string]string {
 	conf := make(map[string]string)
-	conf["log_file"] = config.Datadog.GetString("log_file")
 	conf["log_level"] = config.Datadog.GetString("log_level")
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	return conf
@@ -182,6 +222,27 @@ func getPartialConfig() map[string]string {
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	conf["additional_checksd"] = config.Datadog.GetString("additional_checksd")
 	return conf
+}
+
+func getEndpointsInfos() (map[string]interface{}, error) {
+	endpoints, err := config.GetMultipleEndpoints()
+	if err != nil {
+		return nil, err
+	}
+
+	endpointsInfos := make(map[string]interface{})
+
+	// obfuscate the api keys
+	for endpoint, keys := range endpoints {
+		for i, key := range keys {
+			if len(key) > 5 {
+				keys[i] = key[len(key)-5:]
+			}
+		}
+		endpointsInfos[endpoint] = keys
+	}
+
+	return endpointsInfos, nil
 }
 
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
@@ -211,6 +272,23 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
 	stats["aggregatorStats"] = aggregatorStats
 
+	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+	dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
+	dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
+	dogstatsdStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	dogstatsdUdsStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats)
+	for name, value := range dogstatsdUdsStats {
+		dogstatsdStats["Uds"+name] = value
+	}
+	dogstatsdUDPStats := make(map[string]interface{})
+	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats)
+	for name, value := range dogstatsdUDPStats {
+		dogstatsdStats["Udp"+name] = value
+	}
+	stats["dogstatsdStats"] = dogstatsdStats
+
 	pyLoaderData := expvar.Get("pyLoader")
 	if pyLoaderData != nil {
 		pyLoaderStatsJSON := []byte(pyLoaderData.String())
@@ -219,6 +297,16 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["pyLoaderStats"] = pyLoaderStats
 	} else {
 		stats["pyLoaderStats"] = nil
+	}
+
+	pythonInitData := expvar.Get("pythonInit")
+	if pythonInitData != nil {
+		pythonInitJSON := []byte(pythonInitData.String())
+		pythonInit := make(map[string]interface{})
+		json.Unmarshal(pythonInitJSON, &pythonInit)
+		stats["pythonInit"] = pythonInit
+	} else {
+		stats["pythonInit"] = nil
 	}
 
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
@@ -231,4 +319,13 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	}
 
 	return stats, err
+}
+
+// GetExpvarRunnerStats grabs the status of the runner from expvar
+// and puts it into a CLCChecks struct
+func GetExpvarRunnerStats() (CLCChecks, error) {
+	runnerStatsJSON := []byte(expvar.Get("runner").String())
+	runnerStats := CLCChecks{}
+	err := json.Unmarshal(runnerStatsJSON, &runnerStats)
+	return runnerStats, err
 }

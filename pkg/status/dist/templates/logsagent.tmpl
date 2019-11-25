@@ -1,34 +1,63 @@
-{{/*
+{{- /*
 NOTE: Changes made to this template should be reflected on the following templates, if applicable:
 * cmd/agent/gui/views/templates/generalStatus.tmpl
-*/}}==========
+*/ -}}
+==========
 Logs Agent
 ==========
-{{ if (not .is_running) }}
+{{- if eq .is_running false }}
+
   Logs Agent is not running
-{{ else }}
-{{- if .messages }}
-  warnings
-  {{printDashes "warnings" "-"}}
-    {{- range $warning := .messages }}
+{{- end }}
+
+{{- if .endpoints }}
+
+  {{- range $endpoint := .endpoints }}
+    {{ $endpoint }}
+  {{- end }}
+{{- end }}
+
+{{- if .metrics }}
+
+  {{- range $metric_name, $metric_value := .metrics }}
+    {{$metric_name}}: {{$metric_value}}
+  {{- end }}
+{{- end }}
+
+{{- if .errors }}
+
+  Errors
+  {{ printDashes "Errors" "=" }}
+  {{- range $error := .errors }}
+    {{ $error }}
+  {{- end }}
+{{- end }}
+
+{{- if .warnings }}
+
+  Warnings
+  {{ printDashes "warnings" "=" }}
+  {{- range $warning := .warnings }}
     {{ $warning }}
-    {{- end }}
-{{ end }}
+  {{- end }}
+{{- end }}
+
 {{- range .integrations }}
+
   {{ .name }}
-  {{printDashes .name "-"}}
+  {{ printDashes .name "-" }}
   {{- range .sources }}
     Type: {{ .type }}
     {{- range $key, $value := .configuration }}
     {{$key}}: {{$value}}
     {{- end }}
     Status: {{ .status }}
-      {{- if .messages }}
-      {{range $message := .messages }}{{ $message }}{{end}}
-      {{- end }}
+    {{- range $message := .messages }}
+      {{ $message }}
+    {{- end }}
     {{- if .inputs }}
     Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
     {{- end }}
-  {{ end }}
+  {{- end }}
 {{- end }}
-{{- end }}
+

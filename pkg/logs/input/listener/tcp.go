@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package listener
 
@@ -59,6 +59,8 @@ func (l *TCPListener) Start() {
 // Stop stops the listener from accepting new connections and all the activer tailers.
 func (l *TCPListener) Stop() {
 	log.Infof("Stopping TCP forwarder on port %d", l.source.Config.Port)
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.stop <- struct{}{}
 	l.listener.Close()
 	stopper := restart.NewParallelStopper()
@@ -94,7 +96,7 @@ func (l *TCPListener) run() {
 				l.source.Status.Success()
 				continue
 			default:
-				l.startNewTailer(conn)
+				l.startTailer(conn)
 				l.source.Status.Success()
 			}
 		}
@@ -124,8 +126,8 @@ func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
 	return frame[:n], nil
 }
 
-// startNewTailer creates and starts a new tailer that reads from the connection.
-func (l *TCPListener) startNewTailer(conn net.Conn) {
+// startTailer creates and starts a new tailer that reads from the connection.
+func (l *TCPListener) startTailer(conn net.Conn) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	tailer := NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
@@ -135,9 +137,9 @@ func (l *TCPListener) startNewTailer(conn net.Conn) {
 
 // stopTailer stops the tailer.
 func (l *TCPListener) stopTailer(tailer *Tailer) {
+	tailer.Stop()
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tailer.Stop()
 	for i, t := range l.tailers {
 		if t == tailer {
 			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)

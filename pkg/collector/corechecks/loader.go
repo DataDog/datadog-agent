@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package corechecks
 
@@ -71,7 +71,7 @@ func (gl *GoCheckLoader) Load(config integration.Config) ([]check.Check, error) 
 	errors := []string{}
 	for _, instance := range config.Instances {
 		newCheck := factory()
-		if err := newCheck.Configure(instance, config.InitConfig); err != nil {
+		if err := newCheck.Configure(instance, config.InitConfig, config.Source); err != nil {
 			errors = append(errors, fmt.Sprintf("Could not configure check %s: %s", newCheck, err))
 			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
 			continue

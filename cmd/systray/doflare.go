@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build windows
 
 package main
@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strconv"
 	"sync/atomic"
-	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/lxn/win"
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 
 var (
 	validemail = regexp.MustCompile("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")
-	moduser32  = syscall.NewLazyDLL("user32.dll")
+	moduser32  = windows.NewLazyDLL("user32.dll")
 
 	procGetDlgItem       = moduser32.NewProc("GetDlgItem")
 	procSetWindowPos     = moduser32.NewProc("SetWindowPos")
@@ -103,7 +103,7 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 				// get the text, see if it looks kinda like an email address
 				buf := make([]uint16, 256)
 				win.SendDlgItemMessage(hwnd, IDC_EMAIL_EDIT, win.WM_GETTEXT, 255, uintptr(unsafe.Pointer(&buf[0])))
-				emailstr := syscall.UTF16ToString(buf)
+				emailstr := windows.UTF16ToString(buf)
 				edithandle, err := getDlgItem(hwnd, win.IDOK)
 				if err == nil {
 					if validemail.MatchString(emailstr) {
@@ -118,11 +118,11 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 			buf := make([]uint16, 256)
 
 			win.SendDlgItemMessage(hwnd, IDC_TICKET_EDIT, win.WM_GETTEXT, 255, uintptr(unsafe.Pointer(&buf[0])))
-			info.caseid = syscall.UTF16ToString(buf)
+			info.caseid = windows.UTF16ToString(buf)
 			log.Debugf("ticket number %s", info.caseid)
 
 			win.SendDlgItemMessage(hwnd, IDC_EMAIL_EDIT, win.WM_GETTEXT, 255, uintptr(unsafe.Pointer(&buf[0])))
-			info.email = syscall.UTF16ToString(buf)
+			info.email = windows.UTF16ToString(buf)
 			log.Debugf("email %s", info.email)
 
 			win.EndDialog(hwnd, win.IDOK)
@@ -150,7 +150,7 @@ func onFlare() {
 		log.Errorf("Failed to get my own module handle")
 		return
 	}
-	ret := win.DialogBoxParam(myInst, win.MAKEINTRESOURCE(uintptr(IDD_DIALOG1)), win.HWND(0), syscall.NewCallback(dialogProc), uintptr(0))
+	ret := win.DialogBoxParam(myInst, win.MAKEINTRESOURCE(uintptr(IDD_DIALOG1)), win.HWND(0), windows.NewCallback(dialogProc), uintptr(0))
 	if ret == 1 {
 		// kick off the flare
 		if _, err := strconv.Atoi(info.caseid); err != nil {
@@ -158,12 +158,12 @@ func onFlare() {
 			info.caseid = "0"
 		}
 		r, e := requestFlare(info.caseid, info.email)
-		caption, _ := syscall.UTF16PtrFromString("Datadog Flare")
+		caption, _ := windows.UTF16PtrFromString("Datadog Flare")
 		var text *uint16
 		if e == nil {
-			text, _ = syscall.UTF16PtrFromString(r)
+			text, _ = windows.UTF16PtrFromString(r)
 		} else {
-			text, _ = syscall.UTF16PtrFromString(fmt.Sprintf("Error creating flare %v", e))
+			text, _ = windows.UTF16PtrFromString(fmt.Sprintf("Error creating flare %v", e))
 		}
 		win.MessageBox(win.HWND(0), text, caption, win.MB_OK)
 	}
@@ -179,7 +179,11 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 		return
 	}
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://wwt.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package listener
 
@@ -62,9 +62,7 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		output.Origin = message.NewOrigin(t.source)
-		output.SetStatus(message.StatusInfo)
-		t.outputChan <- output
+		t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source)
 	}
 }
 

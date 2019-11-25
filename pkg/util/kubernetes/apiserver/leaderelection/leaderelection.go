@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -9,7 +9,6 @@ package leaderelection
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"sync"
@@ -21,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"context"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -47,12 +47,12 @@ type LeaderEngine struct {
 	m       sync.Mutex
 	once    sync.Once
 
-	HolderIdentity  string
-	LeaseDuration   time.Duration
-	LeaseName       string
-	LeaderNamespace string
-	coreClient      corev1.CoreV1Interface
-
+	HolderIdentity      string
+	LeaseDuration       time.Duration
+	LeaseName           string
+	LeaderNamespace     string
+	coreClient          corev1.CoreV1Interface
+	ServiceName         string
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
 
@@ -64,6 +64,7 @@ func newLeaderEngine() *LeaderEngine {
 	return &LeaderEngine{
 		LeaseName:       defaultLeaseName,
 		LeaderNamespace: common.GetResourcesNamespace(),
+		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
 	}
 }
 
@@ -185,7 +186,7 @@ func (le *LeaderEngine) runLeaderElection() {
 	for {
 		log.Infof("Starting leader election process for %q...", le.HolderIdentity)
 
-		le.leaderElector.Run()
+		le.leaderElector.Run(context.Background())
 		log.Info("Leader election lost")
 	}
 }
@@ -197,6 +198,26 @@ func (le *LeaderEngine) GetLeader() string {
 	defer le.leaderIdentityMutex.RUnlock()
 
 	return le.leaderIdentity
+}
+
+// GetLeaderIP returns the IP the leader can be reached at, assuming its
+// identity is its pod name. Returns empty if we are the leader.
+// The result is not cached.
+func (le *LeaderEngine) GetLeaderIP() (string, error) {
+	leaderName := le.GetLeader()
+	if leaderName == "" || leaderName == le.HolderIdentity {
+		return "", nil
+	}
+
+	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(le.ServiceName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	target, err := apiserver.SearchTargetPerName(endpointList, leaderName)
+	if err != nil {
+		return "", err
+	}
+	return target.IP, nil
 }
 
 // IsLeader returns true if the last observed leader was this client else returns false.
@@ -229,12 +250,4 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 		return led, err
 	}
 	return led, nil
-}
-
-func init() {
-	// Avoid logging glog from the k8s.io package
-	flag.Lookup("stderrthreshold").Value.Set("FATAL")
-	//Convinces goflags that we have called Parse() to avoid noisy logs.
-	//OSS Issue: kubernetes/kubernetes#17162.
-	flag.CommandLine.Parse([]string{})
 }

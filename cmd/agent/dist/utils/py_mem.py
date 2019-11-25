@@ -11,7 +11,7 @@ def get_mem_stats():
         entry_type = ref.split(' ')[0]
 
         stat = stats.get(entry_type, {})
-        stat['n'] = stat.get('n', 0) + n
+        stat['num'] = stat.get('n', 0) + n
         stat['sz'] = stat.get('sz', 0) + n*sz
 
         entries = stat.get('entries', [])

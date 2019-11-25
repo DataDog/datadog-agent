@@ -1,11 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package pipeline
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -20,27 +23,45 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, endpoints *config.Endpoints, destinationsContext *sender.DestinationsContext) *Pipeline {
-	// initialize the main destination
-	main := sender.NewDestination(endpoints.Main, destinationsContext)
-
-	// initialize the additional destinations
-	var additionals []*sender.Destination
-	for _, endpoint := range endpoints.Additionals {
-		additionals = append(additionals, sender.NewDestination(endpoint, destinationsContext))
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
+	var destinations *client.Destinations
+	if endpoints.UseHTTP {
+		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext)
+		additionals := []client.Destination{}
+		for _, endpoint := range endpoints.Additionals {
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext))
+		}
+		destinations = client.NewDestinations(main, additionals)
+	} else {
+		main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
+		additionals := []client.Destination{}
+		for _, endpoint := range endpoints.Additionals {
+			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
+		}
+		destinations = client.NewDestinations(main, additionals)
 	}
 
-	// initialize the sender
-	destinations := sender.NewDestinations(main, additionals)
 	senderChan := make(chan *message.Message, config.ChanSize)
-	sender := sender.NewSender(senderChan, outputChan, destinations)
 
-	// initialize the input chan
+	var strategy sender.Strategy
+	if endpoints.UseHTTP {
+		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait)
+	} else {
+		strategy = sender.StreamStrategy
+	}
+	sender := sender.NewSender(senderChan, outputChan, destinations, strategy)
+
+	var encoder processor.Encoder
+	if endpoints.UseHTTP {
+		encoder = processor.JSONEncoder
+	} else if endpoints.UseProto {
+		encoder = processor.ProtoEncoder
+	} else {
+		encoder = processor.RawEncoder
+	}
+
 	inputChan := make(chan *message.Message, config.ChanSize)
-
-	// initialize the processor
-	encoder := processor.NewEncoder(endpoints.Main.UseProto)
-	processor := processor.New(inputChan, senderChan, encoder)
+	processor := processor.New(inputChan, senderChan, processingRules, encoder)
 
 	return &Pipeline{
 		InputChan: inputChan,

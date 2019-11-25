@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package scheduler
 
@@ -33,16 +33,17 @@ func init() {
 // Scheduler keeps things rolling.
 // More docs to come...
 type Scheduler struct {
-	checksPipe    chan<- check.Check          // The pipe the Runner pops the checks from, initially set to nil
-	done          chan bool                   // Guard for the main loop
-	halted        chan bool                   // Used to internally communicate all queues are done
-	started       chan bool                   // Used to internally communicate the queues are up
-	jobQueues     map[time.Duration]*jobQueue // We have one scheduling queue for every interval
-	checkToQueue  map[check.ID]*jobQueue      // Keep track of what is the queue for any Check
-	mu            sync.Mutex                  // To protect critical sections in struct's fields
-	running       uint32                      // Flag to see if the scheduler is running
-	cancelOneTime chan bool                   // Used to internally communicate a cancel signal to one-time schedule goroutines
-	wgOneTime     sync.WaitGroup              // WaitGroup to track the exit of one-time schedule goroutines
+	running      uint32                      // Flag to see if the scheduler is running
+	checksPipe   chan<- check.Check          // The pipe the Runner pops the checks from, initially set to nil
+	done         chan bool                   // Guard for the main loop
+	halted       chan bool                   // Used to internally communicate all queues are done
+	started      chan bool                   // Used to internally communicate the queues are up
+	jobQueues    map[time.Duration]*jobQueue // We have one scheduling queue for every interval
+	checkToQueue map[check.ID]*jobQueue      // Keep track of what is the queue for any Check
+	mu           sync.Mutex                  // To protect critical sections in struct's fields
+
+	cancelOneTime chan bool      // Used to internally communicate a cancel signal to one-time schedule goroutines
+	wgOneTime     sync.WaitGroup // WaitGroup to track the exit of one-time schedule goroutines
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.

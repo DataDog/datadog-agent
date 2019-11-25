@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package forwarder
 
@@ -35,6 +35,7 @@ func initDomainForwarderExpvars() {
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
+	isRetrying          int32
 	domain              string
 	numberOfWorkers     int
 	highPrio            chan Transaction // use to receive new transactions
@@ -46,8 +47,8 @@ type domainForwarder struct {
 	retryQueueLimit     int
 	internalState       uint32
 	m                   sync.Mutex // To control Start/Stop races
-	isRetrying          int32
-	blockedList         *blockedEndpoints
+
+	blockedList *blockedEndpoints
 }
 
 func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int) *domainForwarder {
@@ -163,7 +164,7 @@ func (f *domainForwarder) Start() error {
 }
 
 // Stop stops a domainForwarder, all transactions not yet flushed will be lost.
-func (f *domainForwarder) Stop() {
+func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	// Lock so we can't start a Forwarder while is stopping
 	f.m.Lock()
 	defer f.m.Unlock()
@@ -175,7 +176,7 @@ func (f *domainForwarder) Stop() {
 
 	f.stopRetry <- true
 	for _, w := range f.workers {
-		w.Stop()
+		w.Stop(purgeHighPrio)
 	}
 	f.workers = []*Worker{}
 	f.retryQueue = []Transaction{}

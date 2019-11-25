@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package main
 
@@ -135,7 +135,7 @@ func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
 }
 
 func initLogging() error {
-	err := config.SetupLogger("info", "", "", false, true, false)
+	err := config.SetupLogger(config.LoggerName("test"), "info", "", "", false, true, false)
 	if err != nil {
 		return fmt.Errorf("Unable to initiate logger: %s", err)
 	}
@@ -208,6 +208,8 @@ func createMetric(value float64, tags []string, name string, t int64) datadog.Me
 }
 
 func main() {
+	mockConfig := config.Mock()
+
 	if err := util.InitLogging("info"); err != nil {
 		log.Infof("Unable to replace logger, default logging will apply (highly verbose): %s", err)
 	}
@@ -222,11 +224,11 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	config.Datadog.Set("dogstatsd_stats_enable", true)
-	config.Datadog.Set("dogstatsd_stats_buffer", 100)
+	mockConfig.Set("dogstatsd_stats_enable", true)
+	mockConfig.Set("dogstatsd_stats_buffer", 100)
 	s := serializer.NewSerializer(f)
 	aggr := aggregator.InitAggregator(s, "localhost")
-	statsd, err := dogstatsd.NewServer(aggr.GetChannels())
+	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels())
 	if err != nil {
 		log.Errorf("Problem allocating dogstatsd server: %s", err)
 		return

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build linux
 
@@ -50,7 +50,7 @@ func (c ContainerCgroup) ContainerStartTime() (int64, error) {
 func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 	mount, ok := c.Mounts[target]
 	if !ok {
-		log.Errorf("Missing target %s from mounts", target)
+		log.Debugf("Missing target %s from mounts", target)
 		return ""
 	}
 	targetPath, ok := c.Paths[target]
@@ -150,13 +150,15 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 		return cgs, err
 	}
 
+	prefix := config.Datadog.GetString("container_cgroup_prefix")
+
 	for _, dirName := range dirNames {
 		pid, err := strconv.ParseInt(dirName, 10, 32)
 		if err != nil {
 			continue
 		}
 		cgPath := hostProc(dirName, "cgroup")
-		containerID, paths, err := ReadCgroupsForPath(cgPath)
+		containerID, paths, err := ReadCgroupsForPath(cgPath, prefix)
 		if containerID == "" {
 			continue
 		}
@@ -186,13 +188,15 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 // containerd / cri-o default Kubernetes cgroups
 func ContainerIDForPID(pid int) (string, error) {
 	cgPath := hostProc(strconv.Itoa(pid), "cgroup")
-	containerID, _, err := ReadCgroupsForPath(cgPath)
+	prefix := config.Datadog.GetString("container_cgroup_prefix")
+
+	containerID, _, err := ReadCgroupsForPath(cgPath, prefix)
 
 	return containerID, err
 }
 
 // ReadCgroupsForPath reads the cgroups from a /proc/$pid/cgroup path.
-func ReadCgroupsForPath(pidCgroupPath string) (string, map[string]string, error) {
+func ReadCgroupsForPath(pidCgroupPath, prefix string) (string, map[string]string, error) {
 	f, err := os.Open(pidCgroupPath)
 	if os.IsNotExist(err) {
 		log.Debugf("cgroup path '%s' could not be read: %s", pidCgroupPath, err)
@@ -202,7 +206,7 @@ func ReadCgroupsForPath(pidCgroupPath string) (string, map[string]string, error)
 		return "", nil, err
 	}
 	defer f.Close()
-	return parseCgroupPaths(f)
+	return parseCgroupPaths(f, prefix)
 }
 
 // parseCgroupPaths parses out the cgroup paths from a /proc/$pid/cgroup file.
@@ -216,13 +220,13 @@ func ReadCgroupsForPath(pidCgroupPath string) (string, map[string]string, error)
 //
 // Returns the common containerID and a mapping of target => path
 // If the first line doesn't have a valid container ID we will return an empty string
-func parseCgroupPaths(r io.Reader) (string, map[string]string, error) {
+func parseCgroupPaths(r io.Reader, prefix string) (string, map[string]string, error) {
 	var containerID string
 	paths := make(map[string]string)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		l := scanner.Text()
-		cID, ok := containerIDFromCgroup(l)
+		cID, ok := containerIDFromCgroup(l, prefix)
 		if !ok {
 			log.Tracef("could not parse container id from path '%s'", l)
 			continue
@@ -255,9 +259,12 @@ func parseCgroupPaths(r io.Reader) (string, map[string]string, error) {
 	return containerID, paths, nil
 }
 
-func containerIDFromCgroup(cgroup string) (string, bool) {
+func containerIDFromCgroup(cgroup, prefix string) (string, bool) {
 	sp := strings.SplitN(cgroup, ":", 3)
 	if len(sp) < 3 {
+		return "", false
+	}
+	if prefix != "" && !strings.HasPrefix(sp[2], prefix) {
 		return "", false
 	}
 	matches := containerRe.FindAllString(sp[2], -1)

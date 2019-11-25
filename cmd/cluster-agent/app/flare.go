@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
 
 var (
@@ -38,6 +39,11 @@ var flareCmd = &cobra.Command{
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
 		// we'll search for a config file named `datadog-cluster.yaml`
 		config.Datadog.SetConfigName("datadog-cluster")
 		err := common.SetupConfig(confPath)
@@ -45,24 +51,25 @@ var flareCmd = &cobra.Command{
 			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
 		}
 
+		// The flare command should not log anything, all errors should be reported directly to the console without the log format
+		err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		caseID := ""
 		if len(args) > 0 {
 			caseID = args[0]
 		}
 
-		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		config.SetupLogger("off", "", "", false, true, false)
 		if customerEmail == "" {
 			var err error
-			customerEmail, err = flare.AskForEmail()
+			customerEmail, err = input.AskForEmail()
 			if err != nil {
 				fmt.Println("Error reading email, please retry or contact support")
 				return err
 			}
-		}
-
-		if flagNoColor {
-			color.NoColor = true
 		}
 
 		return requestFlare(caseID)
@@ -70,7 +77,7 @@ var flareCmd = &cobra.Command{
 }
 
 func requestFlare(caseID string) error {
-	fmt.Println("Asking the Cluster Agent to build the flare archive.")
+	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/flare", config.Datadog.GetInt("cluster_agent.cmd_port"))
@@ -95,7 +102,6 @@ func requestFlare(caseID string) error {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be mising."))
-
 		filePath, e = flare.CreateDCAArchive(true, common.GetDistPath(), logFile)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
@@ -105,11 +111,11 @@ func requestFlare(caseID string) error {
 		filePath = string(r)
 	}
 
-	fmt.Printf("%s is going to be uploaded to Datadog\n", filePath)
+	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
 	if !autoconfirm {
-		confirmation := flare.AskForConfirmation("Are you sure you want to upload a flare? [Y/N]")
+		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [Y/N]")
 		if !confirmation {
-			fmt.Printf("Aborting. (You can still use %s) \n", filePath)
+			fmt.Fprintln(color.Output, fmt.Sprintf("Aborting. (You can still use %s)", color.YellowString(filePath)))
 			return nil
 		}
 	}

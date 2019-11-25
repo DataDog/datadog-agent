@@ -125,9 +125,61 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
 
 
 @task
-def publish(ctx, src, dst):
+def publish(ctx, src, dst, signed_pull=False, signed_push=False):
     print("Uploading {} to {}".format(src, dst))
-    ctx.run("docker pull {src} && docker tag {src} {dst} && docker push {dst}".format(
-        src=src,
-        dst=dst)
+
+    pull_env = {}
+    if signed_pull:
+        pull_env["DOCKER_CONTENT_TRUST"] = "1"
+    ctx.run(
+        "docker pull {src} && docker tag {src} {dst}".format(src=src, dst=dst),
+        env=pull_env
     )
+
+    push_env = {}
+    if signed_push:
+        push_env["DOCKER_CONTENT_TRUST"] = "1"
+    ctx.run(
+        "docker push {dst}".format(dst=dst),
+        env=push_env
+    )
+
+@task
+def delete(ctx, org, image, tag, token):
+    print("Deleting {org}/{image}:{tag}".format(org=org, image=image, tag=tag))
+    ctx.run("curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT {token}' &>/dev/null".format(org=org, image=image, tag=tag, token=token))
+
+@task
+def pull_base_images(ctx, dockerfile, signed_pull=True):
+    """
+    Pulls the base images for a given Dockerfile, with
+    content trust enabled by default, to ensure the base
+    images are signed
+    """
+    images = set()
+    stages = set()
+
+    with open(dockerfile, "r") as f:
+        for line in f:
+            words = line.split()
+            # Get source images
+            if len(words) < 2 or words[0].lower() != "from":
+                continue
+            images.add(words[1])
+            # Get stage names to remove them from pull
+            if len(words) < 4 or words[2].lower() != "as":
+                continue
+            stages.add(words[3])
+
+    if stages:
+        print("Ignoring intermediate stage names: {}".format(", ".join(stages)))
+        images -= stages
+
+    print("Pulling following base images: {}".format(", ".join(images)))
+
+    pull_env = {}
+    if signed_pull:
+        pull_env["DOCKER_CONTENT_TRUST"] = "1"
+
+    for i in images:
+        ctx.run("docker pull {}".format(i), env=pull_env)

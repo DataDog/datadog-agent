@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package flare
 
@@ -62,7 +62,7 @@ var envvarNameWhitelist = []string{
 	"DD_CONTAINER_WHITELIST",
 	"DD_CONTAINER_CACHE_DURATION",
 	"DD_PROCESS_AGENT_CONTAINER_SOURCE",
-	"DD_NETWORK_TRACING_ENABLED",
+	"DD_SYSTEM_PROBE_ENABLED",
 }
 
 func getWhitelistedEnvvars() []string {
@@ -70,8 +70,14 @@ func getWhitelistedEnvvars() []string {
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)
+		key := strings.ToUpper(parts[0])
+		if strings.Contains(key, "_KEY") || strings.Contains(key, "_AUTH_TOKEN") {
+			// `_key`-suffixed env vars are sensitive: don't track them
+			// `_auth_token`-suffixed env vars are sensitive: don't track them
+			continue
+		}
 		for _, whitelisted := range envVarWhiteList {
-			if parts[0] == whitelisted {
+			if key == whitelisted {
 				found = append(found, envvar)
 				continue
 			}

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -25,6 +25,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 		toRecordEnvAsTags    map[string]string
 		toRecordLabelsAsTags map[string]string
 		expectedLow          []string
+		expectedOrch         []string
 		expectedHigh         []string
 	}{
 		{
@@ -38,6 +39,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			toRecordEnvAsTags:    map[string]string{},
 			toRecordLabelsAsTags: map[string]string{},
 			expectedLow:          []string{},
+			expectedOrch:         []string{},
 			expectedHigh:         []string{},
 		},
 		{
@@ -51,6 +53,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			toRecordEnvAsTags:    map[string]string{"k": "becomeK"},
 			toRecordLabelsAsTags: map[string]string{"labelKey": "labelValue"},
 			expectedLow:          []string{"becomeK:v"},
+			expectedOrch:         []string{},
 			expectedHigh:         []string{},
 		},
 		{
@@ -64,6 +67,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			toRecordEnvAsTags:    map[string]string{"k": "+becomeK", "l": "expectedLow"},
 			toRecordLabelsAsTags: map[string]string{"labelkey": "labelKey"},
 			expectedLow:          []string{"expectedLow:t", "labelKey:labelValue"},
+			expectedOrch:         []string{},
 			expectedHigh:         []string{"becomeK:v"},
 		},
 		{
@@ -77,6 +81,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			toRecordEnvAsTags:    map[string]string{"k": "+becomeK", "l": "expectedLow"},
 			toRecordLabelsAsTags: map[string]string{"labelkey": "+labelKey"},
 			expectedLow:          []string{"expectedLow:t"},
+			expectedOrch:         []string{},
 			expectedHigh:         []string{"becomeK:v", "labelKey:labelValue"},
 		},
 		{
@@ -99,7 +104,10 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				"chronos_job:app1_process-orders",
 				"chronos_job_owner:qa",
 			},
-			expectedHigh: []string{"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001"},
+			expectedOrch: []string{
+				"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
+			},
+			expectedHigh: []string{},
 		},
 		{
 			testName: "NoValue",
@@ -115,6 +123,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			toRecordEnvAsTags:    map[string]string{"avalue": "v"},
 			toRecordLabelsAsTags: map[string]string{},
 			expectedLow:          []string{"v:value"},
+			expectedOrch:         []string{},
 			expectedHigh:         []string{},
 		},
 		{
@@ -135,6 +144,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			toRecordEnvAsTags:    map[string]string{},
 			toRecordLabelsAsTags: map[string]string{},
 			expectedLow:          []string{"swarm_service:helloworld"},
+			expectedOrch:         []string{},
 			expectedHigh:         []string{},
 		},
 		{
@@ -158,7 +168,8 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				"com.docker.swarm.node.id":   "custom_add_swarm_node",
 				"com.docker.swarm.task.name": "+custom_add_task_name",
 			},
-			expectedLow:  []string{"swarm_service:helloworld", "custom_add_swarm_node:zdtab51ei97djzrpa1y2tz8li"},
+			expectedLow:  []string{"custom_add_swarm_node:zdtab51ei97djzrpa1y2tz8li", "swarm_service:helloworld"},
+			expectedOrch: []string{},
 			expectedHigh: []string{"custom_add_task_name:helloworld.1.knk1rz1szius7pvyznn9zolld"},
 		},
 		{
@@ -190,6 +201,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				"rancher_service:testAD/redis",
 				"rancher_stack:testAD",
 			},
+			expectedOrch: []string{},
 			expectedHigh: []string{
 				"rancher_container:testAD-redis-1",
 			},
@@ -213,6 +225,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				"nomad_job:test-job",
 				"nomad_group:test-group",
 			},
+			expectedOrch: []string{},
 			expectedHigh: []string{},
 		},
 	}
@@ -225,12 +238,18 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			tags := utils.NewTagList()
 			dockerExtractEnvironmentVariables(tags, test.co.Config.Env, test.toRecordEnvAsTags)
 			dockerExtractLabels(tags, test.co.Config.Labels, test.toRecordLabelsAsTags)
-			low, high := tags.Compute()
+			low, orchestrator, high := tags.Compute()
 
 			// Low card tags
 			assert.Equal(t, len(test.expectedLow), len(low), "test case %d", i)
 			for _, lt := range test.expectedLow {
 				assert.Contains(t, low, lt, "test case %d", i)
+			}
+
+			// orchestrator card tags
+			assert.Equal(t, len(test.expectedOrch), len(orchestrator), "test case %d", i)
+			for _, ot := range test.expectedOrch {
+				assert.Contains(t, orchestrator, ot, "test case %d", i)
 			}
 
 			// High card tags
@@ -334,7 +353,7 @@ func TestDockerExtractImage(t *testing.T) {
 			resolve := func(image string) (string, error) { return tc.resolveMap[image], nil }
 			tags := utils.NewTagList()
 			dockerExtractImage(tags, tc.co, resolve)
-			low, _ := tags.Compute()
+			low, _, _ := tags.Compute()
 
 			assert.Equal(t, len(tc.expectedTags), len(low))
 			for _, lt := range tc.expectedTags {

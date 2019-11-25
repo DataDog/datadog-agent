@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package docker
 
@@ -25,9 +25,6 @@ import (
 var retryDelay = flag.Int("retry-delay", 1, "time to wait between retries (default 1 second)")
 var retryTimeout = flag.Int("retry-timeout", 30, "maximum time before failure (default 30 seconds)")
 var skipCleanup = flag.Bool("skip-cleanup", false, "skip cleanup of the docker containers (for debugging)")
-
-// Must be repeated in the following dockerCfgString
-const instanceTag = "instanceTag:MustBeHere"
 
 var dockerCfgString = `
 collect_events: true
@@ -54,6 +51,7 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 
 	config.SetupLogger(
+		config.LoggerName("test"),
 		"debug",
 		"",
 		"",
@@ -99,10 +97,7 @@ func setup() error {
 	}
 
 	// Setup tagger
-	err = tagger.Init()
-	if err != nil {
-		return err
-	}
+	tagger.Init()
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
@@ -125,7 +120,7 @@ func doRun(m *testing.M) int {
 	var dockerCfg = []byte(dockerCfgString)
 	var dockerInitCfg = []byte("")
 	dockerCheck = containers.DockerFactory()
-	dockerCheck.Configure(dockerCfg, dockerInitCfg)
+	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())

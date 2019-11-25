@@ -4,25 +4,22 @@ This guide will help you to develop and contribute code to the project.
 
 ## TOC
 
- * [Checks developer guide](checks/README.md)
-   * [Python checks](checks/python/README.md)
- * [Agent IPC API](agent_api.md)
- * [How to Build the Agent](agent_build.md)
- * [Agent development environment][dev-env]
- * [Omnibus build guide][agent-omnibus]
- * [Testing guide][testing]
- * [Caveats][caveats]
- * [Contributing][contributing]
- * [Legal][legal]
- * [Tools](tools.md) to troubleshoot a running Agent
+* [Custom checks developer guide](checks/README.md)
+  * [Python builtin modules](checks/builtins)
+* [Agent IPC API](agent_api.md)
+* [Agent development environment][dev-env]
+* [How to build the Agent binaries](agent_build.md)
+* [How to build the Agent packages][agent-omnibus]
+* [Testing guide][testing]
+* [Caveats][caveats]
+* [Contributing][contributing]
+* [Legal][legal]
+* [Tools](tools.md) to troubleshoot a running Agent
 
 ## How to contribute
 
-  * [Sign the CLA][legal].
-  * Read the [contributing][contributing] guidelines.
-  * Setup your [development environment][dev-env].
-  * Learn about [testing][testing].
-  * [Build][agent-omnibus] your own packages.
+* [Sign the CLA][legal].
+* Read the [contributing][contributing] guidelines.
 
 
 [legal]: legal.md

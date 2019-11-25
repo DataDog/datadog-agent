@@ -2,6 +2,7 @@
 Agent namespaced tasks
 """
 from __future__ import print_function
+import datetime
 import glob
 import os
 import shutil
@@ -11,20 +12,24 @@ from distutils.dir_util import copy_tree
 
 import invoke
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, ParseError
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
+from .docker import pull_base_images
+from .ssm import get_signing_cert, get_pfx_pass
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 DEFAULT_BUILD_TAGS = [
     "apm",
+    "process",
     "consul",
-    "cpython",
+    "containerd",
+    "python",
     "cri",
     "docker",
     "ec2",
@@ -34,14 +39,16 @@ DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
     "kubelet",
     "log",
+    "netcgo",
     "systemd",
     "process",
-    "snmp",
     "zk",
     "zlib",
+    "secrets",
 ]
 
 AGENT_CORECHECKS = [
+    "containerd",
     "cpu",
     "cri",
     "docker",
@@ -53,6 +60,7 @@ AGENT_CORECHECKS = [
     "load",
     "memory",
     "ntp",
+    "systemd",
     "uptime",
     "winproc",
 ]
@@ -68,22 +76,26 @@ PUPPY_CORECHECKS = [
     "uptime",
 ]
 
+
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          puppy=False, use_embedded_libs=False, development=True, precompile_only=False,
-          skip_assets=False):
+          puppy=False, development=True, precompile_only=False, skip_assets=False,
+          embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
+          with_both_python=False, arch='x64'):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv agent.build --build-exclude=snmp,systemd
+        inv agent.build --build-exclude=systemd
     """
 
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
+            rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3,
+            with_both_python=with_both_python, arch=arch)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -98,21 +110,40 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
                 build_exclude.append(ex)
 
     if sys.platform == 'win32':
+        python_runtimes = os.environ.get("PYTHON_RUNTIMES") or "3"
+        python_runtimes = python_runtimes.split(',')
+
+        py_runtime_var = "PY3_RUNTIME"
+        if '2' in python_runtimes:
+            py_runtime_var = "PY2_RUNTIME"
+
+        windres_target = "pe-x86-64"
+
+        # Important for x-compiling
+        env["CGO_ENABLED"] = "1"
+
+        if arch == "x86":
+            env["GOARCH"] = "386"
+            windres_target = "pe-i386"
+
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx)
+        ver = get_version_numeric_only(ctx, env)
         build_maj, build_min, build_patch = ver.split(".")
 
-        command = "windmc --target pe-x86-64 -r cmd/agent cmd/agent/agentmsg.mc "
+        command = "windmc --target {target_arch} -r cmd/agent cmd/agent/agentmsg.mc ".format(target_arch=windres_target)
         ctx.run(command, env=env)
 
-        command = "windres --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
+        command = "windres --target {target_arch} --define {py_runtime_var}=1 --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{build_arch}=1".format(
+            py_runtime_var=py_runtime_var,
             build_maj=build_maj,
             build_min=build_min,
-            build_patch=build_patch
+            build_patch=build_patch,
+            target_arch=windres_target,
+            build_arch=arch
         )
-        command += "-i cmd/agent/agent.rc --target=pe-x86-64 -O coff -o cmd/agent/rsrc.syso"
+        command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
 
     if puppy:
@@ -135,20 +166,31 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     }
     ctx.run(cmd.format(**args), env=env)
 
-    # Render the configuration file template
-    #
-    # We need to remove cross compiling bits if any because go generate must
-    # build and execute in the native platform
+    # Remove cross-compiling bits to render config
     env.update({
         "GOOS": "",
         "GOARCH": "",
     })
-    cmd = "go generate {}/cmd/agent"
-    ctx.run(cmd.format(REPO_PATH), env=env)
+
+    # Render the Agent configuration file template
+    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
+
+    args = {
+        "go_file": "./pkg/config/render_config.go",
+        "build_type": "agent-py2py3" if with_both_python else "agent-py3",
+        "template_file": "./pkg/config/config_template.yaml",
+        "output_file": "./cmd/agent/dist/datadog.yaml",
+    }
+
+    ctx.run(cmd.format(**args), env=env)
+
+    # On Linux and MacOS, render the system-probe configuration file template
+    if sys.platform != 'win32':
+        cmd = "go run ./pkg/config/render_config.go system-probe ./pkg/config/config_template.yaml ./cmd/agent/dist/system-probe.yaml"
+        ctx.run(cmd, env=env)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, puppy=puppy)
-
 
 @task
 def refresh_assets(ctx, build_tags, development=True, puppy=False):
@@ -164,7 +206,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         shutil.rmtree(dist_folder)
     os.mkdir(dist_folder)
 
-    if "cpython" in build_tags:
+    if "python" in build_tags:
         copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
         copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
@@ -173,6 +215,10 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         # copy the dd-agent placeholder to the bin folder
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
+
+    # System probe not supported on windows
+    if sys.platform.startswith('linux'):
+      shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
     for check in AGENT_CORECHECKS if not puppy else PUPPY_CORECHECKS:
@@ -180,6 +226,8 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         copy_tree("./cmd/agent/dist/conf.d/{}.d/".format(check), check_dir)
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
+    if "process" in build_tags:
+        shutil.copy("./cmd/agent/dist/conf.d/process_agent.yaml.default", os.path.join(dist_folder, "conf.d/process_agent.yaml.default"))
 
     copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
@@ -211,10 +259,15 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, base_dir="omnibus"):
+def image_build(ctx, base_dir="omnibus", python_version="2", skip_tests=False):
     """
     Build the docker image
     """
+    BOTH_VERSIONS = ["both", "2+3"]
+    VALID_VERSIONS = ["2", "3"] + BOTH_VERSIONS
+    if python_version not in VALID_VERSIONS:
+        raise ParseError("provided python_version is invalid")
+
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     pkg_dir = os.path.join(base_dir, 'pkg')
     list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-agent*_amd64.deb'))
@@ -225,7 +278,19 @@ def image_build(ctx, base_dir="omnibus"):
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, "Dockerfiles/agent/")
-    ctx.run("docker build -t {} Dockerfiles/agent".format(AGENT_TAG))
+
+    # Pull base image with content trust enabled
+    pull_base_images(ctx, "Dockerfiles/agent/Dockerfile", signed_pull=True)
+    common_build_opts = "-t {}".format(AGENT_TAG)
+    if python_version not in BOTH_VERSIONS:
+        common_build_opts = "{} --build-arg PYTHON_VERSION={}".format(common_build_opts, python_version)
+
+    # Build with the testing target
+    if not skip_tests:
+        ctx.run("docker build {} --target testing Dockerfiles/agent".format(common_build_opts))
+
+    # Build with the release target
+    ctx.run("docker build {} --target release Dockerfiles/agent".format(common_build_opts))
     ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
 
 
@@ -265,8 +330,14 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
     """
     Build the Agent packages with Omnibus Installer.
     """
+    deps_elapsed = None
+    bundle_elapsed = None
+    omnibus_elapsed = None
     if not skip_deps:
+        deps_start = datetime.datetime.now()
         deps(ctx, no_checks=True)  # no_checks since the omnibus build installs checks with a dedicated software def
+        deps_end = datetime.datetime.now()
+        deps_elapsed = deps_end - deps_start
 
     # omnibus config overrides
     overrides = []
@@ -281,11 +352,23 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
+        # make sure bundle install starts from a clean state
+        try:
+            os.remove("Gemfile.lock")
+        except Exception:
+            pass
+
         env = load_release_versions(ctx, release_version)
+
         cmd = "bundle install"
         if gem_path:
             cmd += " --path {}".format(gem_path)
+
+        bundle_start = datetime.datetime.now()
         ctx.run(cmd, env=env)
+
+        bundle_done = datetime.datetime.now()
+        bundle_elapsed = bundle_done - bundle_start
 
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
@@ -296,12 +379,42 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             "overrides": overrides_cmd,
             "populate_s3_cache": ""
         }
-        if omnibus_s3_cache:
-            args['populate_s3_cache'] = " --populate-s3-cache "
-        if skip_sign:
-            env['SKIP_SIGN_MAC'] = 'true'
-        ctx.run(cmd.format(**args), env=env)
+        pfxfile = None
+        try:
+            if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
+                # get certificate and password from ssm
+                pfxfile = get_signing_cert(ctx)
+                pfxpass = get_pfx_pass(ctx)
+                # hack for now.  Remove `sign_windows, and set sign_pfx`
+                env['SIGN_PFX'] = "{}".format(pfxfile)
+                env['SIGN_PFX_PW'] = "{}".format(pfxpass)
 
+            if omnibus_s3_cache:
+                args['populate_s3_cache'] = " --populate-s3-cache "
+            if skip_sign:
+                env['SKIP_SIGN_MAC'] = 'true'
+
+            env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, env=env)
+
+            omnibus_start = datetime.datetime.now()
+            ctx.run(cmd.format(**args), env=env)
+            omnibus_done = datetime.datetime.now()
+            omnibus_elapsed = omnibus_done - omnibus_start
+
+
+        except Exception as e:
+            if pfxfile:
+                os.remove(pfxfile)
+            raise
+
+        if pfxfile:
+            os.remove(pfxfile)
+
+        print("Build compoonent timing:")
+        if not skip_deps:
+            print("Deps:    {}".format(deps_elapsed))
+        print("Bundle:  {}".format(bundle_elapsed))
+        print("Omnibus: {}".format(omnibus_elapsed))
 
 @task
 def clean(ctx):
@@ -315,3 +428,15 @@ def clean(ctx):
     # remove the bin/agent folder
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/agent")
+
+
+@task
+def version(ctx, url_safe=False, git_sha_length=7):
+    """
+    Get the agent version.
+    url_safe: get the version that is able to be addressed as a url
+    git_sha_length: different versions of git have a different short sha length,
+                    use this to explicitly set the version
+                    (the windows builder and the default ubuntu version have such an incompatibility)
+    """
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build ec2
 
@@ -43,7 +43,7 @@ func TestGetSecurityCreds(t *testing.T) {
 		if r.URL.Path == "/iam/security-credentials/" {
 			w.Header().Set("Content-Type", "text/plain")
 			io.WriteString(w, "test-role")
-		} else if r.URL.Path == "/iam/security-credentials/test-role/" {
+		} else if r.URL.Path == "/iam/security-credentials/test-role" {
 			w.Header().Set("Content-Type", "text/plain")
 			content, err := ioutil.ReadFile("payloads/security_cred.json")
 			require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))

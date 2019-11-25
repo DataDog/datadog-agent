@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -9,7 +9,6 @@ package custommetrics
 
 import (
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"strings"
 	"sync"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,27 +31,28 @@ const (
 )
 
 var (
-	storeStats    = expvar.NewMap("custommetrics")
-	externalStats = new(expvar.Map).Init()
-	externalTotal = &expvar.Int{}
-	externalValid = &expvar.Int{}
+	externalTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "external_metrics",
+			Help: "Number of external metrics tagged.",
+		},
+		[]string{"valid"},
+	)
 
 	errNotInitialized = fmt.Errorf("configmap not initialized")
 )
 
 func init() {
-	storeStats.Set("External", externalStats)
-	externalStats.Set("Total", externalTotal)
-	externalStats.Set("Valid", externalValid)
+	prometheus.MustRegister(externalTotal)
 }
 
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
-	SetExternalMetricValues([]ExternalMetricValue) error
+	SetExternalMetricValues(map[string]ExternalMetricValue) error
 
-	DeleteExternalMetricValues([]ExternalMetricValue) error
+	DeleteExternalMetricValues(*MetricsBundle) error
 
-	ListAllExternalMetricValues() ([]ExternalMetricValue, error)
+	ListAllExternalMetricValues() (*MetricsBundle, error)
 
 	GetMetrics() (*MetricsBundle, error)
 }
@@ -107,7 +108,7 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 }
 
 // SetExternalMetricValues updates the external metrics in the configmap.
-func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) error {
+func (c *configMapStore) SetExternalMetricValues(added map[string]ExternalMetricValue) error {
 	if len(added) == 0 {
 		return nil
 	}
@@ -122,8 +123,7 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 		// Don't panic "assignment to entry in nil map" at init
 		c.cm.Data = make(map[string]string)
 	}
-	for _, m := range added {
-		key := externalMetricValueKeyFunc(m)
+	for key, m := range added {
 		toStore, err := json.Marshal(m)
 		if err != nil {
 			log.Debugf("Could not marshal the external metric %v: %v", m, err)
@@ -135,8 +135,8 @@ func (c *configMapStore) SetExternalMetricValues(added []ExternalMetricValue) er
 }
 
 // DeleteExternalMetricValues deletes the external metrics from the store.
-func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValue) error {
-	if len(deleted) == 0 {
+func (c *configMapStore) DeleteExternalMetricValues(deleted *MetricsBundle) error {
+	if len(deleted.External) == 0 && len(deleted.Deprecated) == 0 {
 		return nil
 	}
 
@@ -146,27 +146,28 @@ func (c *configMapStore) DeleteExternalMetricValues(deleted []ExternalMetricValu
 	if c.cm == nil {
 		return errNotInitialized
 	}
-	for _, m := range deleted {
-		key := externalMetricValueKeyFunc(m)
+	for _, m := range deleted.External {
+		key := ExternalMetricValueKeyFunc(m)
 		delete(c.cm.Data, key)
-		log.Debugf("Deleted metric %s for HPA %s/%s from the configmap %s", m.MetricName, m.HPA.Namespace, m.HPA.Name, c.name)
+		log.Debugf("Deleted metric %s for Autoscaler %s/%s from the configmap %s", m.MetricName, m.Ref.Namespace, m.Ref.Name, c.name)
+	}
+	for _, m := range deleted.Deprecated {
+		key := DeprecatedExternalMetricValueKeyFunc(m)
+		delete(c.cm.Data, key)
+		log.Debugf("Deleted key %s deprecated metric %s for HPA %s/%s from the configmap %s", key, m.MetricName, m.HPA.Namespace, m.HPA.Name, c.name)
 	}
 	return c.updateConfigMap()
 }
 
 // ListAllExternalMetricValues returns the most up-to-date list of external metrics from the configmap.
 // Any replica can safely call this function.
-func (c *configMapStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
+func (c *configMapStore) ListAllExternalMetricValues() (*MetricsBundle, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if err := c.getConfigMap(); err != nil {
 		return nil, err
 	}
-	bundle, err := c.doGetMetrics()
-	if err != nil {
-		return nil, err
-	}
-	return bundle.External, nil
+	return c.doGetMetrics()
 }
 
 // GetMetrics returns a bundle of all the metrics from the local copy of the configmap.
@@ -186,6 +187,17 @@ func (c *configMapStore) doGetMetrics() (*MetricsBundle, error) {
 		m := ExternalMetricValue{}
 		if err := json.Unmarshal([]byte(v), &m); err != nil {
 			log.Debugf("Could not unmarshal the external metric for key %s: %v", k, err)
+			continue
+		}
+		if m.Ref.Type == "" {
+			// We are processing a deprecated format, invalidate for now.
+			deprecated := DeprecatedExternalMetricValue{}
+			if err := json.Unmarshal([]byte(v), &deprecated); err != nil {
+				log.Debugf("Could not unmarshal the external metric for key %s: %v", k, err)
+				continue
+			}
+			deprecated.Valid = false
+			bundle.Deprecated = append(bundle.Deprecated, deprecated)
 			continue
 		}
 		bundle.External = append(bundle.External, m)
@@ -215,11 +227,22 @@ func (c *configMapStore) updateConfigMap() error {
 	return nil
 }
 
-// externalMetricValueKeyFunc knows how to make keys for storing external metrics. The key
-// is unique for each metric of an HPA. This means that the keys for the same metric from two
+// ExternalMetricValueKeyFunc knows how to make keys for storing external metrics. The key
+// is unique for each metric of an Autoscaler. This means that the keys for the same metric from two
 // different HPAs will be different (important for external metrics that may use different labels
 // for the same metric).
-func externalMetricValueKeyFunc(val ExternalMetricValue) string {
+func ExternalMetricValueKeyFunc(val ExternalMetricValue) string {
+	parts := []string{
+		"external_metric",
+		val.Ref.Type,
+		val.Ref.Namespace,
+		val.Ref.Name,
+		val.MetricName,
+	}
+	return strings.Join(parts, keyDelimeter)
+}
+
+func DeprecatedExternalMetricValueKeyFunc(val DeprecatedExternalMetricValue) string {
 	parts := []string{
 		"external_metric",
 		val.HPA.Namespace,
@@ -251,14 +274,14 @@ func setStoreStats(store *configMapStore) {
 		return
 	}
 
-	total := int64(len(bundle.External))
-	externalTotal.Set(total)
-
-	valid := int64(0)
+	var valid, invalid float64
 	for _, metric := range bundle.External {
 		if metric.Valid {
 			valid += 1
+		} else {
+			invalid += 1
 		}
 	}
-	externalValid.Set(valid)
+	externalTotal.With(prometheus.Labels{"valid": "true"}).Set(valid)
+	externalTotal.With(prometheus.Labels{"valid": "false"}).Set(invalid)
 }

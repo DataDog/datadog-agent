@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package health
 
@@ -28,7 +28,7 @@ func GetStatus() Status {
 }
 
 // GetStatusNonBlocking allows to query the health status of the agent
-// and is guaranteed to return under 100ms.
+// and is guaranteed to return under 500ms.
 func GetStatusNonBlocking() (Status, error) {
 	// Run the health status in a goroutine
 	ch := make(chan Status, 1)
@@ -36,11 +36,11 @@ func GetStatusNonBlocking() (Status, error) {
 		ch <- GetStatus()
 	}()
 
-	// Only wait 100ms before returning
+	// Only wait 500ms before returning
 	select {
 	case status := <-ch:
 		return status, nil
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(500 * time.Millisecond):
 		return Status{}, errors.New("timeout when getting health status")
 	}
 }

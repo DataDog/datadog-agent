@@ -1,11 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package decoder
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"strings"
 	"testing"
 
@@ -34,9 +36,11 @@ func (h *MockLineHandler) Stop() {
 	close(h.lineChan)
 }
 
+const contentLenLimit = 100
+
 func TestDecodeIncomingData(t *testing.T) {
 	h := NewMockLineHandler()
-	d := New(nil, nil, h)
+	d := New(nil, nil, h, contentLenLimit, &newLineMatcher{})
 
 	var line []byte
 
@@ -100,7 +104,7 @@ func TestDecodeIncomingData(t *testing.T) {
 
 func TestDecoderLifeCycle(t *testing.T) {
 	h := NewMockLineHandler()
-	d := New(nil, nil, h)
+	d := New(nil, nil, h, contentLenLimit, &newLineMatcher{})
 
 	// lineHandler should not receive any lines
 	d.Start()
@@ -119,4 +123,50 @@ func TestDecoderLifeCycle(t *testing.T) {
 	default:
 		assert.Fail(t, "LineHandler should be stopped")
 	}
+}
+
+func TestDecoderInputNotDockerHeader(t *testing.T) {
+	inputChan := make(chan *Input)
+	h := NewMockLineHandler()
+	d := New(inputChan, nil, h, 100, &newLineMatcher{})
+	d.Start()
+
+	input := []byte("hello")
+	input = append(input, []byte{1, 0, 0, 0, 0, 10, 0, 0}...) // docker header
+	input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
+	inputChan <- NewInput(input)
+
+	var output []byte
+	output = <-h.lineChan
+	expected1 := append([]byte("hello"), []byte{1, 0, 0, 0, 0}...)
+	assert.Equal(t, expected1, output)
+
+	output = <-h.lineChan
+	expected2 := append([]byte{0, 0}, []byte("2018-06-14T18:27:03.246999277Z app logs")...)
+	assert.Equal(t, expected2, output)
+	d.Stop()
+}
+
+func TestDecoderWithDockerHeader(t *testing.T) {
+	source := config.NewLogSource("config", &config.LogsConfig{})
+	d := InitializeDecoder(source, parser.NoopParser)
+	d.Start()
+
+	input := []byte("hello\n")
+	input = append(input, []byte{1, 0, 0, 0, 0, 10, 0, 0}...) // docker header
+	input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
+	d.InputChan <- NewInput(input)
+
+	var output *Output
+	output = <-d.OutputChan
+	assert.Equal(t, "hello", string(output.Content))
+
+	output = <-d.OutputChan
+	expected := []byte{1, 0, 0, 0, 0}
+	assert.Equal(t, expected, output.Content)
+
+	output = <-d.OutputChan
+	expected = append([]byte{0, 0}, []byte("2018-06-14T18:27:03.246999277Z app logs")...)
+	assert.Equal(t, expected, output.Content)
+	d.Stop()
 }

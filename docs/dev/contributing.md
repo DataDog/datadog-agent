@@ -27,6 +27,8 @@ when submitting your PR:
     changes, cross-referencing any related bugs/PRs.
   * use [Reno](#reno) to create a releasenote.
   * open your PR against the `master` branch.
+  * set the `team/agent-core` label
+  * add a milestone to your PR (use the highest available, ex: `6.8.0`)
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
 an error and don't think it's your fault, it may not be! [Join us on Slack][slack]
@@ -85,7 +87,9 @@ $> reno new <topic-of-my-pr> --edit
 ```
 
 Then just add and commit the new releasenote (located in `releasenotes/notes/`)
-with your PR.
+with your PR. If the change is on the `trace-agent` (folders `cmd/trace-agent` or `pkg/trace`)
+please prefix the release note with "APM :" and the <topic-of-my-pr> argument with
+"apm-".
 
 #### Reno sections
 
@@ -122,7 +126,7 @@ users and not its developers.
       collection, `kube_service` tagging) is not implemented
   ```
 
-- `upgrade`: List action to take or limitation that could arise upon upgrading the agent.
+- `upgrade`: List actions to take or limitations that could arise upon upgrading the Agent. Notes here must include steps that users can follow to 1. know if they're affected and 2. handle the change gracefully on their end.
 
   example:
   ```yaml

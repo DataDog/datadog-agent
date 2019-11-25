@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build consul
 
@@ -124,10 +124,11 @@ func TestConsulGetTemplates(t *testing.T) {
 	kv := &consulKVMock{}
 	provider := &consulMock{kv: kv}
 
-	config.Datadog.Set("autoconf_template_dir", "/datadog/tpl")
+	mockConfig := config.Mock()
+	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default
-	defer config.Datadog.Set("autoconf_template_dir", "/datadog/check_configs")
+	defer mockConfig.Set("autoconf_template_dir", "/datadog/check_configs")
 
 	kvNginxNames := &consul.KVPair{
 		Key:         "/datadog/tpl/nginx/check_names",
@@ -188,10 +189,11 @@ func TestConsulCollect(t *testing.T) {
 	kv := &consulKVMock{}
 	provider := &consulMock{kv: kv}
 
-	config.Datadog.Set("autoconf_template_dir", "/datadog/tpl")
+	mockConfig := config.Mock()
+	mockConfig.Set("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default
-	defer config.Datadog.Set("autoconf_template_dir", "/datadog/check_configs")
+	defer mockConfig.Set("autoconf_template_dir", "/datadog/check_configs")
 
 	kv.On("Keys", "/datadog/tpl", "", (*consul.QueryOptions)(nil)).Return([]string{
 		"/datadog/tpl/nginx/check_names",
@@ -258,6 +260,7 @@ func TestConsulCollect(t *testing.T) {
 	assert.Equal(t, "consul", res[0].ADIdentifiers[0])
 	assert.Equal(t, "consul", res[0].Name)
 	assert.Equal(t, "{}", string(res[0].InitConfig))
+	assert.Equal(t, "consul:consul", string(res[0].Source))
 	require.Len(t, res[0].Instances, 1)
 	assert.Equal(t, "{\"host\":\"localhost\",\"port\":4500}", string(res[0].Instances[0]))
 
@@ -265,6 +268,7 @@ func TestConsulCollect(t *testing.T) {
 	assert.Equal(t, "nginx", res[1].ADIdentifiers[0])
 	assert.Equal(t, "nginx", res[1].Name)
 	assert.Equal(t, "{}", string(res[1].InitConfig))
+	assert.Equal(t, "consul:nginx", string(res[1].Source))
 	require.Len(t, res[1].Instances, 1)
 	assert.Equal(t, "{\"host\":\"localhost\",\"port\":21}", string(res[1].Instances[0]))
 
@@ -272,6 +276,7 @@ func TestConsulCollect(t *testing.T) {
 	assert.Equal(t, "nginx", res[2].ADIdentifiers[0])
 	assert.Equal(t, "haproxy", res[2].Name)
 	assert.Equal(t, "{}", string(res[2].InitConfig))
+	assert.Equal(t, "consul:nginx", string(res[2].Source))
 	require.Len(t, res[2].Instances, 1)
 	assert.Equal(t, "{\"pool\":{\"server\":\"foo\"},\"port\":\"21\"}", string(res[2].Instances[0]))
 

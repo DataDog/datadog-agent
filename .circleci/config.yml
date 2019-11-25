@@ -5,6 +5,8 @@ version: 2
 # and https://learnxinyminutes.com/docs/yaml/
 
 experimental:
+  # For some reason filtering out notifications keeps being undocumented and
+  # marked as experimental but as of today, it's still working.
   notify:
     branches:
       only:
@@ -13,10 +15,11 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:latest
+      - image: datadog/datadog-agent-runner-circle:go1129-doxygen
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
+
   step_templates:
     - restore_cache: &restore_deps
         keys:
@@ -26,24 +29,23 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen4-godeps-{{ .Branch }}-{{ .Revision }}
-          - gen4-godeps-{{ .Branch }}-
-          - gen4-godeps-master-
+          - gen15-godeps-{{ .Branch }}-{{ .Revision }}
+          - gen15-godeps-{{ .Branch }}-
+          - gen15-godeps-master-
     - save_cache: &save_deps
-        key: gen4-godeps-{{ .Branch }}-{{ .Revision }}
+        key: gen15-godeps-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
-          - v2-repo-{{ .Revision }}
+          - v4-repo-{{ .Revision }}
     - save_cache: &save_source
-        key: v2-repo-{{ .Revision }}
-    - run: &enter_venv
-        name: add virtualenv to bashrc
-        command: echo "source /go/src/github.com/DataDog/datadog-agent/venv/bin/activate" >> $BASH_ENV
+        key: v4-repo-{{ .Revision }}
 
 jobs:
   checkout_code:
-    <<: *job_template
+    docker:
+      - image: alpine/git:latest
+    working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
       - save_cache:
@@ -57,15 +59,29 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: setup virtual env
-          command: virtualenv /go/src/github.com/DataDog/datadog-agent/venv
-      - run: *enter_venv
-      - run:
           name: setup python deps
-          command: source ./venv/bin/activate && pip install -r requirements.txt
+          command: |
+            pip install wheel
+            pip install -r requirements.txt
       - run:
           name: grab go deps
-          command: source ./venv/bin/activate && inv deps
+          command: |
+            inv deps --verbose --dep-vendor-only
+      - run:
+          name: build rtloader
+          command: |
+            inv rtloader.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.install
+      - run:
+          name: lint rtloader
+          command: |
+            inv rtloader.format --raise-if-changed
+      - run:
+          name: test rtloader
+          command: |
+            # remove base check before running tests, go on if pip fails
+            pip uninstall datadog-checks-base -y || :
+            inv rtloader.test
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
@@ -73,20 +89,24 @@ jobs:
           <<: *save_deps
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
-            - /go/src/github.com/DataDog/datadog-agent/venv
+            - /go/src/github.com/DataDog/datadog-agent/dev
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
+            - /usr/local/bin
 
   unit_tests:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: run unit tests
-          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 4
+          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 3
+      - run:
+          name: upload code coverage results
+          # Never fail on coverage upload
+          command: bash <(curl -s https://codecov.io/bash) -f profile.cov -F linux || true
 
   integration_tests:
     <<: *job_template
@@ -94,7 +114,6 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
-      - run: *enter_venv
       - run:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
@@ -104,8 +123,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - setup_remote_docker
-      - run: *enter_venv
       - run:
           command: inv -e lint-releasenote
           name: run PR check for release note
@@ -115,19 +132,24 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - setup_remote_docker
-      - run: *enter_venv
       - run:
           command: inv -e lint-teamassignment
           name: run PR check for team assignment labels
+
+  milestone:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          command: inv -e lint-milestone
+          name: run PR check for milestone assignment
 
   filename_linting:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - setup_remote_docker
-      - run: *enter_venv
       - run:
           name: run filename linting
           command: inv -e lint-filenames
@@ -138,7 +160,6 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - setup_remote_docker
-      - run: *enter_venv
       - run:
           name: run docker image tests
           command: inv -e docker.test
@@ -151,7 +172,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: build dogstatsd
           command: inv -e dogstatsd.build --static
@@ -164,7 +184,6 @@ jobs:
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
-      - run: *enter_venv
       - run:
           name: build puppy
           command: inv -e agent.build --puppy
@@ -172,9 +191,18 @@ jobs:
           name: test puppy
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
+  documentation_generation:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: generate doxygen documentation
+          command: inv -e rtloader.generate-doc
+
 workflows:
   version: 2
-  build_test_deploy:
+  test_and_build:
     jobs:
       - checkout_code
       - dependencies:
@@ -192,10 +220,16 @@ workflows:
       - team_label:
           requires:
             - dependencies
+      - milestone:
+          requires:
+            - dependencies
       - filename_linting:
           requires:
             - dependencies
       - docker_tests:
+          requires:
+            - dependencies
+      - documentation_generation:
           requires:
             - dependencies
       - build_binaries:

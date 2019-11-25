@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build consul
 
@@ -109,6 +109,11 @@ func (p *ConsulConfigProvider) Collect() ([]integration.Config, error) {
 	log.Debugf("identifiers found in backend: %v", identifiers)
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
+
+		for idx := range templates {
+			templates[idx].Source = "consul:" + id
+		}
+
 		configs = append(configs, templates...)
 	}
 	return configs, nil
@@ -251,7 +256,7 @@ func (p *ConsulConfigProvider) getCheckNames(key string) ([]string, error) {
 	return checks, err
 }
 
-func (p *ConsulConfigProvider) getJSONValue(key string) ([]integration.Data, error) {
+func (p *ConsulConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
 	rawValue, err := p.getValue(key)
 	if err != nil {
 		err := fmt.Errorf("Couldn't get key %s from consul: %s", key, err)

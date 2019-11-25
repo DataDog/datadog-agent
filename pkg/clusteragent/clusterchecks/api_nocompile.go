@@ -1,17 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !clusterchecks
 
 package clusterchecks
 
 import (
+	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
 var (
@@ -23,22 +24,22 @@ var (
 // Handler not implemented
 type Handler struct{}
 
-// GetAllConfigs not implemented
-func (h *Handler) GetAllConfigs() ([]integration.Config, error) {
+// GetState not implemented
+func (h *Handler) GetState() (types.StateResponse, error) {
+	return types.StateResponse{}, ErrNotCompiled
+}
+
+// NewHandler not implemented
+func NewHandler(_ *autodiscovery.AutoConfig) (*Handler, error) {
 	return nil, ErrNotCompiled
 }
 
-// SetupHandler not implemented
-func SetupHandler(ac *autodiscovery.AutoConfig) (*Handler, error) {
+// Run not implemented
+func (h *Handler) Run(_ context.Context) error {
+	return ErrNotCompiled
+}
+
+// GetStats not implemented
+func GetStats() (*types.Stats, error) {
 	return nil, ErrNotCompiled
-}
-
-// StartDiscovery not implemented
-func (h *Handler) StartDiscovery() error {
-	return ErrNotCompiled
-}
-
-// StopDiscovery not implemented
-func (h *Handler) StopDiscovery() error {
-	return ErrNotCompiled
 }

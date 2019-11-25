@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package listeners
 
@@ -19,10 +19,14 @@ import (
 var (
 	udpExpvars             = expvar.NewMap("dogstatsd-udp")
 	udpPacketReadingErrors = expvar.Int{}
+	udpPackets             = expvar.Int{}
+	udpBytes               = expvar.Int{}
 )
 
 func init() {
 	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
+	udpExpvars.Set("Packets", &udpPackets)
+	udpExpvars.Set("Bytes", &udpBytes)
 }
 
 // UDPListener implements the StatsdListener interface for UDP protocol.
@@ -30,13 +34,13 @@ func init() {
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn       net.PacketConn
-	packetPool *PacketPool
-	packetOut  chan *Packet
+	conn         net.PacketConn
+	packetPool   *PacketPool
+	packetBuffer *packetBuffer
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan *Packet, packetPool *PacketPool) (*UDPListener, error) {
+func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListener, error) {
 	var conn net.PacketConn
 	var err error
 	var url string
@@ -61,9 +65,10 @@ func NewUDPListener(packetOut chan *Packet, packetPool *PacketPool) (*UDPListene
 	}
 
 	listener := &UDPListener{
-		packetOut:  packetOut,
 		packetPool: packetPool,
 		conn:       conn,
+		packetBuffer: newPacketBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
+			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -74,6 +79,7 @@ func (l *UDPListener) Listen() {
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
 		packet := l.packetPool.Get()
+		udpPackets.Add(1)
 		n, _, err := l.conn.ReadFrom(packet.buffer)
 		if err != nil {
 			// connection has been closed
@@ -85,13 +91,16 @@ func (l *UDPListener) Listen() {
 			udpPacketReadingErrors.Add(1)
 			continue
 		}
-
+		udpBytes.Add(int64(n))
 		packet.Contents = packet.buffer[:n]
-		l.packetOut <- packet
+
+		// packetBuffer handles the forwarding of the packets to the dogstatsd server intake channel
+		l.packetBuffer.append(packet)
 	}
 }
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
+	l.packetBuffer.close()
 	l.conn.Close()
 }

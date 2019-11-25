@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -10,14 +10,11 @@ package ecs
 import (
 	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,47 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/testutil"
 )
-
-// dummyECS allows tests to mock a ECS's responses
-type dummyECS struct {
-	Requests     chan *http.Request
-	TaskListJSON string
-}
-
-func newDummyECS() (*dummyECS, error) {
-	return &dummyECS{Requests: make(chan *http.Request, 3)}, nil
-}
-
-func (d *dummyECS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("dummyECS received %s on %s", r.Method, r.URL.Path)
-	d.Requests <- r
-	switch r.URL.Path {
-	case "/":
-		w.Write([]byte(`{"AvailableCommands":["/v1/metadata","/v1/tasks","/license"]}`))
-	case "/v1/tasks":
-		w.Write([]byte(d.TaskListJSON))
-	default:
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-func (d *dummyECS) Start() (*httptest.Server, int, error) {
-	ts := httptest.NewServer(d)
-	ecs_agent_url, err := url.Parse(ts.URL)
-	if err != nil {
-		return nil, 0, err
-	}
-	ecs_agent_port, err := strconv.Atoi(ecs_agent_url.Port())
-	if err != nil {
-		return nil, 0, err
-	}
-	return ts, ecs_agent_port, nil
-}
 
 func TestLocateECSHTTP(t *testing.T) {
 	assert := assert.New(t)
-	ecsinterface, err := newDummyECS()
+	ecsinterface, err := testutil.NewDummyECS()
 	require.Nil(t, err)
 	ts, ecs_agent_port, err := ecsinterface.Start()
 	defer ts.Close()
@@ -172,6 +134,9 @@ func TestGetAgentContainerURLS(t *testing.T) {
 	nets["foo"] = &network.EndpointSettings{IPAddress: "172.17.0.3"}
 
 	co := types.ContainerJSON{
+		Config: &container.Config{
+			Hostname: "ip-172-29-167-5",
+		},
 		ContainerJSONBase: &types.ContainerJSONBase{},
 		NetworkSettings: &types.NetworkSettings{
 			Networks: nets,
@@ -183,7 +148,8 @@ func TestGetAgentContainerURLS(t *testing.T) {
 
 	agentURLS, err := getAgentContainerURLS()
 	assert.NoError(t, err)
-	assert.Len(t, agentURLS, 2)
+	require.Len(t, agentURLS, 3)
 	assert.Contains(t, agentURLS, "http://172.17.0.2:51678/")
 	assert.Contains(t, agentURLS, "http://172.17.0.3:51678/")
+	assert.Equal(t, "http://ip-172-29-167-5:51678/", agentURLS[2])
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -11,11 +11,13 @@ import (
 	"testing"
 	"time"
 
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -78,7 +80,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		desc            string
 		delete          bool // whether to add or delete endpoints
 		endpoints       *v1.Endpoints
-		expectedBundles map[string]ServicesMapper
+		expectedBundles map[string]apiv1.NamespacesPodsStringsSet
 	}{
 		{
 			"one service on multiple nodes",
@@ -94,7 +96,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1"),
@@ -122,7 +124,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1"),
@@ -150,7 +152,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1"),
@@ -176,7 +178,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc1", "svc2"),
@@ -195,7 +197,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			&v1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc1"},
 			},
-			map[string]ServicesMapper{
+			map[string]apiv1.NamespacesPodsStringsSet{
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc2"),
@@ -215,7 +217,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{ // no changes to cluster metadata
+			map[string]apiv1.NamespacesPodsStringsSet{ // no changes to cluster metadata
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc2"),
@@ -235,7 +237,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					},
 				},
 			},
-			map[string]ServicesMapper{ // no changes to cluster metadata
+			map[string]apiv1.NamespacesPodsStringsSet{ // no changes to cluster metadata
 				"node1": {
 					"default": {
 						"pod1_name": sets.NewString("svc2"),
@@ -249,7 +251,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			&v1.Endpoints{
 				ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "svc2"},
 			},
-			map[string]ServicesMapper{},
+			map[string]apiv1.NamespacesPodsStringsSet{},
 		},
 	}
 
@@ -286,14 +288,9 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 }
 
 func TestMetadataController(t *testing.T) {
+	// FIXME: Updating to k8s.io/client-go v0.9+ should allow revert this PR https://github.com/DataDog/datadog-agent/pull/2524
+	// that allows a more fine-grain testing on the controller lifecycle (affected by bug https://github.com/kubernetes/kubernetes/pull/66078)
 	client := fake.NewSimpleClientset()
-
-	metaController, informerFactory := newFakeMetadataController(client)
-
-	stop := make(chan struct{})
-	defer close(stop)
-	informerFactory.Start(stop)
-	go metaController.Run(stop)
 
 	c := client.CoreV1()
 	require.NotNil(t, c)
@@ -333,8 +330,6 @@ func TestMetadataController(t *testing.T) {
 	node.Name = "ip-172-31-119-125"
 	_, err := c.Nodes().Create(node)
 	require.NoError(t, err)
-
-	requireReceive(t, metaController.nodes, "nodes")
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -419,12 +414,6 @@ func TestMetadataController(t *testing.T) {
 	_, err = c.Endpoints("default").Create(ep)
 	require.NoError(t, err)
 
-	requireReceive(t, metaController.endpoints, "endpoints")
-	metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
-	require.NoError(t, err)
-	assert.Len(t, metadataNames, 1)
-	assert.Contains(t, metadataNames, "kube_service:nginx-1")
-
 	// Add a new service/endpoint on the nginx Pod
 	svc.Name = "nginx-2"
 	_, err = c.Services("default").Create(svc)
@@ -434,9 +423,18 @@ func TestMetadataController(t *testing.T) {
 	_, err = c.Endpoints("default").Create(ep)
 	require.NoError(t, err)
 
-	requireReceive(t, metaController.endpoints, "endpoints")
+	metaController, informerFactory := newFakeMetadataController(client)
 
-	metadataNames, err = GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
+	stop := make(chan struct{})
+	defer close(stop)
+	informerFactory.Start(stop)
+	go metaController.Run(stop)
+
+	for !metaController.endpointsListerSynced() && !metaController.nodeListerSynced() {
+		time.Sleep(150 * time.Millisecond)
+	}
+
+	metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 	require.NoError(t, err)
 	assert.Len(t, metadataNames, 2)
 	assert.Contains(t, metadataNames, "kube_service:nginx-1")
@@ -446,20 +444,12 @@ func TestMetadataController(t *testing.T) {
 
 	fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
 	require.Nil(t, errList)
-	list := fullmapper["Nodes"]
+	list := fullmapper.Nodes
 	assert.Contains(t, list, "ip-172-31-119-125")
-	fullMap := list.(map[string]*MetadataMapperBundle)
-	services, found := fullMap["ip-172-31-119-125"].ServicesForPod(metav1.NamespaceDefault, "nginx")
+	bundle := metadataMapperBundle{Services: list["ip-172-31-119-125"].Services}
+	services, found := bundle.ServicesForPod(metav1.NamespaceDefault, "nginx")
 	assert.True(t, found)
 	assert.Contains(t, services, "nginx-1")
-
-	err = c.Nodes().Delete(node.Name, &metav1.DeleteOptions{})
-	require.NoError(t, err)
-
-	requireReceive(t, metaController.nodes, "nodes")
-
-	_, err = GetMetadataMapBundleOnNode(node.Name)
-	require.Error(t, err)
 }
 
 func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory) {
@@ -469,18 +459,41 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 		informerFactory.Core().V1().Nodes(),
 		informerFactory.Core().V1().Endpoints(),
 	)
-	metaController.nodeListerSynced = func() bool { return true }
-	metaController.endpointsListerSynced = func() bool { return true }
-	metaController.endpoints = make(chan struct{}, 1)
-	metaController.nodes = make(chan struct{}, 1)
 
 	return metaController, informerFactory
 }
 
 func requireReceive(t *testing.T, ch chan struct{}, msgAndArgs ...interface{}) {
+	timeout := time.NewTimer(2 * time.Second)
+
 	select {
 	case <-ch:
-	case <-time.After(5 * time.Second):
+	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting to receive from channel", msgAndArgs...)
+	}
+}
+
+func newFakePod(namespace, name, uid, ip string) v1.Pod {
+	return v1.Pod{
+		TypeMeta: metav1.TypeMeta{Kind: "Pod"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			UID:       types.UID(uid),
+		},
+		Status: v1.PodStatus{PodIP: ip},
+	}
+}
+
+func newFakeEndpointAddress(nodeName string, pod v1.Pod) v1.EndpointAddress {
+	return v1.EndpointAddress{
+		IP:       pod.Status.PodIP,
+		NodeName: &nodeName,
+		TargetRef: &v1.ObjectReference{
+			Kind:      pod.Kind,
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			UID:       pod.UID,
+		},
 	}
 }

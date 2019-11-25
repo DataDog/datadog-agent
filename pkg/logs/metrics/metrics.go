@@ -1,19 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package metrics
 
 import (
 	"expvar"
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 var (
-	logsExpvars *expvar.Map
+	// LogsExpvars contains metrics for the logs agent.
+	LogsExpvars *expvar.Map
 	// LogsDecoded is the total number of decoded logs
 	LogsDecoded = expvar.Int{}
 	// LogsProcessed is the total number of processed logs.
@@ -22,19 +20,22 @@ var (
 	LogsSent = expvar.Int{}
 	// DestinationErrors is the total number of network errors.
 	DestinationErrors = expvar.Int{}
+	// DestinationLogsDropped is the total number of logs dropped per Destination
+	DestinationLogsDropped = expvar.Map{}
+	// BytesSent is the total number of sent bytes before encoding if any
+	BytesSent = expvar.Int{}
+	// EncodedBytesSent is the total number of sent bytes after encoding if any
+	EncodedBytesSent = expvar.Int{}
 	// TODO: Add LogsCollected for the total number of collected logs.
 )
 
 func init() {
-	logsExpvars = expvar.NewMap("logs-agent")
-	logsExpvars.Set("LogsDecoded", &LogsDecoded)
-	logsExpvars.Set("LogsProcessed", &LogsProcessed)
-	logsExpvars.Set("LogsSent", &LogsSent)
-	logsExpvars.Set("DestinationErrors", &DestinationErrors)
-	logsExpvars.Set("Warnings", expvar.Func(func() interface{} {
-		return strings.Join(status.Get().Messages, ", ")
-	}))
-	logsExpvars.Set("IsRunning", expvar.Func(func() interface{} {
-		return status.Get().IsRunning
-	}))
+	LogsExpvars = expvar.NewMap("logs-agent")
+	LogsExpvars.Set("LogsDecoded", &LogsDecoded)
+	LogsExpvars.Set("LogsProcessed", &LogsProcessed)
+	LogsExpvars.Set("LogsSent", &LogsSent)
+	LogsExpvars.Set("DestinationErrors", &DestinationErrors)
+	LogsExpvars.Set("DestinationLogsDropped", &DestinationLogsDropped)
+	LogsExpvars.Set("BytesSent", &BytesSent)
+	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
 }

@@ -4,33 +4,6 @@ NOTE: Changes made to this template should be reflected on the following templat
 */}}=========
 DogStatsD
 =========
-{{ if .ChecksMetricSample }}
-  Checks Metric Sample: {{humanize .ChecksMetricSample}}
-{{- end -}}
-{{- if .Event}}
-  Event: {{humanize .Event}}
-{{- end -}}
-{{- if .EventsFlushed}}
-  Events Flushed: {{humanize .EventsFlushed}}
-{{- end -}}
-{{- if .NumberOfFlush}}
-  Number Of Flushes: {{humanize .NumberOfFlush}}
-{{- end -}}
-{{- if .SeriesFlushed}}
-  Series Flushed: {{humanize .SeriesFlushed}}
-{{- end -}}
-{{- if .ServiceCheck}}
-  Service Check: {{humanize .ServiceCheck}}
-{{- end -}}
-{{- if .ServiceCheckFlushed}}
-  Service Checks Flushed: {{humanize .ServiceCheckFlushed}}
-{{- end -}}
-{{- if .SketchesFlushed}}
-  Sketches Flushed: {{humanize .SketchesFlushed}}
-{{- end -}}
-{{- if .HostnameUpdate}}
-  Hostname Update: {{humanize .HostnameUpdate}}
-{{- end -}}
-{{- if .DogstatsdMetricSample}}
-  Dogstatsd Metric Sample: {{humanize .DogstatsdMetricSample}}
-{{- end}}
+{{- range $key, $value := .}}
+  {{formatTitle $key}}: {{humanize $value}}
+{{- end }}

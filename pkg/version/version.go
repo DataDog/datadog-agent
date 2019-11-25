@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package version
 
@@ -22,10 +22,16 @@ type Version struct {
 	Commit string
 }
 
+var versionRx = regexp.MustCompile(`(\d+\.\d+\.\d+)(\-[^\+]+)*(\+.+)*`)
+
+// Agent returns the Datadog Agent version.
+func Agent() (Version, error) {
+	return New(AgentVersion, Commit)
+}
+
 // New parses a version string like `0.0.0` and a commit identifier and returns a Version instance
 func New(version, commit string) (Version, error) {
-	re := regexp.MustCompile(`(\d+\.\d+\.\d+)(\-[^\+]+)*(\+.+)*`)
-	toks := re.FindStringSubmatch(version)
+	toks := versionRx.FindStringSubmatch(version)
 	if len(toks) == 0 || toks[0] != version {
 		// if regex didn't match or partially matched, raise an error
 		return Version{}, fmt.Errorf("Version string has wrong format")

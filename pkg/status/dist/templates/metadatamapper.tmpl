@@ -1,0 +1,28 @@
+===============
+Metadata Mapper
+===============
+{{- if .Errors }}
+
+Could not run the service mapper: {{.Errors}}
+{{else}}
+{{ if .Warnings -}}
+Warnings:
+{{- range .Warnings}}
+   - {{.}}
+{{ end -}}
+{{- end -}}
+{{- if .Nodes }}
+{{- range $index, $meta_type := .Nodes }}
+Node detected: {{ $index -}}
+{{- range $m := $meta_type }}
+  {{ range $ns, $pods := $m }}
+  - Namespace: {{ $ns -}}
+    {{- range $pod, $svcs := $pods }}
+      - Pod: {{ $pod }}
+        Services: {{ toUnsortedList $svcs -}}
+    {{ end }}
+  {{ end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

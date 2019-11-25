@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build linux
 
@@ -77,7 +77,6 @@ type NetworkCheck struct {
 }
 
 type networkInstanceConfig struct {
-	CustomTags               []string `yaml:"tags"`
 	CollectConnectionState   bool     `yaml:"collect_connection_state"`
 	ExcludedInterfaces       []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe      string   `yaml:"excluded_interface_re"`
@@ -129,7 +128,7 @@ func (c *NetworkCheck) Run() error {
 	}
 	for _, interfaceIO := range ioByInterface {
 		if !c.isDeviceExcluded(interfaceIO.Name) {
-			submitInterfaceMetrics(sender, interfaceIO, c.config.instance.CustomTags)
+			submitInterfaceMetrics(sender, interfaceIO)
 		}
 	}
 
@@ -150,7 +149,7 @@ func (c *NetworkCheck) Run() error {
 				}
 			}
 		}
-		submitProtocolMetrics(sender, protocolStats, c.config.instance.CustomTags)
+		submitProtocolMetrics(sender, protocolStats)
 	}
 
 	if c.config.instance.CollectConnectionState {
@@ -158,25 +157,25 @@ func (c *NetworkCheck) Run() error {
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "udp4", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CustomTags)
+		submitConnectionsMetrics(sender, "udp4", udpStateMetricsSuffixMapping, connectionsStats)
 
 		connectionsStats, err = c.net.Connections("udp6")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "udp6", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CustomTags)
+		submitConnectionsMetrics(sender, "udp6", udpStateMetricsSuffixMapping, connectionsStats)
 
 		connectionsStats, err = c.net.Connections("tcp4")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CustomTags)
+		submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping, connectionsStats)
 
 		connectionsStats, err = c.net.Connections("tcp6")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CustomTags)
+		submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping, connectionsStats)
 	}
 
 	sender.Commit()
@@ -195,8 +194,8 @@ func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
 	return false
 }
 
-func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCountersStat, additionalTags []string) {
-	tags := append(additionalTags, fmt.Sprintf("device:%s", interfaceIO.Name))
+func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCountersStat) {
+	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name)}
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
 	sender.Rate("system.net.packets_in.count", float64(interfaceIO.PacketsRecv), "", tags)
@@ -205,19 +204,18 @@ func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCounters
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func submitProtocolMetrics(sender aggregator.Sender, protocolStats net.ProtoCountersStat, additionalTags []string) {
+func submitProtocolMetrics(sender aggregator.Sender, protocolStats net.ProtoCountersStat) {
 	if protocolMapping, ok := protocolsMetricsMapping[protocolStats.Protocol]; ok {
 		for rawMetricName, metricName := range protocolMapping {
 			if metricValue, ok := protocolStats.Stats[rawMetricName]; ok {
-				sender.Rate(metricName, float64(metricValue), "", additionalTags)
-				sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "",
-					additionalTags)
+				sender.Rate(metricName, float64(metricValue), "", nil)
+				sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
 			}
 		}
 	}
 }
 
-func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat, additionalTags []string) {
+func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat) {
 	metricCount := map[string]float64{}
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
@@ -228,8 +226,7 @@ func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, sta
 	}
 
 	for suffix, count := range metricCount {
-		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix),
-			count, "", additionalTags)
+		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), count, "", nil)
 	}
 }
 
@@ -279,8 +276,8 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 }
 
 // Configure configures the network checks
-func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data) error {
-	err := c.CommonConfigure(rawInstance)
+func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	err := c.CommonConfigure(rawInstance, source)
 	if err != nil {
 		return err
 	}

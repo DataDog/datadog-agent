@@ -16,8 +16,6 @@ ssh-keygen -f $(pwd)/ssh-key -P "" -t rsa -b 2048
 
 export AZURE_SSH_KEY_PATH="$(pwd)/ssh-key"
 
-eval "$(chef shell-init bash)"
-
 if [ ! -f /root/.azure/credentials ]; then
   mkdir /root/.azure
   touch /root/.azure/credentials
@@ -53,11 +51,11 @@ eval $(ssh-agent -s)
 ssh-add "$AZURE_SSH_KEY_PATH"
 
 bundle install
-cp .kitchen-apt-check-azure.yml .kitchen.yml
+cp kitchen-apt-check-azure.yml kitchen.yml
 kitchen diagnose --no-instances --loader
 
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh
 [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
-rake dd-agent-azure-parallel[40]
+rake dd-agent-azure-parallel

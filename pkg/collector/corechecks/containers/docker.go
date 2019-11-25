@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -22,8 +22,10 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	cmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +44,7 @@ type DockerConfig struct {
 	CollectImageSize         bool               `yaml:"collect_image_size"`
 	CollectDiskStats         bool               `yaml:"collect_disk_stats"`
 	CollectVolumeCount       bool               `yaml:"collect_volume_count"`
-	Tags                     []string           `yaml:"tags"`
+	Tags                     []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
 	CollectEvent             bool               `yaml:"collect_events"`
 	FilteredEventType        []string           `yaml:"filtered_event_types"`
 	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
@@ -94,7 +96,7 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *contai
 			fmt.Sprintf("short_image:%s", short),
 		}
 	} else {
-		containerTags, err = tagger.Tag(c.EntityID, false)
+		containerTags, err = tagger.Tag(c.EntityID, collectors.LowCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
 			return
@@ -139,14 +141,14 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 				log.Errorf("Could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
 				continue
 			}
-			tags := append(d.instance.Tags, fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag))
+			tags := []string{fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag)}
 
 			sender.Gauge("docker.image.virtual_size", float64(i.VirtualSize), "", tags)
 			sender.Gauge("docker.image.size", float64(i.Size), "", tags)
 		}
 	}
-	sender.Gauge("docker.images.available", float64(len(availableImages)), "", d.instance.Tags)
-	sender.Gauge("docker.images.intermediate", float64(len(allImages)-len(availableImages)), "", d.instance.Tags)
+	sender.Gauge("docker.images.available", float64(len(availableImages)), "", nil)
+	sender.Gauge("docker.images.intermediate", float64(len(allImages)-len(availableImages)), "", nil)
 	return nil
 }
 
@@ -159,13 +161,13 @@ func (d *DockerCheck) Run() error {
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error initialising check: %s", err)
 		return err
 	}
 	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error collecting containers: %s", err)
 		return err
 	}
@@ -178,11 +180,10 @@ func (d *DockerCheck) Run() error {
 		if c.State != containers.ContainerRunningState || c.Excluded {
 			continue
 		}
-		tags, err := tagger.Tag(c.EntityID, true)
+		tags, err := tagger.Tag(c.EntityID, collectors.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
 		}
-		tags = append(tags, d.instance.Tags...)
 
 		if c.CPU != nil {
 			sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
@@ -207,6 +208,7 @@ func (d *DockerCheck) Run() error {
 				}
 			}
 
+			sender.Gauge("docker.mem.failed_count", float64(c.MemFailCnt), "", tags)
 			if c.Memory.HierarchicalMemSWLimit > 0 && c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
 				if c.Memory.HierarchicalMemSWLimit != 0 {
@@ -215,6 +217,7 @@ func (d *DockerCheck) Run() error {
 				}
 			}
 
+			sender.Gauge("docker.kmem.usage", float64(c.KernMemUsage), "", tags)
 			if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
 			}
@@ -223,16 +226,22 @@ func (d *DockerCheck) Run() error {
 		}
 
 		if c.IO != nil {
-			sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
-			sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
+			d.reportIOMetrics(c.IO, tags, sender)
 		} else {
 			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
+		}
+
+		if c.ThreadCount != 0 {
+			sender.Gauge("docker.thread.count", float64(c.ThreadCount), "", tags)
+		}
+		if c.ThreadLimit != 0 {
+			sender.Gauge("docker.thread.limit", float64(c.ThreadLimit), "", tags)
 		}
 
 		if c.Network != nil {
 			for _, netStat := range c.Network {
 				if netStat.NetworkName == "" {
-					log.Debugf("Ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
+					log.Debugf("Ignore network stat with empty name for container %s", c.ID[:12])
 					continue
 				}
 				ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
@@ -254,6 +263,18 @@ func (d *DockerCheck) Run() error {
 				sender.Gauge("docker.container.size_rootfs", float64(*info.SizeRootFs), "", tags)
 			}
 		}
+
+		// Collect open file descriptor counts
+		fileDescCount := 0
+		for _, pid := range c.Pids {
+			fdCount, err := cmetrics.GetFileDescriptorLen(int(pid))
+			if err != nil {
+				log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, c.ID[:12], err)
+				continue
+			}
+			fileDescCount += fdCount
+		}
+		sender.Gauge("docker.container.open_fds", float64(fileDescCount), "", tags)
 	}
 
 	if d.instance.CollectContainerSize {
@@ -264,21 +285,21 @@ func (d *DockerCheck) Run() error {
 
 	var totalRunning, totalStopped int64
 	for _, image := range images {
-		sender.Gauge("docker.containers.running", float64(image.running), "", append(d.instance.Tags, image.tags...))
+		sender.Gauge("docker.containers.running", float64(image.running), "", image.tags)
 		totalRunning += image.running
-		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", append(d.instance.Tags, image.tags...))
+		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", image.tags)
 		totalStopped += image.stopped
 	}
-	sender.Gauge("docker.containers.running.total", float64(totalRunning), "", d.instance.Tags)
-	sender.Gauge("docker.containers.stopped.total", float64(totalStopped), "", d.instance.Tags)
+	sender.Gauge("docker.containers.running.total", float64(totalRunning), "", nil)
+	sender.Gauge("docker.containers.stopped.total", float64(totalStopped), "", nil)
 
 	if err := d.countAndWeightImages(sender, du); err != nil {
 		log.Error(err.Error())
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error collecting images: %s", err)
 		return err
 	}
-	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", d.instance.Tags, "")
+	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
 
 	if d.instance.CollectEvent || d.instance.CollectExitCodes {
 		events, err := d.retrieveEvents(du)
@@ -307,21 +328,21 @@ func (d *DockerCheck) Run() error {
 		} else {
 			for _, stat := range stats {
 				if stat.Name != docker.DataStorageName && stat.Name != docker.MetadataStorageName {
-					log.Debugf("Ignoring unknown disk stats: %s", stat)
+					log.Debugf("Ignoring unknown disk stats: %s", stat.Name)
 					continue
 				}
 				if stat.Free != nil {
-					sender.Gauge(fmt.Sprintf("docker.%s.free", stat.Name), float64(*stat.Free), "", d.instance.Tags)
+					sender.Gauge(fmt.Sprintf("docker.%s.free", stat.Name), float64(*stat.Free), "", nil)
 				}
 				if stat.Used != nil {
-					sender.Gauge(fmt.Sprintf("docker.%s.used", stat.Name), float64(*stat.Used), "", d.instance.Tags)
+					sender.Gauge(fmt.Sprintf("docker.%s.used", stat.Name), float64(*stat.Used), "", nil)
 				}
 				if stat.Total != nil {
-					sender.Gauge(fmt.Sprintf("docker.%s.total", stat.Name), float64(*stat.Total), "", d.instance.Tags)
+					sender.Gauge(fmt.Sprintf("docker.%s.total", stat.Name), float64(*stat.Total), "", nil)
 				}
 				percent := stat.GetPercentUsed()
 				if !math.IsNaN(percent) {
-					sender.Gauge(fmt.Sprintf("docker.%s.percent", stat.Name), percent, "", d.instance.Tags)
+					sender.Gauge(fmt.Sprintf("docker.%s.percent", stat.Name), percent, "", nil)
 				}
 			}
 		}
@@ -332,8 +353,8 @@ func (d *DockerCheck) Run() error {
 		if err != nil {
 			d.Warnf("Error collecting volume stats: %s", err)
 		} else {
-			sender.Gauge("docker.volume.count", float64(attached), "", append(d.instance.Tags, "volume_state:attached"))
-			sender.Gauge("docker.volume.count", float64(dangling), "", append(d.instance.Tags, "volume_state:dangling"))
+			sender.Gauge("docker.volume.count", float64(attached), "", []string{"volume_state:attached"})
+			sender.Gauge("docker.volume.count", float64(dangling), "", []string{"volume_state:dangling"})
 		}
 	}
 
@@ -341,9 +362,33 @@ func (d *DockerCheck) Run() error {
 	return nil
 }
 
+func (d *DockerCheck) reportIOMetrics(io *cmetrics.CgroupIOStat, tags []string, sender aggregator.Sender) {
+	if io == nil {
+		return
+	}
+
+	// Read values per device, or fallback to sum
+	if len(io.DeviceReadBytes) > 0 {
+		for dev, value := range io.DeviceReadBytes {
+			sender.Rate("docker.io.read_bytes", float64(value), "", append(tags, "device:"+dev))
+		}
+	} else {
+		sender.Rate("docker.io.read_bytes", float64(io.ReadBytes), "", tags)
+	}
+
+	// Write values per device, or fallback to sum
+	if len(io.DeviceWriteBytes) > 0 {
+		for dev, value := range io.DeviceWriteBytes {
+			sender.Rate("docker.io.write_bytes", float64(value), "", append(tags, "device:"+dev))
+		}
+	} else {
+		sender.Rate("docker.io.write_bytes", float64(io.WriteBytes), "", tags)
+	}
+}
+
 // Configure parses the check configuration and init the check
-func (d *DockerCheck) Configure(config, initConfig integration.Data) error {
-	err := d.CommonConfigure(config)
+func (d *DockerCheck) Configure(config, initConfig integration.Data, source string) error {
+	err := d.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}

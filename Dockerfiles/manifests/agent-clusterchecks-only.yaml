@@ -1,0 +1,84 @@
+#
+# See https://docs.datadoghq.com/agent/autodiscovery/clusterchecks/
+#
+# As an alternative to enabling cluster checks in your Agent daemonset
+# You can run a dedicated pool of Agents, running only cluster checks.
+#
+# As they are setup with no core checks and no host metadata, they can run
+# alongside your daemonset with not interference, as long as cluster checks
+# are not enabled on the daemonset too.
+#
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datadog-clusterchecks
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: datadog-clusterchecks
+  template:
+    metadata:
+      labels:
+        app: datadog-clusterchecks
+      name: datadog-clusterchecks
+    spec:
+      serviceAccountName: datadog-agent
+      containers:
+      - image: datadog/agent:latest
+        imagePullPolicy: Always
+        name: datadog-agent
+        env:
+          # Common options
+          - {name: DD_API_KEY, value: <YOUR_API_KEY>}
+          - {name: DD_HEALTH_PORT, value: "5555"}
+          # Cluster checks
+          - {name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME, value: "datadog-cluster-agent"}
+          - {name: DD_CLUSTER_AGENT_AUTH_TOKEN, value: <TOKEN>}
+          - {name: DD_CLUSTER_AGENT_ENABLED, value: "true"}
+          - {name: DD_EXTRA_CONFIG_PROVIDERS, value: "clusterchecks"}
+          # Remove unused features
+          - {name: DD_APM_ENABLED, value: "false"}
+          - {name: DD_PROCESS_AGENT_ENABLED, value: "false"}
+          - {name: DD_LOGS_ENABLED, value: "false"}
+          # Safely run alongside the daemonset
+          - {name: DD_ENABLE_METADATA_COLLECTION, value: "false"}
+          - name: DD_HOSTNAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+          - {name: s6-run, mountPath: /var/run/s6}
+          - {name: remove-corechecks, mountPath: /etc/datadog-agent/conf.d}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5555
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+      volumes:
+        - {name: s6-run, emptyDir: {}}
+        - {name: remove-corechecks, emptyDir: {}}
+      # Ensure we only run one worker per node, to avoid name collisions
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - datadog-clusterchecks
+              topologyKey: "kubernetes.io/hostname"

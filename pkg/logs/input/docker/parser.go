@@ -1,17 +1,16 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
+
 // +build docker
 
 package docker
 
 import (
 	"bytes"
-	"errors"
-
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	logParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
 // Length of the docker message header.
@@ -23,22 +22,36 @@ const dockerHeaderLength = 8
 // https://github.com/moby/moby/blob/master/daemon/logger/copier.go#L19-L22
 const dockerBufferSize = 16 * 1024
 
-// dockerParser is the parser for stdout/stderr docker logs
-var dockerParser *parser
+// Escaped CRLF, used for determine empty messages
+var escapedCRLF = []byte{'\\', 'r', '\\', 'n'}
 
-type parser struct {
-	logParser.Parser
+// Parser contains the related docker container id.
+type Parser struct {
+	containerID string
 }
 
-// Parse extracts the date and the status from the raw docker message
-// see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-func (p *parser) Parse(msg []byte) (*message.Message, error) {
+// NewParser create a new instance of docker parser.
+func NewParser(containerID string) *Parser {
+	return &Parser{
+		containerID: containerID,
+	}
+}
 
+// Parse calls parse to extract the message body, status, timestamp
+// can put them in the Message
+func (p *Parser) Parse(msg []byte) ([]byte, string, string, error) {
+	return parse(msg, p.containerID)
+}
+
+// parse extracts the date and the status from the raw docker message
+// it returns 1. raw message 2. severity 3. timestamp, 4 error
+// see https://github.com/moby/moby/blob/master/client/container_logs.go#L36
+func parse(msg []byte, containerID string) ([]byte, string, string, error) {
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
 	if len(msg) < dockerHeaderLength {
-		return &message.Message{}, errors.New("can't parse docker message: expected a 8 bytes header")
+		return msg, message.StatusInfo, "", fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", ShortContainerID(containerID))
 	}
 
 	// Read the first byte to get the status
@@ -65,19 +78,12 @@ func (p *parser) Parse(msg []byte) (*message.Message, error) {
 
 	// timestamp goes till first space
 	idx := bytes.Index(msg, []byte{' '})
-	if idx == -1 {
+	if idx == -1 || isEmptyMessage(msg[idx+1:]) {
 		// Nothing after the timestamp: empty message
-		return &message.Message{}, nil
+		return nil, "", "", nil
 	}
-	parsedMsg := message.NewMessage(msg[idx+1:], nil, status)
-	parsedMsg.Timestamp = string(msg[:idx])
-	return parsedMsg, nil
-}
 
-// Unwrap removes the message header of docker logs
-func (p *parser) Unwrap(line []byte) ([]byte, error) {
-	headerLen := getDockerMetadataLength(line)
-	return line[headerLen:], nil
+	return msg[idx+1:], status, string(msg[:idx]), nil
 }
 
 // getDockerSeverity returns the status of the message based on the value of the
@@ -138,4 +144,16 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// isEmptyMessage tests if the entire message is in the form of escaped new line
+// i.e. \\n  or \\r or \\r\\n
+func isEmptyMessage(content []byte) bool {
+	if len(content) == 2 && content[0] == '\\' {
+		switch content[1] {
+		case 'n', 'r':
+			return true
+		}
+	}
+	return bytes.Equal(content, escapedCRLF)
 }

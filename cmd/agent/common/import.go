@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // Package common provides a set of common symbols needed by different packages,
 // to avoid circular dependencies.
@@ -21,7 +21,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/legacy"
+	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 )
 
 // ImportConfig imports the agent5 configuration into the agent6 yaml config
@@ -101,7 +101,14 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	// move existing config files to the new configuration directory
 	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
 	if err != nil {
-		return fmt.Errorf("unable to list config files from %s: %v", oldConfigDir, err)
+		if os.IsNotExist(err) {
+			fmt.Fprintln(color.Output,
+				fmt.Sprintf("%s does not exist, no config files to import.",
+					color.BlueString(filepath.Join(oldConfigDir, "conf.d"))),
+			)
+		} else {
+			return fmt.Errorf("unable to list config files from %s: %v", oldConfigDir, err)
+		}
 	}
 
 	for _, f := range files {
@@ -150,7 +157,14 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	// move existing config templates to the new auto_conf directory
 	autoConfFiles, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
 	if err != nil {
-		return fmt.Errorf("unable to list auto_conf files from %s: %v", oldConfigDir, err)
+		if os.IsNotExist(err) {
+			fmt.Fprintln(color.Output,
+				fmt.Sprintf("%s does not exist, no auto_conf files to import.",
+					color.BlueString(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))),
+			)
+		} else {
+			return fmt.Errorf("unable to list auto_conf files from %s: %v", oldConfigDir, err)
+		}
 	}
 
 	for _, f := range autoConfFiles {

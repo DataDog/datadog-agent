@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build android
 
@@ -10,22 +10,24 @@ package ddandroid
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	ddapp "github.com/DataDog/datadog-agent/cmd/agent/app"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/androidasset"
 )
 
 func AndroidMain(apikey string, hostname string, tags string) {
-	overrides := make(map[string]string)
+	overrides := make(map[string]interface{})
 	if len(apikey) != 0 {
-		overrides["apikey"] = apikey
+		overrides["api_key"] = apikey
 	}
 	if len(hostname) != 0 {
 		overrides["hostname"] = hostname
 	}
 	if len(tags) != 0 {
-		overrides["tags"] = tags
+		overrides["tags"] = strings.Split(tags, ",")
 	}
 	//readAsset("android.yaml")
 	if _, err := androidasset.ReadFile("datadog.yaml"); err != nil {
@@ -36,8 +38,9 @@ func AndroidMain(apikey string, hostname string, tags string) {
 
 	// read the android-specific config in `assets`, which allows us
 	// to override config rather than using environment variables
+	config.Datadog.SetConfigFile("datadog.yaml")
+	config.AddOverrides(overrides)
 
-	ddapp.SetOverrides(overrides)
 	ddapp.StartAgent()
 }
 

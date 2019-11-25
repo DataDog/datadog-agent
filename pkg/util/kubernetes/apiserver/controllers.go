@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -9,9 +9,10 @@ package apiserver
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 )
@@ -30,13 +31,18 @@ var controllerCatalog = map[string]controllerFuncs{
 		func() bool { return config.Datadog.GetBool("external_metrics_provider.enabled") },
 		startAutoscalersController,
 	},
+	"services": {
+		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
+		startServicesInformer,
+	},
 }
 
 type ControllerContext struct {
-	InformerFactory informers.SharedInformerFactory
-	Client          kubernetes.Interface
-	LeaderElector   LeaderElectorInterface
-	StopCh          chan struct{}
+	InformerFactory    informers.SharedInformerFactory
+	WPAInformerFactory externalversions.SharedInformerFactory
+	Client             kubernetes.Interface
+	LeaderElector      LeaderElectorInterface
+	StopCh             chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
@@ -57,6 +63,9 @@ func StartControllers(ctx ControllerContext) error {
 	// factory uses lazy initialization (delays the creation of an informer until the first
 	// time it's needed).
 	ctx.InformerFactory.Start(ctx.StopCh)
+	if ctx.WPAInformerFactory != nil {
+		ctx.WPAInformerFactory.Start(ctx.StopCh)
+	}
 
 	return nil
 }
@@ -72,7 +81,7 @@ func startMetadataController(ctx ControllerContext) error {
 }
 
 func startAutoscalersController(ctx ControllerContext) error {
-	dogCl, err := hpa.NewDatadogClient()
+	dogCl, err := autoscalers.NewDatadogClient()
 	if err != nil {
 		return err
 	}
@@ -80,12 +89,31 @@ func startAutoscalersController(ctx ControllerContext) error {
 		ctx.Client,
 		ctx.LeaderElector,
 		dogCl,
-		ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)
 	if err != nil {
 		return err
 	}
-	go autoscalersController.Run(ctx.StopCh)
+	if ctx.WPAInformerFactory != nil {
+		autoscalersController.wpaEnabled = true
+		// mutate the Autoscaler controller to embed an informer against the WPAs
+		ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+		if err != nil {
+			return err
+		}
+		go autoscalersController.RunWPA(ctx.StopCh)
+	}
+	// mutate the Autoscaler controller to embed an informer against the HPAs
+	ExtendToHPAController(autoscalersController, ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+	go autoscalersController.RunHPA(ctx.StopCh)
+
+	autoscalersController.RunControllerLoop(ctx.StopCh)
+	return nil
+}
+
+func startServicesInformer(ctx ControllerContext) error {
+	// Just start the shared informer, the autodiscovery
+	// components will access it when needed.
+	go ctx.InformerFactory.Core().V1().Services().Informer().Run(ctx.StopCh)
 
 	return nil
 }

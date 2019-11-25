@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -14,6 +14,7 @@ import (
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -24,11 +25,12 @@ const (
 // ECSCollector listen to the ECS agent to get ECS metadata.
 // Relies on the DockerCollector to trigger deletions, it's not intended to run standalone
 type ECSCollector struct {
-	infoOut    chan<- []*TagInfo
-	expire     *taggerutil.Expire
-	lastExpire time.Time
-	expireFreq time.Duration
-	ecsUtil    *ecs.Util
+	infoOut     chan<- []*TagInfo
+	expire      *taggerutil.Expire
+	lastExpire  time.Time
+	expireFreq  time.Duration
+	ecsUtil     *ecs.Util
+	clusterName string
 }
 
 // Detect tries to connect to the ECS agent
@@ -43,27 +45,31 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	c.expireFreq = ecsExpireFreq
 
 	c.expire, err = taggerutil.NewExpire(ecsExpireFreq)
-
 	if err != nil {
 		return NoCollection, err
+	}
+
+	c.clusterName, err = ecsUtil.GetClusterName()
+	if err != nil {
+		log.Warnf("Cannot determine ECS cluster name: %s", err)
 	}
 	return FetchOnlyCollection, nil
 }
 
 // Fetch fetches ECS tags
-func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
-	runtime, cID := containers.SplitEntityName(container)
-	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
-		return nil, nil, nil
+func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error) {
+	entityType, cID := containers.SplitEntityName(entity)
+	if entityType != containers.ContainerEntityName || len(cID) == 0 {
+		return nil, nil, nil, nil
 	}
 
 	tasks_list, err := c.ecsUtil.GetTasks()
 	if err != nil {
-		return []string{}, []string{}, err
+		return []string{}, []string{}, []string{}, err
 	}
 	updates, err := c.parseTasks(tasks_list, cID)
 	if err != nil {
-		return []string{}, []string{}, err
+		return []string{}, []string{}, []string{}, err
 	}
 	c.infoOut <- updates
 
@@ -76,12 +82,12 @@ func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
 	}
 
 	for _, info := range updates {
-		if info.Entity == container {
-			return info.LowCardTags, info.HighCardTags, nil
+		if info.Entity == entity {
+			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
 	// container not found in updates
-	return []string{}, []string{}, errors.NewNotFound(container)
+	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
 }
 
 func ecsFactory() Collector {

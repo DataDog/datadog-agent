@@ -1,0 +1,25 @@
+suites:
+
+# Install the latest release candidate using Chef
+- name: dd-agent
+  run_list:
+    - "recipe[dd-agent-install]"
+  attributes:
+    apt:
+      unattended_upgrades:
+        enable: false
+    datadog:
+      <% dd_agent_config.each do |key, value| %>
+      <%= key %>: <%= value %>
+      <% end %>
+    dd-agent-install:
+      agent6: true
+      <% if ENV['AGENT_VERSION'] %>
+      windows_version: "<%= ENV['AGENT_VERSION'] %>"
+      <% end %>
+      windows_agent_url: <%= windows_agent_url %>
+      <% if ENV['WINDOWS_AGENT_FILE'] %>
+      windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+      <% end %>
+    dd-agent-rspec:
+      skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

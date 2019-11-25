@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // Portions of this code are taken from the gopsutil project
 // https://github.com/shirou/gopsutil .  This code is licensed under the New BSD License
@@ -15,7 +15,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
@@ -24,10 +23,11 @@ import (
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/platform"
 	"github.com/shirou/w32"
+	"golang.org/x/sys/windows"
 )
 
 var (
-	modkernel = syscall.NewLazyDLL("kernel32.dll")
+	modkernel = windows.NewLazyDLL("kernel32.dll")
 
 	procGetTickCount64 = modkernel.NewProc("GetTickCount64")
 )
@@ -67,7 +67,7 @@ func InitHostMetadata() error {
 
 func fillOsVersion(stats *systemStats, info *InfoStat) {
 	// TODO
-	stats.Winver = osVersion{info.PlatformFamily, info.PlatformVersion}
+	stats.Winver = osVersion{info.Platform, info.PlatformVersion}
 }
 
 // GetStatusInformation just returns an InfoStat object, filled in with various

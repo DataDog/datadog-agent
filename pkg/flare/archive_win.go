@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build windows
 
@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -29,13 +28,13 @@ func zipCounterStrings(tempDir, hostname string) error {
 		counterlist = make([]uint16, bufferSize)
 		var sz uint32
 		sz = bufferSize
-		regerr := windows.RegQueryValueEx(syscall.HKEY_PERFORMANCE_DATA,
-			syscall.StringToUTF16Ptr("Counter 009"),
+		regerr := windows.RegQueryValueEx(windows.HKEY_PERFORMANCE_DATA,
+			windows.StringToUTF16Ptr("Counter 009"),
 			nil, // reserved
 			&regtype,
 			(*byte)(unsafe.Pointer(&counterlist[0])),
 			&sz)
-		if regerr == error(syscall.ERROR_MORE_DATA) {
+		if regerr == error(windows.ERROR_MORE_DATA) {
 			// buffer's not big enough
 			bufferSize += bufferIncrement
 			continue
@@ -80,5 +79,10 @@ func zipTypeperfData(tempDir, hostname string) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (p permissionsInfos) add(filePath string) {}
+func (p permissionsInfos) commit(tempDir, hostname string, mode os.FileMode) error {
 	return nil
 }

@@ -10,3 +10,9 @@ if [[ ! -e /etc/datadog-agent/conf.d/cri.d/conf.yaml.default ]]; then
     mv /etc/datadog-agent/conf.d/cri.d/conf.yaml.example \
     /etc/datadog-agent/conf.d/cri.d/conf.yaml.default
 fi
+
+# If the CRI is containerd, enable the containerd check
+if [[ $(echo $DD_CRI_SOCKET_PATH | sed -n '/containerd/p') ]]; then
+     mv /etc/datadog-agent/conf.d/containerd.d/conf.yaml.example \
+        /etc/datadog-agent/conf.d/containerd.d/conf.yaml.default
+fi

@@ -1,14 +1,21 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: datadog-cluster-agent
   namespace: default
 spec:
+  selector:
+    matchLabels:
+      app: datadog-cluster-agent
   template:
     metadata:
       labels:
         app: datadog-cluster-agent
       name: datadog-agent
+      annotations:
+        ad.datadoghq.com/datadog-cluster-agent.check_names: '["prometheus"]'
+        ad.datadoghq.com/datadog-cluster-agent.init_configs: '[{}]'
+        ad.datadoghq.com/datadog-cluster-agent.instances: '[{"prometheus_url": "http://%%host%%:5000/metrics","namespace": "datadog.cluster_agent","metrics": ["go_goroutines","go_memstats_*","process_*","api_requests","datadog_requests","external_metrics", "cluster_checks_*"]}]'
     spec:
       serviceAccountName: dca
       containers:

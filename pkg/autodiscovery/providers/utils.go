@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package providers
 
@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -30,32 +31,56 @@ func init() {
 	config.Datadog.SetDefault("autoconf_template_url_timeout", 5)
 }
 
-// parseJSONValue returns a slice of ConfigData parsed from the JSON
+// parseJSONValue returns a slice of slice of ConfigData parsed from the JSON
 // contained in the `value` parameter
-func parseJSONValue(value string) ([]integration.Data, error) {
+func parseJSONValue(value string) ([][]integration.Data, error) {
 	if value == "" {
 		return nil, fmt.Errorf("Value is empty")
 	}
 
 	var rawRes []interface{}
-	var result []integration.Data
+	var result [][]integration.Data
 
 	err := json.Unmarshal([]byte(value), &rawRes)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to unmarshal JSON: %s", err)
+		return nil, fmt.Errorf("failed to unmarshal JSON: %s", err)
 	}
 
 	for _, r := range rawRes {
 		switch r.(type) {
-		case map[string]interface{}:
-			init, _ := json.Marshal(r)
-			result = append(result, init)
+		case []interface{}:
+			objs := r.([]interface{})
+			var subResult []integration.Data
+			for idx := range objs {
+				var init integration.Data
+				init, err = parseJSONObjToData(objs[idx])
+				if err != nil {
+					return nil, fmt.Errorf("failed to decode JSON Object '%v' to integration.Data struct: %v", objs[idx], err)
+				}
+				subResult = append(subResult, init)
+			}
+			if subResult != nil {
+				result = append(result, subResult)
+			}
 		default:
-			return nil, fmt.Errorf("found non JSON object type, value is: '%v'", r)
+			var init integration.Data
+			init, err = parseJSONObjToData(r)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode JSON Object '%v' to integration.Data struct: %v", r, err)
+			}
+			result = append(result, []integration.Data{init})
 		}
-
 	}
 	return result, nil
+}
+
+func parseJSONObjToData(r interface{}) (integration.Data, error) {
+	switch r.(type) {
+	case map[string]interface{}:
+		return json.Marshal(r)
+	default:
+		return nil, fmt.Errorf("found non JSON object type, value is: '%v'", r)
+	}
 }
 
 func parseCheckNames(names string) (res []string, err error) {
@@ -76,24 +101,30 @@ func buildStoreKey(key ...string) string {
 	return path.Join(parts...)
 }
 
-func buildTemplates(key string, checkNames []string, initConfigs, instances []integration.Data) []integration.Config {
+func buildTemplates(key string, checkNames []string, initConfigs, instances [][]integration.Data) []integration.Config {
 	templates := make([]integration.Config, 0)
 
-	// sanity check
+	// sanity checks
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
 		log.Error("Template entries don't all have the same length, not using them.")
 		return templates
 	}
+	for idx := range initConfigs {
+		if len(initConfigs[idx]) != 1 {
+			log.Error("Templates init Configs list is not valid, not using Templates entries")
+			return templates
+		}
+	}
 
 	for idx := range checkNames {
-		instance := integration.Data(instances[idx])
-
-		templates = append(templates, integration.Config{
-			Name:          checkNames[idx],
-			InitConfig:    integration.Data(initConfigs[idx]),
-			Instances:     []integration.Data{instance},
-			ADIdentifiers: []string{key},
-		})
+		for _, instance := range instances[idx] {
+			templates = append(templates, integration.Config{
+				Name:          checkNames[idx],
+				InitConfig:    integration.Data(initConfigs[idx][0]),
+				Instances:     []integration.Data{instance},
+				ADIdentifiers: []string{key},
+			})
+		}
 	}
 	return templates
 }
@@ -170,4 +201,15 @@ func extractLogsTemplatesFromMap(key string, input map[string]string, prefix str
 	default:
 		return []integration.Config{}, fmt.Errorf("invalid format, expected an array, got: '%v'", data)
 	}
+}
+
+// GetPollInterval computes the poll interval from the config
+func GetPollInterval(cp config.ConfigurationProviders) time.Duration {
+	if cp.PollInterval != "" {
+		customInterval, err := time.ParseDuration(cp.PollInterval)
+		if err == nil {
+			return customInterval
+		}
+	}
+	return config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package system
 
@@ -18,7 +18,7 @@ func uptimeSampler() (uint64, error) {
 func TestUptimeCheckLinux(t *testing.T) {
 	uptime = uptimeSampler
 	uptimeCheck := new(UptimeCheck)
-	uptimeCheck.Configure(nil, nil)
+	uptimeCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(uptimeCheck.ID())
 

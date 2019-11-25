@@ -26,10 +26,10 @@ func TestReportClusterQuotas(t *testing.T) {
 	json.Unmarshal(raw, &list)
 	require.Len(t, list.Items, 1)
 
-	var instanceCfg = []byte("tags: [customtag]")
+	var instanceCfg = []byte("")
 	var initCfg = []byte("")
 	kubeASCheck := KubernetesASFactory().(*KubeASCheck)
-	err = kubeASCheck.Configure(instanceCfg, initCfg)
+	err = kubeASCheck.Configure(instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())
@@ -38,7 +38,7 @@ func TestReportClusterQuotas(t *testing.T) {
 	mocked.AssertNumberOfCalls(t, "Gauge", 9*3)
 
 	// Total
-	expectedTags := []string{"customtag", "clusterquota:multiproj-test"}
+	expectedTags := []string{"clusterquota:multiproj-test"}
 
 	mocked.AssertMetric(t, "Gauge", "openshift.clusterquota.cpu.limit", 3.0, "", expectedTags)
 	mocked.AssertMetric(t, "Gauge", "openshift.clusterquota.cpu.used", 0.6, "", expectedTags)

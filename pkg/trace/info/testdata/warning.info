@@ -1,0 +1,28 @@
+======================
+Trace Agent (v 0.99.0)
+======================
+
+  Pid: 38149
+  Uptime: 15 seconds
+  Mem alloc: 773552 bytes
+
+  Hostname: localhost.localdomain
+  Receiver: localhost:8126
+  Endpoints:
+    https://trace.agent.datadoghq.com
+
+  --- Receiver stats (1 min) ---
+
+  From python 2.7.6 (CPython), client 0.9.0
+    Traces received: 70 (10679 bytes)
+    Spans received: 984
+    WARNING: traces_dropped(empty_trace:3), spans_malformed(span_name_empty:3, type_truncate:2)
+
+  WARNING: Rate-limiter keep percentage: 42.1 %
+
+  --- Writer stats (1 min) ---
+
+  Traces: 4 payloads, 26 traces, 3245 bytes
+  WARNING: Traces API errors (1 min): 3
+  Stats: 6 payloads, 12 stats buckets, 8329 bytes
+  WARNING: Stats API errors (1 min): 1

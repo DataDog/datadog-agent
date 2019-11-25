@@ -11,7 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
-from .utils import get_build_flags, bin_name
+from .utils import get_build_flags, bin_name, get_version
 from .utils import REPO_PATH
 from .go import deps
 
@@ -20,12 +20,13 @@ BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
 DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
+    "clusterchecks",
 ]
 
 
 @task
 def build(ctx, rebuild=False, build_include=None, build_exclude=None,
-          race=False, use_embedded_libs=False, development=True, skip_assets=False):
+          race=False, development=True, skip_assets=False):
     """
     Build Cluster Agent
 
@@ -37,7 +38,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
     build_tags = get_build_tags(build_include, build_exclude)
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
-    ldflags, gcflags, env = get_build_flags(ctx, static=False, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca')
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent"
@@ -76,12 +77,16 @@ def refresh_assets(ctx, development=True):
     if not os.path.exists(BIN_PATH):
         os.mkdir(BIN_PATH)
 
-    dist_folder = os.path.join(BIN_PATH, "dist")
-    if os.path.exists(dist_folder):
-        shutil.rmtree(dist_folder)
-    copy_tree("./Dockerfiles/cluster-agent/dist/", dist_folder)
-    if development:
-        copy_tree("./dev/dist/", dist_folder)
+    dist_folders = [
+        os.path.join(BIN_PATH, "dist"),
+        os.path.join("./Dockerfiles/cluster-agent", "dist")
+        ]
+    for dist_folder in dist_folders:
+        if os.path.exists(dist_folder):
+            shutil.rmtree(dist_folder)
+        copy_tree("./pkg/status/dist/", dist_folder)
+        if development:
+            copy_tree("./dev/dist/", dist_folder)
 
 @task
 def clean(ctx):
@@ -129,7 +134,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def image_build(ctx):
+def image_build(ctx, tag=AGENT_TAG, push=False):
     """
     Build the docker image
     """
@@ -144,5 +149,20 @@ def image_build(ctx):
     ctx.run("chmod +x {}".format(latest_file))
 
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
-    ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
+    ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(tag))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
+    if push:
+        ctx.run("docker push {}".format(tag))
+
+
+
+@task
+def version(ctx, url_safe=False, git_sha_length=7):
+    """
+    Get the agent version.
+    url_safe: get the version that is able to be addressed as a url
+    git_sha_length: different versions of git have a different short sha length,
+                    use this to explicitly set the version
+                    (the windows builder and the default ubuntu version have such an incompatibility)
+    """
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, prefix='dca'))

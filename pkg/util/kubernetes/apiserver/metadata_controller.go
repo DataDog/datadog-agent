@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -44,9 +44,6 @@ type MetadataController struct {
 
 	// Endpoints that need to be added to services mapping.
 	queue workqueue.RateLimitingInterface
-
-	// used in unit tests to wait until objects are synced (tombstones will be ignored)
-	endpoints, nodes chan struct{}
 }
 
 func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
@@ -105,10 +102,6 @@ func (m *MetadataController) processNextWorkItem() bool {
 		log.Debugf("Error syncing endpoints %v: %v", key, err)
 	}
 
-	if m.endpoints != nil {
-		m.endpoints <- struct{}{}
-	}
-
 	return true
 }
 
@@ -118,13 +111,10 @@ func (m *MetadataController) addNode(obj interface{}) {
 		return
 	}
 
-	_ = m.store.getOrCreate(node.Name)
+	bundle := m.store.getCopyOrNew(node.Name)
+	m.store.set(node.Name, bundle)
 
 	log.Debugf("Detected node %s", node.Name)
-
-	if m.nodes != nil {
-		m.nodes <- struct{}{}
-	}
 }
 
 func (m *MetadataController) deleteNode(obj interface{}) {
@@ -145,10 +135,6 @@ func (m *MetadataController) deleteNode(obj interface{}) {
 	m.store.delete(node.Name)
 
 	log.Debugf("Forgot node %s", node.Name)
-
-	if m.nodes != nil {
-		m.nodes <- struct{}{}
-	}
 }
 
 func (m *MetadataController) addEndpoints(obj interface{}) {
@@ -260,16 +246,13 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 	svc := endpoints.Name
 	namespace := endpoints.Namespace
 	for nodeName, ns := range nodeToPods {
-		metaBundle := m.store.getOrCreate(nodeName)
-
-		metaBundle.m.Lock()
+		metaBundle := m.store.getCopyOrNew(nodeName)
 		metaBundle.Services.Delete(namespace, svc) // cleanup pods deleted from the service
 		for _, pods := range ns {
 			for podName := range pods {
 				metaBundle.Services.Set(namespace, podName, svc)
 			}
 		}
-		metaBundle.m.Unlock()
 
 		m.store.set(nodeName, metaBundle)
 	}
@@ -285,17 +268,16 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 
 	// Delete the service from the metadata bundle for each node.
 	for _, node := range nodes {
-		metaBundle, ok := m.store.get(node.Name)
+		oldBundle, ok := m.store.get(node.Name)
 		if !ok {
 			// Nothing to delete.
 			continue
 		}
+		newMetaBundle := newMetadataMapperBundle()
+		newMetaBundle.DeepCopy(oldBundle)
+		newMetaBundle.Services.Delete(namespace, svc)
 
-		metaBundle.m.Lock()
-		metaBundle.Services.Delete(namespace, svc)
-		metaBundle.m.Unlock()
-
-		m.store.set(node.Name, metaBundle)
+		m.store.set(node.Name, newMetaBundle)
 	}
 	return nil
 }
@@ -309,7 +291,7 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		return nil, nil
 	}
 
-	metaBundle, ok := metaBundleInterface.(*MetadataMapperBundle)
+	metaBundle, ok := metaBundleInterface.(*metadataMapperBundle)
 	if !ok {
 		return nil, fmt.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 	}

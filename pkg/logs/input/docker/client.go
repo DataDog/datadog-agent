@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -68,6 +68,7 @@ func computeClientAPIVersion(serverVersion string) (string, error) {
 func GetContainer(client *client.Client, id string) (types.Container, error) {
 	args := filters.NewArgs()
 	args.Add("id", id)
+	// TODO(achntrl): Call dockerUtil inspect instead
 	containers, err := client.ContainerList(context.Background(), types.ContainerListOptions{
 		Filters: args,
 	})

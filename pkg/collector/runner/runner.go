@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package runner
 
@@ -35,11 +35,9 @@ const (
 
 var (
 	// TestWg is used for testing the number of check workers
-	TestWg            sync.WaitGroup
-	defaultNumWorkers = 4
-	maxNumWorkers     = 25
-	runnerStats       *expvar.Map
-	checkStats        *runnerCheckStats
+	TestWg      sync.WaitGroup
+	runnerStats *expvar.Map
+	checkStats  *runnerCheckStats
 )
 
 func init() {
@@ -58,21 +56,21 @@ type runnerCheckStats struct {
 
 // Runner ...
 type Runner struct {
+	// keep members that are used in atomic functions at the top of the structure
+	// important for 32 bit compiles.
+	// see https://github.com/golang/go/issues/599#issuecomment-419909701 for more information
+	running          uint32                   // Flag to see if the Runner is, well, running
+	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
 	pending          chan check.Check         // The channel where checks come from
 	runningChecks    map[check.ID]check.Check // The list of checks running
 	scheduler        *scheduler.Scheduler     // Scheduler runner operates on
 	m                sync.Mutex               // To control races on runningChecks
-	running          uint32                   // Flag to see if the Runner is, well, running
-	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
+
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner() *Runner {
 	numWorkers := config.Datadog.GetInt("check_runners")
-	if numWorkers > maxNumWorkers {
-		numWorkers = maxNumWorkers
-		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, maxNumWorkers)
-	}
 
 	r := &Runner{
 		// initialize the channel
@@ -83,7 +81,7 @@ func NewRunner() *Runner {
 	}
 
 	if !r.staticNumWorkers {
-		numWorkers = defaultNumWorkers
+		numWorkers = config.DefaultNumWorkers
 	}
 
 	// start the workers
@@ -122,7 +120,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 	case numChecks <= 25:
 		desiredNumWorkers = 20
 	default:
-		desiredNumWorkers = maxNumWorkers
+		desiredNumWorkers = config.MaxNumWorkers
 	}
 
 	// Add workers if we don't have enough for this range
@@ -157,6 +155,11 @@ func (r *Runner) Stop() {
 	r.m.Lock()
 	globalDone := make(chan struct{})
 	wg := sync.WaitGroup{}
+
+	// stop all python subprocesses
+	terminateChecksRunningProcesses()
+
+	// stop running checks
 	for _, c := range r.runningChecks {
 		wg.Add(1)
 		go func(c check.Check) {
@@ -368,7 +371,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	var found bool
 
 	checkStats.M.Lock()
-	log.Debugf("Add stats for %s", string(c.ID()))
+	log.Tracef("Add stats for %s", string(c.ID()))
 	stats, found := checkStats.Stats[c.String()]
 	if !found {
 		stats = make(map[check.ID]*check.Stats)

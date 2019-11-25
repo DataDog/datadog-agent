@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package app
 
@@ -31,24 +31,37 @@ var healthCmd = &cobra.Command{
 	Long:         ``,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfig(confFilePath)
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
+		err := common.SetupConfigWithoutSecrets(confFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		return requestHealth()
 	},
 }
 
 func requestHealth() error {
-	if flagNoColor {
-		color.NoColor = true
-	}
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/status/health", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	err := util.SetAuthToken()
+	err = util.SetAuthToken()
 	if err != nil {
 		return err
 	}
@@ -56,7 +69,7 @@ func requestHealth() error {
 	r, err := util.DoGet(c, urlstr)
 	if err != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, errMap)
+		json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
 			err = fmt.Errorf(e)

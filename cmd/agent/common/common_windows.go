@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package common
 
@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
@@ -36,7 +37,7 @@ var (
 		"process_enabled": "process_config.enabled"}
 )
 
-const (
+var (
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "c:\\programdata\\datadog"
 	// DefaultLogFile points to the log file that will be used if not configured
@@ -44,6 +45,17 @@ const (
 	// DefaultDCALogFile points to the log file that will be used if not configured
 	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
 )
+
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		DefaultConfPath = pd
+		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
+		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
+	} else {
+		winutil.LogEventViewer(config.ServiceName, 0x8000000F, DefaultConfPath)
+	}
+}
 
 // EnableLoggingToFile -- set up logging to file
 func EnableLoggingToFile() {
@@ -63,12 +75,12 @@ func getInstallPath() string {
 	var s string
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
-		log.Warn("Failed to open registry key %s", err)
+		log.Warnf("Failed to open registry key: %s", err)
 	} else {
 		defer k.Close()
 		s, _, err = k.GetStringValue("InstallPath")
 		if err != nil {
-			log.Warn("Installpath not found in registry %s", err)
+			log.Warnf("Installpath not found in registry: %s", err)
 		}
 	}
 	// if unable to figure out the install path from the registry,
@@ -99,7 +111,7 @@ func GetViewsPath() string {
 			return ""
 		}
 		viewsPath = filepath.Join(s, "bin", "agent", "dist", "views")
-		log.Debug("ViewsPath is now %s", viewsPath)
+		log.Debugf("ViewsPath is now %s", viewsPath)
 	}
 	return viewsPath
 }
@@ -136,12 +148,12 @@ func ImportRegistryConfig() error {
 			return nil
 		}
 		// otherwise, unexpected error
-		log.Warn("Unexpected error getting registry config %s", err.Error())
+		log.Warnf("Unexpected error getting registry config %s", err.Error())
 		return err
 	}
 	defer k.Close()
-	// Global Agent configuration
-	err = SetupConfig("")
+
+	err = SetupConfigWithoutSecrets("")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
@@ -154,22 +166,24 @@ func ImportRegistryConfig() error {
 			datadogYamlPath)
 	}
 
+	overrides := make(map[string]interface{})
+
 	var val string
 
-	if val, _, err = k.GetStringValue("api_key"); err == nil {
-		config.Datadog.Set("api_key", val)
+	if val, _, err = k.GetStringValue("api_key"); err == nil && val != "" {
+		overrides["api_key"] = val
 		log.Debug("Setting API key")
 	} else {
 		log.Debug("API key not found, not setting")
 	}
-	if val, _, err = k.GetStringValue("tags"); err == nil {
-		config.Datadog.Set("tags", strings.Split(val, ","))
+	if val, _, err = k.GetStringValue("tags"); err == nil && val != "" {
+		overrides["tags"] = strings.Split(val, ",")
 		log.Debugf("Setting tags %s", val)
 	} else {
 		log.Debug("Tags not found, not setting")
 	}
-	if val, _, err = k.GetStringValue("hostname"); err == nil {
-		config.Datadog.Set("hostname", val)
+	if val, _, err = k.GetStringValue("hostname"); err == nil && val != "" {
+		overrides["hostname"] = val
 		log.Debugf("Setting hostname %s", val)
 	} else {
 		log.Debug("hostname not found in registry: using default value")
@@ -181,7 +195,7 @@ func ImportRegistryConfig() error {
 		} else if cmdPortInt <= 0 || cmdPortInt > 65534 {
 			log.Warnf("Not setting api port, invalid configuration %s", val)
 		} else {
-			config.Datadog.Set("cmd_port", cmdPortInt)
+			overrides["cmd_port"] = cmdPortInt
 			log.Debugf("Setting cmd_port  %d", cmdPortInt)
 		}
 	} else {
@@ -196,21 +210,21 @@ func ImportRegistryConfig() error {
 				if enabled {
 					switch cfg {
 					case "logs_enabled":
-						config.Datadog.Set(cfg, true)
+						overrides[cfg] = true
 					case "apm_config.enabled":
-						config.Datadog.Set(cfg, true)
+						overrides[cfg] = true
 					case "process_config.enabled":
-						config.Datadog.Set(cfg, "true")
+						overrides[cfg] = "true"
 					}
 					log.Debugf("Setting %s to true", cfg)
 				} else {
 					switch cfg {
 					case "logs_enabled":
-						config.Datadog.Set(cfg, false)
+						overrides[cfg] = false
 					case "apm_config.enabled":
-						config.Datadog.Set(cfg, false)
+						overrides[cfg] = false
 					case "process_config.enabled":
-						config.Datadog.Set(cfg, "false")
+						overrides[cfg] = "disabled"
 					}
 					log.Debugf("Setting %s to false", cfg)
 				}
@@ -242,29 +256,42 @@ func ImportRegistryConfig() error {
 		proxyMap := make(map[string]string)
 		proxyMap["http"] = u.String()
 		proxyMap["https"] = u.String()
-		config.Datadog.Set("proxy", proxyMap)
+		overrides["proxy"] = proxyMap
 	} else {
 		log.Debug("proxy key not found, not setting proxy config")
 	}
 	if val, _, err = k.GetStringValue("site"); err == nil && val != "" {
-		config.Datadog.Set("site", val)
+		overrides["site"] = val
 		log.Debugf("Setting site to %s", val)
 	}
 	if val, _, err = k.GetStringValue("dd_url"); err == nil && val != "" {
-		config.Datadog.Set("dd_url", val)
+		overrides["dd_url"] = val
 		log.Debugf("Setting dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
-		config.Datadog.Set("logs_config.dd_url", val)
+		overrides["logs_config.logs_dd_url"] = val
 		log.Debugf("Setting logs_config.dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
-		config.Datadog.Set("process_config.process_dd_url", val)
+		overrides["process_config.process_dd_url"] = val
 		log.Debugf("Setting process_config.process_dd_url to %s", val)
 	}
 	if val, _, err = k.GetStringValue("trace_dd_url"); err == nil && val != "" {
-		config.Datadog.Set("apm_config.apm_dd_url", val)
+		overrides["apm_config.apm_dd_url"] = val
 		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
+	}
+	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
+		overrides["python_version"] = val
+		log.Debugf("Setting python version to %s", val)
+	}
+
+	// apply overrides to the config
+	config.AddOverrides(overrides)
+
+	// build the global agent configuration
+	err = SetupConfigWithoutSecrets("")
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
 	// dump the current configuration to datadog.yaml

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package scheduler
 
@@ -11,10 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Scheduler creates and deletes new sources and services to start or stop
@@ -44,7 +44,7 @@ func (s *Scheduler) Stop() {}
 // An entity represents a unique identifier for a process that be reused to query logs.
 func (s *Scheduler) Schedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !s.isLogConfig(config) {
+		if !config.IsLogConfig() {
 			continue
 		}
 		switch {
@@ -59,7 +59,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.sources.AddSource(source)
 			}
 		case s.newService(config):
-			log.Infof("Received a new service: %v", config.Entity)
+			log.Debugf("Received a new service: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)
@@ -76,7 +76,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 // Unschedule removes all the sources and services matching the integration configs.
 func (s *Scheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !s.isLogConfig(config) {
+		if !config.IsLogConfig() {
 			continue
 		}
 		switch {
@@ -108,11 +108,6 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			continue
 		}
 	}
-}
-
-// isLogConfig returns true if config contains a logs config.
-func (s *Scheduler) isLogConfig(config integration.Config) bool {
-	return config.LogsConfig != nil
 }
 
 // newSources returns true if the config can be mapped to sources.
@@ -187,11 +182,6 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 			source.Status.Error(err)
 			continue
 		}
-		if err := cfg.Compile(); err != nil {
-			log.Warnf("Could not compile logs configuration: %v", err)
-			source.Status.Error(err)
-			continue
-		}
 	}
 
 	return sources, nil
@@ -203,19 +193,12 @@ func (s *Scheduler) toService(config integration.Config) (*service.Service, erro
 	if err != nil {
 		return nil, err
 	}
-	switch provider {
-	case service.Docker:
-		return service.NewService(provider, identifier, s.getCreationTime(config)), nil
-	case service.Containerd:
-		return service.NewService(provider, identifier, s.getCreationTime(config)), nil
-	default:
-		return nil, fmt.Errorf("%v is not supported yet", provider)
-	}
+	return service.NewService(provider, identifier, s.getCreationTime(config)), nil
 }
 
 // parseEntity breaks down an entity into a service provider and a service identifier.
 func (s *Scheduler) parseEntity(entity string) (string, string, error) {
-	components := strings.Split(entity, "://")
+	components := strings.Split(entity, containers.EntitySeparator)
 	if len(components) != 2 {
 		return "", "", fmt.Errorf("entity is malformed : %v", entity)
 	}

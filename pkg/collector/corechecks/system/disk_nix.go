@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 
@@ -73,8 +73,7 @@ func (c *DiskCheck) collectPartitionMetrics(sender aggregator.Sender) error {
 			continue
 		}
 
-		tags := make([]string, len(c.cfg.customTags), len(c.cfg.customTags)+2)
-		copy(tags, c.cfg.customTags)
+		tags := make([]string, 0, 2)
 
 		if c.cfg.tagByFilesystem {
 			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
@@ -102,9 +101,7 @@ func (c *DiskCheck) collectDiskMetrics(sender aggregator.Sender) error {
 	}
 	for deviceName, ioCounter := range iomap {
 
-		tags := make([]string, len(c.cfg.customTags), len(c.cfg.customTags)+1)
-		copy(tags, c.cfg.customTags)
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		tags := []string{fmt.Sprintf("device:%s", deviceName)}
 
 		tags = c.applyDeviceTags(deviceName, "", tags)
 
@@ -142,8 +139,8 @@ func (c *DiskCheck) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOC
 }
 
 // Configure the disk check
-func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.CommonConfigure(data)
+func (c *DiskCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(data, source)
 	if err != nil {
 		return err
 	}

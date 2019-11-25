@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build linux
 
@@ -165,4 +165,62 @@ func TestParseSingleStat(t *testing.T) {
 	value, err := cgroup.ParseSingleStat("cpu", "cpu.test")
 	assert.Nil(t, err)
 	assert.Equal(t, value, uint64(1234))
+}
+
+func TestThreadLimit(t *testing.T) {
+	tempFolder, err := newTempFolder("thread-limit")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "pids")
+
+	// No file
+	value, err := cgroup.ThreadLimit()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Invalid file
+	tempFolder.add("pids/pids.max", "ab")
+	value, err = cgroup.ThreadLimit()
+	assert.NotNil(t, err)
+	assert.IsType(t, err, &strconv.NumError{})
+	assert.Equal(t, value, uint64(0))
+
+	// No limit
+	tempFolder.add("pids/pids.max", "max")
+	value, err = cgroup.ThreadLimit()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Valid value
+	tempFolder.add("pids/pids.max", "1234")
+	value, err = cgroup.ThreadLimit()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(1234))
+}
+
+func TestThreadCount(t *testing.T) {
+	tempFolder, err := newTempFolder("thread-count")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "pids")
+
+	// No file
+	value, err := cgroup.ThreadCount()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Invalid file
+	tempFolder.add("pids/pids.current", "ab")
+	value, err = cgroup.ThreadCount()
+	assert.NotNil(t, err)
+	assert.IsType(t, err, &strconv.NumError{})
+	assert.Equal(t, value, uint64(0))
+
+	// Valid value
+	tempFolder.add("pids/pids.current", "123")
+	value, err = cgroup.ThreadCount()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(123))
 }

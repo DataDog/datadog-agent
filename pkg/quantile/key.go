@@ -13,7 +13,7 @@ const (
 	minKey = uvneginf + 1
 )
 
-// A Key represets a quantized version of a float64. See Config for more details
+// A Key represents a quantized version of a float64. See Config for more details
 type Key int16
 
 // IsInf returns true if the key represents +/-Inf

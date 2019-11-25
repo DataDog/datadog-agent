@@ -1,32 +1,53 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build clusterchecks
 
 package clusterchecks
 
 import (
+	"fmt"
+	"net/http"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-// TODO: handle non-leader / warmup phases, handler methods will
-// become more complex at that stage
+const notReadyReason = "Startup in progress"
 
-// ShouldRedirect returns the leader's hostname if the cluster-agent
-// is currently a follower, or an empty string if we should handle the query
-func (h *Handler) ShouldRedirect() string {
-	return ""
+// ShouldHandle indicates whether the cluster-agent should serve cluster-check
+// requests. Current known responses:
+//   - 302, string: follower, leader IP in string
+//   - 503, string: not ready, error string returned
+//   - 200, "": leader and ready for serving requests
+func (h *Handler) ShouldHandle() (int, string) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+
+	switch h.state {
+	case leader:
+		return http.StatusOK, ""
+	case follower:
+		return http.StatusFound, fmt.Sprintf("%s:%d", h.leaderIP, h.port)
+	default:
+		return http.StatusServiceUnavailable, notReadyReason
+	}
 }
 
-// GetAllConfigs returns all configurations known to the store, for reporting
-func (h *Handler) GetAllConfigs() (types.ConfigResponse, error) {
-	configs, err := h.dispatcher.getAllConfigs()
-	response := types.ConfigResponse{
-		Configs: configs,
+// GetState returns the state of the dispatching, for the clusterchecks cmd
+func (h *Handler) GetState() (types.StateResponse, error) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+
+	switch h.state {
+	case leader:
+		return h.dispatcher.getState()
+	case follower:
+		return types.StateResponse{NotRunning: "currently follower"}, nil
+	default:
+		return types.StateResponse{NotRunning: notReadyReason}, nil
 	}
-	return response, err
 }
 
 // GetConfigs returns configurations dispatched to a given node
@@ -40,11 +61,30 @@ func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
 }
 
 // PostStatus handles status reports from the node agents
-func (h *Handler) PostStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
-	upToDate, err := h.dispatcher.processNodeStatus(nodeName, status)
-
+func (h *Handler) PostStatus(nodeName, clientIP string, status types.NodeStatus) (types.StatusResponse, error) {
+	upToDate, err := h.dispatcher.processNodeStatus(nodeName, clientIP, status)
 	response := types.StatusResponse{
 		IsUpToDate: upToDate,
+	}
+	return response, err
+}
+
+// GetEndpointsConfigs returns endpoints configurations dispatched to a given node
+func (h *Handler) GetEndpointsConfigs(nodeName string) (types.ConfigResponse, error) {
+	configs, err := h.dispatcher.getEndpointsConfigs(nodeName)
+	response := types.ConfigResponse{
+		Configs:    configs,
+		LastChange: 0,
+	}
+	return response, err
+}
+
+// GetAllEndpointsCheckConfigs returns all pod-backed dispatched endpointscheck configurations
+func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
+	configs, err := h.dispatcher.getAllEndpointsCheckConfigs()
+	response := types.ConfigResponse{
+		Configs:    configs,
+		LastChange: 0,
 	}
 	return response, err
 }

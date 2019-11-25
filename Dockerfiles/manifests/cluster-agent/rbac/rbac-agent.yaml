@@ -11,6 +11,12 @@ rules:
   - nodes/proxy # Required to get /pods
   verbs:
   - get
+- nonResourceURLs:
+  - "/version"
+  - "/healthz"
+  - "/metrics"
+  verbs:
+  - get
 ---
 kind: ServiceAccount
 apiVersion: v1

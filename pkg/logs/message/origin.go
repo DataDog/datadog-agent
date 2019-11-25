@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package message
 
@@ -30,15 +30,7 @@ func NewOrigin(source *config.LogSource) *Origin {
 
 // Tags returns the tags of the origin.
 func (o *Origin) Tags() []string {
-	tags := o.tags
-
-	sourceCategory := o.LogSource.Config.SourceCategory
-	if sourceCategory != "" {
-		tags = append(tags, "sourcecategory:"+sourceCategory)
-	}
-
-	tags = append(tags, o.LogSource.Config.Tags...)
-	return tags
+	return o.tagsToStringArray("sourcecategory")
 }
 
 // TagsPayload returns the raw tag payload of the origin.
@@ -65,6 +57,30 @@ func (o *Origin) TagsPayload() []byte {
 		tagsPayload = []byte{}
 	}
 	return tagsPayload
+}
+
+// TagsToString encodes tags to a single string, in a comma separated format
+func (o *Origin) TagsToString() string {
+	tags := o.tagsToStringArray("ddsourcecategory")
+
+	if tags == nil {
+		return ""
+	}
+
+	return strings.Join(tags, ",")
+}
+
+func (o *Origin) tagsToStringArray(ddSourceCategory string) []string {
+	tags := o.tags
+
+	sourceCategory := o.LogSource.Config.SourceCategory
+	if sourceCategory != "" {
+		tags = append(tags, ddSourceCategory+":"+sourceCategory)
+	}
+
+	tags = append(tags, o.LogSource.Config.Tags...)
+
+	return tags
 }
 
 // SetTags sets the tags of the origin.

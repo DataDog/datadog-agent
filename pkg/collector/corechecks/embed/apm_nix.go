@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build apm
 // +build !windows
@@ -24,8 +24,9 @@ const apm_binary_name = "trace-agent"
 func getAPMAgentDefaultBinPath() (string, error) {
 	here, _ := executable.Folder()
 	binPath := filepath.Join(here, "..", "..", "embedded", "bin", apm_binary_name)
-	if _, err := os.Stat(binPath); err == nil {
+	_, err := os.Stat(binPath)
+	if err == nil {
 		return binPath, nil
 	}
-	return binPath, fmt.Errorf("Can't access the default apm binary at %s", binPath)
+	return binPath, fmt.Errorf("Can't access the default apm binary at %s: %s", binPath, err)
 }

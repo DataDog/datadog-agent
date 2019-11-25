@@ -13,7 +13,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags, get_default_build_tags
-from .utils import get_build_flags, bin_name, get_root, load_release_versions
+from .utils import get_build_flags, bin_name, get_root, load_release_versions, get_version
 from .utils import REPO_PATH
 
 from .go import deps
@@ -27,19 +27,20 @@ DEFAULT_BUILD_TAGS = [
     "zlib",
     "docker",
     "kubelet",
+    "secrets",
 ]
 
 
 @task
 def build(ctx, rebuild=False, race=False, static=False, build_include=None,
-          build_exclude=None, use_embedded_libs=False):
+          build_exclude=None):
     """
     Build Dogstatsd
     """
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags, env = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static)
     bin_path = DOGSTATSD_BIN_PATH
 
     if static:
@@ -192,6 +193,7 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
         }
         if omnibus_s3_cache:
             args['populate_s3_cache'] = " --populate-s3-cache "
+        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, git_sha_length=7)
         ctx.run(cmd.format(**args), env=env)
 
 

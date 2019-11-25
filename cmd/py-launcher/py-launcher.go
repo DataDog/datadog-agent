@@ -1,24 +1,34 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
+
+// +build python
 
 package main
 
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
-	"runtime"
+	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/sbinet/go-python"
 )
+
+/*
+#include "datadog_agent_rtloader.h"
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
+*/
+import "C"
 
 func main() {
 	var conf = flag.String("conf", "", "option path to datadog.yaml")
 	var pythonScript = flag.String("py", "", "python script to run")
+	var pythonPath = flag.String("path", "", "comma separated list of path to add to PYTHONPATH")
 	flag.Parse()
 
 	flag.Usage = func() {
@@ -38,25 +48,26 @@ func main() {
 		config.Datadog.SetConfigFile(*conf)
 		confErr := config.Load()
 		if confErr != nil {
-			fmt.Printf("unable to parse Datadog config file, running with env variables: %s", confErr)
+			fmt.Printf("unable to parse Datadog config file, running with env variables: %s\n", confErr)
 		}
 	}
 
-	runtime.LockOSThread()
-	py.Initialize()
-	gstate := python.PyGILState_Ensure()
+	paths := strings.Split(*pythonPath, ",")
+	python.Initialize(paths...)
 
-	python.PySys_SetArgv(append([]string{*pythonScript}, flag.Args()...))
-	err := python.PyRun_SimpleFile(*pythonScript)
+	pyRtLoader := python.GetRtLoader()
+	rtloader := (*C.rtloader_t)(pyRtLoader)
+	pythonCode, err := ioutil.ReadFile(*pythonScript)
 	if err != nil {
-		fmt.Printf("%s\n", err)
-	}
-
-	python.PyGILState_Release(gstate)
-	runtime.UnlockOSThread()
-
-	if err != nil {
+		fmt.Printf("Could not read %s: %s\n", *pythonScript, err)
 		os.Exit(1)
 	}
-	os.Exit(0)
+	state := C.ensure_gil(rtloader)
+	res := C.run_simple_string(rtloader, C.CString(string(pythonCode)))
+	C.release_gil(rtloader, state)
+	if res == 0 {
+		fmt.Printf("Error while running python script: %s\n", C.GoString(C.get_error(rtloader)))
+	}
+
+	python.Destroy()
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -130,6 +130,7 @@ func getMockedPods() []*kubelet.Pod {
 			Spec:   kubeletSpec,
 			Status: kubeletStatus,
 			Metadata: kubelet.PodMetadata{
+				UID:  "mock-pod-uid",
 				Name: "mock-pod",
 				Annotations: map[string]string{
 					"ad.datadoghq.com/baz.instances": "[]",
@@ -150,7 +151,7 @@ func TestProcessNewPod(t *testing.T) {
 		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
-	services := make(chan Service, 5)
+	services := make(chan Service, 6)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
@@ -162,6 +163,7 @@ func TestProcessNewPod(t *testing.T) {
 	select {
 	case service := <-services:
 		assert.Equal(t, "docker://foorandomhash", string(service.GetEntity()))
+		assert.Equal(t, "container_id://foorandomhash", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://foorandomhash", "datadoghq.com/foo:latest", "foo"}, adIdentifiers)
@@ -180,6 +182,7 @@ func TestProcessNewPod(t *testing.T) {
 	select {
 	case service := <-services:
 		assert.Equal(t, "rkt://bar-random-hash", string(service.GetEntity()))
+		assert.Equal(t, "container_id://bar-random-hash", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"rkt://bar-random-hash", "datadoghq.com/bar:latest", "bar"}, adIdentifiers)
@@ -198,6 +201,7 @@ func TestProcessNewPod(t *testing.T) {
 	select {
 	case service := <-services:
 		assert.Equal(t, "docker://containerid", string(service.GetEntity()))
+		assert.Equal(t, "container_id://containerid", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://containerid"}, adIdentifiers)
@@ -216,6 +220,7 @@ func TestProcessNewPod(t *testing.T) {
 	select {
 	case service := <-services:
 		assert.Equal(t, "docker://clustercheck", string(service.GetEntity()))
+		assert.Equal(t, "container_id://clustercheck", string(service.GetTaggerEntity()))
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://clustercheck", "k8s.gcr.io/pause:latest", "pause"}, adIdentifiers)
@@ -231,10 +236,29 @@ func TestProcessNewPod(t *testing.T) {
 		assert.FailNow(t, "fourth service not in channel")
 	}
 
-	// Fifth container is filtered out
+	// Fifth container is filtered out, should receive the pod service
+	select {
+	case service := <-services:
+		assert.Equal(t, "kubernetes_pod://mock-pod-uid", string(service.GetEntity()))
+		assert.Equal(t, "kubernetes_pod_uid://mock-pod-uid", string(service.GetTaggerEntity()))
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"kubernetes_pod://mock-pod-uid"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+	default:
+		assert.FailNow(t, "pod service not in channel")
+	}
+
 	select {
 	case <-services:
-		assert.FailNow(t, "five services in channel, filtering is broken")
+		assert.FailNow(t, "6 services in channel, filtering is broken")
 	default:
 		// all good
 	}

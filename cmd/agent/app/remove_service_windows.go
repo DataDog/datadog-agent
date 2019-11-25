@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package app
 
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
@@ -30,16 +31,16 @@ func removeService(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
+	s, err := m.OpenService(config.ServiceName)
 	if err != nil {
-		return fmt.Errorf("service %s is not installed", ServiceName)
+		return fmt.Errorf("service %s is not installed", config.ServiceName)
 	}
 	defer s.Close()
 	err = s.Delete()
 	if err != nil {
 		return err
 	}
-	err = eventlog.Remove(ServiceName)
+	err = eventlog.Remove(config.ServiceName)
 	if err != nil {
 		return fmt.Errorf("RemoveEventLogSource() failed: %s", err)
 	}

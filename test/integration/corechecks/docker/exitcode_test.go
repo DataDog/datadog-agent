@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package docker
 
@@ -17,7 +17,6 @@ func init() {
 
 func TestContainerExit(t *testing.T) {
 	expectedTags := []string{
-		instanceTag,
 		"docker_image:datadog/docker-library:busybox_1_28_0",
 		"image_name:datadog/docker-library",
 		"short_image:docker-library",

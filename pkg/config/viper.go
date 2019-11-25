@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
@@ -11,9 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // safeConfig implements Config:
@@ -40,6 +42,21 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Viper.SetDefault(key, value)
 }
 
+// SetKnown adds a key to the set of known valid config keys
+func (c *safeConfig) SetKnown(key string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetKnown(key)
+}
+
+// GetKnownKeys returns all the keys that meet at least one of these criteria:
+// 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
+func (c *safeConfig) GetKnownKeys() map[string]interface{} {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.GetKnownKeys()
+}
+
 // SetFs wraps Viper for concurrent access
 func (c *safeConfig) SetFs(fs afero.Fs) {
 	c.Lock()
@@ -58,91 +75,143 @@ func (c *safeConfig) IsSet(key string) bool {
 func (c *safeConfig) Get(key string) interface{} {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.Get(key)
+	val, err := c.Viper.GetE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetString wraps Viper for concurrent access
 func (c *safeConfig) GetString(key string) string {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetString(key)
+	val, err := c.Viper.GetStringE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetBool wraps Viper for concurrent access
 func (c *safeConfig) GetBool(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetBool(key)
+	val, err := c.Viper.GetBoolE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetInt wraps Viper for concurrent access
 func (c *safeConfig) GetInt(key string) int {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetInt(key)
+	val, err := c.Viper.GetIntE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetInt64 wraps Viper for concurrent access
 func (c *safeConfig) GetInt64(key string) int64 {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetInt64(key)
+	val, err := c.Viper.GetInt64E(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetFloat64 wraps Viper for concurrent access
 func (c *safeConfig) GetFloat64(key string) float64 {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetFloat64(key)
+	val, err := c.Viper.GetFloat64E(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetTime wraps Viper for concurrent access
 func (c *safeConfig) GetTime(key string) time.Time {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetTime(key)
+	val, err := c.Viper.GetTimeE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetDuration wraps Viper for concurrent access
 func (c *safeConfig) GetDuration(key string) time.Duration {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetDuration(key)
+	val, err := c.Viper.GetDurationE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetStringSlice wraps Viper for concurrent access
 func (c *safeConfig) GetStringSlice(key string) []string {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetStringSlice(key)
+	val, err := c.Viper.GetStringSliceE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetStringMap wraps Viper for concurrent access
 func (c *safeConfig) GetStringMap(key string) map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetStringMap(key)
+	val, err := c.Viper.GetStringMapE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetStringMapString wraps Viper for concurrent access
 func (c *safeConfig) GetStringMapString(key string) map[string]string {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetStringMapString(key)
+	val, err := c.Viper.GetStringMapStringE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetStringMapStringSlice wraps Viper for concurrent access
 func (c *safeConfig) GetStringMapStringSlice(key string) map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetStringMapStringSlice(key)
+	val, err := c.Viper.GetStringMapStringSliceE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetSizeInBytes wraps Viper for concurrent access
 func (c *safeConfig) GetSizeInBytes(key string) uint {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.GetSizeInBytes(key)
+	val, err := c.Viper.GetSizeInBytesE(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // SetEnvPrefix wraps Viper for concurrent access, and keeps the envPrefix for
@@ -162,11 +231,8 @@ func (c *safeConfig) BindEnv(input ...string) error {
 		// FIXME: for the purposes of GetEnvVars implementation, we only track env var keys
 		// that are interpolated by viper from the config option key name
 		key := input[0]
-		if !strings.Contains(key, "_key") {
-			// `_key`-suffixed env vars are sensitive: don't track them
-			envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
-			c.configEnvVars = append(c.configEnvVars, envVarName)
-		}
+		envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
+		c.configEnvVars = append(c.configEnvVars, envVarName)
 	}
 	return c.Viper.BindEnv(input...)
 }
@@ -218,6 +284,13 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 	return c.Viper.MergeConfig(in)
+}
+
+// MergeConfigOverride wraps Viper for concurrent access
+func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.MergeConfigOverride(in)
 }
 
 // AllSettings wraps Viper for concurrent access

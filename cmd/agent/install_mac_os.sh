@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
-# Copyright 2018 Datadog, Inc.
+# Copyright 2016-2019 Datadog, Inc.
 
 # Datadog Agent install script for macOS.
 set -e
@@ -25,6 +25,10 @@ if [ -n "$DD_API_KEY" ]; then
     apikey=$DD_API_KEY
 fi
 
+if [ -n "$DD_SITE" ]; then
+    site=$DD_SITE
+fi
+
 if [ $dd_upgrade ]; then
     if [ ! -f /opt/datadog-agent/etc/datadog.conf ]; then
         printf "\033[31mDD_UPGRADE set but no config was found at /opt/datadog-agent/etc/datadog.conf.\033[0m\n"
@@ -40,8 +44,26 @@ if [ ! $apikey ]; then
     fi
 fi
 
-# get real user (in case of sudo)
-real_user=`logname`
+
+# SUDO_USER is defined in man sudo: https://linux.die.net/man/8/sudo
+# "SUDO_USER Set to the login name of the user who invoked sudo."
+
+# USER is defined in man login: https://ss64.com/osx/login.html
+# "Login enters information into the environment (see environ(7))
+#  specifying the user's home directory (HOME), command interpreter (SHELL),
+#  search path (PATH), terminal type (TERM) and user name (both LOGNAME and USER)."
+
+# We want to get the real user who executed the command. Two situations can happen:
+# - the command was run as the current user: then $USER contains the user which launched the command, and $SUDO_USER is empty,
+# - the command was run with sudo: then $USER contains the name of the user targeted by the sudo command (by default, root)
+#   and $SUDO_USER contains the user which launched the sudo command.
+# The following block covers both cases so that we have tbe username we want in the real_user variable.
+real_user=`if [ "$SUDO_USER" ]; then
+  echo $SUDO_USER
+else
+  echo $USER
+fi`
+
 export TMPDIR=`sudo -u $real_user getconf DARWIN_USER_TEMP_DIR`
 cmd_real_user="sudo -Eu $real_user"
 
@@ -72,6 +94,9 @@ function new_config() {
     i_cmd="-i ''"
     if [ $(sed --version 2>/dev/null | grep -c "GNU") -ne 0 ]; then i_cmd="-i"; fi
     $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"/opt/datadog-agent/etc/datadog.yaml\""
+    if [ $site ]; then
+        $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"/opt/datadog-agent/etc/datadog.yaml\""
+    fi
     $sudo_cmd chown $real_user:admin "/opt/datadog-agent/etc/datadog.yaml"
     $sudo_cmd chmod 640 /opt/datadog-agent/etc/datadog.yaml
 }

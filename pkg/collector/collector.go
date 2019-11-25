@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package collector
 
@@ -24,12 +24,14 @@ const (
 
 // Collector abstract common operations about running a Check
 type Collector struct {
-	scheduler      *scheduler.Scheduler
-	runner         *runner.Runner
-	checks         map[check.ID]check.Check
-	state          uint32
-	m              sync.RWMutex
 	checkInstances int64
+	state          uint32
+
+	scheduler *scheduler.Scheduler
+	runner    *runner.Runner
+	checks    map[check.ID]check.Check
+
+	m sync.RWMutex
 }
 
 // NewCollector create a Collector instance and sets up the Python Environment
@@ -58,8 +60,7 @@ func NewCollector(paths ...string) *Collector {
 	}
 
 	// Prepare python environment if necessary
-	err := pyPrepareEnv()
-	if err != nil {
+	if err := pyPrepareEnv(); err != nil {
 		log.Errorf("Unable to perform additional configuration of the python environment: %v", err)
 	}
 
@@ -122,7 +123,7 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 }
 
 // ReloadCheck stops and restart a check with a new configuration
-func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data) error {
+func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data, newSource string) error {
 	if !c.started() {
 		return fmt.Errorf("the collector is not running")
 	}
@@ -151,7 +152,7 @@ func (c *Collector) ReloadCheck(id check.ID, config, initConfig integration.Data
 
 	// re-configure
 	check := c.checks[id]
-	err = check.Configure(config, initConfig)
+	err = check.Configure(config, initConfig, newSource)
 	if err != nil {
 		return fmt.Errorf("error configuring the check with ID %s", id)
 	}
@@ -214,8 +215,8 @@ func (c *Collector) started() bool {
 	return atomic.LoadUint32(&(c.state)) == started
 }
 
-// returns the ID's of all instances of a check
-func (c *Collector) getAllInstanceIDs(checkName string) []check.ID {
+// GetAllInstanceIDs returns the ID's of all instances of a check
+func (c *Collector) GetAllInstanceIDs(checkName string) []check.ID {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -236,7 +237,7 @@ func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Ch
 	}
 
 	// Stop all the old instances
-	killed := c.getAllInstanceIDs(name)
+	killed := c.GetAllInstanceIDs(name)
 	for _, id := range killed {
 		e := c.StopCheck(id)
 		if e != nil {

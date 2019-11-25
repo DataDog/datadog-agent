@@ -6,6 +6,8 @@
 package containers
 
 import (
+	"net"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 )
 
@@ -35,6 +37,16 @@ const (
 	ContainerUnhealthy             = "unhealthy"
 )
 
+// Container network modes
+const (
+	DefaultNetworkMode string = "default" // bridge
+	HostNetworkMode           = "host"
+	BridgeNetworkMode         = "bridge"
+	NoneNetworkMode           = "none"
+	AwsvpcNetworkMode         = "awsvpc"
+	UnknownNetworkMode        = "unknown"
+)
+
 // Container represents a single container on a machine
 // and includes Cgroup-level statistics about the container.
 type Container struct {
@@ -52,14 +64,26 @@ type Container struct {
 
 	CPULimit       float64
 	SoftMemLimit   uint64
+	KernMemUsage   uint64
 	MemLimit       uint64
+	MemFailCnt     uint64
 	CPUNrThrottled uint64
 	CPU            *metrics.CgroupTimesStat
 	Memory         *metrics.CgroupMemStat
 	IO             *metrics.CgroupIOStat
 	Network        metrics.ContainerNetStats
+	AddressList    []NetworkAddress
 	StartedAt      int64
+	ThreadCount    uint64
+	ThreadLimit    uint64
 
 	// For internal use only
 	cgroup *metrics.ContainerCgroup
+}
+
+// NetworkAddress represents a tuple IP/Port/Protocol
+type NetworkAddress struct {
+	IP       net.IP
+	Port     int
+	Protocol string
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package mocksender
 
@@ -59,9 +59,19 @@ func (m *MockSender) Event(e metrics.Event) {
 	m.Called(e)
 }
 
+//HistogramBucket enables the histogram bucket mock call.
+func (m *MockSender) HistogramBucket(metric string, value int, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
+	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags)
+}
+
 //Commit enables the commit mock call.
 func (m *MockSender) Commit() {
 	m.Called()
+}
+
+//SetCheckCustomTags enables the set of check custom tags mock call.
+func (m *MockSender) SetCheckCustomTags(tags []string) {
+	m.Called(tags)
 }
 
 //GetMetricStats enables the get metric stats mock call.

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
@@ -20,6 +20,9 @@ func TestAddSource(t *testing.T) {
 
 	sources.AddSource(NewLogSource("bar", &LogsConfig{Type: "boo"}))
 	assert.Equal(t, 2, len(sources.GetSources()))
+
+	sources.AddSource(NewLogSource("baz", &LogsConfig{})) // invalid config
+	assert.Equal(t, 3, len(sources.GetSources()))
 }
 
 func TestRemoveSource(t *testing.T) {

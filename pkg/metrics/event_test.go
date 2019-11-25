@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package metrics
 
@@ -64,9 +64,10 @@ func TestMarshalJSON(t *testing.T) {
 		SourceTypeName: "custom_source_type",
 	}}
 
-	oldName := config.Datadog.GetString("hostname")
-	defer config.Datadog.Set("hostname", oldName)
-	config.Datadog.Set("hostname", "test-hostname")
+	mockConfig := config.Mock()
+	oldName := mockConfig.GetString("hostname")
+	defer mockConfig.Set("hostname", oldName)
+	mockConfig.Set("hostname", "test-hostname")
 
 	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)
@@ -83,9 +84,10 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 		Host:  "my-hostname",
 	}}
 
-	oldName := config.Datadog.GetString("hostname")
-	defer config.Datadog.Set("hostname", oldName)
-	config.Datadog.Set("hostname", "test-hostname")
+	mockConfig := config.Mock()
+	oldName := mockConfig.GetString("hostname")
+	defer mockConfig.Set("hostname", oldName)
+	mockConfig.Set("hostname", "test-hostname")
 
 	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)

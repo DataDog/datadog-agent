@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -89,12 +89,16 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 				legacyPodAnnotationPrefix, pod.Metadata.Name, newPodAnnotationPrefix)
 		}
 
-		for _, container := range pod.Status.Containers {
+		for _, container := range pod.Status.GetAllContainers() {
 			c, errors := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
 				fmt.Sprintf(adExtractFormat, container.Name))
 
 			for _, err := range errors {
 				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
+			}
+
+			for idx := range c {
+				c[idx].Source = "kubelet:" + container.ID
 			}
 
 			configs = append(configs, c...)

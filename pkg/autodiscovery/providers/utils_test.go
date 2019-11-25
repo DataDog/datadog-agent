@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package providers
 
@@ -9,42 +9,77 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestParseJSONValue(t *testing.T) {
-	// empty value
-	res, err := parseJSONValue("")
-	assert.Nil(t, res)
-	assert.NotNil(t, err)
-
-	// value is not a list
-	res, err = parseJSONValue("{}")
-	assert.Nil(t, res)
-	assert.NotNil(t, err)
-
-	// invalid json
-	res, err = parseJSONValue("[{]")
-	assert.Nil(t, res)
-	assert.NotNil(t, err)
-
-	// bad type
-	res, err = parseJSONValue("[1, {\"test\": 1}, \"test\"]")
-	assert.Nil(t, res)
-	assert.NotNil(t, err)
-	assert.Equal(t, "found non JSON object type, value is: '1'", err.Error())
-
-	// valid input
-	res, err = parseJSONValue("[{\"test\": 1}, {\"test\": 2}]")
-	assert.Nil(t, err)
-	assert.NotNil(t, res)
-	require.Len(t, res, 2)
-	assert.Equal(t, integration.Data("{\"test\":1}"), res[0])
-	assert.Equal(t, integration.Data("{\"test\":2}"), res[1])
+	tests := []struct {
+		name                string
+		inputValue          string
+		expectedReturnValue [][]integration.Data
+		expectedErr         error
+	}{
+		{
+			name:                "empty value",
+			inputValue:          "",
+			expectedErr:         fmt.Errorf("Value is empty"),
+			expectedReturnValue: nil,
+		},
+		{
+			name:                "value is not a list",
+			inputValue:          "{}",
+			expectedErr:         fmt.Errorf("failed to unmarshal JSON: json: cannot unmarshal object into Go value of type []interface {}"),
+			expectedReturnValue: nil,
+		},
+		{
+			name:                "invalid json",
+			inputValue:          "[{]",
+			expectedErr:         fmt.Errorf("failed to unmarshal JSON: invalid character ']' looking for beginning of object key string"),
+			expectedReturnValue: nil,
+		},
+		{
+			name:                "bad type",
+			inputValue:          "[1, {\"test\": 1}, \"test\"]",
+			expectedErr:         fmt.Errorf("failed to decode JSON Object '1' to integration.Data struct: found non JSON object type, value is: '1'"),
+			expectedReturnValue: nil,
+		},
+		{
+			name:        "valid input",
+			inputValue:  "[{\"test\": 1}, {\"test\": 2}]",
+			expectedErr: nil,
+			expectedReturnValue: [][]integration.Data{
+				{integration.Data("{\"test\":1}")},
+				{integration.Data("{\"test\":2}")},
+			},
+		},
+		{
+			name:        "valid input with list",
+			inputValue:  "[[{\"test\": 1.1},{\"test\": 1.2}], {\"test\": 2}]",
+			expectedErr: nil,
+			expectedReturnValue: [][]integration.Data{
+				{integration.Data("{\"test\":1.1}"), integration.Data("{\"test\":1.2}")},
+				{integration.Data("{\"test\":2}")},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseJSONValue(tt.inputValue)
+			if tt.expectedErr != nil {
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, got, tt.expectedReturnValue)
+		})
+	}
 }
 
 func TestParseCheckNames(t *testing.T) {
@@ -90,30 +125,73 @@ func TestBuildStoreKey(t *testing.T) {
 }
 
 func TestBuildTemplates(t *testing.T) {
-	// wrong number of checkNames
-	res := buildTemplates("id",
-		[]string{"a", "b"},
-		[]integration.Data{integration.Data("")},
-		[]integration.Data{integration.Data("")})
-	assert.Len(t, res, 0)
-
-	res = buildTemplates("id",
-		[]string{"a", "b"},
-		[]integration.Data{integration.Data("{\"test\": 1}"), integration.Data("{}")},
-		[]integration.Data{integration.Data("{}"), integration.Data("{1:2}")})
-	require.Len(t, res, 2)
-
-	assert.Len(t, res[0].ADIdentifiers, 1)
-	assert.Equal(t, "id", res[0].ADIdentifiers[0])
-	assert.Equal(t, res[0].Name, "a")
-	assert.Equal(t, res[0].InitConfig, integration.Data("{\"test\": 1}"))
-	assert.Equal(t, res[0].Instances, []integration.Data{integration.Data("{}")})
-
-	assert.Len(t, res[1].ADIdentifiers, 1)
-	assert.Equal(t, "id", res[1].ADIdentifiers[0])
-	assert.Equal(t, res[1].Name, "b")
-	assert.Equal(t, res[1].InitConfig, integration.Data("{}"))
-	assert.Equal(t, res[1].Instances, []integration.Data{integration.Data("{1:2}")})
+	key := "id"
+	tests := []struct {
+		name            string
+		inputCheckNames []string
+		inputInitConfig [][]integration.Data
+		inputInstances  [][]integration.Data
+		expectedConfigs []integration.Config
+	}{
+		{
+			name:            "wrong number of checkNames",
+			inputCheckNames: []string{"a", "b"},
+			inputInitConfig: [][]integration.Data{{integration.Data("")}},
+			inputInstances:  [][]integration.Data{{integration.Data("")}},
+			expectedConfigs: []integration.Config{},
+		},
+		{
+			name:            "valid inputs",
+			inputCheckNames: []string{"a", "b"},
+			inputInitConfig: [][]integration.Data{{integration.Data("{\"test\": 1}")}, {integration.Data("{}")}},
+			inputInstances:  [][]integration.Data{{integration.Data("{}")}, {integration.Data("{1:2}")}},
+			expectedConfigs: []integration.Config{
+				{
+					Name:          "a",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{\"test\": 1}"),
+					Instances:     []integration.Data{integration.Data("{}")},
+				},
+				{
+					Name:          "b",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{1:2}")},
+				},
+			},
+		},
+		{
+			name:            "valid inputs with list",
+			inputCheckNames: []string{"a", "b"},
+			inputInitConfig: [][]integration.Data{{integration.Data("{\"test\": 1}")}, {integration.Data("{}")}},
+			inputInstances:  [][]integration.Data{{integration.Data("{\"foo\": 1}"), integration.Data("{\"foo\": 2}")}, {integration.Data("{1:2}")}},
+			expectedConfigs: []integration.Config{
+				{
+					Name:          "a",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{\"test\": 1}"),
+					Instances:     []integration.Data{integration.Data("{\"foo\": 1}")},
+				},
+				{
+					Name:          "a",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{\"test\": 1}"),
+					Instances:     []integration.Data{integration.Data("{\"foo\": 2}")},
+				},
+				{
+					Name:          "b",
+					ADIdentifiers: []string{key},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{1:2}")},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedConfigs, buildTemplates(key, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances))
+		})
+	}
 }
 
 func TestExtractTemplatesFromMap(t *testing.T) {
@@ -237,7 +315,7 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			adIdentifier: "id",
 			prefix:       "prefix.",
 			output:       nil,
-			errs:         []error{errors.New("could not extract checks config: in instances: Failed to unmarshal JSON")},
+			errs:         []error{errors.New("could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key")},
 		},
 		{
 			// Invalid logs json
@@ -297,4 +375,17 @@ func TestExtractTemplatesFromMap(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetPollInterval(t *testing.T) {
+	cp := config.ConfigurationProviders{}
+	assert.Equal(t, GetPollInterval(cp), 10*time.Second)
+	cp = config.ConfigurationProviders{
+		PollInterval: "foo",
+	}
+	assert.Equal(t, GetPollInterval(cp), 10*time.Second)
+	cp = config.ConfigurationProviders{
+		PollInterval: "1s",
+	}
+	assert.Equal(t, GetPollInterval(cp), 1*time.Second)
 }

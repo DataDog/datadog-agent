@@ -1,11 +1,17 @@
 source 'https://supermarket.chef.io'
-# TODO: pin to a release once https://github.com/DataDog/chef-datadog/pull/520 & https://github.com/DataDog/chef-datadog/pull/505 are released
-cookbook 'datadog', git: "https://github.com/datadog/chef-datadog.git", branch: "arbll/kitchen"
-# cookbook 'datadog', '~> 2.13.0'
-cookbook 'apt', '~> 3.0'
-cookbook 'yum', '< 5.0'
-cookbook 'windows', '~> 3.4.3'
+
+cookbook 'datadog', '~> 3.3.0'
+
+# We pin an old version of the apt cookbook because this cookbook triggers an "apt update" by default
+# and in newer versions this update is not allowed to fail, while in 3.X it is. For some reason
+# apt update fails a lot in our debian instances.
+# This can be removed if the datadog cookbook no longer depends on apt, since it's only used there
+# (ie: when the datadog cookbook requires chef >= 13.3, which already bundles everything we use from apt).
+cookbook 'apt', '< 4.0'
+
 cookbook 'dd-agent-install', path: './site-cookbooks/dd-agent-install'
 cookbook 'dd-agent-upgrade', path: './site-cookbooks/dd-agent-upgrade'
 cookbook 'dd-agent-install-script', path: './site-cookbooks/dd-agent-install-script'
 cookbook 'dd-agent-step-by-step', path: './site-cookbooks/dd-agent-step-by-step'
+cookbook 'dd-agent-import-conf', path: './site-cookbooks/dd-agent-import-conf'
+cookbook 'dd-agent-5', path: './site-cookbooks/dd-agent-5'

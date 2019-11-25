@@ -79,7 +79,11 @@ instances:
 
 
       # datadog-agent dogstatsd monitoring
+      - path: dogstatsd-udp/Packets
+        type: rate
       - path: dogstatsd-udp/PacketReadingErrors
+        type: rate
+      - path: dogstatsd-uds/Packets
         type: rate
       - path: dogstatsd-uds/PacketReadingErrors
         type: rate
@@ -155,4 +159,8 @@ instances:
       - path: logs-agent/LogsProcessed
         type: rate
       - path: logs-agent/LogsSent
+        type: rate
+      - path: logs-agent/BytesSent
+        type: rate
+      - path: logs-agent/EncodedBytesSent
         type: rate

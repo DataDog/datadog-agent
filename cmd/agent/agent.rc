@@ -3,7 +3,21 @@
 #define APP_MANIFEST 1
 
 
-APP_MANIFEST RT_MANIFEST agent.exe.manifest
+#ifdef BUILD_ARCH_x86
+  #ifdef PY2_RUNTIME
+     APP_MANIFEST RT_MANIFEST agent32-py2.exe.manifest
+  #else 
+     APP_MANIFEST RT_MANIFEST agent32-py3.exe.manifest
+  #endif
+#elif defined BUILD_ARCH_x64
+  #ifdef PY2_RUNTIME
+    APP_MANIFEST RT_MANIFEST agent-py2.exe.manifest
+  #else 
+    APP_MANIFEST RT_MANIFEST agent-py3.exe.manifest
+  #endif
+#else
+#error no architecture
+#endif
 
 #define MAIN_ICON 1
 #define ICON_16_16 2
@@ -35,7 +49,7 @@ BEGIN
             VALUE "FileDescription", "Datadog Metrics Agent"
             VALUE "FileVersion", FILE_VERSION_STRING
             VALUE "InternalName", "Agent6"
-            VALUE "LegalCopyright", "Copyright (C) 2018"
+            VALUE "LegalCopyright", "Copyright (C) 2016-2019"
             VALUE "OriginalFilename", "agent.exe"
             VALUE "ProductName", "Datadog Agent"
             VALUE "ProductVersion", FILE_VERSION_STRING

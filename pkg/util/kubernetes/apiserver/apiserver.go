@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -11,10 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
@@ -22,18 +21,21 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
+	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
+	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 )
 
 var (
 	globalAPIClient  *APIClient
 	ErrNotFound      = errors.New("entity not found")
 	ErrIsEmpty       = errors.New("entity is empty")
-	ErrOutdated      = errors.New("entity is outdated")
 	ErrNotLeader     = errors.New("not Leader")
 	isConnectVerbose = false
 )
@@ -52,6 +54,8 @@ type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
 
+	// WPAInformerFactory gives access to informers for Watermark Pod Autoscalers.
+	WPAInformerFactory wpa_informers.SharedInformerFactory
 	// used to setup the APIClient
 	initRetry      retry.Retrier
 	Cl             kubernetes.Interface
@@ -79,8 +83,7 @@ func GetAPIClient() (*APIClient, error) {
 	}
 	return globalAPIClient, nil
 }
-
-func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+func getClientConfig() (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
@@ -98,18 +101,45 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 			return nil, err
 		}
 	}
-	clientConfig.Timeout = timeout
 
 	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
+	return clientConfig, nil
+}
+
+func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
 	return kubernetes.NewForConfig(clientConfig)
 }
 
-func getInformerFactory() (informers.SharedInformerFactory, error) {
-	timeoutSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_restclient_timeout"))
+func getWPAClient(timeout time.Duration) (wpa_client.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
+	return wpa_client.NewForConfig(clientConfig)
+}
+
+func getWPAInformerFactory() (wpa_informers.SharedInformerFactory, error) {
+	// default to 300s
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getKubeClient(timeoutSeconds * time.Second)
+	client, err := getWPAClient(0) // No timeout for the Informers, to allow long watch.
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return nil, err
+	}
+	return wpa_informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
+}
+
+func getInformerFactory() (informers.SharedInformerFactory, error) {
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
 		return nil, err
@@ -129,7 +159,13 @@ func (c *APIClient) connect() error {
 	if err != nil {
 		return err
 	}
-
+	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
+		c.WPAInformerFactory, err = getWPAInformerFactory()
+		if err != nil {
+			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
+			return err
+		}
+	}
 	// Try to get apiserver version to confim connectivity
 	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
 	if APIversion.Empty() {
@@ -145,81 +181,16 @@ func (c *APIClient) connect() error {
 	return nil
 }
 
-// MetadataMapperBundle maps pod names to associated metadata.
-//
-// It is updated by mapServices in services.go.
-type MetadataMapperBundle struct {
-	Services ServicesMapper `json:"services,omitempty"`
-	mapOnIP  bool           // temporary opt-out of the new mapping logic
-	m        sync.RWMutex
+// metadataMapperBundle maps pod names to associated metadata.
+type metadataMapperBundle struct {
+	Services apiv1.NamespacesPodsStringsSet
+	mapOnIP  bool // temporary opt-out of the new mapping logic
 }
 
-func newMetadataMapperBundle() *MetadataMapperBundle {
-	return &MetadataMapperBundle{
-		Services: make(ServicesMapper),
+func newMetadataMapperBundle() *metadataMapperBundle {
+	return &metadataMapperBundle{
+		Services: apiv1.NewNamespacesPodsStringsSet(),
 		mapOnIP:  config.Datadog.GetBool("kubernetes_map_services_on_ip"),
-	}
-}
-
-// NodeMetadataMapping only fetch the endpoints from Kubernetes apiserver and add the metadataMapper of the
-// node to the cache
-// Only called when the node agent computes the metadata mapper locally and does not rely on the DCA.
-func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) error {
-	endpointList, err := c.Cl.CoreV1().Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
-	if err != nil {
-		log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
-		return err
-	}
-	if endpointList.Items == nil {
-		log.Debug("No endpoints collected from the API server")
-		return nil
-	}
-	log.Debugf("Successfully collected endpoints")
-
-	var node v1.Node
-	var nodeList v1.NodeList
-	node.Name = nodeName
-
-	nodeList.Items = append(nodeList.Items, node)
-
-	processKubeServices(&nodeList, podList, endpointList)
-	return nil
-}
-
-// processKubeServices adds services to the metadataMapper cache, pointer parameters must be non nil
-func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointList *v1.EndpointsList) {
-	if nodeList.Items == nil || podList.Items == nil || endpointList.Items == nil {
-		return
-	}
-	log.Debugf("Identified: %d node, %d pod, %d endpoints", len(nodeList.Items), len(podList.Items), len(endpointList.Items))
-	for _, node := range nodeList.Items {
-		nodeName := node.Name
-		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
-
-		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)       // We get the old one with the dead pods. if diff reset metabundle and deleted key. Then compute again.
-		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
-
-		if !found {
-			metaBundle = newMetadataMapperBundle()
-			cache.Cache.Set(freshness, len(podList.Items), metadataMapExpire)
-		}
-
-		// We want to churn the cache every `metadataMapExpire` and if the number of entries varies between 2 runs..
-		// If a pod is killed and rescheduled during a run, we will only keep the old entry for another run, which is acceptable.
-		if found && freshnessCache != len(podList.Items) || !freshnessFound {
-			cache.Cache.Delete(nodeNameCacheKey)
-			metaBundle = newMetadataMapperBundle()
-			cache.Cache.Set(freshness, len(podList.Items), metadataMapExpire)
-			log.Debugf("Refreshing cache for %s", nodeNameCacheKey)
-		}
-
-		err := metaBundle.(*MetadataMapperBundle).mapServices(nodeName, *podList, *endpointList)
-		if err != nil {
-			log.Errorf("Could not map the services on node %s: %s", node.Name, err.Error())
-			continue
-		}
-		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)
 	}
 }
 
@@ -276,62 +247,79 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	return c.Cl.CoreV1().ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
 }
 
-// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
-func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
-	namespace := common.GetResourcesNamespace()
-	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.ConfigMap, err error) {
+	cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
-		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
-		return "", false, ErrNotFound
+		log.Errorf("Could not get the ConfigMap %s: %s, trying to create it.", name, err.Error())
+		cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Create(&v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create the ConfigMap: %s", err.Error())
+		}
+		log.Infof("Created the ConfigMap %s", name)
 	}
-	log.Infof("Found the ConfigMap %s", configMapDCAToken)
+	return cmEvent, nil
+}
 
-	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
-	tokenValue, found := tokenConfigMap.Data[eventTokenKey]
-	if !found {
-		log.Errorf("%s was not found in the ConfigMap %s", eventTokenKey, configMapDCAToken)
-		return "", found, ErrNotFound
+// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
+func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, error) {
+	namespace := common.GetResourcesNamespace()
+	nowTs := time.Now()
+
+	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
+	if err != nil {
+		// we do not process event if we can't interact with the CM.
+		return "", time.Now(), err
 	}
-	log.Infof("%s is %q", token, tokenValue)
+	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	if cmEvent.Data == nil {
+		cmEvent.Data = make(map[string]string)
+	}
+	tokenValue, found := cmEvent.Data[eventTokenKey]
+	if !found {
+		log.Debugf("%s was not found in the ConfigMap %s, updating it to resync.", eventTokenKey, configMapDCAToken)
+		// we should try to set it to "" .
+		err = c.UpdateTokenInConfigmap(token, "", time.Now())
+		return "", time.Now(), err
+	}
+	log.Tracef("%s is %q", token, tokenValue)
 
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
-	tokenTimeStr, set := tokenConfigMap.Data[eventTokenTS] // This is so we can have one timestamp per token
-
+	tokenTimeStr, set := cmEvent.Data[eventTokenTS]
 	if !set {
 		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", eventTokenTS, configMapDCAToken)
-		// We return ErrOutdated to reset the tokenValue and its timestamp as token's timestamp was not found.
-		return tokenValue, found, ErrOutdated
+		// The timestamp of the last List is not present, it will be set during the next Collection.
+		return tokenValue, nowTs, nil
 	}
 
-	tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
+	tokenTime, err := time.Parse(time.RFC3339, tokenTimeStr)
 	if err != nil {
-		return "", found, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", token, configMapDCAToken)
+		log.Errorf("Could not convert the timestamp associated with %s from the ConfigMap %s, resync might not work correctly.", token, configMapDCAToken)
+		return tokenValue, nowTs, nil
 	}
-	tokenAge := time.Now().Unix() - tokenTime.Unix()
-
-	if tokenAge > tokenTimeout {
-		log.Debugf("The tokenValue %s is outdated, refreshing the state", token)
-		return tokenValue, found, ErrOutdated
-	}
-	log.Debugf("Token %s was updated recently, using value to collect newer events.", token)
-	return tokenValue, found, nil
+	return tokenValue, tokenTime, err
 }
 
 // UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
-func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
+func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp time.Time) error {
 	namespace := common.GetResourcesNamespace()
-	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
 	if err != nil {
 		return err
 	}
-
 	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	if tokenConfigMap.Data == nil {
+		tokenConfigMap.Data = make(map[string]string)
+	}
 	tokenConfigMap.Data[eventTokenKey] = tokenValue
 
-	now := time.Now()
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
-	tokenConfigMap.Data[eventTokenTS] = now.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
+	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC3339) // Timestamps in the ConfigMap should all use the type int.
 
 	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(tokenConfigMap)
 	if err != nil {
@@ -360,16 +348,13 @@ func (c *APIClient) GetNodeForPod(namespace, pod_name string) (string, error) {
 }
 
 // GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the metadata map of all nodes.
-func GetMetadataMapBundleOnAllNodes(cl *APIClient) (map[string]interface{}, error) {
-	nodePodMetadataMap := make(map[string]*MetadataMapperBundle)
-	stats := make(map[string]interface{})
-	var warnlist []string
-	var warn string
+func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, error) {
+	stats := apiv1.NewMetadataResponse()
 	var err error
 
 	nodes, err := getNodeList(cl)
 	if err != nil {
-		stats["Errors"] = fmt.Sprintf("Failed to get nodes from the API server: %s", err.Error())
+		stats.Errors = fmt.Sprintf("Failed to get nodes from the API server: %s", err.Error())
 		return stats, err
 	}
 
@@ -378,39 +363,37 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (map[string]interface{}, erro
 			log.Error("Incorrect payload when evaluating a node for the service mapper") // This will be removed as we move to the client-go
 			continue
 		}
-		nodePodMetadataMap[node.Name], err = getMetadataMapBundle(node.Name)
+		var bundle *metadataMapperBundle
+		bundle, err = getMetadataMapBundle(node.Name)
 		if err != nil {
-			warn = fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
-			warnlist = append(warnlist, warn)
+			warn := fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
+			stats.Warnings = append(stats.Warnings, warn)
 		}
+		stats.Nodes[node.Name] = convertmetadataMapperBundleToAPI(bundle)
 	}
-	stats["Nodes"] = nodePodMetadataMap
-	stats["Warnings"] = warnlist
 	return stats, nil
 }
 
 // GetMetadataMapBundleOnNode is used for the CLI metamap command to output given a nodeName.
-func GetMetadataMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
-	nodePodMetadataMap := make(map[string]*MetadataMapperBundle)
-	stats := make(map[string]interface{})
-	var err error
-
-	nodePodMetadataMap[nodeName], err = getMetadataMapBundle(nodeName)
+func GetMetadataMapBundleOnNode(nodeName string) (*apiv1.MetadataResponse, error) {
+	stats := apiv1.NewMetadataResponse()
+	bundle, err := getMetadataMapBundle(nodeName)
 	if err != nil {
-		stats["Warnings"] = []string{fmt.Sprintf("Node %s could not be added to the metadata map bundle: %s", nodeName, err.Error())}
+		stats.Warnings = []string{fmt.Sprintf("Node %s could not be added to the metadata map bundle: %s", nodeName, err.Error())}
 		return stats, err
 	}
-	stats["Nodes"] = nodePodMetadataMap
+
+	stats.Nodes[nodeName] = convertmetadataMapperBundleToAPI(bundle)
 	return stats, nil
 }
 
-func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
+func getMetadataMapBundle(nodeName string) (*metadataMapperBundle, error) {
 	nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 	metaBundle, found := cache.Cache.Get(nodeNameCacheKey)
 	if !found {
 		return nil, fmt.Errorf("the key %s was not found in the cache", nodeNameCacheKey)
 	}
-	return metaBundle.(*MetadataMapperBundle), nil
+	return metaBundle.(*metadataMapperBundle), nil
 }
 
 func getNodeList(cl *APIClient) ([]v1.Node, error) {
@@ -430,4 +413,12 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	}
 
 	return result.Into(output)
+}
+
+func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
+	output := apiv1.NewMetadataResponseBundle()
+	for key, val := range input.Services {
+		output.Services[key] = val
+	}
+	return output
 }

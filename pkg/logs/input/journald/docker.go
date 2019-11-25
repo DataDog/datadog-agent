@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build systemd
 
@@ -11,6 +11,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +33,7 @@ func (t *Tailer) getContainerID(entry *sdjournal.JournalEntry) string {
 
 // getContainerTags returns all the tags of a given container.
 func (t *Tailer) getContainerTags(containerID string) []string {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(containerID), true)
+	tags, err := tagger.Tag(dockerutil.ContainerIDToTaggerEntityName(containerID), collectors.HighCardinality)
 	if err != nil {
 		log.Warn(err)
 	}
@@ -41,8 +42,5 @@ func (t *Tailer) getContainerTags(containerID string) []string {
 
 // initializeTagger initializes the tag collector.
 func (t *Tailer) initializeTagger() {
-	err := tagger.Init()
-	if err != nil {
-		log.Warn(err)
-	}
+	tagger.Init()
 }

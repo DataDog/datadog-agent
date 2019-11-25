@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package providers
 
@@ -10,24 +10,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// User-facing names for the config providers
 const (
-	// Consul represents the name of the Consul config provider
-	Consul = "Consul"
-	// ClusterChecks represents the name of the Cluster checks config provider
-	ClusterChecks = "Cluster checks"
-	// Docker represents the name of the docker config provider
-	Docker = "Docker"
-	// ECS represents the name of the ecs config provider
-	ECS = "ECS"
-	// Etcd represents the name of the etcd config provider
-	Etcd = "etcd"
-	// File represents the name of the file config provider
-	File = "File"
-	// Kubernetes represents the name of the kubernetes config provider
-	Kubernetes = "Kubernetes"
-	// Zookeeper represents the name of the zookeeper config provider
-	Zookeeper = "Zookeeper"
+	Consul          = "consul"
+	ClusterChecks   = "cluster-checks"
+	Docker          = "docker"
+	ECS             = "ecs"
+	EndpointsChecks = "endpoints-checks"
+	Etcd            = "etcd"
+	File            = "file"
+	Kubernetes      = "kubernetes"
+	KubeServices    = "kubernetes-services"
+	KubeEndpoints   = "kubernetes-endpoints"
+	Zookeeper       = "zookeeper"
 )
+
+// KubeEndpointsProviderName defines the kube endpoints provider name
+const KubeEndpointsProviderName = "kube_endpoints"
 
 // ProviderCatalog keeps track of config providers by name
 var ProviderCatalog = make(map[string]ConfigProviderFactory)

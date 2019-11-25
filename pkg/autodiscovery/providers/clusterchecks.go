@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package providers
 
@@ -21,9 +21,9 @@ const defaultGraceDuration = 60 * time.Second
 // ClusterChecksConfigProvider implements the ConfigProvider interface
 // for the cluster check feature.
 type ClusterChecksConfigProvider struct {
-	dcaClient      *clusteragent.DCAClient
+	dcaClient      clusteragent.DCAClientInterface
 	graceDuration  time.Duration
-	lastPing       time.Time
+	heartbeat      time.Time
 	lastChange     int64
 	nodeName       string
 	flushedConfigs bool
@@ -62,7 +62,7 @@ func (c *ClusterChecksConfigProvider) String() string {
 }
 
 func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {
-	return c.lastPing.Add(c.graceDuration).After(time.Now())
+	return c.heartbeat.Add(c.graceDuration).After(time.Now())
 }
 
 // IsUpToDate queries the cluster-agent to update its status and
@@ -90,7 +90,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
 		return false, err
 	}
 
-	c.lastPing = time.Now()
+	c.heartbeat = time.Now()
 	if reply.IsUpToDate {
 		log.Tracef("Up to date with change %d", c.lastChange)
 	} else {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -21,7 +21,7 @@ var globalMetaBundleStore = &metaBundleStore{
 	cache: agentcache.Cache,
 }
 
-// metaBundleStore is a cache for MetadataMapperBundles for each node in the cluster
+// metaBundleStore is a cache for metadataMapperBundles for each node in the cluster
 // and allows multiple goroutines to safely get or create meta bundles for the same nodes
 // without overwriting each other.
 type metaBundleStore struct {
@@ -33,10 +33,10 @@ type metaBundleStore struct {
 	cache *cache.Cache
 }
 
-func (m *metaBundleStore) get(nodeName string) (*MetadataMapperBundle, bool) {
+func (m *metaBundleStore) get(nodeName string) (*metadataMapperBundle, bool) {
 	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
-	var metaBundle *MetadataMapperBundle
+	var metaBundle *metadataMapperBundle
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -46,7 +46,7 @@ func (m *metaBundleStore) get(nodeName string) (*MetadataMapperBundle, bool) {
 		return nil, false
 	}
 
-	metaBundle, ok = v.(*MetadataMapperBundle)
+	metaBundle, ok = v.(*metadataMapperBundle)
 	if !ok {
 		log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 		return nil, false
@@ -55,31 +55,28 @@ func (m *metaBundleStore) get(nodeName string) (*MetadataMapperBundle, bool) {
 	return metaBundle, true
 }
 
-func (m *metaBundleStore) getOrCreate(nodeName string) *MetadataMapperBundle {
+func (m *metaBundleStore) getCopyOrNew(nodeName string) *metadataMapperBundle {
 	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
-	var metaBundle *MetadataMapperBundle
+	metaBundle := newMetadataMapperBundle()
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	v, ok := m.cache.Get(cacheKey)
 	if ok {
-		metaBundle, ok := v.(*MetadataMapperBundle)
-		if ok {
-			return metaBundle
+		oldMetaBundle, ok := v.(*metadataMapperBundle)
+		if !ok {
+			log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
+		} else {
+			metaBundle.DeepCopy(oldMetaBundle)
 		}
-		log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 	}
-
-	metaBundle = newMetadataMapperBundle()
-
-	m.cache.Set(cacheKey, metaBundle, cache.NoExpiration)
 
 	return metaBundle
 }
 
-func (m *metaBundleStore) set(nodeName string, metaBundle *MetadataMapperBundle) {
+func (m *metaBundleStore) set(nodeName string, metaBundle *metadataMapperBundle) {
 	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
 
 	m.mu.Lock()

@@ -1,5 +1,37 @@
 # Setting up your development environment
 
+## Python
+
+The Agent embeds a full-fledged CPython interpreter so it requires the
+development files to be available in the dev env. The Agent can embed Python2
+and/or Python3, you will need development files for all versions you want to
+support.
+
+If you're on OSX/macOS, installing Python 2.7 and/or 3.7 with [Homebrew](https://brew.sh) will
+bring along all the development files needed:
+```
+brew install python@2
+brew install python@3
+```
+
+On Linux, depending on the distribution, you might need to explicitly install
+the development files, for example on Ubuntu:
+```
+sudo apt-get install python2.7-dev
+sudo apt-get install python2.3-dev
+```
+
+On Windows, install Python 2.7 and/or 3.7 via the [official installer](https://www.python.org/downloads/).
+
+### Additional Windows Tools
+You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)
+
+Download the [gcc toolchain](http://win-builds.org/).
+- From the graphical package manager, select and install the needed libraries, leave the default (select all) if you're unsure.
+- Make sure to select x86_64.
+- Add installation folder to the %PATH%.
+
+
 ## Invoke + Python Dependencies
 
 [Invoke](http://www.pyinvoke.org/) is a task runner written in Python
@@ -32,16 +64,18 @@ environment is recommended (though optional). It will help keep an isolated deve
 environment and ensure a clean system python.
 
 - Install the virtualenv module:
-```pip install virtualenv```
+```pip2 install virtualenv```
 - Create the virtual environment:
 ```virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv```
-- Enable the virtual environment:
-```source $GOPATH/src/github.com/DataDog/datadog-agent/venv/bin/activate```
+- Specify the path when building the agent:
+```invoke agent.build --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv```
 
+If you are using python 3 instead (or switching between python versions), you can also
+add `--python-home-3=<path>` pointing to a python3 virtual environment.
 
 ## Golang
 
-You must install [go](https://golang.org/doc/install) version 1.10.2 or above. Make
+You must install [go](https://golang.org/doc/install) version 1.11.5 or above. Make
 sure that `$GOPATH/bin` is in your `$PATH` otherwise Invoke cannot use any
 additional tool it might need.
 
@@ -104,49 +138,6 @@ boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_L
 changing the `invoke.yaml` file or passing the corresponding arg to the build and
 test tasks, like `invoke build --use-system-libs=false`.
 
-### Python
-
-The Agent embeds a full-fledged CPython interpreter so it requires the development
-files to be available in the dev env.
-
-If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
-bring along all the development files needed:
-```
-brew install python@2
-```
-
-On Windows, the [official installer](https://www.python.org/downloads/) will
-provide all the files needed.
-
-On Linux, depending on the distribution, you might need to explicitly install
-the development files, for example on Ubuntu:
-```
-sudo apt-get install python2.7-dev
-```
-
-### SNMP (Simple Network Management Protocol)
-
-The new SNMP check is written in Go, so the Agent must be built against few
-libraries.
-
-On OSX/macOS with [Homebrew](https://brew.sh):
-```
-brew install net-snmp
-```
-
-On Windows TODO
-
-On Ubuntu:
-```
-sudo apt-get install libsnmp-base libsnmp-dev snmp-mibs-downloader
-```
-
-**Please note:** the package `snmp-mibs-downloader` is only available in the
-`multiverse` Ubuntu repo and in `non-free` Debian repo. If you don't really
-need to work/debug on the SNMP integration, you could just build the agent without
-it (see [Building the Agent][building] for how to do it) and avoid the dependencies
-setup efforts altogether.
-
 ### Systemd
 
 The agent is able to collect systemd journal logs using a wrapper on the systemd utility library.
@@ -173,3 +164,12 @@ dev environment.
 [agent-omnibus]: agent_omnibus.md
 [integrations-core]: https://github.com/DataDog/integrations-core
 [datadog_checks_base]: https://github.com/DataDog/integrations-core/tree/master/datadog_checks_base
+
+## Doxygen
+
+We use [Doxygen](http://www.doxygen.nl/) to generate the documentation for the `rtloader` part of the Agent.
+
+To generate it (using the `invoke rtloader.generate-doc` command), you'll need to have Doxygen installed on your system and available in your `$PATH`. You can compile and install Doxygen from source with the instructions available [here](http://www.doxygen.nl/manual/install.html).
+Alternatively, you can use already-compiled Doxygen binaries from [here](http://www.doxygen.nl/download.html).
+
+To get the dependency graphs, you may also need to install the `dot` executable from [graphviz](http://www.graphviz.org/) and add it to your `$PATH`.

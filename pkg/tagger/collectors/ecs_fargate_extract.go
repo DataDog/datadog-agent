@@ -12,33 +12,49 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // parseMetadata parses the task metadata and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
-func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool) ([]*TagInfo, error) {
+func (c *ECSFargateCollector) parseMetadata(meta metadata.TaskMetadata, parseAll bool) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 
 	if meta.KnownStatus != "RUNNING" {
 		return output, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
 	}
+	globalTags := config.Datadog.GetStringSlice("tags")
 
 	for _, ctr := range meta.Containers {
 		if c.expire.Update(ctr.DockerID, now) || parseAll {
 			tags := utils.NewTagList()
 
+			// global tags
+			for _, value := range globalTags {
+				if strings.Contains(value, ":") {
+					tag := strings.SplitN(value, ":", 2)
+					tags.AddLow(tag[0], tag[1])
+				}
+			}
+
 			// cluster
 			tags.AddLow("cluster_name", parseECSClusterName(meta.ClusterName))
+
+			// aws region from cluster arn
+			region := parseFargateRegion(meta.ClusterName)
+			if region != "" {
+				tags.AddLow("region", region)
+			}
 
 			// task
 			tags.AddLow("task_family", meta.Family)
 			tags.AddLow("task_version", meta.Version)
+			tags.AddOrchestrator("task_arn", meta.TaskARN)
 
 			// container
 			tags.AddLow("ecs_container_name", ctr.Name)
@@ -65,12 +81,13 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata, parseAll bool
 				}
 			}
 
-			low, high := tags.Compute()
+			low, orch, high := tags.Compute()
 			info := &TagInfo{
-				Source:       ecsFargateCollectorName,
-				Entity:       docker.ContainerIDToEntityName(string(ctr.DockerID)),
-				HighCardTags: high,
-				LowCardTags:  low,
+				Source:               ecsFargateCollectorName,
+				Entity:               containers.BuildTaggerEntityName(string(ctr.DockerID)),
+				HighCardTags:         high,
+				OrchestratorCardTags: orch,
+				LowCardTags:          low,
 			}
 			output = append(output, info)
 		}
@@ -87,4 +104,22 @@ func parseECSClusterName(value string) string {
 	} else {
 		return value
 	}
+}
+
+func parseFargateRegion(arn string) string {
+	arnParts := strings.Split(arn, ":")
+	if len(arnParts) < 4 {
+		return ""
+	}
+	if arnParts[0] != "arn" || arnParts[1] != "aws" {
+		return ""
+	}
+	region := arnParts[3]
+
+	// Sanity check
+	if strings.Count(region, "-") < 2 {
+		return ""
+	}
+
+	return region
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/go-connections/nat"
@@ -262,7 +263,10 @@ func (l *DockerListener) removeService(cID string) {
 		delete(l.services, cID)
 		l.m.Unlock()
 
-		l.delService <- svc
+		// delay service removal for short lived service detection
+		time.AfterFunc(5*time.Second, func() {
+			l.delService <- svc
+		})
 	} else {
 		log.Debugf("Container %s not found, not removing", cID[:12])
 	}
@@ -303,6 +307,12 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	if found {
 		ips["rancher"] = rancherIP
 	}
+
+	if len(ips) == 0 {
+		// Other edge cases require a container inspect, delay it until
+		// template resolution, when GetHosts will be called.
+		return nil
+	}
 	return ips
 }
 
@@ -324,6 +334,10 @@ func (l *DockerListener) getPortsFromPs(co types.Container) []ContainerPort {
 // GetEntity returns the unique entity name linked to that service
 func (s *DockerService) GetEntity() string {
 	return docker.ContainerIDToEntityName(s.cID)
+}
+
+func (s *DockerService) GetTaggerEntity() string {
+	return docker.ContainerIDToTaggerEntityName(s.cID)
 }
 
 func (l *DockerListener) isExcluded(co types.Container) bool {
@@ -404,6 +418,13 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 		ips["rancher"] = rancherIP
 	}
 
+	// Some CNI solutions (including ECS awsvpc) do not assign an IP
+	// through docker, but set a valid reachable hostname. Use it if
+	// no IP is discovered.
+	if len(ips) == 0 && cInspect.Config != nil && len(cInspect.Config.Hostname) > 0 {
+		ips["hostname"] = cInspect.Config.Hostname
+	}
+
 	s.hosts = ips
 	return ips, nil
 }
@@ -479,7 +500,7 @@ func parseDockerPort(port nat.Port) ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
-	tags, err := tagger.Tag(s.GetEntity(), tagger.IsFullCardinality())
+	tags, err := tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 	if err != nil {
 		return []string{}, err
 	}
@@ -544,4 +565,9 @@ func findKubernetesInLabels(labels map[string]string) bool {
 		}
 	}
 	return false
+}
+
+// IsReady returns if the service is ready
+func (s *DockerService) IsReady() bool {
+	return true
 }

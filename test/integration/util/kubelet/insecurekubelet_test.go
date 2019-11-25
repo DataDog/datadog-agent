@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -29,14 +29,16 @@ func (suite *InsecureTestSuite) SetupTest() {
 }
 
 func (suite *InsecureTestSuite) TestHTTP() {
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
+	mockConfig := config.Mock()
+
+	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
 
 	// Giving 10255 http port to https setting will force an intended https discovery failure
 	// Then it forces the http usage
-	config.Datadog.Set("kubernetes_https_kubelet_port", 10255)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_https_kubelet_port", 10255)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -52,8 +54,9 @@ func (suite *InsecureTestSuite) TestHTTP() {
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), 0, len(podList))
+	// we don't consider null podlist as valid
+	require.Error(suite.T(), err)
+	assert.Nil(suite.T(), podList)
 
 	require.EqualValues(suite.T(),
 		map[string]string{
@@ -62,11 +65,13 @@ func (suite *InsecureTestSuite) TestHTTP() {
 }
 
 func (suite *InsecureTestSuite) TestInsecureHTTPS() {
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
-	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig := config.Mock()
+
+	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
+	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
@@ -82,8 +87,9 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), 0, len(podList))
+	// we don't consider null podlist as valid
+	require.Error(suite.T(), err)
+	assert.Nil(suite.T(), podList)
 
 	require.EqualValues(suite.T(),
 		map[string]string{

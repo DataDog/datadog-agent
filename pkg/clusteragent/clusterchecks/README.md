@@ -64,3 +64,10 @@ atomic, the stores are designed with an external locking, held by the `dispatche
 ## Node-agent communication
 
 The node-agent queries the cluster-agent through the autodiscovery `ClusterChecksConfigProvider`.
+As nodes can be removed without notice, the cluster-agent has to detect when a node is not
+connected anymore and re-dispatch the configurations to other, active, nodes.
+
+This is handled by the `node_expiration_timeout` option (30 seconds by default) and the
+`dispatcher.expireNodes` method. The node-agents heartbeat is updated when they POST on the
+`status` url (10 seconds in the default configuration). When that heartbeat timestamp is too
+old, the node is deleted and its configurations put back in the dangling map.

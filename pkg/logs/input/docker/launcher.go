@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -20,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -42,6 +42,7 @@ type Launcher struct {
 	stop               chan struct{}
 	erroredContainerID chan string
 	lock               *sync.Mutex
+	collectAllSource   *config.LogSource
 }
 
 // NewLauncher returns a new launcher
@@ -65,8 +66,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	// between Docker and Kubernetes
 	launcher.addedSources = sources.GetAddedForType(config.DockerType)
 	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
-	launcher.addedServices = services.GetAddedServices(service.Docker)
-	launcher.removedServices = services.GetRemovedServices(service.Docker)
+	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
+	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
 	return launcher, nil
 }
 
@@ -80,10 +81,7 @@ func (l *Launcher) setup() error {
 		return err
 	}
 	// initialize the tagger
-	err = tagger.Init()
-	if err != nil {
-		return err
-	}
+	tagger.Init()
 	return nil
 }
 
@@ -158,13 +156,39 @@ func (l *Launcher) run() {
 			containerID := service.Identifier
 			l.stopTailer(containerID)
 			delete(l.pendingContainers, containerID)
-		case containerId := <-l.erroredContainerID:
-			go l.restartTailer(containerId)
+		case containerID := <-l.erroredContainerID:
+			go l.restartTailer(containerID)
 		case <-l.stop:
 			// no docker container should be tailed anymore
 			return
 		}
 	}
+}
+
+// overrideSource create a new source with the image short name if the source is ContainerCollectAll
+func (l *Launcher) overrideSource(container *Container, source *config.LogSource) *config.LogSource {
+	if source.Name != config.ContainerCollectAll {
+		return source
+	}
+
+	if l.collectAllSource == nil {
+		l.collectAllSource = source
+	}
+
+	shortName, err := container.getShortImageName()
+	if err != nil {
+		containerID := container.service.Identifier
+		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
+		return source
+	}
+
+	overridenSource := config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
+		Type:    config.DockerType,
+		Service: shortName,
+		Source:  shortName,
+	})
+	overridenSource.Status = source.Status
+	return overridenSource
 }
 
 // startTailer starts a new tailer for the container matching with the source.
@@ -175,20 +199,23 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		return
 	}
 
-	tailer := NewTailer(l.cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+	// overridenSource == source if the containerCollectAll option is not activated or the container has AD labels
+	overridenSource := l.overrideSource(container, source)
+	tailer := NewTailer(l.cli, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
 	if err != nil {
-		log.Warnf("Could not recover tailing from last committed offset: %v", ShortContainerID(containerID), err)
+		log.Warnf("Could not recover tailing from last committed offset %v: %v", ShortContainerID(containerID), err)
 	}
 
 	// start the tailer
 	err = tailer.Start(since)
 	if err != nil {
-		log.Warnf("Could not start tailer: %v", containerID, err)
+		log.Warnf("Could not start tailer %s: %v", containerID, err)
 		return
 	}
+	source.AddInput(containerID)
 
 	// keep the tailer in track to stop it later on
 	l.addTailer(containerID, tailer)
@@ -197,6 +224,10 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 // stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
 	if tailer, isTailed := l.tailers[containerID]; isTailed {
+		// No-op if the tailer source came from AD
+		if l.collectAllSource != nil {
+			l.collectAllSource.RemoveInput(containerID)
+		}
 		go tailer.Stop()
 		l.removeTailer(containerID)
 	}
@@ -210,6 +241,9 @@ func (l *Launcher) restartTailer(containerID string) {
 	oldTailer, exists := l.tailers[containerID]
 	if exists {
 		source = oldTailer.source
+		if l.collectAllSource != nil {
+			l.collectAllSource.RemoveInput(containerID)
+		}
 		oldTailer.Stop()
 		l.removeTailer(containerID)
 	}
@@ -239,6 +273,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		}
 		// keep the tailer in track to stop it later on
 		l.addTailer(containerID, tailer)
+		source.AddInput(containerID)
 		return
 	}
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package aggregator
 
@@ -29,15 +29,20 @@ type TimeSampler struct {
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
+	sketchMap                   sketchMap
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
 func NewTimeSampler(interval int64) *TimeSampler {
+	if interval == 0 {
+		interval = bucketSize
+	}
 	return &TimeSampler{
 		interval:                    interval,
 		contextResolver:             newContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
+		sketchMap:                   make(sketchMap),
 	}
 }
 
@@ -45,45 +50,64 @@ func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
 	return int64(timestamp) - int64(timestamp)%s.interval
 }
 
+func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) bool {
+	return bucketStartTimestamp+s.interval > timestamp
+}
+
 // Add the metricSample to the correct bucket
 func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
-
 	bucketStart := s.calculateBucketStart(timestamp)
-	// If it's a new bucket, initialize it
-	bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
-	if !ok {
-		bucketMetrics = metrics.MakeContextMetrics()
-		s.metricsByTimestamp[bucketStart] = bucketMetrics
-	}
-	// Update LastSampled timestamp for counters
-	if metricSample.Mtype == metrics.CounterType {
-		s.counterLastSampledByContext[contextKey] = timestamp
-	}
 
-	// Add sample to bucket
-	if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval); err != nil {
-		log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+	switch metricSample.Mtype {
+	case metrics.DistributionType:
+		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value)
+	default:
+		// If it's a new bucket, initialize it
+		bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
+		if !ok {
+			bucketMetrics = metrics.MakeContextMetrics()
+			s.metricsByTimestamp[bucketStart] = bucketMetrics
+		}
+		// Update LastSampled timestamp for counters
+		if metricSample.Mtype == metrics.CounterType {
+			s.counterLastSampledByContext[contextKey] = timestamp
+		}
+
+		// Add sample to bucket
+		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval); err != nil {
+			log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+		}
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64) metrics.Series {
-	var result []*metrics.Serie
+func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+	ctx := s.contextResolver.contextsByKey[ck]
+	ss := metrics.SketchSeries{
+		Name:       ctx.Name,
+		Tags:       ctx.Tags,
+		Host:       ctx.Host,
+		Interval:   s.interval,
+		Points:     points,
+		ContextKey: ck,
+	}
+
+	return ss
+}
+
+func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
+	var series []*metrics.Serie
 	var rawSeries []*metrics.Serie
 
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
-
-	// Compute a limit timestamp
-	cutoffTime := s.calculateBucketStart(timestamp)
-
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	counterContextsToDelete := map[ckey.ContextKey]struct{}{}
 
 	if len(s.metricsByTimestamp) > 0 {
 		for bucketTimestamp, contextMetrics := range s.metricsByTimestamp {
 			// disregard when the timestamp is too recent
-			if cutoffTime <= bucketTimestamp {
+			if s.isBucketStillOpen(bucketTimestamp, cutoffTime) {
 				continue
 			}
 
@@ -129,13 +153,42 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 			serie.Interval = s.interval
 
 			serieBySignature[serieSignature] = serie
-			result = append(result, serie)
+			series = append(series, serie)
 		}
 	}
 
+	return series
+}
+
+func (s TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
+	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
+
+	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
+		if p.Sketch == nil {
+			return
+		}
+		pointsByCtx[ck] = append(pointsByCtx[ck], p)
+	})
+	for ck, points := range pointsByCtx {
+		sketches = append(sketches, s.newSketchSeries(ck, points))
+	}
+
+	return sketches
+}
+
+func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
+	// Compute a limit timestamp
+	cutoffTime := s.calculateBucketStart(timestamp)
+
+	series := s.flushSeries(cutoffTime)
+	sketches := s.flushSketches(cutoffTime)
+
+	// expiring contexts
 	s.contextResolver.expireContexts(timestamp - defaultExpiry)
 	s.lastCutOffTime = cutoffTime
-	return result
+
+	return series, sketches
 }
 
 // flushContextMetrics flushes the passed contextMetrics, handles its errors, and returns its series

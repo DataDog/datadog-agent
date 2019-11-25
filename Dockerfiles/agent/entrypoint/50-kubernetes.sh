@@ -7,8 +7,13 @@ fi
 # Set a default config for Kubernetes if found
 # Don't override /etc/datadog-agent/datadog.yaml if it exists
 if [[ ! -e /etc/datadog-agent/datadog.yaml ]]; then
-    ln -s  /etc/datadog-agent/datadog-kubernetes.yaml \
+    if [[ -e /var/run/docker.sock ]]; then
+        ln -s /etc/datadog-agent/datadog-k8s-docker.yaml \
            /etc/datadog-agent/datadog.yaml
+    else
+        ln -s /etc/datadog-agent/datadog-kubernetes.yaml \
+           /etc/datadog-agent/datadog.yaml
+    fi
 fi
 
 # Enable kubernetes integrations (don't fail if integration absent)

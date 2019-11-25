@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package file
 
@@ -240,5 +240,5 @@ func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) boo
 
 // createTailer returns a new initialized tailer
 func (s *Scanner) createTailer(file *File, outputChan chan *message.Message) *Tailer {
-	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
+	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration, file.IsWildcardPath)
 }

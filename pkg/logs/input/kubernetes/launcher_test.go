@@ -1,24 +1,26 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
 package kubernetes
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 func TestGetSource(t *testing.T) {
-	launcher := &Launcher{}
+	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -39,14 +41,14 @@ func TestGetSource(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
-	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", source.Config.Path)
 	assert.Equal(t, "boo", source.Config.Identifier)
-	assert.Equal(t, "kubernetes", source.Config.Source)
-	assert.Equal(t, "kubernetes", source.Config.Service)
+	assert.Equal(t, "bar", source.Config.Source)
+	assert.Equal(t, "bar", source.Config.Service)
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{}
+	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -70,7 +72,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
-	assert.Equal(t, "/var/log/pods/baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", source.Config.Path)
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
@@ -78,7 +80,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{}
+	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -90,6 +92,7 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 			Namespace: "buu",
 			UID:       "baz",
 			Annotations: map[string]string{
+				// missing [ ]
 				"ad.datadoghq.com/foo.logs": `{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}`,
 			},
 		},
@@ -104,7 +107,7 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceAddContainerdParser(t *testing.T) {
-	launcher := &Launcher{}
+	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -126,7 +129,9 @@ func TestGetSourceAddContainerdParser(t *testing.T) {
 	assert.Equal(t, config.FileType, source.Config.Type)
 }
 
-func TestSearchContainer(t *testing.T) {
+func TestContainerCollectAll(t *testing.T) {
+	launcherCollectAll := &Launcher{collectAll: true}
+	launcherCollectAllDisabled := &Launcher{collectAll: false}
 	containerFoo := kubelet.ContainerStatus{
 		Name:  "fooName",
 		Image: "fooImage",
@@ -137,34 +142,101 @@ func TestSearchContainer(t *testing.T) {
 		Image: "barImage",
 		ID:    "docker://barID",
 	}
-	pod := &kubelet.Pod{
+	containerBaz := kubelet.ContainerStatus{
+		Name:  "bazName",
+		Image: "bazImage",
+		ID:    "containerd://bazID",
+	}
+	podFoo := &kubelet.Pod{
 		Metadata: kubelet.PodMetadata{
 			Name:      "podName",
 			Namespace: "podNamespace",
-			UID:       "podUID",
+			UID:       "podUIDFoo",
 			Annotations: map[string]string{
-				"ad.datadoghq.com/foo.logs": `{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}`,
+				"ad.datadoghq.com/fooName.logs": `[{"source":"any_source","service":"any_service"}]`,
 			},
 		},
 		Status: kubelet.Status{
 			Containers: []kubelet.ContainerStatus{containerFoo, containerBar},
 		},
 	}
-
-	serviceFoo := &service.Service{
-		Type:       "docker",
-		Identifier: "fooID",
+	podBar := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "podName",
+			Namespace: "podNamespace",
+			UID:       "podUIDBarr",
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{containerFoo, containerBar},
+		},
 	}
-	serviceBaz := &service.Service{
-		Type:       "docker",
-		Identifier: "bazID",
+	podBaz := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "podName",
+			Namespace: "podNamespace",
+			UID:       "podUIDBaz",
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{containerBaz},
+		},
 	}
 
-	container, _ := searchContainer(serviceFoo, pod)
-	assert.Equal(t, containerFoo, container)
+	source, err := launcherCollectAll.getSource(podFoo, containerFoo)
+	assert.Nil(t, err)
+	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
+	source, err = launcherCollectAll.getSource(podBar, containerBar)
+	assert.Nil(t, err)
+	assert.Equal(t, "container_id://barID", source.Config.Identifier)
 
-	_, err := searchContainer(serviceBaz, pod)
-	assert.EqualError(t, err, "Container docker://bazID not found")
+	source, err = launcherCollectAllDisabled.getSource(podFoo, containerFoo)
+	assert.Nil(t, err)
+	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
+	source, err = launcherCollectAllDisabled.getSource(podBar, containerBar)
+	assert.Equal(t, collectAllDisabledError, err)
+	assert.Nil(t, source)
+
+	source, err = launcherCollectAll.getSource(podBaz, containerBaz)
+	assert.Nil(t, err)
+	assert.Equal(t, "container_id://bazID", source.Config.Identifier)
+}
+
+func TestGetPath(t *testing.T) {
+	launcher := &Launcher{collectAll: true}
+	container := kubelet.ContainerStatus{
+		Name:  "foo",
+		Image: "bar",
+		ID:    "boo",
+	}
+	pod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "fuz",
+			Namespace: "buu",
+			UID:       "baz",
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{container},
+		},
+	}
+
+	basePath, err := ioutil.TempDir("", "")
+	defer os.RemoveAll(basePath)
+	assert.Nil(t, err)
+
+	var (
+		path         string
+		podDirectory string
+	)
+
+	podDirectory = "buu_fuz_baz"
+	path = launcher.getPath(basePath, pod, container)
+	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo", "*.log"), path)
+
+	podDirectory = "baz"
+	err = os.Mkdir(filepath.Join(basePath, podDirectory), 0777)
+	assert.Nil(t, err)
+
+	path = launcher.getPath(basePath, pod, container)
+	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo", "*.log"), path)
 }
 
 // contains returns true if the list contains all the items.

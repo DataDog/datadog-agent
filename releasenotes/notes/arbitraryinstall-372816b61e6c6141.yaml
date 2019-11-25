@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    On Windows, allows Agent to be installed to nonstandard directories.
+    Uses APPLICATIONDATADIRECTORY to set the root of the configuration file tree,
+    and PROJECTLOCATION to set the root of the binary tree. Please refer to
+    the `docs <https://docs.datadoghq.com/agent/basic_agent_usage/windows>`_
+    for more details

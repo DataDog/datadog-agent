@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -10,11 +10,11 @@ package listeners
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -47,6 +47,17 @@ type KubeContainerService struct {
 	hosts         map[string]string
 	ports         []ContainerPort
 	creationTime  integration.CreationTime
+	ready         bool
+}
+
+// KubePodService registers pod as a Service, implements and store results from the Service interface for the Kubelet listener
+// needed to run checks on pod's endpoints
+type KubePodService struct {
+	entity        string
+	adIdentifiers []string
+	hosts         map[string]string
+	ports         []ContainerPort
+	creationTime  integration.CreationTime
 }
 
 func init() {
@@ -54,7 +65,7 @@ func init() {
 }
 
 func NewKubeletListener() (ServiceListener, error) {
-	watcher, err := kubelet.NewPodWatcher(15 * time.Second)
+	watcher, err := kubelet.NewPodWatcher(15*time.Second, false)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +77,7 @@ func NewKubeletListener() (ServiceListener, error) {
 		watcher:  watcher,
 		filter:   filter,
 		services: make(map[string]Service),
-		ticker:   time.NewTicker(15 * time.Second),
+		ticker:   time.NewTicker(config.Datadog.GetDuration("kubelet_listener_polling_interval") * time.Second),
 		stop:     make(chan bool),
 		health:   health.Register("ad-kubeletlistener"),
 	}, nil
@@ -119,13 +130,63 @@ func (l *KubeletListener) Stop() {
 
 func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, firstRun bool) {
 	for _, pod := range pods {
-		// Ignore pending/failed/succeeded/unknown states
-		if pod.Status.Phase == "Running" {
-			for _, container := range pod.Status.Containers {
+		// We ignore the state of the pod but only taking containers with ids
+		// into consideration (not pending)
+		for _, container := range pod.Status.GetAllContainers() {
+			if !container.IsPending() {
 				l.createService(container.ID, pod, firstRun)
 			}
 		}
+		l.createPodService(pod, firstRun)
 	}
+}
+
+func (l *KubeletListener) createPodService(pod *kubelet.Pod, firstRun bool) {
+	var crTime integration.CreationTime
+	if firstRun {
+		crTime = integration.Before
+	} else {
+		crTime = integration.After
+	}
+
+	// Entity, to be used as an AD identifier too
+	entity := kubelet.PodUIDToEntityName(pod.Metadata.UID)
+
+	// Hosts
+	podIp := pod.Status.PodIP
+	if podIp == "" {
+		log.Errorf("Unable to get pod %s IP", pod.Metadata.Name)
+	}
+
+	// Ports: adding all ports of pod's containers
+	var ports []ContainerPort
+	for _, container := range pod.Spec.Containers {
+		for _, port := range container.Ports {
+			ports = append(ports, ContainerPort{port.ContainerPort, port.Name})
+		}
+	}
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Port < ports[j].Port
+	})
+
+	if len(ports) == 0 {
+		// Port might not be specified in pod spec
+		log.Debugf("No ports found for pod %s", pod.Metadata.Name)
+	}
+
+	svc := KubePodService{
+		entity:        entity,
+		adIdentifiers: []string{entity},
+		hosts:         map[string]string{"pod": podIp},
+		ports:         ports,
+		creationTime:  crTime,
+	}
+
+	l.m.Lock()
+	l.services[entity] = &svc
+	l.m.Unlock()
+
+	l.newService <- &svc
 }
 
 func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRun bool) {
@@ -138,12 +199,13 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	svc := KubeContainerService{
 		entity:       entity,
 		creationTime: crTime,
+		ready:        kubelet.IsPodReady(pod),
 	}
 	podName := pod.Metadata.Name
 
 	// AD Identifiers
 	var containerName string
-	for _, container := range pod.Status.Containers {
+	for _, container := range pod.Status.GetAllContainers() {
 		if container.ID == svc.entity {
 			if l.filter.IsExcluded(container.Name, container.Image) {
 				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, container.Image)
@@ -152,7 +214,7 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 			containerName = container.Name
 
 			// Add container uid as ID
-			svc.adIdentifiers = append(svc.adIdentifiers, container.ID)
+			svc.adIdentifiers = append(svc.adIdentifiers, entity)
 
 			// Stop here if we find an AD template annotation
 			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
@@ -219,11 +281,6 @@ func podHasADTemplate(annotations map[string]string, containerName string) bool 
 }
 
 func (l *KubeletListener) removeService(entity string) {
-	if strings.HasPrefix(entity, kubelet.KubePodPrefix) {
-		// Ignoring expired pods
-		return
-	}
-
 	l.m.RLock()
 	svc, ok := l.services[entity]
 	l.m.RUnlock()
@@ -242,6 +299,15 @@ func (l *KubeletListener) removeService(entity string) {
 // GetEntity returns the unique entity name linked to that service
 func (s *KubeContainerService) GetEntity() string {
 	return s.entity
+}
+
+// GetEntity returns the unique entity name linked to that service
+func (s *KubeContainerService) GetTaggerEntity() string {
+	taggerEntity, err := kubelet.KubeContainerIDToTaggerEntityID(s.entity)
+	if err != nil {
+		return s.entity
+	}
+	return taggerEntity
 }
 
 // GetADIdentifiers returns the service AD identifiers
@@ -266,7 +332,7 @@ func (s *KubeContainerService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *KubeContainerService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.entity), tagger.IsFullCardinality())
+	return tagger.Tag(string(s.GetTaggerEntity()), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -277,4 +343,63 @@ func (s *KubeContainerService) GetHostname() (string, error) {
 // GetCreationTime returns the creation time of the container compare to the agent start.
 func (s *KubeContainerService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
+}
+
+// IsReady returns if the service is ready
+func (s *KubeContainerService) IsReady() bool {
+	return s.ready
+}
+
+// GetEntity returns the unique entity name linked to that service
+func (s *KubePodService) GetEntity() string {
+	return s.entity
+}
+
+// GetEntity returns the unique entity name linked to that service
+func (s *KubePodService) GetTaggerEntity() string {
+	taggerEntity, err := kubelet.KubePodUIDToTaggerEntityID(s.entity)
+	if err != nil {
+		return s.entity
+	}
+	return taggerEntity
+}
+
+// GetADIdentifiers returns the service AD identifiers
+func (s *KubePodService) GetADIdentifiers() ([]string, error) {
+	return s.adIdentifiers, nil
+}
+
+// GetHosts returns the pod hosts
+func (s *KubePodService) GetHosts() (map[string]string, error) {
+	return s.hosts, nil
+}
+
+// GetPid is not supported for PodContainerService
+func (s *KubePodService) GetPid() (int, error) {
+	return -1, ErrNotSupported
+}
+
+// GetPorts returns the container's ports
+func (s *KubePodService) GetPorts() ([]ContainerPort, error) {
+	return s.ports, nil
+}
+
+// GetTags retrieves tags using the Tagger
+func (s *KubePodService) GetTags() ([]string, error) {
+	return tagger.Tag(string(s.GetTaggerEntity()), tagger.ChecksCardinality)
+}
+
+// GetHostname returns nil and an error because port is not supported in Kubelet
+func (s *KubePodService) GetHostname() (string, error) {
+	return "", ErrNotSupported
+}
+
+// GetCreationTime returns the creation time of the container compare to the agent start.
+func (s *KubePodService) GetCreationTime() integration.CreationTime {
+	return s.creationTime
+}
+
+// IsReady returns if the service is ready
+func (s *KubePodService) IsReady() bool {
+	return true
 }

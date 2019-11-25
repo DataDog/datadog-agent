@@ -1,12 +1,23 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package config
 
 import (
 	"sync"
+)
+
+// SourceType used for log line parsing logic.
+// TODO: remove this logic.
+type SourceType string
+
+const (
+	// DockerSourceType docker source type
+	DockerSourceType SourceType = "docker"
+	// KubernetesSourceType kubernetes source type
+	KubernetesSourceType SourceType = "kubernetes"
 )
 
 // LogSource holds a reference to an integration name and a log configuration, and allows to track errors and
@@ -22,7 +33,7 @@ type LogSource struct {
 	// sourceType is the type of the source that we are tailing whereas Config.Type is the type of the tailer
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
-	sourceType string
+	sourceType SourceType
 }
 
 // NewLogSource creates a new log source.
@@ -63,14 +74,14 @@ func (s *LogSource) GetInputs() []string {
 }
 
 // SetSourceType sets a format that give information on how the source lines should be parsed
-func (s *LogSource) SetSourceType(sourceType string) {
+func (s *LogSource) SetSourceType(sourceType SourceType) {
 	s.lock.Lock()
 	s.sourceType = sourceType
 	s.lock.Unlock()
 }
 
 // GetSourceType returns the sourceType used by this source
-func (s *LogSource) GetSourceType() string {
+func (s *LogSource) GetSourceType() SourceType {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.sourceType

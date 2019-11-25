@@ -16,13 +16,15 @@ import (
 // entityTags holds the tag information for a given entity
 type entityTags struct {
 	sync.RWMutex
-	lowCardTags  map[string][]string
-	highCardTags map[string][]string
-	cacheValid   bool
-	cachedSource []string
-	cachedAll    []string // Low + high
-	cachedLow    []string // Sub-slice of cachedAll
-	tagsHash     string
+	lowCardTags          map[string][]string
+	orchestratorCardTags map[string][]string
+	highCardTags         map[string][]string
+	cacheValid           bool
+	cachedSource         []string
+	cachedAll            []string // Low + orchestrator + high
+	cachedOrchestrator   []string // Low + orchestrator (subslice of cachedAll)
+	cachedLow            []string // Sub-slice of cachedAll
+	tagsHash             string
 }
 
 // tagStore stores entity tags in memory and handles search and collation.
@@ -64,15 +66,25 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	storedTags, exist := s.store[info.Entity]
 	if !exist {
 		storedTags = &entityTags{
-			lowCardTags:  make(map[string][]string),
-			highCardTags: make(map[string][]string),
+			lowCardTags:          make(map[string][]string),
+			orchestratorCardTags: make(map[string][]string),
+			highCardTags:         make(map[string][]string),
 		}
 		s.store[info.Entity] = storedTags
 	}
 
 	storedTags.Lock()
 	defer storedTags.Unlock()
+	_, found := storedTags.lowCardTags[info.Source]
+	if found && info.CacheMiss {
+		// check if the source tags is already present for this entry
+		// Only check once since we always write all cardinality tag levels.
+		err := fmt.Errorf("try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
+		log.Tracef("processTagInfo err: %v", err)
+		return err
+	}
 	storedTags.lowCardTags[info.Source] = info.LowCardTags
+	storedTags.orchestratorCardTags[info.Source] = info.OrchestratorCardTags
 	storedTags.highCardTags[info.Source] = info.HighCardTags
 	storedTags.cacheValid = false
 
@@ -122,7 +134,7 @@ func (s *tagStore) prune() error {
 // slice. It returns the source names in the second slice to allow the
 // client to trigger manual lookups on missing sources, the last string
 // is the tags hash to have a snapshot digest of all the tags.
-func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string, string) {
+func (s *tagStore) lookup(entity string, cardinality collectors.TagCardinality) ([]string, []string, string) {
 	s.storeMutex.RLock()
 	defer s.storeMutex.RUnlock()
 	storedTags, present := s.store[entity]
@@ -130,23 +142,25 @@ func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string, str
 	if present == false {
 		return nil, nil, ""
 	}
-	return storedTags.get(highCard)
+	return storedTags.get(cardinality)
 }
 
 type tagPriority struct {
-	tag        string                       // full tag
-	priority   collectors.CollectorPriority // collector priority
-	isHighCard bool                         // is the tag high cardinality
+	tag         string                       // full tag
+	priority    collectors.CollectorPriority // collector priority
+	cardinality collectors.TagCardinality    // cardinality level of the tag (low, orchestrator, high)
 }
 
-func (e *entityTags) get(highCard bool) ([]string, []string, string) {
+func (e *entityTags) get(cardinality collectors.TagCardinality) ([]string, []string, string) {
 	e.Lock()
 	defer e.Unlock()
 
 	// Cache hit
 	if e.cacheValid {
-		if highCard {
+		if cardinality == collectors.HighCardinality {
 			return e.cachedAll, e.cachedSource, e.tagsHash
+		} else if cardinality == collectors.OrchestratorCardinality {
+			return e.cachedOrchestrator, e.cachedSource, e.tagsHash
 		}
 		return e.cachedLow, e.cachedSource, e.tagsHash
 	}
@@ -157,14 +171,19 @@ func (e *entityTags) get(highCard bool) ([]string, []string, string) {
 
 	for source, tags := range e.lowCardTags {
 		sources = append(sources, source)
-		insertWithPriority(tagPrioMapper, tags, source, false)
+		insertWithPriority(tagPrioMapper, tags, source, collectors.LowCardinality)
+	}
+
+	for source, tags := range e.orchestratorCardTags {
+		insertWithPriority(tagPrioMapper, tags, source, collectors.OrchestratorCardinality)
 	}
 
 	for source, tags := range e.highCardTags {
-		insertWithPriority(tagPrioMapper, tags, source, true)
+		insertWithPriority(tagPrioMapper, tags, source, collectors.HighCardinality)
 	}
 
 	var lowCardTags []string
+	var orchestratorCardTags []string
 	var highCardTags []string
 	for _, tags := range tagPrioMapper {
 		for i := 0; i < len(tags); i++ {
@@ -179,30 +198,37 @@ func (e *entityTags) get(highCard bool) ([]string, []string, string) {
 			if !insert {
 				continue
 			}
-			if tags[i].isHighCard {
+			if tags[i].cardinality == collectors.HighCardinality {
 				highCardTags = append(highCardTags, tags[i].tag)
+				continue
+			} else if tags[i].cardinality == collectors.OrchestratorCardinality {
+				orchestratorCardTags = append(orchestratorCardTags, tags[i].tag)
 				continue
 			}
 			lowCardTags = append(lowCardTags, tags[i].tag)
 		}
 	}
 
-	tags := append(lowCardTags, highCardTags...)
+	tags := append(lowCardTags, orchestratorCardTags...)
+	tags = append(tags, highCardTags...)
 
 	// Write cache
 	e.cacheValid = true
 	e.cachedSource = sources
 	e.cachedAll = tags
 	e.cachedLow = e.cachedAll[:len(lowCardTags)]
+	e.cachedOrchestrator = e.cachedAll[:len(lowCardTags)+len(orchestratorCardTags)]
 	e.tagsHash = computeTagsHash(e.cachedAll)
 
-	if highCard {
+	if cardinality == collectors.HighCardinality {
 		return tags, sources, e.tagsHash
+	} else if cardinality == collectors.OrchestratorCardinality {
+		return e.cachedOrchestrator, sources, e.tagsHash
 	}
 	return lowCardTags, sources, e.tagsHash
 }
 
-func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, isHighCard bool) {
+func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, cardinality collectors.TagCardinality) {
 	priority, found := collectors.CollectorPriorities[source]
 	if !found {
 		log.Warnf("Tagger: %s collector has no defined priority, assuming low", source)
@@ -212,9 +238,9 @@ func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, s
 	for _, t := range tags {
 		tagName := strings.Split(t, ":")[0]
 		tagPrioMapper[tagName] = append(tagPrioMapper[tagName], tagPriority{
-			tag:        t,
-			priority:   priority,
-			isHighCard: isHighCard,
+			tag:         t,
+			priority:    priority,
+			cardinality: cardinality,
 		})
 	}
 }

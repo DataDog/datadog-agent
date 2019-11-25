@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package security
 
@@ -54,7 +54,7 @@ func CertTemplate() (*x509.Certificate, error) {
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Datadoc, Inc."},
+			Organization: []string{"Datadog, Inc."},
 		},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
@@ -106,15 +106,18 @@ func GenerateRootCert(hosts []string, bits int) (
 	return
 }
 
+// GetAuthTokenFilepath returns the path to the auth_token file.
+func GetAuthTokenFilepath() string {
+	if config.Datadog.GetString("auth_token_file_path") != "" {
+		return config.Datadog.GetString("auth_token_file_path")
+	}
+	return filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
+}
+
 // FetchAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
 // Requires that the config has been set up before calling
 func FetchAuthToken() (string, error) {
-	var authTokenFile string
-	if config.Datadog.GetString("auth_token_file_path") != "" {
-		authTokenFile = config.Datadog.GetString("auth_token_file_path")
-	} else {
-		authTokenFile = filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
-	}
+	authTokenFile := GetAuthTokenFilepath()
 
 	// Create a new token if it doesn't exist
 	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) {

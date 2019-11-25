@@ -14,7 +14,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, load_release_versions, get_version
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
@@ -36,8 +36,7 @@ ANDROID_CORECHECKS = [
 CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-        use_embedded_libs=False, development=True, precompile_only=False,
-          skip_assets=False):
+        development=True, precompile_only=False, skip_assets=False):
     """
     Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -55,7 +54,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -89,12 +88,14 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     pwd = os.getcwd()
     os.chdir("cmd/agent/android")
     if sys.platform == 'win32':
-        cmd = "gradlew.bat build"
+        cmd = "gradlew.bat --no-daemon build"
     else:
-        cmd = "./gradlew build"
+        cmd = "./gradlew --no-daemon build"
     ctx.run(cmd)
     os.chdir(pwd)
-    shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", "bin/agent/ddagent-release-unsigned.apk")
+    ver = get_version(ctx, include_git=True, git_sha_length=7)
+    outfile = "bin/agent/ddagent-{}-unsigned.apk".format(ver)
+    shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", outfile)
 
 
 @task

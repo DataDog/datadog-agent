@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubelet
 
@@ -9,6 +9,7 @@ package kubelet
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"testing"
 
@@ -49,4 +50,40 @@ func loadPodsFixture(path string) ([]*Pod, error) {
 		return nil, err
 	}
 	return podList.Items, nil
+}
+
+func TestKubeContainerIDToTaggerEntityID(t *testing.T) {
+	for in, out := range map[string]string{
+		"container_id://deadbeef": "container_id://deadbeef",
+		"containerd://deadbeef":   "container_id://deadbeef",
+		"cri-o://deadbeef":        "container_id://deadbeef",
+		"cri-o://d":               "container_id://d",
+		"runtime://deadbeef":      "container_id://deadbeef",
+		"container_id://":         "",
+		"deadbeef":                "",
+		"/deadbeef":               "",
+		"runtime://foo/bar":       "container_id://foo/bar",
+	} {
+		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+			res, _ := KubeContainerIDToTaggerEntityID(in)
+			assert.Equal(t, out, res)
+		})
+	}
+}
+
+func TestKubePodUIDToTaggerEntityID(t *testing.T) {
+	for in, out := range map[string]string{
+		"kubernetes_pod_uid://deadbeef": "kubernetes_pod_uid://deadbeef",
+		"pod://deadbeef":                "kubernetes_pod_uid://deadbeef",
+		"kubernetes_pod://deadbeef":     "kubernetes_pod_uid://deadbeef",
+		"kubernetes_pod://d":            "kubernetes_pod_uid://d",
+		"kubernetes_pod_uid://":         "",
+		"deadbeef":                      "",
+		"/deadbeef":                     "",
+	} {
+		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+			res, _ := KubePodUIDToTaggerEntityID(in)
+			assert.Equal(t, out, res)
+		})
+	}
 }

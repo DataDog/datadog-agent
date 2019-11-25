@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -79,7 +80,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, erro
 	output.Text = strings.Join(textLines, "\n")
 
 	for cid := range seenContainers {
-		tags, err := tagger.Tag(docker.ContainerIDToEntityName(cid), true)
+		tags, err := tagger.Tag(docker.ContainerIDToTaggerEntityName(cid), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", cid, err)
 		} else {

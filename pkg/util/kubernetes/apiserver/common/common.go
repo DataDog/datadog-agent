@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -31,6 +31,6 @@ func GetMyNamespace() string {
 	if e == nil && val != nil {
 		return string(val)
 	}
-	log.Errorf("There was an error fetching the namespace from the context, using default")
+	log.Warnf("There was an error fetching the namespace from the context, using default")
 	return "default"
 }

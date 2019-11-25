@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package metrics
 
@@ -53,6 +53,13 @@ func (m MetricType) String() string {
 	}
 }
 
+// MetricSampleContext allows to access a sample context data
+type MetricSampleContext interface {
+	GetName() string
+	GetHost() string
+	GetTags() []string
+}
+
 // MetricSample represents a raw metric sample
 type MetricSample struct {
 	Name       string
@@ -65,11 +72,28 @@ type MetricSample struct {
 	Timestamp  float64
 }
 
-// Copy returns a deep copy of the src MetricSample
-func (src *MetricSample) Copy() *MetricSample {
+// Implement the MetricSampleContext interface
+
+// GetName returns the metric sample name
+func (m *MetricSample) GetName() string {
+	return m.Name
+}
+
+// GetHost returns the metric sample host
+func (m *MetricSample) GetHost() string {
+	return m.Host
+}
+
+// GetTags returns the metric sample tags
+func (m *MetricSample) GetTags() []string {
+	return m.Tags
+}
+
+// Copy returns a deep copy of the m MetricSample
+func (m *MetricSample) Copy() *MetricSample {
 	dst := &MetricSample{}
-	*dst = *src
-	dst.Tags = make([]string, len(src.Tags))
-	copy(dst.Tags, src.Tags)
+	*dst = *m
+	dst.Tags = make([]string, len(m.Tags))
+	copy(dst.Tags, m.Tags)
 	return dst
 }

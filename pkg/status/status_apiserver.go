@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -40,13 +40,13 @@ func getDCAStatus() map[string]string {
 		clusterAgentDetails["DetectionError"] = err.Error()
 		return clusterAgentDetails
 	}
-	clusterAgentDetails["Endpoint"] = dcaCl.ClusterAgentAPIEndpoint
+	clusterAgentDetails["Endpoint"] = dcaCl.ClusterAgentAPIEndpoint()
 
 	ver, err := dcaCl.GetVersion()
 	if err != nil {
 		clusterAgentDetails["ConnectionError"] = err.Error()
 		return clusterAgentDetails
 	}
-	clusterAgentDetails["Version"] = ver
+	clusterAgentDetails["Version"] = ver.String()
 	return clusterAgentDetails
 }

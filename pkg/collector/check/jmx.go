@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package check
 
@@ -9,26 +9,14 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	agentconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
-
-// JMXChecks list of JMXFetch checks supported
-var JMXChecks = []string{
-	"activemq",
-	"activemq_58",
-	"cassandra",
-	"jmx",
-	"solr",
-	"tomcat",
-	"kafka",
-}
 
 // IsJMXConfig checks if a certain YAML config is a JMX config
 func IsJMXConfig(name string, initConf integration.Data) bool {
 
-	for _, check := range JMXChecks {
-		if check == name {
-			return true
-		}
+	if _, ok := agentconfig.StandardJMXIntegrations[name]; ok {
+		return true
 	}
 
 	rawInitConfig := integration.RawMap{}

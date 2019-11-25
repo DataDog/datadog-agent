@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Kubernetes event collection timeout can now be configured.

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build !windows
 
@@ -20,29 +20,64 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
-func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
+func TestUDPShoulProperlyCollectLogSplitPerDatadgram(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	frameSize := 9000
+	frameSize := 100
 	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
 	listener.Start()
 
-	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
+	conn, err := net.Dial("udp", fmt.Sprintf("%s", listener.tailer.conn.LocalAddr()))
 	assert.Nil(t, err)
 
 	var msg *message.Message
 
-	fmt.Fprintf(conn, strings.Repeat("a", frameSize-100)+"\n")
+	fmt.Fprintf(conn, strings.Repeat("a", 10))
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize-100), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
 
-	fmt.Fprintf(conn, strings.Repeat("a", frameSize)+"\n")
+	fmt.Fprintf(conn, strings.Repeat("a", 10)+"\n")
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+
+	fmt.Fprintf(conn, strings.Repeat("a", 10)+"\n"+strings.Repeat("a", 10))
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+
+	fmt.Fprintf(conn, strings.Repeat("a", 10)+"\n"+strings.Repeat("a", 10)+"\n")
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+
+	listener.Stop()
+}
+
+func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+	frameSize := 100
+	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
+	listener.Start()
+
+	conn, err := net.Dial("udp", fmt.Sprintf("%s", listener.tailer.conn.LocalAddr()))
+	assert.Nil(t, err)
+
+	var msg *message.Message
+
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize-10))
+	msg = <-msgChan
+	assert.Equal(t, strings.Repeat("a", frameSize-10), string(msg.Content))
+
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize))
 	msg = <-msgChan
 	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.Content))
 
-	fmt.Fprintf(conn, strings.Repeat("a", frameSize-200)+"\n")
+	fmt.Fprintf(conn, strings.Repeat("a", frameSize+10))
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize-200), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.Content))
 
 	listener.Stop()
 }
@@ -58,7 +93,7 @@ func TestUDPShoulDropTooBigMessages(t *testing.T) {
 	listener := NewUDPListener(pp, config.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), maxUDPFrameLen)
 	listener.Start()
 
-	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
+	conn, err := net.Dial("udp", fmt.Sprintf("%s", listener.tailer.conn.LocalAddr()))
 	assert.Nil(t, err)
 
 	var msg *message.Message

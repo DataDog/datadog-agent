@@ -1,93 +1,91 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package sender
 
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-// Sender is responsible for sending logs to different destinations.
+// Strategy should contain all logic to send logs to a remote destination
+// and forward them the next stage of the pipeline.
+type Strategy interface {
+	Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error)
+}
+
+// Sender sends logs to different destinations.
 type Sender struct {
 	inputChan    chan *message.Message
 	outputChan   chan *message.Message
-	destinations *Destinations
+	destinations *client.Destinations
+	strategy     Strategy
 	done         chan struct{}
 }
 
-// NewSender returns an new sender.
-func NewSender(inputChan, outputChan chan *message.Message, destinations *Destinations) *Sender {
+// NewSender returns a new sender.
+func NewSender(inputChan chan *message.Message, outputChan chan *message.Message, destinations *client.Destinations, strategy Strategy) *Sender {
 	return &Sender{
 		inputChan:    inputChan,
 		outputChan:   outputChan,
 		destinations: destinations,
+		strategy:     strategy,
 		done:         make(chan struct{}),
 	}
 }
 
-// Start starts the Sender
+// Start starts the sender.
 func (s *Sender) Start() {
 	go s.run()
 }
 
-// Stop stops the Sender,
+// Stop stops the sender,
 // this call blocks until inputChan is flushed
 func (s *Sender) Stop() {
 	close(s.inputChan)
 	<-s.done
 }
 
-// run lets the sender send messages.
 func (s *Sender) run() {
 	defer func() {
 		s.done <- struct{}{}
 	}()
-	for payload := range s.inputChan {
-		s.send(payload)
-	}
+	s.strategy.Send(s.inputChan, s.outputChan, s.send)
 }
 
-// send keeps trying to send the message to the main destination until it succeeds
-// and try to send the message to the additional destinations only once.
-func (s *Sender) send(payload *message.Message) {
+// send sends a payload to multiple destinations,
+// it will forever retry for the main destination unless the error is not retryable
+// and only try once for additionnal destinations.
+func (s *Sender) send(payload []byte) error {
 	for {
-		// this call is blocking until payload is sent (or the connection destination context cancelled)
 		err := s.destinations.Main.Send(payload)
 		if err != nil {
-			if err == context.Canceled {
-				metrics.DestinationErrors.Add(1)
-				// the context was cancelled, agent is stopping non-gracefully.
-				// drop the message
-				break
-			}
-			switch err.(type) {
-			case *FramingError:
-				metrics.DestinationErrors.Add(1)
-				// the message can not be framed properly,
-				// drop the message
-				break
-			default:
-				metrics.DestinationErrors.Add(1)
-				// retry as the error can be related to network issues
+			metrics.DestinationErrors.Add(1)
+			if _, ok := err.(*client.RetryableError); ok {
+				// could not send the payload because of a client issue,
+				// let's retry
 				continue
 			}
+			return err
 		}
-		for _, destination := range s.destinations.Additionals {
-			// try and forget strategy for additional endpoints
-			// this call is also blocking when the connection is not established yet
-			// FIXME: run all `Send` in parallel to avoid the effect on a slow
-			// destination on the others. Potentially add a buffer for secondary
-			// destinations.
-			destination.Send(payload)
-		}
-
-		metrics.LogsSent.Add(1)
 		break
 	}
-	s.outputChan <- payload
+
+	for _, destination := range s.destinations.Additionals {
+		// send in the background so that the agent does not fall behind
+		// for the main destination
+		destination.SendAsync(payload)
+	}
+
+	return nil
+}
+
+// shouldStopSending returns true if a component should stop sending logs.
+func shouldStopSending(err error) bool {
+	return err == context.Canceled
 }

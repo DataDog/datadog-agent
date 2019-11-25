@@ -1,19 +1,20 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 // +build windows
 
 package pdhutil
 
 import (
-	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 type (
-	PDH_HQUERY   syscall.Handle
-	PDH_HCOUNTER syscall.Handle
+	PDH_HQUERY   windows.Handle
+	PDH_HCOUNTER windows.Handle
 )
 
 // PDH error codes.  Taken from latest PDHMSH.h in Windows SDK
@@ -131,25 +132,6 @@ const (
 	ERROR_SUCCESS = 0
 )
 
-// Union specialization for double values
-type PDH_FMT_COUNTERVALUE_DOUBLE struct {
-	CStatus     uint32
-	DoubleValue float64
-}
-
-// Union specialization for 64 bit integer values
-type PDH_FMT_COUNTERVALUE_LARGE struct {
-	CStatus    uint32
-	LargeValue int64
-}
-
-// Union specialization for long values
-type PDH_FMT_COUNTERVALUE_LONG struct {
-	CStatus   uint32
-	LongValue int32
-	padding   [4]byte
-}
-
 // PdhOpenQuery Creates a new query that is used to manage the collection of performance data.
 /*
 Parameters
@@ -187,7 +169,7 @@ phCounter [out]
 Handle to the counter that was added to the query. You may need to reference this handle in subsequent calls.
 */
 func PdhAddCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUserData uintptr, phCounter *PDH_HCOUNTER) uint32 {
-	ptxt, _ := syscall.UTF16PtrFromString(szFullCounterPath)
+	ptxt, _ := windows.UTF16PtrFromString(szFullCounterPath)
 	ret, _, _ := procPdhAddCounterW.Call(
 		uintptr(hQuery),
 		uintptr(unsafe.Pointer(ptxt)),
@@ -213,5 +195,11 @@ func PdhCollectQueryData(hQuery PDH_HQUERY) uint32 {
 func PdhCloseQuery(hQuery PDH_HQUERY) uint32 {
 	ret, _, _ := procPdhCloseQuery.Call(uintptr(hQuery))
 
+	return uint32(ret)
+}
+
+// PdhRemoveCounter removes a counter from a query
+func PdhRemoveCounter(hCounter PDH_HCOUNTER) uint32 {
+	ret, _, _ := procPdhRemoveCounter.Call(uintptr(hCounter))
 	return uint32(ret)
 }

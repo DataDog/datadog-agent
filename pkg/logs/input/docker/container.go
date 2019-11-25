@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 // +build docker
 
@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 
@@ -19,7 +21,7 @@ import (
 )
 
 // configPath refers to the configuration that can be passed over a docker label,
-// this feature is commonly named 'ad' or 'autodicovery'.
+// this feature is commonly named 'ad' or 'autodiscovery'.
 const configPath = "com.datadoghq.ad.logs"
 
 // Container represents a container to tail logs from.
@@ -56,6 +58,32 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 		}
 	}
 	return bestMatch
+}
+
+// getShortImageName resolves the short image name of a container by calling the docker daemon
+// This call is blocking
+func (c *Container) getShortImageName() (string, error) {
+	var (
+		err       error
+		shortName string
+	)
+
+	du, err := dockerUtil.GetDockerUtil()
+	if err != nil {
+		log.Debugf("Cannot get DockerUtil: %v", err)
+		return shortName, err
+	}
+	imageName := c.container.ImageID
+	imageName, err = du.ResolveImageName(imageName)
+	if err != nil {
+		log.Debugf("Could not resolve image name %s: %s", imageName, err)
+		return shortName, err
+	}
+	_, shortName, _, err = containers.SplitImageName(imageName)
+	if err != nil {
+		log.Debugf("Cannot parse image name: %v", err)
+	}
+	return shortName, err
 }
 
 // computeScore returns the matching score between the container and the source.

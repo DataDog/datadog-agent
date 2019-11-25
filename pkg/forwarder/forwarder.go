@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package forwarder
 
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -71,8 +72,9 @@ const (
 	hostMetadataEndpoint  = "/api/v2/host_metadata"
 	metadataEndpoint      = "/api/v2/metadata"
 
-	apiHTTPHeaderKey     = "DD-Api-Key"
-	versionHTTPHeaderKey = "DD-Agent-Version"
+	apiHTTPHeaderKey       = "DD-Api-Key"
+	versionHTTPHeaderKey   = "DD-Agent-Version"
+	useragentHTTPHeaderKey = "User-Agent"
 )
 
 // Payloads is a slice of pointers to byte arrays, an alias for the slices of
@@ -161,6 +163,7 @@ func (f *DefaultForwarder) Start() error {
 
 // Stop all the component of a forwarder and free resources
 func (f *DefaultForwarder) Stop() {
+	log.Infof("stopping the Forwarder")
 	// Lock so we can't start a Forwarder while is stopping
 	f.m.Lock()
 	defer f.m.Unlock()
@@ -172,13 +175,39 @@ func (f *DefaultForwarder) Stop() {
 
 	f.internalState = Stopped
 
-	for _, df := range f.domainForwarders {
-		df.Stop()
+	purgeTimeout := config.Datadog.GetDuration("forwarder_stop_timeout") * time.Second
+	if purgeTimeout > 0 {
+		var wg sync.WaitGroup
+
+		for _, df := range f.domainForwarders {
+			wg.Add(1)
+			go func(df *domainForwarder) {
+				df.Stop(true)
+				wg.Done()
+			}(df)
+		}
+
+		donePurging := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(donePurging)
+		}()
+
+		select {
+		case <-donePurging:
+		case <-time.After(purgeTimeout):
+			log.Warnf("Timeout emptying new transactions before stopping the forwarder %v", purgeTimeout)
+		}
+	} else {
+		for _, df := range f.domainForwarders {
+			df.Stop(false)
+		}
 	}
 
 	f.healthChecker.Stop()
 	f.healthChecker = nil
 	f.domainForwarders = map[string]*domainForwarder{}
+
 }
 
 // State returns the internal state of the forwarder (Started or Stopped)
@@ -205,6 +234,7 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payl
 				t.Payload = payload
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))

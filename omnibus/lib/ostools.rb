@@ -25,6 +25,10 @@ def windows?()
     return ohai['platform_family'] == 'windows'
 end
 
+def arm?()
+    return ohai["kernel"]["machine"].start_with?("aarch", "arm")
+end
+
 def os
     case RUBY_PLATFORM
     when /linux/
@@ -36,4 +40,9 @@ def os
     else
       raise 'Unsupported OS'
     end
-  end
+end
+
+def with_python_runtime?(runtime)
+    python_runtimes = ENV['PYTHON_RUNTIMES'].nil? ? ['3'] : ENV['PYTHON_RUNTIMES'].split(',')
+    return python_runtimes.include? runtime
+end

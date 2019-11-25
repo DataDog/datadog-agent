@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2016-2019 Datadog, Inc.
 
 package autodiscovery
 
@@ -93,8 +93,8 @@ func TestGetUnresolvedTemplates(t *testing.T) {
 	cache := NewTemplateCache()
 	tpl := integration.Config{ADIdentifiers: []string{"foo", "bar"}}
 	cache.Set(tpl)
-	expected := map[string]integration.Config{
-		"foo,bar": tpl,
+	expected := map[string][]integration.Config{
+		"foo,bar": {tpl},
 	}
 
 	assert.Equal(t, cache.GetUnresolvedTemplates(), expected)

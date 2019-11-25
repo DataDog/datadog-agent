@@ -1,9 +1,13 @@
-##########################################
-# Preparation stage: extract and cleanup #
-##########################################
+############################################
+#  Preparation stage: extract and cleanup  #
+############################################
 
-FROM debian:buster-slim as extract
+FROM debian:buster-slim AS extract
 ARG WITH_JMX
+ARG PYTHON_VERSION
+ARG DD_AGENT_ARTIFACT=datadog-agent*_amd64.deb
+
+# copy everything - globbing with args wont work
 COPY datadog-agent*_amd64.deb /
 WORKDIR /output
 
@@ -22,7 +26,10 @@ RUN apt-get update \
 #   - docs and manpages                  # FIXME: move upstream
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
-RUN dpkg -x /datadog-agent*_amd64.deb . \
+
+# DEBUGGING
+RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
+ && find / -maxdepth 1 -name 'datadog-agent*_amd64.deb' -exec dpkg -X {} . \; | egrep '.*' \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
@@ -33,6 +40,25 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
     # self-test certificates that are detected (false positive) as private keys
     opt/datadog-agent/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest \
+ && if [ "$PYTHON_VERSION" = "2" ]; then \
+        rm -rf \
+            opt/datadog-agent/embedded/bin/2to3-3* \
+            opt/datadog-agent/embedded/bin/easy_install-3* \
+            opt/datadog-agent/embedded/bin/idle* \
+            opt/datadog-agent/embedded/bin/pip3* \
+            opt/datadog-agent/embedded/bin/pydoc* \
+            opt/datadog-agent/embedded/bin/python3* \
+            opt/datadog-agent/embedded/bin/pyvenv* \
+            opt/datadog-agent/embedded/include/python3* \
+            opt/datadog-agent/embedded/lib/*python3* || true ;\
+    fi \
+ && if [ "$PYTHON_VERSION" = "3" ]; then \
+        rm -rf \
+            opt/datadog-agent/embedded/bin/pip2* \
+            opt/datadog-agent/embedded/bin/python2* \
+            opt/datadog-agent/embedded/include/python2* \
+            opt/datadog-agent/embedded/lib/*python2* || true ;\
+    fi \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && ln -s /opt/datadog-agent/embedded/ssl etc/ssl \
@@ -43,14 +69,16 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 COPY datadog*.yaml etc/datadog-agent/
 
 
-####################################
-# Actual docker image construction #
-####################################
+######################################
+#  Actual docker image construction  #
+######################################
 
-FROM debian:buster-slim
+FROM debian:buster-slim AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
+ARG PYTHON_VERSION
 ENV DOCKER_DD_AGENT=true \
+    DD_PYTHON_VERSION=$PYTHON_VERSION \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
     CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
     # Pass envvar variables to agents
@@ -62,22 +90,30 @@ ENV DOCKER_DD_AGENT=true \
     # Allow readonlyrootfs
     S6_READ_ONLY_ROOT=1
 
-# Install openjdk-8-jre-headless on jmx flavor
-RUN if [ -n "$WITH_JMX" ]; then apt-get update \
- && mkdir /usr/share/man/man1 \
- && apt-get install --no-install-recommends -y openjdk-8-jre-headless \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; fi
-
 # make sure we have recent dependencies
 RUN apt-get update \
   # CVE-fixing time!
   && apt-get install -y util-linux ncurses-bin ncurses-base libncursesw5:amd64 \
+  # https://security-tracker.debian.org/tracker/CVE-2018-15686
+  && apt-get install -y libudev1 libsystemd0 \
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
   && rm -f /usr/sbin/runuser \
   # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
-  && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+  && rm -f /usr/lib/x86_64-linux-gnu/libdb-5.3.so
+
+# Install openjdk-11-jre-headless on jmx flavor
+# Due to this bug https://bugs.openjdk.java.net/browse/JDK-8217766, we need to be able to
+# pull from testing since this is the only place for now where a version > 11.0.4 is available.
+# we leave testing in the sources to avoid dependencies conflict in custom images
+RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
+ && echo "deb http://deb.debian.org/debian testing main" > /etc/apt/sources.list.d/testing.list \
+ && apt-get update \
+ && mkdir /usr/share/man/man1 \
+ && apt-get install --no-install-recommends -y openjdk-11-jre-headless \
+ && apt-get clean; fi
+
+# cleaning up
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
@@ -88,11 +124,14 @@ COPY entrypoint /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py /
 
 # Extract s6-overlay
-# Done in 2 steps to avoid overriding the /bin --> /usr/bin symlink
-# FIXME: copying it from the extract stage does not work
-RUN tar xzf s6.tgz -C / --exclude="./bin" \
-  && tar xzf s6.tgz -C /usr ./bin \
-  && rm s6.tgz \
+#
+# This step is dependant on the distribution's filesystem layout:
+# - When Buster moved to merged-usr (/bin/ as a symlink to /usr/bin),
+#   we had to change the extraction logic, see #1591
+# - The debian image is now built with merged-usr explicitly disabled,
+#   see https://github.com/debuerreotype/debuerreotype/pull/50
+RUN tar xzf s6.tgz \
+ && rm s6.tgz \
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
@@ -104,6 +143,15 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && chmod 755 /probe.sh /initlog.sh \
  && chown root:root /readsecret.py \
  && chmod 500 /readsecret.py
+
+# Update links to python binaries
+
+RUN if [ ! -z "$PYTHON_VERSION" ]; then \
+ ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/python \
+ && ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION}-config /opt/datadog-agent/embedded/bin/python-config \
+ && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip ; \
+ fi
+
 
 # Override the exit script by ours to fix --pid=host operations
 COPY init-stage3 /etc/s6/init/init-stage3
@@ -118,3 +166,15 @@ HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
 VOLUME ["/var/run/s6", "/etc/datadog-agent", "/var/log/datadog", "/tmp"]
 
 CMD ["/init"]
+
+
+################################################################
+#  Sanity checks on the image contents                         #
+#  Build the release artifact with "--target release" to skip  #
+################################################################
+
+FROM release AS testing
+ARG WITH_JMX
+
+COPY test_*.py /
+RUN python /test_image_contents.py -v
