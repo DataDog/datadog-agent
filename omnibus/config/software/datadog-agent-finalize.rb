@@ -128,13 +128,28 @@ build do
             delete "#{install_dir}/embedded/share/aclocal"
             delete "#{install_dir}/embedded/share/examples"
 
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
+            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
+            # default to `pip2` if the default Python runtime is Python 2.
             if with_python_runtime? "2"
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
 
                 delete "#{install_dir}/embedded/bin/2to3"
                 link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
+            end
+
+            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
+            # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
+            # Caution: we don't want to do this for Agent 6.x
+            if with_python_runtime? "3" && !with_python_runtime? "2"
+                delete "#{install_dir}/embedded/bin/pip"
+                link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
+
+                delete "#{install_dir}/embedded/bin/python"
+                link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
+
+                delete "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-3.7", "#{install_dir}/embedded/bin/2to3"
             end
 
             # removing the man pages from the embedded folder to reduce package size by ~4MB
