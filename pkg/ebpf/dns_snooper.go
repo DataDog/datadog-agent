@@ -40,6 +40,7 @@ type SocketFilterSnooper struct {
 
 	// telemetry
 	packets        int64
+	polls          int64
 	decodingErrors int64
 }
 
@@ -82,9 +83,15 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 }
 
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
+	socketStats, _ := s.source.Stats()
+	prevPolls := atomic.SwapInt64(&s.polls, socketStats.Polls)
+	prevPackets := atomic.SwapInt64(&s.packets, socketStats.Packets)
+
 	stats := s.cache.Stats()
-	stats["packets_captured"] = atomic.SwapInt64(&s.packets, 0)
+	stats["socket_polls"] = socketStats.Polls - prevPolls
+	stats["packets_captured"] = socketStats.Packets - prevPackets
 	stats["decoding_errors"] = atomic.SwapInt64(&s.decodingErrors, 0)
+
 	return stats
 }
 
@@ -118,7 +125,6 @@ func (s *SocketFilterSnooper) poll() {
 	for {
 		data, _, err := s.source.ZeroCopyReadPacketData()
 		if err == nil {
-			atomic.AddInt64(&s.packets, 1)
 			s.processPacket(data)
 			continue
 		}
