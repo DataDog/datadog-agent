@@ -60,10 +60,10 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	b.timeStamp = float64(event.FirstTimestamp.Unix())
 	b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
 
-	k.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
-	k.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Name, event.InvolvedObject.Kind)
-	k.kind = event.InvolvedObject.Kind
-	k.name = event.InvolvedObject.Name
+	b.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
+	b.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Name, event.InvolvedObject.Kind)
+	b.kind = event.InvolvedObject.Kind
+	b.name = event.InvolvedObject.Name
 
 	if event.InvolvedObject.Kind == "Pod" || event.InvolvedObject.Kind == "Node" {
 		b.nodename = event.Source.Host
@@ -94,7 +94,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string) (metrics.Event,
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(b.lastTimestamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", k.component), fmt.Sprintf("kubernetes_kind:%s", k.kind), fmt.Sprintf("name:%s", k.name)},
+		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)},
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUid),
 	}
 	if b.namespace != "" {
