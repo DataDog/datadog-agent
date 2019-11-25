@@ -18,6 +18,12 @@ import (
 )
 
 var (
+	// validClusterName matches exactly the same naming rule as the one enforced by GKE:
+	// https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
+	// The cluster name can be up to 40 characters with the following restrictions:
+	// * Lowercase letters, numbers, and hyphens only.
+	// * Must start with a letter.
+	// * Must end with a number or a letter.
 	validClusterName = regexp.MustCompile(`^[a-z]([a-z0-9\-]{0,38}[a-z0-9])?$`)
 )
 
