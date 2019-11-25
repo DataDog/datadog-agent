@@ -8,10 +8,11 @@ package v5
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetPayload(t *testing.T) {
-	pl := GetPayload("testhostname")
+	pl := GetPayload(util.HostnameData{Hostname: "testhostname", Provider: ""})
 	assert.NotNil(t, pl)
 }

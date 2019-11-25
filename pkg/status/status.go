@@ -39,14 +39,14 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	stats["version"] = version.AgentVersion
-	hostname, err := util.GetHostname()
+	hostnameData, err := util.GetHostnameData()
 
 	var metadata *host.Payload
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache("unknown")
+		metadata = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
 	} else {
-		metadata = host.GetPayloadFromCache(hostname)
+		metadata = host.GetPayloadFromCache(hostnameData)
 	}
 	stats["metadata"] = metadata
 
@@ -149,12 +149,12 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 	stats["version"] = version.AgentVersion
 	stats["pid"] = os.Getpid()
-	hostname, err := util.GetHostname()
+	hostnameData, err := util.GetHostnameData()
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache("unknown")
+		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
 	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostname)
+		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
 	}
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)

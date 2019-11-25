@@ -334,6 +334,10 @@ func initConfig(config Config) {
 
 	// Metadata endpoints
 
+	// When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
+	// canonical hostname, otherwise the instance-id is used as canonical hostname.
+	config.BindEnvAndSetDefault("use_configuration_hostname_as_canonical_hostname", false)
+
 	// Defines the maximum size of hostame gathered from EC2, GCE, Azure and Alibabacloud metadata endpoints.
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)

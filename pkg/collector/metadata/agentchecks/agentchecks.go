@@ -20,7 +20,8 @@ import (
 // GetPayload builds a payload of all the agentchecks metadata
 func GetPayload() *Payload {
 	agentChecksPayload := ACPayload{}
-	hostname, _ := util.GetHostname()
+	hostnameData, _ := util.GetHostnameData()
+	hostname := hostnameData.Hostname
 	checkStats := runner.GetCheckStats()
 
 	for _, stats := range checkStats {
@@ -59,7 +60,7 @@ func GetPayload() *Payload {
 	}
 
 	// Grab the non agent checks information
-	metaPayload := host.GetMeta()
+	metaPayload := host.GetMeta(hostnameData)
 	metaPayload.Hostname = hostname
 	cp := common.GetPayload(hostname)
 	ehp := externalhost.GetPayload()
