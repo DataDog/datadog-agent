@@ -13,6 +13,8 @@ SERVICE_NAME=datadog-agent
 
 if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     DISTRIBUTION_FAMILY="Debian"
+elif [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "SUSE" ]; then
+    DISTRIBUTION_FAMILY="SUSE"
 fi
 
 stop_agent()
@@ -29,10 +31,9 @@ stop_agent()
         initctl stop $SERVICE_NAME-sysprobe || true
         initctl stop $SERVICE_NAME-trace || true
         initctl stop $SERVICE_NAME || true
-    elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
+    elif [ "$DISTRIBUTION_FAMILY" = "Debian" || "$DISTRIBUTION_FAMILY"="SUSE" ]; then
         if command -v service >/dev/null 2>&1; then
             service $SERVICE_NAME-process stop || true
-            service $SERVICE_NAME-sysprobe stop || true
             service $SERVICE_NAME-trace stop || true
             service $SERVICE_NAME stop || true
         else
