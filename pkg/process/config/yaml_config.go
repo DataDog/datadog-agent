@@ -310,9 +310,13 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 	// Build transport (w/ proxy if needed)
 	a.Transport = httputils.CreateHTTPTransport()
 
-	// Set clustername
-	if clusterName := config.Datadog.GetString("k8s_explorer.cluster_name"); clusterName != "" {
-		a.KubeClusterName = clusterName
+	// Orchestrator Explorer
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		a.OrchestrationCollectionEnabled = true
+		// Set clustername
+		if clusterName := config.Datadog.GetString("orchestrator_explorer.cluster_name"); clusterName != "" {
+			a.KubeClusterName = clusterName
+		}
 	}
 
 	return nil
