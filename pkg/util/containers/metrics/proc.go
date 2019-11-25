@@ -13,7 +13,7 @@ import (
 )
 
 // hostProcFunc allows hostProc to be overridden for ease of mock testing
-var hostProcFunc func(...string) string = func(combineWith ...string) string {
+var hostProcFunc = func(combineWith ...string) string {
 	return hostProc(combineWith...)
 }
 
