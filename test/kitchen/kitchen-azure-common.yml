@@ -52,8 +52,8 @@ driver:
 driver_config:
   subscription_id: <%= ENV['AZURE_SUBSCRIPTION_ID'] %>
   location: <%= ENV['AZURE_LOCATION'] %>
-  <% if ENV['DD_PIPELINE_ID'] %>
-  azure_resource_group_suffix: pl<%= ENV['DD_PIPELINE_ID'] %>
+  <% if ENV['CI_PIPELINE_ID'] && ENV['AGENT_MAJOR_VERSION']%>
+  azure_resource_group_suffix: pl<%= ENV['CI_PIPELINE_ID'] %>-<%= ENV['AGENT_MAJOR_VERSION'] %>
   <% else %>
   azure_resource_group_suffix: plnone
   <% end %>
@@ -165,9 +165,9 @@ platforms:
   application_key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   url = "https://app.datad0g.com"
   aptrepo = "http://apttesting.datad0g.com/"
-  aptrepo_dist = "pipeline-#{ENV['DD_PIPELINE_ID']}"
-  yumrepo = "http://yumtesting.datad0g.com/pipeline-#{ENV['DD_PIPELINE_ID']}/x86_64/"
-  yumrepo_suse = "http://yumtesting.datad0g.com/suse/pipeline-#{ENV['DD_PIPELINE_ID']}/x86_64/"
+  aptrepo_dist = "pipeline-#{ENV['CI_PIPELINE_ID']}"
+  yumrepo = "http://yumtesting.datad0g.com/pipeline-#{ENV['CI_PIPELINE_ID']}/#{ENV['AGENT_MAJOR_VERSION']}/x86_64/"
+  yumrepo_suse = "http://yumtesting.datad0g.com/suse/pipeline-#{ENV['CI_PIPELINE_ID']}/#{ENV['AGENT_MAJOR_VERSION']}/x86_64/"
   windows_agent_url = ENV['WINDOWS_AGENT_URL'] ? ENV['WINDOWS_AGENT_URL'] : "https://s3.amazonaws.com/#{ENV['WINDOWS_TESTING_S3_BUCKET']}/"
   dd_agent_config = {
     'api_key': api_key,

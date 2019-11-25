@@ -23,6 +23,9 @@ fi
 if [ -z ${CI_PIPELINE_ID+x} ]; then
   export CI_PIPELINE_ID='none'
 fi
+if [ -z ${AGENT_MAJOR_VERSION+x} ]; then
+  export AGENT_MAJOR_VERSION='none'
+fi
 
 if [ -z ${AZURE_SUBSCRIPTION_ID+x} -o -z ${AZURE_TENANT_ID+x} -o -z ${AZURE_CLIENT_SECRET+x} -o -z ${AZURE_CLIENT_ID+x} ]; then
   printf "You are missing some of the necessary credentials. Exiting."
@@ -35,7 +38,7 @@ set -x
 if [ ${CLEAN_ALL+x} ]; then
   groups=$(az group list -o tsv --query "[?starts_with(name, 'kitchen')].[name]")
 else
-  groups=$(az group list -o tsv --query "[?starts_with(name, 'kitchen')]|[?ends_with(name, 'pl$DD_PIPELINE_ID')].[name]")
+  groups=$(az group list -o tsv --query "[?starts_with(name, 'kitchen')]|[?ends_with(name, 'pl$CI_PIPELINE_ID-$AGENT_MAJOR_VERSION')].[name]")
 fi
 
 # This will really only fail if a VM or Group

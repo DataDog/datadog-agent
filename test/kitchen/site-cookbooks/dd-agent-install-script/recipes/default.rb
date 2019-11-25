@@ -37,11 +37,11 @@ execute 'update Agent install script repository' do
     sed -i 's~beta/$ARCHI~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
     sed -i 's~beta/$ARCHI~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
     sed -i 's~beta/$ARCHI~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta main~#{node['dd-agent-install-script']['repo_branch_apt']} main~' install-script
-    sed -i 's~stable main~#{node['dd-agent-install-script']['repo_branch_apt']} main~' install-script
-    sed -i 's~stable 6~#{node['dd-agent-install-script']['repo_branch_apt']} main~' install-script
+    sed -i 's~beta main~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
+    sed -i 's~stable main~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
+    sed -i 's~stable 6~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
     sed -i 's~stable/6~#{node['dd-agent-install-script']['repo_branch_yum']}~' install-script
-    sed -i 's~${dd_agent_dist_channel} ${dd_agent_major_version}~#{node['dd-agent-install-script']['repo_branch_apt']} main~' install-script
+    sed -i 's~${dd_agent_dist_channel} ${dd_agent_major_version}~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
     sed -i 's~${dd_agent_dist_channel}/${dd_agent_major_version}~#{node['dd-agent-install-script']['repo_branch_yum']}~' install-script
   EOF
 

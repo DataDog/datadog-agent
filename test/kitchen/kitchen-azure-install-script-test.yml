@@ -11,8 +11,9 @@ suites:
     dd-agent-install-script:
       api_key: <%= api_key %>
       install_script_url: https://raw.githubusercontent.com/DataDog/datadog-agent/<%= ENV['CI_COMMIT_SHA'] %>/cmd/agent/install_script.sh
-      repo_branch_apt: pipeline-<%= ENV['DD_PIPELINE_ID'] %>
-      repo_branch_yum: pipeline-<%= ENV['DD_PIPELINE_ID'] %>
+      repo_branch_apt: pipeline-<%= ENV['CI_PIPELINE_ID'] %>
+      repo_component_apt: <%= ENV['AGENT_MAJOR_VERSION'] %>
+      repo_branch_yum: pipeline-<%= ENV['CI_PIPELINE_ID'] %>/<%= ENV['AGENT_MAJOR_VERSION'] %>
       install_candidate: true
     dd-agent-rspec:
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
