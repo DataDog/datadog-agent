@@ -23,6 +23,7 @@ if node['platform_family'] == 'windows'
   default['datadog']['agent_name'] = 'DatadogAgent'
   default['datadog']['agent6_config_dir'] = "#{ENV['ProgramData']}/Datadog"
 else
+  dafault['datadog']['agent6_config_dir'] = '/etc/datadog-agent'
   default['dd-agent-upgrade']['config_dir'] = '/etc/dd-agent'
   default['dd-agent-upgrade']['agent_name'] = 'datadog-agent'
 end
