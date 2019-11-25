@@ -322,7 +322,7 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	require.Equal(suite.T(), "my-node-name", hostname)
 
 	// Testing hostname when a cluster name is set
-	var testClusterName = "Laika"
+	var testClusterName = "laika"
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 

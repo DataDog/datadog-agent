@@ -17,7 +17,7 @@ func TestGetClusterName(t *testing.T) {
 	mockConfig := config.Mock()
 	data := newClusterNameData()
 
-	var testClusterName = "Laika"
+	var testClusterName = "laika"
 	mockConfig.Set("cluster_name", testClusterName)
 	defer mockConfig.Set("cluster_name", nil)
 
