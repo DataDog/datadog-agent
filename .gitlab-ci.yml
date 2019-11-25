@@ -2278,7 +2278,7 @@ tag_release_6:
   stage: deploy6
   when: manual
   variables:
-    PYTHON_RUNTIMES: '2,3'
+    AGENT_MAJOR_VERSION: 6
     <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version)
@@ -2294,7 +2294,7 @@ tag_release_7:
   stage: deploy7
   when: manual
   variables:
-    PYTHON_RUNTIMES: '3'
+    AGENT_MAJOR_VERSION: 7
     <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version)

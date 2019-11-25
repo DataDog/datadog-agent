@@ -247,7 +247,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, hint=None):
 
 def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
-    version_hint = '7' if env.get('PYTHON_RUNTIMES', '') == '3' else '6'
+    version_hint = '7' if env.get('AGENT_MAJOR_VERSION', '') == '7' else '6'
 
     version = ""
     version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix, hint=version_hint)
