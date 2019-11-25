@@ -4,7 +4,6 @@ package checks
 
 import (
 	"strconv"
-	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -26,8 +25,6 @@ const redactedValue = "********"
 
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
-	sync.Mutex
-
 	sysInfo                 *model.SystemInfo
 	containerFailedLogLimit *util.LogLimit
 }
@@ -49,9 +46,7 @@ func (c *PodCheck) RealTime() bool { return false }
 
 // Run runs the PodCheck to collect a list of running pods
 func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	c.Lock()
-	defer c.Unlock()
-
+	start := time.Now()
 	util, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -62,7 +57,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		return nil, err
 	}
 
-	log.Debugf("Collected %d pods", len(podList))
+	log.Debugf("Collected %d pods from the kubelet", len(podList))
 
 	podMsgs := []*model.Pod{}
 
@@ -97,9 +92,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 	}
 	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
-	totalContainers := float64(0)
 	for i := 0; i < groupSize; i++ {
-		totalContainers += float64(len(chunked[i]))
 		messages = append(messages, &model.CollectorPod{
 			HostName:  cfg.HostName,
 			Pods:      chunked[i],
@@ -108,6 +101,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		})
 	}
 
+	log.Debugf("Collected & enriched %d pods in %s", len(podMsgs), time.Now().Sub(start))
 	return messages, nil
 }
 
@@ -127,7 +121,7 @@ func scrubContainer(c *v1.Container, cfg *config.AgentConfig) {
 	}
 }
 
-// chunkPods formats and chunks the ctrList into a slice of chunks using a specific number of chunks.
+// chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.
 func chunkPods(pods []*model.Pod, chunks, perChunk int) [][]*model.Pod {
 	chunked := make([][]*model.Pod, 0, chunks)
 	chunk := make([]*model.Pod, 0, perChunk)
