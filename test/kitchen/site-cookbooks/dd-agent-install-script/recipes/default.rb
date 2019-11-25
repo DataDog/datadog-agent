@@ -27,10 +27,10 @@ end
 execute 'update Agent install script repository' do
   cwd wrk_dir
   command <<-EOF
-    sed -i 's/apt\\.datadoghq\\.com/#{node['dd-agent-install-script']['candidate_repo_domain_apt']}/' install-script
-    sed -i 's/yum\\.datadoghq\\.com/#{node['dd-agent-install-script']['candidate_repo_domain_yum']}/' install-script
-    sed -i 's/apt.${repo_url}/#{node['dd-agent-install-script']['candidate_repo_domain_apt']}/' install-script
-    sed -i 's/yum.${repo_url}/#{node['dd-agent-install-script']['candidate_repo_domain_yum']}/' install-script
+    sed -i 's/apt\\.datadoghq\\.com/#{node['dd-agent-install-script']['repo_domain_apt']}/' install-script
+    sed -i 's/yum\\.datadoghq\\.com/#{node['dd-agent-install-script']['repo_domain_yum']}/' install-script
+    sed -i 's/apt.${repo_url}/#{node['dd-agent-install-script']['repo_domain_apt']}/' install-script
+    sed -i 's/yum.${repo_url}/#{node['dd-agent-install-script']['repo_domain_yum']}/' install-script
     sed -i 's~stable/x86_64~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
     sed -i 's~rpm/x86_64~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
     sed -i 's~beta/x86_64~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
