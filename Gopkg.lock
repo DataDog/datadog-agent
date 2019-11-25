@@ -532,11 +532,11 @@
   version = "v1.7.0"
 
 [[projects]]
-  digest = "1:011900e7ee97686e7817937becc3bbeb9b9aa919d0a8c99e770710d9edee6230"
+  digest = "1:31ce89581517f1d39a7486caca6e689b44f6ada079f23ce8f15cd7876174ced7"
   name = "github.com/florianl/go-conntrack"
   packages = ["."]
   pruneopts = ""
-  revision = "6d50e184fe3ef7ba0640303db5e6a5610bf4a297"
+  revision = "06743d3a59db658e0e9aaddc9acff6d01ce643fb"
 
 [[projects]]
   digest = "1:eb53021a8aa3f599d29c7102e65026242bdedce998a54837dc67f14b6a97c5fd"
