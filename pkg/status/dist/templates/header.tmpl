@@ -77,6 +77,12 @@ NOTE: Changes made to this template should be reflected on the following templat
     error: {{.hostnameStats.errors.all}}
   {{- end }}
 
+  Metadata
+  ========
+  {{- range $key, $value := .agent_metadata }}
+    {{ $key }}: {{ $value }}
+  {{- end }}
+
 {{- if .leaderelection}}
 
 Leader Election
