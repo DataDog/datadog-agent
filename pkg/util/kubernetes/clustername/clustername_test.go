@@ -24,7 +24,7 @@ func TestGetClusterName(t *testing.T) {
 	assert.Equal(t, testClusterName, getClusterName(data))
 
 	// Test caching and reset
-	var newClusterName = "Youri"
+	var newClusterName = "youri"
 	mockConfig.Set("cluster_name", newClusterName)
 	assert.Equal(t, testClusterName, getClusterName(data))
 	freshData := newClusterNameData()
