@@ -233,7 +233,7 @@ suites:
     dd-agent-install:
       agent6: true
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
-      windows_agent_filename: ddagent-cli-6.14.2.msi
+      windows_agent_filename: ddagent-cli-6.14.2
     dd-agent-upgrade:
       add_new_repo: true
       aptrepo: <%= aptrepo %>
