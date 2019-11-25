@@ -23,6 +23,7 @@ func (nullReverseDNS) GetStats() map[string]int64 {
 		"added":            0,
 		"expired":          0,
 		"packets_captured": 0,
+		"decoding_errors":  0,
 	}
 }
 

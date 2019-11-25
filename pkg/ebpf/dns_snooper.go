@@ -39,7 +39,8 @@ type SocketFilterSnooper struct {
 	wg           sync.WaitGroup
 
 	// telemetry
-	packets int64
+	packets        int64
+	decodingErrors int64
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
@@ -83,6 +84,7 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats := s.cache.Stats()
 	stats["packets_captured"] = atomic.SwapInt64(&s.packets, 0)
+	stats["decoding_errors"] = atomic.SwapInt64(&s.decodingErrors, 0)
 	return stats
 }
 
@@ -103,9 +105,13 @@ func (s *SocketFilterSnooper) Close() {
 // the reverse DNS cache. The underlying packet data can't be referenced after this method
 // call since gopacket re-uses it.
 func (s *SocketFilterSnooper) processPacket(data []byte) {
-	if translation := s.parser.Parse(data); translation != nil {
-		s.cache.Add(translation, time.Now())
+	translation := s.parser.Parse(data)
+	if translation == nil {
+		atomic.AddInt64(&s.decodingErrors, 1)
+		return
 	}
+
+	s.cache.Add(translation, time.Now())
 }
 
 func (s *SocketFilterSnooper) poll() {
