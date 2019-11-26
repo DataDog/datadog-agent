@@ -36,7 +36,7 @@ var (
 
 func kernelCodeToString(code uint32) string {
 	// Kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-	a, b, c := code>>16, code>>8&0xf, code&0xf
+	a, b, c := code>>16, code>>8&0xff, code&0xff
 	return fmt.Sprintf("%d.%d.%d", a, b, c)
 }
 
@@ -85,13 +85,10 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		return true, ""
 	}
 
-	if isLinuxAWSUbuntu(platform) {
-		if kernelCode < linuxKernelVersionCode(4, 4, 128) {
-			return false, fmt.Sprintf("Known bug on %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454\n- https://launchpad.net/ubuntu/xenial/+source/linux-aws/+changelog#linux-aws_4.4.0-1060.69", platform)
-		}
-	} else if isUbuntu(platform) {
-		if kernelCode >= linuxKernelVersionCode(4, 4, 119) && kernelCode <= linuxKernelVersionCode(4, 4, 126) {
-			return false, fmt.Sprintf("got ubuntu kernel %s with known bug on platform: %s, see: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
+	// using eBPF causes kernel panic for linux kernel version 4.4.114 ~ 4.4.127
+	if isLinuxAWSUbuntu(platform) || isUbuntu(platform) {
+		if kernelCode >= linuxKernelVersionCode(4, 4, 114) && kernelCode <= linuxKernelVersionCode(4, 4, 127) {
+			return false, fmt.Sprintf("Known bug for kernel %s on platform %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
 		}
 	}
 
@@ -166,4 +163,26 @@ func isUbuntu(platform string) bool {
 
 func isLinuxAWSUbuntu(platform string) bool {
 	return strings.Contains(strings.ToLower(platform), "aws") && isUbuntu(platform)
+}
+
+func isCentOS(platform string) bool {
+	return strings.Contains(strings.ToLower(platform), "centos")
+}
+
+func isRHEL(platform string) bool {
+	p := strings.ToLower(platform)
+	return strings.Contains(p, "redhat") || strings.Contains(p, "red hat") || strings.Contains(p, "rhel")
+}
+
+func isRHELOrCentOS() (bool, error) {
+	platform, err := util.GetPlatform()
+	if err != nil {
+		return false, err
+	}
+	return isCentOS(platform) || isRHEL(platform), nil
+}
+
+// isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
+func isPre410Kernel(currentKernelCode uint32) bool {
+	return currentKernelCode < stringToKernelCode("4.1.0")
 }

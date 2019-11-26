@@ -11,11 +11,12 @@ config_providers:
   # needed to support legacy docker label config templates
   - name: docker
     polling: true
+    poll_interval: 1s
 
 # Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
 apm_config:
   enabled: false
   apm_non_local_traffic: true
 
-# Use java cgroup memory awareness
-jmx_use_cgroup_memory_limit: true
+# Use java container support
+jmx_use_container_support: true

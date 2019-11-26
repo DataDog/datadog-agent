@@ -1,35 +1,22 @@
 Custom Metrics Server
 =====================
-  {{- if .custommetrics.Error }}
-  Error: {{ .custommetrics.Error }}
-  {{ else }}
   {{- if .custommetrics.Disabled }}
-  Disabled: {{ .custommetrics.Disabled }}
-  {{ else }}
-  ConfigMap name: {{ .custommetrics.Cmname }}
-  {{ if .custommetrics.StoreError }}
-  Error: {{ .custommetrics.StoreError }}
-  {{ else }}
-  External Metrics
-  ----------------
-    {{- if .custommetrics.External.ListError }}
-    Error: {{ .custommetrics.External.ListError }}
+    Status: {{ .custommetrics.Disabled }}
+    {{- if .custommetrics.Error }}
+    Error: {{ .custommetrics.Error }}
     {{ else }}
     Total: {{ .custommetrics.External.Total }}
     Valid: {{ .custommetrics.External.Valid }}
     {{ range $metric := .custommetrics.External.Metrics }}
-    {{- range $name, $value := $metric }}
-    {{- if or (eq $name "hpa") (eq $name "labels") }}
-    {{$name}}:
-    {{- range $k, $v := $value }}
+  * {{$metric.reference.type}} pod autoscaler: {{$metric.reference.namespace}}/{{$metric.reference.name}}
+    Metric name: {{$metric.metricName}}
+    Labels:
+    {{- range $k, $v := $metric.labels }}
     - {{$k}}: {{$v}}
+    {{- end }}
+    Value: {{ humanize $metric.value}}
+    Timestamp: {{ formatUnixTime $metric.ts}}
+    Valid: {{$metric.valid}}
+    {{- end }}
     {{- end -}}
-    {{else}}
-    {{$name}}: {{$value}}
-    {{- end }}
-    {{- end }}
-    {{ end }}
-    {{- end }}
-  {{- end }}
-  {{- end }}
   {{- end }}

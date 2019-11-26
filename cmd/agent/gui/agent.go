@@ -62,7 +62,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 
 // Sends the current agent version
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	version, e := version.New(version.AgentVersion, version.Commit)
+	version, e := version.Agent()
 	if e != nil {
 		log.Errorf("Error getting version: " + e.Error())
 		w.Write([]byte("Error: " + e.Error()))

@@ -36,3 +36,7 @@ func TestSubmitServiceCheckEmptyHostame(t *testing.T) {
 func TestSubmitEvent(t *testing.T) {
 	testSubmitEvent(t)
 }
+
+func TestSubmitHistogramBucket(t *testing.T) {
+	testSubmitHistogramBucket(t)
+}

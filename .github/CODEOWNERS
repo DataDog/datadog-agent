@@ -9,14 +9,35 @@
 # Rules are matched bottom-to-top, so one team can own subdirectories
 # and another the rest of the directory.
 
+*                                       @DataDog/agent-platform
+
 /cmd/                                   @DataDog/agent-core
 /cmd/trace-agent/                       @DataDog/apm-agent
 /cmd/agent/app/integrations*.go         @DataDog/prodsec @DataDog/agent-integrations @DataDog/agent-core
+/cmd/agent/clcrunnerapi/                @DataDog/container-integrations @DataDog/agent-core
+/cmd/agent/*.manifest                   @DataDog/agent-platform
+/cmd/agent/*.mc                         @DataDog/agent-platform
+/cmd/agent/*.rc                         @DataDog/agent-platform
+/cmd/agent/install*.sh                  @DataDog/agent-platform
+/cmd/agent/version.h                    @DataDog/agent-platform
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/process-agent/                     @DataDog/burrito
 /cmd/system-probe/                      @DataDog/burrito
 
-/docs/                                  @DataDog/baklava @DataDog/agent-core
+/Dockerfiles/                           @DataDog/container-integrations
+
+/docs/                                  @DataDog/baklava @DataDog/agent-platform
+/docs/agent/                            @DataDog/baklava @DataDog/agent-core
+/docs/dogstatsd/                        @DataDog/baklava @DataDog/agent-core
+/docs/trace-agent/                      @DataDog/baklava @DataDog/apm-agent
+/docs/cluster-agent/                    @DataDog/baklava @DataDog/container-integrations
+/docs/dev/checks/                       @DataDog/baklava @DataDog/agent-core
+
+/Makefile.trace                         @DataDog/apm-agent
+
+/omnibus/                               @DataDog/agent-platform
+/omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
+/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
@@ -33,6 +54,12 @@
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/embed/        @Datadog/agent-platform
+/pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
+/pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/apm-agent
+/pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/burrito
+/pkg/collector/corechecks/net/          @DataDog/agent-platform
+/pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/util/clusteragent/                 @DataDog/container-integrations
@@ -49,14 +76,15 @@
 /pkg/procmatch/                         @DataDog/burrito
 /pkg/quantile                           @DataDog/metrics-aggregation
 
-/Dockerfiles/                           @DataDog/container-integrations
-/docs/trace-agent                       @DataDog/apm-agent
+/releasenotes/                          @DataDog/agent-all
+/releasenotes-dca/                      @DataDog/container-integrations
 
-/omnibus/                               @DataDog/agent-core
-/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
+/rtloader/                              @DataDog/agent-core
 
+/tasks/                                 @DataDog/agent-platform
+/tasks/agent.py                         @DataDog/agent-core
+/tasks/process-agent.py                 @DataDog/burrito
+/tasks/system-probe.py                  @DataDog/burrito
 /tasks/trace.py                         @DataDog/apm-agent
-
-/Makefile.trace                         @DataDog/apm-agent
 
 /tools/ebpf/                            @DataDog/burrito

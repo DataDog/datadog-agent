@@ -123,6 +123,9 @@ func (c *MemoryCheck) Run() error {
 	p, errPage := pageMemory()
 	if errPage == nil {
 		sender.Gauge("system.mem.pagefile.pct_free", float64(100-p.UsedPercent)/100, "", nil)
+		sender.Gauge("system.mem.pagefile.total", float64(p.Total)/mbSize, "", nil)
+		sender.Gauge("system.mem.pagefile.free", float64(p.Available)/mbSize, "", nil)
+		sender.Gauge("system.mem.pagefile.used", float64(p.Used)/mbSize, "", nil)
 	} else {
 		log.Errorf("system.MemoryCheck: could not retrieve swap memory stats: %s", errSwap)
 	}

@@ -12,7 +12,7 @@ import (
 
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig()
+	cfg := config.NewDefaultAgentConfig(false)
 	c, err := NewCollector(cfg)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -48,7 +48,7 @@ func TestUpdateRTStatus(t *testing.T) {
 
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.NewDefaultAgentConfig()
+	cfg := config.NewDefaultAgentConfig(false)
 	c, err := NewCollector(cfg)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -63,4 +63,33 @@ func TestUpdateRTInterval(t *testing.T) {
 	c.updateStatus(statuses)
 	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
 	assert.Equal(10*time.Second, c.realTimeInterval)
+}
+
+func TestHasContainers(t *testing.T) {
+	assert := assert.New(t)
+
+	collectorProc := model.CollectorProc{}
+	collectorContainer := model.CollectorContainer{}
+	collectorRealTime := model.CollectorRealTime{}
+	collectorContainerRealTime := model.CollectorContainerRealTime{}
+	collectorConnections := model.CollectorConnections{}
+
+	assert.Equal(0, getContainerCount(&collectorProc))
+	assert.Equal(0, getContainerCount(&collectorContainer))
+	assert.Equal(0, getContainerCount(&collectorRealTime))
+	assert.Equal(0, getContainerCount(&collectorContainerRealTime))
+	assert.Equal(0, getContainerCount(&collectorConnections))
+
+	c := &model.Container{Type: "Docker"}
+	cs, cs2 := &model.ContainerStat{Id: "1234"}, &model.ContainerStat{Id: "5678"}
+
+	collectorProc.Containers = append(collectorProc.Containers, c)
+	collectorContainer.Containers = append(collectorContainer.Containers, c)
+	collectorRealTime.ContainerStats = append(collectorRealTime.ContainerStats, cs, cs2)
+	collectorContainerRealTime.Stats = append(collectorContainerRealTime.Stats, cs)
+
+	assert.Equal(1, getContainerCount(&collectorProc))
+	assert.Equal(1, getContainerCount(&collectorContainer))
+	assert.Equal(2, getContainerCount(&collectorRealTime))
+	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
 }

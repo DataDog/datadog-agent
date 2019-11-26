@@ -23,9 +23,9 @@
 #include <cstdlib>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome)
+extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome, cb_memory_tracker_t memtrack_cb)
 {
-    return new Two(pythonHome);
+    return new Two(pythonHome, memtrack_cb);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -33,8 +33,8 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Two::Two(const char *python_home)
-    : RtLoader()
+Two::Two(const char *python_home, cb_memory_tracker_t memtrack_cb)
+    : RtLoader(memtrack_cb)
     , _pythonHome(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
@@ -104,6 +104,7 @@ bool Two::init()
 
     // init custom builtins
     if (init_stringutils() != EXIT_SUCCESS) {
+        setError("error initializing string utils: " + _fetchPythonError());
         goto done;
     }
     Py2_init_aggregator();
@@ -116,6 +117,9 @@ bool Two::init()
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
+    if (_baseClass == NULL) {
+        setError("could not import base class: " + std::string(getError()));
+    }
 
 done:
     // save thread state and release the GIL
@@ -172,9 +176,9 @@ void Two::freePyInfo(py_info_t *info)
 {
     info->version = NULL;
     if (info->path) {
-        free(info->path);
+        _free(info->path);
     }
-    free(info);
+    _free(info);
     return;
 }
 
@@ -794,6 +798,11 @@ void Two::setSubmitEventCb(cb_submit_event_t cb)
     _set_submit_event_cb(cb);
 }
 
+void Two::setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t cb)
+{
+    _set_submit_histogram_bucket_cb(cb);
+}
+
 void Two::setGetVersionCb(cb_get_version_t cb)
 {
     _set_get_version_cb(cb);
@@ -829,6 +838,11 @@ void Two::setLogCb(cb_log_t cb)
     _set_log_cb(cb);
 }
 
+void Two::setSetCheckMetadataCb(cb_set_check_metadata_t cb)
+{
+    _set_set_check_metadata_cb(cb);
+}
+
 void Two::setSetExternalTagsCb(cb_set_external_tags_t cb)
 {
     _set_set_external_tags_cb(cb);
@@ -857,6 +871,16 @@ void Two::setGetConnectionInfoCb(cb_get_connection_info_t cb)
 void Two::setIsExcludedCb(cb_is_excluded_t cb)
 {
     _set_is_excluded_cb(cb);
+}
+
+void Two::setWritePersistentCacheCb(cb_write_persistent_cache_t cb)
+{
+    _set_write_persistent_cache_cb(cb);
+}
+
+void Two::setReadPersistentCacheCb(cb_read_persistent_cache_t cb)
+{
+    _set_read_persistent_cache_cb(cb);
 }
 
 // Python Helpers

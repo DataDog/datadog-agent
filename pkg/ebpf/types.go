@@ -16,6 +16,11 @@ const (
 
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg KProbeName = "kprobe/tcp_sendmsg"
+
+	// TCPSendMsgPre410 traces the tcp_sendmsg() system call on kernels prior to 4.1.0. This is created because
+	// we need to load a different kprobe implementation
+	TCPSendMsgPre410 KProbeName = "kprobe/tcp_sendmsg/pre_4_1_0"
+
 	// TCPSendMsgReturn traces the return value for the tcp_sendmsg() system call
 	// XXX: This is only used for telemetry for now to count the number of errors returned
 	// by the tcp_sendmsg func (so we can have a # of tcp sent bytes we miscounted)
@@ -32,8 +37,12 @@ const (
 
 	// UDPSendMsg traces the udp_sendmsg() system call
 	UDPSendMsg KProbeName = "kprobe/udp_sendmsg"
+	// UDPSendMsgPre410 traces the udp_sendmsg() system call on kernels prior to 4.1.0
+	UDPSendMsgPre410 KProbeName = "kprobe/udp_sendmsg/pre_4_1_0"
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg KProbeName = "kprobe/udp_recvmsg"
+	// UDPRecvMsgPre410 traces the udp_recvmsg() system call on kernels prior to 4.1.0
+	UDPRecvMsgPre410 KProbeName = "kprobe/udp_recvmsg/pre_4_1_0"
 	// UDPRecvMsgReturn traces the return value for the udp_recvmsg() system call
 	UDPRecvMsgReturn KProbeName = "kretprobe/udp_recvmsg"
 
@@ -61,3 +70,13 @@ const (
 func (b bpfMapName) sectionName() string {
 	return fmt.Sprintf("maps/%s", b)
 }
+
+var (
+	// kprobeOverrides specifies a mapping between sections in our kprobe functions and
+	// the actual eBPF function that it should bind to
+	kprobeOverrides = map[KProbeName]KProbeName{
+		TCPSendMsgPre410: TCPSendMsg,
+		UDPSendMsgPre410: UDPSendMsg,
+		UDPRecvMsgPre410: UDPRecvMsg,
+	}
+)

@@ -45,7 +45,7 @@ DEFAULT_TEST_TARGETS = [
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     verbose=False, race=False, profile=False, fail_on_fmt=False,
     rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0,
-    timeout=120):
+    timeout=120, arch="x64"):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -87,7 +87,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         f_cov.write("mode: count")
 
     ldflags, gcflags, env = get_build_flags(ctx, rtloader_root=rtloader_root,
-            python_home_2=python_home_2, python_home_3=python_home_3)
+            python_home_2=python_home_2, python_home_3=python_home_3, arch=arch)
 
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
@@ -223,7 +223,8 @@ def lint_releasenote(ctx):
             if 'next' in res.links:
                 url = res.links['next']['url']
             else:
-                print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
+                print("Error: No releasenote was found for this PR. Please add one using 'reno'"\
+                      ", or apply the label 'changelog/no-changelog' to the PR.")
                 raise Exit(code=1)
 
     # The PR has not been created yet, let's compare with master (the usual base branch of the future PR)
@@ -249,7 +250,8 @@ def lint_releasenote(ctx):
                     if 'next' in res.links:
                         url = res.links['next']['url']
                     else:
-                        print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
+                        print("Error: No releasenote was found for this PR. Please add one using 'reno'"\
+                              ", or apply the label 'changelog/no-changelog' to the PR.")
                         raise Exit(code=1)
 
     ctx.run("reno lint")

@@ -54,8 +54,9 @@ func (suite *InsecureTestSuite) TestHTTP() {
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), 0, len(podList))
+	// we don't consider null podlist as valid
+	require.Error(suite.T(), err)
+	assert.Nil(suite.T(), podList)
 
 	require.EqualValues(suite.T(),
 		map[string]string{
@@ -86,8 +87,9 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), 0, len(podList))
+	// we don't consider null podlist as valid
+	require.Error(suite.T(), err)
+	assert.Nil(suite.T(), podList)
 
 	require.EqualValues(suite.T(),
 		map[string]string{

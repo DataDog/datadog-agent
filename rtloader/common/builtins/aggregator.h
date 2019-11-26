@@ -49,6 +49,13 @@
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
+/*! \fn void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t)
+    \brief Sets the submit event callback to be used by rtloader for histogram bucket submission.
+    \param cb A function pointer with cb_submit_histogram_bucket_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
 
 #include <Python.h>
 #include <rtloader_types.h>
@@ -69,6 +76,7 @@ void Py2_init_aggregator();
 void _set_submit_metric_cb(cb_submit_metric_t cb);
 void _set_submit_service_check_cb(cb_submit_service_check_t cb);
 void _set_submit_event_cb(cb_submit_event_t cb);
+void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb);
 
 #ifdef __cplusplus
 }

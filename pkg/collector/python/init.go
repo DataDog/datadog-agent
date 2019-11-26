@@ -81,7 +81,10 @@ void GetConfig(char*, char **);
 void GetHostname(char **);
 void GetVersion(char **);
 void Headers(char **);
+void ReadPersistentCache(char *);
+void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
+void WritePersistentCache(char *, char *);
 bool TracemallocEnabled();
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
@@ -90,7 +93,10 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_version_cb(rtloader, GetVersion);
 	set_headers_cb(rtloader, Headers);
+	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
+	set_write_persistent_cache_cb(rtloader, WritePersistentCache);
+	set_read_persistent_cache_cb(rtloader, ReadPersistentCache);
 	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 }
 
@@ -101,11 +107,13 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 void SubmitMetric(char *, metric_type_t, char *, float, char **, int, char *);
 void SubmitServiceCheck(char *, char *, int, char **, int, char *, char *);
 void SubmitEvent(char *, event_t *, int);
+void SubmitHistogramBucket(char *, char *, int, float, float, int, char *, char **);
 
 void initAggregatorModule(rtloader_t *rtloader) {
 	set_submit_metric_cb(rtloader, SubmitMetric);
 	set_submit_service_check_cb(rtloader, SubmitServiceCheck);
 	set_submit_event_cb(rtloader, SubmitEvent);
+	set_submit_histogram_bucket_cb(rtloader, SubmitHistogramBucket);
 }
 
 //
@@ -202,7 +210,7 @@ func sendTelemetry(pythonVersion string) {
 	tags := []string{
 		fmt.Sprintf("python_version:%s", pythonVersion),
 	}
-	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+	if agentVersion, err := version.Agent(); err == nil {
 		tags = append(tags,
 			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
 			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
@@ -250,7 +258,11 @@ func detectPythonLocation(pythonVersion string) {
 	if runtime.GOOS == "windows" {
 		pythonBinPath = filepath.Join(PythonHome, "python.exe")
 	} else {
-		pythonBinPath = filepath.Join(PythonHome, "bin", "python")
+		// On Unix both python are installed on the same embedded
+		// directory. We don't want to use the default version (aka
+		// "python") but either "python2" or "python3" based on the
+		// configuration.
+		pythonBinPath = filepath.Join(PythonHome, "bin", "python"+pythonVersion)
 	}
 }
 
@@ -258,7 +270,9 @@ func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 
 	// memory related RTLoader-global initialization
-	C.initMemoryTracker()
+	if config.Datadog.GetBool("memtrack_enabled") {
+		C.initMemoryTracker()
+	}
 
 	detectPythonLocation(pythonVersion)
 

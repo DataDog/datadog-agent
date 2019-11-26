@@ -13,14 +13,24 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestIsDefaultHostname(t *testing.T) {
-	assert.True(t, IsDefaultHostname("IP-FOO"))
-	assert.True(t, IsDefaultHostname("domuarigato"))
-	assert.False(t, IsDefaultHostname(""))
+	const key = "ec2_use_windows_prefix_detection"
+	prefixDetection := config.Datadog.GetBool(key)
+	defer config.Datadog.SetDefault(key, prefixDetection)
+
+	for _, prefix := range []bool{true, false} {
+		config.Datadog.SetDefault(key, prefix)
+
+		assert.True(t, IsDefaultHostname("IP-FOO"))
+		assert.True(t, IsDefaultHostname("domuarigato"))
+		assert.Equal(t, prefix, IsDefaultHostname("EC2AMAZ-FOO"))
+		assert.False(t, IsDefaultHostname(""))
+	}
 }
 
 func TestGetInstanceID(t *testing.T) {
@@ -171,4 +181,24 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	_, err := GetNetworkID()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too many mac addresses returned")
+}
+
+func TestGetLocalIPv4(t *testing.T) {
+	ip := "10.0.0.2"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/local-ipv4":
+			io.WriteString(w, ip)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	ips, err := GetLocalIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ip}, ips)
 }

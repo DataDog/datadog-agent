@@ -50,6 +50,17 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         elsif linux?
+            # Fix pip after building on extended toolchain in CentOS builder
+            if redhat?
+              unless arm?
+                rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
+                # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
+                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
+                # replace paths with expected target toolchain location
+                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
+              end
+            end
+
             # Move system service files
             mkdir "/etc/init"
             move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
@@ -66,7 +77,12 @@ build do
                 move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-sysprobe", "/etc/init.d"
+            end
+            if suse?
+                mkdir "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
@@ -100,32 +116,40 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
-            # The prerm and preinst scripts of the package will use this list to detect which files
-            # have been setup by the installer, this way, on removal, we'll be able to delete only files
-            # which have not been created by the package.
-            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
-            command "find #{install_dir}/embedded/lib/python*/site-packages >> #{install_dir}/embedded/.installed_by_pkg.txt"
-
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"
 
             # removing the terminfo db from the embedded folder to reduce package size by ~7MB
             delete "#{install_dir}/embedded/share/terminfo"
+            # removing the symlink too
+            delete "#{install_dir}/embedded/lib/terminfo"
 
             # removing useless folder
             delete "#{install_dir}/embedded/share/aclocal"
             delete "#{install_dir}/embedded/share/examples"
 
-            # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
+            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
             if with_python_runtime? "2"
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
+
+                delete "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
             end
 
+            # removing the man pages from the embedded folder to reduce package size by ~4MB
+            delete "#{install_dir}/embedded/man"
+            delete "#{install_dir}/embedded/share/man"
 
-        # removing the man pages from the embedded folder to reduce package size by ~4MB
-        delete "#{install_dir}/embedded/man"
-        delete "#{install_dir}/embedded/share/man"
+            # linux build will be stripped - but psycopg2 affected by bug in the way binutils
+            # and patchelf work together:
+            #    https://github.com/pypa/manylinux/issues/119
+            #    https://github.com/NixOS/patchelf
+            #
+            # Only affects psycopg2 - any binary whose path matches the pattern will be
+            # skipped.
+            strip_exclude("*psycopg2*")
+            strip_exclude("*cffi_backend*")
 
         elsif osx?
             # Remove linux specific configs

@@ -9,13 +9,13 @@ package systemd
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/coreos/go-systemd/dbus"
@@ -58,40 +58,40 @@ var metricConfigs = map[string][]metricConfigItem{
 	typeService: {
 		{
 			// only present from systemd v220
-			metricName:         "systemd.service.cpu_usage_n_sec",
+			metricName:         "systemd.service.cpu_time_consumed",
 			propertyName:       "CPUUsageNSec",
 			accountingProperty: "CPUAccounting",
 			optional:           true,
 		},
 		{
-			metricName:         "systemd.service.memory_current",
+			metricName:         "systemd.service.memory_usage",
 			propertyName:       "MemoryCurrent",
 			accountingProperty: "MemoryAccounting",
 		},
 		{
-			metricName:         "systemd.service.tasks_current",
+			metricName:         "systemd.service.task_count",
 			propertyName:       "TasksCurrent",
 			accountingProperty: "TasksAccounting",
 		},
 		{
 			// only present from systemd v235
-			metricName:   "systemd.service.n_restarts",
+			metricName:   "systemd.service.restart_count",
 			propertyName: "NRestarts",
 			optional:     true,
 		},
 	},
 	typeSocket: {
 		{
-			metricName:   "systemd.socket.n_accepted",
+			metricName:   "systemd.socket.connection_accepted_count",
 			propertyName: "NAccepted",
 		},
 		{
-			metricName:   "systemd.socket.n_connections",
+			metricName:   "systemd.socket.connection_count",
 			propertyName: "NConnections",
 		},
 		{
 			// only present from systemd v239
-			metricName:   "systemd.socket.n_refused",
+			metricName:   "systemd.socket.connection_refused_count",
 			propertyName: "NRefused",
 			optional:     true,
 		},
@@ -109,7 +109,7 @@ var systemdStatusMapping = map[string]metrics.ServiceCheckStatus{
 	"stopping":     metrics.ServiceCheckCritical,
 }
 
-// SystemdCheck aggregates metrics from one Check instance
+// SystemdCheck aggregates metrics from one SystemdCheck instance
 type SystemdCheck struct {
 	core.CheckBase
 	stats  systemdStats
@@ -117,9 +117,8 @@ type SystemdCheck struct {
 }
 
 type systemdInstanceConfig struct {
-	UnitNames         []string `yaml:"unit_names"`
-	UnitRegexStrings  []string `yaml:"unit_regexes"`
-	UnitRegexPatterns []*regexp.Regexp
+	PrivateSocket string   `yaml:"private_socket"`
+	UnitNames     []string `yaml:"unit_names"`
 }
 
 type systemdInitConfig struct{}
@@ -131,7 +130,8 @@ type systemdConfig struct {
 
 type systemdStats interface {
 	// Dbus Connection
-	NewConn() (*dbus.Conn, error)
+	PrivateSocketConnection(privateSocket string) (*dbus.Conn, error)
+	SystemBusSocketConnection() (*dbus.Conn, error)
 	CloseConn(c *dbus.Conn)
 
 	// System Data
@@ -140,13 +140,17 @@ type systemdStats interface {
 	GetUnitTypeProperties(c *dbus.Conn, unitName string, unitType string) (map[string]interface{}, error)
 
 	// Misc
-	TimeNanoNow() int64
+	UnixNow() int64
 }
 
 type defaultSystemdStats struct{}
 
-func (s *defaultSystemdStats) NewConn() (*dbus.Conn, error) {
-	return dbus.New()
+func (s *defaultSystemdStats) PrivateSocketConnection(privateSocket string) (*dbus.Conn, error) {
+	return NewSystemdConnection(privateSocket)
+}
+
+func (s *defaultSystemdStats) SystemBusSocketConnection() (*dbus.Conn, error) {
+	return dbus.NewSystemConnection()
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
@@ -165,8 +169,8 @@ func (s *defaultSystemdStats) GetUnitTypeProperties(c *dbus.Conn, unitName strin
 	return c.GetUnitTypeProperties(unitName, unitType)
 }
 
-func (s *defaultSystemdStats) TimeNanoNow() int64 {
-	return time.Now().UnixNano()
+func (s *defaultSystemdStats) UnixNow() int64 {
+	return time.Now().Unix()
 }
 
 // Run executes the check
@@ -176,7 +180,7 @@ func (c *SystemdCheck) Run() error {
 		return err
 	}
 
-	conn, err := c.getDbusConn(sender)
+	conn, err := c.connect(sender)
 	if err != nil {
 		return err
 	}
@@ -190,17 +194,18 @@ func (c *SystemdCheck) Run() error {
 	return nil
 }
 
-func (c *SystemdCheck) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error) {
-	conn, err := c.stats.NewConn()
+func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
+	conn, err := c.getDbusConnection()
+
 	if err != nil {
-		newErr := fmt.Errorf("Cannot create a connection: %v", err)
+		newErr := fmt.Errorf("cannot create a connection: %v", err)
 		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
 		return nil, newErr
 	}
 
 	systemStateProp, err := c.stats.SystemState(conn)
 	if err != nil {
-		newErr := fmt.Errorf("Err calling SystemState: %v", err)
+		newErr := fmt.Errorf("err calling SystemState: %v", err)
 		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
 		return nil, newErr
 	}
@@ -218,15 +223,51 @@ func (c *SystemdCheck) getDbusConn(sender aggregator.Sender) (*dbus.Conn, error)
 	return conn, nil
 }
 
+func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
+	var err error
+	var conn *dbus.Conn
+	if c.config.instance.PrivateSocket != "" {
+		conn, err = c.getPrivateSocketConnection(c.config.instance.PrivateSocket)
+	} else {
+		defaultPrivateSocket := "/run/systemd/private"
+		if config.IsContainerized() {
+			conn, err = c.getPrivateSocketConnection("/host" + defaultPrivateSocket)
+		} else {
+			conn, err = c.getSystemBusSocketConnection()
+			if err != nil {
+				conn, err = c.getPrivateSocketConnection(defaultPrivateSocket)
+			}
+		}
+	}
+	return conn, err
+}
+
+func (c *SystemdCheck) getPrivateSocketConnection(privateSocket string) (*dbus.Conn, error) {
+	conn, err := c.stats.PrivateSocketConnection(privateSocket)
+	if err != nil {
+		log.Debugf("Error getting new connection using private socket %s: %v", privateSocket, err)
+	}
+	return conn, err
+}
+
+func (c *SystemdCheck) getSystemBusSocketConnection() (*dbus.Conn, error) {
+	conn, err := c.stats.SystemBusSocketConnection()
+	if err != nil {
+		log.Debugf("Error getting new connection using system bus socket: %v", err)
+	}
+	return conn, err
+}
+
 func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
 	units, err := c.stats.ListUnits(conn)
 	if err != nil {
-		return fmt.Errorf("Error getting list of units: %v", err)
+		return fmt.Errorf("error getting list of units: %v", err)
 	}
 
 	c.submitCountMetrics(sender, units)
 
 	loadedCount := 0
+	monitoredCount := 0
 	for _, unit := range units {
 		if unit.LoadState == unitLoadedState {
 			loadedCount++
@@ -234,6 +275,7 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 		if !c.isMonitored(unit.Name) {
 			continue
 		}
+		monitoredCount++
 		tags := []string{"unit:" + unit.Name}
 		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState), "", tags, "")
 
@@ -241,22 +283,13 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 		c.submitPropertyMetricsAsGauge(sender, conn, unit, tags)
 	}
 
-	sender.Gauge("systemd.unit.loaded.count", float64(loadedCount), "", nil)
+	sender.Gauge("systemd.units_total", float64(len(units)), "", nil)
+	sender.Gauge("systemd.units_loaded_count", float64(loadedCount), "", nil)
+	sender.Gauge("systemd.units_monitored_count", float64(monitoredCount), "", nil)
 	return nil
 }
 
 func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
-	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
-	if err != nil {
-		log.Warnf("Error getting unit unitProperties: %s", unit.Name)
-		return
-	}
-
-	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
-	if err != nil {
-		log.Warnf("Error getting property ActiveEnterTimestamp: %v", err)
-		return
-	}
 	active := 0
 	if unit.ActiveState == unitActiveState {
 		active = 1
@@ -265,9 +298,21 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 	if unit.LoadState == unitLoadedState {
 		loaded = 1
 	}
+	sender.Gauge("systemd.unit.monitored", float64(1), "", tags)
 	sender.Gauge("systemd.unit.active", float64(active), "", tags)
 	sender.Gauge("systemd.unit.loaded", float64(loaded), "", tags)
-	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, activeEnterTimestamp, c.stats.TimeNanoNow())), "", tags)
+
+	unitProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[typeUnit])
+	if err != nil {
+		log.Warnf("Error getting unit unitProperties: %s", unit.Name)
+		return
+	}
+	activeEnterTimestamp, err := getPropertyUint64(unitProperties, "ActiveEnterTimestamp")
+	if err != nil {
+		log.Warnf("Error getting property ActiveEnterTimestamp: %v", err)
+		return
+	}
+	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, activeEnterTimestamp, c.stats.UnixNow())), "", tags)
 }
 
 func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitStatus) {
@@ -283,7 +328,7 @@ func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus
 
 	for _, activeState := range unitActiveStates {
 		count := counts[activeState]
-		sender.Gauge("systemd.unit.count", float64(count), "", []string{"active_state:" + activeState})
+		sender.Gauge("systemd.units_by_state", float64(count), "", []string{"state:" + activeState})
 	}
 }
 
@@ -324,18 +369,18 @@ func sendServicePropertyAsGauge(sender aggregator.Sender, properties map[string]
 	}
 	value, err := getPropertyUint64(properties, service.propertyName)
 	if err != nil {
-		return fmt.Errorf("Error getting property %s: %v", service.propertyName, err)
+		return fmt.Errorf("error getting property %s: %v", service.propertyName, err)
 	}
 	sender.Gauge(service.metricName, float64(value), "", tags)
 	return nil
 }
 
 // computeUptime returns uptime in microseconds
-func computeUptime(activeState string, activeEnterTimestampMicroSec uint64, nanoNow int64) int64 {
+func computeUptime(activeState string, activeEnterTimestampMicroSec uint64, unitNow int64) int64 {
 	if activeState != unitActiveState {
 		return 0
 	}
-	uptime := nanoNow/1000 - int64(activeEnterTimestampMicroSec)
+	uptime := unitNow - int64(activeEnterTimestampMicroSec)/1000000
 	if uptime < 0 {
 		return 0
 	}
@@ -345,7 +390,7 @@ func computeUptime(activeState string, activeEnterTimestampMicroSec uint64, nano
 func getPropertyUint64(properties map[string]interface{}, propertyName string) (uint64, error) {
 	prop, ok := properties[propertyName]
 	if !ok {
-		return 0, fmt.Errorf("Property %s not found", propertyName)
+		return 0, fmt.Errorf("property %s not found", propertyName)
 	}
 	switch typedProp := prop.(type) {
 	case uint:
@@ -355,17 +400,17 @@ func getPropertyUint64(properties map[string]interface{}, propertyName string) (
 	case uint64:
 		return typedProp, nil
 	}
-	return 0, fmt.Errorf("Property %s (%T) cannot be converted to uint64", propertyName, prop)
+	return 0, fmt.Errorf("property %s (%T) cannot be converted to uint64", propertyName, prop)
 }
 
 func getPropertyString(properties map[string]interface{}, propertyName string) (string, error) {
 	prop, ok := properties[propertyName]
 	if !ok {
-		return "", fmt.Errorf("Property %s not found", propertyName)
+		return "", fmt.Errorf("property %s not found", propertyName)
 	}
 	propValue, ok := prop.(string)
 	if !ok {
-		return "", fmt.Errorf("Property %s (%T) cannot be converted to string", propertyName, prop)
+		return "", fmt.Errorf("property %s (%T) cannot be converted to string", propertyName, prop)
 	}
 	return propValue, nil
 }
@@ -373,11 +418,11 @@ func getPropertyString(properties map[string]interface{}, propertyName string) (
 func getPropertyBool(properties map[string]interface{}, propertyName string) (bool, error) {
 	prop, ok := properties[propertyName]
 	if !ok {
-		return false, fmt.Errorf("Property %s not found", propertyName)
+		return false, fmt.Errorf("property %s not found", propertyName)
 	}
 	propValue, ok := prop.(bool)
 	if !ok {
-		return false, fmt.Errorf("Property %s (%T) cannot be converted to bool", propertyName, prop)
+		return false, fmt.Errorf("property %s (%T) cannot be converted to bool", propertyName, prop)
 	}
 	return propValue, nil
 }
@@ -396,16 +441,8 @@ func getServiceCheckStatus(activeState string) metrics.ServiceCheckStatus {
 
 // isMonitored verifies if a unit should be monitored.
 func (c *SystemdCheck) isMonitored(unitName string) bool {
-	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexPatterns) == 0 {
-		return true
-	}
 	for _, name := range c.config.instance.UnitNames {
 		if name == unitName {
-			return true
-		}
-	}
-	for _, pattern := range c.config.instance.UnitRegexPatterns {
-		if pattern.MatchString(unitName) {
 			return true
 		}
 	}
@@ -427,14 +464,10 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 		return err
 	}
 
-	for _, regexString := range c.config.instance.UnitRegexStrings {
-		pattern, err := regexp.Compile(regexString)
-		if err != nil {
-			log.Warnf("Failed to parse systemd check option unit_regexes: %s", err)
-			continue
-		}
-		c.config.instance.UnitRegexPatterns = append(c.config.instance.UnitRegexPatterns, pattern)
+	if len(c.config.instance.UnitNames) == 0 {
+		return fmt.Errorf("instance config `unit_names` must not be empty")
 	}
+
 	return nil
 }
 

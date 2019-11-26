@@ -163,7 +163,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 		}
 	}
 	for id, lastSeenReady := range w.lastSeenReady {
-		// we keep pods gone unready for 30 seconds and then force removal
+		// we keep pods gone unready for 25 seconds and then force removal
 		if now.Sub(lastSeenReady) > unreadinessTimeout {
 			delete(w.lastSeenReady, id)
 			expiredContainers = append(expiredContainers, id)

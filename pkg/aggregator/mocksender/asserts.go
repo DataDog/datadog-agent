@@ -30,6 +30,12 @@ func (m *MockSender) AssertMetric(t *testing.T, method string, metric string, va
 	return m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags))
 }
 
+// AssertHistogramBucket allows to assert a histogram bucket was emitted with given parameters.
+// Additional tags over the ones specified don't make it fail
+func (m *MockSender) AssertHistogramBucket(t *testing.T, method string, metric string, value int, lowerBound float64, upperBound float64, monotonic bool, hostname string, tags []string) bool {
+	return m.Mock.AssertCalled(t, method, metric, value, lowerBound, upperBound, monotonic, hostname, tags)
+}
+
 // AssertMetricInRange allows to assert a metric was emitted with given parameters, with a value in a given range.
 // Additional tags over the ones specified don't make it fail
 func (m *MockSender) AssertMetricInRange(t *testing.T, method string, metric string, min float64, max float64, hostname string, tags []string) bool {

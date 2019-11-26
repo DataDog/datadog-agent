@@ -10,25 +10,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-// ConsumeSources ensures that another component is consuming the channel to prevent
-// the producer to get stuck.
-func ConsumeSources(sources *config.LogSources) {
-	go func() {
-		sources := sources.GetAddedForType("foo")
-		for range sources {
-		}
-	}()
-}
-
-// CreateSources creates sources and initialize a status builder
-func CreateSources(sourcesArray []*config.LogSource) *config.LogSources {
-	logSources := config.NewLogSources()
-	for _, source := range sourcesArray {
-		logSources.AddSource(source)
-	}
-	ConsumeSources(logSources)
+// InitStatus initialize a status builder
+func InitStatus(sources *config.LogSources) {
 	var isRunning int32 = 1
-	Init(&isRunning, logSources, metrics.LogsExpvars)
-
-	return logSources
+	endpoints, _ := config.BuildEndpoints()
+	Init(&isRunning, endpoints, sources, metrics.LogsExpvars)
 }

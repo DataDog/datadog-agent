@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	// stdlib
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -27,8 +26,8 @@ type ContextResolver struct {
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func generateContextKey(metricSample *metrics.MetricSample) ckey.ContextKey {
-	return ckey.Generate(metricSample.Name, metricSample.Host, metricSample.Tags)
+func generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+	return ckey.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), metricSampleContext.GetTags())
 }
 
 func newContextResolver() *ContextResolver {
@@ -39,13 +38,13 @@ func newContextResolver() *ContextResolver {
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *ContextResolver) trackContext(metricSample *metrics.MetricSample, currentTimestamp float64) ckey.ContextKey {
-	contextKey := generateContextKey(metricSample)
+func (cr *ContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) ckey.ContextKey {
+	contextKey := generateContextKey(metricSampleContext)
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		cr.contextsByKey[contextKey] = &Context{
-			Name: metricSample.Name,
-			Tags: metricSample.Tags,
-			Host: metricSample.Host,
+			Name: metricSampleContext.GetName(),
+			Tags: metricSampleContext.GetTags(),
+			Host: metricSampleContext.GetHost(),
 		}
 	}
 	cr.lastSeenByKey[contextKey] = currentTimestamp

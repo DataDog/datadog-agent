@@ -4,7 +4,6 @@
 // Copyright 2016-2019 Datadog, Inc.
 
 // +build !android
-//go:generate go run ../../pkg/config/render_config.go agent ../../pkg/config/config_template.yaml ./dist/datadog.yaml
 
 package main
 
@@ -35,7 +34,7 @@ func main() {
 	if len(os.Args) == 1 {
 		isIntSess, err := svc.IsAnInteractiveSession()
 		if err != nil {
-			fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
+			fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 		}
 		if !isIntSess {
 			common.EnableLoggingToFile()

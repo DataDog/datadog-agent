@@ -32,7 +32,7 @@ public:
       Basic constructor, initializes the _error string to an empty string and
       errorFlag to false and set the supplied PYTHONHOME.
     */
-    Three(const char *python_home);
+    Three(const char *python_home, cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
     /*!
@@ -89,6 +89,7 @@ public:
     void setSubmitMetricCb(cb_submit_metric_t);
     void setSubmitServiceCheckCb(cb_submit_service_check_t);
     void setSubmitEventCb(cb_submit_event_t);
+    void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t);
 
     // datadog_agent API
     void setGetVersionCb(cb_get_version_t);
@@ -98,7 +99,10 @@ public:
     void setGetClusternameCb(cb_get_clustername_t);
     void setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t);
     void setLogCb(cb_log_t);
+    void setSetCheckMetadataCb(cb_set_check_metadata_t);
     void setSetExternalTagsCb(cb_set_external_tags_t);
+    void setWritePersistentCacheCb(cb_write_persistent_cache_t);
+    void setReadPersistentCacheCb(cb_read_persistent_cache_t);
 
     // _util API
     virtual void setSubprocessOutputCb(cb_get_subprocess_output_t);

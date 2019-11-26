@@ -103,7 +103,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 		return deprecations, nil
 	}
 	if len(c.Instances) > 1 {
-		fmt.Printf("Warning: %s contains more than one instance: converting only the first one", src)
+		fmt.Printf("Warning: %s contains more than one instance: converting only the first one\n", src)
 	}
 
 	// kubelet.yaml (only tags for now)

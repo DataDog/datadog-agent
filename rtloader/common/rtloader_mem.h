@@ -16,9 +16,16 @@
 
 #include <stdlib.h>
 
+#define MEM_DEPRECATION_MSG                                                                                            \
+    "raw primitives should not be used in the context"                                                                 \
+    "of the rtloader"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern void *malloc(size_t size) __attribute__((deprecated(MEM_DEPRECATION_MSG)));
+extern void free(void *ptr) __attribute__((deprecated(MEM_DEPRECATION_MSG)));
 
 /*! \fn void _set_memory_tracker_cb(cb_memory_tracker_t cb)
     \brief Sets a callback to be used by rtloader to add memory tracking stats.
@@ -29,6 +36,15 @@ extern "C" {
     may start using the allocator.
 */
 void _set_memory_tracker_cb(cb_memory_tracker_t);
+
+/*! \fn cb_memory_tracker_t _set_memory_tracker_cb(void)
+    \brief Returns the callback used by rtloader for memory tracking stats.
+    \return object A function pointer to the callback function.
+
+    This function is thread unsafe, be sure to call it early on before multiple threads
+    may start using the allocator.
+*/
+cb_memory_tracker_t _get_memory_tracker_cb(void);
 
 /*! \fn void *_malloc(size_t sz)
     \brief Basic malloc wrapper that will also keep memory stats if enabled.

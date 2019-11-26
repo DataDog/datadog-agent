@@ -9,13 +9,16 @@
 # are not enabled on the daemonset too.
 #
 
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: datadog-clusterchecks
   namespace: default
 spec:
   replicas: 2
+  selector:
+    matchLabels:
+      app: datadog-clusterchecks
   template:
     metadata:
       labels:

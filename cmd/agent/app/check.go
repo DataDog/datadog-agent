@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -93,7 +94,7 @@ var checkCmd = &cobra.Command{
 			// Honour the deprecated --log-level argument
 			overrides := make(map[string]interface{})
 			overrides["log_level"] = logLevel
-			config.SetOverrides(overrides)
+			config.AddOverrides(overrides)
 		} else {
 			logLevel = config.GetEnv("DD_LOG_LEVEL", "off")
 		}
@@ -130,7 +131,28 @@ var checkCmd = &cobra.Command{
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
+		if config.Datadog.GetBool("inventories_enabled") {
+			metadata.SetupInventoriesExpvar(common.AC, common.Coll)
+		}
+
 		allConfigs := common.AC.GetAllConfigs()
+
+		// make sure the checks in cs are not JMX checks
+		for _, conf := range allConfigs {
+			if conf.Name != checkName {
+				continue
+			}
+
+			if check.IsJMXConfig(conf.Name, conf.InitConfig) {
+				// we'll mimic the check command behavior with JMXFetch by running
+				// it with the JSON reporter and the list_with_metrics command.
+				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
+				if err := RunJmxListWithMetrics(); err != nil {
+					return fmt.Errorf("while running the jmx check: %v", err)
+				}
+				return nil
+			}
+		}
 
 		if profileMemory {
 			// If no directory is specified, make a temporary one
@@ -210,6 +232,8 @@ var checkCmd = &cobra.Command{
 		}
 
 		cs := collector.GetChecksByNameForConfigs(checkName, allConfigs)
+
+		// something happened while getting the check(s), display some info.
 		if len(cs) == 0 {
 			for check, error := range autodiscovery.GetConfigErrors() {
 				if checkName == check {
@@ -240,13 +264,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		var instancesData []interface{}
-
 		for _, c := range cs {
-			for _, conf := range allConfigs {
-				if check.IsJMXConfig(conf.Name, conf.InitConfig) {
-					return fmt.Errorf("using the jmx option with the check command directly is not supported, please use the jmx command instead")
-				}
-			}
 			s := runCheck(c, agg)
 
 			// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
@@ -272,8 +290,9 @@ var checkCmd = &cobra.Command{
 				}
 
 				instanceData := map[string]interface{}{
-					"aggregator": aggregatorData,
-					"runner":     runnerData,
+					"aggregator":  aggregatorData,
+					"runner":      runnerData,
+					"inventories": collectorData["inventories"],
 				}
 				instancesData = append(instancesData, instanceData)
 			} else if profileMemory {

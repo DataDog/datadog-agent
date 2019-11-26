@@ -65,7 +65,7 @@ metadata for their metrics.`,
 			if flagNoColor {
 				color.NoColor = true
 			}
-			av, _ := version.New(version.AgentVersion, version.Commit)
+			av, _ := version.Agent()
 			meta := ""
 			if av.Meta != "" {
 				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
@@ -177,11 +177,13 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 		stopCh := make(chan struct{})
 		ctx := apiserver.ControllerContext{
-			InformerFactory: apiCl.InformerFactory,
-			Client:          apiCl.Cl,
-			LeaderElector:   le,
-			StopCh:          stopCh,
+			InformerFactory:    apiCl.InformerFactory,
+			WPAInformerFactory: apiCl.WPAInformerFactory,
+			Client:             apiCl.Cl,
+			LeaderElector:      le,
+			StopCh:             stopCh,
 		}
+
 		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
 		}
@@ -205,7 +207,7 @@ func start(cmd *cobra.Command, args []string) error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 	wg := sync.WaitGroup{}
-	// HPA Process
+	// Autoscaler Controller Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
 		wg.Add(1)

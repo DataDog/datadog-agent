@@ -10,28 +10,33 @@ import (
 	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
-// #cgo CFLAGS: -I../../include
-// #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-// #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
-//
-// #include <stdlib.h>
-// #include <datadog_agent_rtloader.h>
-//
-// extern void submitMetric(char *, metric_type_t, char *, float, char **, char *);
-// extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
-// extern void submitEvent(char*, event_t*);
-//
-// static void initAggregatorTests(rtloader_t *rtloader) {
-//    set_submit_metric_cb(rtloader, submitMetric);
-//    set_submit_service_check_cb(rtloader, submitServiceCheck);
-//    set_submit_event_cb(rtloader, submitEvent);
-// }
+/*
+#cgo CFLAGS: -I../../include -I../../common -Wno-deprecated-declarations
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "rtloader_mem.h"
+#include "datadog_agent_rtloader.h"
+
+extern void submitMetric(char *, metric_type_t, char *, float, char **, char *);
+extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
+extern void submitEvent(char*, event_t*);
+extern void submitHistogramBucket(char *, char *, int, float, float, int, char *, char **);
+
+static void initAggregatorTests(rtloader_t *rtloader) {
+   set_submit_metric_cb(rtloader, submitMetric);
+   set_submit_service_check_cb(rtloader, submitServiceCheck);
+   set_submit_event_cb(rtloader, submitEvent);
+   set_submit_histogram_bucket_cb(rtloader, submitHistogramBucket);
+}
+*/
 import "C"
 
 var (
-	rtloader        *C.rtloader_t
+	rtloader   *C.rtloader_t
 	checkID    string
 	metricType int
 	name       string
@@ -42,6 +47,10 @@ var (
 	scName     string
 	scMessage  string
 	_event     *event
+	intValue   int
+	lowerBound float64
+	upperBound float64
+	monotonic  bool
 )
 
 type event struct {
@@ -68,9 +77,16 @@ func resetOuputValues() {
 	scName = ""
 	scMessage = ""
 	_event = nil
+	intValue = -1
+	lowerBound = 1.0
+	upperBound = 1.0
+	monotonic = false
 }
 
 func setUp() error {
+	// Initialize memory tracking
+	helpers.InitMemoryTracker()
+
 	rtloader = (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
 		return fmt.Errorf("make failed")
@@ -96,20 +112,20 @@ func run(call string) (string, error) {
 	}
 	defer os.Remove(tmpfile.Name())
 
-	code := C.CString(fmt.Sprintf(`
+	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import aggregator
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
-`, call, tmpfile.Name()))
+`, call, tmpfile.Name())))
+	defer C._free(unsafe.Pointer(code))
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
 	ret := C.run_simple_string(rtloader, code) == 1
-	C.free(unsafe.Pointer(code))
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -195,5 +211,19 @@ func submitEvent(id *C.char, ev *C.event_t) {
 
 	if ev.tags != nil {
 		_event.tags = append(_event.tags, charArrayToSlice(ev.tags)...)
+	}
+}
+
+//export submitHistogramBucket
+func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.int, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char) {
+	checkID = C.GoString(id)
+	name = C.GoString(cMetricName)
+	intValue = int(cVal)
+	lowerBound = float64(cLowerBound)
+	upperBound = float64(cUpperBound)
+	monotonic = (cMonotonic != 0)
+	hostname = C.GoString(cHostname)
+	if t != nil {
+		tags = append(tags, charArrayToSlice(t)...)
 	}
 }

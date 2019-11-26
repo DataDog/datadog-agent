@@ -50,6 +50,9 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	if err != nil {
 		return nil, err
 	}
+	if len(cpuTimes) == 0 {
+		return nil, errEmptyCPUTime
+	}
 	procs, err := getAllProcesses(cfg)
 	if err != nil {
 		return nil, err

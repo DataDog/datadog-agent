@@ -149,7 +149,7 @@ func getMeta() *Meta {
 func getNetworkMeta() *NetworkMeta {
 	nid, err := util.GetNetworkID()
 	if err != nil {
-		log.Errorf("could not get network metadata: %s", err)
+		log.Infof("could not get network metadata: %s", err)
 		return nil
 	}
 	return &NetworkMeta{ID: nid}

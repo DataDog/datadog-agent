@@ -376,6 +376,15 @@ DATADOG_AGENT_RTLOADER_API void set_submit_service_check_cb(rtloader_t *, cb_sub
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_event_cb(rtloader_t *, cb_submit_event_t);
 
+/*! \fn void set_submit_histogram_bucket_cb(rtloader_t *, cb_submit_histogram_bucket_t)
+    \brief Sets the submit event callback to be used by rtloader for histogram bucket submission.
+    \param cb A function pointer with cb_submit_histogram_bucket_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_submit_histogram_bucket_cb(rtloader_t *, cb_submit_histogram_bucket_t);
+
 // DATADOG_AGENT API
 /*! \fn void set_get_version_cb(rtloader_t *, cb_get_version_t)
     \brief Sets a callback to be used by rtloader to collect the agent version.
@@ -452,6 +461,17 @@ DATADOG_AGENT_RTLOADER_API void set_tracemalloc_enabled_cb(rtloader_t *, cb_trac
 */
 DATADOG_AGENT_RTLOADER_API void set_log_cb(rtloader_t *, cb_log_t);
 
+/*! \fn void set_set_check_metadata_cb(rtloader_t *, cb_set_check_metadata_t)
+    \brief Sets a callback to be used by rtloader to allow setting metadata for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_set_check_metadata_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_set_check_metadata_cb(rtloader_t *, cb_set_check_metadata_t);
+
 /*! \fn void set_set_external_tags_cb(rtloader_t *, cb_set_external_tags_t)
     \brief Sets a callback to be used by rtloader to allow setting external tags for a given
     hostname.
@@ -527,6 +547,28 @@ DATADOG_AGENT_RTLOADER_API void set_get_connection_info_cb(rtloader_t *, cb_get_
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_is_excluded_cb(rtloader_t *, cb_is_excluded_t);
+
+/*! \fn void set_write_persistent_cache_cb(rtloader_t *, cb_write_persistent_cache_t)
+    \brief Sets a callback to be used by rtloader to allow storing a value for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_write_persistent_cache_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_write_persistent_cache_cb(rtloader_t *, cb_write_persistent_cache_t);
+
+/*! \fn void set_read_persistent_cache_cb(rtloader_t *, cb_read_persistent_cache_t)
+    \brief Sets a callback to be used by rtloader to allow retrieving a value for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_read_persistent_cache_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_read_persistent_cache_cb(rtloader_t *, cb_read_persistent_cache_t);
 
 #ifdef __cplusplus
 }

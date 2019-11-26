@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
@@ -363,6 +364,38 @@ func TestReceiverDecodingError(t *testing.T) {
 	})
 }
 
+func TestTraceCount(t *testing.T) {
+	req, err := http.NewRequest("GET", "/", nil)
+	assert.NoError(t, err)
+
+	t.Run("missing", func(t *testing.T) {
+		for k := range req.Header {
+			delete(req.Header, k)
+		}
+		_, err := traceCount(req)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("value-empty", func(t *testing.T) {
+		req.Header.Set(headerTraceCount, "")
+		_, err := traceCount(req)
+		assert.Contains(t, err.Error(), "value not set")
+	})
+
+	t.Run("value-bad", func(t *testing.T) {
+		req.Header.Set(headerTraceCount, "qwe")
+		_, err := traceCount(req)
+		assert.Contains(t, err.Error(), "can not be parsed")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		req.Header.Set(headerTraceCount, "123")
+		count, err := traceCount(req)
+		assert.NoError(t, err)
+		assert.Equal(t, count, int64(123))
+	})
+}
+
 func TestHandleTraces(t *testing.T) {
 	assert := assert.New(t)
 
@@ -656,8 +689,7 @@ func TestWatchdog(t *testing.T) {
 		r.Start()
 		defer r.Stop()
 		go func() {
-			for {
-				<-r.out
+			for range r.out {
 			}
 		}()
 
@@ -738,8 +770,7 @@ func TestOOMKill(t *testing.T) {
 	r.Start()
 	defer r.Stop()
 	go func() {
-		for {
-			<-r.out
+		for range r.out {
 		}
 	}()
 

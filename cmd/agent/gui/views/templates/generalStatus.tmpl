@@ -92,6 +92,15 @@
   </div>
 
   <div class="stat">
+    <span class="stat_title">Metadata</span>
+    <span class="stat_data">
+    {{- range $key, $value := .agent_metadata }}
+      {{ $key }}: {{ $value }}
+    {{- end }}
+    </span>
+  </div>
+
+  <div class="stat">
     <span class="stat_title">JMX Status</span>
     <span class="stat_data">
       {{- with .JMXStatus -}}
@@ -205,6 +214,12 @@
       {{- if eq .is_running false }}
 
         Logs Agent is not running </br>
+      {{- end }}
+      {{- if .endpoints }}
+
+        {{- range $endpoint := .endpoints }}
+          {{ $endpoint }}
+        {{- end }}
       {{- end }}
       {{- if .metrics }}
 

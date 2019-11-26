@@ -13,10 +13,16 @@ type protoSerializer struct{}
 
 func (protoSerializer) Marshal(conns *ebpf.Connections) ([]byte, error) {
 	agentConns := make([]*model.Connection, len(conns.Conns))
+
 	for i, conn := range conns.Conns {
 		agentConns[i] = FormatConnection(conn)
 	}
-	payload := &model.Connections{Conns: agentConns}
+
+	payload := &model.Connections{
+		Conns: agentConns,
+		Dns:   FormatDNS(conns.DNS),
+	}
+
 	return proto.Marshal(payload)
 }
 

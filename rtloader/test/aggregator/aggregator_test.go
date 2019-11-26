@@ -5,6 +5,8 @@ import (
 	"os"
 	"regexp"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
 func TestMain(m *testing.M) {
@@ -18,6 +20,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestSubmitMetric(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	out, err := run(`aggregator.submit_metric(None, 'id', aggregator.GAUGE, 'name', -99.0, ['foo', 21, 'bar', ["hey"]], 'myhost')`)
 
 	if err != nil {
@@ -47,9 +52,15 @@ func TestSubmitMetric(t *testing.T) {
 	if tags[0] != "foo" || tags[1] != "bar" {
 		t.Fatalf("Unexpected tags: %v", tags)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSubmitMetricParsingError(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	out, err := run(`
 	aggregator.submit_metric(None, 21, aggregator.GAUGE, 'name', -99.0, ['foo', 21, 'bar', ["hey"]], 'myhost')
 	`)
@@ -60,9 +71,15 @@ func TestSubmitMetricParsingError(t *testing.T) {
 	if matched, err := regexp.Match("TypeError: argument 2 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSubmitMetricTagsError(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	out, err := run(`
 	aggregator.submit_metric(None, 'id', aggregator.GAUGE, 'name', -99.0, 123, 'myhost')
 	`)
@@ -73,9 +90,15 @@ func TestSubmitMetricTagsError(t *testing.T) {
 	if out != "TypeError: tags must be a sequence" {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSubmitServiceCheck(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	out, err := run(`aggregator.submit_service_check(None, 'id', 'my.service.check', 1, ['foo', 21, 'bar', ["hey"]], 'myhost', 'A message!')`)
 
 	if err != nil {
@@ -105,9 +128,15 @@ func TestSubmitServiceCheck(t *testing.T) {
 	if scMessage != "A message!" {
 		t.Fatalf("Unexpected name value: %s", scMessage)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSubmitServiceCheckParsingError(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	out, err := run(`aggregator.submit_service_check(None, 123, 'my.service.check', 1, ['foo', 21, 'bar', ["hey"]], 'myhost', 'A message!')`)
 
 	if err != nil {
@@ -116,9 +145,15 @@ func TestSubmitServiceCheckParsingError(t *testing.T) {
 	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSubmitServiceCheckTagsError(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	out, err := run(`aggregator.submit_service_check(None, 'id', 'my.service.check', 1, 123, 'myhost', 'A message!')`)
 
 	if err != nil {
@@ -127,9 +162,15 @@ func TestSubmitServiceCheckTagsError(t *testing.T) {
 	if out != "TypeError: tags must be a sequence" {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSubmitEvent(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	ev = {
 		'timestamp': 123456,
@@ -189,9 +230,15 @@ func TestSubmitEvent(t *testing.T) {
 	if _event.tags[0] != "foo" || _event.tags[1] != "bar" {
 		t.Fatalf("Unexpected tags: %v", _event.tags)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestSubmitEventMissingFields(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	ev = {
 		'msg_text': 'Event message',
@@ -238,9 +285,15 @@ func TestSubmitEventMissingFields(t *testing.T) {
 	if _event.tags != nil {
 		t.Fatal("Tags should be nil")
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestEventCheckEventNotDict(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	aggregator.submit_event(None, 'id', "I should be a dict")
 	`
@@ -252,9 +305,15 @@ func TestEventCheckEventNotDict(t *testing.T) {
 	if out != "TypeError: event must be a dict" {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestEventCheckParsingError(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	aggregator.submit_event(None, 21, {})
 	`
@@ -266,9 +325,15 @@ func TestEventCheckParsingError(t *testing.T) {
 	if matched, err := regexp.Match("TypeError: argument 2 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
 
 func TestEventCheckTagsError(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	code := `
 	ev = {
 		'timestamp': 123456,
@@ -293,4 +358,51 @@ func TestEventCheckTagsError(t *testing.T) {
 	if out != "TypeError: tags must be a sequence" {
 		t.Errorf("wrong printed value: '%s'", out)
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSubmitHistogramBucket(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	out, err := run(`aggregator.submit_histogram_bucket(None, 'id', 'name', 42, 1.0, 2.0, 1, 'myhost', ['foo', 21, 'bar', ["hey"]])`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out != "" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+	if checkID != "id" {
+		t.Fatalf("Unexpected id value: %s", checkID)
+	}
+	if name != "name" {
+		t.Fatalf("Unexpected name value: %s", name)
+	}
+	if intValue != 42 {
+		t.Fatalf("Unexpected int value: %d", intValue)
+	}
+	if lowerBound != 1.0 {
+		t.Fatalf("Unexpected lower bound value: %f", lowerBound)
+	}
+	if upperBound != 2.0 {
+		t.Fatalf("Unexpected upper bound value: %f", upperBound)
+	}
+	if monotonic != true {
+		t.Fatalf("Unexpected monotonic value: %v", monotonic)
+	}
+	if hostname != "myhost" {
+		t.Fatalf("Unexpected hostname value: %s", hostname)
+	}
+	if len(tags) != 2 {
+		t.Fatalf("Unexpected tags length: %d", len(tags))
+	}
+	if tags[0] != "foo" || tags[1] != "bar" {
+		t.Fatalf("Unexpected tags: %v", tags)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }

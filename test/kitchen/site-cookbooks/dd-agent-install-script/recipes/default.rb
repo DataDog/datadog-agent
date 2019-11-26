@@ -41,6 +41,8 @@ execute 'update Agent install script repository' do
     sed -i 's~stable main~#{node['dd-agent-install-script']['candidate_repo_branch']} main~' install-script
     sed -i 's~stable 6~#{node['dd-agent-install-script']['candidate_repo_branch']} main~' install-script
     sed -i 's~stable/6~#{node['dd-agent-install-script']['candidate_repo_branch']}~' install-script
+    sed -i 's~${dd_agent_dist_channel} ${dd_agent_major_version}~#{node['dd-agent-install-script']['candidate_repo_branch']} main~' install-script
+    sed -i 's~${dd_agent_dist_channel}/${dd_agent_major_version}~#{node['dd-agent-install-script']['candidate_repo_branch']}~' install-script
   EOF
 
   only_if { node['dd-agent-install-script']['install_candidate'] }

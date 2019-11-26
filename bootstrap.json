@@ -6,8 +6,24 @@
             "github.com/gordonklaus/ineffassign",
             "github.com/client9/misspell/cmd/misspell",
             "github.com/golang/dep/cmd/dep",
-            "golang.org/x/mobile/cmd/gomobile"
+            "golang.org/x/mobile/cmd/gomobile",
+            "golang.org/x/tools/go/ast/astutil",
+            "golang.org/x/tools/go/internal",
+            "golang.org/x/tools/go/gcexportdata"
         ],
+        "golang.org/x/tools/go/ast/astutil": {
+            "version": "release-branch.go1.10",
+            "type": "go"
+        },
+        "golang.org/x/tools/go/internal": {
+            "version": "release-branch.go1.10",
+            "type": "go",
+            "install": false
+        },
+        "golang.org/x/tools/go/gcexportdata": {
+            "version": "release-branch.go1.10",
+            "type": "go"
+        },
         "github.com/golang/dep/cmd/dep": {
             "version": "v0.5.0",
             "type": "go"

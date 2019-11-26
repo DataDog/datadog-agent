@@ -79,7 +79,7 @@ func TestRandomizeMessages(t *testing.T) {
 
 			lastRun := time.Now().Add(-5 * time.Second)
 			syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-			cfg := config.NewDefaultAgentConfig()
+			cfg := config.NewDefaultAgentConfig(false)
 			sysInfo := &model.SystemInfo{}
 			lastCtrRates := util.ExtractContainerRateMetric(ctrs)
 
@@ -113,7 +113,7 @@ func TestBasicProcessMessages(t *testing.T) {
 	c[1].Pids = []int32{3}
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-	cfg := config.NewDefaultAgentConfig()
+	cfg := config.NewDefaultAgentConfig(false)
 	sysInfo := &model.SystemInfo{}
 	lastCtrRates := util.ExtractContainerRateMetric(c)
 

@@ -144,12 +144,11 @@ else
 end
 
 if with_python_runtime? "2"
-  dependency 'datadog-a7-py2'
+  dependency 'pylint2'
   dependency 'datadog-agent-integrations-py2'
 end
 
 if with_python_runtime? "3"
-  dependency 'datadog-a7-py3'
   dependency 'datadog-agent-integrations-py3'
 end
 
@@ -184,6 +183,11 @@ if linux?
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
   end
+  if suse?
+    extra_package_file "/etc/init.d/datadog-agent"
+    extra_package_file "/etc/init.d/datadog-agent-process"
+    extra_package_file "/etc/init.d/datadog-agent-trace"
+  end
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"
   extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
@@ -195,3 +199,11 @@ end
 
 exclude '\.git*'
 exclude 'bundler\/git'
+
+if linux?
+  # the stripper will drop the symbols in a `.debug` folder in the installdir
+  # we want to make sure that directory is not in the main build, while present
+  # in the debug package.
+  strip_build true
+  debug_path ".debug"  # the strip symbols will be in here
+end

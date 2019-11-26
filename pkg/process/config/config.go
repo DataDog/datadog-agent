@@ -73,23 +73,25 @@ type AgentConfig struct {
 	ProcessExpVarPort  int
 
 	// System probe collection configuration
-	EnableSystemProbe            bool
-	EnableLocalSystemProbe       bool // To have the system probe embedded in the process-agent
-	DisableTCPTracing            bool
-	DisableUDPTracing            bool
-	DisableIPv6Tracing           bool
-	CollectLocalDNS              bool
-	SystemProbeSocketPath        string
-	SystemProbeLogFile           string
-	MaxTrackedConnections        uint
-	SysProbeBPFDebug             bool
-	ExcludedBPFLinuxVersions     []string
-	EnableConntrack              bool
-	ConntrackShortTermBufferSize int
-	SystemProbeDebugPort         int
-	ClosedChannelSize            int
-	MaxClosedConnectionsBuffered int
-	MaxConnectionsStateBuffered  int
+	EnableSystemProbe              bool
+	DisableTCPTracing              bool
+	DisableUDPTracing              bool
+	DisableIPv6Tracing             bool
+	DisableDNSInspection           bool
+	CollectLocalDNS                bool
+	SystemProbeSocketPath          string
+	SystemProbeLogFile             string
+	MaxTrackedConnections          uint
+	SysProbeBPFDebug               bool
+	ExcludedBPFLinuxVersions       []string
+	ExcludedSourceConnections      map[string][]string
+	ExcludedDestinationConnections map[string][]string
+	EnableConntrack                bool
+	ConntrackShortTermBufferSize   int
+	SystemProbeDebugPort           int
+	ClosedChannelSize              int
+	MaxClosedConnectionsBuffered   int
+	MaxConnectionsStateBuffered    int
 
 	// Check config
 	EnabledChecks  []string
@@ -118,10 +120,10 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultEndpoint          = "https://process.datadoghq.com"
-	maxMessageBatch          = 100
-	maxConnsMessageBatch     = 1000
-	maxMaxTrackedConnections = 65536
+	defaultEndpoint              = "https://process.datadoghq.com"
+	maxMessageBatch              = 100
+	maxConnsMessageBatch         = 1000
+	defaultMaxTrackedConnections = 65536
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -140,17 +142,12 @@ func NewDefaultTransport() *http.Transport {
 }
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
-func NewDefaultAgentConfig() *AgentConfig {
+func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	u, err := url.Parse(defaultEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
 	}
-
-	// Note: This only considers container sources that are already setup. It's possible that container sources may
-	//       need a few minutes to be ready.
-	_, err = util.GetContainers()
-	canAccessContainers := err == nil
 
 	var enabledChecks []string
 	if canAccessContainers {
@@ -177,13 +174,13 @@ func NewDefaultAgentConfig() *AgentConfig {
 
 		// System probe collection configuration
 		EnableSystemProbe:            false,
-		EnableLocalSystemProbe:       false,
 		DisableTCPTracing:            false,
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
+		DisableDNSInspection:         true,
 		SystemProbeSocketPath:        defaultSystemProbeSocketPath,
 		SystemProbeLogFile:           defaultSystemProbeFilePath,
-		MaxTrackedConnections:        maxMaxTrackedConnections,
+		MaxTrackedConnections:        defaultMaxTrackedConnections,
 		EnableConntrack:              true,
 		ClosedChannelSize:            500,
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
@@ -244,7 +241,13 @@ func loadConfigIfExists(path string) error {
 // if there is no file available. In this case we'll configure only via environment.
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
 	var err error
-	cfg := NewDefaultAgentConfig()
+
+	// Note: This only considers container sources that are already setup. It's possible that container sources may
+	//       need a few minutes to be ready on newly provisioned hosts.
+	_, err = util.GetContainers()
+	canAccessContainers := err == nil
+
+	cfg := NewDefaultAgentConfig(canAccessContainers)
 
 	// For Agent 6 we will have a YAML config file to use.
 	if err := loadConfigIfExists(yamlPath); err != nil {
@@ -308,7 +311,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 // NewSystemProbeConfig returns a system-probe specific AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
 func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*AgentConfig, error) {
-	cfg := NewDefaultAgentConfig()
+	cfg := NewDefaultAgentConfig(false) // We don't access the container APIs in the system-probe
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
@@ -346,8 +349,8 @@ func loadEnvVariables() {
 		"DD_DISABLE_TCP_TRACING":    "system_probe_config.disable_tcp",
 		"DD_DISABLE_UDP_TRACING":    "system_probe_config.disable_udp",
 		"DD_DISABLE_IPV6_TRACING":   "system_probe_config.disable_ipv6",
+		"DD_DISABLE_DNS_INSPECTION": "system_probe_config.disable_dns_inspection",
 		"DD_COLLECT_LOCAL_DNS":      "system_probe_config.collect_local_dns",
-		"DD_USE_LOCAL_SYSTEM_PROBE": "system_probe_config.use_local_system_probe",
 
 		"DD_HOSTNAME":       "hostname",
 		"DD_DOGSTATSD_PORT": "dogstatsd_port",

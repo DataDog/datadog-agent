@@ -3,46 +3,59 @@
 package netlink
 
 import (
-	"encoding/binary"
 	"net"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-
 	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestIsNat(t *testing.T) {
-	c := map[ct.ConnAttrType][]byte{
-		ct.AttrOrigIPv4Src: {1, 1, 1, 1},
-		ct.AttrOrigIPv4Dst: {2, 2, 2, 2},
-
-		ct.AttrReplIPv4Src: {2, 2, 2, 2},
-		ct.AttrReplIPv4Dst: {1, 1, 1, 1},
+	src := net.ParseIP("1.1.1.1")
+	dst := net.ParseIP("2.2.2..2")
+	var srcPort uint16 = 42
+	var dstPort uint16 = 8080
+	c := ct.Con{
+		Origin: &ct.IPTuple{
+			Src: &src,
+			Dst: &dst,
+			Proto: &ct.ProtoTuple{
+				SrcPort: &srcPort,
+				DstPort: &dstPort,
+			},
+		},
+		Reply: &ct.IPTuple{
+			Src: &dst,
+			Dst: &src,
+			Proto: &ct.ProtoTuple{
+				SrcPort: &dstPort,
+				DstPort: &srcPort,
+			},
+		},
 	}
+
 	assert.False(t, isNAT(c))
 }
 
 func TestRegisterNonNat(t *testing.T) {
 	rt := newConntracker()
-	c := makeUntranslatedConn("10.0.0.0:8080", "50.30.40.10:12345")
+	c := makeUntranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("50.30.40.10"), 6, 8080, 12345)
 
 	rt.register(c)
-	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 8080)
+	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 8080, process.ConnectionType_tcp)
 	assert.Nil(t, translation)
 }
 
 func TestRegisterNat(t *testing.T) {
 	rt := newConntracker()
-	c := makeTranslatedConn("10.0.0.0:12345", "50.30.40.10:80", "20.0.0.0:80")
+	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80)
 
 	rt.register(c)
-	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
+	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
 	assert.NotNil(t, translation)
 	assert.Equal(t, &IPTranslation{
 		ReplSrcIP:   util.AddressFromString("20.0.0.0"),
@@ -51,16 +64,19 @@ func TestRegisterNat(t *testing.T) {
 		ReplDstPort: 12345,
 	}, translation)
 
+	udpTranslation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_udp)
+	assert.Nil(t, udpTranslation)
+
 	// even after unregistering, we should be able to access the conn
 	rt.unregister(c)
-	translation2 := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
+	translation2 := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
 	assert.NotNil(t, translation2)
 
 	// double unregisters should never happen, though it will be treated as a no-op
 	rt.unregister(c)
 
 	rt.ClearShortLived()
-	translation3 := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
+	translation3 := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
 	assert.Nil(t, translation3)
 
 	// triple unregisters should never happen, though it will be treated as a no-op
@@ -70,9 +86,27 @@ func TestRegisterNat(t *testing.T) {
 
 }
 
+func TestRegisterNatUDP(t *testing.T) {
+	rt := newConntracker()
+	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 17, 12345, 80, 80)
+
+	rt.register(c)
+	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, 1)
+	assert.NotNil(t, translation)
+	assert.Equal(t, &IPTranslation{
+		ReplSrcIP:   util.AddressFromString("20.0.0.0"),
+		ReplDstIP:   util.AddressFromString("10.0.0.0"),
+		ReplSrcPort: 80,
+		ReplDstPort: 12345,
+	}, translation)
+
+	translation = rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
+	assert.Nil(t, translation)
+}
+
 func TestGetUpdatesGen(t *testing.T) {
 	rt := newConntracker()
-	c := makeTranslatedConn("10.0.0.0:12345", "50.30.40.10:80", "20.0.0.0:80")
+	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80)
 
 	rt.register(c)
 	var last uint8
@@ -82,7 +116,7 @@ func TestGetUpdatesGen(t *testing.T) {
 		break // there is only one item in the map
 	}
 
-	iptr := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345)
+	iptr := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
 	require.NotNil(t, iptr)
 
 	for _, v := range rt.state {
@@ -91,48 +125,51 @@ func TestGetUpdatesGen(t *testing.T) {
 	}
 }
 
+func TestTooManyEntries(t *testing.T) {
+	rt := newConntracker()
+	rt.maxStateSize = 1
+
+	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80))
+	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.1"), net.ParseIP("20.0.0.1"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80))
+	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.2"), net.ParseIP("20.0.0.2"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80))
+}
+
 func newConntracker() *realConntracker {
 	return &realConntracker{
-		state:               make(map[connKey]*connValue),
-		shortLivedBuffer:    make(map[connKey]*IPTranslation),
-		maxShortLivedBuffer: 10000,
-		compactTicker:       time.NewTicker(time.Hour),
-		maxStateSize:        10000,
+		state:                make(map[connKey]*connValue),
+		shortLivedBuffer:     make(map[connKey]*IPTranslation),
+		maxShortLivedBuffer:  10000,
+		compactTicker:        time.NewTicker(time.Hour),
+		maxStateSize:         10000,
+		exceededSizeLogLimit: util.NewLogLimit(1, time.Minute),
 	}
 }
 
-func makeUntranslatedConn(from, to string) ct.Conn {
-	return makeTranslatedConn(from, to, to)
+func makeUntranslatedConn(src, dst net.IP, proto uint8, srcPort, dstPort uint16) ct.Con {
+	return makeTranslatedConn(src, dst, dst, proto, srcPort, dstPort, dstPort)
 }
 
-// makes a translation where from -> to is shows as actualTo -> from
-func makeTranslatedConn(from, to, actualTo string) ct.Conn {
-	ip, port := parts(from)
-	dip, dport := parts(to)
-	tip, tport := parts(actualTo)
+// makes a translation where from -> to is shows as transFrom -> from
+func makeTranslatedConn(from, transFrom, to net.IP, proto uint8, fromPort, transFromPort, toPort uint16) ct.Con {
 
-	return map[ct.ConnAttrType][]byte{
-		ct.AttrOrigIPv4Src: ip,
-		ct.AttrOrigPortSrc: port,
-		ct.AttrOrigIPv4Dst: dip,
-		ct.AttrOrigPortDst: dport,
-
-		ct.AttrReplIPv4Src: tip,
-		ct.AttrReplPortSrc: tport,
-		ct.AttrReplIPv4Dst: ip,
-		ct.AttrReplPortDst: port,
+	return ct.Con{
+		Origin: &ct.IPTuple{
+			Src: &from,
+			Dst: &to,
+			Proto: &ct.ProtoTuple{
+				Number:  &proto,
+				SrcPort: &fromPort,
+				DstPort: &toPort,
+			},
+		},
+		Reply: &ct.IPTuple{
+			Src: &transFrom,
+			Dst: &from,
+			Proto: &ct.ProtoTuple{
+				Number:  &proto,
+				SrcPort: &transFromPort,
+				DstPort: &fromPort,
+			},
+		},
 	}
-}
-
-// splits an IP:port string into network order byte representations of IP and port.
-// IPv4 only.
-func parts(p string) ([]byte, []byte) {
-	segments := strings.Split(p, ":")
-	prt, _ := strconv.ParseUint(segments[1], 10, 16)
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, uint16(prt))
-
-	ip := net.ParseIP(segments[0]).To4()
-
-	return ip, b
 }

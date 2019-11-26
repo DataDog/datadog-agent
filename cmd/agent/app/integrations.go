@@ -37,10 +37,10 @@ const (
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
 	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
 	integrationVersionScript = `
+import pkg_resources
 try:
-	from datadog_checks.%s import __version__
-	print(__version__)
-except ImportError:
+	print(pkg_resources.get_distribution('%s').version)
+except pkg_resources.DistributionNotFound:
 	pass
 `
 )
@@ -139,7 +139,7 @@ func loadPythonInfo() error {
 	}
 
 	if err := common.SetupConfig(confFilePath); err != nil {
-		fmt.Printf("Cannot setup config, exiting: %v", err)
+		fmt.Printf("Cannot setup config, exiting: %v\n", err)
 		return err
 	}
 
@@ -363,7 +363,7 @@ func install(cmd *cobra.Command, args []string) error {
 
 		// Move configuration files
 		if err := moveConfigurationFilesOf(integration); err != nil {
-			fmt.Printf("Installed %s from %s", integration, wheelPath)
+			fmt.Printf("Installed %s from %s\n", integration, wheelPath)
 			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
 		}
 
@@ -663,7 +663,7 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	integrationName := getIntegrationName(integration)
+
 	validName, err := regexp.MatchString("^[0-9a-z_-]+$", integration)
 	if err != nil {
 		return nil, false, fmt.Errorf("Error validating integration name: %s", err)
@@ -671,7 +671,8 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 	if !validName {
 		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
 	}
-	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integrationName))
+
+	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integration))
 	output, err := pythonCmd.Output()
 
 	if err != nil {
@@ -692,7 +693,7 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 
 	version, err := semver.NewVersion(outputStr)
 	if err != nil {
-		return nil, true, fmt.Errorf("error parsing version %s: %s", outputStr, err)
+		return nil, true, fmt.Errorf("error parsing version %s: %s", version, err)
 	}
 
 	return version, true, nil
@@ -748,6 +749,22 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 	errorMsg := ""
 	for _, file := range files {
 		filename := file.Name()
+
+		// Copy SNMP profiles
+		if filename == "profiles" {
+			profileDest := filepath.Join(dstFolder, "profiles")
+			if err = os.MkdirAll(profileDest, 0755); err != nil {
+				errorMsg = fmt.Sprintf("%s\nError creating directory for SNMP profiles %s: %v", errorMsg, profileDest, err)
+				continue
+			}
+			profileSrc := filepath.Join(srcFolder, "profiles")
+			if err = moveConfigurationFiles(profileSrc, profileDest); err != nil {
+				errorMsg = fmt.Sprintf("%s\nError moving SNMP profiles from %s to %s: %v", errorMsg, profileSrc, profileDest, err)
+				continue
+			}
+			continue
+		}
+
 		// Replace existing file
 		if !yamlFileNameRe.MatchString(filename) {
 			continue
@@ -850,10 +867,7 @@ func show(cmd *cobra.Command, args []string) error {
 		// Print only the version for easier parsing
 		fmt.Println(version)
 	} else {
-		msg := `Package %s:
-Installed version: %s
-`
-		fmt.Printf(msg, packageName, version)
+		fmt.Printf("Package %s:\nInstalled version: %s\n", packageName, version)
 	}
 
 	return nil

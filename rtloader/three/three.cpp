@@ -21,9 +21,9 @@
 #include <algorithm>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome)
+extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome, cb_memory_tracker_t memtrack_cb)
 {
-    return new Three(pythonHome);
+    return new Three(pythonHome, memtrack_cb);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -31,8 +31,8 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Three::Three(const char *python_home)
-    : RtLoader()
+Three::Three(const char *python_home, cb_memory_tracker_t memtrack_cb)
+    : RtLoader(memtrack_cb)
     , _pythonHome(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
@@ -107,14 +107,14 @@ bool Three::init()
     }
 
     if (init_stringutils() != EXIT_SUCCESS) {
-        setError("error initializing string utils");
+        setError("error initializing string utils: " + _fetchPythonError());
         goto done;
     }
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
     if (_baseClass == NULL) {
-        setError("could not import base class");
+        setError("could not import base class: " + std::string(getError()));
     }
 
 done:
@@ -175,10 +175,10 @@ void Three::freePyInfo(py_info_t *info)
 {
     info->version = NULL;
     if (info->path) {
-        free(info->path);
+        _free(info->path);
         info->version = NULL;
     }
-    free(info);
+    _free(info);
     return;
 }
 bool Three::runSimpleString(const char *code) const
@@ -793,6 +793,11 @@ void Three::setSubmitEventCb(cb_submit_event_t cb)
     _set_submit_event_cb(cb);
 }
 
+void Three::setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t cb)
+{
+    _set_submit_histogram_bucket_cb(cb);
+}
+
 void Three::setGetVersionCb(cb_get_version_t cb)
 {
     _set_get_version_cb(cb);
@@ -828,6 +833,11 @@ void Three::setLogCb(cb_log_t cb)
     _set_log_cb(cb);
 }
 
+void Three::setSetCheckMetadataCb(cb_set_check_metadata_t cb)
+{
+    _set_set_check_metadata_cb(cb);
+}
+
 void Three::setSetExternalTagsCb(cb_set_external_tags_t cb)
 {
     _set_set_external_tags_cb(cb);
@@ -856,6 +866,16 @@ void Three::setGetConnectionInfoCb(cb_get_connection_info_t cb)
 void Three::setIsExcludedCb(cb_is_excluded_t cb)
 {
     _set_is_excluded_cb(cb);
+}
+
+void Three::setWritePersistentCacheCb(cb_write_persistent_cache_t cb)
+{
+    _set_write_persistent_cache_cb(cb);
+}
+
+void Three::setReadPersistentCacheCb(cb_read_persistent_cache_t cb)
+{
+    _set_read_persistent_cache_cb(cb);
 }
 
 // Python Helpers

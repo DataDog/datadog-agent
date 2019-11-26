@@ -31,13 +31,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	yaml "gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/version", getVersion).Methods("GET")
+	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
@@ -59,13 +58,6 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
-	w.Write(j)
-}
-
-func getVersion(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	av, _ := version.New(version.AgentVersion, version.Commit)
-	j, _ := json.Marshal(av)
 	w.Write(j)
 }
 
@@ -243,6 +235,13 @@ func getCSRFToken(w http.ResponseWriter, r *http.Request) {
 
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
+
+	if common.AC == nil {
+		log.Errorf("Trying to use /config-check before the agent has been initialized.")
+		body, _ := json.Marshal(map[string]string{"error": "agent not initialized"})
+		http.Error(w, string(body), 503)
+		return
+	}
 
 	configs := common.AC.GetLoadedConfigs()
 	configSlice := make([]integration.Config, 0)

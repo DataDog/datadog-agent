@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	ddutil "github.com/DataDog/datadog-agent/pkg/util"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -36,12 +36,13 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		return err
 	}
 
-	a.EnableLocalSystemProbe = config.Datadog.GetBool(key(spNS, "use_local_system_probe"))
-
 	// Whether agent should disable collection for TCP, UDP, or IPv6 connection type respectively
 	a.DisableTCPTracing = config.Datadog.GetBool(key(spNS, "disable_tcp"))
 	a.DisableUDPTracing = config.Datadog.GetBool(key(spNS, "disable_udp"))
 	a.DisableIPv6Tracing = config.Datadog.GetBool(key(spNS, "disable_ipv6"))
+	if config.Datadog.IsSet(key(spNS, "disable_dns_inspection")) {
+		a.DisableDNSInspection = config.Datadog.GetBool(key(spNS, "disable_dns_inspection"))
+	}
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 
@@ -86,11 +87,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	// The maximum number of connections the tracer can track
 	if mtc := config.Datadog.GetInt64(key(spNS, "max_tracked_connections")); mtc > 0 {
-		if mtc <= maxMaxTrackedConnections {
-			a.MaxTrackedConnections = uint(mtc)
-		} else {
-			log.Warnf("Overriding the configured max tracked connections limit because it exceeds maximum 65536, got: %v", mtc)
-		}
+		a.MaxTrackedConnections = uint(mtc)
 	}
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
@@ -120,6 +117,14 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	// The tcp port that agent should expose expvar and pprof endpoint to
 	if debugPort := config.Datadog.GetInt(key(spNS, "debug_port")); debugPort > 0 {
 		a.SystemProbeDebugPort = debugPort
+	}
+
+	if sourceExclude := key(spNS, "source_excludes"); config.Datadog.IsSet(sourceExclude) {
+		a.ExcludedSourceConnections = config.Datadog.GetStringMapStringSlice(sourceExclude)
+	}
+
+	if destinationExclude := key(spNS, "dest_excludes"); config.Datadog.IsSet(destinationExclude) {
+		a.ExcludedDestinationConnections = config.Datadog.GetStringMapStringSlice(destinationExclude)
 	}
 
 	return nil
@@ -300,7 +305,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 	}
 
 	// Build transport (w/ proxy if needed)
-	a.Transport = ddutil.CreateHTTPTransport()
+	a.Transport = httputils.CreateHTTPTransport()
 
 	return nil
 }
