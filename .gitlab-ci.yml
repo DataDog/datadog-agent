@@ -506,10 +506,10 @@ agent_deb-arm-a7:
     DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_arm64.deb'
   before_script:
-    - source /root/.bashrc 
+    - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-  <<: *skip_when_unwanted_on_6
+  <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_deb
 
 # build Agent package for deb-x64
