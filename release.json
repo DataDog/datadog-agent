@@ -13,7 +13,7 @@
 		"JMXFETCH_VERSION": "0.33.0",
 		"JMXFETCH_HASH": "078011fbcca5e9beee2f041fefacbad824cff47e074b74a4674eb3efed8984b3"
 	},
-	"7.15.1-beta.1": {
+	"7.15.1-rc.5": {
 		"INTEGRATIONS_CORE_VERSION": "6.15.0",
 		"OMNIBUS_SOFTWARE_VERSION": "6.15.0",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -21,7 +21,7 @@
 		"JMXFETCH_HASH": "078011fbcca5e9beee2f041fefacbad824cff47e074b74a4674eb3efed8984b3",
 		"PYTHON_RUNTIMES": "3"
     },
-	"6.15.1": {
+	"6.15.1-rc.5": {
 		"INTEGRATIONS_CORE_VERSION": "6.15.0",
 		"OMNIBUS_SOFTWARE_VERSION": "6.15.0",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
