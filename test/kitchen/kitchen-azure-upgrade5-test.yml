@@ -29,7 +29,6 @@ suites:
       <% dd_agent_config.each do |key, value| %>
       <%= key %>: <%= value %>
       <% end %>
-      agent_major_version: <%= ENV['AGENT_MAJOR_VERSION'] %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
       <% end %>

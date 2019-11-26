@@ -9,7 +9,6 @@ suites:
       unattended_upgrades:
         enable: false
     datadog:
-      agent_major_version: <%= ENV['AGENT_MAJOR_VERSION'] %>
       <% dd_agent_config.each do |key, value| %>
       <%= key %>: <%= value %>
       <% end %>

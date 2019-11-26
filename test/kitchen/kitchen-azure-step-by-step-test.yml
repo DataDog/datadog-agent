@@ -12,6 +12,5 @@ suites:
       <% dd_agent_config.each do |key, value| %>
       <%= key %>: <%= value %>
       <% end %>
-      agent_major_version: <%= ENV['AGENT_MAJOR_VERSION'] %>
     dd-agent-rspec:
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
