@@ -23,7 +23,6 @@ const (
 	dnsCacheTTL              = 3 * time.Minute
 	dnsCacheExpirationPeriod = 1 * time.Minute
 	dnsCacheSize             = 100000
-	packetBufferSize         = 100
 )
 
 var _ ReverseDNS = &SocketFilterSnooper{}
@@ -38,14 +37,17 @@ type SocketFilterSnooper struct {
 	exit         chan struct{}
 	wg           sync.WaitGroup
 
-	// telemetry
-	packets        int64
+	// packet telemetry
+	captured       int64
+	processed      int64
+	dropped        int64
 	polls          int64
 	decodingErrors int64
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
+	// Creates a RAW_SOCKET
 	packetSrc, err := afpacket.NewTPacket(
 		afpacket.OptPollTimeout(1*time.Second),
 		// This setup will require ~4Mb that is mmap'd into the process virtual space
@@ -60,6 +62,8 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 
 	// The underlying socket file descriptor is private, hence the use of reflection
 	socketFD := int(reflect.ValueOf(packetSrc).Elem().FieldByName("fd").Int())
+
+	// Attaches DNS socket filter to RAW_SOCKET
 	if err := bpflib.AttachSocketFilter(filter, socketFD); err != nil {
 		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
 	}
@@ -77,7 +81,14 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 	// Start consuming packets
 	snooper.wg.Add(1)
 	go func() {
-		snooper.poll()
+		snooper.pollPackets()
+		snooper.wg.Done()
+	}()
+
+	// Start polling socket stats
+	snooper.wg.Add(1)
+	go func() {
+		snooper.pollStats()
 		snooper.wg.Done()
 	}()
 
@@ -90,13 +101,11 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 }
 
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
-	socketStats, _ := s.source.Stats()
-	prevPolls := atomic.SwapInt64(&s.polls, socketStats.Polls)
-	prevPackets := atomic.SwapInt64(&s.packets, socketStats.Packets)
-
 	stats := s.cache.Stats()
-	stats["socket_polls"] = socketStats.Polls - prevPolls
-	stats["packets_captured"] = socketStats.Packets - prevPackets
+	stats["socket_polls"] = atomic.SwapInt64(&s.polls, 0)
+	stats["packets_processed"] = atomic.SwapInt64(&s.processed, 0)
+	stats["packets_captured"] = atomic.SwapInt64(&s.captured, 0)
+	stats["packets_dropped"] = atomic.SwapInt64(&s.dropped, 0)
 	stats["decoding_errors"] = atomic.SwapInt64(&s.decodingErrors, 0)
 
 	return stats
@@ -128,7 +137,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 	s.cache.Add(translation, time.Now())
 }
 
-func (s *SocketFilterSnooper) poll() {
+func (s *SocketFilterSnooper) pollPackets() {
 	for {
 		data, _, err := s.source.ZeroCopyReadPacketData()
 		if err == nil {
@@ -162,5 +171,41 @@ func (s *SocketFilterSnooper) poll() {
 
 		// Sleep briefly and try again
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func (s *SocketFilterSnooper) pollStats() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	var (
+		prevPolls     int64
+		prevProcessed int64
+		prevCaptured  int64
+		prevDropped   int64
+	)
+
+	for {
+		select {
+		case <-ticker.C:
+			sourceStats, _ := s.source.Stats()
+			_, socketStats, err := s.source.SocketStats()
+			if err != nil {
+				log.Errorf("error polling socket stats: %s", err)
+				continue
+			}
+
+			atomic.AddInt64(&s.polls, sourceStats.Polls-prevPolls)
+			atomic.AddInt64(&s.processed, sourceStats.Packets-prevProcessed)
+			atomic.AddInt64(&s.captured, int64(socketStats.Packets())-prevCaptured)
+			atomic.AddInt64(&s.dropped, int64(socketStats.Drops())-prevDropped)
+
+			prevPolls = sourceStats.Polls
+			prevProcessed = sourceStats.Packets
+			prevCaptured = int64(socketStats.Packets())
+			prevDropped = int64(socketStats.Drops())
+		case <-s.exit:
+			return
+		}
 	}
 }
