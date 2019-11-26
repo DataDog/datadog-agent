@@ -252,10 +252,10 @@ run_tests_rpm-x64-py3:
 run_tests_ebpf:
   allow_failure: true
   stage: source_test
-  # TODO(processes): change this to use the generic builder image when we use the same version of Go in the 
+  # TODO(processes): change this to use the generic builder image when we use the same version of Go in the
   # system-probe and the agent, or when `system-probe.test` can receive which Go version to use as an argument.
   # Currently this is using the ebpf image so system-probe tests run in the same  Go version used to build it (1.10).
-  # Note that this image isn't used to build the system-probe: when building it, we specify Go version to use 
+  # Note that this image isn't used to build the system-probe: when building it, we specify Go version to use
   # through an argument to the system-probe.build invoke task.
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
@@ -2156,7 +2156,7 @@ deploy_rpm-6:
 
     # add RPMs to new "6" branch
     - cp $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm ./rpmrepo/6/x86_64/
-    - cp $OMNIBUS_PACKAGE_DIR/*-6.*arm64.rpm ./rpmrepo/6/aarch64/
+    - cp $OMNIBUS_PACKAGE_DIR/*-6.*aarch64.rpm ./rpmrepo/6/aarch64/
     - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
     - createrepo --update -v --checksum sha ./rpmrepo/6/aarch64
 
