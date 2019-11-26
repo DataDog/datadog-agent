@@ -6,11 +6,24 @@ BOOL IsDots(const TCHAR* str) {
     }
     return TRUE;
 }
+
+/**
+ * This function recursively deletes all files in a given tree that match a given
+ * extension.  It will only accept an absolute path.
+ * 
+ * @param dirname  The root path to start the deletion
+ * 
+ * @param ext   the filename and/or extension to delete.  Can be a fixed name or wildcard
+ * 
+ * @param dirs  If true, will delete directories which match the ext parameter, if the
+ *              directory is empty. If false (the default), will delete files
+ */
 BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dirs) {
     HANDLE hFind;
     WIN32_FIND_DATA FindFileData;
 
-    if(!isPathAbsolute(dirname)){
+    std::filesystem::path checkpath(dirname);
+    if(!checkpath.is_absolute()){
         // don't allow this.   If the path is not absolute, assume we didn't mean
         // to delete it
         WcaLog(LOGMSG_STANDARD, "Not deleting directory %S, not absolute", dirname);

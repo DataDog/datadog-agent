@@ -53,5 +53,4 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& 
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst, DWORD *len);
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **dst, DWORD *len);
 
-bool isPathAbsolute(const wchar_t * path) ;
 #define MAX_CUSTOM_PROPERTY_SIZE        128
