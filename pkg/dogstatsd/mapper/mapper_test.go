@@ -208,7 +208,7 @@ dogstatsd_mappings:
 
 			var actualResults []MappingResult
 			for _, packet := range scenario.packets {
-				name, tags, matched := mapper.GetMapping(packet)
+				name, tags, matched := mapper.Map(packet)
 				actualResults = append(actualResults, MappingResult{Name: name, Tags: tags, Matched: matched})
 			}
 			for _, sample := range scenario.expectedResults {
