@@ -1988,7 +1988,7 @@ deploy_rpm-6:
 
     # add RPMs to new "6" branch
     - cp $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm ./rpmrepo/6/x86_64/
-    - cp $OMNIBUS_PACKAGE_DIR/*-6.*arm64.rpm ./rpmrepo/6/aarch64/
+    - cp $OMNIBUS_PACKAGE_DIR/*-6.*aarch64.rpm ./rpmrepo/6/aarch64/
     - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
     - createrepo --update -v --checksum sha ./rpmrepo/6/aarch64
 
