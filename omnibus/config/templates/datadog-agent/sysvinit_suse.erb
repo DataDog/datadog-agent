@@ -10,7 +10,7 @@
 # Default-Stop: 0 1 6
 ### END INIT INFO
 
-INSTALL_DIR="/opt/datadog-agent"
+INSTALL_DIR="<%= install_dir %>"
 AGENTPATH="$INSTALL_DIR/bin/agent/agent"
 PIDFILE="$INSTALL_DIR/run/agent.pid"
 AGENT_ARGS="run -p $PIDFILE"
