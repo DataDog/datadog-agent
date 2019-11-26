@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -101,6 +102,37 @@ func setHostnameProvider(name string) {
 	inventories.SetAgentMetadata("hostname_source", name)
 }
 
+// isOSHostnameUsable returns `false` if it has the certainty that the agent is running
+// in a non-root UTS namespace because in that case, the OS hostname characterizes the
+// identity of the agent container and not the one of the nodes it is running on.
+// There can be some cases where the agent is running in a non-root UTS namespace that are
+// not detected by this function (systemd-nspawn containers, manual `unshare -u`…)
+// In those uncertain cases, it returns `true`.
+func isOSHostnameUsable() (osHostnameUsable bool) {
+	// If the agent is not containerized, just skip all this detection logic
+	if !config.IsContainerized() {
+		return true
+	}
+
+	// Check UTS namespace from docker
+	utsMode, err := GetAgentUTSMode()
+	if err == nil && (utsMode != containers.HostUTSMode && utsMode != containers.UnknownUTSMode) {
+		log.Debug("Agent is running in a docker container without host UTS mode: OS-provided hostnames cannot be used for hostname resolution.")
+		return false
+	}
+
+	// Check hostNetwork from kubernetes
+	// because kubernetes sets UTS namespace to host if and only if hostNetwork = true:
+	// https://github.com/kubernetes/kubernetes/blob/cf16e4988f58a5b816385898271e70c3346b9651/pkg/kubelet/dockershim/security_context.go#L203-L205
+	hostNetwork, err := isAgentKubeHostNetwork()
+	if err == nil && !hostNetwork {
+		log.Debug("Agent is running in a POD without hostNetwork: OS-provided hostnames cannot be used for hostname resolution.")
+		return false
+	}
+
+	return true
+}
+
 // GetHostname retrieves the host name from GetHostnameData
 func GetHostname() (string, error) {
 	hostnameData, err := GetHostnameData()
@@ -183,18 +215,21 @@ func GetHostnameData() (HostnameData, error) {
 	}
 
 	// FQDN
-	log.Debug("GetHostname trying FQDN/`hostname -f`...")
-	fqdn, err := getSystemFQDN()
-	if config.Datadog.GetBool("hostname_fqdn") && err == nil {
-		hostName = fqdn
-		provider = "fqdn"
-	} else {
-		if err != nil {
-			expErr := new(expvar.String)
-			expErr.Set(err.Error())
-			hostnameErrors.Set("fqdn", expErr)
+	var fqdn string
+	if isOSHostnameUsable() {
+		log.Debug("GetHostname trying FQDN/`hostname -f`...")
+		fqdn, err = getSystemFQDN()
+		if config.Datadog.GetBool("hostname_fqdn") && err == nil {
+			hostName = fqdn
+			provider = "fqdn"
+		} else {
+			if err != nil {
+				expErr := new(expvar.String)
+				expErr.Set(err.Error())
+				hostnameErrors.Set("fqdn", expErr)
+			}
+			log.Debug("Unable to get FQDN from system: ", err)
 		}
-		log.Debug("Unable to get FQDN from system: ", err)
 	}
 
 	isContainerized, containerName := getContainerHostname()
@@ -209,7 +244,7 @@ func GetHostnameData() (HostnameData, error) {
 		}
 	}
 
-	if hostName == "" {
+	if isOSHostnameUsable() && hostName == "" {
 		// os
 		log.Debug("GetHostname trying os...")
 		systemName, err := os.Hostname()

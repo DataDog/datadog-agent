@@ -142,11 +142,7 @@ func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
 // To get this info in an optimal way, consider calling util.GetAgentNetworkMode	func GetContainerNetworkMode(cid string) (string, error) {
 // instead to benefit from the cache
 func GetAgentContainerNetworkMode() (string, error) {
-	du, err := GetDockerUtil()
-	if err != nil {
-		return "", err
-	}
-	agentCID, _ := du.GetAgentCID()
+	agentCID, _ := GetAgentCID()
 	return GetContainerNetworkMode(agentCID)
 }
 

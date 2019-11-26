@@ -500,6 +500,21 @@ func (ku *KubeUtil) GetRawMetrics() ([]byte, error) {
 	return data, nil
 }
 
+// IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
+func (ku *KubeUtil) IsAgentHostNetwork() (bool, error) {
+	cid, err := docker.GetAgentCID()
+	if err != nil {
+		return false, err
+	}
+
+	pod, err := ku.GetPodForContainerID(cid)
+	if err != nil {
+		return false, err
+	}
+
+	return pod.Spec.HostNetwork, nil
+}
+
 func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 	// HTTPS
 	ku.kubeletApiEndpoint = fmt.Sprintf("https://%s:%d", ku.kubeletHost, config.Datadog.GetInt("kubernetes_https_kubelet_port"))

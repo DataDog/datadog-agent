@@ -1,0 +1,17 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Prevent a containerized agent from using the OS hostname as datadog agent hostname.
+    Datadog agent hostname should be stable and should reflect the identity of the host they are monitoring.
+    Container ID or kubernetes POD names are not suitable for that purpose.
+    That’s why the agent should avoid using the OS hostname when it is running in a dedicated UTS namespace.
+    Note that the agent is relying on many other smart ways of discovering the real hostname of the host
+    (EC2/AWS metadata server, docker daemon, kubernetes node names)
+    This change only acts as a safety belt when all those smart ways of discovering the hostname are not usable.
