@@ -739,7 +739,7 @@ api_key:
 ## The list mappings will be used to convert parts of metrics names into tags.
 ## For each mapping, following fields are available:
 ##  match (required): pattern for matching the incoming metric name e.g. `test.job.duration.*`
-##  match_type (optional): pattern type can be `glob` (default) or `regex` e.g. `test\.job\.(\w+)\.(.*)`
+##  match_type (optional): pattern type can be `wildcard` (default) or `regex` e.g. `test\.job\.(\w+)\.(.*)`
 ##  name (required): the metric name the metric should be mapped to e.g. `test.job.duration`
 ##  tags (optional): list of key:value pair of tag key and tag value
 ##    The value can use $1, $2, etc, that will be replaced by the corresponding element capture by `match` pattern
@@ -747,7 +747,7 @@ api_key:
 #
 # dogstatsd_mappings:
 #   - match: <METRIC_TO_MATCH>                # e.g. `test.job.duration.*` to match `test.job.duration.my_job_name`
-#     match_type: <MATCH_TYPE>                # e.g. `glob` or `regex`
+#     match_type: <MATCH_TYPE>                # e.g. `wildcard` or `regex`
 #     name: <MAPPED_METRIC_NAME>              # e.g. `test.job.duration`
 #     tags:
 #       <TAG_KEY>: <TAG_VALUE_TO_EXPAND>      # e.g. `job_name: "$1"`, $1 is replaced by value capture by *
