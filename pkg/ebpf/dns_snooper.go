@@ -46,7 +46,14 @@ type SocketFilterSnooper struct {
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
-	packetSrc, err := afpacket.NewTPacket(afpacket.OptPollTimeout(1 * time.Second))
+	packetSrc, err := afpacket.NewTPacket(
+		afpacket.OptPollTimeout(1*time.Second),
+		// This setup will require ~4Mb that is mmap'd into the process virtual space
+		// More information here: https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
+		afpacket.OptFrameSize(4096),
+		afpacket.OptBlockSize(4096*128),
+		afpacket.OptNumBlocks(8),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating raw socket: %s", err)
 	}
