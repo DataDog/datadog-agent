@@ -22,6 +22,9 @@ import (
 )
 
 func resetAggregator() {
+	if aggregatorInstance != nil {
+		aggregatorInstance.stopChan <- struct{}{}
+	}
 	recurrentSeries = metrics.Series{}
 	aggregatorInstance = nil
 	aggregatorInit = sync.Once{}

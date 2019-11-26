@@ -286,7 +286,7 @@ func ImportRegistryConfig() error {
 	}
 
 	// apply overrides to the config
-	config.SetOverrides(overrides)
+	config.AddOverrides(overrides)
 
 	// build the global agent configuration
 	err = SetupConfigWithoutSecrets("")

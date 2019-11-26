@@ -19,7 +19,7 @@ func TestDNSSnooping(t *testing.T) {
 
 	// Load socket filter
 	cfg := NewDefaultConfig()
-	err = m.Load(SectionsFromConfig(cfg))
+	err = m.Load(SectionsFromConfig(cfg, true))
 	require.NoError(t, err)
 
 	filter := m.SocketFilter("socket/dns_filter")
@@ -63,6 +63,7 @@ Loop:
 	// Verify telemetry
 	stats := reverseDNS.GetStats()
 	assert.True(t, stats["ips"] >= 1)
+	assert.True(t, stats["packets_captured"] >= 1)
 	assert.Equal(t, int64(2), stats["lookups"])
 	assert.Equal(t, int64(1), stats["resolved"])
 }

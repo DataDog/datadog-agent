@@ -13,11 +13,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 var (
@@ -55,6 +56,7 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 						InitConfig:    integration.Data("{}"),
 						Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
 						ClusterCheck:  false,
+						Source:        "kube_endpoints:kube_endpoint_uid://default/myservice/",
 					},
 					namespace: "default",
 					name:      "myservice",
@@ -194,7 +196,7 @@ func TestGenerateConfigs(t *testing.T) {
 	}
 }
 
-func TestInvalidateIfChangedForEndpoints(t *testing.T) {
+func TestInvalidateIfChangedService(t *testing.T) {
 	s88 := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "88",
@@ -276,12 +278,337 @@ func TestInvalidateIfChangedForEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
-			provider := &KubeEndpointsConfigProvider{upToDate: true}
-			provider.invalidateIfChanged(tc.old, tc.obj)
+			provider := &kubeEndpointsConfigProvider{upToDate: true}
+			provider.invalidateIfChangedService(tc.old, tc.obj)
 
 			upToDate, err := provider.IsUpToDate()
 			assert.NoError(t, err)
 			assert.Equal(t, !tc.invalidate, upToDate)
+		})
+	}
+}
+
+func TestInvalidateIfChangedEndpoints(t *testing.T) {
+	for name, tc := range map[string]struct {
+		first    *v1.Endpoints
+		second   *v1.Endpoints
+		upToDate bool
+	}{
+		"Same resversion": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+			},
+			upToDate: true,
+		},
+		"Change resversion, same subsets": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 126},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 126},
+						},
+					},
+				},
+			},
+			upToDate: true,
+		},
+		"Change IP": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 126},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.3", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 126},
+						},
+					},
+				},
+			},
+			upToDate: false,
+		},
+		"Change IP for not monitored Endpoints": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "notmonitored",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 126},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Namespace:       "default",
+					Name:            "notmonitored",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.3", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 126},
+						},
+					},
+				},
+			},
+			upToDate: true,
+		},
+		"Change Hostname": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 126},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.3", Hostname: "host3"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 126},
+						},
+					},
+				},
+			},
+			upToDate: false,
+		},
+		"Change port number": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 126},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 124},
+						},
+					},
+				},
+			},
+			upToDate: false,
+		},
+		"Remove IP": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 124},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 124},
+						},
+					},
+				},
+			},
+			upToDate: false,
+		},
+		"Remove port": {
+			first: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+							{Name: "port2", Port: 124},
+						},
+					},
+				},
+			},
+			second: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Namespace:       "default",
+					Name:            "myservice",
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1", Hostname: "host1"},
+							{IP: "10.0.0.2", Hostname: "host2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "port1", Port: 123},
+						},
+					},
+				},
+			},
+			upToDate: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			provider := &kubeEndpointsConfigProvider{
+				upToDate: true,
+				monitoredEndpoints: map[string]bool{
+					apiserver.EntityForEndpoints("default", "myservice", ""): true,
+				},
+			}
+			provider.invalidateIfChangedEndpoints(tc.first, tc.second)
+
+			upToDate, err := provider.IsUpToDate()
+			assert.NoError(t, err)
+			assert.Equal(t, tc.upToDate, upToDate)
 		})
 	}
 }

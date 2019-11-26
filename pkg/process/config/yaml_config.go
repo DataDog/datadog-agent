@@ -36,13 +36,13 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		return err
 	}
 
-	a.EnableLocalSystemProbe = config.Datadog.GetBool(key(spNS, "use_local_system_probe"))
-
 	// Whether agent should disable collection for TCP, UDP, or IPv6 connection type respectively
 	a.DisableTCPTracing = config.Datadog.GetBool(key(spNS, "disable_tcp"))
 	a.DisableUDPTracing = config.Datadog.GetBool(key(spNS, "disable_udp"))
 	a.DisableIPv6Tracing = config.Datadog.GetBool(key(spNS, "disable_ipv6"))
-	a.DisableDNSInspection = config.Datadog.GetBool(key(spNS, "disable_dns_inspection"))
+	if config.Datadog.IsSet(key(spNS, "disable_dns_inspection")) {
+		a.DisableDNSInspection = config.Datadog.GetBool(key(spNS, "disable_dns_inspection"))
+	}
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 

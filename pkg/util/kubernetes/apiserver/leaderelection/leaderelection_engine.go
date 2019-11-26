@@ -18,6 +18,7 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 
+	"context"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -77,7 +78,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 
 			log.Infof("New leader %q", identity)
 		},
-		OnStartedLeading: func(stop <-chan struct{}) {
+		OnStartedLeading: func(ctx context.Context) {
 			le.leaderIdentityMutex.Lock()
 			le.leaderIdentity = le.HolderIdentity
 			le.leaderIdentityMutex.Unlock()
@@ -105,11 +106,13 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		Identity:      le.HolderIdentity,
 		EventRecorder: evRec,
 	}
+
 	leaderElectorInterface, err := rl.New(
 		rl.ConfigMapsResourceLock,
 		configMap.ObjectMeta.Namespace,
 		configMap.ObjectMeta.Name,
 		le.coreClient,
+		nil, // relying on CM so unnecessary.
 		resourceLockConfig,
 	)
 	if err != nil {

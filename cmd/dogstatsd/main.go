@@ -171,6 +171,12 @@ func start(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if config.Datadog.GetBool("inventories_enabled") {
+		if err := metadata.SetupInventories(metaScheduler, nil, nil); err != nil {
+			return err
+		}
+	}
+
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
 		tagger.Init()

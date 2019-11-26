@@ -20,6 +20,9 @@ import (
 var (
 	metadataURL = "http://169.254.169.254/computeMetadata/v1"
 	timeout     = 300 * time.Millisecond
+
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = "GCP"
 )
 
 type gceMetadata struct {
@@ -39,6 +42,14 @@ type gceInstanceMetadata struct {
 type gceProjectMetadata struct {
 	ProjectID        string
 	NumericProjectID int64
+}
+
+// IsRunningOn returns true if the agent is running on GCE
+func IsRunningOn() bool {
+	if _, err := GetHostname(); err == nil {
+		return true
+	}
+	return false
 }
 
 // GetHostname returns the hostname querying GCE Metadata api

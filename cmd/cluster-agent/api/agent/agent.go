@@ -123,6 +123,13 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
 
+	if common.AC == nil {
+		log.Errorf("Trying to use /config-check before the agent has been initialized.")
+		body, _ := json.Marshal(map[string]string{"error": "agent not initialized"})
+		http.Error(w, string(body), 503)
+		return
+	}
+
 	configs := common.AC.GetLoadedConfigs()
 	configSlice := make([]integration.Config, 0)
 	for _, config := range configs {

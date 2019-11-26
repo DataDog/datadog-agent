@@ -236,7 +236,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	suite.stopContainers()
 
 	// We should get 2 stopped services
-	services, err = suite.getServices(containerIDs, excludedIDs, suite.delSvc, 5*time.Millisecond)
+	services, err = suite.getServices(containerIDs, excludedIDs, suite.delSvc, 5*time.Second)
 	assert.Error(suite.T(), err)
 	assert.Len(suite.T(), services, 2)
 

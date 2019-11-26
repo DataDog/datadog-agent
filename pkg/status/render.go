@@ -46,10 +46,11 @@ func FormatStatus(data []byte) (string, error) {
 	logsStats := stats["logsStats"]
 	dcaStats := stats["clusterAgentStatus"]
 	endpointsInfos := stats["endpointsInfos"]
+	inventoriesStats := stats["inventories"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, "")
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
 	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
 	renderEndpointsInfos(b, endpointsInfos)
@@ -77,7 +78,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, "")
+	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, nil, "")
 	renderForwarderStatus(b, forwarderStats)
 	renderEndpointsInfos(b, endpointsInfos)
 
@@ -164,7 +165,7 @@ func renderHPAStats(w io.Writer, hpaStats interface{}) {
 	}
 }
 
-func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats interface{}, onlyCheck string) {
+func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats interface{}, onlyCheck string) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["pyLoaderStats"] = pyLoaderStats
@@ -172,6 +173,7 @@ func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, auto
 	checkStats["AutoConfigStats"] = autoConfigStats
 	checkStats["CheckSchedulerStats"] = checkSchedulerStats
 	checkStats["OnlyCheck"] = onlyCheck
+	checkStats["CheckMetadata"] = inventoriesStats
 	t := template.Must(template.New("collector.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "collector.tmpl")))
 
 	err := t.Execute(w, checkStats)
@@ -190,7 +192,8 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	pythonInit := stats["pythonInit"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
-	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, checkName)
+	inventoriesStats := stats["inventories"]
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, checkName)
 
 	return b.String(), nil
 }

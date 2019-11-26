@@ -10,23 +10,34 @@ import (
 // FormatConnection converts a ConnectionStats into an model.Connection
 func FormatConnection(conn ebpf.ConnectionStats) *model.Connection {
 	return &model.Connection{
-		Pid:                int32(conn.Pid),
-		Laddr:              formatAddr(conn.Source, conn.SPort),
-		Raddr:              formatAddr(conn.Dest, conn.DPort),
-		Family:             formatFamily(conn.Family),
-		Type:               formatType(conn.Type),
-		TotalBytesSent:     conn.MonotonicSentBytes,
-		TotalBytesReceived: conn.MonotonicRecvBytes,
-		TotalRetransmits:   conn.MonotonicRetransmits,
-		LastBytesSent:      conn.LastSentBytes,
-		LastBytesReceived:  conn.LastRecvBytes,
-		LastRetransmits:    conn.LastRetransmits,
-		Rtt:                conn.RTT,
-		RttVar:             conn.RTTVar,
-		Direction:          model.ConnectionDirection(conn.Direction),
-		NetNS:              conn.NetNS,
-		IpTranslation:      formatIPTranslation(conn.IPTranslation),
+		Pid:               int32(conn.Pid),
+		Laddr:             formatAddr(conn.Source, conn.SPort),
+		Raddr:             formatAddr(conn.Dest, conn.DPort),
+		Family:            formatFamily(conn.Family),
+		Type:              formatType(conn.Type),
+		LastBytesSent:     conn.LastSentBytes,
+		LastBytesReceived: conn.LastRecvBytes,
+		LastRetransmits:   conn.LastRetransmits,
+		Rtt:               conn.RTT,
+		RttVar:            conn.RTTVar,
+		Direction:         formatDirection(conn.Direction),
+		NetNS:             conn.NetNS,
+		IpTranslation:     formatIPTranslation(conn.IPTranslation),
 	}
+}
+
+// FormatDNS converts a map[util.Address][]string to a map using IPs string representation
+func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
+	if dns == nil {
+		return nil
+	}
+
+	ipToNames := make(map[string]*model.DNSEntry, len(dns))
+	for addr, names := range dns {
+		ipToNames[addr.String()] = &model.DNSEntry{Names: names}
+	}
+
+	return ipToNames
 }
 
 func formatAddr(addr util.Address, port uint16) *model.Addr {
@@ -67,6 +78,8 @@ func formatDirection(d ebpf.ConnectionDirection) model.ConnectionDirection {
 		return model.ConnectionDirection_outgoing
 	case ebpf.LOCAL:
 		return model.ConnectionDirection_local
+	case ebpf.NONE:
+		return model.ConnectionDirection_none
 	default:
 		return model.ConnectionDirection_unspecified
 	}

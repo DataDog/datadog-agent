@@ -131,6 +131,18 @@ api_key:
 #
 # histogram_copy_to_distribution_prefix: "<PREFIX>"
 
+## @param aggregator_stop_timeout - integer - optional - default: 2
+## When stopping the agent, the Aggregator will try to flush out data ready for
+## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
+## to be sent to DataDog, therefore the Agent might take at most
+## 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+##
+## You can set the maximum amount of time, in seconds, allocated to the
+## Aggregator to do so. You can disable this feature by setting
+## 'aggregator_stop_timeout' to 0.
+#
+# aggregator_stop_timeout: 2
+
 ## @param forwarder_timeout - integer - optional - default: 20
 ## Forwarder timeout in seconds
 #
@@ -147,6 +159,18 @@ api_key:
 ## The number of workers used by the forwarder.
 #
 # forwarder_num_workers: 1
+
+## @param forwarder_stop_timeout - integer - optional - default: 2
+## When stopping the agent, the Forwarder will try to flush all new
+## transactions (not the ones in retry state).  New transactions will be created
+## as the Aggregator flush it's internal data too, therefore the Agent might take
+## at most 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+##
+## You can set the maximum amount of time, in seconds, allocated to the
+## Forwarder to send those transactions.  You can disable this feature by setting
+## 'forwarder_stop_timeout' to 0.
+#
+# forwarder_stop_timeout: 2
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.

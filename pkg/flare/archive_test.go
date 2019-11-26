@@ -145,6 +145,38 @@ func TestZipConfigCheck(t *testing.T) {
 	assert.NotContains(t, string(content), "MySecurePass")
 }
 
+func TestIncludeSystemProbeConfig(t *testing.T) {
+	assert := assert.New(t)
+	common.SetupConfig("./test/datadog-agent.yaml")
+	// create system-probe.yaml file because it's in .gitignore
+	_, err := os.Create("./test/system-probe.yaml")
+	assert.NoError(err, "couldn't create system-probe.yaml")
+	defer os.Remove("./test/system-probe.yaml")
+
+	zipFilePath := getArchivePath()
+	filePath, err := createArchive(zipFilePath, true, SearchPaths{"": "./test/confd"}, "")
+	assert.NoError(err)
+	assert.Equal(zipFilePath, filePath)
+
+	defer os.Remove(zipFilePath)
+
+	z, err := zip.OpenReader(zipFilePath)
+	assert.NoError(err, "opening the zip shouldn't pop an error")
+
+	var hasDDConfig, hasSysProbeConfig bool
+	for _, f := range z.File {
+		if strings.HasSuffix(f.Name, "datadog-agent.yaml") {
+			hasDDConfig = true
+		}
+		if strings.HasSuffix(f.Name, "system-probe.yaml") {
+			hasSysProbeConfig = true
+		}
+	}
+
+	assert.True(hasDDConfig, "datadog-agent.yaml should've been included")
+	assert.True(hasSysProbeConfig, "system-probe.yaml should've been included")
+}
+
 func TestIncludeConfigFiles(t *testing.T) {
 	assert := assert.New(t)
 

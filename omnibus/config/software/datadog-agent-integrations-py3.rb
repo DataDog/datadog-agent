@@ -71,16 +71,6 @@ if arm?
   blacklist_packages.push(/^pymqi==/)
 end
 
-if windows? && windows_arch_i386?
-  blacklist_folders.push('oracle')
-  blacklist_packages.push(/^cx-Oracle==/)
-  blacklist_packages.push(/^jpype1==/)
-  blacklist_packages.push(/^Jpype1==/)
-  blacklist_packages.push(/^JayDeBeApi==/)
-  blacklist_packages.push(/^jaydebeapi==/)
-
-end
-
 final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
@@ -251,6 +241,12 @@ build do
         end
       end
 
+      # Copy SNMP profiles
+      profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
+      if File.exist? profiles
+        copy profiles, "#{check_conf_dir}/"
+      end
+
       File.file?("#{check_dir}/setup.py") || next
       if windows?
         command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
@@ -258,6 +254,14 @@ build do
         command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
+
+    # Patch applies to only one file: set it explicitly as a target, no need for -p
+    if windows?
+      patch :source => "jpype_0_7.patch", :target => "#{python_3_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
+    else
+      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python3.7/site-packages/jaydebeapi/__init__.py"
+    end
+
   end
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
@@ -271,5 +275,4 @@ build do
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent
   copy "#{project_dir}/requirements-agent-release.txt", "#{install_dir}/"
-
 end

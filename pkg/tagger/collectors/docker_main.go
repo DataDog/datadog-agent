@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
@@ -119,8 +120,9 @@ func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, []string, error) {
 	co, err := c.dockerUtil.Inspect(cID, false)
 	if err != nil {
-		// TODO separate "not found" and inspect error
-		log.Debugf("Failed to inspect container %s - %s", cID, err)
+		if !errors.IsNotFound(err) {
+			log.Debugf("Failed to inspect container %s - %s", cID, err)
+		}
 		return nil, nil, nil, err
 	}
 	return c.extractFromInspect(co)

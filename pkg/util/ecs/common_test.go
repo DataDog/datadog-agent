@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func TestGetTaskMetadata(t *testing.T) {
 
 	for nb, tc := range []struct {
 		input    string
-		expected TaskMetadata
+		expected metadata.TaskMetadata
 		err      error
 	}{
 		{
@@ -115,9 +116,9 @@ func TestGetTaskMetadata(t *testing.T) {
 				"PullStoppedAt": "2018-02-01T20:55:10.552018345Z",
 				"AvailabilityZone": "us-east-2b"
 			  }`,
-			expected: TaskMetadata{
+			expected: metadata.TaskMetadata{
 				ClusterName: "default",
-				Containers: []Container{
+				Containers: []metadata.ContainerMetadata{
 					{
 						Name: "~internal~ecs~pause",
 						Limits: map[string]uint64{
@@ -140,7 +141,7 @@ func TestGetTaskMetadata(t *testing.T) {
 						DesiredStatus: "RESOURCES_PROVISIONED",
 						DockerID:      "731a0d6a3b4210e2448339bc7015aaa79bfe4fa256384f4102db86ef94cbbc4c",
 						CreatedAt:     "2018-02-01T20:55:08.366329616Z",
-						Networks: []Network{
+						Networks: []metadata.Network{
 							{
 								NetworkMode:   "awsvpc",
 								IPv4Addresses: []string{"10.0.2.106"},
@@ -169,13 +170,13 @@ func TestGetTaskMetadata(t *testing.T) {
 						DesiredStatus: "RUNNING",
 						DockerID:      "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
 						CreatedAt:     "2018-02-01T20:55:10.554941919Z",
-						Networks: []Network{
+						Networks: []metadata.Network{
 							{
 								NetworkMode:   "awsvpc",
 								IPv4Addresses: []string{"10.0.2.106"},
 							},
 						},
-						Ports: []Port{
+						Ports: []metadata.Port{
 							{
 								ContainerPort: 80,
 								Protocol:      "tcp",
@@ -194,7 +195,7 @@ func TestGetTaskMetadata(t *testing.T) {
 	} {
 		t.Logf("test case %d", nb)
 		ecsinterface.MetadataJSON = tc.input
-		metadata, err := getTaskMetadataWithURL(mockedMetadataURL)
+		metadata, err := GetTaskMetadataWithURL(mockedMetadataURL)
 		assert.Equal(tc.expected, metadata)
 		if tc.err == nil {
 			assert.Nil(err)
@@ -213,7 +214,7 @@ func TestGetTaskMetadata(t *testing.T) {
 }
 
 func TestParseContainerNetworkAddresses(t *testing.T) {
-	ports := []Port{
+	ports := []metadata.Port{
 		{
 			ContainerPort: 80,
 			Protocol:      "tcp",
@@ -223,7 +224,7 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 			Protocol:      "udp",
 		},
 	}
-	networks := []Network{
+	networks := []metadata.Network{
 		{
 			NetworkMode:   "awsvpc",
 			IPv4Addresses: []string{"10.0.2.106"},
@@ -255,6 +256,6 @@ func TestParseContainerNetworkAddresses(t *testing.T) {
 			Protocol: "udp",
 		},
 	}
-	result := parseContainerNetworkAddresses(ports, networks, "mycontainer")
+	result := metadata.ParseECSContainerNetworkAddresses(ports, networks, "mycontainer")
 	assert.Equal(t, expectedOutput, result)
 }

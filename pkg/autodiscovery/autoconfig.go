@@ -101,10 +101,7 @@ func (ac *AutoConfig) serviceListening() {
 		case svc := <-ac.newService:
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
-			// delay service removal for short lived service detection
-			time.AfterFunc(5*time.Second, func() {
-				ac.processDelService(svc)
-			})
+			ac.processDelService(svc)
 		case <-tagFreshnessTicker.C:
 			ac.checkTagFreshness()
 		}

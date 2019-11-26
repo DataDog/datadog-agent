@@ -29,6 +29,8 @@ extern std::wstring datadogyamlfile;
 extern std::wstring confddir;
 extern std::wstring logdir;
 extern std::wstring installdir;
+extern std::wstring embedded2Dir;
+extern std::wstring embedded3Dir;
 
 extern std::wstring strRollbackKeyName;
 extern std::wstring strUninstallKeyName;

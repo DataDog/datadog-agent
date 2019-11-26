@@ -41,6 +41,7 @@ type ContainerdItf interface {
 	Metadata() (containerd.Version, error)
 	Namespace() string
 	TaskMetrics(ctn containerd.Container) (*types.Metric, error)
+	TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -173,4 +174,18 @@ func (c *ContainerdUtil) TaskMetrics(ctn containerd.Container) (*types.Metric, e
 	}
 
 	return t.Metrics(ctxNamespace)
+}
+
+// TaskPids interfaces with the containerd api to get the pids from a container
+func (c *ContainerdUtil) TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	t, errTask := ctn.Task(ctxNamespace, nil)
+	if errTask != nil {
+		return nil, errTask
+	}
+
+	return t.Pids(ctxNamespace)
 }

@@ -7,6 +7,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 
@@ -123,10 +124,46 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
+	suite.Equal(endpoints.BatchWait, 5*time.Second)
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseSSL)
 	suite.Equal("agent-http-intake.logs.datadoghq.com", endpoint.Host)
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompression() {
+	var endpoints *Endpoints
+	var endpoint Endpoint
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
+	suite.config.Set("logs_config.use_compression", true)
+
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.True(endpoints.UseHTTP)
+
+	endpoint = endpoints.Main
+	suite.True(endpoint.UseCompression)
+	suite.Equal(endpoint.CompressionLevel, 6)
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompressionAndOverride() {
+	var endpoints *Endpoints
+	var endpoint Endpoint
+	var err error
+
+	suite.config.Set("logs_config.use_http", true)
+	suite.config.Set("logs_config.use_compression", true)
+	suite.config.Set("logs_config.compression_level", 1)
+
+	endpoints, err = BuildEndpoints()
+	suite.Nil(err)
+	suite.True(endpoints.UseHTTP)
+
+	endpoint = endpoints.Main
+	suite.True(endpoint.UseCompression)
+	suite.Equal(endpoint.CompressionLevel, 1)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndOverride() {
@@ -136,10 +173,12 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	suite.config.Set("logs_config.use_http", true)
 	suite.config.Set("logs_config.dd_url", "foo")
+	suite.config.Set("logs_config.batch_wait", 9)
 
 	endpoints, err = BuildEndpoints()
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
+	suite.Equal(endpoints.BatchWait, 9*time.Second)
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseSSL)
@@ -179,11 +218,22 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidOverride
 		"host:foo",
 		"host",
 	}
-
 	for _, url := range invalidURLs {
 		suite.config.Set("logs_config.logs_dd_url", url)
 		_, err := BuildEndpoints()
 		suite.NotNil(err)
+	}
+}
+
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithInvalidBatchWait() {
+	suite.config.Set("logs_config.use_http", true)
+
+	invalidBatchWaits := []int{-1, 0, 11}
+	for _, batchWait := range invalidBatchWaits {
+		suite.config.Set("logs_config.batch_wait", batchWait)
+		endpoints, err := BuildEndpoints()
+		suite.Nil(err)
+		suite.Equal(endpoints.BatchWait, coreConfig.DefaultBatchWait*time.Second)
 	}
 }
 
@@ -230,8 +280,10 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 
 	suite.config.Set("logs_config.additional_endpoints", []map[string]interface{}{
 		{
-			"host":    "foo",
-			"api_key": "1234",
+			"host":              "foo",
+			"api_key":           "1234",
+			"use_compression":   true,
+			"compression_level": 1,
 		},
 	})
 
@@ -252,6 +304,8 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 	endpoint = endpoints.Additionals[0]
 	suite.Equal("foo", endpoint.Host)
 	suite.Equal("1234", endpoint.APIKey)
+	suite.True(endpoint.UseCompression)
+	suite.Equal(1, endpoint.CompressionLevel)
 	suite.True(endpoint.UseSSL)
 }
 

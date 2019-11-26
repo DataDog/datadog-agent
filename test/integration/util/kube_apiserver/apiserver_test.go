@@ -26,8 +26,7 @@ import (
 )
 
 const (
-	setupTimeout     = 10 * time.Second
-	eventReadTimeout = 500 * time.Millisecond
+	setupTimeout = 10 * time.Second
 )
 
 type testSuite struct {
@@ -60,8 +59,10 @@ func TestSuiteKube(t *testing.T) {
 
 func (suite *testSuite) SetupTest() {
 	var err error
-
-	tick := time.NewTicker(time.Millisecond * 500)
+	resVer := ""
+	eventReadTimeout := int64(1)
+	lastList := time.Now()
+	tick := time.NewTicker(time.Millisecond * 100)
 	timeout := time.NewTicker(setupTimeout)
 	for {
 		select {
@@ -76,9 +77,9 @@ func (suite *testSuite) SetupTest() {
 			}
 			// Confirm that we can query the kube-apiserver's resources
 			log.Debugf("trying to get LatestEvents")
-			_, _, resV, err := suite.apiClient.LatestEvents("0", eventReadTimeout)
+			_, resVer, _, err := suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, 300, "")
 			if err == nil {
-				log.Debugf("successfully get LatestEvents: %s", resV)
+				log.Debugf("successfully get LatestEvents: %s", resVer)
 				return
 			}
 			log.Debugf("cannot get LatestEvents: %s", err)
@@ -88,6 +89,9 @@ func (suite *testSuite) SetupTest() {
 
 func (suite *testSuite) TestKubeEvents() {
 	mockConfig := config.Mock()
+	resVer := ""
+	eventReadTimeout := int64(1)
+	lastList := time.Now()
 
 	// Init own client to write the events
 	mockConfig.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
@@ -99,7 +103,7 @@ func (suite *testSuite) TestKubeEvents() {
 	require.NotNil(suite.T(), core)
 
 	// Ignore potential startup events
-	_, _, initresversion, err := suite.apiClient.LatestEvents("0", eventReadTimeout)
+	_, resVer, lastList, err = suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, 300, "")
 	require.NoError(suite.T(), err)
 
 	// Create started event
@@ -109,10 +113,9 @@ func (suite *testSuite) TestKubeEvents() {
 	require.NoError(suite.T(), err)
 
 	// Test we get the new started event
-	added, modified, resversion, err := suite.apiClient.LatestEvents(initresversion, eventReadTimeout)
+	added, resVer, lastList, err := suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, 300, "")
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 1)
-	assert.Len(suite.T(), modified, 0)
 	assert.Equal(suite.T(), "started", added[0].Reason)
 
 	// Create tick event
@@ -121,10 +124,9 @@ func (suite *testSuite) TestKubeEvents() {
 	require.NoError(suite.T(), err)
 
 	// Test we get the new tick event
-	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion, eventReadTimeout)
+	added, resVer, lastList, err = suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, 300, "")
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 1)
-	assert.Len(suite.T(), modified, 0)
 	assert.Equal(suite.T(), "tick", added[0].Reason)
 
 	// Update tick event
@@ -141,28 +143,18 @@ func (suite *testSuite) TestKubeEvents() {
 	require.NoError(suite.T(), err)
 
 	// Test we get the two modified test events
-	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion, eventReadTimeout)
-	require.NoError(suite.T(), err)
-	assert.Len(suite.T(), added, 0)
-	assert.Len(suite.T(), modified, 2)
-	assert.Equal(suite.T(), "tick", modified[0].Reason)
-	assert.EqualValues(suite.T(), 2, modified[0].Count)
-	assert.Equal(suite.T(), "tick", modified[1].Reason)
-	assert.EqualValues(suite.T(), 3, modified[1].Count)
-	assert.EqualValues(suite.T(), modified[0].InvolvedObject.UID, modified[1].InvolvedObject.UID)
-
-	// We should get nothing new now
-	added, modified, resversion, err = suite.apiClient.LatestEvents(resversion, eventReadTimeout)
-	require.NoError(suite.T(), err)
-	assert.Len(suite.T(), added, 0)
-	assert.Len(suite.T(), modified, 0)
-
-	// We should get 2+0 events from initresversion
-	// apiserver does not send updates to objects if the add is in the same bucket
-	added, modified, _, err = suite.apiClient.LatestEvents(initresversion, eventReadTimeout)
+	added, resVer, lastList, err = suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, 300, "")
 	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), added, 2)
-	assert.Len(suite.T(), modified, 0)
+	assert.Equal(suite.T(), "tick", added[0].Reason)
+	assert.EqualValues(suite.T(), 2, added[0].Count)
+	assert.Equal(suite.T(), "tick", added[1].Reason)
+	assert.EqualValues(suite.T(), 3, added[1].Count)
+
+	// We should get nothing new now
+	added, resVer, lastList, err = suite.apiClient.RunEventCollection(resVer, lastList, eventReadTimeout, 100, 300, "")
+	require.NoError(suite.T(), err)
+	assert.Len(suite.T(), added, 0)
 }
 
 func (suite *testSuite) TestHostnameProvider() {
