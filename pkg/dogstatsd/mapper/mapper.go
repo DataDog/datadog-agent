@@ -14,12 +14,12 @@ import (
 )
 
 var (
-	allowedGlobMatchPattern = regexp.MustCompile(`^[a-zA-Z0-9\-_*.]+$`)
+	allowedWildcardMatchPattern = regexp.MustCompile(`^[a-zA-Z0-9\-_*.]+$`)
 )
 
 const (
-	matchTypeGlob  = "glob"
-	matchTypeRegex = "regex"
+	matchTypeWildcard = "wildcard"
+	matchTypeRegex    = "regex"
 )
 
 // MetricMapper contains mappings and cache instance
@@ -43,10 +43,10 @@ func NewMetricMapper(configMappings []MetricMapping, cacheSize int) (MetricMappe
 	for i := range configMappings {
 		currentMapping := configMappings[i]
 		if currentMapping.MatchType == "" {
-			currentMapping.MatchType = matchTypeGlob
+			currentMapping.MatchType = matchTypeWildcard
 		}
-		if currentMapping.MatchType != matchTypeGlob && currentMapping.MatchType != matchTypeRegex {
-			return MetricMapper{}, fmt.Errorf("mapping num %d: invalid match type, must be `glob` or `regex`", i)
+		if currentMapping.MatchType != matchTypeWildcard && currentMapping.MatchType != matchTypeRegex {
+			return MetricMapper{}, fmt.Errorf("mapping num %d: invalid match type, must be `wildcard` or `regex`", i)
 		}
 		if currentMapping.Name == "" {
 			return MetricMapper{}, fmt.Errorf("mapping num %d: name is required", i)
@@ -70,12 +70,12 @@ func NewMetricMapper(configMappings []MetricMapping, cacheSize int) (MetricMappe
 // prepare compiles the match patterns into regexes
 func (m *MetricMapping) prepare() error {
 	metricRe := m.Match
-	if m.MatchType == matchTypeGlob {
-		if !allowedGlobMatchPattern.MatchString(m.Match) {
-			return fmt.Errorf("invalid glob match pattern `%s`, it does not match allowed match regex `%s`", m.Match, allowedGlobMatchPattern)
+	if m.MatchType == matchTypeWildcard {
+		if !allowedWildcardMatchPattern.MatchString(m.Match) {
+			return fmt.Errorf("invalid wildcard match pattern `%s`, it does not match allowed match regex `%s`", m.Match, allowedWildcardMatchPattern)
 		}
 		if strings.Contains(m.Match, "**") {
-			return fmt.Errorf("invalid glob match pattern `%s`, it should not contain consecutive `*`", m.Match)
+			return fmt.Errorf("invalid wildcard match pattern `%s`, it should not contain consecutive `*`", m.Match)
 		}
 		metricRe = strings.Replace(metricRe, ".", "\\.", -1)
 		metricRe = strings.Replace(metricRe, "*", "([^.]*)", -1)

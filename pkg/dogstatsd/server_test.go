@@ -452,8 +452,8 @@ dogstatsd_mappings:
 	require.NoError(t, err, "cannot start DSD")
 
 	expectedMappings := []mappingTest{
-		{Match: "airflow.job.duration_sec.*.*", Name: "airflow.job.duration", Tags: map[string]string{"job_type": "$1", "job_name": "$2"}, MatchType: "glob"},
-		{Match: "airflow.job.size.*.*", Name: "airflow.job.size", Tags: map[string]string{"foo": "$1", "bar": "$2"}, MatchType: "glob"},
+		{Match: "airflow.job.duration_sec.*.*", Name: "airflow.job.duration", Tags: map[string]string{"job_type": "$1", "job_name": "$2"}, MatchType: "wildcard"},
+		{Match: "airflow.job.size.*.*", Name: "airflow.job.size", Tags: map[string]string{"foo": "$1", "bar": "$2"}, MatchType: "wildcard"},
 	}
 
 	var actualMappings []mappingTest
