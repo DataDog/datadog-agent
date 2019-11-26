@@ -336,7 +336,7 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 			}
 
 			if s.mapper != nil && len(sample.Tags) == 0 {
-				name, tags, matched := s.mapper.GetMapping(sample.Name)
+				name, tags, matched := s.mapper.Map(sample.Name)
 
 				if matched {
 					sample.Name = name

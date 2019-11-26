@@ -88,11 +88,11 @@ func (m *MetricMapping) prepare() error {
 	return nil
 }
 
-// GetMapping returns:
+// Map returns:
 // - name: the mapped expanded name
 // - tags: the tags extracted from the metric name and expanded
 // - matched: weather we found a match or not
-func (m *MetricMapper) GetMapping(metricName string) (string, []string, bool) {
+func (m *MetricMapper) Map(metricName string) (string, []string, bool) {
 	result, cached := m.cache.get(metricName)
 	if cached {
 		return result.Name, result.Tags, result.Matched
