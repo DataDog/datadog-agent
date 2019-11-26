@@ -29,4 +29,15 @@ func TestGetClusterName(t *testing.T) {
 	assert.Equal(t, testClusterName, getClusterName(data))
 	freshData := newClusterNameData()
 	assert.Equal(t, newClusterName, getClusterName(freshData))
+
+	// Test invalid cluster names
+	for _, invalidClusterName := range []string{
+		"Capital",
+		"with_underscore",
+		"toolongtoolongtoolongtoolongtoolongtoolong"} {
+		mockConfig.Set("cluster_name", invalidClusterName)
+		freshData = newClusterNameData()
+		assert.Panics(t, func() { getClusterName(freshData) },
+			"getClusterName(…) should panic when the cluster-name is invalid")
+	}
 }
