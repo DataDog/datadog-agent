@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2019-11-25
+Release on: 2019-11-27
 
 
 .. _Release Notes_6.15.1_New Features:
