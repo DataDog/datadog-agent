@@ -29,13 +29,11 @@ var _ ReverseDNS = &SocketFilterSnooper{}
 
 // SocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type SocketFilterSnooper struct {
-	parser       *dnsParser
-	source       *afpacket.TPacket
-	socketFilter *bpflib.SocketFilter
-	socketFD     int
-	cache        *reverseDNSCache
-	exit         chan struct{}
-	wg           sync.WaitGroup
+	source *packetSource
+	parser *dnsParser
+	cache  *reverseDNSCache
+	exit   chan struct{}
+	wg     sync.WaitGroup
 
 	// packet telemetry
 	captured       int64
@@ -47,35 +45,17 @@ type SocketFilterSnooper struct {
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
-	// Creates a RAW_SOCKET
-	packetSrc, err := afpacket.NewTPacket(
-		afpacket.OptPollTimeout(1*time.Second),
-		// This setup will require ~4Mb that is mmap'd into the process virtual space
-		// More information here: https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
-		afpacket.OptFrameSize(4096),
-		afpacket.OptBlockSize(4096*128),
-		afpacket.OptNumBlocks(8),
-	)
+	packetSrc, err := newPacketSource(filter)
 	if err != nil {
-		return nil, fmt.Errorf("error creating raw socket: %s", err)
-	}
-
-	// The underlying socket file descriptor is private, hence the use of reflection
-	socketFD := int(reflect.ValueOf(packetSrc).Elem().FieldByName("fd").Int())
-
-	// Attaches DNS socket filter to RAW_SOCKET
-	if err := bpflib.AttachSocketFilter(filter, socketFD); err != nil {
-		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
+		return nil, err
 	}
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	snooper := &SocketFilterSnooper{
-		parser:       newDNSParser(),
-		source:       packetSrc,
-		socketFilter: filter,
-		socketFD:     socketFD,
-		cache:        cache,
-		exit:         make(chan struct{}),
+		source: packetSrc,
+		parser: newDNSParser(),
+		cache:  cache,
+		exit:   make(chan struct{}),
 	}
 
 	// Start consuming packets
@@ -115,11 +95,6 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 func (s *SocketFilterSnooper) Close() {
 	close(s.exit)
 	s.wg.Wait()
-
-	if err := bpflib.DetachSocketFilter(s.socketFilter, s.socketFD); err != nil {
-		log.Errorf("error detaching socket filter: %s", err)
-	}
-
 	s.source.Close()
 	s.cache.Close()
 }
@@ -208,4 +183,47 @@ func (s *SocketFilterSnooper) pollStats() {
 			return
 		}
 	}
+}
+
+// packetSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
+type packetSource struct {
+	*afpacket.TPacket
+	socketFilter *bpflib.SocketFilter
+	socketFD     int
+}
+
+func newPacketSource(filter *bpflib.SocketFilter) (*packetSource, error) {
+	rawSocket, err := afpacket.NewTPacket(
+		afpacket.OptPollTimeout(1*time.Second),
+		// This setup will require ~4Mb that is mmap'd into the process virtual space
+		// More information here: https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
+		afpacket.OptFrameSize(4096),
+		afpacket.OptBlockSize(4096*128),
+		afpacket.OptNumBlocks(8),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error creating raw socket: %s", err)
+	}
+
+	// The underlying socket file descriptor is private, hence the use of reflection
+	socketFD := int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
+
+	// Attaches DNS socket filter to the RAW_SOCKET
+	if err := bpflib.AttachSocketFilter(filter, socketFD); err != nil {
+		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
+	}
+
+	return &packetSource{
+		TPacket:      rawSocket,
+		socketFilter: filter,
+		socketFD:     socketFD,
+	}, nil
+}
+
+func (p *packetSource) Close() {
+	if err := bpflib.DetachSocketFilter(p.socketFilter, p.socketFD); err != nil {
+		log.Errorf("error detaching socket filter: %s", err)
+	}
+
+	p.TPacket.Close()
 }
