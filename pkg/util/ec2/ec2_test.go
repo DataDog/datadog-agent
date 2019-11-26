@@ -33,6 +33,18 @@ func TestIsDefaultHostname(t *testing.T) {
 	}
 }
 
+func TestIsDefaultHostnameForSobotka(t *testing.T) {
+	const key = "ec2_use_windows_prefix_detection"
+	prefixDetection := config.Datadog.GetBool(key)
+	config.Datadog.SetDefault(key, true)
+	defer config.Datadog.SetDefault(key, prefixDetection)
+
+	assert.True(t, IsDefaultHostnameForSobotka("IP-FOO"))
+	assert.True(t, IsDefaultHostnameForSobotka("domuarigato"))
+	assert.False(t, IsDefaultHostnameForSobotka("EC2AMAZ-FOO"))
+	assert.True(t, IsDefaultHostname("EC2AMAZ-FOO"))
+}
+
 func TestGetInstanceID(t *testing.T) {
 	expected := "i-0123456789abcdef0"
 	var lastRequest *http.Request

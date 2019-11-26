@@ -169,12 +169,21 @@ func getResponse(url string) (*http.Response, error) {
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2
 func IsDefaultHostname(hostname string) bool {
+	return isDefaultHostname(hostname, config.Datadog.GetBool("ec2_use_windows_prefix_detection"))
+}
+
+// IsDefaultHostnameForSobotka returns whether the given hostname is a default one for EC2 for Sobotka
+func IsDefaultHostnameForSobotka(hostname string) bool {
+	return isDefaultHostname(hostname, false)
+}
+
+func isDefaultHostname(hostname string, useWindowsPrefix bool) bool {
 	hostname = strings.ToLower(hostname)
 	isDefault := false
 
 	var prefixes []string
 
-	if config.Datadog.GetBool("ec2_use_windows_prefix_detection") {
+	if useWindowsPrefix {
 		prefixes = defaultPrefixes
 	} else {
 		prefixes = oldDefaultPrefixes
