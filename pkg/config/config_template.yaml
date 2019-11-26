@@ -764,7 +764,7 @@ api_key:
 #       task_name: '$2'
 
 ## @param dogstatsd_mapper_cache_size - integer - optional - default: 1000
-## Dogstatsd mapping feature uses a cache to speed up matching.
+## Size of the cache (max number of mapping results) used by Dogstatsd mapping feature.
 #
 # dogstatsd_mapper_cache_size: 1000
 
