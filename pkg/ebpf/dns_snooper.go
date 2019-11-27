@@ -115,16 +115,17 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 func (s *SocketFilterSnooper) pollPackets() {
 	for {
 		data, _, err := s.source.ZeroCopyReadPacketData()
-		if err == nil {
-			s.processPacket(data)
-			continue
-		}
 
 		// Properly synchronizes termination process
 		select {
 		case <-s.exit:
 			return
 		default:
+		}
+
+		if err == nil {
+			s.processPacket(data)
+			continue
 		}
 
 		// Immediately retry for temporary network errors
