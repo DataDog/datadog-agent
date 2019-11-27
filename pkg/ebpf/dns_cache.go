@@ -207,7 +207,7 @@ type translation struct {
 func newTranslation(domain []byte) *translation {
 	return &translation{
 		dns: string(domain),
-		ips: make([]util.Address, 0),
+		ips: nil,
 	}
 }
 
