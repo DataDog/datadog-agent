@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [[ -z "${EKS_FARGATE}" ]]; then
+if [[ -z "${DD_EKS_FARGATE}" ]]; then
     exit 0
 fi
 
