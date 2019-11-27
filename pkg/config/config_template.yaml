@@ -735,7 +735,7 @@ api_key:
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
 
-## @param dogstatsd_mappings - List of custom object - optional
+## @param dogstatsd_mappings - list of custom object - optional
 ## The list mappings will be used to convert parts of metrics names into tags.
 ## For each mapping, following fields are available:
 ##  match (required): pattern for matching the incoming metric name e.g. `test.job.duration.*`
