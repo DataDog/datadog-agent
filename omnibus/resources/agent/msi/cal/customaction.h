@@ -40,7 +40,7 @@ int uninstallServices(MSIHANDLE hInstall, CustomActionData& data);
 int verifyServices(MSIHANDLE hInstall, CustomActionData& data);
 
 //delfiles.cpp
-BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext);
+BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dirs = false);
 
 //caninstall.cpp 
 bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword);

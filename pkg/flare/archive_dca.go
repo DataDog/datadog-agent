@@ -230,7 +230,6 @@ func zipClusterAgentClusterChecks(tempDir, hostname string) error {
 }
 
 func zipHPAStatus(tempDir, hostname string) error {
-	// Grab the full content of the HPA configmap
 	stats := make(map[string]interface{})
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {

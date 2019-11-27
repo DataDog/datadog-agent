@@ -186,6 +186,9 @@ func initConfig(config Config) {
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
 
+	// Yaml keys which values are stripped from flare
+	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
+
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
@@ -348,6 +351,7 @@ func initConfig(config Config) {
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
+	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"})
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
@@ -444,10 +448,11 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
 	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)          // value in seconds. Frequency of batch calls to the ConfigMap persistent store (GlobalStore) by the Leader.
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)            // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
-	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                // value in seconds. 4 cycles from the HPA controller (up to Kubernetes 1.11) is enough to consider a metric stale
+	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
 	config.BindEnvAndSetDefault("external_metrics.aggregator", "avg")                    // aggregator used for the external metrics. Choose from [avg,sum,max,min]
 	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window to query to get the metric from Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.rollup", 30)                  // Bucket size to circumvent time aggregation side effects.
+	config.BindEnvAndSetDefault("external_metrics_provider.wpa_controller", false)       // Activates the controller for Watermark Pod Autoscalers.
 	config.BindEnvAndSetDefault("kubernetes_event_collection_timeout", 100)              // timeout between two successful event collections in milliseconds.
 	config.BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
@@ -564,7 +569,10 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.receiver_timeout")
 	config.SetKnown("apm_config.watchdog_check_delay")
 
+	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
+	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
+	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
 	setAssetFs(config)
 }

@@ -252,10 +252,10 @@ run_tests_rpm-x64-py3:
 run_tests_ebpf:
   allow_failure: true
   stage: source_test
-  # TODO(processes): change this to use the generic builder image when we use the same version of Go in the 
+  # TODO(processes): change this to use the generic builder image when we use the same version of Go in the
   # system-probe and the agent, or when `system-probe.test` can receive which Go version to use as an argument.
   # Currently this is using the ebpf image so system-probe tests run in the same  Go version used to build it (1.10).
-  # Note that this image isn't used to build the system-probe: when building it, we specify Go version to use 
+  # Note that this image isn't used to build the system-probe: when building it, we specify Go version to use
   # through an argument to the system-probe.build invoke task.
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
@@ -506,10 +506,10 @@ agent_deb-arm-a7:
     DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_arm64.deb'
   before_script:
-    - source /root/.bashrc 
+    - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-  <<: *skip_when_unwanted_on_6
+  <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_deb
 
 # build Agent package for deb-x64
@@ -1960,6 +1960,7 @@ check_already_deployed_version_6:
   tags: [ "runner:main", "size:large" ]
   script:
     - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_amd64.deb
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_arm64.deb
 
 check_already_deployed_version_7:
   <<: *run_when_triggered
@@ -1971,6 +1972,7 @@ check_already_deployed_version_7:
   tags: [ "runner:main", "size:large" ]
   script:
     - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_amd64.deb
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_arm64.deb
 
 # If we trigger a build only pipeline we stop here.
 check_if_build_only:
@@ -2019,6 +2021,7 @@ deploy_deb-6:
     # Release the artifacts to the "6" component
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*arm64.deb
 
 deploy_deb-7:
   <<: *run_when_triggered
@@ -2051,6 +2054,7 @@ deploy_deb-7:
     # Release the artifacts to the "7" component
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
 
 # nightlies (6 and 7), deployed to bucket/master
 deploy_windows_master:
@@ -2149,11 +2153,14 @@ deploy_rpm-6:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/6/x86_64/
+    - mkdir -p ./rpmrepo/6/aarch64/
     - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ ./rpmrepo/6/
 
     # add RPMs to new "6" branch
     - cp $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm ./rpmrepo/6/x86_64/
+    - cp $OMNIBUS_PACKAGE_DIR/*-6.*aarch64.rpm ./rpmrepo/6/aarch64/
     - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
+    - createrepo --update -v --checksum sha ./rpmrepo/6/aarch64
 
     # sync to S3
     - aws s3 sync --delete ./rpmrepo/6/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -2170,16 +2177,20 @@ deploy_rpm-7:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/7/x86_64/
+    - mkdir -p ./rpmrepo/7/aarch64/
     - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ ./rpmrepo/7/
 
     # add RPMs to new "7" branch
     - cp $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm ./rpmrepo/7/x86_64/
+    - cp $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm ./rpmrepo/7/aarch64/
     - createrepo --update -v --checksum sha ./rpmrepo/7/x86_64
+    - createrepo --update -v --checksum sha ./rpmrepo/7/aarch64
 
     # sync to S3
     - aws s3 sync --delete ./rpmrepo/7/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy suse rpm packages to yum staging repo
+# NOTE: no SuSE ARM builds currently.
 deploy_suse_rpm-6:
   <<: *run_when_triggered
   <<: *skip_when_unwanted_on_6
@@ -2284,8 +2295,6 @@ tag_release_6:
     - VERSION=$(inv -e agent.version)
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:${VERSION}
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:${VERSION}-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:${VERSION}-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:${VERSION}-py3-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:${VERSION}
 
 tag_release_7:
@@ -2311,13 +2320,10 @@ latest_release_6:
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-jmx
-    # TODO: remove previous lines when agent 7 is released
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest-py2
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:6-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:6-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:6-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:6-py3-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:6
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:6-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG} datadog/dogstatsd:latest
 
 latest_release_7:
@@ -2328,9 +2334,9 @@ latest_release_7:
   variables:
     <<: *docker_hub_variables
   script:
-    # TODO: uncomment the following when agent 7 is released
-    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:latest
-    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:latest-jmx
+    # Uncomment this if we want to have 7 as the latest image
+    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3 datadog/agent:latest
+    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx datadog/agent:latest-jmx
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3 datadog/agent:7
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx datadog/agent:7-jmx
 
@@ -2353,9 +2359,9 @@ latest_release_7:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
-    # TODO: remove previous lines and uncomment the following when agent 7 is released
-    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py2
-    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py2-jmx
+    # Remove previous lines if agent 7 is promoted as the latest image
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py2
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py2-jmx
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
 
 .latest_revert_to_previous_release_7:
@@ -2367,8 +2373,9 @@ latest_release_7:
     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py3
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py3-jmx
+    # Uncomment this if we want to have 7 as the latest image
+    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
+    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
 
 #
 # Use this step to delete a tag of a given image

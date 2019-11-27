@@ -241,6 +241,20 @@ func TestSNMPConfig(t *testing.T) {
 		`   community_string: ********`)
 }
 
+func TestYamlConfig(t *testing.T) {
+	contents := `foobar: baz`
+	cleaned, err := CredentialsCleanerBytes([]byte(contents))
+	assert.Nil(t, err)
+	cleanedString := string(cleaned)
+
+	// Sanity check
+	assert.Equal(t, contents, cleanedString)
+
+	AddStrippedKeys([]string{"foobar"})
+
+	assertClean(t, contents, `foobar: ********`)
+}
+
 func TestCertConfig(t *testing.T) {
 	assertClean(t,
 		`cert_key: >

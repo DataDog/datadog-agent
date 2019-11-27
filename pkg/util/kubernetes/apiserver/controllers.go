@@ -9,9 +9,10 @@ package apiserver
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hpa"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 )
@@ -37,10 +38,11 @@ var controllerCatalog = map[string]controllerFuncs{
 }
 
 type ControllerContext struct {
-	InformerFactory informers.SharedInformerFactory
-	Client          kubernetes.Interface
-	LeaderElector   LeaderElectorInterface
-	StopCh          chan struct{}
+	InformerFactory    informers.SharedInformerFactory
+	WPAInformerFactory externalversions.SharedInformerFactory
+	Client             kubernetes.Interface
+	LeaderElector      LeaderElectorInterface
+	StopCh             chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
@@ -61,6 +63,9 @@ func StartControllers(ctx ControllerContext) error {
 	// factory uses lazy initialization (delays the creation of an informer until the first
 	// time it's needed).
 	ctx.InformerFactory.Start(ctx.StopCh)
+	if ctx.WPAInformerFactory != nil {
+		ctx.WPAInformerFactory.Start(ctx.StopCh)
+	}
 
 	return nil
 }
@@ -76,7 +81,7 @@ func startMetadataController(ctx ControllerContext) error {
 }
 
 func startAutoscalersController(ctx ControllerContext) error {
-	dogCl, err := hpa.NewDatadogClient()
+	dogCl, err := autoscalers.NewDatadogClient()
 	if err != nil {
 		return err
 	}
@@ -84,13 +89,24 @@ func startAutoscalersController(ctx ControllerContext) error {
 		ctx.Client,
 		ctx.LeaderElector,
 		dogCl,
-		ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers(),
 	)
 	if err != nil {
 		return err
 	}
-	go autoscalersController.Run(ctx.StopCh)
+	if ctx.WPAInformerFactory != nil {
+		autoscalersController.wpaEnabled = true
+		// mutate the Autoscaler controller to embed an informer against the WPAs
+		ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+		if err != nil {
+			return err
+		}
+		go autoscalersController.RunWPA(ctx.StopCh)
+	}
+	// mutate the Autoscaler controller to embed an informer against the HPAs
+	ExtendToHPAController(autoscalersController, ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+	go autoscalersController.RunHPA(ctx.StopCh)
 
+	autoscalersController.RunControllerLoop(ctx.StopCh)
 	return nil
 }
 

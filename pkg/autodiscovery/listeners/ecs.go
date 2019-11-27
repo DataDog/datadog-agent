@@ -149,7 +149,7 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 }
 
-func (l *ECSListener) createService(c metadata.Container, firstRun bool) (ECSService, error) {
+func (l *ECSListener) createService(c metadata.ContainerMetadata, firstRun bool) (ECSService, error) {
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before

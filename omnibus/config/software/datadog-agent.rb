@@ -178,6 +178,20 @@ build do
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
+    if suse?
+      erb source: "sysvinit_suse.erb",
+          dest: "#{install_dir}/scripts/datadog-agent",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_suse.process.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-process",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_suse.trace.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-trace",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+    end
 
     erb source: "systemd.service.erb",
         dest: "#{install_dir}/scripts/datadog-agent.service",

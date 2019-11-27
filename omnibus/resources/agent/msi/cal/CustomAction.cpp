@@ -339,8 +339,11 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
         DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
         dir_to_delete = installdir + L"embedded2";
         DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+        // python 3, on startup, leaves a bunch of __pycache__ directories,
+        // so we have to be more aggressive.
         dir_to_delete = installdir + L"embedded3";
         DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+        DeleteFilesInDirectory(dir_to_delete.c_str(), L"__pycache__", true);
     }
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;

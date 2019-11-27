@@ -3,7 +3,6 @@
 package netlink
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -134,14 +133,14 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	}
 
 	// seed the state
-	sessions, err := nfct.Dump(ct.Ct, ct.CtIPv4)
+	sessions, err := nfct.Dump(ct.Conntrack, ct.IPv4)
 	if err != nil {
 		return nil, err
 	}
 	ctr.loadInitialState(sessions)
 	log.Debugf("seeded IPv4 state")
 
-	sessions, err = nfct.Dump(ct.Ct, ct.CtIPv6)
+	sessions, err = nfct.Dump(ct.Conntrack, ct.IPv6)
 	if err != nil {
 		// this is not fatal because we've already seeded with IPv4
 		log.Errorf("Failed to dump IPv6")
@@ -151,10 +150,10 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 
 	go ctr.run()
 
-	nfct.Register(context.Background(), ct.Ct, ct.NetlinkCtNew|ct.NetlinkCtExpectedNew|ct.NetlinkCtUpdate, ctr.register)
+	nfct.Register(context.Background(), ct.Conntrack, ct.NetlinkCtNew|ct.NetlinkCtExpectedNew|ct.NetlinkCtUpdate, ctr.register)
 	log.Debugf("initialized register hook")
 
-	nfctDel.Register(context.Background(), ct.Ct, ct.NetlinkCtDestroy, ctr.unregister)
+	nfctDel.Register(context.Background(), ct.Conntrack, ct.NetlinkCtDestroy, ctr.unregister)
 	log.Debugf("initialized unregister hook")
 
 	log.Infof("initialized conntrack")
@@ -226,7 +225,7 @@ func (ctr *realConntracker) Close() {
 	ctr.exceededSizeLogLimit.Close()
 }
 
-func (ctr *realConntracker) loadInitialState(sessions []ct.Conn) {
+func (ctr *realConntracker) loadInitialState(sessions []ct.Con) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 	for _, c := range sessions {
 		if isNAT(c) {
@@ -239,7 +238,7 @@ func (ctr *realConntracker) loadInitialState(sessions []ct.Conn) {
 
 // register is registered to be called whenever a conntrack update/create is called.
 // it will keep being called until it returns nonzero.
-func (ctr *realConntracker) register(c ct.Conn) int {
+func (ctr *realConntracker) register(c ct.Con) int {
 	// don't both storing if the connection is not NAT
 	if !isNAT(c) {
 		return 0
@@ -277,7 +276,7 @@ func (ctr *realConntracker) logExceededSize() {
 
 // unregister is registered to be called whenever a conntrack entry is destroyed.
 // it will keep being called until it returns nonzero.
-func (ctr *realConntracker) unregister(c ct.Conn) int {
+func (ctr *realConntracker) unregister(c ct.Con) int {
 	if !isNAT(c) {
 		return 0
 	}
@@ -333,105 +332,57 @@ func (ctr *realConntracker) compact() {
 	ctr.state = copied
 }
 
-func isNAT(c ct.Conn) bool {
-	originSrcIPv4 := c[ct.AttrOrigIPv4Src]
-	originDstIPv4 := c[ct.AttrOrigIPv4Dst]
-	replSrcIPv4 := c[ct.AttrReplIPv4Src]
-	replDstIPv4 := c[ct.AttrReplIPv4Dst]
+func isNAT(c ct.Con) bool {
 
-	originSrcIPv6 := c[ct.AttrOrigIPv6Src]
-	originDstIPv6 := c[ct.AttrOrigIPv6Dst]
-	replSrcIPv6 := c[ct.AttrReplIPv6Src]
-	replDstIPv6 := c[ct.AttrReplIPv6Dst]
-
-	originSrcPort, _ := c.Uint16(ct.AttrOrigPortSrc)
-	originDstPort, _ := c.Uint16(ct.AttrOrigPortDst)
-	replSrcPort, _ := c.Uint16(ct.AttrReplPortSrc)
-	replDstPort, _ := c.Uint16(ct.AttrReplPortDst)
-
-	return !bytes.Equal(originSrcIPv4, replDstIPv4) ||
-		!bytes.Equal(originSrcIPv6, replDstIPv6) ||
-		!bytes.Equal(originDstIPv4, replSrcIPv4) ||
-		!bytes.Equal(originDstIPv6, replSrcIPv6) ||
-		originSrcPort != replDstPort ||
-		originDstPort != replSrcPort
+	return !(*c.Origin.Src).Equal(*c.Reply.Dst) ||
+		!(*c.Origin.Dst).Equal(*c.Reply.Src) ||
+		*c.Origin.Proto.SrcPort != *c.Reply.Proto.DstPort ||
+		*c.Origin.Proto.DstPort != *c.Reply.Proto.SrcPort
 }
 
 // ReplSrcIP extracts the source IP of the reply tuple from a conntrack entry
-func ReplSrcIP(c ct.Conn) net.IP {
-	if ipv4, ok := c[ct.AttrReplIPv4Src]; ok {
-		return net.IPv4(ipv4[0], ipv4[1], ipv4[2], ipv4[3])
-	}
-
-	if ipv6, ok := c[ct.AttrReplIPv6Src]; ok {
-		return net.IP(ipv6)
-	}
-
-	return nil
+func ReplSrcIP(c ct.Con) net.IP {
+	return *c.Reply.Src
 }
 
 // ReplDstIP extracts the dest IP of the reply tuple from a conntrack entry
-func ReplDstIP(c ct.Conn) net.IP {
-	if ipv4, ok := c[ct.AttrReplIPv4Dst]; ok {
-		return net.IPv4(ipv4[0], ipv4[1], ipv4[2], ipv4[3])
-	}
-
-	if ipv6, ok := c[ct.AttrReplIPv6Dst]; ok {
-		return net.IP(ipv6)
-	}
-
-	return nil
+func ReplDstIP(c ct.Con) net.IP {
+	return *c.Reply.Dst
 }
 
-func formatIPTranslation(c ct.Conn, generation uint8) *connValue {
+func formatIPTranslation(c ct.Con, generation uint8) *connValue {
 	replSrcIP := ReplSrcIP(c)
 	replDstIP := ReplDstIP(c)
 
-	replSrcPort, err := c.Uint16(ct.AttrReplPortSrc)
-	if err != nil {
-		return nil
-	}
-
-	replDstPort, err := c.Uint16(ct.AttrReplPortDst)
-	if err != nil {
-		return nil
-	}
+	replSrcPort := *c.Reply.Proto.SrcPort
+	replDstPort := *c.Reply.Proto.DstPort
 
 	return &connValue{
 		IPTranslation: &IPTranslation{
 			ReplSrcIP:   util.AddressFromNetIP(replSrcIP),
 			ReplDstIP:   util.AddressFromNetIP(replDstIP),
-			ReplSrcPort: NtohsU16(replSrcPort),
-			ReplDstPort: NtohsU16(replDstPort),
+			ReplSrcPort: replSrcPort,
+			ReplDstPort: replDstPort,
 		},
 		expGeneration: generation,
 	}
 }
 
-func formatKey(c ct.Conn) (k connKey, ok bool) {
+func formatKey(c ct.Con) (k connKey, ok bool) {
 	ok = true
+	k.ip = util.AddressFromNetIP(*c.Origin.Src)
+	k.port = *c.Origin.Proto.SrcPort
 
-	if ip, err := c.OrigSrcIP(); err == nil {
-		k.ip = util.AddressFromNetIP(ip)
-	} else {
+	proto := *c.Origin.Proto.Number
+	switch proto {
+	case 6:
+		k.transport = process.ConnectionType_tcp
+	case 17:
+		k.transport = process.ConnectionType_udp
+
+	default:
 		ok = false
 	}
 
-	if port, err := c.Uint16(ct.AttrOrigPortSrc); err == nil {
-		k.port = NtohsU16(port)
-	} else {
-		ok = false
-	}
-
-	if transportProto, err := c.Uint8(ct.AttrOrigL4Proto); err == nil {
-		switch transportProto {
-		case 6:
-			k.transport = process.ConnectionType_tcp
-		case 17:
-			k.transport = process.ConnectionType_udp
-		default:
-			ok = false
-		}
-	}
 	return
 }

@@ -23,7 +23,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 
 @task
-def build(ctx, vstudio_root=None, arch="x64", debug=None):
+def build(ctx, vstudio_root=None, arch="x64", debug=False):
     """
     Build the custom action library for the agent
     """

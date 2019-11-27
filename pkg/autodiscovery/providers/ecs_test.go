@@ -18,12 +18,12 @@ func TestParseECSContainers(t *testing.T) {
 		"com.datadoghq.ad.init_configs": "[{}, {}]",
 		"com.datadoghq.ad.instances":    "[{\"nginx_status_url\": \"http://%%host%%\"}, {\"url\": \"http://%%host%%/healthz\"}]",
 	}
-	c := metadata.Container{
+	c := metadata.ContainerMetadata{
 		DockerID: "deadbeef",
 		Image:    "test",
 		Labels:   labels,
 	}
-	tpls, err := parseECSContainers([]metadata.Container{c})
+	tpls, err := parseECSContainers([]metadata.ContainerMetadata{c})
 	assert.Nil(t, err)
 	assert.Len(t, tpls, 2)
 	assert.Equal(t, []string{"docker://deadbeef"}, tpls[0].ADIdentifiers)

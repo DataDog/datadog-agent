@@ -8,8 +8,9 @@ package logs
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"sync/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -48,9 +49,6 @@ func Start() error {
 	// setup the config scheduler
 	adScheduler = scheduler.NewScheduler(sources, services)
 
-	// setup the status
-	status.Init(&isRunning, sources, metrics.LogsExpvars)
-
 	// setup the server config
 	endpoints, err := config.BuildEndpoints()
 	if err != nil {
@@ -58,6 +56,9 @@ func Start() error {
 		status.AddGlobalError(invalidEndpoints, message)
 		return errors.New(message)
 	}
+
+	// setup the status
+	status.Init(&isRunning, endpoints, sources, metrics.LogsExpvars)
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules()

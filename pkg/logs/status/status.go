@@ -37,6 +37,7 @@ type Integration struct {
 // Status provides some information about logs-agent.
 type Status struct {
 	IsRunning     bool             `json:"is_running"`
+	Endpoints     []string         `json:"endpoints"`
 	StatusMetrics map[string]int64 `json:"metrics"`
 	Integrations  []Integration    `json:"integrations"`
 	Errors        []string         `json:"errors"`
@@ -44,10 +45,10 @@ type Status struct {
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *int32, sources *config.LogSources, logExpVars *expvar.Map) {
+func Init(isRunning *int32, endpoints *config.Endpoints, sources *config.LogSources, logExpVars *expvar.Map) {
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
-	builder = NewBuilder(isRunning, sources, warnings, errors, logExpVars)
+	builder = NewBuilder(isRunning, endpoints, sources, warnings, errors, logExpVars)
 }
 
 // Clear clears the status which means it needs to be initialized again to be used.

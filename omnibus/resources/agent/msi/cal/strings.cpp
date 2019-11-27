@@ -346,3 +346,5 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **pass, DWORD *len) {
     return loadPropertyString(hInstall, propertyDDAgentUserPassword.c_str(), pass, len);
 }
+
+
