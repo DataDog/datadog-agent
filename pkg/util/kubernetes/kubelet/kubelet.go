@@ -54,6 +54,7 @@ type KubeUtil struct {
 
 	kubeletHost              string // resolved hostname or IPAddress
 	kubeletApiEndpoint       string // ${SCHEME}://${kubeletHost}:${PORT}
+	kubeletProxiedEndpoint   string // ${SCHEME}://kubernetes.default.svc.cluster.local:443/apis/v1/nodes/
 	kubeletApiClient         *http.Client
 	kubeletApiRequestHeaders *http.Header
 	rawConnectionInfo        map[string]string // kept to pass to the python kubelet check
@@ -518,7 +519,11 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 	ku.resetCredentials()
 
 	// HTTP
-	ku.kubeletApiEndpoint = fmt.Sprintf("http://%s:%d", ku.kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port"))
+	if config.Datadog.GetBool("eks_fargate") && config.Datadog.Get("kubernetes_kubelet_nodename") !=  "" {
+		ku.kubeletApiEndpoint = fmt.Sprintf("https://kubernetes.default.svc.cluster.local:443/api/v1/nodes/%s/proxy", config.Datadog.Get("kubernetes_kubelet_nodename"))
+	} else {
+		ku.kubeletApiEndpoint = fmt.Sprintf("http://%s:%d", ku.kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port"))
+	}
 	_, code, httpUrlErr := ku.QueryKubelet(kubeletPodPath)
 	if httpUrlErr == nil {
 		if code == http.StatusOK {
@@ -545,7 +550,6 @@ func (ku *KubeUtil) init() error {
 	kubeletHost := config.Datadog.GetString("kubernetes_kubelet_host")
 	kubeletHttpsPort := config.Datadog.GetInt("kubernetes_https_kubelet_port")
 	kubeletHttpPort := config.Datadog.GetInt("kubernetes_http_kubelet_port")
-
 	potentialHosts := getPotentialKubeletHosts(kubeletHost)
 
 	dedupeConnectionInfo(potentialHosts)
