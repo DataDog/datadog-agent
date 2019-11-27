@@ -22,10 +22,11 @@ import (
 )
 
 const (
-	protobufContentType      = "application/x-protobuf"
-	jsonContentType          = "application/json"
-	payloadVersionHTTPHeader = "DD-Agent-Payload"
-	apiKeyReplacement        = "\"apiKey\":\"*************************$1"
+	protobufContentType                         = "application/x-protobuf"
+	jsonContentType                             = "application/json"
+	payloadVersionHTTPHeader                    = "DD-Agent-Payload"
+	apiKeyReplacement                           = "\"apiKey\":\"*************************$1"
+	maxItemCountForCreateMarshalersBySourceType = 100
 )
 
 var (
@@ -38,14 +39,16 @@ var (
 	jsonExtraHeadersWithCompression     http.Header
 	protobufExtraHeadersWithCompression http.Header
 
-	expvars                         = expvar.NewMap("serializer")
-	expvarsSendEventsErrItemTooBigs = expvar.Int{}
+	expvars                                 = expvar.NewMap("serializer")
+	expvarsSendEventsErrItemTooBigs         = expvar.Int{}
+	expvarsSendEventsErrItemTooBigsFallback = expvar.Int{}
 )
 
 var apiKeyRegExp = regexp.MustCompile("\"apiKey\":\"*\\w+(\\w{5})")
 
 func init() {
 	expvars.Set("SendEventsErrItemTooBigs", &expvarsSendEventsErrItemTooBigs)
+	expvars.Set("SendEventsErrItemTooBigsFallback", &expvarsSendEventsErrItemTooBigsFallback)
 	initExtraHeaders()
 }
 
@@ -187,19 +190,27 @@ func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarsh
 }
 
 func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
-	eventsStreamJSONMarshaler EventsStreamJSONMarshaler) (forwarder.Payloads, http.Header, error) {
+	eventsStreamJSONMarshaler EventsStreamJSONMarshaler, useV1API bool) (forwarder.Payloads, http.Header, error) {
 	marshaler := eventsStreamJSONMarshaler.CreateSingleMarshaler()
 	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, jsonstream.FailedErrItemTooBig)
 
 	if err == jsonstream.ErrItemTooBig {
 		expvarsSendEventsErrItemTooBigs.Add(1)
-		for _, v := range eventsStreamJSONMarshaler.CreateMarshalersBySourceType() {
-			var eventPayloadsForSourceType forwarder.Payloads
-			eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.ContinueOnErrItemTooBig)
-			if err != nil {
-				return nil, nil, err
+
+		// Do not use CreateMarshalersBySourceType when there are too many source types (Performance issue).
+		if marshaler.Len() > maxItemCountForCreateMarshalersBySourceType {
+			expvarsSendEventsErrItemTooBigsFallback.Add(1)
+			eventPayloads, extraHeaders, err = s.serializePayload(eventsStreamJSONMarshaler, true, useV1API)
+		} else {
+			eventPayloads = nil
+			for _, v := range eventsStreamJSONMarshaler.CreateMarshalersBySourceType() {
+				var eventPayloadsForSourceType forwarder.Payloads
+				eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.ContinueOnErrItemTooBig)
+				if err != nil {
+					return nil, nil, err
+				}
+				eventPayloads = append(eventPayloads, eventPayloadsForSourceType...)
 			}
-			eventPayloads = append(eventPayloads, eventPayloadsForSourceType...)
 		}
 	}
 	return eventPayloads, extraHeaders, err
@@ -218,7 +229,7 @@ func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
 	var err error
 
 	if useV1API && s.enableEventsJSONStream {
-		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(e)
+		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(e, useV1API)
 	} else {
 		eventPayloads, extraHeaders, err = s.serializePayload(e, true, useV1API)
 	}

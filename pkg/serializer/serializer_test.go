@@ -205,12 +205,19 @@ func TestSendV1Events(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+type testPayloadMutipleValues struct {
+	testPayload
+	count int
+}
+
+func (p *testPayloadMutipleValues) Len() int { return p.count }
+
 func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Intake", mock.Anything, jsonExtraHeadersWithCompression).Return(nil)
 	s := NewSerializer(f)
 
-	payload := &testPayload{}
+	payload := &testPayloadMutipleValues{count: 1}
 
 	eventPayload := createTestEventsPayloadMock(payload)
 	eventPayload.On("CreateSingleMarshaler").Return(payload)
@@ -223,7 +230,14 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	eventPayload.On("CreateMarshalersBySourceType").Return([]marshaler.StreamJSONMarshaler{payload})
 	err = s.SendEvents(eventPayload)
 	assert.NoError(t, err)
-	eventPayload.AssertExpectations(t)
+	eventPayload.AssertNumberOfCalls(t, "CreateMarshalersBySourceType", 1)
+
+	payload.count = maxItemCountForCreateMarshalersBySourceType + 1
+	eventPayload.On("CreateMarshalersBySourceType").Return([]marshaler.StreamJSONMarshaler{payload})
+	err = s.SendEvents(eventPayload)
+	assert.NoError(t, err)
+	// CreateMarshalersBySourceType should not be called
+	eventPayload.AssertNumberOfCalls(t, "CreateMarshalersBySourceType", 1)
 }
 
 func TestSendEvents(t *testing.T) {
