@@ -13,7 +13,7 @@ suites:
       <%= key %>: <%= value %>
       <% end %>
     dd-agent-install:
-      agent6: true
+      agent_major_version: <%= agent_major_version %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
       <% end %>

@@ -16,9 +16,6 @@ suites:
     apt:
       unattended_upgrades:
         enable: false
-    datadog:
-      agent_major_version: 5
-      api_key: <%= api_key %>
     dd-agent-5:
       api_key: <%= api_key %>
       windows_agent_url: https://s3.amazonaws.com/ddagent-windows-unstable
@@ -35,6 +32,8 @@ suites:
       <% if ENV['WINDOWS_AGENT_FILE'] %>
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
+    dd-agent-import-conf:
+      api_key: <%= api_key %>
     dd-agent-upgrade-rspec:
       # Used by the rspec test to know the version to which the agent should be upgraded
       agent_expected_version: &agent_expected_version <%= ENV['DD_AGENT_EXPECTED_VERSION'] || "5.99.0" %>

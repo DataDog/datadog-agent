@@ -1,32 +1,21 @@
-default['datadog']['api_key'] = nil
-
 default['dd-agent-upgrade']['api_key'] = nil
+default['dd-agent-upgrade']['agent_major_version'] = nil
+
 default['dd-agent-upgrade']['version'] = nil # => install the latest available version
-default['dd-agent-upgrade']['windows_version'] = nil # => install the latest available version
 default['dd-agent-upgrade']['add_new_repo'] = false # If set to true, be sure to set aptrepo and yumrepo
 default['dd-agent-upgrade']['aptrepo'] =  nil
 default['dd-agent-upgrade']['aptrepo_dist'] =  nil
 default['dd-agent-upgrade']['yumrepo'] = nil
 default['dd-agent-upgrade']['yumrepo_suse'] = nil
 default['dd-agent-upgrade']['package_name'] = 'datadog-agent'
-default['dd-agent-upgrade']['agent6'] = nil
+
+default['dd-agent-upgrade']['windows_version'] = nil # => install the latest available version
 default['dd-agent-upgrade']['windows_agent_checksum'] = nil
 default['dd-agent-upgrade']['windows_agent_url'] = 'https://s3.amazonaws.com/ddagent-windows-stable/'
+
 default['dd-agent-upgrade']['agent_package_retries'] = nil
 default['dd-agent-upgrade']['agent_package_retry_delay'] = nil
-if node['platform_family'] == 'windows'
-  default['dd-agent-upgrade']['config_dir'] = "#{ENV['ProgramData']}/Datadog"
-  default['dd-agent-upgrade']['agent_name'] = 'DatadogAgent'
-  default['dd-agent-upgrade']['agent6_config_dir'] = "#{ENV['ProgramData']}/Datadog"
-  # Some settings from the chef recipe it needs
-  default['datadog']['config_dir'] = "#{ENV['ProgramData']}/Datadog"
-  default['datadog']['agent_name'] = 'DatadogAgent'
-  default['datadog']['agent6_config_dir'] = "#{ENV['ProgramData']}/Datadog"
-else
-  default['datadog']['agent6_config_dir'] = '/etc/datadog-agent'
-  default['datadog']['config_dir'] = '/etc/dd-agent'
-  default['datadog']['agent_name'] = 'datadog-agent'
-end
+
 # Enable the agent to start at boot
 default['dd-agent-upgrade']['agent_enable'] = true
 
