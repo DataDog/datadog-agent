@@ -10,7 +10,7 @@ properties:
       type: NAMESPACE
   datadogAgentImage:
     type: string
-    default: 'gcr.io/datadog-public/datadog:6'
+    default: 'gcr.io/datadog-public/datadog:7'
     x-google-marketplace:
       type: IMAGE
   apiKey:
