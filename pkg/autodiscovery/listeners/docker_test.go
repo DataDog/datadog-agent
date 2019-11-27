@@ -592,5 +592,5 @@ func TestGetCheckNames(t *testing.T) {
 	cache.Cache.Set(cacheKey, labeledCo, 10*time.Second)
 
 	checkNames := s.GetCheckNames()
-	assert.Equal(t, "[\"redis\"]", checkNames)
+	assert.Equal(t, []string{"redis"}, checkNames)
 }

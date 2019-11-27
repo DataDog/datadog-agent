@@ -109,8 +109,8 @@ func (s *DockerKubeletService) IsReady() bool {
 	return kubelet.IsPodReady(pod)
 }
 
-// GetCheckNames returns json string of check names defined in kubernetes annotations or docker labels
+// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
 // DockerKubeletService doesn't implement this method
-func (s *DockerKubeletService) GetCheckNames() string {
-	return ""
+func (s *DockerKubeletService) GetCheckNames() []string {
+	return nil
 }

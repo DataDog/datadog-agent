@@ -7,7 +7,6 @@ package configresolver
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -95,26 +94,22 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 
 	// Ignore the config from file if it's overridden by an empty config
 	// or by a different config for the same check
-	if tpl.Provider == names.File && svc.GetCheckNames() != "" {
-		checkNames := []string{}
-		err := json.Unmarshal([]byte(svc.GetCheckNames()), &checkNames)
-		if err != nil {
-			log.Debugf("Cannot parse check names: %v", err)
-		} else {
-			lenCheckNames := len(checkNames)
-			if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
-				// Empty check names on k8s annotations or docker labels override the check config from file
-				// Used to deactivate unneeded OOTB autodiscovery checks defined in files
-				// The checkNames slice is considered empty also if it contains one single empty string
-				return resolvedConfig, fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
-			}
-			for _, checkName := range checkNames {
-				if tpl.Name == checkName {
-					// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or docker labels)
-					return resolvedConfig, fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
-				}
+	if tpl.Provider == names.File && svc.GetCheckNames() != nil {
+		checkNames := svc.GetCheckNames()
+		lenCheckNames := len(checkNames)
+		if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
+			// Empty check names on k8s annotations or docker labels override the check config from file
+			// Used to deactivate unneeded OOTB autodiscovery checks defined in files
+			// The checkNames slice is considered empty also if it contains one single empty string
+			return resolvedConfig, fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
+		}
+		for _, checkName := range checkNames {
+			if tpl.Name == checkName {
+				// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or docker labels)
+				return resolvedConfig, fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
 			}
 		}
+
 	}
 
 	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {

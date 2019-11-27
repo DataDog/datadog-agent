@@ -364,7 +364,7 @@ func TestCheckOverride(t *testing.T) {
 	ac.processNewService(&dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
-		CheckNames:    "[\"redis\"]",
+		CheckNames:    []string{"redis"},
 	})
 	assert.Len(t, ac.resolveTemplate(tpl), 0)
 
@@ -372,7 +372,7 @@ func TestCheckOverride(t *testing.T) {
 	ac.processNewService(&dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
-		CheckNames:    "[\"\"]",
+		CheckNames:    []string{""},
 	})
 	assert.Len(t, ac.resolveTemplate(tpl), 0)
 
@@ -380,7 +380,7 @@ func TestCheckOverride(t *testing.T) {
 	ac.processNewService(&dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
-		CheckNames:    "[\"tcp_check\"]",
+		CheckNames:    []string{"tcp_check"},
 	})
 	assert.Len(t, ac.resolveTemplate(tpl), 1)
 }

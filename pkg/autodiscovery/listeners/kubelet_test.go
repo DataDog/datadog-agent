@@ -176,7 +176,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1337, "footcpport"}, {1339, "fooudpport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Equal(t, "", service.GetCheckNames())
+		assert.Len(t, service.GetCheckNames(), 0)
 	default:
 		assert.FailNow(t, "first service not in channel")
 	}
@@ -196,7 +196,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Equal(t, "", service.GetCheckNames())
+		assert.Len(t, service.GetCheckNames(), 0)
 	default:
 		assert.FailNow(t, "second service not in channel")
 	}
@@ -216,7 +216,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Equal(t, "[\"baz_check\"]", service.GetCheckNames())
+		assert.Equal(t, []string{"baz_check"}, service.GetCheckNames())
 	default:
 		assert.FailNow(t, "third service not in channel")
 	}
@@ -236,7 +236,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Equal(t, "", service.GetCheckNames())
+		assert.Len(t, service.GetCheckNames(), 0)
 	default:
 		assert.FailNow(t, "fourth service not in channel")
 	}
@@ -257,7 +257,7 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Equal(t, "", service.GetCheckNames())
+		assert.Len(t, service.GetCheckNames(), 0)
 	default:
 		assert.FailNow(t, "pod service not in channel")
 	}

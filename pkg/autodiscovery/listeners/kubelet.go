@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"sync"
@@ -50,7 +51,7 @@ type KubeContainerService struct {
 	ports         []ContainerPort
 	creationTime  integration.CreationTime
 	ready         bool
-	checkNames    string
+	checkNames    []string
 }
 
 // Make sure KubeContainerService implements the Service interface
@@ -227,7 +228,9 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 
 			// Cache check names if the pod template is annotated
 			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
-				svc.checkNames = getCheckNames(pod.Metadata.Annotations, containerName)
+				if checkNames, err := getCheckNamesFromAnnotations(pod.Metadata.Annotations, containerName); err == nil {
+					svc.checkNames = checkNames
+				}
 			}
 
 			// Add other identifiers if no template found
@@ -289,14 +292,28 @@ func podHasADTemplate(annotations map[string]string, containerName string) bool 
 	return false
 }
 
-func getCheckNames(annotations map[string]string, containerName string) string {
-	if checkNames, found := annotations[fmt.Sprintf(newPodAnnotationCheckNamesFormat, containerName)]; found {
-		return checkNames
+// getCheckNamesFromAnnotations unmarshals the json string of check names
+// defined in pod annotations and returns a slice of check names
+func getCheckNamesFromAnnotations(annotations map[string]string, containerName string) ([]string, error) {
+	if checkNamesJSON, found := annotations[fmt.Sprintf(newPodAnnotationCheckNamesFormat, containerName)]; found {
+		checkNames := []string{}
+		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
+		if err != nil {
+			log.Debugf("Cannot parse check names: %v", err)
+			return nil, err
+		}
+		return checkNames, nil
 	}
-	if checkNames, found := annotations[fmt.Sprintf(legacyPodAnnotationCheckNamesFormat, containerName)]; found {
-		return checkNames
+	if checkNamesJSON, found := annotations[fmt.Sprintf(legacyPodAnnotationCheckNamesFormat, containerName)]; found {
+		checkNames := []string{}
+		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
+		if err != nil {
+			log.Debugf("Cannot parse check names: %v", err)
+			return nil, err
+		}
+		return checkNames, nil
 	}
-	return ""
+	return nil, nil
 }
 
 func (l *KubeletListener) removeService(entity string) {
@@ -369,8 +386,8 @@ func (s *KubeContainerService) IsReady() bool {
 	return s.ready
 }
 
-// GetCheckNames returns names of checks defined in pod annotations as a json string
-func (s *KubeContainerService) GetCheckNames() string {
+// GetCheckNames returns names of checks defined in pod annotations
+func (s *KubeContainerService) GetCheckNames() []string {
 	return s.checkNames
 }
 
@@ -428,8 +445,8 @@ func (s *KubePodService) IsReady() bool {
 	return true
 }
 
-// GetCheckNames returns json string of check names defined in kubernetes annotations or docker labels
+// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
 // KubePodService doesn't implement this method
-func (s *KubePodService) GetCheckNames() string {
-	return ""
+func (s *KubePodService) GetCheckNames() []string {
+	return nil
 }

@@ -28,7 +28,7 @@ type dummyService struct {
 	Pid           int
 	Hostname      string
 	CreationTime  integration.CreationTime
-	CheckNames    string
+	CheckNames    []string
 }
 
 // GetEntity returns the service entity name
@@ -81,8 +81,8 @@ func (s *dummyService) IsReady() bool {
 	return true
 }
 
-// GetCheckNames returns json string of check names defined in docker labels
-func (s *dummyService) GetCheckNames() string {
+// GetCheckNames returns slice of check names defined in docker labels
+func (s *dummyService) GetCheckNames() []string {
 	return s.CheckNames
 }
 
@@ -436,7 +436,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				CheckNames:    "[\"redis\"]",
+				CheckNames:    []string{"redis"},
 			},
 			tpl: integration.Config{
 				Name:          "redis",
@@ -452,7 +452,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				CheckNames:    "[\"\"]",
+				CheckNames:    []string{""},
 			},
 			tpl: integration.Config{
 				Name:          "redis",
@@ -468,7 +468,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				CheckNames:    "[]",
+				CheckNames:    []string{},
 			},
 			tpl: integration.Config{
 				Name:          "redis",
@@ -484,7 +484,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				CheckNames:    "[\"tcp_check\",\"http_check\"]",
+				CheckNames:    []string{"tcp_check", "http_check"},
 			},
 			tpl: integration.Config{
 				Name:          "redis",
@@ -508,7 +508,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				CheckNames:    "",
+				CheckNames:    nil,
 			},
 			tpl: integration.Config{
 				Name:          "redis",

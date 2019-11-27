@@ -308,8 +308,8 @@ func (s *KubeEndpointService) IsReady() bool {
 	return true
 }
 
-// GetCheckNames returns json string of check names defined in kubernetes annotations or docker labels
+// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
 // KubeEndpointService doesn't implement this method
-func (s *KubeEndpointService) GetCheckNames() string {
-	return ""
+func (s *KubeEndpointService) GetCheckNames() []string {
+	return nil
 }

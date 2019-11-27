@@ -6,6 +6,8 @@
 package listeners
 
 import (
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,7 +48,14 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 	return ids
 }
 
-// getCheckNamesFromLabels returns the json string of check names defined in docker labels
-func getCheckNamesFromLabels(labels map[string]string) string {
-	return labels[dockerADTemplateChechNames]
+// getCheckNamesFromLabels unmarshals the json string of check names
+// defined in docker labels and returns a slice of check names
+func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
+	checkNames := []string{}
+	err := json.Unmarshal([]byte(labels[dockerADTemplateChechNames]), &checkNames)
+	if err != nil {
+		log.Debugf("Cannot parse check names: %v", err)
+		return nil, err
+	}
+	return checkNames, nil
 }

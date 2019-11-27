@@ -287,10 +287,10 @@ func (s *KubeServiceService) IsReady() bool {
 	return true
 }
 
-// GetCheckNames returns json string of check names defined in kubernetes annotations or docker labels
+// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
 // KubeServiceService doesn't implement this method
-func (s *KubeServiceService) GetCheckNames() string {
-	return ""
+func (s *KubeServiceService) GetCheckNames() []string {
+	return nil
 }
 
 func isServiceAnnotated(ksvc *v1.Service) bool {
