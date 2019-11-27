@@ -64,6 +64,13 @@ func TestTracerExpvar(t *testing.T) {
 			"Lookups",
 			"Resolved",
 			"Ips",
+			"Added",
+			"Expired",
+			"PacketsCaptured",
+			"PacketsProcessed",
+			"PacketsDropped",
+			"SocketPolls",
+			"DecodingErrors",
 		},
 		"kprobes": {
 			"PtcpCleanupRbufHits",
