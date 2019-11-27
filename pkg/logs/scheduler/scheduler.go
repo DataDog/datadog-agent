@@ -59,7 +59,16 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.sources.AddSource(source)
 			}
 		case s.newService(config):
-			log.Debugf("Received a new service: %v", config.Entity)
+			entityType, _, err := s.parseEntity(config.TaggerEntity)
+			if err != nil {
+				log.Warnf("Invalid service: %v", err)
+				continue
+			}
+			// logs only consider container services
+			if entityType != containers.ContainerEntityName {
+				continue
+			}
+			log.Infof("Received a new service: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)
@@ -96,6 +105,15 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			}
 		case s.newService(config):
 			// new service to remove
+			entityType, _, err := s.parseEntity(config.TaggerEntity)
+			if err != nil {
+				log.Warnf("Invalid service: %v", err)
+				continue
+			}
+			// logs only consider container services
+			if entityType != containers.ContainerEntityName {
+				continue
+			}
 			log.Infof("New service to remove: entity: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
