@@ -8,6 +8,7 @@ package metrics
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"reflect"
 	"strconv"
@@ -293,62 +294,39 @@ func createBenchmarkEvents(numberOfItem int) Events {
 	return events
 }
 
-func benchmarkCreateSingleMarshaler(b *testing.B, numberOfItem int) {
-	payloadBuilder := jsonstream.NewPayloadBuilder()
-	events := createBenchmarkEvents(numberOfItem)
-
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
-		payloadBuilder.Build(events.CreateSingleMarshaler())
+func runBenchmark(b *testing.B, bench func(*testing.B, int)) {
+	for i := 1; i <= 1000*1000; i *= 10 {
+		numberOfItem := i // To avoid linter waring
+		b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
+			bench(b, numberOfItem)
+		})
 	}
 }
 
-func BenchmarkCreateSingleMarshaler1(b *testing.B)   { benchmarkCreateSingleMarshaler(b, 1) }
-func BenchmarkCreateSingleMarshaler10(b *testing.B)  { benchmarkCreateSingleMarshaler(b, 10) }
-func BenchmarkCreateSingleMarshaler100(b *testing.B) { benchmarkCreateSingleMarshaler(b, 100) }
-func BenchmarkCreateSingleMarshaler1000(b *testing.B) {
-	benchmarkCreateSingleMarshaler(b, 1000)
-}
-func BenchmarkCreateSingleMarshaler10000(b *testing.B) {
-	benchmarkCreateSingleMarshaler(b, 10000)
-}
-func BenchmarkCreateSingleMarshaler100000(b *testing.B) {
-	benchmarkCreateSingleMarshaler(b, 100000)
-}
-func BenchmarkCreateSingleMarshaler1000000(b *testing.B) {
-	benchmarkCreateSingleMarshaler(b, 1000000)
-}
+func BenchmarkCreateSingleMarshaler(b *testing.B) {
+	runBenchmark(b, func(b *testing.B, numberOfItem int) {
+		payloadBuilder := jsonstream.NewPayloadBuilder()
+		events := createBenchmarkEvents(numberOfItem)
 
-func benchmarkCreateMarshalersBySourceType(b *testing.B, numberOfItem int) {
-	payloadBuilder := jsonstream.NewPayloadBuilder()
-	events := createBenchmarkEvents(numberOfItem)
+		b.ResetTimer()
 
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
-		for _, m := range events.CreateMarshalersBySourceType() {
-			payloadBuilder.Build(m)
+		for n := 0; n < b.N; n++ {
+			payloadBuilder.Build(events.CreateSingleMarshaler())
 		}
-	}
+	})
 }
 
-func BenchmarkCreateMarshalersBySourceType1(b *testing.B) { benchmarkCreateMarshalersBySourceType(b, 1) }
-func BenchmarkCreateMarshalersBySourceType10(b *testing.B) {
-	benchmarkCreateMarshalersBySourceType(b, 10)
-}
-func BenchmarkCreateMarshalersBySourceType100(b *testing.B) {
-	benchmarkCreateMarshalersBySourceType(b, 100)
-}
-func BenchmarkCreateMarshalersBySourceType1000(b *testing.B) {
-	benchmarkCreateMarshalersBySourceType(b, 1000)
-}
-func BenchmarkCreateMarshalersBySourceType10000(b *testing.B) {
-	benchmarkCreateMarshalersBySourceType(b, 10000)
-}
-func BenchmarkCreateMarshalersBySourceType100000(b *testing.B) {
-	benchmarkCreateMarshalersBySourceType(b, 100000)
-}
-func BenchmarkCreateMarshalersBySourceType1000000(b *testing.B) {
-	benchmarkCreateMarshalersBySourceType(b, 1000000)
+func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
+	runBenchmark(b, func(b *testing.B, numberOfItem int) {
+		payloadBuilder := jsonstream.NewPayloadBuilder()
+		events := createBenchmarkEvents(numberOfItem)
+
+		b.ResetTimer()
+
+		for n := 0; n < b.N; n++ {
+			for _, m := range events.CreateMarshalersBySourceType() {
+				payloadBuilder.Build(m)
+			}
+		}
+	})
 }
