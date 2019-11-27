@@ -4,10 +4,7 @@ package ebpf
 
 import (
 	"fmt"
-	"io"
-	"net"
 	"reflect"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -128,21 +125,9 @@ func (s *SocketFilterSnooper) pollPackets() {
 			continue
 		}
 
-		// Immediately retry for temporary network errors
-		if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
-			continue
-		}
-
 		// Immediately retry for EAGAIN
 		if err == syscall.EAGAIN {
 			continue
-		}
-
-		// Immediately break for known unrecoverable errors
-		if err == io.EOF || err == io.ErrUnexpectedEOF || err == io.ErrNoProgress ||
-			err == io.ErrClosedPipe || err == io.ErrShortBuffer || err == syscall.EBADF ||
-			strings.Contains(err.Error(), "use of closed file") {
-			return
 		}
 
 		// Sleep briefly and try again
