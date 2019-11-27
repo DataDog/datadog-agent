@@ -7,6 +7,7 @@ package scheduler
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -61,6 +62,22 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 	go scheduler.Schedule([]integration.Config{configService})
 	svc := <-servicesStream
 	assert.Equal(t, configService.Entity, svc.GetEntityID())
+
+	// shouldn't consider pods
+	configService = integration.Config{
+		LogsConfig:   []byte(""),
+		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		Entity:       "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		ClusterCheck: false,
+		CreationTime: 0,
+	}
+	go scheduler.Schedule([]integration.Config{configService})
+	select {
+	case <-servicesStream:
+		assert.Fail(t, "Pod should be ignored")
+	case <-time.After(100 * time.Millisecond):
+		break
+	}
 }
 
 func TestUnscheduleConfigRemovesSource(t *testing.T) {
@@ -111,4 +128,21 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 	go scheduler.Unschedule([]integration.Config{configService})
 	svc := <-servicesStream
 	assert.Equal(t, configService.Entity, svc.GetEntityID())
+
+	// shouldn't consider pods
+	configService = integration.Config{
+		LogsConfig:   []byte(""),
+		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		Entity:       "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		ClusterCheck: false,
+		CreationTime: 0,
+	}
+
+	go scheduler.Unschedule([]integration.Config{configService})
+	select {
+	case <-servicesStream:
+		assert.Fail(t, "Pod should be ignored")
+	case <-time.After(100 * time.Millisecond):
+		break
+	}
 }
