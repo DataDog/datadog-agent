@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
@@ -42,7 +42,7 @@ func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response, targetDock
 
 				info := &TagInfo{
 					Source:               ecsCollectorName,
-					Entity:               docker.ContainerIDToTaggerEntityName(container.DockerID),
+					Entity:               containers.BuildTaggerEntityName(container.DockerID),
 					HighCardTags:         high,
 					OrchestratorCardTags: orch,
 					LowCardTags:          low,

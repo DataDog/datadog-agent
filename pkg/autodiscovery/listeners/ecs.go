@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +24,7 @@ import (
 // It pulls its tasks container list periodically and checks for
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
-	task       ecs.TaskMetadata
+	task       metadata.TaskMetadata
 	filter     *containers.Filter
 	services   map[string]Service // maps container IDs to services
 	newService chan<- Service
@@ -152,7 +153,7 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 }
 
-func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService, error) {
+func (l *ECSListener) createService(c metadata.ContainerMetadata, firstRun bool) (ECSService, error) {
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before

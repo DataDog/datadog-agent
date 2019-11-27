@@ -32,6 +32,14 @@
                 Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
                 Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
                 Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
+                {{- if index $.Stats.inventories .CheckID }}
+                Metadata:<br>
+                <span class="stat_subdata">
+                  {{- range $k, $v := index $.Stats.inventories .CheckID }}
+                    {{ $k }}: {{ $v }}<br>
+                  {{- end }}
+                </span>
+                {{- end }}
               {{- if .LastError}}
                 <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
                       {{lastErrorTraceback .LastError -}}

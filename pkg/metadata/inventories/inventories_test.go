@@ -95,7 +95,7 @@ func TestGetPayload(t *testing.T) {
 	SetAgentMetadata("test", true)
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 123)
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
-	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this should get deleted")
+	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_be_kept")
 
 	p := GetPayload("testHostname", &mockAutoConfig{}, &mockCollector{})
 
@@ -106,7 +106,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMetadata := *p.CheckMetadata
-	assert.Len(t, checkMetadata, 2)           // non_running_checkid is not there
+	assert.Len(t, checkMetadata, 3)
 	assert.Len(t, checkMetadata["check1"], 2) // check1 has two instances
 	check1Instance1 := *checkMetadata["check1"][0]
 	assert.Len(t, check1Instance1, 5)
@@ -141,7 +141,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMetadata = *p.CheckMetadata
-	assert.Len(t, checkMetadata, 2)
+	assert.Len(t, checkMetadata, 3)
 	check1Instance1 = *checkMetadata["check1"][0]
 	assert.Len(t, check1Instance1, 5)
 	assert.Equal(t, startNow.UnixNano(), check1Instance1["last_updated"]) // last_updated has changed
@@ -192,6 +192,15 @@ func TestGetPayload(t *testing.T) {
 					"config.provider": "provider2",
 					"last_updated": %v
 				}
+			],
+			"non_running_checkid":
+			[
+				{
+					"check_provided_key1": "this_should_be_kept",
+					"config.hash": "non_running_checkid",
+					"config.provider": "",
+					"last_updated": %v
+				}
 			]
 		},
 		"agent_metadata":
@@ -199,7 +208,7 @@ func TestGetPayload(t *testing.T) {
 			"test": true
 		}
 	}`
-	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), startNow.UnixNano(), agentStartupTime.UnixNano(), originalStartNow.UnixNano())
+	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), startNow.UnixNano(), agentStartupTime.UnixNano(), originalStartNow.UnixNano(), originalStartNow.UnixNano())
 	jsonString = strings.Join(strings.Fields(jsonString), "") // Removes whitespaces and new lines
 	assert.Equal(t, jsonString, string(marshaled))
 
