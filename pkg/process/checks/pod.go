@@ -59,7 +59,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 
 	log.Debugf("Collected %d pods from the kubelet", len(podList))
 
-	podMsgs := []*model.Pod{}
+	podMsgs := make([]*model.Pod, 0, len(podList))
 
 	for p := 0; p < len(podList); p++ {
 		// extract pod info
