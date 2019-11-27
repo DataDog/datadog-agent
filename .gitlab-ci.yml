@@ -1209,17 +1209,23 @@ kitchen_windows_upgrade5-a7:
   <<: *kitchen_windows_a7_common
   <<: *kitchen_upgrade5_common
 
+
+# Let these two jobs fail for now, as they have to fail
+# (they install latest, ie. 6.14.1, which is blacklisted)
+
 kitchen_windows_upgrade6-a6:
-  allow_failure: false
+  allow_failure: true
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_windows_a6_common
   <<: *kitchen_upgrade6_common
+  retry: 0
 
 kitchen_windows_upgrade6-a7:
-  allow_failure: false
+  allow_failure: true
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_windows_a7_common
   <<: *kitchen_upgrade6_common
+  retry: 0
 
 # run dd-agent-testing on centos
 kitchen_centos_chef-a6:
