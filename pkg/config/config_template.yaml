@@ -1361,6 +1361,6 @@ api_key:
 ## These are the same rules as the ones enforced by GKE:
 ## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
-# clustername: <CLUSTER_IDENTIFIER>
+# cluster_name: <CLUSTER_IDENTIFIER>
 
 {{ end -}}
