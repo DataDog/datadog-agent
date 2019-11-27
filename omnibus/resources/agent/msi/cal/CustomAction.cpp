@@ -61,91 +61,12 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     // now we have all the information we need to decide if this is a
     // new installation or an upgrade, and what steps need to be taken
 
-    ///////////////////////////////////////////////////////////////////////////
-    //
-    // If domain controller:
-    //   If user is present:
-    //     if service is present:
-    //        this is an upgrade.
-    //     if service is not present
-    //        this is new install on this machine
-    //        dd user has already been created in domain
-    //        must have password for registering service
-    //   If user is NOT present
-    //     if service is present
-    //       ERROR how could service be present but user not present?
-    //     if service is not present
-    //       new install in this domain
-    //       must have password for user creation and service installation
-    //
-    // If NOT a domain controller
-    //   if user is present
-    //     if the service is present
-    //       this is an upgrade, shouldn't need to do anything for user/service
-    //     if the service is not present
-    //       ERROR why is user created but not service?
-    //   if the user is NOT present
-    //     if the service is present
-    //       This is OK if it's a domain user
-    //     if the service is not present
-    //       install service, create user
-    //       use password if provided, otherwise generate
-
-    if (isDC) {
-        if (!ddUserExists && ddServiceExists) {
-            WcaLog(LOGMSG_STANDARD, "Invalid configuration; no DD user, but service exists");
-            er = ERROR_INSTALL_FAILURE;
-            goto LExit;
-        }
-        if (!ddUserExists || !ddServiceExists) {
-            if (!data.present(propertyDDAgentUserPassword)) {
-                WcaLog(LOGMSG_STANDARD, "Must supply password for dd-agent-user to create user and/or install service in a domain");
-                er = ERROR_INSTALL_FAILURE;
-                goto LExit;
-            }
-        }
-        if(!ddUserExists &&
-            (_wcsicmp(data.Domain().c_str(), domainname.c_str())))
-        {
-            // on a domaion controller, we can only create a user in this controller's domain.
-            // check and reject an attempt to create a user not in this domain
-            WcaLog(LOGMSG_STANDARD, "Can't create a user that's not in this domain: %S (asked for %S)",
-                domainname.c_str(), data.Domain().c_str());
-                er = ERROR_INSTALL_FAILURE;
-                goto LExit;
-        }
+    
+    if(!canInstall(isDC, ddUserExists, ddServiceExists, data, bResetPassword)){
+        er = ERROR_INSTALL_FAILURE;
+        goto LExit;
     }
-    else {
-        if(!ddUserExists && data.isUserDomainUser()) {
-            WcaLog(LOGMSG_STANDARD, "Can't create a domain user when not on a domain controller");
-            WcaLog(LOGMSG_STANDARD, "Install Datadog Agent on the domain controller for the %S domain", data.Domain().c_str());
-            er = ERROR_INSTALL_FAILURE;
-            goto LExit;
-        }
-        if (ddUserExists)
-        {
-            if (data.isUserDomainUser()) {
-                // if it's a domain user. We need the password if the service isn't here
-                if (!ddServiceExists && !data.present(propertyDDAgentUserPassword))
-                {
-                    WcaLog(LOGMSG_STANDARD, "Must supply the password to allow service registration");
-                    er = ERROR_INSTALL_FAILURE;
-                    goto LExit;
-                }
-            }
-            else {
-                if (!ddServiceExists) {
-                    WcaLog(LOGMSG_STANDARD, "dd user exists %S, but not service.  Continuing", data.Username().c_str());
-                    bResetPassword = true;
-                }
-            }
-        }
-        if (!ddUserExists && ddServiceExists) {
-            WcaLog(LOGMSG_STANDARD, "Invalid configuration; no DD user, but service exists");
-            er = ERROR_INSTALL_FAILURE;
-            goto LExit;
-        }
-    }
+    
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
     WcaLog(LOGMSG_STANDARD, "custom action initialization complete.  Processing");
     // first, let's decide if we need to create the dd-agent-user

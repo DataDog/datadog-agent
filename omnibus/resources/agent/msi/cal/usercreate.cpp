@@ -224,7 +224,7 @@ doneRemove:
     return ;
 }
 
-int doCreateUser(const std::wstring& name, std::wstring& comment, const wchar_t* passbuf)
+int doCreateUser(const std::wstring& name, const std::wstring& comment, const wchar_t* passbuf)
 {
     
     USER_INFO_1 ui;
