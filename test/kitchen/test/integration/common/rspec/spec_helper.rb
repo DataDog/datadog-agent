@@ -41,6 +41,19 @@ def wait_until_stopped(timeout = 60)
     break if !is_running?
     sleep 1
   end
+  # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
+  # Agent start and the moment when the status command starts working
+  # has dramatically increased.
+  # Before (on ubuntu/debian):
+  # - during the first ~0.05s: connection refused
+  # - after: works correctly
+  # Now:
+  # - during the first ~0.05s: connection refused
+  # - between ~0.05s and ~1s: EOF
+  # - after: works correctly
+  # Until we understand and fix the problem, we're adding this sleep
+  # so that we don't get flakes in the kitchen tests.
+  sleep 2
 end
 
 def wait_until_started(timeout = 60)
@@ -50,6 +63,19 @@ def wait_until_started(timeout = 60)
     break if is_running?
     sleep 1
   end
+  # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
+  # Agent start and the moment when the status command starts working
+  # has dramatically increased.
+  # Before (on ubuntu/debian):
+  # - during the first ~0.05s: connection refused
+  # - after: works correctly
+  # Now:
+  # - during the first ~0.05s: connection refused
+  # - between ~0.05s and ~1s: EOF
+  # - after: works correctly
+  # Until we understand and fix the problem, we're adding this sleep
+  # so that we don't get flakes in the kitchen tests.
+  sleep 2
 end
 
 def stop
