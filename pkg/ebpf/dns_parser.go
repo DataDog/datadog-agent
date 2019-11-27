@@ -67,32 +67,45 @@ func (p *dnsParser) parseAnswer(dns *layers.DNS) *translation {
 
 	var (
 		domainQueried = question.Name
-		records       = append(dns.Answers, dns.Additionals...)
 		translation   = p.getCachedTranslation(domainQueried)
 		alias         []byte
 	)
 
 	// Retrieve the CNAME record, if available.
-	for _, record := range records {
-		if record.Type == layers.DNSTypeCNAME && record.Class == layers.DNSClassIN &&
-			bytes.Equal(domainQueried, record.Name) {
-			alias = record.CNAME
-			break
-		}
+	alias = p.extractCNAME(domainQueried, dns.Answers)
+	if alias == nil {
+		alias = p.extractCNAME(domainQueried, dns.Additionals)
 	}
 
 	// Get IPs
+	p.extractIPs(translation, alias, domainQueried, dns.Answers)
+	p.extractIPs(translation, alias, domainQueried, dns.Additionals)
+
+	return translation
+}
+
+func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourceRecord) []byte {
+	for _, record := range records {
+		if record.Type == layers.DNSTypeCNAME && record.Class == layers.DNSClassIN &&
+			bytes.Equal(domainQueried, record.Name) {
+			return record.CNAME
+		}
+	}
+
+	return nil
+}
+
+func (*dnsParser) extractIPs(t *translation, alias, domainQueried []byte, records []layers.DNSResourceRecord) {
 	for _, record := range records {
 		if record.Type != layers.DNSTypeA || record.Class != layers.DNSClassIN {
 			continue
 		}
+
 		if bytes.Equal(domainQueried, record.Name) ||
 			(alias != nil && bytes.Equal(alias, record.Name)) {
-			translation.add(util.AddressFromNetIP(record.IP))
+			t.add(util.AddressFromNetIP(record.IP))
 		}
 	}
-
-	return translation
 }
 
 func (p *dnsParser) getCachedTranslation(dns []byte) *translation {
