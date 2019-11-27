@@ -33,6 +33,9 @@
 /docs/cluster-agent/                    @DataDog/baklava @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/baklava @DataDog/agent-core
 
+/Gopkg.lock                             @DataDog/agent-all
+/Gopkg.toml                             @DataDog/agent-all
+
 /Makefile.trace                         @DataDog/apm-agent
 
 /omnibus/                               @DataDog/agent-platform
