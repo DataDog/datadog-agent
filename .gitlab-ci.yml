@@ -2316,6 +2316,8 @@ latest_release_6:
   variables:
     <<: *docker_hub_variables
   script:
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-jmx
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest-py2
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-py2-jmx
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:6
@@ -2330,8 +2332,9 @@ latest_release_7:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3 datadog/agent:latest
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx datadog/agent:latest-jmx
+    # Uncomment this if we want to have 7 as the latest image
+    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3 datadog/agent:latest
+    #- inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx datadog/agent:latest-jmx
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3 datadog/agent:7
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx datadog/agent:7-jmx
 
@@ -2352,6 +2355,9 @@ latest_release_7:
     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
+    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+    # Remove previous lines if agent 7 is promoted as the latest image
     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py2
     - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py2-jmx
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
@@ -2365,8 +2371,9 @@ latest_release_7:
     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+    # Uncomment this if we want to have 7 as the latest image
+    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
+    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
 
 #
 # Use this step to delete a tag of a given image
