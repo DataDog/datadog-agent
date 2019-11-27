@@ -470,7 +470,7 @@ func initConfig(config Config) {
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")
 	config.SetKnown("config_providers")
-	config.SetKnown("clustername")
+	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
 	config.SetKnown("additional_endpoints.*")
 	config.SetKnown("proxy.http")
