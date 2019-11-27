@@ -8,17 +8,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"github.com/pkg/errors"
 )
 
 const maxIPBufferSize = 200
+
+var errDNSParsing = errors.New("error parsing DNS payload")
 
 type dnsParser struct {
 	decoder *gopacket.DecodingLayerParser
 	layers  []gopacket.LayerType
 	payload *layers.DNS
-
-	// Cached translation object to reduce allocations
-	cached *translation
 }
 
 func newDNSParser() *dnsParser {
@@ -35,11 +35,10 @@ func newDNSParser() *dnsParser {
 	return &dnsParser{
 		decoder: gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, stack...),
 		payload: payload,
-		cached:  new(translation),
 	}
 }
 
-func (p *dnsParser) Parse(data []byte) *translation {
+func (p *dnsParser) ParseInto(data []byte, t *translation) error {
 	err := p.decoder.DecodeLayers(data, &p.layers)
 	if err != nil || p.decoder.Truncated {
 		return nil
@@ -47,7 +46,7 @@ func (p *dnsParser) Parse(data []byte) *translation {
 
 	for _, layer := range p.layers {
 		if layer == layers.LayerTypeDNS {
-			return p.parseAnswer(p.payload)
+			return p.parseAnswerInto(p.payload, t)
 		}
 	}
 
@@ -55,21 +54,18 @@ func (p *dnsParser) Parse(data []byte) *translation {
 }
 
 // source: https://github.com/weaveworks/scope
-func (p *dnsParser) parseAnswer(dns *layers.DNS) *translation {
+func (p *dnsParser) parseAnswerInto(dns *layers.DNS, t *translation) error {
 	// Only consider responses to singleton, A-record questions
 	if !dns.QR || dns.ResponseCode != 0 || len(dns.Questions) != 1 {
-		return nil
+		return errDNSParsing
 	}
 	question := dns.Questions[0]
 	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
-		return nil
+		return errDNSParsing
 	}
 
-	var (
-		domainQueried = question.Name
-		translation   = p.getCachedTranslation(domainQueried)
-		alias         []byte
-	)
+	var alias []byte
+	domainQueried := question.Name
 
 	// Retrieve the CNAME record, if available.
 	alias = p.extractCNAME(domainQueried, dns.Answers)
@@ -78,10 +74,11 @@ func (p *dnsParser) parseAnswer(dns *layers.DNS) *translation {
 	}
 
 	// Get IPs
-	p.extractIPs(translation, alias, domainQueried, dns.Answers)
-	p.extractIPs(translation, alias, domainQueried, dns.Additionals)
+	p.extractIPsInto(alias, domainQueried, dns.Answers, t)
+	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
+	t.dns = string(domainQueried)
 
-	return translation
+	return nil
 }
 
 func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourceRecord) []byte {
@@ -95,7 +92,7 @@ func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourc
 	return nil
 }
 
-func (*dnsParser) extractIPs(t *translation, alias, domainQueried []byte, records []layers.DNSResourceRecord) {
+func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.DNSResourceRecord, t *translation) {
 	for _, record := range records {
 		if record.Type != layers.DNSTypeA || record.Class != layers.DNSClassIN {
 			continue
@@ -106,17 +103,4 @@ func (*dnsParser) extractIPs(t *translation, alias, domainQueried []byte, record
 			t.add(util.AddressFromNetIP(record.IP))
 		}
 	}
-}
-
-func (p *dnsParser) getCachedTranslation(dns []byte) *translation {
-	t := p.cached
-	t.dns = string(dns)
-
-	// Recycle buffer if necessary
-	if t.ips == nil || len(t.ips) > maxIPBufferSize {
-		t.ips = make([]util.Address, 30)
-	}
-	t.ips = t.ips[:0]
-
-	return t
 }

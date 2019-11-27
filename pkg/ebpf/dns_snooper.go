@@ -32,6 +32,9 @@ type SocketFilterSnooper struct {
 	exit   chan struct{}
 	wg     sync.WaitGroup
 
+	// cache translation object to avoid allocations
+	translation *translation
+
 	// packet telemetry
 	captured       int64
 	processed      int64
@@ -49,10 +52,11 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	snooper := &SocketFilterSnooper{
-		source: packetSrc,
-		parser: newDNSParser(),
-		cache:  cache,
-		exit:   make(chan struct{}),
+		source:      packetSrc,
+		parser:      newDNSParser(),
+		cache:       cache,
+		translation: new(translation),
+		exit:        make(chan struct{}),
 	}
 
 	// Start consuming packets
@@ -72,7 +76,7 @@ func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, 
 	return snooper, nil
 }
 
-// Resolve IPs to Names
+// Resolve IPs to DNS addresses
 func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Address][]string {
 	return s.cache.Get(connections, time.Now())
 }
@@ -98,15 +102,16 @@ func (s *SocketFilterSnooper) Close() {
 
 // processPacket retrieves DNS information from the received packet data and adds it to
 // the reverse DNS cache. The underlying packet data can't be referenced after this method
-// call since gopacket re-uses it.
+// call since the underlying memory content gets invalidated by `afpacket`.
+// The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 func (s *SocketFilterSnooper) processPacket(data []byte) {
-	translation := s.parser.Parse(data)
-	if translation == nil {
+	t := s.getCachedTranslation()
+	if err := s.parser.ParseInto(data, t); err != nil {
 		atomic.AddInt64(&s.decodingErrors, 1)
 		return
 	}
 
-	s.cache.Add(translation, time.Now())
+	s.cache.Add(t, time.Now())
 }
 
 func (s *SocketFilterSnooper) pollPackets() {
@@ -169,6 +174,18 @@ func (s *SocketFilterSnooper) pollStats() {
 			return
 		}
 	}
+}
+
+func (s *SocketFilterSnooper) getCachedTranslation() *translation {
+	t := s.translation
+
+	// Recycle buffer if necessary
+	if t.ips == nil || len(t.ips) > maxIPBufferSize {
+		t.ips = make([]util.Address, 30)
+	}
+	t.ips = t.ips[:0]
+
+	return t
 }
 
 // packetSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
