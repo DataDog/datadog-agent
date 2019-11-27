@@ -299,7 +299,7 @@ func getCheckNamesFromAnnotations(annotations map[string]string, containerName s
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
 		if err != nil {
-			log.Debugf("Cannot parse check names: %v", err)
+			log.Errorf("Cannot parse check names: %v", err)
 			return nil, err
 		}
 		return checkNames, nil
@@ -308,7 +308,7 @@ func getCheckNamesFromAnnotations(annotations map[string]string, containerName s
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
 		if err != nil {
-			log.Debugf("Cannot parse check names: %v", err)
+			log.Errorf("Cannot parse check names: %v", err)
 			return nil, err
 		}
 		return checkNames, nil

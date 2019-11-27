@@ -143,7 +143,7 @@ func (l *DockerListener) init() {
 
 		checkNames, err := getCheckNamesFromLabels(co.Labels)
 		if err != nil {
-			log.Debugf("Error getting check names from docker labels: %v", err)
+			log.Errorf("Error getting check names from docker labels: %v", err)
 			checkNames = nil
 		}
 
@@ -224,7 +224,7 @@ func (l *DockerListener) createService(cID string) {
 
 	checkNames, err := getCheckNamesFromLabels(cInspect.Config.Labels)
 	if err != nil {
-		log.Debugf("Error getting check names from docker labels: %v", err)
+		log.Errorf("Error getting check names from docker labels: %v", err)
 		checkNames = nil
 	}
 
