@@ -304,9 +304,24 @@ func runBenchmark(b *testing.B, bench func(*testing.B, int)) {
 }
 
 func BenchmarkCreateSingleMarshaler(b *testing.B) {
+	benchmarkCreateSingleMarshaler(b, createBenchmarkEvents)
+}
+
+func BenchmarkCreateSingleMarshalerOneEventBySource(b *testing.B) {
+	benchmarkCreateSingleMarshaler(b, func(numberOfItem int) Events {
+		var events Events
+
+		for i := 0; i < numberOfItem; i++ {
+			events = append(events, createEvent(strconv.Itoa(i)))
+		}
+		return events
+	})
+}
+
+func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem int) Events) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		payloadBuilder := jsonstream.NewPayloadBuilder()
-		events := createBenchmarkEvents(numberOfItem)
+		events := createEvents(numberOfItem)
 
 		b.ResetTimer()
 
@@ -324,6 +339,33 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 		b.ResetTimer()
 
 		for n := 0; n < b.N; n++ {
+			for _, m := range events.CreateMarshalersBySourceType() {
+				payloadBuilder.Build(m)
+			}
+		}
+	})
+}
+
+func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
+	runBenchmark(b, func(b *testing.B, numberOfItem int) {
+		payloadBuilder := jsonstream.NewPayloadBuilder()
+
+		var events Events
+		// Half of events have the same source type
+		for i := 0; i < numberOfItem/2; i++ {
+			events = append(events, createEvent("sourceType"))
+		}
+		// Half of events have their own source type
+		for i := 0; i < numberOfItem/2; i++ {
+			events = append(events, createEvent(strconv.Itoa(i)))
+		}
+
+		b.ResetTimer()
+
+		for n := 0; n < b.N; n++ {
+			// As CreateMarshalersBySourceType is called only after CreateSingleMarshaler,
+			// we also call CreateSingleMarshaler in this benchmark.
+			payloadBuilder.Build(events.CreateSingleMarshaler())
 			for _, m := range events.CreateMarshalersBySourceType() {
 				payloadBuilder.Build(m)
 			}
