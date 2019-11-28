@@ -7,7 +7,7 @@
 		"JMXFETCH_HASH": "140dd8568b78f5a616da8664f34bb37397c3d3ed87af106d632714f7218e8e88"
 	},
 	"nightly-a7": {
-		"INTEGRATIONS_CORE_VERSION": "master",
+		"INTEGRATIONS_CORE_VERSION": "ahmed-mez/kubelet-dev",
 		"OMNIBUS_SOFTWARE_VERSION": "master",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
 		"JMXFETCH_VERSION": "0.33.1",
