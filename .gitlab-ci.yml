@@ -2031,14 +2031,14 @@ dev_branch_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2py3-jmx-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-amd64         datadog/agent-dev:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-amd64         datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-amd64         datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx-amd64     datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx-amd64     datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx-amd64     datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2py3-jmx-amd64  datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64               datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
 dev_branch_multiarch_docker_hub:
   <<: *docker_tag_job_definition
@@ -2064,26 +2064,34 @@ dev_branch_multiarch_docker_hub:
     <<: *docker_hub_variables
   script:
     # Platform-specific agent images
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-ARCH --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-ARCH --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py3-ARCH --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-jmx-ARCH --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-jmx
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-jmx-ARCH --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2-jmx
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py3-jmx-ARCH --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3-jmx
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-ARCH      --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-ARCH      --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py3-ARCH      --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-jmx-ARCH  --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-jmx
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-jmx-ARCH  --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2-jmx
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py3-jmx-ARCH  --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3-jmx
     # Other images
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2py3-jmx-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
     # Manifests
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG} --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py2 --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3 --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-jmx --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py2-jmx --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}           --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py2       --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3       --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-jmx       --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py2-jmx   --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx   --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3-jmx
 
 dev_master_docker_hub:
   <<: *docker_tag_job_definition
-  needs: ["build_agent6", "build_agent6_jmx", "build_agent6_py3", "build_agent6_py3_jmx", "build_agent6_py2py3_jmx", "build_agent7", "build_agent7_jmx", "build_dogstatsd_amd64"]
+  needs:
+    - build_agent6
+    - build_agent6_jmx
+    - build_agent6_py3
+    - build_agent6_py3_jmx
+    - build_agent6_py2py3_jmx
+    - build_agent7
+    - build_agent7_jmx
+    - build_dogstatsd_amd64
   only:
     - master
   variables:
@@ -2138,13 +2146,13 @@ dev_nightly_docker_hub:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd-dev:nightly-${CI_COMMIT_SHORT_SHA}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx-amd64   datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx-amd64   datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx-amd64   datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64             datadog/dogstatsd-dev:nightly-${CI_COMMIT_SHORT_SHA}
 
 #
 # Check Deploy
@@ -2496,34 +2504,14 @@ tag_release_6:
     <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version)
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-amd64 datadog/agent:${VERSION}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx-amd64 datadog/agent:${VERSION}-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-amd64 datadog/agent:${VERSION}-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx-amd64 datadog/agent:${VERSION}-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:${VERSION}
-
-tag_release_6_multiarch:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag_6
-  stage: deploy6
-  when: manual
-  variables:
-    PYTHON_RUNTIMES: '2,3'
-    <<: *docker_hub_variables
-  script:
-    - VERSION=$(inv -e agent.version)
     # Platform-specific agent images
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-ARCH --dst-template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-jmx-ARCH --dst-template datadog/agent-ARCH:${VERSION}-jmx
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py3-ARCH --dst-template datadog/agent-ARCH:${VERSION}-py3
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py3-jmx-ARCH --dst-template datadog/agent-ARCH:${VERSION}-py3-jmx
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
     # Other
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:${VERSION}
     # Manifests
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION} --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-jmx --template datadog/agent-ARCH:${VERSION}-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-py3 --template datadog/agent-ARCH:${VERSION}-py3
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-py3-jmx --template datadog/agent-ARCH:${VERSION}-py3-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}      --template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
 
 tag_release_7:
   <<: *docker_tag_job_definition
@@ -2535,25 +2523,12 @@ tag_release_7:
     <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version)
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3 datadog/agent:${VERSION}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx datadog/agent:${VERSION}-jmx
-
-tag_release_7_multiarch:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag_7
-  stage: deploy7
-  when: manual
-  variables:
-    PYTHON_RUNTIMES: '3'
-    <<: *docker_hub_variables
-  script:
-    - VERSION=$(inv -e agent.version)
     # Images
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-py3-ARCH --dst-template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx-ARCH --dst-template datadog/agent-ARCH:${VERSION}-jmx
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-py3-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
     # Manifests
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION} --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-jmx --template datadog/agent-ARCH:${VERSION}-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}      --template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
 
 latest_release_6:
   <<: *docker_tag_job_definition
@@ -2563,36 +2538,16 @@ latest_release_6:
   variables:
     <<: *docker_hub_variables
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:latest-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:latest-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2 datadog/agent:6-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3 datadog/agent:6-py3
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py2-jmx datadog/agent:6-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-py3-jmx datadog/agent:6-py3-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:latest
-
-latest_release_6_multiarch:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag_6
-  stage: deploy6
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
     - VERSION=$(inv -e agent.version)
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-jmx --template datadog/agent-ARCH:${VERSION}-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6-py2 --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6-py2-jmx --template datadog/agent-ARCH:${VERSION}-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6-py3 --template datadog/agent-ARCH:${VERSION}-py3
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6-py3-jmx --template datadog/agent-ARCH:${VERSION}-py3-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest            --template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-jmx        --template datadog/agent-ARCH:${VERSION}-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6                 --template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6-jmx             --template datadog/agent-ARCH:${VERSION}-jmx
     # TODO: remove previous lines when agent 7 is released
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2 --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2-jmx --template datadog/agent-ARCH:${VERSION}-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6 --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6-jmx --template datadog/agent-ARCH:${VERSION}-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2        --template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2-jmx    --template datadog/agent-ARCH:${VERSION}-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6                 --template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6-jmx             --template datadog/agent-ARCH:${VERSION}-jmx
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:latest
 
 latest_release_7:
