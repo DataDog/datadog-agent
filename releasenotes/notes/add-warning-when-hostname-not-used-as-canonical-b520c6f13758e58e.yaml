@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add a warning when the hostname defined in the configuration will not be used as a canonical hostname.
+    Log a warning when the hostname defined in the configuration will not be used as the in-app hostname.
