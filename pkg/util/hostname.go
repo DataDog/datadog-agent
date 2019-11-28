@@ -142,7 +142,7 @@ func GetHostnameData() (HostnameData, error) {
 		cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
 		setHostnameProvider(provider)
 		if !checkIfHostnameUsedAsCanonicalHostname(configName) {
-			_ = log.Warnf("Hostname %s will not be used. Please see https://github.com/DataDog/documentation/blob/master/content/en/agent/faq/hostname-starting-with-ec2-default-prefix.md for more information", configName)
+			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. https://dtdg.co/35FAVR7", configName)
 		}
 		return hostnameData, err
 	}
