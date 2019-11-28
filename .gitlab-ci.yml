@@ -2588,11 +2588,11 @@ latest_release_7:
     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest          --template datadog/agent-ARCH:${RELEASE}
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-jmx      --template datadog/agent-ARCH:${RELEASE}-jmx
     # Remove previous lines if agent 7 is promoted as the latest image
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest-py2
-    - inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-py2-jmx
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2      --template datadog/agent-ARCH:${RELEASE}
+    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2-jmx  --template datadog/agent-ARCH:${RELEASE}-jmx
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
 
 .latest_revert_to_previous_release_7:
@@ -2605,8 +2605,8 @@ latest_release_7:
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
     # Uncomment this if we want to have 7 as the latest image
-    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE} datadog/agent:latest
-    #- inv -e docker.publish --signed-pull --signed-push datadog/agent:${RELEASE}-jmx datadog/agent:latest-jmx
+    #- inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest      --template datadog/agent-ARCH:${RELEASE}
+    #- inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-jmx  --template datadog/agent-ARCH:${RELEASE}
 
 #
 # Use this step to delete a tag of a given image
