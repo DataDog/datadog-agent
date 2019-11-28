@@ -40,7 +40,7 @@ int uninstallServices(MSIHANDLE hInstall, CustomActionData& data);
 int verifyServices(MSIHANDLE hInstall, CustomActionData& data);
 
 //delfiles.cpp
-BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext);
+BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dirs = false);
 
 extern HMODULE hDllModule;
 // rights we might be interested in

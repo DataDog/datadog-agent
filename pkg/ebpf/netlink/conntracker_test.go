@@ -3,6 +3,7 @@
 package netlink
 
 import (
+	"crypto/rand"
 	"net"
 	"testing"
 	"time"
@@ -134,6 +135,19 @@ func TestTooManyEntries(t *testing.T) {
 	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.2"), net.ParseIP("20.0.0.2"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80))
 }
 
+// Run this test with -memprofile to get an insight of how much memory is
+// allocated/used by Conntracker to store maxStateSize entries.
+// Example: go test -run TestConntrackerMemoryAllocation -memprofile mem.prof .
+func TestConntrackerMemoryAllocation(t *testing.T) {
+	rt := newConntracker()
+	ipGen := randomIPGen()
+
+	for i := 0; i < rt.maxStateSize; i++ {
+		c := makeTranslatedConn(ipGen(), ipGen(), ipGen(), 6, 12345, 80, 80)
+		rt.register(c)
+	}
+}
+
 func newConntracker() *realConntracker {
 	return &realConntracker{
 		state:                make(map[connKey]*connValue),
@@ -171,5 +185,18 @@ func makeTranslatedConn(from, transFrom, to net.IP, proto uint8, fromPort, trans
 				DstPort: &fromPort,
 			},
 		},
+	}
+}
+
+func randomIPGen() func() net.IP {
+	b := make([]byte, 4)
+	return func() net.IP {
+		for {
+			if _, err := rand.Read(b); err != nil {
+				continue
+			}
+
+			return net.IPv4(b[0], b[1], b[2], b[3])
+		}
 	}
 }
