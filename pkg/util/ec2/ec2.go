@@ -172,8 +172,8 @@ func IsDefaultHostname(hostname string) bool {
 	return isDefaultHostname(hostname, config.Datadog.GetBool("ec2_use_windows_prefix_detection"))
 }
 
-// IsDefaultHostnameForSobotka returns whether the given hostname is a default one for EC2 for Sobotka
-func IsDefaultHostnameForSobotka(hostname string) bool {
+// IsDefaultHostnameForIntake returns whether the given hostname is a default one for EC2 for the intake
+func IsDefaultHostnameForIntake(hostname string) bool {
 	return isDefaultHostname(hostname, false)
 }
 

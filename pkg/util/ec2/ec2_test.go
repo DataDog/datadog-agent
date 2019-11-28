@@ -39,9 +39,9 @@ func TestIsDefaultHostnameForSobotka(t *testing.T) {
 	config.Datadog.SetDefault(key, true)
 	defer config.Datadog.SetDefault(key, prefixDetection)
 
-	assert.True(t, IsDefaultHostnameForSobotka("IP-FOO"))
-	assert.True(t, IsDefaultHostnameForSobotka("domuarigato"))
-	assert.False(t, IsDefaultHostnameForSobotka("EC2AMAZ-FOO"))
+	assert.True(t, IsDefaultHostnameForIntake("IP-FOO"))
+	assert.True(t, IsDefaultHostnameForIntake("domuarigato"))
+	assert.False(t, IsDefaultHostnameForIntake("EC2AMAZ-FOO"))
 	assert.True(t, IsDefaultHostname("EC2AMAZ-FOO"))
 }
 
