@@ -43,7 +43,7 @@ int verifyServices(CustomActionData& data);
 BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dirs = false);
 
 //caninstall.cpp 
-bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword);
+CA_API bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const ICustomActionData &data, bool &bResetPassword);
 extern HMODULE hDllModule;
 // rights we might be interested in
 /*
