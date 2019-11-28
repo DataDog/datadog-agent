@@ -173,8 +173,10 @@ func (l *ECSListener) createService(c metadata.ContainerMetadata, firstRun bool)
 	image := c.Image
 	labels := c.Labels
 	svc.ADIdentifiers = ComputeContainerServiceIDs(svc.GetEntity(), image, labels)
-	if checkNames, err := getCheckNamesFromLabels(labels); err == nil {
-		svc.checkNames = checkNames
+	var err error
+	svc.checkNames, err = getCheckNamesFromLabels(labels)
+	if err != nil {
+		log.Errorf("Error getting check names from docker labels on container %s: %v", c.DockerID, err)
 	}
 
 	// Host
