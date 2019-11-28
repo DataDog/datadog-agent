@@ -39,6 +39,10 @@ extern std::wstring agent_exe;
 extern std::wstring trace_exe;
 extern std::wstring process_exe;
 
+extern std::wstring computername;
+extern std::wstring domainname; // if domain joined, workgroup name otherwise
+extern bool isDomainJoined;
+
 // installation steps
 extern std::wstring installCreatedDDUser;
 extern std::wstring installCreatedDDDomain;
@@ -48,6 +52,8 @@ void initializeStringsFromStringTable();
 
 
 void toMbcs(std::string& target, LPCWSTR src);
+void toMbcs(std::string& target, std::wstring& src);
+
 bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName = NULL);
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dst);
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst, DWORD *len);
