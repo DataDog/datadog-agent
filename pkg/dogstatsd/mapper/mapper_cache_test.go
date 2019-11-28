@@ -16,22 +16,22 @@ func TestMapperCache(t *testing.T) {
 
 	assert.Equal(t, 0, c.cache.Len())
 
-	c.addMatch("metric_name", "mapped_name", []string{"foo", "bar"})
-	c.addMatch("metric_name2", "mapped_name", []string{"foo", "bar"})
-	c.addMatch("metric_name3", "mapped_name", []string{"foo", "bar"})
-	c.addMiss("metric_miss1")
-	c.addMiss("metric_miss2")
+	c.add("metric_name", &MapResult{Name: "mapped_name", Tags: []string{"foo", "bar"}, Matched: true})
+	c.add("metric_name2", &MapResult{Name: "mapped_name", Tags: []string{"foo", "bar"}, Matched: true})
+	c.add("metric_name3", &MapResult{Name: "mapped_name", Tags: []string{"foo", "bar"}, Matched: true})
+	c.add("metric_miss1", &MapResult{Matched: false})
+	c.add("metric_miss2", &MapResult{Matched: false})
 	assert.Equal(t, 5, c.cache.Len())
 
 	result, found := c.get("metric_name")
 	assert.Equal(t, true, found)
-	assert.Equal(t, &mapperCacheResult{Name: "mapped_name", Matched: true, Tags: []string{"foo", "bar"}}, result)
+	assert.Equal(t, &MapResult{Name: "mapped_name", Matched: true, Tags: []string{"foo", "bar"}}, result)
 
 	result, found = c.get("metric_name_not_exist")
 	assert.Equal(t, false, found)
-	assert.Equal(t, (*mapperCacheResult)(nil), result)
+	assert.Equal(t, (*MapResult)(nil), result)
 
 	result, found = c.get("metric_miss1")
 	assert.Equal(t, true, found)
-	assert.Equal(t, &mapperCacheResult{Matched: false}, result)
+	assert.Equal(t, &MapResult{Matched: false}, result)
 }

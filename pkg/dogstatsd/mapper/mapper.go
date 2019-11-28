@@ -24,8 +24,15 @@ const (
 
 // MetricMapper contains mappings and cache instance
 type MetricMapper struct {
-	Mappings []MetricMapping
+	Profiles []MappingProfile
 	cache    *mapperCache
+}
+
+// MappingProfile represent a group of mappings
+type MappingProfile struct {
+	Name     string           `mapstructure:"name"`
+	Prefix   string           `mapstructure:"prefix"`
+	Mappings []*MetricMapping `mapstructure:"mappings"`
 }
 
 // MetricMapping represent one mapping rule
@@ -37,34 +44,46 @@ type MetricMapping struct {
 	regex     *regexp.Regexp
 }
 
+// MapResult represent the outcome of the mapping
+type MapResult struct {
+	Name    string
+	Tags    []string
+	Matched bool
+}
+
 // NewMetricMapper creates, validates, prepares a new MetricMapper
-func NewMetricMapper(configMappings []MetricMapping, cacheSize int) (MetricMapper, error) {
-	var mappings []MetricMapping
-	for i := range configMappings {
-		currentMapping := configMappings[i]
-		if currentMapping.MatchType == "" {
-			currentMapping.MatchType = matchTypeWildcard
+func NewMetricMapper(profiles []MappingProfile, cacheSize int) (*MetricMapper, error) {
+	for profileIndex, profile := range profiles {
+		if profile.Name == "" {
+			return nil, fmt.Errorf("missing profile name %d", profileIndex)
 		}
-		if currentMapping.MatchType != matchTypeWildcard && currentMapping.MatchType != matchTypeRegex {
-			return MetricMapper{}, fmt.Errorf("mapping num %d: invalid match type, must be `wildcard` or `regex`", i)
+		if profile.Prefix == "" {
+			return nil, fmt.Errorf("missing prefix for profile: %s", profile.Name)
 		}
-		if currentMapping.Name == "" {
-			return MetricMapper{}, fmt.Errorf("mapping num %d: name is required", i)
+		for i, currentMapping := range profile.Mappings {
+			if currentMapping.MatchType == "" {
+				currentMapping.MatchType = matchTypeWildcard
+			}
+			if currentMapping.MatchType != matchTypeWildcard && currentMapping.MatchType != matchTypeRegex {
+				return nil, fmt.Errorf("profile: %s, mapping num %d: invalid match type, must be `wildcard` or `regex`", profile.Name, i)
+			}
+			if currentMapping.Name == "" {
+				return nil, fmt.Errorf("profile: %s, mapping num %d: name is required", profile.Name, i)
+			}
+			if currentMapping.Match == "" {
+				return nil, fmt.Errorf("profile: %s, mapping num %d: match is required", profile.Name, i)
+			}
+			err := currentMapping.prepare()
+			if err != nil {
+				return nil, err
+			}
 		}
-		if currentMapping.Match == "" {
-			return MetricMapper{}, fmt.Errorf("mapping num %d: match is required", i)
-		}
-		err := currentMapping.prepare()
-		if err != nil {
-			return MetricMapper{}, err
-		}
-		mappings = append(mappings, currentMapping)
 	}
 	cache, err := newMapperCache(cacheSize)
 	if err != nil {
-		return MetricMapper{}, err
+		return nil, err
 	}
-	return MetricMapper{Mappings: mappings, cache: cache}, nil
+	return &MetricMapper{Profiles: profiles, cache: cache}, nil
 }
 
 // prepare compiles the match patterns into regexes
@@ -88,37 +107,42 @@ func (m *MetricMapping) prepare() error {
 	return nil
 }
 
-// Map returns:
-// - name: the mapped expanded name
-// - tags: the tags extracted from the metric name and expanded
-// - matched: weather we found a match or not
-func (m *MetricMapper) Map(metricName string) (string, []string, bool) {
-	result, cached := m.cache.get(metricName)
-	if cached {
-		return result.Name, result.Tags, result.Matched
-	}
-	for _, mapping := range m.Mappings {
-		matches := mapping.regex.FindStringSubmatchIndex(metricName)
-		if len(matches) == 0 {
+// Map returns a MapResult
+func (m *MetricMapper) Map(metricName string) (*MapResult, bool) {
+	for _, profile := range m.Profiles {
+		if !strings.HasPrefix(metricName, profile.Prefix) && profile.Prefix != "*" {
 			continue
 		}
-
-		name := string(mapping.regex.ExpandString(
-			[]byte{},
-			mapping.Name,
-			metricName,
-			matches,
-		))
-
-		var tags []string
-		for tagKey, tagValueExpr := range mapping.Tags {
-			tagValue := string(mapping.regex.ExpandString([]byte{}, tagValueExpr, metricName, matches))
-			tags = append(tags, tagKey+":"+tagValue)
+		result, cached := m.cache.get(metricName)
+		if cached {
+			return result, true
 		}
+		for _, mapping := range profile.Mappings {
+			matches := mapping.regex.FindStringSubmatchIndex(metricName)
+			if len(matches) == 0 {
+				continue
+			}
 
-		m.cache.addMatch(metricName, name, tags)
-		return name, tags, true
+			name := string(mapping.regex.ExpandString(
+				[]byte{},
+				mapping.Name,
+				metricName,
+				matches,
+			))
+
+			var tags []string
+			for tagKey, tagValueExpr := range mapping.Tags {
+				tagValue := string(mapping.regex.ExpandString([]byte{}, tagValueExpr, metricName, matches))
+				tags = append(tags, tagKey+":"+tagValue)
+			}
+
+			mapResult := &MapResult{Name: name, Matched: true, Tags: tags}
+			m.cache.add(metricName, mapResult)
+			return mapResult, true
+		}
+		mapResult := &MapResult{Matched: false}
+		m.cache.add(metricName, mapResult)
+		return mapResult, true
 	}
-	m.cache.addMiss(metricName)
-	return "", nil, false
+	return nil, false
 }

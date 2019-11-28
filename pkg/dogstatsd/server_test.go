@@ -427,17 +427,20 @@ type mappingTest struct {
 
 func TestMappingsConfig(t *testing.T) {
 	datadogYaml := `
-dogstatsd_mappings:
-  - match: "airflow.job.duration_sec.*.*"   # metric format: airflow.job.duration_sec.<job_type>.<job_name>
-    name: "airflow.job.duration"            # remap the metric name
-    tags:
-      job_type: "$1"
-      job_name: "$2"
-  - match: "airflow.job.size.*.*"   # metric format: airflow.job.duration_sec.<job_type>.<job_name>
-    name: "airflow.job.size"            # remap the metric name
-    tags:
-      foo: "$1"
-      bar: "$2"
+dogstatsd_mapper_profiles:
+  - name: "airflow"
+    prefix: "airflow."
+    mappings:
+      - match: "airflow.job.duration_sec.*.*"   # metric format: airflow.job.duration_sec.<job_type>.<job_name>
+        name: "airflow.job.duration"            # remap the metric name
+        tags:
+          job_type: "$1"
+          job_name: "$2"
+      - match: "airflow.job.size.*.*"   # metric format: airflow.job.duration_sec.<job_type>.<job_name>
+        name: "airflow.job.size"            # remap the metric name
+        tags:
+          foo: "$1"
+          bar: "$2"
 `
 
 	port, err := getAvailableUDPPort()
@@ -450,6 +453,7 @@ dogstatsd_mappings:
 
 	s, err := NewServer(nil, nil, nil)
 	require.NoError(t, err, "cannot start DSD")
+	require.NotNil(t, s.mapper)
 
 	expectedMappings := []mappingTest{
 		{Match: "airflow.job.duration_sec.*.*", Name: "airflow.job.duration", Tags: map[string]string{"job_type": "$1", "job_name": "$2"}, MatchType: "wildcard"},
@@ -457,8 +461,10 @@ dogstatsd_mappings:
 	}
 
 	var actualMappings []mappingTest
-	for _, m := range s.mapper.Mappings {
-		actualMappings = append(actualMappings, mappingTest{Match: m.Match, Name: m.Name, Tags: m.Tags, MatchType: m.MatchType})
+	for _, profile := range s.mapper.Profiles {
+		for _, m := range profile.Mappings {
+			actualMappings = append(actualMappings, mappingTest{Match: m.Match, Name: m.Name, Tags: m.Tags, MatchType: m.MatchType})
+		}
 	}
 
 	assert.Equal(t, expectedMappings, actualMappings)
@@ -482,17 +488,20 @@ func TestMappingCases(t *testing.T) {
 		{
 			name: "Simple OK case",
 			config: `
-dogstatsd_mappings:
-  - match: "test.job.duration.*.*" 
-    name: "test.job.duration"
-    tags:
-      job_type: "$1"
-      job_name: "$2"
-  - match: "test.job.size.*.*"
-    name: "test.job.size"
-    tags:
-      foo: "$1"
-      bar: "$2"
+dogstatsd_mapper_profiles:
+  - name: test
+    prefix: 'test.'
+    mappings:
+      - match: "test.job.duration.*.*" 
+        name: "test.job.duration"
+        tags:
+          job_type: "$1"
+          job_name: "$2"
+      - match: "test.job.size.*.*"
+        name: "test.job.size"
+        tags:
+          foo: "$1"
+          bar: "$2"
 `,
 			packets: []string{
 				"test.job.duration.my_job_type.my_job_name:666|g",
@@ -509,12 +518,15 @@ dogstatsd_mappings:
 		{
 			name: "Tag already present",
 			config: `
-dogstatsd_mappings:
-  - match: "test.job.duration.*.*" 
-    name: "test.job.duration"
-    tags:
-      job_type: "$1"
-      job_name: "$2"
+dogstatsd_mapper_profiles:
+  - name: test
+    prefix: 'test.'
+    mappings:
+      - match: "test.job.duration.*.*" 
+        name: "test.job.duration"
+        tags:
+          job_type: "$1"
+          job_name: "$2"
 `,
 			packets: []string{
 				"test.job.duration.my_job_type.my_job_name:666|g",
@@ -532,12 +544,15 @@ dogstatsd_mappings:
 			name: "Cache size",
 			config: `
 dogstatsd_mapper_cache_size: 999
-dogstatsd_mappings:
-  - match: "test.job.duration.*.*"
-    name: "test.job.duration"
-    tags:
-      job_type: "$1"
-      job_name: "$2"
+dogstatsd_mapper_profiles:
+  - name: test
+    prefix: 'test.'
+    mappings:
+      - match: "test.job.duration.*.*"
+        name: "test.job.duration"
+        tags:
+          job_type: "$1"
+          job_name: "$2"
 `,
 			packets:           []string{},
 			expectedSamples:   nil,

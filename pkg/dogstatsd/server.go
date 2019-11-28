@@ -178,10 +178,10 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 
 	cacheSize := config.Datadog.GetInt("dogstatsd_mapper_cache_size")
 
-	if config.Datadog.IsSet("dogstatsd_mappings") {
-		var mappings []mapper.MetricMapping
+	if config.Datadog.IsSet("dogstatsd_mapper_profiles") {
+		var mappings []mapper.MappingProfile
 		config.Datadog.SetConfigType("yaml")
-		err = config.Datadog.UnmarshalKey("dogstatsd_mappings", &mappings)
+		err = config.Datadog.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
 		if err != nil {
 			log.Warnf("Could not parse dogstatsd_mapping_config.mappings for logs: %v", err)
 		} else {
@@ -189,7 +189,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 			if err != nil {
 				log.Warnf("Could not create metric mapper: %v", err)
 			} else {
-				s.mapper = &mapperInstance
+				s.mapper = mapperInstance
 			}
 		}
 	}
@@ -336,11 +336,11 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 			}
 
 			if s.mapper != nil && len(sample.Tags) == 0 {
-				name, tags, matched := s.mapper.Map(sample.Name)
+				mapResult, mapped := s.mapper.Map(sample.Name)
 
-				if matched {
-					sample.Name = name
-					sample.Tags = append(sample.Tags, tags...)
+				if mapped && mapResult.Matched {
+					sample.Name = mapResult.Name
+					sample.Tags = append(sample.Tags, mapResult.Tags...)
 				}
 			}
 
