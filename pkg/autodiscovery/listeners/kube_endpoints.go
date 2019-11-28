@@ -47,6 +47,9 @@ type KubeEndpointService struct {
 	creationTime integration.CreationTime
 }
 
+// Make sure KubeEndpointService implements the Service interface
+var _ Service = &KubeEndpointService{}
+
 func init() {
 	Register("kube_endpoints", NewKubeEndpointsListener)
 }
@@ -303,4 +306,10 @@ func (s *KubeEndpointService) GetCreationTime() integration.CreationTime {
 // IsReady returns if the service is ready
 func (s *KubeEndpointService) IsReady() bool {
 	return true
+}
+
+// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
+// KubeEndpointService doesn't implement this method
+func (s *KubeEndpointService) GetCheckNames() []string {
+	return nil
 }

@@ -46,7 +46,11 @@ type ECSService struct {
 	taskFamily    string
 	taskVersion   string
 	creationTime  integration.CreationTime
+	checkNames    []string
 }
+
+// Make sure ECSService implements the Service interface
+var _ Service = &ECSService{}
 
 func init() {
 	Register("ecs", NewECSListener)
@@ -169,6 +173,11 @@ func (l *ECSListener) createService(c metadata.ContainerMetadata, firstRun bool)
 	image := c.Image
 	labels := c.Labels
 	svc.ADIdentifiers = ComputeContainerServiceIDs(svc.GetEntity(), image, labels)
+	var err error
+	svc.checkNames, err = getCheckNamesFromLabels(labels)
+	if err != nil {
+		log.Errorf("Error getting check names from docker labels on container %s: %v", c.DockerID, err)
+	}
 
 	// Host
 	ips := make(map[string]string)
@@ -248,4 +257,9 @@ func (s *ECSService) GetCreationTime() integration.CreationTime {
 
 func (s *ECSService) IsReady() bool {
 	return true
+}
+
+// GetCheckNames returns slice check names defined in docker labels
+func (s *ECSService) GetCheckNames() []string {
+	return s.checkNames
 }

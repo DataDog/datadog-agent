@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -157,10 +157,10 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	var err error
 
 	switch config.Provider {
-	case providers.File:
+	case names.File:
 		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
-	case providers.Docker, providers.Kubernetes:
+	case names.Docker, names.Kubernetes:
 		// config attached to a docker label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	default:
