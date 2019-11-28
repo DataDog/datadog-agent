@@ -143,8 +143,7 @@ func (l *DockerListener) init() {
 
 		checkNames, err := getCheckNamesFromLabels(co.Labels)
 		if err != nil {
-			log.Errorf("Error getting check names from docker labels: %v", err)
-			checkNames = nil
+			log.Errorf("Error getting check names from docker labels on container %s: %v", co.ID, err)
 		}
 
 		if findKubernetesInLabels(co.Labels) {
@@ -224,8 +223,7 @@ func (l *DockerListener) createService(cID string) {
 
 	checkNames, err := getCheckNamesFromLabels(cInspect.Config.Labels)
 	if err != nil {
-		log.Errorf("Error getting check names from docker labels: %v", err)
-		checkNames = nil
+		log.Errorf("Error getting check names from docker labels on container %s: %v", cID, err)
 	}
 
 	if isKube {

@@ -54,7 +54,7 @@ func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
 	checkNames := []string{}
 	err := json.Unmarshal([]byte(labels[dockerADTemplateChechNames]), &checkNames)
 	if err != nil {
-		log.Debugf("Cannot parse check names: %v", err)
+		log.Errorf("Cannot parse check names: %v", err)
 		return nil, err
 	}
 	return checkNames, nil
