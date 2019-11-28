@@ -166,6 +166,11 @@ func initConfig(config Config) {
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
 	config.BindEnvAndSetDefault("hostname_fqdn", false)
+
+	// When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
+	// canonical hostname, otherwise the instance-id is used as canonical hostname.
+	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
+
 	config.BindEnvAndSetDefault("cluster_name", "")
 
 	// secrets backend
@@ -333,10 +338,6 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
-
-	// When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
-	// canonical hostname, otherwise the instance-id is used as canonical hostname.
-	config.BindEnvAndSetDefault("use_configuration_hostname_as_canonical_hostname", false)
 
 	// Defines the maximum size of hostame gathered from EC2, GCE, Azure and Alibabacloud metadata endpoints.
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.

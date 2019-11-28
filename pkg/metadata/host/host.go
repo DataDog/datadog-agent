@@ -133,7 +133,7 @@ func getMeta(hostnameData util.HostnameData) *Meta {
 
 	var agentHostname string
 
-	if config.Datadog.GetBool("use_configuration_hostname_as_canonical_hostname") &&
+	if config.Datadog.GetBool("hostname_force_config_as_canonical") &&
 		hostnameData.Provider == util.HostnameProviderConfiguration {
 		agentHostname = hostnameData.Hostname
 	}

@@ -287,7 +287,7 @@ func checkIfHostnameUsedAsCanonicalHostname(hostname string) bool {
 	// Sobotka uses instance id for ec2 default hostname except for Windows.
 	if ec2.IsDefaultHostnameForIntake(hostname) {
 		if _, err := ec2.GetHostname(); err == nil {
-			return config.Datadog.GetBool("use_configuration_hostname_as_canonical_hostname")
+			return config.Datadog.GetBool("hostname_force_config_as_canonical")
 		}
 	}
 	return true
