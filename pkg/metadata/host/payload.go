@@ -26,7 +26,7 @@ type Meta struct {
 	Hostname       string   `json:"hostname"`
 	HostAliases    []string `json:"host_aliases"`
 	InstanceID     string   `json:"instance-id"`
-	AgentHostname  string   `json:"agent-hostname"`
+	AgentHostname  string   `json:"agent-hostname,omitempty"`
 }
 
 // NetworkMeta is metadata about the host's network
