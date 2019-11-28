@@ -38,19 +38,20 @@ const (
 
 // Config is a generic container for configuration files
 type Config struct {
-	Name          string       `json:"check_name"`     // the name of the check
-	Instances     []Data       `json:"instances"`      // array of Yaml configurations
-	InitConfig    Data         `json:"init_config"`    // the init_config in Yaml (python check only)
-	MetricConfig  Data         `json:"metric_config"`  // the metric config in Yaml (jmx check only)
-	LogsConfig    Data         `json:"logs"`           // the logs config in Yaml (logs-agent only)
-	ADIdentifiers []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
-	Provider      string       `json:"provider"`       // the provider that issued the config
-	Entity        string       `json:"-"`              // the entity ID (optional)
-	TaggerEntity  string       `json:"-"`              // the tagger entity ID (optional)
-	ClusterCheck  bool         `json:"cluster_check"`  // cluster-check configuration flag
-	NodeName      string       `json:"node_name"`      // node name in case of an endpoint check backed by a pod
-	CreationTime  CreationTime `json:"-"`              // creation time of service
-	Source        string       `json:"source"`         // the source of the configuration
+	Name               string       `json:"check_name"`           // the name of the check
+	Instances          []Data       `json:"instances"`            // array of Yaml configurations
+	InitConfig         Data         `json:"init_config"`          // the init_config in Yaml (python check only)
+	MetricConfig       Data         `json:"metric_config"`        // the metric config in Yaml (jmx check only)
+	LogsConfig         Data         `json:"logs"`                 // the logs config in Yaml (logs-agent only)
+	ADIdentifiers      []string     `json:"ad_identifiers"`       // the list of AutoDiscovery identifiers (optional)
+	Provider           string       `json:"provider"`             // the provider that issued the config
+	Entity             string       `json:"-"`                    // the entity ID (optional)
+	TaggerEntity       string       `json:"-"`                    // the tagger entity ID (optional)
+	ClusterCheck       bool         `json:"cluster_check"`        // cluster-check configuration flag
+	NodeName           string       `json:"node_name"`            // node name in case of an endpoint check backed by a pod
+	CreationTime       CreationTime `json:"-"`                    // creation time of service
+	Source             string       `json:"source"`               // the source of the configuration
+	IgnoreListenerTags bool         `json:"ignore_listener_tags"` // Use to ignore tags coming from the listener
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data

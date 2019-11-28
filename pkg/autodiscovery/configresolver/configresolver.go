@@ -95,9 +95,13 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		return resolvedConfig, errors.New("unable to resolve, service not ready")
 	}
 
-	tags, err := svc.GetTags()
-	if err != nil {
-		return resolvedConfig, err
+	tags := []string{}
+	var err error
+	if !tpl.IgnoreListenerTags {
+		tags, err = svc.GetTags()
+		if err != nil {
+			return resolvedConfig, err
+		}
 	}
 
 	err = SubstituteTemplateVariables(&resolvedConfig, templateVariables, svc)
