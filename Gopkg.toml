@@ -251,3 +251,7 @@
 [[constraint]]
   name = "github.com/DataDog/watermarkpodautoscaler"
   revision = "ad62a4aaf72c29831f04296c2a2f6a99c895daf6"
+
+[[override]]
+  name = "github.com/hashicorp/golang-lru"
+  version = "v0.5.3"
