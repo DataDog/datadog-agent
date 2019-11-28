@@ -601,8 +601,9 @@ func (s *DockerService) GetCheckNames() []string {
 		if err != nil {
 			return nil
 		}
-		if checkNames, err := getCheckNamesFromLabels(cj.Config.Labels); err == nil {
-			s.checkNames = checkNames
+		s.checkNames, err = getCheckNamesFromLabels(cj.Config.Labels)
+		if err != nil {
+			log.Error(err.Error())
 		}
 	}
 

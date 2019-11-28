@@ -7,6 +7,7 @@ package listeners
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,8 +55,7 @@ func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
 	checkNames := []string{}
 	err := json.Unmarshal([]byte(labels[dockerADTemplateChechNames]), &checkNames)
 	if err != nil {
-		log.Errorf("Cannot parse check names: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("Cannot parse check names: %v", err)
 	}
 	return checkNames, nil
 }

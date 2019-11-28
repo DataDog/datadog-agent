@@ -228,8 +228,10 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 
 			// Cache check names if the pod template is annotated
 			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
-				if checkNames, err := getCheckNamesFromAnnotations(pod.Metadata.Annotations, containerName); err == nil {
-					svc.checkNames = checkNames
+				var err error
+				svc.checkNames, err = getCheckNamesFromAnnotations(pod.Metadata.Annotations, containerName)
+				if err != nil {
+					log.Error(err.Error())
 				}
 			}
 
@@ -299,8 +301,7 @@ func getCheckNamesFromAnnotations(annotations map[string]string, containerName s
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
 		if err != nil {
-			log.Errorf("Cannot parse check names: %v", err)
-			return nil, err
+			return nil, fmt.Errorf("Cannot parse check names: %v", err)
 		}
 		return checkNames, nil
 	}
@@ -308,8 +309,7 @@ func getCheckNamesFromAnnotations(annotations map[string]string, containerName s
 		checkNames := []string{}
 		err := json.Unmarshal([]byte(checkNamesJSON), &checkNames)
 		if err != nil {
-			log.Errorf("Cannot parse check names: %v", err)
-			return nil, err
+			return nil, fmt.Errorf("Cannot parse check names: %v", err)
 		}
 		return checkNames, nil
 	}
