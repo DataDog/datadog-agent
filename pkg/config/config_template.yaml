@@ -735,33 +735,43 @@ api_key:
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
 
-## @param dogstatsd_mappings - list of custom object - optional
-## The list mappings will be used to convert parts of metrics names into tags.
+## @param dogstatsd_mapper_profiles - list of custom object - optional
+## The profiles will be used to convert parts of metrics names into tags.
+## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.
+## The profiles and matching rules are processed in the order defined in this configuration.
+##
+## For each profile, following fields are available:
+##    name (required): profile name
+##    prefix (required): mapping only applies to metrics with the prefix. If set to `*`, it will match everything.
+##    mappings: mapping rules, see below.
 ## For each mapping, following fields are available:
-##  match (required): pattern for matching the incoming metric name e.g. `test.job.duration.*`
-##  match_type (optional): pattern type can be `wildcard` (default) or `regex` e.g. `test\.job\.(\w+)\.(.*)`
-##  name (required): the metric name the metric should be mapped to e.g. `test.job.duration`
-##  tags (optional): list of key:value pair of tag key and tag value
-##    The value can use $1, $2, etc, that will be replaced by the corresponding element capture by `match` pattern
-##    The value can also use alternative syntax: ${1}, ${2}, etc
+##    match (required): pattern for matching the incoming metric name e.g. `test.job.duration.*`
+##    match_type (optional): pattern type can be `wildcard` (default) or `regex` e.g. `test\.job\.(\w+)\.(.*)`
+##    name (required): the metric name the metric should be mapped to e.g. `test.job.duration`
+##    tags (optional): list of key:value pair of tag key and tag value
+##      The value can use $1, $2, etc, that will be replaced by the corresponding element capture by `match` pattern
+##      This alternative syntax can also be used: ${1}, ${2}, etc
 #
-# dogstatsd_mappings:
-#   - match: <METRIC_TO_MATCH>                # e.g. `test.job.duration.*` to match `test.job.duration.my_job_name`
-#     match_type: <MATCH_TYPE>                # e.g. `wildcard` or `regex`
-#     name: <MAPPED_METRIC_NAME>              # e.g. `test.job.duration`
-#     tags:
-#       <TAG_KEY>: <TAG_VALUE_TO_EXPAND>      # e.g. `job_name: "$1"`, $1 is replaced by value capture by *
-#   - match: 'test.worker.*.*.start_time'     # to match `test.worker.<worker_type>.<worker_name>.start_time`
-#     name: 'test.worker.start_time'
-#     tags:
-#       worker_type: '$1'
-#       worker_name: '$2'
-#   - match: 'test\.task\.duration\.(\w+)\.(.*)'     # no need to escape in yaml context using single quote
-#     match_type: regex
-#     name: 'test.task'
-#     tags:
-#       task_type: '$1'
-#       task_name: '$2'
+# dogstatsd_mapper_profiles:
+#   - name: <PROFILE_NAME>                    # e.g. "airflow", "consul", "some_database"
+#     prefix: <PROFILE_PREFIX>                # e.g. "airflow.", "consul.", "some_database."
+#     mappings:
+#       - match: <METRIC_TO_MATCH>                # e.g. `test.job.duration.*` to match `test.job.duration.my_job_name`
+#         match_type: <MATCH_TYPE>                # e.g. `wildcard` or `regex`
+#         name: <MAPPED_METRIC_NAME>              # e.g. `test.job.duration`
+#         tags:
+#           <TAG_KEY>: <TAG_VALUE_TO_EXPAND>      # e.g. `job_name: "$1"`, $1 is replaced by value capture by *
+#       - match: 'test.worker.*.*.start_time'     # to match `test.worker.<worker_type>.<worker_name>.start_time`
+#         name: 'test.worker.start_time'
+#         tags:
+#           worker_type: '$1'
+#           worker_name: '$2'
+#       - match: 'test\.task\.duration\.(\w+)\.(.*)'     # no need to escape in yaml context using single quote
+#         match_type: regex
+#         name: 'test.task'
+#         tags:
+#           task_type: '$1'
+#           task_name: '$2'
 
 ## @param dogstatsd_mapper_cache_size - integer - optional - default: 1000
 ## Size of the cache (max number of mapping results) used by Dogstatsd mapping feature.

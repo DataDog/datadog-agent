@@ -7,6 +7,7 @@ package dogstatsd
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 
@@ -15,6 +16,10 @@ import (
 )
 
 func BenchmarkParsePacket(b *testing.B) {
+	port, err := getAvailableUDPPort()
+	require.NoError(b, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
 	s, _ := NewServer(nil, nil, nil)
 	defer s.Stop()
 
@@ -25,11 +30,13 @@ func BenchmarkParsePacket(b *testing.B) {
 		}
 		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
 	}
+
+	b.ReportAllocs()
 }
 
 func BenchmarkWithMapper(b *testing.B) {
 	datadogYaml := `
-dogstatsd_mappings:
+dogstatsd_mapper_profiles:
   - match: "airflow.job.duration.*.*"       # metric format: airflow.job.duration.<job_type>.<job_name>
     name: "airflow.job.duration"            # remap the metric name
     tags:
@@ -48,6 +55,10 @@ dogstatsd_mappings:
 }
 
 func BenchmarkMapperControl(b *testing.B) {
+	port, err := getAvailableUDPPort()
+	require.NoError(b, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
 	s, _ := NewServer(nil, nil, nil)
 	defer s.Stop()
 
@@ -58,4 +69,6 @@ func BenchmarkMapperControl(b *testing.B) {
 		}
 		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
 	}
+
+	b.ReportAllocs()
 }
