@@ -59,7 +59,7 @@
   {{- with .pyLoaderStats }}
     {{- if .Py3Warnings }}
     <div class="stat">
-      <span class="stat_title">Python3 Linter Warnings</span>
+      <span class="stat_title">Python 3 Linter Warnings</span>
       <span class="stat_data">
       {{ range $checkname, $warnings :=  .Py3Warnings }}
           <span class="stat_subtitle">{{$checkname}}</span>
