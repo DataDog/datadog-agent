@@ -229,22 +229,25 @@ def image_build(ctx, arch='amd64', skip_build=False):
     """
     Build the docker image
     """
+    import docker
+    client = docker.from_env()
+
     src = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
     dst = os.path.join("Dockerfiles", "dogstatsd", "alpine", "static")
 
     if not skip_build:
         build(ctx, rebuild=True, static=True)
     if not os.path.exists(src):
-        print("Could not find dogstatsd static binary at {}".format(src))
+        print("Could not find dogstatsd static binary at {} ".format(src))
         raise Exit(code=1)
     if not os.path.exists(dst):
         os.makedirs(dst)
 
     shutil.copy(src, dst)
     build_context = "Dockerfiles/dogstatsd/alpine"
-    dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
+    dockerfile_path = "{}/Dockerfile".format(arch)
 
-    ctx.run("docker build --rm=true -t {} -f {} {}".format(DOGSTATSD_TAG, dockerfile_path, build_context))
+    client.images.build(path=build_context, dockerfile=dockerfile_path, rm=True, tag=DOGSTATSD_TAG)
     ctx.run("rm -rf {}/static".format(build_context))
 
 
