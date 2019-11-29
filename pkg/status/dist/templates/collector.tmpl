@@ -56,7 +56,7 @@ Collector
 
 {{- with .pyLoaderStats }}
   {{- if .Py3Warnings }}
-  Python3 Linter Warnings
+  Python 3 Linter Warnings
   =======================
     {{- range $CheckName, $warnings :=  .Py3Warnings }}
       {{ $CheckName }}
