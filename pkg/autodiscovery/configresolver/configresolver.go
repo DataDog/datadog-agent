@@ -104,7 +104,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		return resolvedConfig, fmt.Errorf("%s, skipping service %s", err, svc.GetEntity())
 	}
 
-	if !tpl.IgnoreListenerTags {
+	if !tpl.IgnoreAutodiscoveryTags {
 		if err := addServiceTags(&resolvedConfig, svc); err != nil {
 			return resolvedConfig, fmt.Errorf("unable to add tags for service '%s', err: %s", svc.GetEntity(), err)
 		}

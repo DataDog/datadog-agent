@@ -21,14 +21,14 @@ import (
 )
 
 type configFormat struct {
-	ADIdentifiers      []string    `yaml:"ad_identifiers"`
-	ClusterCheck       bool        `yaml:"cluster_check"`
-	InitConfig         interface{} `yaml:"init_config"`
-	MetricConfig       interface{} `yaml:"jmx_metrics"`
-	LogsConfig         interface{} `yaml:"logs"`
-	Instances          []integration.RawMap
-	DockerImages       []string `yaml:"docker_images"`        // Only imported for deprecation warning
-	IgnoreListenerTags bool     `yaml:"ignore_listener_tags"` // Use to ignore tags coming from the listener
+	ADIdentifiers           []string    `yaml:"ad_identifiers"`
+	ClusterCheck            bool        `yaml:"cluster_check"`
+	InitConfig              interface{} `yaml:"init_config"`
+	MetricConfig            interface{} `yaml:"jmx_metrics"`
+	LogsConfig              interface{} `yaml:"logs"`
+	Instances               []integration.RawMap
+	DockerImages            []string `yaml:"docker_images"`             // Only imported for deprecation warning
+	IgnoreAutodiscoveryTags bool     `yaml:"ignore_autodiscovery_tags"` // Use to ignore tags coming from the listener
 }
 
 type configPkg struct {
@@ -303,8 +303,8 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	// Copy cluster_check status
 	config.ClusterCheck = cf.ClusterCheck
 
-	// Copy ignore_listener_tags parameter
-	config.IgnoreListenerTags = cf.IgnoreListenerTags
+	// Copy ignore_autodiscovery_tags parameter
+	config.IgnoreAutodiscoveryTags = cf.IgnoreAutodiscoveryTags
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {
