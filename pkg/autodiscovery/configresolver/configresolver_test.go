@@ -428,7 +428,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: %%FOO%%")},
 			},
-			errorString: "yaml: found character that cannot start any token",
+			errorString: "unable to add tags for service 'a5901276aed1', err: yaml: found character that cannot start any token",
 		},
 		//// check overrides
 		{
