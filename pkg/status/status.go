@@ -64,6 +64,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["agent_start"] = startTime.Format(timeFormat)
 	stats["hostinfo"] = host.GetStatusInformation()
+	stats["build_arch"] = runtime.GOARCH
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 
