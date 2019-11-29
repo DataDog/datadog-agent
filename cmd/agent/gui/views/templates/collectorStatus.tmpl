@@ -57,6 +57,21 @@
   </div>
 
   {{- with .pyLoaderStats }}
+    {{- if .Py3Warnings }}
+    <div class="stat">
+      <span class="stat_title">Python 3 Linter Warnings</span>
+      <span class="stat_data">
+      {{ range $checkname, $warnings :=  .Py3Warnings }}
+          <span class="stat_subtitle">{{$checkname}}</span>
+          <span class="stat_subdata">
+            {{- range $idx, $warning := $warnings}}
+              {{pythonLoaderError $warning}}<br>
+            {{- end }}
+          </span>
+      {{- end}}
+      </span>
+    </div>
+    {{- end }}
     {{- if .ConfigureErrors }}
     <div class="stat">
       <span class="stat_title">Check Initialization Errors</span>

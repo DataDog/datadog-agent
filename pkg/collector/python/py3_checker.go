@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,9 +24,12 @@ var (
 )
 
 type warning struct {
-	Line    int
-	Column  int
-	Message string
+	Line      int    `json:"line"`
+	Column    int    `json:"column"`
+	Message   string `json:"message"`
+	Path      string `json:"path"`
+	Symbol    string `json:"symbol"`
+	MessageId string `json:"message-id"`
 }
 
 // validatePython3 checks that a check can run on python 3.
@@ -57,7 +61,7 @@ func validatePython3(moduleName string, modulePath string) ([]string, error) {
 
 	// no post processing needed for now, we just retrieve every messages
 	for _, warn := range warnings {
-		message := fmt.Sprintf("Line %d, column %d: %s", warn.Line, warn.Column, warn.Message)
+		message := fmt.Sprintf("%s:%d:%d : %s (%s, %s)", filepath.Base(warn.Path), warn.Line, warn.Column, warn.Message, warn.Symbol, warn.MessageId)
 		res = append(res, message)
 	}
 

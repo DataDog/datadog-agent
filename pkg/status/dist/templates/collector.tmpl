@@ -55,6 +55,17 @@ Collector
 {{- end }}
 
 {{- with .pyLoaderStats }}
+  {{- if .Py3Warnings }}
+  Python 3 Linter Warnings
+  =======================
+    {{- range $CheckName, $warnings :=  .Py3Warnings }}
+      {{ $CheckName }}
+      {{printDashes $CheckName "-"}}
+      {{- range $idx, $warning := $warnings}}
+        {{ doNotEscape $warning }}
+      {{- end }}
+    {{end}}
+  {{- end }}
   {{- if .ConfigureErrors }}
   Check Initialization Errors
   ===========================
