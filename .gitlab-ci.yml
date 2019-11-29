@@ -1,3 +1,5 @@
+include: 'https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml'
+
 stages:
   - source_test
   - binary_build
@@ -15,6 +17,7 @@ stages:
   - deploy_invalidate
   - e2e
   - testkitchen_cleanup
+  - notify
 
 variables:
   # The SRC_PATH is in the GOPATH of the builders which
@@ -2491,3 +2494,10 @@ pupernetes-tags:
   # note: it's not the agent-dev
   - inv -e e2e-tests --image=datadog/agent:$CI_COMMIT_TAG
   - inv -e e2e-tests --image=datadog/agent:${CI_COMMIT_TAG}-py3
+
+notify-on-failure:
+  extends: .slack-notifier.on-failure
+  script:
+    - BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
+    - 'MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME $CI_COMMIT_REF_NAME pipeline <$BUILD_URL|$CI_PIPELINE_ID> failed."'
+    - postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
