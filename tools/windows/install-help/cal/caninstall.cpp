@@ -16,7 +16,7 @@
  * @param bResetPassword on return, set to true if the password needs to be reset based on configuration,
  *                       otherwise false.
  */
-bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData& data, bool& bResetPassword)
+bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword)
 {
     bResetPassword = false;
     ///////////////////////////////////////////////////////////////////////////
@@ -65,18 +65,18 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
                 return false;
             }
         }
-        if (!ddUserExists &&
+        if(!ddUserExists &&
             (_wcsicmp(data.Domain().c_str(), domainname.c_str())))
         {
             // on a domain controller, we can only create a user in this controller's domain.
             // check and reject an attempt to create a user not in this domain
             WcaLog(LOGMSG_STANDARD, "Can't create a user that's not in this domain: %S (asked for %S)",
                 domainname.c_str(), data.Domain().c_str());
-            return false;
+                return false;
         }
     }
     else {
-        if (!ddUserExists && data.isUserDomainUser()) {
+        if(!ddUserExists && data.isUserDomainUser()) {
             WcaLog(LOGMSG_STANDARD, "Can't create a domain user when not on a domain controller");
             WcaLog(LOGMSG_STANDARD, "Install Datadog Agent on the domain controller for the %S domain", data.Domain().c_str());
             return false;
