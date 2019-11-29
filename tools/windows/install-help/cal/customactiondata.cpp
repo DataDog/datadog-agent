@@ -50,12 +50,17 @@ bool CustomActionData::present(const std::wstring& key) const {
     return this->values.count(key) != 0 ? true : false;
 }
 
-bool CustomActionData::value(std::wstring& key, std::wstring &val)  {
-    if (this->values.count(key) == 0) {
+bool CustomActionData::value(const std::wstring& key, std::wstring &val) const {
+    const auto kvp = values.find(key);
+    if (kvp == values.end()) {
         return false;
     }
-    val = this->values[key];
+    val = kvp->second;
     return true;
+}
+
+void CustomActionData::set_value(const std::wstring& key, const std::wstring& val) {
+    values[key] = val;
 }
 
 bool CustomActionData::parseUsernameData()

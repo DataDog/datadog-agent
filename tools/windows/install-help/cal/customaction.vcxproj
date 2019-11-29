@@ -178,7 +178,6 @@
   <ItemGroup>
     <ClInclude Include="customactiondata.h" />
     <ClInclude Include="ddreg.h" />
-    <ClInclude Include="import_export.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="strings.h" />

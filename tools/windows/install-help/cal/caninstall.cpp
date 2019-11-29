@@ -16,7 +16,7 @@
  * @param bResetPassword on return, set to true if the password needs to be reset based on configuration,
  *                       otherwise false.
  */
-bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const ICustomActionData &data, bool &bResetPassword)
+bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword)
 {
     bResetPassword = false;
     ///////////////////////////////////////////////////////////////////////////

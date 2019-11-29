@@ -16,7 +16,7 @@ extern std::wstring processService;
 extern std::wstring agentService;
 
 extern std::wstring propertyDDAgentUserName;
-CA_API extern std::wstring propertyDDAgentUserPassword;
+extern std::wstring propertyDDAgentUserPassword;
 extern std::wstring propertyDDUserCreated;
 extern std::wstring propertyEnableServicesDeferredKey;
 extern std::wstring propertyRollbackState;
