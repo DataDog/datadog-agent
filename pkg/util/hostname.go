@@ -116,7 +116,9 @@ type HostnameData struct {
 	Provider string
 }
 
-func setHostnameData(cacheHostnameKey string, hostname string, provider string) HostnameData {
+// saveHostnameData creates a HostnameData struct, saves it in the cache under cacheHostnameKey
+// and call setHostnameProvider with the provider if it is not empty.
+func saveHostnameData(cacheHostnameKey string, hostname string, provider string) HostnameData {
 	hostnameData := HostnameData{Hostname: hostname, Provider: provider}
 	cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
 	if provider != "" {
@@ -146,8 +148,8 @@ func GetHostnameData() (HostnameData, error) {
 	configName := config.Datadog.GetString("hostname")
 	err = ValidHostname(configName)
 	if err == nil {
-		hostnameData := setHostnameData(cacheHostnameKey, configName, HostnameProviderConfiguration)
-		if !checkIfHostnameUsedAsCanonicalHostname(configName) {
+		hostnameData := saveHostnameData(cacheHostnameKey, configName, HostnameProviderConfiguration)
+		if !isHostnameCanonicalForIntake(configName) {
 			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-config-as-canonical", configName)
 		}
 		return hostnameData, err
@@ -162,7 +164,7 @@ func GetHostnameData() (HostnameData, error) {
 
 	// if fargate we strip the hostname
 	if ecs.IsFargateInstance() {
-		hostnameData := setHostnameData(cacheHostnameKey, "", "")
+		hostnameData := saveHostnameData(cacheHostnameKey, "", "")
 		return hostnameData, nil
 	}
 
@@ -171,7 +173,7 @@ func GetHostnameData() (HostnameData, error) {
 	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
 		gceName, err := getGCEHostname()
 		if err == nil {
-			hostnameData := setHostnameData(cacheHostnameKey, gceName, "gce")
+			hostnameData := saveHostnameData(cacheHostnameKey, gceName, "gce")
 			return hostnameData, err
 		}
 		expErr := new(expvar.String)
@@ -274,7 +276,7 @@ func GetHostnameData() (HostnameData, error) {
 		err = nil
 	}
 
-	hostnameData := setHostnameData(cacheHostnameKey, hostName, provider)
+	hostnameData := saveHostnameData(cacheHostnameKey, hostName, provider)
 	if err != nil {
 		expErr := new(expvar.String)
 		expErr.Set(fmt.Sprintf(err.Error()))
@@ -283,10 +285,11 @@ func GetHostnameData() (HostnameData, error) {
 	return hostnameData, err
 }
 
-func checkIfHostnameUsedAsCanonicalHostname(hostname string) bool {
-	// Sobotka uses instance id for ec2 default hostname except for Windows.
+// isHostnameCanonicalForIntake returns true if the intake will use the hostname as canonical hostname.
+func isHostnameCanonicalForIntake(hostname string) bool {
+	// Intake uses instance id for ec2 default hostname except for Windows.
 	if ec2.IsDefaultHostnameForIntake(hostname) {
-		if _, err := ec2.GetHostname(); err == nil {
+		if _, err := ec2.GetInstanceID(); err == nil {
 			return config.Datadog.GetBool("hostname_force_config_as_canonical")
 		}
 	}

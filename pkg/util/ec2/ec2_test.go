@@ -33,7 +33,7 @@ func TestIsDefaultHostname(t *testing.T) {
 	}
 }
 
-func TestIsDefaultHostnameForSobotka(t *testing.T) {
+func TestIsDefaultHostnameForIntake(t *testing.T) {
 	const key = "ec2_use_windows_prefix_detection"
 	prefixDetection := config.Datadog.GetBool(key)
 	config.Datadog.SetDefault(key, true)
