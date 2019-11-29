@@ -31,7 +31,7 @@ stop_agent()
         initctl stop $SERVICE_NAME-sysprobe || true
         initctl stop $SERVICE_NAME-trace || true
         initctl stop $SERVICE_NAME || true
-    elif [ "$DISTRIBUTION_FAMILY" = "Debian" || "$DISTRIBUTION_FAMILY"="SUSE" ]; then
+    elif [ "$DISTRIBUTION_FAMILY" = "Debian" ] || [ "$DISTRIBUTION_FAMILY"="SUSE" ]; then
         if command -v service >/dev/null 2>&1; then
             service $SERVICE_NAME-process stop || true
             service $SERVICE_NAME-trace stop || true
@@ -57,10 +57,9 @@ deregister_agent()
     elif command -v initctl >/dev/null 2>&1; then
         # Nothing to do, this is defined directly in the upstart job file
         :
-    elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
+    elif [ "$DISTRIBUTION_FAMILY" = "Debian" ] || [ "$DISTRIBUTION_FAMILY"="SUSE" ]; then
         if command -v update-rc.d >/dev/null 2>&1; then
             update-rc.d -f $SERVICE_NAME-process remove || true
-            update-rc.d -f $SERVICE_NAME-sysprobe remove || true
             update-rc.d -f $SERVICE_NAME-trace remove || true
             update-rc.d -f $SERVICE_NAME remove || true
         else
