@@ -119,7 +119,9 @@ type HostnameData struct {
 func setHostnameData(cacheHostnameKey string, hostname string, provider string) HostnameData {
 	hostnameData := HostnameData{Hostname: hostname, Provider: provider}
 	cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
-	setHostnameProvider(provider)
+	if provider != "" {
+		setHostnameProvider(provider)
+	}
 	return hostnameData
 }
 
@@ -160,8 +162,7 @@ func GetHostnameData() (HostnameData, error) {
 
 	// if fargate we strip the hostname
 	if ecs.IsFargateInstance() {
-		hostnameData := HostnameData{}
-		cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
+		hostnameData := setHostnameData(cacheHostnameKey, "", "")
 		return hostnameData, nil
 	}
 
