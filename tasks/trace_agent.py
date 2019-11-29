@@ -22,7 +22,7 @@ DEFAULT_BUILD_TAGS = [
 
 @task
 def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=None,
-          build_exclude=None, puppy=False, arch="x64"):
+          build_exclude=None, arch="x64"):
     """
     Build the trace agent.
     """
@@ -57,11 +57,7 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
-    if puppy:
-        # Puppy mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(puppy=True)
-    else:
-        build_tags = get_build_tags(build_include, build_exclude)
+    build_tags = get_build_tags(build_include, build_exclude)
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"

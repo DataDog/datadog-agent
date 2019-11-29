@@ -64,6 +64,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["agent_start"] = startTime.Format(timeFormat)
 	stats["hostinfo"] = host.GetStatusInformation()
+	stats["build_arch"] = runtime.GOARCH
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 
@@ -318,9 +319,12 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
 
-	inventoriesStatsJSON := []byte(expvar.Get("inventories").String())
-	inventoriesStats := make(map[string]interface{})
-	json.Unmarshal(inventoriesStatsJSON, &inventoriesStats)
+	inventories := expvar.Get("inventories")
+	var inventoriesStats map[string]interface{}
+	if inventories != nil {
+		inventoriesStatsJSON := []byte(inventories.String())
+		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats)
+	}
 
 	checkMetadata := map[string]map[string]string{}
 	if data, ok := inventoriesStats["check_metadata"]; ok {
