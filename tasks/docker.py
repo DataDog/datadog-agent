@@ -167,14 +167,12 @@ def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
 def publish_manifest(ctx, name, tag, template, platform, signed_push=False):
     """
     Publish a manifest referencing image names matching the specified pattern.
-    In that pattern, OS and ARCH strings are replace, if found by, corresponding
+    In that pattern, OS and ARCH strings are replaced, if found, by corresponding
     entries in the list of platforms passed as an argument. This allows creating
     a set of image references more easily. See the manifest tool documentation for
     further details: https://github.com/estesp/manifest-tool.
     """
-
     platforms = ",".join(platform)
-
     print("Publishing {}:{} for platforms {}".format(name, tag, platforms))
 
     # Create the manifest referencing platform-specific images

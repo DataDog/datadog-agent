@@ -225,26 +225,27 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def image_build(ctx, skip_build=False):
+def image_build(ctx, arch='amd64', skip_build=False):
     """
     Build the docker image
     """
-    import docker
-    client = docker.from_env()
-
     src = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
     dst = os.path.join("Dockerfiles", "dogstatsd", "alpine", "static")
 
     if not skip_build:
         build(ctx, rebuild=True, static=True)
     if not os.path.exists(src):
+        print("Could not find dogstatsd static binary at {}".format(src))
         raise Exit(code=1)
     if not os.path.exists(dst):
         os.makedirs(dst)
 
     shutil.copy(src, dst)
-    client.images.build(path="Dockerfiles/dogstatsd/alpine/", rm=True, tag=DOGSTATSD_TAG)
-    ctx.run("rm -rf Dockerfiles/dogstatsd/alpine/static")
+    build_context = "Dockerfiles/dogstatsd/alpine"
+    dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
+
+    ctx.run("docker build --rm=true -t {} -f {} {}".format(DOGSTATSD_TAG, dockerfile_path, build_context))
+    ctx.run("rm -rf {}/static".format(build_context))
 
 
 @task
