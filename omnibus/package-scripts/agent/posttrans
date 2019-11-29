@@ -41,7 +41,7 @@ if command -v systemctl >/dev/null 2>&1; then
 elif command -v initctl >/dev/null 2>&1; then
     # start/stop policy is already defined in the upstart job file
     :
-elif [ "$SUSE_SYSVINIT_SUPPORT" = "yes" ] then
+elif [ "$SUSE_SYSVINIT_SUPPORT" = "yes" ]; then
     ln -s /etc/init.d/$SERVICE_NAME /etc/init.d/rc5.d/S95$SERVICE_NAME || echo "[ WARNING ]\tCannot enable $SERVICE_NAME"
     ln -s /etc/init.d/$SERVICE_NAME-process /etc/init.d/rc5.d/S95$SERVICE_NAME-process || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process"
     ln -s /etc/init.d/$SERVICE_NAME-trace /etc/init.d/rc5.d/S95$SERVICE_NAME-trace || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace"
