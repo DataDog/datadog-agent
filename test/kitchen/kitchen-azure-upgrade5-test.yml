@@ -3,8 +3,11 @@ suites:
 # Installs the latest release Agent 5, then updates it to the latest release
 # candidate
 - name: dd-agent-upgrade-agent5
-  excludes: <% if sles15_platforms.nil? || sles15_platforms.empty? %>[]<% end %> # Agent 5 package doesn't work on SLES 15
+  excludes: <% if (sles15_platforms.nil? || sles15_platforms.empty?) && (sles11_platforms.nil? || sles11_platforms.empty?) %>[]<% end %> # Agent 5 package doesn't work on SLES 15, Agent 5 install script doesn't work on SLES 11
     <% sles15_platforms.each do |p| %>
+    - <%= p %>
+    <% end %>
+    <% sles11_platforms.each do |p| %>
     - <%= p %>
     <% end %>
   run_list:
