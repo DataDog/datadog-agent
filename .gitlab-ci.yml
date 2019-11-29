@@ -2498,6 +2498,9 @@ pupernetes-tags:
 notify-on-failure:
   extends: .slack-notifier.on-failure
   before_script: ["# noop"]
+  only:
+    - master
+    - triggers
   script:
     - BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
     - 'MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME $CI_COMMIT_REF_NAME pipeline <$BUILD_URL|$CI_PIPELINE_ID> failed."'
