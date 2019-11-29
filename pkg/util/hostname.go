@@ -116,6 +116,13 @@ type HostnameData struct {
 	Provider string
 }
 
+func setHostnameData(cacheHostnameKey string, hostname string, provider string) HostnameData {
+	hostnameData := HostnameData{Hostname: hostname, Provider: provider}
+	cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
+	setHostnameProvider(provider)
+	return hostnameData
+}
+
 // GetHostnameData retrieves the host name for the Agent and hostname provider, trying to query these
 // environments/api, in order:
 // * GCE
@@ -137,10 +144,7 @@ func GetHostnameData() (HostnameData, error) {
 	configName := config.Datadog.GetString("hostname")
 	err = ValidHostname(configName)
 	if err == nil {
-		provider = HostnameProviderConfiguration
-		hostnameData := HostnameData{Hostname: configName, Provider: provider}
-		cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
-		setHostnameProvider(provider)
+		hostnameData := setHostnameData(cacheHostnameKey, configName, HostnameProviderConfiguration)
 		if !checkIfHostnameUsedAsCanonicalHostname(configName) {
 			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-config-as-canonical", configName)
 		}
@@ -166,10 +170,7 @@ func GetHostnameData() (HostnameData, error) {
 	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
 		gceName, err := getGCEHostname()
 		if err == nil {
-			provider = "gce"
-			hostnameData := HostnameData{Hostname: gceName, Provider: provider}
-			cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
-			setHostnameProvider(provider)
+			hostnameData := setHostnameData(cacheHostnameKey, gceName, "gce")
 			return hostnameData, err
 		}
 		expErr := new(expvar.String)
@@ -272,9 +273,7 @@ func GetHostnameData() (HostnameData, error) {
 		err = nil
 	}
 
-	hostnameData := HostnameData{Hostname: hostName, Provider: provider}
-	cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
-	setHostnameProvider(provider)
+	hostnameData := setHostnameData(cacheHostnameKey, hostName, provider)
 	if err != nil {
 		expErr := new(expvar.String)
 		expErr.Set(fmt.Sprintf(err.Error()))
