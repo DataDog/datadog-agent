@@ -897,6 +897,8 @@ deploy_deb_testing-a6:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
@@ -911,8 +913,8 @@ deploy_deb_testing-a6:
     - echo "$APT_SIGNING_KEY_ID"
     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
 
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a6" -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a6" -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
 
 deploy_deb_testing-a7:
   stage: testkitchen_deploy
@@ -923,6 +925,8 @@ deploy_deb_testing-a7:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
@@ -937,8 +941,8 @@ deploy_deb_testing-a7:
     - echo "$APT_SIGNING_KEY_ID"
     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
 
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a7" -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$CI_PIPELINE_ID-a7" -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
 
 
 # deploy rpm packages to yum staging repo
@@ -951,14 +955,16 @@ deploy_rpm_testing-a6:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/x86_64/
-    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a6 ./rpmrepo/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID/6 ./rpmrepo/
     - cp $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm ./rpmrepo/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
-    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID/6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_rpm_testing-a7:
   <<: *run_when_testkitchen_triggered
@@ -969,14 +975,16 @@ deploy_rpm_testing-a7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/x86_64/
-    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a7 ./rpmrepo/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID/7 ./rpmrepo/
     - cp $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm ./rpmrepo/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
-    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$CI_PIPELINE_ID-a7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/ s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID/7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing-a6:
@@ -988,14 +996,16 @@ deploy_suse_rpm_testing-a6:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/suse/x86_64/
-    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a6 ./rpmrepo/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID/6 ./rpmrepo/suse
     - cp $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-6.*x86_64.rpm ./rpmrepo/suse/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/suse/x86_64
-    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID/6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_suse_rpm_testing-a7:
   <<: *run_when_testkitchen_triggered
@@ -1006,14 +1016,16 @@ deploy_suse_rpm_testing-a7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   tags: [ "runner:main", "size:large" ]
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/suse/x86_64/
-    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a7 ./rpmrepo/
+    - aws s3 sync s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID/7 ./rpmrepo/suse
     - cp $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm ./rpmrepo/suse/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/suse/x86_64
-    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID-a7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID/7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy windows packages to our testing bucket
 deploy_windows_testing-a6:
@@ -1058,12 +1070,12 @@ deploy_windows_testing-a7:
 
 .kitchen_a6_common: &kitchen_a6_common
   variables:
-    PYTHON_RUNTIMES: '2,3'
+    AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
 
 .kitchen_a7_common: &kitchen_a7_common
   variables:
-    PYTHON_RUNTIMES: '3'
+    AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
 
 .kitchen_chef_common: &kitchen_chef_common
@@ -1214,17 +1226,23 @@ kitchen_windows_upgrade5-a7:
   <<: *kitchen_windows_a7_common
   <<: *kitchen_upgrade5_common
 
+
+# Let these two jobs fail for now, as they have to fail
+# (they install latest, ie. 6.14.1, which is blacklisted)
+
 kitchen_windows_upgrade6-a6:
-  allow_failure: false
+  allow_failure: true
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_windows_a6_common
   <<: *kitchen_upgrade6_common
+  retry: 0
 
 kitchen_windows_upgrade6-a7:
-  allow_failure: false
+  allow_failure: true
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_windows_a7_common
   <<: *kitchen_upgrade6_common
+  retry: 0
 
 # run dd-agent-testing on centos
 kitchen_centos_chef-a6:
@@ -2306,7 +2324,7 @@ tag_release_6:
   stage: deploy6
   when: manual
   variables:
-    PYTHON_RUNTIMES: '2,3'
+    AGENT_MAJOR_VERSION: 6
     <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version)
@@ -2320,7 +2338,7 @@ tag_release_7:
   stage: deploy7
   when: manual
   variables:
-    PYTHON_RUNTIMES: '3'
+    AGENT_MAJOR_VERSION: 7
     <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version)

@@ -13,13 +13,13 @@ suites:
       <%= key %>: <%= value %>
       <% end %>
     dd-agent-install:
-      agent6: true
+      agent_major_version: <%= agent_major_version %>
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
       <% end %>
-      windows_agent_url: <%= windows_agent_url %>
       <% if ENV['WINDOWS_AGENT_FILE'] %>
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
+      windows_agent_url: <%= windows_agent_url %>
     dd-agent-rspec:
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
