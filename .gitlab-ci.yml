@@ -145,7 +145,7 @@ unit_tests:
     #TODO: check why formatting rules differ from previous step
     - gofmt -l -w -s ./pkg ./cmd
 
-    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubeapiserver,kubelet
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubelet
 
 integration_tests:
   stage: build_and_test
@@ -491,7 +491,7 @@ molecule_tests_compose:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
     expire_in: 1 week
 
-molecule_tests_kubernetes:
+molecule_tests_local_install:
   stage: acceptance
   dependencies: []
   before_script: []
@@ -500,12 +500,47 @@ molecule_tests_kubernetes:
    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
    - export MOLECULE_RUN_ID=${CI_JOB_ID}
    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
-   - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s kubernetes
+   - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s localinstall
+  only:
+    - master
+    - tags
+    - STAC-5977-local-install
+
+molecule_tests_kubernetes:
+  stage: acceptance
+  dependencies: []
+  before_script: []
+  script:
+    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
+    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s kubernetes
   artifacts:
     when: always
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
+    expire_in: 1 week
+
+molecule_tests_secrets:
+  stage: acceptance
+  dependencies: []
+  before_script: []
+  script:
+    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
+    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s secrets
+  only:
+    - master
+    - tags
+    - encrypted-secrets
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
 
 release_deb:

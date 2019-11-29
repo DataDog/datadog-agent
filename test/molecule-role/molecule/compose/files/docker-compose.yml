@@ -2,24 +2,40 @@
 version: '2.4'
 
 services:
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - 2181:2181
+    mem_limit: 1G
   kafka:
-    image: spotify/kafka:latest
+    image: wurstmeister/kafka:2.12-2.1.1
+    ports:
+      - 9092:9092
+    depends_on:
+      - zookeeper
     environment:
-      ADVERTISED_HOST: kafka
-      ADVERTISED_PORT: 9092
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "sts_generic_events:1:1,sts_state_events:1:1,sts_multi_metrics:1:1,sts_correlate_endpoints:1:1,sts_topo_process_agents:1:1"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper"]
+      interval: 1s
+      timeout: 10s
+      retries: 10
+    mem_limit: 1G
   receiver:
     image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
-    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     ports:
       - 7077:7077
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
     mem_limit: 1G
   correlate:
     image: "quay.io/stackstate/stackstate-correlate:${STACKSTATE_BRANCH}"
-    entrypoint: "bin/stackstate-correlate -J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     depends_on:
       - receiver
     environment:
@@ -27,11 +43,11 @@ services:
     mem_limit: 1G
   topic-api:
     image: "quay.io/stackstate/stackstate-topic-api:${STACKSTATE_BRANCH}"
-    command: "-J-Xms128M -J-Xmx1G -J-XX:+ExitOnOutOfMemoryError -DconsoleLogging=true -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1"
     ports:
       - 7070:7070
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
@@ -43,10 +59,10 @@ services:
       POSTGRES_PASSWORD: 'app'
       POSTGRES_DB: 'app'
     healthcheck:
-      test: psql -U app app -c "select 1" || exit 1
-      interval: 30s
+      test: ["CMD", "/usr/bin/pg_isready", "--username=app", "--dbname=app"]
+      interval: 1s
       timeout: 10s
-      retries: 3
+      retries: 10
     ports:
       - 5432:5432
     labels:
@@ -57,25 +73,31 @@ services:
     ports:
       - '8081-8091:8081'
     depends_on:
-      - db
-      - stackstate-agent
+      db:
+        condition: service_healthy
+      stackstate-agent:
+        condition: service_started
     labels:
       - "traefik.frontend.rule=Host:stackstate-books-app.docker.localhost"
       - "traefik.backend=stackstate-books-app"
     environment:
       MAVEN_OPTS: "-Dsts.service.name=stackstate-books-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
+    mem_limit: 1G
   stackstate-authors-app:
     image: "quay.io/stackstate/stackstate-trace-java-demo:authors-app-master"
     ports:
       - '8092-8099:8081'
     depends_on:
-      - db
-      - stackstate-agent
+      db:
+        condition: service_healthy
+      stackstate-agent:
+        condition: service_started
     labels:
       - "traefik.frontend.rule=Host:stackstate-authors-app.docker.localhost"
       - "traefik.backend=stackstate-authors-app"
     environment:
       MAVEN_OPTS: "-Dsts.service.name=stackstate-authors-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
+    mem_limit: 1G
   traefik:
     image: traefik:v1.7.12
     command: --api --docker --loglevel=INFO --tracing=TRUE --tracing.backend="datadog" --tracing.datadog.debug=TRUE --tracing.datadog.localagenthostport="${DOCKER_HOST_IP}:8126" --tracing.datadog.globaltag="source:traefik"  # Enables the web UI and tells Traefik to listen to docker
@@ -100,7 +122,7 @@ services:
       - "/sys/kernel/debug:/sys/kernel/debug"
     environment:
       STS_API_KEY: "API_KEY"
-      STS_STS_URL: "http:/localhost:7077/stsAgent"
+      STS_STS_URL: "http://localhost:7077/stsAgent"
       STS_HOSTNAME: "trace-java-demo"
       STS_PROCESS_AGENT_URL: "http://localhost:7077/stsAgent"
       STS_PROCESS_AGENT_ENABLED: "true"

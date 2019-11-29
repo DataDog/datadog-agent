@@ -1,12 +1,23 @@
 # StackState Agent v2 releases
 
-## 2.0.6 ( ??? )
+## 2.0.7 ( ??? )
 
 **Features**
 
-**Bugs**
+**Improvements**
+
+
+## 2.0.6 (2019-11-28)
+
+**Features**
+
+- Allow linux and windows install scripts to work offline and install a local downloaded package of the StackState Agent _[(STAC-5977)](https://stackstate.atlassian.net/browse/STAC-5977)_
+- Support encryption for secrets in agent configurations using user-provided executable _[(STAC-6113)](https://stackstate.atlassian.net/browse/STAC-6113)_
+- Extend cluster agent to gather high level components (controllers, jobs, volumes, ingresses) _[(STAC-5372)](https://stackstate.atlassian.net/browse/STAC-5372)_
 
 **Improvements**
+
+- Enrich kubernetes topology information to enable telemetry mapping _[(STAC-5373)](https://stackstate.atlassian.net/browse/STAC-5373)_
 
 ## 2.0.5 (2019-10-10)
 

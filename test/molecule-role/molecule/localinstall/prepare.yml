@@ -1,0 +1,65 @@
+---
+- name: Prepare Linux Agents
+  hosts: agent_linux_vm
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream python-pip) || ((yum check-update || test $? -eq 100) && yum install -y python2) || true
+      become: true
+      changed_when: false
+    - name: Gather facts
+      setup:
+    # - debug: msg={{ ansible_facts }}
+    - name: Inject current user pub key, if exists
+      authorized_key:
+        user: ubuntu
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+      ignore_errors: true
+      become: true
+      when: ansible_distribution == "Ubuntu"
+    - name: Prepare installation script
+      copy:
+        src: files/agent/install_script.sh
+        dest: /tmp/install_script.sh
+        owner: "{{ ansible_user_id }}"
+        group: root
+        mode: u=rwx,g=rx,o=rx
+      become: yes
+    - block:
+        - name: Predownload deb
+          get_url:
+            url: https://stackstate-agent-2.s3.amazonaws.com/pool/stable/s/st/stackstate-agent_2.0.5-1_amd64.deb
+            dest: /tmp/current.deb
+            mode: 'u=rw,g=rw,o=r'
+            owner: "{{ ansible_user_id }}"
+            group: root
+          become: yes
+        - name: Set installation path
+          set_fact:
+            custom_installer: /tmp/current.deb
+      when: ansible_distribution == "Ubuntu"
+    - block:
+        - name: Predownload rpm
+          get_url:
+            url: https://stackstate-agent-2-rpm.s3.amazonaws.com/stable/stackstate-agent-2.0.5-1.x86_64.rpm
+            dest: /tmp/current.rpm
+            mode: 'u=rw,g=rw,o=r'
+            owner: "{{ ansible_user_id }}"
+            group: root
+          become: yes
+        - name: Set installation path
+          set_fact:
+            custom_installer: /tmp/current.rpm
+      when: ansible_distribution != "Ubuntu"
+    - name: Install stackstate-agent
+      shell: "/tmp/install_script.sh {{ custom_installer }}"
+      environment:
+        STS_API_KEY: "API_KEY"
+        STS_URL: "https://test-stackstate-agent.sts/stsAgent"
+        STS_HOSTNAME: "{{ inventory_hostname }}"
+        CODE_NAME: "{{ agent_current_branch }}"
+        SKIP_SSL_VALIDATION: "true"
+        STS_INSTALL_NO_REPO: "true"

@@ -40,6 +40,7 @@ type legacyKubernetesInstance struct {
 	CollectEvents       bool   `yaml:"collect_events"`
 	CollectMetrics      bool   `yaml:"collect_metrics"`
 	CollectTopology     bool   `yaml:"collect_topology"`
+	CollectTimeout      int    `yaml:"collect_timeout"`
 	LeaderCandidate     bool   `yaml:"leader_candidate"`
 	LeaderLeaseDuration int    `yaml:"leader_lease_duration"`
 	CollectServiceTags  string `yaml:"collect_service_tags"`
@@ -185,6 +186,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 	configConverter.Set("collect_kubernetes_events", instance.CollectEvents)
 	configConverter.Set("collect_kubernetes_metrics", instance.CollectMetrics)
 	configConverter.Set("collect_kubernetes_topology", instance.CollectTopology)
+	configConverter.Set("collect_kubernetes_timeout", instance.CollectTimeout)
 	configConverter.Set("leader_election", instance.LeaderCandidate)
 
 	if instance.LeaderLeaseDuration > 0 {

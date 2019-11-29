@@ -1,0 +1,38 @@
+{
+    "builders": [
+        {
+            "type": "amazon-ebs",
+            "region": "eu-west-1",
+            "instance_type": "m3.medium",
+            "source_ami": "ami-09c6f606506004483",
+            "ami_name": "molecule-windows-{{timestamp}}",
+            "user_data_file": "winrm_advanced.txt",
+            "communicator": "winrm",
+            "winrm_username": "Administrator",
+            "winrm_password": "Bionic!",
+            "winrm_insecure": true,
+            "winrm_port": "5986",
+            "winrm_use_ssl": true,
+            "tags": {
+                "OS_Version": "Windows 2016",
+                "Team": "Lupulus",
+                "Product": "stackstate-agent-2",
+                "Base_AMI_Name": "{{ .SourceAMIName }}",
+                "Extra": "{{ .SourceAMITags.TagName }}"
+            }
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "ansible",
+            "playbook_file": "./windows_ping.yml",
+            "extra_arguments": [
+                "--connection",
+                "packer",
+                "-vvv",
+                "--extra-vars",
+                "ansible_shell_type=powershell ansible_shell_executable=None"
+            ]
+        }
+    ]
+}

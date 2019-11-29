@@ -169,9 +169,12 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Errorf("Could not connect to the apiserver: %v", err)
 	} else {
-		le, err := leaderelection.GetLeaderEngine()
-		if err != nil {
-			return err
+		var le *leaderelection.LeaderEngine
+		if config.Datadog.GetBool("leader_election") {
+			le, err = leaderelection.GetLeaderEngine()
+			if err != nil {
+				return err
+			}
 		}
 		stopCh := make(chan struct{})
 		ctx := apiserver.ControllerContext{

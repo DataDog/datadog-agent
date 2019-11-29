@@ -1,4 +1,3 @@
 init_configs:
 instances:
-  - ## Tagging
-    ##
+  - min_collection_interval: 90

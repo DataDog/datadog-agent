@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+- ../../base
+
+configMapGenerator:
+- name: sts-agent-config
+  behavior: merge
+  literals:
+     - STS_API_KEY=API_KEY
+     - STS_STS_URL=https://stac-0000-kubernetes-demo.test.stackstate.io/receiver/stsAgent
+     - STS_PROCESS_AGENT_URL=https://stac-0000-kubernetes-demo.test.stackstate.io/receiver/stsAgent
+     - STS_APM_URL=https://stac-0000-kubernetes-demo.test.stackstate.io/receiver/stsAgent
+     - STS_CLUSTER_NAME=stackstate-demo-cluster
+- name: sts-clusteragent-config
+  behavior: merge
+  literals:
+     - STS_API_KEY=API_KEY
+     - STS_STS_URL=https://stac-0000-kubernetes-demo.test.stackstate.io/receiver/stsAgent
+     - STS_CLUSTER_NAME=stackstate-demo-cluster
+# - name: sts-agent-config
+#   env: config.env
+
+# config.env
+# STS_API_KEY=SOMEOTHER2
+
+secretGenerator:
+- name: stackstate-auth-token
+  # env is a path to a file to read lines of key=val
+  # you can only specify one env file per secret.
+  behavior: merge
+  env: env.txt
+  type: Opaque
+
+
+# generatorOptions modify behavior of all ConfigMap and Secret generators
+generatorOptions:
+  disableNameSuffixHash: true

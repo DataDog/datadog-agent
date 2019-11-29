@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sts-clusteragent-config
+  namespace: default
+data:
+  STS_API_KEY: API_KEY
+  STS_STS_URL: "<STACKSTATE_BACKEND_URL>/stsAgent"
+  STS_CLUSTER_NAME: "<SPECIFY>"
+  STS_COLLECT_KUBERNETES_EVENTS: "false"
+  STS_COLLECT_KUBERNETES_METRICS: "false"
+  STS_COLLECT_KUBERNETES_TOPOLOGY: "true"
+  STS_COLLECT_KUBERNETES_TIMEOUT: "10"
+  STS_LOG_LEVEL: "DEBUG"
+  LOG_LEVEL: "DEBUG"

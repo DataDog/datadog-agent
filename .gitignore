@@ -113,3 +113,6 @@ Dockerfiles/cluster-agent/auth_token
 Dockerfiles/cluster-agent/cluster_agent.auth_token
 Dockerfiles/cluster-agent/stackstate-cluster-agent
 Dockerfiles/cluster-agent/dist/
+
+# kubernetes test deployment
+deployment/kubernetes/k8s-*/

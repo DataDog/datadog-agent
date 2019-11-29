@@ -38,7 +38,7 @@ func checkRights(path string) error {
 	// checking we own the executable. This is useless since we won't be able
 	// to execute it if not, but it gives a better error message to the
 	// user.
-	if fmt.Sprintf("%d", stat.Uid) != usr.Uid {
+	if fmt.Sprintf("%d", stat.Uid) != usr.Uid && usr.Uid != "0" {
 		return fmt.Errorf("invalid executable: '%s' isn't owned by the user running the agent: name '%s', UID %s. We can't execute it", path, usr.Username, usr.Uid)
 	}
 
