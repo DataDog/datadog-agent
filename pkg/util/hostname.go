@@ -149,7 +149,7 @@ func GetHostnameData() (HostnameData, error) {
 	err = ValidHostname(configName)
 	if err == nil {
 		hostnameData := saveHostnameData(cacheHostnameKey, configName, HostnameProviderConfiguration)
-		if !isHostnameCanonicalForIntake(configName) {
+		if !isHostnameCanonicalForIntake(configName) && !config.Datadog.GetBool("hostname_force_config_as_canonical") {
 			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-config-as-canonical", configName)
 		}
 		return hostnameData, err
@@ -289,9 +289,8 @@ func GetHostnameData() (HostnameData, error) {
 func isHostnameCanonicalForIntake(hostname string) bool {
 	// Intake uses instance id for ec2 default hostname except for Windows.
 	if ec2.IsDefaultHostnameForIntake(hostname) {
-		if _, err := ec2.GetInstanceID(); err == nil {
-			return config.Datadog.GetBool("hostname_force_config_as_canonical")
-		}
+		_, err := ec2.GetInstanceID()
+		return err != nil
 	}
 	return true
 }
