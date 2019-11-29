@@ -117,7 +117,7 @@ type HostnameData struct {
 }
 
 // saveHostnameData creates a HostnameData struct, saves it in the cache under cacheHostnameKey
-// and call setHostnameProvider with the provider if it is not empty.
+// and calls setHostnameProvider with the provider if it is not empty.
 func saveHostnameData(cacheHostnameKey string, hostname string, provider string) HostnameData {
 	hostnameData := HostnameData{Hostname: hostname, Provider: provider}
 	cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
