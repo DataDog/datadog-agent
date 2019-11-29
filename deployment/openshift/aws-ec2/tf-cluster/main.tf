@@ -25,6 +25,7 @@ module "openshift" {
   source          = "./modules/openshift"
   region          = var.AWS_REGION
   amisize         = "t2.large" //  Smallest that meets the min specs for OS
+  centos_ami      = "ami-3548444c"
   vpc_cidr        = "10.0.0.0/16"
   subnet_cidr     = "10.0.1.0/24"
   key_name        = "openshift"
