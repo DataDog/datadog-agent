@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
@@ -19,7 +20,7 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	p := GetPayload("myhostname")
+	p := GetPayload(util.HostnameData{Hostname: "myhostname", Provider: ""})
 	assert.NotEmpty(t, p.Os)
 	assert.NotEmpty(t, p.PythonVersion)
 	assert.NotNil(t, p.SystemStats)
@@ -63,7 +64,7 @@ func TestGetHostInfo(t *testing.T) {
 }
 
 func TestGetMeta(t *testing.T) {
-	meta := getMeta()
+	meta := getMeta(util.HostnameData{})
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)

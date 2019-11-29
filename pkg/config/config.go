@@ -166,6 +166,11 @@ func initConfig(config Config) {
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
 	config.BindEnvAndSetDefault("hostname_fqdn", false)
+
+	// When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
+	// canonical hostname, otherwise the instance-id is used as canonical hostname.
+	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
+
 	config.BindEnvAndSetDefault("cluster_name", "")
 
 	// secrets backend
