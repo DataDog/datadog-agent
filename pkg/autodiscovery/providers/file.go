@@ -28,7 +28,7 @@ type configFormat struct {
 	LogsConfig              interface{} `yaml:"logs"`
 	Instances               []integration.RawMap
 	DockerImages            []string `yaml:"docker_images"`             // Only imported for deprecation warning
-	IgnoreAutodiscoveryTags bool     `yaml:"ignore_autodiscovery_tags"` // Use to ignore tags coming from the listener
+	IgnoreAutodiscoveryTags bool     `yaml:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
 }
 
 type configPkg struct {

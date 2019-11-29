@@ -51,7 +51,7 @@ type Config struct {
 	NodeName                string       `json:"node_name"`                 // node name in case of an endpoint check backed by a pod
 	CreationTime            CreationTime `json:"-"`                         // creation time of service
 	Source                  string       `json:"source"`                    // the source of the configuration
-	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // Use to ignore tags coming from the listener
+	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
