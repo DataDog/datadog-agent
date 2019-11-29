@@ -142,7 +142,7 @@ func GetHostnameData() (HostnameData, error) {
 		cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
 		setHostnameProvider(provider)
 		if !checkIfHostnameUsedAsCanonicalHostname(configName) {
-			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. https://dtdg.co/35FAVR7", configName)
+			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-config-as-canonical", configName)
 		}
 		return hostnameData, err
 	}
