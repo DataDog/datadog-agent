@@ -184,12 +184,12 @@ func (suite *testSuite) TestHostnameProvider() {
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
-	var testClusterName = "Laika"
+	var testClusterName = "laika"
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName()
 	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
 	foundHost, err = apiserver.HostnameProvider()
-	assert.Equal(suite.T(), "target.host-Laika", foundHost)
+	assert.Equal(suite.T(), "target.host-laika", foundHost)
 }

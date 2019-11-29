@@ -1373,7 +1373,14 @@ api_key:
 
 ## @param clustername - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
+## The cluster name can be up to 40 characters with the following restrictions:
+## * Lowercase letters, numbers, and hyphens only.
+## * Must start with a letter.
+## * Must end with a number or a letter.
+##
+## These are the same rules as the ones enforced by GKE:
+## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
-# clustername: <CLUSTER_IDENTIFIER>
+# cluster_name: <CLUSTER_IDENTIFIER>
 
 {{ end -}}

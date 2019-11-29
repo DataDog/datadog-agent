@@ -205,7 +205,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	mocked.AssertExpectations(t)
 
 	// Test the hostname change when a cluster name is set
-	var testClusterName = "Laika"
+	var testClusterName = "laika"
 	mockConfig := config.Mock()
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
