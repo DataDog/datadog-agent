@@ -38,6 +38,7 @@ stop_agent()
     elif [ "$DISTRIBUTION_FAMILY" = "Debian" ] || [ "$SUSE_SYSVINIT_SUPPORT" = "yes" ]; then
         if command -v service >/dev/null 2>&1; then
             service $SERVICE_NAME-process stop || true
+            service $SERVICE_NAME-sysprobe stop || true
             service $SERVICE_NAME-trace stop || true
             service $SERVICE_NAME stop || true
         else
@@ -64,15 +65,22 @@ deregister_agent()
     elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
         if command -v update-rc.d >/dev/null 2>&1; then
             update-rc.d -f $SERVICE_NAME-process remove || true
+            update-rc.d -f $SERVICE_NAME-sysprobe remove || true
             update-rc.d -f $SERVICE_NAME-trace remove || true
             update-rc.d -f $SERVICE_NAME remove || true
         else
             echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
         fi
     elif [ "$SUSE_SYSVINIT_SUPPORT" = "yes" ]; then
-        rm -f /etc/init.d/rc5.d/S95$SERVICE_NAME || true
-        rm -f /etc/init.d/rc5.d/S95$SERVICE_NAME-process || true
-        rm -f /etc/init.d/rc5.d/S95$SERVICE_NAME-trace || true
+        if command -v update-rc.d >/dev/null 2>&1; then
+            update-rc.d -f $SERVICE_NAME-process remove || true
+            update-rc.d -f $SERVICE_NAME-trace remove || true
+            update-rc.d -f $SERVICE_NAME remove || true
+        else
+            rm -f /etc/init.d/rc5.d/S95$SERVICE_NAME-process || true
+            rm -f /etc/init.d/rc5.d/S95$SERVICE_NAME-trace || true
+            rm -f /etc/init.d/rc5.d/S95$SERVICE_NAME || true
+        fi
     else
         echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
     fi
