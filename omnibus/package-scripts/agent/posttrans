@@ -57,7 +57,7 @@ if [ -f "$CONFIG_DIR/datadog.yaml" ]; then
         systemctl restart $SERVICE_NAME || true
     elif command -v initctl >/dev/null 2>&1; then
         initctl start $SERVICE_NAME || initctl restart $SERVICE_NAME || true
-    elif [ "$SUSE_SYSVINIT_SUPPORT" == "yes" ] && command -v service >/dev/null 2>&1; then
+    elif [ "$SUSE_SYSVINIT_SUPPORT" = "yes" ] && command -v service >/dev/null 2>&1; then
         service $SERVICE_NAME restart || true
     else
         echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."

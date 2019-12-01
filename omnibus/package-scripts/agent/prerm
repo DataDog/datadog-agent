@@ -17,7 +17,7 @@ elif [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTR
     DISTRIBUTION_FAMILY="SUSE"
 fi
 
-if [ "$DISTRIBUTION_FAMILY" == "SUSE" ] && cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
+if [ "$DISTRIBUTION_FAMILY" = "SUSE" ] && cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
     SUSE_SYSVINIT_SUPPORT="yes"
 fi
 
@@ -35,7 +35,7 @@ stop_agent()
         initctl stop $SERVICE_NAME-sysprobe || true
         initctl stop $SERVICE_NAME-trace || true
         initctl stop $SERVICE_NAME || true
-    elif [ "$DISTRIBUTION_FAMILY" = "Debian" ] || [ "$SUSE_SYSVINIT_SUPPORT"="yes" ]; then
+    elif [ "$DISTRIBUTION_FAMILY" = "Debian" ] || [ "$SUSE_SYSVINIT_SUPPORT" = "yes" ]; then
         if command -v service >/dev/null 2>&1; then
             service $SERVICE_NAME-process stop || true
             service $SERVICE_NAME-trace stop || true
@@ -69,7 +69,7 @@ deregister_agent()
         else
             echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
         fi
-    elif [ "$SUSE_SYSVINIT_SUPPORT"="yes" ]; then
+    elif [ "$SUSE_SYSVINIT_SUPPORT" = "yes" ]; then
         rm -f /etc/init.d/rc5.d/S95$SERVICE_NAME || true
         rm -f /etc/init.d/rc5.d/S95$SERVICE_NAME-process || true
         rm -f /etc/init.d/rc5.d/S95$SERVICE_NAME-trace || true
