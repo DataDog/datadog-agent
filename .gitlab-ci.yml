@@ -2726,7 +2726,9 @@ notify-on-failure:
   only:
     - master
     - triggers
-  script:
-    - BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
-    - 'MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME $CI_COMMIT_REF_NAME pipeline <$BUILD_URL|$CI_PIPELINE_ID> failed."'
-    - postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
+  script: |
+    BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
+    COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
+    MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME: Pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
+    $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>)"
+    postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
