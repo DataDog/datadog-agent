@@ -26,7 +26,7 @@ def test_container_metrics(host):
                     "netSentPs", "netRcvdBps", "userPct"}
         assert get_keys("trace-java-demo") == expected
 
-    util.wait_until(wait_for_metrics, 60, 3)
+    util.wait_until(wait_for_metrics, 180, 3)
 
 
 def test_no_datadog_metrics(host):
