@@ -277,8 +277,7 @@ func errResponse(format string, a ...interface{}) postResponse {
 }
 
 func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, containerCount int) {
-	endpoint.Endpoint.Path = checkPath
-	url := endpoint.Endpoint.String()
+	url := endpoint.GetCheckURL(checkPath)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
 		responses <- errResponse("could not create request to %s: %s", url, err)

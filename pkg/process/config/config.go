@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -18,6 +19,8 @@ import (
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const processCheckEndpoint = "/api/v1/collector"
 
 var (
 	// defaultProxyPort is the default port used for proxies.
@@ -49,6 +52,24 @@ type WindowsConfig struct {
 type APIEndpoint struct {
 	APIKey   string
 	Endpoint *url.URL
+}
+
+// GetCheckURL returns the URL string for a given agent check
+func (e *APIEndpoint) GetCheckURL(checkPath string) string {
+	// Make a copy of the URL
+	checkURL := *e.Endpoint
+
+	// This is to maintain backward compatibility with agents configured with the default collector endpoint:
+	// process_dd_url: https://process.datadoghq.com/api/v1/collector
+	if checkURL.Path == processCheckEndpoint {
+		checkURL.Path = ""
+	}
+
+	// Finally, add the checkPath to the existing APIEndpoint path.
+	// This is done like so to support certain use-cases in which `process_dd_url` points to something
+	// like a NGINX server proxying requests under a certain path (eg. https://proxy-host/process-agent)
+	checkURL.Path = path.Join(checkURL.Path, checkPath)
+	return checkURL.String()
 }
 
 // AgentConfig is the global config for the process-agent. This information
