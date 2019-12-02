@@ -7,6 +7,7 @@ import (
 	"net"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -25,17 +26,36 @@ func TestConntracker(t *testing.T) {
 	defer ct.Close()
 
 	<-startServerTCP(t, "1.1.1.1:5432")
+	<-startServerTCP(t, "1.1.1.1:9876")
 	<-startServerUDP(t, net.ParseIP("1.1.1.1"), 5432)
 
 	localAddr := pingTCP(t, "2.2.2.2:5432").(*net.TCPAddr)
+	la := *localAddr
 
 	trans := ct.GetTranslationForConn(util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port), process.ConnectionType_tcp)
 	require.NotNil(t, trans)
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
 
 	localAddrUDP := pingUDP(t, net.ParseIP("2.2.2.2"), 5432).(*net.UDPAddr)
+	time.Sleep(time.Second)
 	trans = ct.GetTranslationForConn(util.AddressFromNetIP(localAddrUDP.IP), uint16(localAddrUDP.Port), process.ConnectionType_udp)
+	require.NotNil(t, trans)
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
+
+	// now dial TCP directly
+	conn, err := net.DialTCP("tcp", &la, &net.TCPAddr{
+		IP:   net.ParseIP("1.1.1.1"),
+		Port: 9876,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+	_, err = conn.Write([]byte("hello2"))
+	require.NoError(t, err)
+
+	time.Sleep(time.Second)
+
+	trans = ct.GetTranslationForConn(util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port), process.ConnectionType_tcp)
+	assert.Nil(t, trans)
 
 	defer teardown(t)
 }
@@ -50,11 +70,15 @@ func startServerTCP(t *testing.T, addr string) <-chan struct{} {
 
 		ch <- struct{}{}
 
-		conn, err := l.Accept()
-		require.NoError(t, err)
+		// serve two connections, because the test makes two TCP connections
+		for i := 0; i < 2; i++ {
+			conn, err := l.Accept()
+			require.NoError(t, err)
 
-		conn.Write([]byte("hello"))
-		conn.Close()
+			conn.Write([]byte("hello"))
+			conn.Close()
+
+		}
 	}()
 
 	return ch
