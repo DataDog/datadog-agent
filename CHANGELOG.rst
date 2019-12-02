@@ -161,6 +161,29 @@ Other Notes
 - JMXFetch upgraded from 0.32.1 to 0.33.0
   https://github.com/DataDog/jmxfetch/blob/master/CHANGELOG.md#0330--2019-10-10
 
+.. _Release Notes_6.14.2:
+
+6.14.2
+======
+
+.. _Release Notes_6.14.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2019-10-29
+
+This release is only available for Windows.
+
+.. _Release Notes_6.14.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, allows the install to succeed successfully even in the event
+  that the user was not cleaned up successfully from a previous install.
+
+- On Windows, do not remove the home folder of the Agent's user (`dd-agent-user`) on uninstall.
 
 .. _Release Notes_6.14.1:
 
@@ -216,6 +239,9 @@ Upgrade Notes
 
 - Several metrics sent by the systemd check have been renamed. The integration is now stable.
 
+- All integrations that make HTTP(S) requests now properly fall back to proxy settings defined in
+  ``datadog.yaml`` if none are specified at the integration level. If this is undesired, you can
+  set ``skip_proxy`` to ``true`` in every instance config or in the ``init_config`` fallback.
 
 .. _Release Notes_6.14.0_New Features:
 
