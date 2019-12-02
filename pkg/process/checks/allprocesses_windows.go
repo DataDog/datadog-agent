@@ -282,10 +282,10 @@ func getUsernameForProcess(h windows.Handle) (name string, err error) {
 	tokenUser, err := t.GetTokenUser()
 
 	user, domain, _, err := tokenUser.User.Sid.LookupAccount("")
-	if nil == err {
-		return domain + "\\" + user, err
+	if nil != err {
+		return "", err
 	}
-	return "", err
+	return domain + "\\" + user, err
 }
 
 func convertWindowsString(winput []uint16) string {
