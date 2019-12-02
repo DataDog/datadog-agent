@@ -239,13 +239,16 @@ func (ctr *realConntracker) loadInitialState(sessions []ct.Con) {
 // register is registered to be called whenever a conntrack update/create is called.
 // it will keep being called until it returns nonzero.
 func (ctr *realConntracker) register(c ct.Con) int {
-	// don't bother storing if the connection is not NAT
-	if !isNAT(c) {
+	key, ok := formatKey(c)
+	if !ok {
 		return 0
 	}
 
-	key, ok := formatKey(c)
-	if !ok {
+	// if the connection is not NAT, delete it from the state (in case we have any leftover NAT'd connection)
+	if !isNAT(c) {
+		ctr.Lock()
+		delete(ctr.state, key)
+		ctr.Unlock()
 		return 0
 	}
 
