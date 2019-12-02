@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -29,6 +31,7 @@ const (
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
+	initRetry          retry.Retrier
 	pipelineProvider   pipeline.Provider
 	addedSources       chan *config.LogSource
 	removedSources     chan *config.LogSource
@@ -46,7 +49,7 @@ type Launcher struct {
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
+func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry bool) (*Launcher, error) {
 	launcher := &Launcher{
 		pipelineProvider:   pipelineProvider,
 		tailers:            make(map[string]*Tailer),
@@ -56,8 +59,22 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		erroredContainerID: make(chan string),
 		lock:               &sync.Mutex{},
 	}
-	err := launcher.setup()
-	if err != nil {
+
+	var retryStrategy retry.Strategy
+	if shouldRetry {
+		retryStrategy = retry.RetryCount
+	} else {
+		retryStrategy = retry.OneTry
+	}
+	launcher.initRetry.SetupRetrier(&retry.Config{
+		Name:          "docker Launcher setup",
+		AttemptMethod: func() error { return launcher.setup() },
+		Strategy:      retryStrategy,
+		RetryCount:    math.MaxInt32,
+		RetryDelay:    30 * time.Second,
+	})
+
+	if err := launcher.initRetry.TriggerRetry(); err != nil && err.RetryStatus == retry.PermaFail {
 		return nil, err
 	}
 	// Sources and services are added after the setup to avoid creating
@@ -105,6 +122,15 @@ func (l *Launcher) Stop() {
 // run starts and stops new tailers when it receives a new source
 // or a new service which is mapped to a container.
 func (l *Launcher) run() {
+	for l.initRetry.RetryStatus() == retry.FailWillRetry {
+		time.Sleep(time.Until(l.initRetry.NextRetry()))
+		l.initRetry.TriggerRetry()
+	}
+
+	if l.initRetry.RetryStatus() != retry.OK {
+		return
+	}
+
 	for {
 		select {
 		case service := <-l.addedServices:

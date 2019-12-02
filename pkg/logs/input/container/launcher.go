@@ -21,7 +21,8 @@ import (
 // By default returns a docker launcher if the docker socket is mounted and fallback to
 // a kubernetes launcher if '/var/log/pods' is mounted ; this behaviour is reversed when
 // collectFromFiles is enabled.
-// Returns a noop launcher if none of those volumes are mounted.
+// If none of those volumes are mounted, returns a lazy docker launcher with a retrier to handle the cases
+// where docker is started after the agent.
 func NewLauncher(collectAll bool, collectFromFiles bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
 	var (
 		launcher restart.Restartable
@@ -36,14 +37,14 @@ func NewLauncher(collectAll bool, collectFromFiles bool, sources *config.LogSour
 		}
 		log.Infof("Could not setup the kubernetes launcher: %v", err)
 
-		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry)
+		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, false)
 		if err == nil {
 			log.Info("Docker launcher initialized")
 			return launcher
 		}
 		log.Infof("Could not setup the docker launcher: %v", err)
 	} else {
-		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry)
+		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, false)
 		if err == nil {
 			log.Info("Docker launcher initialized")
 			return launcher
@@ -58,7 +59,13 @@ func NewLauncher(collectAll bool, collectFromFiles bool, sources *config.LogSour
 		log.Infof("Could not setup the kubernetes launcher: %v", err)
 	}
 
-	log.Infof("Container logs won't be collected")
+	launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, true)
+	if err != nil {
+		log.Warnf("Could not setup the docker launcher: %v. Will not be able to collect container logs", err)
+		return nil
+	}
 
-	return NewNoopLauncher()
+	log.Infof("Container logs won't be collected unless a docker daemon is eventually started")
+
+	return launcher
 }
