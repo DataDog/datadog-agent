@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 
 	"context"
@@ -25,6 +26,7 @@ const (
 
 var (
 	globalUtil            *RemoteSysProbeUtil
+	globalUtilOnce        sync.Once
 	globalSocketPath      string
 	hasLoggedErrForStatus map[retry.Status]struct{}
 )
@@ -54,7 +56,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 		return nil, fmt.Errorf("remote tracer has no socket path defined")
 	}
 
-	if globalUtil == nil {
+	globalUtilOnce.Do(func() {
 		globalUtil = newSystemProbe()
 		globalUtil.initRetry.SetupRetrier(&retry.Config{
 			Name:          "system-probe-util",
@@ -64,7 +66,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 			RetryCount: 10,
 			RetryDelay: 30 * time.Second,
 		})
-	}
+	})
 
 	if err := globalUtil.initRetry.TriggerRetry(); err != nil {
 		log.Debugf("system probe init error: %s", err)
