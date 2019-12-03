@@ -143,7 +143,6 @@ func (cc *ContainerCorrelator) containerToStackStateComponent(nodeIdentifier str
 		},
 		"pod":          pod.Name,
 		"podIP":        pod.PodIP,
-		"namespace":    pod.Namespace,
 		"restartCount": container.RestartCount,
 		"tags":         tags,
 	}

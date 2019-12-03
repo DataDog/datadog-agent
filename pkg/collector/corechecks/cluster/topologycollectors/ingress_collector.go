@@ -91,7 +91,6 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 			"name":              ingress.Name,
 			"creationTimestamp": ingress.CreationTimestamp,
 			"tags":              tags,
-			"namespace":         ingress.Namespace,
 			"identifiers":       identifiers,
 			"uid":               ingress.UID,
 		},

@@ -67,7 +67,6 @@ func (jc *JobCollector) jobToStackStateComponent(job v1.Job) *topology.Component
 			"name":              job.Name,
 			"creationTimestamp": job.CreationTimestamp,
 			"tags":              tags,
-			"namespace":         job.Namespace,
 			"uid":               job.UID,
 			"backoffLimit":      job.Spec.BackoffLimit,
 			"parallelism":       job.Spec.Parallelism,

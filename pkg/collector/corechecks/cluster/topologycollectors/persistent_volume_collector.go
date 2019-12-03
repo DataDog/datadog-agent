@@ -121,7 +121,6 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 			"name":              persistentVolume.Name,
 			"creationTimestamp": persistentVolume.CreationTimestamp,
 			"tags":              tags,
-			"namespace":         persistentVolume.Namespace,
 			"uid":               persistentVolume.UID,
 			"identifiers":       identifiers,
 			"status":            persistentVolume.Status.Phase,

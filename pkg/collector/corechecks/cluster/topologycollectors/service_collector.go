@@ -195,7 +195,6 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 		Type:       topology.Type{Name: "service"},
 		Data: map[string]interface{}{
 			"name":              service.Name,
-			"namespace":         service.Namespace,
 			"creationTimestamp": service.CreationTimestamp,
 			"tags":              tags,
 			"identifiers":       identifiers,

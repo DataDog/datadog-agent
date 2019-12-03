@@ -190,7 +190,6 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 			"creationTimestamp": pod.CreationTimestamp,
 			"tags":              tags,
 			"status":            podStatus,
-			"namespace":         pod.Namespace,
 			"identifiers":       identifiers,
 			"uid":               pod.UID,
 		},

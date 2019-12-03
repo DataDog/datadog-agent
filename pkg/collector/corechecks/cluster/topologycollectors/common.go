@@ -184,13 +184,6 @@ func (c *clusterTopologyCommon) buildEndpointExternalID(endpointID string) strin
 	return fmt.Sprintf("urn:endpoint:/%s:%s", c.Instance.URL, endpointID)
 }
 
-// addClusterNameTag
-// tags
-func (c *clusterTopologyCommon) addClusterNameTag(tags map[string]string) map[string]string {
-	tags["cluster-name"] = c.Instance.URL
-	return tags
-}
-
 func (c *clusterTopologyCommon) initTags(meta metav1.ObjectMeta) map[string]string {
 	tags := make(map[string]string, 0)
 	if meta.Labels != nil {

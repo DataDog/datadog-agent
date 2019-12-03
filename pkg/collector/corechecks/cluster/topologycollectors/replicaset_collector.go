@@ -68,7 +68,6 @@ func (rsc *ReplicaSetCollector) replicaSetToStackStateComponent(replicaSet v1.Re
 			"name":              replicaSet.Name,
 			"creationTimestamp": replicaSet.CreationTimestamp,
 			"tags":              tags,
-			"namespace":         replicaSet.Namespace,
 			"desiredReplicas":   replicaSet.Spec.Replicas,
 			"uid":               replicaSet.UID,
 		},

@@ -55,7 +55,6 @@ func (dmc *DeploymentCollector) deploymentToStackStateComponent(deployment v1.De
 			"name":               deployment.Name,
 			"creationTimestamp":  deployment.CreationTimestamp,
 			"tags":               tags,
-			"namespace":          deployment.Namespace,
 			"deploymentStrategy": deployment.Spec.Strategy.Type,
 			"desiredReplicas":    deployment.Spec.Replicas,
 			"uid":                deployment.UID,

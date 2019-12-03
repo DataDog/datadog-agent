@@ -55,20 +55,12 @@ func TestNodeCollector(t *testing.T) {
 							"name":              "test-node-1",
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
-							"namespace":         "test-namespace",
 							"uid":               types.UID("test-node-1"),
 							"status": NodeStatus{
 								Phase: coreV1.NodeRunning,
 								NodeInfo: coreV1.NodeSystemInfo{
 									MachineID:               "test-machine-id-1",
-									SystemUUID:              "",
-									BootID:                  "",
 									KernelVersion:           "4.19.0",
-									OSImage:                 "",
-									ContainerRuntimeVersion: "",
-									KubeletVersion:          "",
-									KubeProxyVersion:        "",
-									OperatingSystem:         "",
 									Architecture:            "x86_64",
 								},
 								KubeletEndpoint: coreV1.DaemonEndpoint{Port: 5000},
@@ -104,7 +96,6 @@ func TestNodeCollector(t *testing.T) {
 							"name":              "test-node-2",
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
-							"namespace":         "test-namespace",
 							"uid":               types.UID("test-node-2"),
 							"status": NodeStatus{
 								Phase: coreV1.NodeRunning,
@@ -147,7 +138,6 @@ func TestNodeCollector(t *testing.T) {
 							"name":              "test-node-3",
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
-							"namespace":         "test-namespace",
 							"uid":               types.UID("test-node-3"),
 							"status": NodeStatus{
 								Phase: coreV1.NodeRunning,

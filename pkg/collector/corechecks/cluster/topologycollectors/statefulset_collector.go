@@ -55,7 +55,6 @@ func (ssc *StatefulSetCollector) statefulSetToStackStateComponent(statefulSet v1
 			"name":                statefulSet.Name,
 			"creationTimestamp":   statefulSet.CreationTimestamp,
 			"tags":                tags,
-			"namespace":           statefulSet.Namespace,
 			"updateStrategy":      statefulSet.Spec.UpdateStrategy.Type,
 			"desiredReplicas":     statefulSet.Spec.Replicas,
 			"podManagementPolicy": statefulSet.Spec.PodManagementPolicy,

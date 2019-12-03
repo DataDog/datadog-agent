@@ -55,7 +55,6 @@ func (dsc *DaemonSetCollector) daemonSetToStackStateComponent(daemonSet v1.Daemo
 			"name":              daemonSet.Name,
 			"creationTimestamp": daemonSet.CreationTimestamp,
 			"tags":              tags,
-			"namespace":         daemonSet.Namespace,
 			"updateStrategy":    daemonSet.Spec.UpdateStrategy.Type,
 			"uid":               daemonSet.UID,
 		},

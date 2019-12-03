@@ -56,7 +56,6 @@ func (cjc *CronJobCollector) cronJobToStackStateComponent(cronJob v1beta1.CronJo
 			"name":              cronJob.Name,
 			"creationTimestamp": cronJob.CreationTimestamp,
 			"tags":              tags,
-			"namespace":         cronJob.Namespace,
 			"uid":               cronJob.UID,
 			"concurrencyPolicy": cronJob.Spec.ConcurrencyPolicy,
 			"schedule":          cronJob.Spec.Schedule,
