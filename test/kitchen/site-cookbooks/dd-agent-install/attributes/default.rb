@@ -5,6 +5,11 @@
 default['datadog']['agent_start'] = true
 default['datadog']['agent_enable'] = true
 
+# On SUSE 11, skip system-probe management since it's not shipped with the Agent.
+if node['platform_family'] == 'suse' && node['platform_version'].to_i <= 11
+  default['datadog']['system_probe']['manage_config'] = false
+end
+
 # All other options use the defaults set in the official cookbook,
 # or the options set in the kitchen job (eg. aptrepo, yumrepo, etc.)
 

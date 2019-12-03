@@ -3,6 +3,10 @@ suites:
 # Installs the latest release Agent 6, then updates it to the latest release
 # candidate
 - name: dd-agent-upgrade-agent6
+  excludes: <% if sles11_platforms.nil? || sles11_platforms.empty? %>[]<% end %> # No stable Agent 6 SUSE 11 package yet
+    <% sles11_platforms.each do |p| %>
+    - <%= p %>
+    <% end %>
   run_list:
     - "recipe[dd-agent-install]"
     - "recipe[dd-agent-upgrade]"
