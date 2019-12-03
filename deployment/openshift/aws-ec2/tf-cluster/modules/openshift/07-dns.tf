@@ -8,7 +8,7 @@ resource "aws_route53_zone" "internal" {
   vpc {
     vpc_id = "${aws_vpc.openshift.id}"
   }
-  tags {
+  tags = {
     Name    = "OpenShift Internal DNS"
     Project = "openshift"
   }
