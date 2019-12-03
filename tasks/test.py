@@ -45,7 +45,7 @@ DEFAULT_TEST_TARGETS = [
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     verbose=False, race=False, profile=False, fail_on_fmt=False,
     rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0,
-    timeout=120, arch="x64", no_cache=False):
+    timeout=120, arch="x64", cache=True):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -120,7 +120,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     if coverage:
         coverprofile = "-coverprofile={}".format(PROFILE_COV)
 
-    nocache = '-count=1' if no_cache else ''
+    nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
     cmd = 'go test {verbose} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
