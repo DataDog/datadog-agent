@@ -18,6 +18,8 @@ import (
 	"time"
 )
 
+var configMap coreV1.ConfigMapVolumeSource
+
 func TestPodCollector(t *testing.T) {
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
@@ -26,6 +28,18 @@ func TestPodCollector(t *testing.T) {
 	containerCorrelationChannel := make(chan *ContainerCorrelation)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
+	pathType = coreV1.HostPathFileOrCreate
+	gcePersistentDisk = coreV1.GCEPersistentDiskVolumeSource{
+		PDName: "name-of-the-gce-persistent-disk",
+	}
+	awsElasticBlockStore = coreV1.AWSElasticBlockStoreVolumeSource{
+		VolumeID: "id-of-the-aws-block-store",
+	}
+	configMap = coreV1.ConfigMapVolumeSource{
+		LocalObjectReference: coreV1.LocalObjectReference{
+			Name: "name-of-the-config-map",
+		},
+	}
 
 	ic := NewPodCollector(componentChannel, relationChannel, containerCorrelationChannel, NewTestCommonClusterCollector(MockPodAPICollectorClient{}))
 	expectedCollectorName := "Pod Collector"
@@ -218,6 +232,92 @@ func TestPodCollector(t *testing.T) {
 		},
 		{
 			testCase: "Test Pod 4 - Volumes + Persistent Volumes",
+			assertions: []func(){
+				func() {
+					component := <-componentChannel
+					expectedComponent := &topology.Component{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-4",
+						Type:       topology.Type{Name: "pod"},
+						Data: topology.Data{
+							"name":              "test-pod-4",
+							"creationTimestamp": creationTime,
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+							"uid":               types.UID("test-pod-4"),
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-pod-4:10.0.0.1"},
+							"restartPolicy":     coreV1.RestartPolicyAlways,
+							"status": coreV1.PodStatus{
+								Phase:                 coreV1.PodRunning,
+								Conditions:            []coreV1.PodCondition{},
+								InitContainerStatuses: []coreV1.ContainerStatus{},
+								ContainerStatuses:     []coreV1.ContainerStatus{},
+								StartTime:             &creationTime,
+								PodIP:                 "10.0.0.1",
+							},
+						},
+					}
+					assert.EqualValues(t, expectedComponent, component)
+				},
+				func() {
+					relation := <-relationChannel
+					expectedRelation := &topology.Relation{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-4->urn:/kubernetes:test-cluster-name:node:test-node",
+						Type:       topology.Type{Name: "scheduled_on"},
+						SourceID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-4",
+						TargetID:   "urn:/kubernetes:test-cluster-name:node:test-node",
+						Data:       map[string]interface{}{},
+					}
+					assert.EqualValues(t, expectedRelation, relation)
+				},
+				func() {
+					relation := <-relationChannel
+					expectedRelation := &topology.Relation{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-4->urn:/kubernetes:test-cluster-name:persistent-volume:test-volume-1",
+						Type:       topology.Type{Name: "claims"},
+						SourceID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-4",
+						TargetID:   "urn:/kubernetes:test-cluster-name:persistent-volume:test-volume-1",
+						Data:       map[string]interface{}{},
+					}
+					assert.EqualValues(t, expectedRelation, relation)
+				},
+				func() {
+					relation := <-relationChannel
+					expectedRelation := &topology.Relation{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-4->urn:/kubernetes:test-cluster-name:persistent-volume:test-volume-2",
+						Type:       topology.Type{Name: "claims"},
+						SourceID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-4",
+						TargetID:   "urn:/kubernetes:test-cluster-name:persistent-volume:test-volume-2",
+						Data:       map[string]interface{}{},
+					}
+					assert.EqualValues(t, expectedRelation, relation)
+				},
+				func() {
+					component := <-componentChannel
+					expectedComponent := &topology.Component{
+						ExternalID: "urn:/kubernetes:test-cluster-name:volume:test-volume-3",
+						Type:       topology.Type{Name: "volume"},
+						Data: topology.Data{
+							"name": "test-volume-3",
+							"source": coreV1.VolumeSource{
+								ConfigMap: &configMap,
+							},
+							"identifiers": []string{"urn:/kubernetes:test-cluster-name:configmap:test-namespace:name-of-the-config-map"},
+							"tags": map[string]string{"test":"label", "cluster-name":"test-cluster-name", "namespace":"test-namespace"},
+						},
+					}
+					assert.EqualValues(t, expectedComponent, component)
+				},
+				func() {
+					relation := <-relationChannel
+					expectedRelation := &topology.Relation{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-4->urn:/kubernetes:test-cluster-name:volume:test-volume-3",
+						Type:       topology.Type{Name: "claims"},
+						SourceID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-4",
+						TargetID:   "urn:/kubernetes:test-cluster-name:volume:test-volume-3",
+						Data:       map[string]interface{}{},
+					}
+					assert.EqualValues(t, expectedRelation, relation)
+				},
+			},
 		},
 		{
 			testCase: "Test Pod 5 - Containers + Container Correlation",
@@ -237,7 +337,7 @@ type MockPodAPICollectorClient struct {
 
 func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 	pods := make([]coreV1.Pod, 0)
-	for i := 1; i <= 3; i++ {
+	for i := 1; i <= 4; i++ {
 		pod := coreV1.Pod{
 			TypeMeta: v1.TypeMeta{
 				Kind: "",
@@ -286,7 +386,11 @@ func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 		}
 
 		if i == 4 {
-
+			pod.Spec.Volumes = []coreV1.Volume {
+				{Name: "test-volume-1", VolumeSource: coreV1.VolumeSource{ AWSElasticBlockStore: &awsElasticBlockStore }},
+				{Name: "test-volume-2", VolumeSource: coreV1.VolumeSource{ GCEPersistentDisk: &gcePersistentDisk }},
+				{Name: "test-volume-3", VolumeSource: coreV1.VolumeSource{ ConfigMap: &configMap }},
+			}
 		}
 
 		if i == 5 {
