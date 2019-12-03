@@ -48,13 +48,19 @@ package :msi do
 end
 package :zip do
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Add dogstatsd to buildpack build
   extra_package_dirs [
     "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
     "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin"
     ]
+<<<<<<< HEAD
 =======
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
 >>>>>>> WIP - Do Not Merge
+=======
+>>>>>>> Add dogstatsd to buildpack build
 
   additional_sign_files [
       #"#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
@@ -96,9 +102,13 @@ dependency 'preparation'
 # Datadog agent
 dependency 'datadog-puppy'
 <<<<<<< HEAD
+<<<<<<< HEAD
 dependency 'datadog-dogstatsd'
 =======
 >>>>>>> WIP - Do Not Merge
+=======
+dependency 'datadog-dogstatsd'
+>>>>>>> Add dogstatsd to buildpack build
 
 # version manifest file
 dependency 'version-manifest'
