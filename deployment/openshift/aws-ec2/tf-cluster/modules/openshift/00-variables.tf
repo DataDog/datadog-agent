@@ -29,7 +29,9 @@ variable "cluster_name" {
 variable "cluster_id" {
   description = "ID of the cluster, e.g: 'openshift-cluster-us-east-1'. Useful when running multiple clusters in the same AWS account."
 }
-
+variable "centos_ami"{
+  description = "the Centos7 AMI to use for master and nodes"
+}
 data "aws_availability_zones" "azs" {}
 variable "aws_access_key" {}
 variable "aws_secret_key" {}

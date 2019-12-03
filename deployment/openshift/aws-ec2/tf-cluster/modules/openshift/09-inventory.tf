@@ -2,7 +2,7 @@
 //  inventory from the inventory template.
 data "template_file" "inventory" {
   template = "${file("${path.cwd}/inventory.template.cfg")}"
-  vars {
+  vars = {
     access_key = "${var.aws_access_key}"
     secret_key = "${var.aws_secret_key}"
     public_hostname = "${aws_instance.master.public_ip}.xip.io"

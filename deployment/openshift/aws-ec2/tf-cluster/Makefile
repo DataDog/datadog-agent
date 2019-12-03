@@ -14,14 +14,18 @@ openshift:
 
 	# Copy our inventory to the master and run the install script.
 	scp ./inventory.cfg ec2-user@$$(terraform output bastion-public_ip):~
+	cat install-pre-requisites.sh | ssh -A ec2-user@$$(terraform output bastion-public_ip) ssh centos@master.openshift.local
+	cat install-pre-requisites.sh | ssh -A ec2-user@$$(terraform output bastion-public_ip) ssh centos@node1.openshift.local
+	cat install-pre-requisites.sh | ssh -A ec2-user@$$(terraform output bastion-public_ip) ssh centos@node2.openshift.local
+	
 	cat install-from-bastion.sh | ssh -o StrictHostKeyChecking=no -A ec2-user@$$(terraform output bastion-public_ip)
 
 	# Now the installer is done, run the postinstall steps on each host.
 	# Note: these scripts cause a restart, so we use a hyphen to ignore the ssh
 	# connection termination.
-	- cat ./scripts/postinstall-master.sh | ssh -A ec2-user@$$(terraform output bastion-public_ip) ssh master.openshift.local
-	- cat ./scripts/postinstall-node.sh | ssh -A ec2-user@$$(terraform output bastion-public_ip) ssh node1.openshift.local
-	- cat ./scripts/postinstall-node.sh | ssh -A ec2-user@$$(terraform output bastion-public_ip) ssh node2.openshift.local
+	- cat ./scripts/postinstall-master.sh | ssh -A ec2-user@$$(terraform output bastion-public_ip) ssh centos@master.openshift.local
+	- cat ./scripts/postinstall-node.sh | ssh -A ec2-user@$$(terraform output bastion-public_ip) ssh centos@node1.openshift.local
+	- cat ./scripts/postinstall-node.sh | ssh -A ec2-user@$$(terraform output bastion-public_ip) ssh centos@node2.openshift.local
 	echo "Complete! Wait a minute for hosts to restart, then run 'make browse-openshift' to login."
 
 # Destroy the infrastructure.
@@ -36,11 +40,11 @@ browse-openshift:
 ssh-bastion:
 	ssh -t -A ec2-user@$$(terraform output bastion-public_ip)
 ssh-master:
-	ssh -t -A ec2-user@$$(terraform output bastion-public_ip) ssh master.openshift.local
+	ssh -t -A ec2-user@$$(terraform output bastion-public_ip) ssh centos@master.openshift.local
 ssh-node1:
-	ssh -t -A ec2-user@$$(terraform output bastion-public_ip) ssh node1.openshift.local
+	ssh -t -A ec2-user@$$(terraform output bastion-public_ip) ssh centos@node1.openshift.local
 ssh-node2:
-	ssh -t -A ec2-user@$$(terraform output bastion-public_ip) ssh node2.openshift.local
+	ssh -t -A ec2-user@$$(terraform output bastion-public_ip) ssh centos@node2.openshift.local
 
 # Create sample services.
 sample:
