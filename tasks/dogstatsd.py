@@ -12,7 +12,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags, get_default_build_tags
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .utils import get_build_flags, bin_name, get_root, load_release_versions, get_version
 from .utils import REPO_PATH
 
@@ -43,11 +43,17 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)
     bin_path = DOGSTATSD_BIN_PATH
 
+    if not sys.platform.startswith('linux'):
+        for ex in LINUX_ONLY_TAGS:
+            if ex not in build_exclude:
+                build_exclude.append(ex)
+    build_tags = get_build_tags(build_include, build_exclude)
+
     if static:
         bin_path = STATIC_BIN_PATH
 
     # NOTE: consider stripping symbols to reduce binary size
-    cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
+    cmd = "go build {race_opt} {build_type} -tags \"{build_tags}\" -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd"
     args = {
         "race_opt": "-race" if race else "",
