@@ -42,7 +42,7 @@ func TestDeploymentCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":               "test-deployment-1",
 					"creationTimestamp":  creationTime,
-					"tags":               map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"tags":               map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"namespace":          "test-namespace",
 					"uid":                types.UID("test-deployment-1"),
 					"deploymentStrategy": appsV1.RollingUpdateDeploymentStrategyType,
@@ -58,7 +58,7 @@ func TestDeploymentCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":               "test-deployment-2",
 					"creationTimestamp":  creationTime,
-					"tags":               map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"tags":               map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"namespace":          "test-namespace",
 					"uid":                types.UID("test-deployment-2"),
 					"deploymentStrategy": appsV1.RollingUpdateDeploymentStrategyType,
@@ -74,7 +74,7 @@ func TestDeploymentCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":               "test-deployment-3",
 					"creationTimestamp":  creationTime,
-					"tags":               map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"tags":               map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"namespace":          "test-namespace",
 					"uid":                types.UID("test-deployment-3"),
 					"kind":               "some-specified-kind",

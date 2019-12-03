@@ -46,8 +46,7 @@ func (cjc *CronJobCollector) CollectorFunction() error {
 func (cjc *CronJobCollector) cronJobToStackStateComponent(cronJob v1beta1.CronJob) *topology.Component {
 	log.Tracef("Mapping CronJob to StackState component: %s", cronJob.String())
 
-	tags := emptyIfNil(cronJob.Labels)
-	tags = cjc.addClusterNameTag(tags)
+	tags := cjc.initTags(cronJob.ObjectMeta)
 
 	cronJobExternalID := cjc.buildCronJobExternalID(cronJob.Name)
 	component := &topology.Component{

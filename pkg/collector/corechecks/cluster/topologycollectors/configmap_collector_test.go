@@ -46,7 +46,7 @@ func TestConfigMapCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-configmap-1",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"namespace":         "test-namespace",
 					"uid":               types.UID("test-configmap-1"),
 					"data":              map[string]string{"key1": "value1", "key2": "longersecretvalue2"},
@@ -62,7 +62,7 @@ func TestConfigMapCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-configmap-2",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"namespace":         "test-namespace",
 					"uid":               types.UID("test-configmap-2"),
 					"identifiers":       []string{"urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-2"},
@@ -77,7 +77,7 @@ func TestConfigMapCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-configmap-3",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"cluster-name": "test-cluster-name"},
+					"tags":              map[string]string{"cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"namespace":         "test-namespace",
 					"uid":               types.UID("test-configmap-3"),
 					"identifiers":       []string{"urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-3"},

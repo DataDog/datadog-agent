@@ -176,12 +176,11 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	podStatus.InitContainerStatuses = make([]v1.ContainerStatus, 0)
 	podStatus.ContainerStatuses = make([]v1.ContainerStatus, 0)
 
-	tags := emptyIfNil(pod.Labels)
+	tags := pc.initTags(pod.ObjectMeta)
 	// add service account as a label to filter on
 	if pod.Spec.ServiceAccountName != "" {
 		tags["service-account"] = pod.Spec.ServiceAccountName
 	}
-	tags = pc.addClusterNameTag(tags)
 
 	component := &topology.Component{
 		ExternalID: podExternalID,
@@ -279,8 +278,7 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 
 	log.Tracef("Created identifiers for %s: %v", volume.Name, identifiers)
 
-	tags := make(map[string]string, 0)
-	tags = pc.addClusterNameTag(tags)
+	tags := pc.initTags(pod.ObjectMeta)
 
 	component := &topology.Component{
 		ExternalID: volumeExternalID,

@@ -45,8 +45,7 @@ func (dmc *DeploymentCollector) CollectorFunction() error {
 func (dmc *DeploymentCollector) deploymentToStackStateComponent(deployment v1.Deployment) *topology.Component {
 	log.Tracef("Mapping Deployment to StackState component: %s", deployment.String())
 
-	tags := emptyIfNil(deployment.Labels)
-	tags = dmc.addClusterNameTag(tags)
+	tags := dmc.initTags(deployment.ObjectMeta)
 
 	deploymentExternalID := dmc.buildDeploymentExternalID(deployment.Namespace, deployment.Name)
 	component := &topology.Component{

@@ -54,7 +54,7 @@ func TestNodeCollector(t *testing.T) {
 						Data: topology.Data{
 							"name":              "test-node-1",
 							"creationTimestamp": creationTime,
-							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"namespace":         "test-namespace",
 							"uid":               types.UID("test-node-1"),
 							"status": NodeStatus{
@@ -103,7 +103,7 @@ func TestNodeCollector(t *testing.T) {
 						Data: topology.Data{
 							"name":              "test-node-2",
 							"creationTimestamp": creationTime,
-							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"namespace":         "test-namespace",
 							"uid":               types.UID("test-node-2"),
 							"status": NodeStatus{
@@ -146,7 +146,7 @@ func TestNodeCollector(t *testing.T) {
 						Data: topology.Data{
 							"name":              "test-node-3",
 							"creationTimestamp": creationTime,
-							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"namespace":         "test-namespace",
 							"uid":               types.UID("test-node-3"),
 							"status": NodeStatus{

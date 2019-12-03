@@ -45,8 +45,7 @@ func (dsc *DaemonSetCollector) CollectorFunction() error {
 func (dsc *DaemonSetCollector) daemonSetToStackStateComponent(daemonSet v1.DaemonSet) *topology.Component {
 	log.Tracef("Mapping DaemonSet to StackState component: %s", daemonSet.String())
 
-	tags := emptyIfNil(daemonSet.Labels)
-	tags = dsc.addClusterNameTag(tags)
+	tags := dsc.initTags(daemonSet.ObjectMeta)
 
 	daemonSetExternalID := dsc.buildDaemonSetExternalID(daemonSet.Name)
 	component := &topology.Component{

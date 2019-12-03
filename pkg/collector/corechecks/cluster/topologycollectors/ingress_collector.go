@@ -70,8 +70,7 @@ func (ic *IngressCollector) CollectorFunction() error {
 func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress) *topology.Component {
 	log.Tracef("Mapping Ingress to StackState component: %s", ingress.String())
 
-	tags := emptyIfNil(ingress.Labels)
-	tags = ic.addClusterNameTag(tags)
+	tags := ic.initTags(ingress.ObjectMeta)
 
 	identifiers := make([]string, 0)
 

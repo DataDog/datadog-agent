@@ -46,7 +46,7 @@ func TestPodCollector(t *testing.T) {
 						Data: topology.Data{
 							"name":              "test-pod-1",
 							"creationTimestamp": creationTime,
-							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"namespace":         "test-namespace",
 							"uid":               types.UID("test-pod-1"),
 							"identifiers":       []string{"urn:ip:/test-cluster-name:test-pod-1:10.0.0.1"},
@@ -87,7 +87,7 @@ func TestPodCollector(t *testing.T) {
 						Data: topology.Data{
 							"name":              "test-pod-2",
 							"creationTimestamp": creationTime,
-							"tags":              map[string]string{"test": "label", "service-account": "some-service-account-name", "cluster-name": "test-cluster-name"},
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service-account": "some-service-account-name"},
 							"namespace":         "test-namespace",
 							"uid":               types.UID("test-pod-2"),
 							"identifiers":       []string{"urn:ip:/test-cluster-name:10.0.0.2", "urn:ip:/test-cluster-name:test-pod-2:10.0.0.2"},
@@ -134,7 +134,7 @@ func TestPodCollector(t *testing.T) {
 						Data: topology.Data{
 							"name":              "test-pod-3",
 							"creationTimestamp": creationTime,
-							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"namespace":         "test-namespace",
 							"uid":               types.UID("test-pod-3"),
 							"identifiers":       []string{"urn:ip:/test-cluster-name:test-pod-3:10.0.0.1"},

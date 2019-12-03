@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ClusterTopologyCommon should be mixed in this interface for basic functionality on any real collector
@@ -13,7 +14,7 @@ type ClusterTopologyCommon interface {
 	GetName() string
 	CreateRelation(sourceExternalID, targetExternalID, typeName string) *topology.Relation
 	CreateRelationData(sourceExternalID, targetExternalID, typeName string, data map[string]interface{}) *topology.Relation
-	addClusterNameTag(tags map[string]string) map[string]string
+	initTags(meta metav1.ObjectMeta) map[string]string
 	buildClusterExternalID() string
 	buildConfigMapExternalID(namespace, configMapID string) string
 	buildContainerExternalID(podName, containerName string) string
@@ -187,5 +188,20 @@ func (c *clusterTopologyCommon) buildEndpointExternalID(endpointID string) strin
 // tags
 func (c *clusterTopologyCommon) addClusterNameTag(tags map[string]string) map[string]string {
 	tags["cluster-name"] = c.Instance.URL
+	return tags
+}
+
+func (c *clusterTopologyCommon) initTags(meta metav1.ObjectMeta) map[string]string {
+	tags := make(map[string]string, 0)
+	if meta.Labels != nil {
+		tags = meta.Labels
+	}
+
+	// set the cluster name and the namespace
+	tags["cluster-name"] = c.Instance.URL
+	if meta.Namespace != "" {
+		tags["namespace"] = meta.Namespace
+	}
+
 	return tags
 }

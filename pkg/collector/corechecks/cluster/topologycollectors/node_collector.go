@@ -106,8 +106,7 @@ func (nc *NodeCollector) nodeToStackStateComponent(node v1.Node) *topology.Compo
 
 	nodeExternalID := nc.buildNodeExternalID(node.Name)
 
-	tags := emptyIfNil(node.Labels)
-	tags = nc.addClusterNameTag(tags)
+	tags := nc.initTags(node.ObjectMeta)
 
 	component := &topology.Component{
 		ExternalID: nodeExternalID,
