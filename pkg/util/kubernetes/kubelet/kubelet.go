@@ -41,8 +41,9 @@ const (
 )
 
 var (
-	globalKubeUtil *KubeUtil
-	kubeletExpVar  = expvar.NewInt("kubeletQueries")
+	globalKubeUtil      *KubeUtil
+	globalKubeUtilMutex sync.Mutex
+	kubeletExpVar       = expvar.NewInt("kubeletQueries")
 )
 
 // KubeUtil is a struct to hold the kubelet api url
@@ -66,7 +67,9 @@ type KubeUtil struct {
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
 // It is ONLY to be used for tests
 func ResetGlobalKubeUtil() {
+	globalKubeUtilMutex.Lock()
 	globalKubeUtil = nil
+	globalKubeUtilMutex.Unlock()
 }
 
 // ResetCache deletes existing kubeutil related cache
@@ -93,6 +96,7 @@ func newKubeUtil() *KubeUtil {
 
 // GetKubeUtil returns an instance of KubeUtil.
 func GetKubeUtil() (*KubeUtil, error) {
+	globalKubeUtilMutex.Lock()
 	if globalKubeUtil == nil {
 		globalKubeUtil = newKubeUtil()
 		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{
@@ -103,6 +107,7 @@ func GetKubeUtil() (*KubeUtil, error) {
 			RetryDelay:    30 * time.Second,
 		})
 	}
+	globalKubeUtilMutex.Unlock()
 	err := globalKubeUtil.initRetry.TriggerRetry()
 	if err != nil {
 		log.Debugf("Kube util init error: %s", err)
