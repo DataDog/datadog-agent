@@ -2659,19 +2659,31 @@ latest_release_7:
     - if [[ -z "$TAG" ]]; then echo "Need a tag to delete"; exit 1; fi
     - inv -e docker.delete ${ORGANIZATION} ${IMAGE} ${TAG} ${DOCKER_TOKEN} &>/dev/null
 
-# invalidate cloudfront cache
-deploy_cloudfront_invalidate:
+#
+# Cloudfront cache invalidation:
+# Duplicated in 2 jobs: one that runs "on success" of the previous stage, and one that runs "on failure" of previous stages.
+# Compared to having 1 single job that runs "always", this setup guarantees that if earlier stages first failed and were
+# then retried successfully, the cloudfront invalidation will also run after the successful retry.
+#
+.deploy_cloudfront_invalidate: &deploy_cloudfront_invalidate
   <<: *run_when_triggered
   stage: deploy_invalidate
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
-  when: always
   script:
     - cd /deploy_scripts/cloudfront-invalidation
     - "REPO=apt PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
     - "REPO=yum PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+
+deploy_cloudfront_invalidate_on_success:
+  <<: *deploy_cloudfront_invalidate
+  when: on_success
+
+deploy_cloudfront_invalidate_on_failure:
+  <<: *deploy_cloudfront_invalidate
+  when: on_failure
 
 #
 # end to end
