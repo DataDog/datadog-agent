@@ -320,7 +320,130 @@ func TestPodCollector(t *testing.T) {
 			},
 		},
 		{
-			testCase: "Test Pod 5 - Containers + Container Correlation",
+			testCase: "Test Pod 5 - Containers + Config Maps",
+			assertions: []func(){
+				func() {
+					component := <-componentChannel
+					expectedComponent := &topology.Component{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-5",
+						Type:       topology.Type{Name: "pod"},
+						Data: topology.Data{
+							"name":              "test-pod-5",
+							"creationTimestamp": creationTime,
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+							"uid":               types.UID("test-pod-5"),
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-pod-5:10.0.0.1"},
+							"restartPolicy":     coreV1.RestartPolicyAlways,
+							"status": coreV1.PodStatus{
+								Phase:                 coreV1.PodRunning,
+								Conditions:            []coreV1.PodCondition{},
+								InitContainerStatuses: []coreV1.ContainerStatus{},
+								ContainerStatuses:     []coreV1.ContainerStatus{},
+								StartTime:             &creationTime,
+								PodIP:                 "10.0.0.1",
+							},
+						},
+					}
+					assert.EqualValues(t, expectedComponent, component)
+				},
+				func() {
+					relation := <-relationChannel
+					expectedRelation := &topology.Relation{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-5->urn:/kubernetes:test-cluster-name:node:test-node",
+						Type:       topology.Type{Name: "scheduled_on"},
+						SourceID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-5",
+						TargetID:   "urn:/kubernetes:test-cluster-name:node:test-node",
+						Data:       map[string]interface{}{},
+					}
+					assert.EqualValues(t, expectedRelation, relation)
+				},
+				func() {
+					relation := <-relationChannel
+					expectedRelation := &topology.Relation{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-5->urn:/kubernetes:test-cluster-name:configmap:test-namespace:name-of-the-config-map",
+						Type:       topology.Type{Name: "uses"},
+						SourceID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-5",
+						TargetID:   "urn:/kubernetes:test-cluster-name:configmap:test-namespace:name-of-the-config-map",
+						Data:       map[string]interface{}{},
+					}
+					assert.EqualValues(t, expectedRelation, relation)
+				},
+				func() {
+					relation := <-relationChannel
+					expectedRelation := &topology.Relation{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-5->urn:/kubernetes:test-cluster-name:configmap:test-namespace:name-of-the-env-config-map",
+						Type:       topology.Type{Name: "uses_value"},
+						SourceID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-5",
+						TargetID:   "urn:/kubernetes:test-cluster-name:configmap:test-namespace:name-of-the-env-config-map",
+						Data:       map[string]interface{}{},
+					}
+					assert.EqualValues(t, expectedRelation, relation)
+				},
+			},
+		},
+		{
+			testCase: "Test Pod 6 - Containers + Container Correlation",
+			assertions: []func(){
+				func() {
+					component := <-componentChannel
+					expectedComponent := &topology.Component{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-6",
+						Type:       topology.Type{Name: "pod"},
+						Data: topology.Data{
+							"name":              "test-pod-6",
+							"creationTimestamp": creationTime,
+							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+							"uid":               types.UID("test-pod-6"),
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-pod-6:10.0.0.1"},
+							"restartPolicy":     coreV1.RestartPolicyAlways,
+							"status": coreV1.PodStatus{
+								Phase:                 coreV1.PodRunning,
+								Conditions:            []coreV1.PodCondition{},
+								InitContainerStatuses: []coreV1.ContainerStatus{},
+								ContainerStatuses:     []coreV1.ContainerStatus{},
+								StartTime:             &creationTime,
+								PodIP:                 "10.0.0.1",
+							},
+						},
+					}
+					assert.EqualValues(t, expectedComponent, component)
+				},
+				func() {
+					relation := <-relationChannel
+					expectedRelation := &topology.Relation{
+						ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-6->urn:/kubernetes:test-cluster-name:node:test-node",
+						Type:       topology.Type{Name: "scheduled_on"},
+						SourceID:   "urn:/kubernetes:test-cluster-name:pod:test-pod-6",
+						TargetID:   "urn:/kubernetes:test-cluster-name:node:test-node",
+						Data:       map[string]interface{}{},
+					}
+					assert.EqualValues(t, expectedRelation, relation)
+				},
+				func() {
+					correlation := <-containerCorrelationChannel
+					expectedCorrelation := &ContainerCorrelation{
+						Pod: ContainerPod{
+							ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-6",
+							Name      : "test-pod-6",
+							Labels     : map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+							PodIP      : "10.0.0.1",
+							Namespace  : "test-namespace",
+							NodeName   : "test-node",
+						},
+						ContainerStatuses: []coreV1.ContainerStatus{
+							{
+								Name:  "container-1",
+								Image: "docker/image/repo/container-1:latest",
+							},
+							{
+								Name:  "container-2",
+								Image: "docker/image/repo/container-2:latest",
+							},
+						},
+					}
+					assert.EqualValues(t, expectedCorrelation, correlation)
+				},
+			},
 		},
 	} {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -337,7 +460,7 @@ type MockPodAPICollectorClient struct {
 
 func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 	pods := make([]coreV1.Pod, 0)
-	for i := 1; i <= 4; i++ {
+	for i := 1; i <= 6; i++ {
 		pod := coreV1.Pod{
 			TypeMeta: v1.TypeMeta{
 				Kind: "",
@@ -394,7 +517,42 @@ func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 		}
 
 		if i == 5 {
+			pod.Spec.Containers = []coreV1.Container{
+				{
+					Name:  "container-1",
+					Image: "docker/image/repo/container:latest",
+					Env: []coreV1.EnvVar{
+						{
+							Name: "env-var",
+							ValueFrom: &coreV1.EnvVarSource{
+								ConfigMapKeyRef: &coreV1.ConfigMapKeySelector{
+									LocalObjectReference: coreV1.LocalObjectReference{ Name: "name-of-the-env-config-map"},
+								},
+							},
+						},
+					},
+					EnvFrom: []coreV1.EnvFromSource{
+						{
+							ConfigMapRef: &coreV1.ConfigMapEnvSource{
+								LocalObjectReference: coreV1.LocalObjectReference{Name: "name-of-the-config-map"},
+							},
+						},
+					},
+				},
+			}
+		}
 
+		if i == 6 {
+			pod.Status.ContainerStatuses = []coreV1.ContainerStatus{
+				{
+					Name:  "container-1",
+					Image: "docker/image/repo/container-1:latest",
+				},
+				{
+					Name:  "container-2",
+					Image: "docker/image/repo/container-2:latest",
+				},
+			}
 		}
 
 		pods = append(pods, pod)
