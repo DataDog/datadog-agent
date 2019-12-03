@@ -45,7 +45,7 @@ DEFAULT_TEST_TARGETS = [
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     verbose=False, race=False, profile=False, fail_on_fmt=False,
     rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0,
-    timeout=120, arch="x64"):
+    timeout=120, arch="x64", no_cache=False):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -120,9 +120,11 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     if coverage:
         coverprofile = "-coverprofile={}".format(PROFILE_COV)
 
+    nocache = '-count=1' if no_cache else ''
+
     build_tags.append("test")
     cmd = 'go test {verbose} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
+    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_build_tags": " ".join(build_tags),
         "gcflags": gcflags,
@@ -134,6 +136,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         "pkg_folder": ' '.join(matches),
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
+        "nocache": nocache,
     }
     ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)
 
