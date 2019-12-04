@@ -1,6 +1,7 @@
 [Unit]
 Description=Datadog System Probe
 Requires=sys-kernel-debug.mount
+Before=datadog-agent.service
 After=network.target sys-kernel-debug.mount
 
 [Service]
