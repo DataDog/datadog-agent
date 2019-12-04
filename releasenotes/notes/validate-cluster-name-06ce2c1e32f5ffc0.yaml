@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 fixes:
-  - Add a validation check on cluster-name that enforces the same rule as on GKE
+  - Check that cluster-name provided by configuraiton file are compliant with the same rule as on GKE. Logs an error and ignore it otherwise.

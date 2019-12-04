@@ -6,7 +6,6 @@
 package clustername
 
 import (
-	"fmt"
 	"regexp"
 	"sync"
 
@@ -63,9 +62,11 @@ func getClusterName(data *clusterNameData) string {
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
 			if !validClusterName.MatchString(data.clusterName) {
-				panic(fmt.Sprintf("\"%s\" isn’t a valid cluster name. It must start with a lowercase "+
+				log.Errorf("\"%s\" isn’t a valid cluster name. It must start with a lowercase "+
 					"letter followed by up to 39 lowercase letters, numbers, or hyphens, and "+
-					"cannot end with a hyphen.", data.clusterName))
+					"cannot end with a hyphen.", data.clusterName)
+				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
+				data.clusterName = ""
 			}
 		}
 
