@@ -136,6 +136,8 @@ deps_win:
 
 unit_tests:
   stage: build_and_test
+  needs:
+    - deps_deb
   dependencies:
     - deps_deb
   script:
@@ -149,6 +151,8 @@ unit_tests:
 
 integration_tests:
   stage: build_and_test
+  needs:
+    - deps_deb
   dependencies:
     - deps_deb
   script:
@@ -165,6 +169,8 @@ filename_linting:
 
 docker_integration_tests:
   stage: build_and_test
+  needs:
+    - deps_deb
   dependencies:
     - deps_deb
   variables:
@@ -178,6 +184,8 @@ docker_integration_tests:
 
 build_binaries:
   stage: build_and_test
+  needs:
+    - deps_deb
   dependencies:
     - deps_deb
   script:
@@ -186,6 +194,8 @@ build_binaries:
 
 build_puppy:
   stage: build_and_test
+  needs:
+    - deps_deb
   dependencies:
     - deps_deb
   script:
@@ -194,6 +204,8 @@ build_puppy:
 
 build_cluster_agent:
   stage: build_and_test
+  needs:
+    - deps_deb
   dependencies:
     - deps_deb
   script:
@@ -232,6 +244,8 @@ clear_build_rpm_cache:
 
 build_deb:
   stage: build_and_test
+  needs:
+    - deps_deb
   dependencies:
     - deps_deb
   tags:
@@ -282,6 +296,8 @@ build_deb:
 build_rpm:
   stage: build_and_test
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
+  needs:
+    - deps_rpm
   dependencies:
     - deps_rpm
   tags:
@@ -328,6 +344,8 @@ build_rpm:
 
 build_win:
   stage: build_and_test
+  needs:
+    - deps_win
   dependencies:
     - deps_win
   before_script: []
@@ -353,6 +371,8 @@ build_win:
 
 test_deb_renaming:
   stage: pre_release
+  needs:
+    - build_deb
   dependencies:
     - build_deb
   before_script: []
@@ -362,6 +382,8 @@ test_deb_renaming:
 test_rpm_renaming:
   stage: pre_release
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
+  needs:
+    - build_rpm
   dependencies:
     - build_rpm
   before_script: []
@@ -370,6 +392,9 @@ test_rpm_renaming:
 
 pre_release_deb:
   stage: pre_release
+  needs:
+    - deps_deb
+    - build_deb
   dependencies:
     - deps_deb
     - build_deb
@@ -383,6 +408,9 @@ pre_release_deb:
 
 pre_release_win:
   stage: pre_release
+  needs:
+    - deps_win
+    - build_win
   dependencies:
     - deps_win
     - build_win
@@ -403,6 +431,8 @@ pre_release_win:
 pre_release_rpm:
   stage: pre_release
 #  image: docker.io/stackstate/stackstate-agent-runner-gitlab:rpm.latest
+  needs:
+    - build_rpm
   dependencies:
     - build_rpm
   before_script: []
@@ -413,6 +443,8 @@ pre_release_rpm:
 pre_release_image:
   stage: pre_release
   image: docker:18.06.0
+  needs:
+    - build_deb
   dependencies:
     - build_deb
   variables:
@@ -429,6 +461,8 @@ pre_release_image:
 pre_release_trace_agent_image:
   stage: pre_release
   image: docker:18.06.0
+  needs:
+    - build_deb
   dependencies:
     - build_deb
   variables:
@@ -445,6 +479,8 @@ pre_release_trace_agent_image:
 pre_release_cluster_agent_image:
   stage: pre_release
   image: docker:18.06.0
+  needs:
+    - build_cluster_agent
   dependencies:
     - build_cluster_agent
   variables:
@@ -660,16 +696,3 @@ release_cluster_agent_image:
   only:
     - tags
     - trigger
-
-#docker_test:
-#  stage: docker_test
-#  image: docker:latest
-#  variables:
-#    DOCKER_DRIVER: overlay
-#  services:
-#  - docker:dind
-#  before_script:
-#  - printenv
-#  - docker info
-#  script:
-#    - docker ps
