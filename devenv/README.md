@@ -1,20 +1,18 @@
+### Windows Dev Env
 
-### Third party notice
+This folder contains a few scripts to help get setup with a Windows Development Environment on a Mac.
+There is a Powershell script that uses Chocolatey to install the recommended dependencies to build the agent and some Packer files to build ready-to-use Vagrant boxes.
 
-Two third party files are used and adapted in this PR:
-- `devenv\scripts\Install-GuestTools.ps1` from https://github.com/luciusbono/Packer-Windows10/blob/master/install-guest-tools.ps1
-- `devenv\scripts\Enable-WinRM.ps1` from https://github.com/StefanScherer/packer-windows/blob/my/scripts/enable-winrm.ps1
-
-### Usage of the Powershell script
+### Using the Powershell script
 
 Copy the script `devenv\scripts\Install-DevEnv.ps1` on the target machine and then in an Administrator Powershell prompt:
 
 `Set-ExecutionPolicy Bypass -Scope Process -Force; <path_to_ps1>\Install-DevEnv.ps1`
 
-### Generating the base boxes
+### Using Packer to generate the base boxes
 
-Since the Packer's json file contained a lot of duplicated content, I've made a Ruby template file.
-To generate the Packer file and then invoke Packer, I've used the `Invoke!` library.
+There is a Ruby template file to generate the various Packer combinations.
+To generate the Packer file and then invoke Packer the `Invoke!` library is used.
 
 To generate the `packer.json` file (here for Windows 10):
 `inv packer.build --os=windows-10 --provider=virtualbox-iso`
@@ -42,7 +40,7 @@ Then, it's just a matter of building the images:
 
 **Note:** The base boxes are based on Windows 10 Enterprise Evaluation (1903) and Windows Server 2019 Evaluation ISOs. They are good for 90 days, after that a valid license must be provided.
 
-### Vagrant usage
+### Using Vagrant to start a dev VM
 
 The provided `Vagrantfile` expects the box to exist in the same directory.
 
@@ -72,3 +70,9 @@ mkdir vm
 cd vm
 tar zxvf ../windows_10_ent_vmware.box
 ```
+
+### Third party notice
+
+Two third party files are used and adapted:
+- `devenv\scripts\Install-GuestTools.ps1` from https://github.com/luciusbono/Packer-Windows10/blob/master/install-guest-tools.ps1
+- `devenv\scripts\Enable-WinRM.ps1` from https://github.com/StefanScherer/packer-windows/blob/my/scripts/enable-winrm.ps1
