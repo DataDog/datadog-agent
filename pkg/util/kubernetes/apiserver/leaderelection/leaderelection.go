@@ -167,8 +167,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 
 	le.StartLeaderElectionRun()
 
-	timeoutDuration := getLeaderTimeout
-	timeout := time.After(timeoutDuration)
+	timeout := time.After(getLeaderTimeout)
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
