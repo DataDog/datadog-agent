@@ -45,8 +45,7 @@ func (ssc *StatefulSetCollector) CollectorFunction() error {
 func (ssc *StatefulSetCollector) statefulSetToStackStateComponent(statefulSet v1.StatefulSet) *topology.Component {
 	log.Tracef("Mapping StatefulSet to StackState component: %s", statefulSet.String())
 
-	tags := emptyIfNil(statefulSet.Labels)
-	tags = ssc.addClusterNameTag(tags)
+	tags := ssc.initTags(statefulSet.ObjectMeta)
 
 	statefulSetExternalID := ssc.buildStatefulSetExternalID(statefulSet.Name)
 	component := &topology.Component{
@@ -56,7 +55,6 @@ func (ssc *StatefulSetCollector) statefulSetToStackStateComponent(statefulSet v1
 			"name":                statefulSet.Name,
 			"creationTimestamp":   statefulSet.CreationTimestamp,
 			"tags":                tags,
-			"namespace":           statefulSet.Namespace,
 			"updateStrategy":      statefulSet.Spec.UpdateStrategy.Type,
 			"desiredReplicas":     statefulSet.Spec.Replicas,
 			"podManagementPolicy": statefulSet.Spec.PodManagementPolicy,
