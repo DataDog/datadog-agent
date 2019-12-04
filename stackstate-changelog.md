@@ -6,6 +6,7 @@
 
 **Improvements**
 
+- Enrich kubernetes topology information with the namespace as a label on all StackState components _[(STAC-7084)](https://stackstate.atlassian.net/browse/STAC-7084)_
 
 ## 2.0.6 (2019-11-28)
 

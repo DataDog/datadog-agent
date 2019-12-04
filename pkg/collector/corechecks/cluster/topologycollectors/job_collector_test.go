@@ -49,8 +49,7 @@ func TestJobCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-job-1",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-job-1"),
 					"backoffLimit":      &backoffLimit,
 					"parallelism":       &parralelism,
@@ -74,8 +73,7 @@ func TestJobCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-job-2",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-job-2"),
 					"backoffLimit":      &backoffLimit,
 					"parallelism":       &parralelism,
@@ -90,8 +88,7 @@ func TestJobCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-job-3",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-job-3"),
 					"kind":              "some-specified-kind",
 					"generateName":      "some-specified-generation",
