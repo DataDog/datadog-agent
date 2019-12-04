@@ -209,12 +209,16 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 
 // Inspect returns a docker inspect object for a given container ID.
 // It tries to locate the container in the inspect cache before making the docker inspect call
-// TODO: try sized inspect if withSize=false and unsized key cache misses
 func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, error) {
 	cacheKey := GetInspectCacheKey(id, withSize)
 	var container types.ContainerJSON
 
 	cached, hit := cache.Cache.Get(cacheKey)
+	// Try to get sized hit if we got a miss and withSize=false
+	if !hit && !withSize {
+		cached, hit = cache.Cache.Get(GetInspectCacheKey(id, true))
+	}
+
 	if hit {
 		container, ok := cached.(types.ContainerJSON)
 		if !ok {

@@ -21,7 +21,10 @@ import (
 )
 
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal
-const defaultWaitDuration = 1 * time.Second
+const (
+	defaultWaitDuration    = 1 * time.Second
+	defaultApplicationName = "docker"
+)
 
 // Tailer collects logs from a journal.
 type Tailer struct {
@@ -221,10 +224,11 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	origin.Offset, _ = t.journal.GetCursor()
 	// set the service and the source attributes of the message,
 	// those values are still overridden by the integration config when defined
-	applicationName := t.getApplicationName(entry)
+	tags := t.getTags(entry)
+	applicationName := t.getApplicationName(entry, tags)
 	origin.SetSource(applicationName)
 	origin.SetService(applicationName)
-	origin.SetTags(t.getTags(entry))
+	origin.SetTags(tags)
 	return origin
 }
 
@@ -236,10 +240,17 @@ var applicationKeys = []string{
 }
 
 // getApplicationName returns the name of the application from where the entry is from.
-func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry) string {
+func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry, tags []string) string {
 	if t.isContainerEntry(entry) {
-		return "docker"
+		if t.source.Config.ContainerMode {
+			if shortName, found := getDockerImageShortName(t.getContainerID(entry), tags); found {
+				return shortName
+			}
+		}
+
+		return defaultApplicationName
 	}
+
 	for _, key := range applicationKeys {
 		if value, exists := entry.Fields[key]; exists {
 			return value
@@ -252,7 +263,7 @@ func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry) string {
 func (t *Tailer) getTags(entry *sdjournal.JournalEntry) []string {
 	var tags []string
 	if t.isContainerEntry(entry) {
-		tags = append(tags, t.getContainerTags(t.getContainerID(entry))...)
+		tags = t.getContainerTags(t.getContainerID(entry))
 	}
 	return tags
 }

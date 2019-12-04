@@ -9,12 +9,14 @@ package journald
 
 import (
 	"testing"
+	"time"
 
 	"github.com/coreos/go-systemd/sdjournal"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 func TestIdentifier(t *testing.T) {
@@ -71,7 +73,7 @@ func TestApplicationName(t *testing.T) {
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
 				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
 			},
-		}))
+		}, []string{}))
 
 	assert.Equal(t, "foo.service", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
@@ -79,19 +81,19 @@ func TestApplicationName(t *testing.T) {
 				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT: "foo.service",
 				sdjournal.SD_JOURNAL_FIELD_COMM:         "foo.sh",
 			},
-		}))
+		}, []string{}))
 
 	assert.Equal(t, "foo.sh", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{
 				sdjournal.SD_JOURNAL_FIELD_COMM: "foo.sh",
 			},
-		}))
+		}, []string{}))
 
 	assert.Equal(t, "", tailer.getApplicationName(
 		&sdjournal.JournalEntry{
 			Fields: map[string]string{},
-		}))
+		}, []string{}))
 }
 
 func TestContent(t *testing.T) {
@@ -148,5 +150,71 @@ func TestApplicationNameShouldBeDockerForContainerEntries(t *testing.T) {
 				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
 				containerIDKey:                               "bar",
 			},
-		}))
+		}, []string{}))
+}
+
+func TestApplicationNameShouldBeShortImageForContainerEntries(t *testing.T) {
+	containerID := "bar"
+
+	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
+	tailer := NewTailer(source, nil)
+
+	assert.Equal(t, "testImage", tailer.getApplicationName(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+				containerIDKey:                               containerID,
+			},
+		}, []string{"short_image:testImage"}))
+
+	// Verify we have the value in our cache
+	_, hit := cache.Cache.Get(getImageCacheKey(containerID))
+	assert.True(t, hit)
+}
+
+func TestApplicationNameShouldBeDockerWhenTagNotFound(t *testing.T) {
+	containerID := "bar2"
+
+	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
+	tailer := NewTailer(source, nil)
+
+	assert.Equal(t, "docker", tailer.getApplicationName(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+				containerIDKey:                               containerID,
+			},
+		}, []string{"not_short_image:testImage"}))
+
+	// Verify we don't have value in our cache
+	_, hit := cache.Cache.Get(getImageCacheKey(containerID))
+	assert.False(t, hit)
+}
+
+func TestWrongTypeFromCache(t *testing.T) {
+	containerID := "bar3"
+
+	// Store wrong type in cache, verify we ignore the value
+	cache.Cache.Set(getImageCacheKey(containerID), 10, 30*time.Second)
+
+	source := config.NewLogSource("", &config.LogsConfig{ContainerMode: true})
+	tailer := NewTailer(source, nil)
+
+	assert.Equal(t, "testImage", tailer.getApplicationName(
+		&sdjournal.JournalEntry{
+			Fields: map[string]string{
+				sdjournal.SD_JOURNAL_FIELD_SYSLOG_IDENTIFIER: "foo",
+				sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT:      "foo.service",
+				sdjournal.SD_JOURNAL_FIELD_COMM:              "foo.sh",
+				containerIDKey:                               containerID,
+			},
+		}, []string{"short_image:testImage"}))
+
+	// Verify we have the value in our cache
+	_, hit := cache.Cache.Get(getImageCacheKey(containerID))
+	assert.True(t, hit)
 }
