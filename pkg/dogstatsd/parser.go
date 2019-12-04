@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -145,7 +146,7 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.
 		}
 
 		if bytes.HasPrefix(rawMetadataField, []byte("d:")) {
-			ts, err := strconv.ParseInt(string(rawMetadataField[2:]), 10, 64)
+			ts, err := parseInt64(rawMetadataField[2:])
 			if err != nil {
 				log.Warnf("skipping timestamp: %s", err)
 				continue
@@ -193,12 +194,12 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 		return nil, fmt.Errorf("Invalid message format")
 	}
 
-	titleLen, err := strconv.ParseInt(string(rawLen[0]), 10, 64)
+	titleLen, err := parseInt64(rawLen[0])
 	if err != nil {
 		return nil, fmt.Errorf("Invalid message format, could not parse title.length: '%s'", rawLen[0])
 	}
 
-	textLen, err := strconv.ParseInt(string(rawLen[1][:len(rawLen[1])-1]), 10, 64)
+	textLen, err := parseInt64(rawLen[1][:len(rawLen[1])-1])
 	if err != nil {
 		return nil, fmt.Errorf("Invalid message format, could not parse text.length: '%s'", rawLen[0])
 	}
@@ -232,7 +233,7 @@ func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, 
 
 		for i := range rawMetadataFields {
 			if bytes.HasPrefix(rawMetadataFields[i], []byte("d:")) {
-				ts, err := strconv.ParseInt(string(rawMetadataFields[i][2:]), 10, 64)
+				ts, err := parseInt64(rawMetadataFields[i][2:])
 				if err != nil {
 					log.Warnf("skipping timestamp: %s", err)
 					continue
@@ -309,7 +310,7 @@ func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []s
 		} else if bytes.HasPrefix(rawMetadataField, []byte("@")) {
 			rawSampleRate := rawMetadataField[1:]
 			var err error
-			sampleRate, err = strconv.ParseFloat(string(rawSampleRate), 64)
+			sampleRate, err = parseFloat64(rawSampleRate)
 			if err != nil {
 				return nil, fmt.Errorf("invalid sample value for %q", message)
 			}
@@ -350,7 +351,7 @@ func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []s
 	if metricType == metrics.SetType {
 		sample.RawValue = string(rawValue)
 	} else {
-		metricValue, err := strconv.ParseFloat(string(rawValue), 64)
+		metricValue, err := parseFloat64(rawValue)
 		if err != nil {
 			return nil, fmt.Errorf("invalid metric value for %q", message)
 		}
@@ -358,4 +359,12 @@ func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []s
 	}
 
 	return sample, nil
+}
+
+func parseFloat64(rawFloat []byte) (float64, error) {
+	return strconv.ParseFloat(*(*string)(unsafe.Pointer(&rawFloat)), 64)
+}
+
+func parseInt64(rawInt []byte) (int64, error) {
+	return strconv.ParseInt(*(*string)(unsafe.Pointer(&rawInt)), 10, 64)
 }
