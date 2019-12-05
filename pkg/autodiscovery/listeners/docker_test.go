@@ -84,7 +84,7 @@ func TestGetConfigIDFromPs(t *testing.T) {
 		Labels: map[string]string{"com.datadoghq.ad.instances": "[]]"},
 	}
 	ids = dl.getConfigIDFromPs(templatedCo)
-	assert.Equal(t, []string{"docker://deadbeef"}, ids)
+	assert.Equal(t, []string{"docker://deadbeef", "org/test", "test"}, ids)
 }
 
 func TestGetHostsFromPs(t *testing.T) {
@@ -578,4 +578,19 @@ func TestGetHostname(t *testing.T) {
 
 		})
 	}
+}
+
+func TestGetCheckNames(t *testing.T) {
+	s := DockerService{cID: "deadbeef"}
+	labeledCo := types.ContainerJSON{
+		ContainerJSONBase: &types.ContainerJSONBase{ID: "deadbeef", Image: "test"},
+		Mounts:            make([]types.MountPoint, 0),
+		Config:            &container.Config{Labels: map[string]string{"com.datadoghq.ad.check_names": "[\"redis\"]"}},
+		NetworkSettings:   &types.NetworkSettings{},
+	}
+	cacheKey := docker.GetInspectCacheKey("deadbeef", false)
+	cache.Cache.Set(cacheKey, labeledCo, 10*time.Second)
+
+	checkNames := s.GetCheckNames()
+	assert.Equal(t, []string{"redis"}, checkNames)
 }

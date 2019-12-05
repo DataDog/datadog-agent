@@ -52,7 +52,11 @@ type DockerService struct {
 	pid           int
 	hostname      string
 	creationTime  integration.CreationTime
+	checkNames    []string
 }
+
+// Make sure DockerService implements the Service interface
+var _ Service = &DockerService{}
 
 func init() {
 	Register("docker", NewDockerListener)
@@ -137,11 +141,17 @@ func (l *DockerListener) init() {
 		}
 		var svc Service
 
+		checkNames, err := getCheckNamesFromLabels(co.Labels)
+		if err != nil {
+			log.Errorf("Error getting check names from docker labels on container %s: %v", co.ID, err)
+		}
+
 		if findKubernetesInLabels(co.Labels) {
 			svc = &DockerKubeletService{
 				DockerService: DockerService{
 					cID:           co.ID,
 					adIdentifiers: l.getConfigIDFromPs(co),
+					checkNames:    checkNames,
 					// Host and Ports will be looked up when needed
 				},
 			}
@@ -152,6 +162,7 @@ func (l *DockerListener) init() {
 				hosts:         l.getHostsFromPs(co),
 				ports:         l.getPortsFromPs(co),
 				creationTime:  integration.Before,
+				checkNames:    checkNames,
 			}
 		}
 		l.newService <- svc
@@ -210,16 +221,23 @@ func (l *DockerListener) createService(cID string) {
 		}
 	}
 
+	checkNames, err := getCheckNamesFromLabels(cInspect.Config.Labels)
+	if err != nil {
+		log.Errorf("Error getting check names from docker labels on container %s: %v", cID, err)
+	}
+
 	if isKube {
 		svc = &DockerKubeletService{
 			DockerService: DockerService{
-				cID: cID,
+				cID:        cID,
+				checkNames: checkNames,
 			},
 		}
 	} else {
 		svc = &DockerService{
 			cID:          cID,
 			creationTime: integration.After,
+			checkNames:   checkNames,
 		}
 	}
 
@@ -570,4 +588,24 @@ func findKubernetesInLabels(labels map[string]string) bool {
 // IsReady returns if the service is ready
 func (s *DockerService) IsReady() bool {
 	return true
+}
+
+// GetCheckNames returns slice check names defined in docker labels
+func (s *DockerService) GetCheckNames() []string {
+	if s.checkNames == nil {
+		du, err := docker.GetDockerUtil()
+		if err != nil {
+			return nil
+		}
+		cj, err := du.Inspect(s.cID, false)
+		if err != nil {
+			return nil
+		}
+		s.checkNames, err = getCheckNamesFromLabels(cj.Config.Labels)
+		if err != nil {
+			log.Error(err.Error())
+		}
+	}
+
+	return s.checkNames
 }

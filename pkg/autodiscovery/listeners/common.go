@@ -6,14 +6,18 @@
 package listeners
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	newIdentifierLabel        = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel     = "com.datadoghq.sd.check.id"
-	dockerADTemplateLabelName = "com.datadoghq.ad.instances"
+	newIdentifierLabel         = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel      = "com.datadoghq.sd.check.id"
+	dockerADTemplateLabelName  = "com.datadoghq.ad.instances"
+	dockerADTemplateChechNames = "com.datadoghq.ad.check_names"
 )
 
 // ComputeContainerServiceIDs takes an entity name, an image (resolved to an actual name) and labels
@@ -31,11 +35,6 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 
 	ids := []string{entity}
 
-	// AD template in labels, don't add image names
-	if _, found := labels[dockerADTemplateLabelName]; found {
-		return ids
-	}
-
 	// Add Image names (long then short if different)
 	long, short, _, err := containers.SplitImageName(image)
 	if err != nil {
@@ -48,4 +47,15 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 		ids = append(ids, short)
 	}
 	return ids
+}
+
+// getCheckNamesFromLabels unmarshals the json string of check names
+// defined in docker labels and returns a slice of check names
+func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
+	checkNames := []string{}
+	err := json.Unmarshal([]byte(labels[dockerADTemplateChechNames]), &checkNames)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot parse check names: %v", err)
+	}
+	return checkNames, nil
 }

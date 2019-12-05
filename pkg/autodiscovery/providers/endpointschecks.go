@@ -9,6 +9,7 @@ package providers
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -43,7 +44,7 @@ func NewEndpointsChecksConfigProvider(cfg config.ConfigurationProviders) (Config
 
 // String returns a string representation of the EndpointsChecksConfigProvider
 func (c *EndpointsChecksConfigProvider) String() string {
-	return EndpointsChecks
+	return names.EndpointsChecks
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Kubernetes's data.

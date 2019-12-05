@@ -259,7 +259,7 @@ def system_tests(ctx):
 
 
 @task
-def image_build(ctx, base_dir="omnibus", python_version="2", skip_tests=False):
+def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False):
     """
     Build the docker image
     """
@@ -268,30 +268,33 @@ def image_build(ctx, base_dir="omnibus", python_version="2", skip_tests=False):
     if python_version not in VALID_VERSIONS:
         raise ParseError("provided python_version is invalid")
 
+    build_context = "Dockerfiles/agent"
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     pkg_dir = os.path.join(base_dir, 'pkg')
-    list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-agent*_amd64.deb'))
+    deb_glob = 'datadog-agent*_{}.deb'.format(arch)
+    dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
+    list_of_files = glob.glob(os.path.join(pkg_dir, deb_glob))
     # get the last debian package built
     if not list_of_files:
         print("No debian package build found in {}".format(pkg_dir))
         print("See agent.omnibus-build")
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
-    shutil.copy2(latest_file, "Dockerfiles/agent/")
+    shutil.copy2(latest_file, build_context)
 
     # Pull base image with content trust enabled
-    pull_base_images(ctx, "Dockerfiles/agent/Dockerfile", signed_pull=True)
-    common_build_opts = "-t {}".format(AGENT_TAG)
+    pull_base_images(ctx, dockerfile_path, signed_pull=True)
+    common_build_opts = "-t {} -f {}".format(AGENT_TAG, dockerfile_path)
     if python_version not in BOTH_VERSIONS:
         common_build_opts = "{} --build-arg PYTHON_VERSION={}".format(common_build_opts, python_version)
 
     # Build with the testing target
     if not skip_tests:
-        ctx.run("docker build {} --target testing Dockerfiles/agent".format(common_build_opts))
+        ctx.run("docker build {} --target testing {}".format(common_build_opts, build_context))
 
     # Build with the release target
-    ctx.run("docker build {} --target release Dockerfiles/agent".format(common_build_opts))
-    ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
+    ctx.run("docker build {} --target release {}".format(common_build_opts, build_context))
+    ctx.run("rm {}/{}".format(build_context, deb_glob))
 
 
 @task

@@ -33,6 +33,9 @@
 /docs/cluster-agent/                    @DataDog/baklava @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/baklava @DataDog/agent-core
 
+/Gopkg.lock                             @DataDog/agent-all
+/Gopkg.toml                             @DataDog/agent-all
+
 /Makefile.trace                         @DataDog/apm-agent
 
 /omnibus/                               @DataDog/agent-platform
@@ -86,5 +89,12 @@
 /tasks/process-agent.py                 @DataDog/burrito
 /tasks/system-probe.py                  @DataDog/burrito
 /tasks/trace.py                         @DataDog/apm-agent
+
+/test/benchmarks                        @DataDog/agent-core
+/test/e2e                               @DataDog/container-integrations
+/test/integration                       @DataDog/agent-all
+/test/kitchen                           @DataDog/agent-platform
+/test/system                            @DataDog/agent-core
+/test/util                              @DataDog/agent-all
 
 /tools/ebpf/                            @DataDog/burrito

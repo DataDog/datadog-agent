@@ -10,21 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// User-facing names for the config providers
-const (
-	Consul          = "consul"
-	ClusterChecks   = "cluster-checks"
-	Docker          = "docker"
-	ECS             = "ecs"
-	EndpointsChecks = "endpoints-checks"
-	Etcd            = "etcd"
-	File            = "file"
-	Kubernetes      = "kubernetes"
-	KubeServices    = "kubernetes-services"
-	KubeEndpoints   = "kubernetes-endpoints"
-	Zookeeper       = "zookeeper"
-)
-
 // KubeEndpointsProviderName defines the kube endpoints provider name
 const KubeEndpointsProviderName = "kube_endpoints"
 

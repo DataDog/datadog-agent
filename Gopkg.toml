@@ -224,7 +224,7 @@
 
 [[constraint]]
   name = "github.com/florianl/go-conntrack"
-  revision = "6d50e184fe3ef7ba0640303db5e6a5610bf4a297"
+  revision = "06743d3a59db658e0e9aaddc9acff6d01ce643fb"
 
 [[override]]
   name = "golang.org/x/sys"
@@ -250,4 +250,4 @@
 
 [[constraint]]
   name = "github.com/DataDog/watermarkpodautoscaler"
-  revision = "0efcebe266331b85b12ef5ea734bc0cf5216bcbe"
+  revision = "ad62a4aaf72c29831f04296c2a2f6a99c895daf6"

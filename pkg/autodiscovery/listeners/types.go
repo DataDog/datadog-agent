@@ -35,6 +35,7 @@ type Service interface {
 	GetHostname() (string, error)              // hostname.domainname for the entity
 	GetCreationTime() integration.CreationTime // created before or after the agent start
 	IsReady() bool                             // is the service ready
+	GetCheckNames() []string                   // slice of check names defined in kubernetes annotations or docker labels
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

@@ -148,6 +148,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	seelog.ReplaceLogger(logger)
 
 	log.SetupDatadogLogger(logger, seelogLogLevel)
+	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
 	return nil
 }
 

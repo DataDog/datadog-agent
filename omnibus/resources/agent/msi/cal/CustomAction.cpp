@@ -61,75 +61,12 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     // now we have all the information we need to decide if this is a
     // new installation or an upgrade, and what steps need to be taken
 
-    ///////////////////////////////////////////////////////////////////////////
-    //
-    // If domain controller:
-    //   If user is present:
-    //     if service is present:
-    //        this is an upgrade.
-    //     if service is not present
-    //        this is new install on this machine
-    //        dd user has already been created in domain
-    //        must have password for registering service
-    //   If user is NOT present
-    //     if service is present
-    //       ERROR how could service be present but user not present?
-    //     if service is not present
-    //       new install in this domain
-    //       must have password for user creation and service installation
-    //
-    // If NOT a domain controller
-    //   if user is present
-    //     if the service is present
-    //       this is an upgrade, shouldn't need to do anything for user/service
-    //     if the service is not present
-    //       ERROR why is user created but not service?
-    //   if the user is NOT present
-    //     if the service is present
-    //       This is OK if it's a domain user
-    //     if the service is not present
-    //       install service, create user
-    //       use password if provided, otherwise generate
-
-    if (isDC) {
-        if (!ddUserExists && ddServiceExists) {
-            WcaLog(LOGMSG_STANDARD, "Invalid configuration; no DD user, but service exists");
-            er = ERROR_INSTALL_FAILURE;
-            goto LExit;
-        }
-        if (!ddUserExists || !ddServiceExists) {
-            if (!data.present(propertyDDAgentUserPassword)) {
-                WcaLog(LOGMSG_STANDARD, "Must supply password for dd-agent-user to create user and/or install service in a domain");
-                er = ERROR_INSTALL_FAILURE;
-                goto LExit;
-            }
-        }
+    
+    if(!canInstall(isDC, ddUserExists, ddServiceExists, data, bResetPassword)){
+        er = ERROR_INSTALL_FAILURE;
+        goto LExit;
     }
-    else {
-        if (ddUserExists)
-        {
-            if (data.getDomainPtr() != NULL) {
-                // if it's a domain user. We need the password if the service isn't here
-                if (!ddServiceExists && !data.present(propertyDDAgentUserPassword))
-                {
-                    WcaLog(LOGMSG_STANDARD, "Must supply the password to allow service registration");
-                    er = ERROR_INSTALL_FAILURE;
-                    goto LExit;
-                }
-            }
-            else {
-                if (!ddServiceExists) {
-                    WcaLog(LOGMSG_STANDARD, "dd user exists %s, but not service.  Continuing", data.getFullUsernameMbcs().c_str());
-                    bResetPassword = true;
-                }
-            }
-        }
-        if (!ddUserExists && ddServiceExists) {
-            WcaLog(LOGMSG_STANDARD, "Invalid configuration; no DD user, but service exists");
-            er = ERROR_INSTALL_FAILURE;
-            goto LExit;
-        }
-    }
+    
     // ok.  If we get here, we should be in a sane state (all installation conditions met)
     WcaLog(LOGMSG_STANDARD, "custom action initialization complete.  Processing");
     // first, let's decide if we need to create the dd-agent-user
@@ -151,7 +88,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             passToUse = passbuf;
         }
         if (bResetPassword) {
-            DWORD ret = doSetUserPassword(data.getUsername(), data.getDomainPtr(), passToUse);
+            DWORD ret = doSetUserPassword(data.UnqualifiedUsername(), passToUse);
             if(ret != 0){
                 WcaLog(LOGMSG_STANDARD, "Failed to set DD user password");
                 er = ERROR_INSTALL_FAILURE;
@@ -159,7 +96,7 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
         } else {
             DWORD nErr = 0;
-            DWORD ret = doCreateUser(data.getUsername(), data.getDomainPtr(), ddAgentUserDescription, passToUse);
+            DWORD ret = doCreateUser(data.UnqualifiedUsername(), ddAgentUserDescription, passToUse);
             if (ret != 0) {
                 WcaLog(LOGMSG_STANDARD, "Failed to create DD user");
                 er = ERROR_INSTALL_FAILURE;
@@ -167,11 +104,11 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
             }
             // store that we created the user, and store the username so we can
             // delete on rollback/uninstall
-            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
-            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.getUserPtr());
-            if (data.getDomainPtr()) {
-                keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
-                keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.getDomainPtr());
+            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
+            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
+            if (data.isUserDomainUser()) {
+                keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.Domain().c_str());
+                keyInstall.setStringValue(installCreatedDDDomain.c_str(), data.Domain().c_str());
             }
         }
     }
@@ -181,13 +118,13 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
     // set the account privileges regardless; if they're already set the OS will silently
     // ignore the request.    
     hr = -1;
-    sid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
+    sid = GetSidForUser(NULL, data.Username().c_str());
     if (!sid) {
-        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %s", data.getFullUsernameMbcs().c_str());
+        WcaLog(LOGMSG_STANDARD, "Failed to get SID for %S", data.Username().c_str());
         goto LExit;
     }
     if ((hLsa = GetPolicyHandle()) == NULL) {
-        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %s", data.getFullUsernameMbcs().c_str());
+        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %S", data.Username().c_str());
         goto LExit;
     }
     if (!AddPrivileges(sid, hLsa, SE_DENY_INTERACTIVE_LOGON_NAME)) {
@@ -402,8 +339,11 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
         DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
         dir_to_delete = installdir + L"embedded2";
         DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+        // python 3, on startup, leaves a bunch of __pycache__ directories,
+        // so we have to be more aggressive.
         dir_to_delete = installdir + L"embedded3";
         DeleteFilesInDirectory(dir_to_delete.c_str(), L"*.pyc");
+        DeleteFilesInDirectory(dir_to_delete.c_str(), L"__pycache__", true);
     }
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
@@ -433,26 +373,26 @@ UINT doUninstallAs(MSIHANDLE hInstall, UNINSTALL_TYPE t)
     }
     // check to see if we created the user, and if so, what the user's name was
     std::wstring installedUser, installedDomain, installedComplete;
-    const wchar_t* installedUserPtr = NULL;
-    const wchar_t* installedDomainPtr = NULL;
     if (installState.getStringValue(installCreatedDDUser.c_str(), installedUser))
     {
-        std::string usershort;
-        toMbcs(usershort, installedUser.c_str());
-        WcaLog(LOGMSG_STANDARD, "This install installed user %s", usershort.c_str());
-        installedUserPtr = installedUser.c_str();
+        WcaLog(LOGMSG_STANDARD, "This install installed user %S", installedUser.c_str());
+        size_t ndx;
+        if((ndx = installedUser.find(L'\\')) != std::string::npos)
+        {
+            installedUser = installedUser.substr(ndx + 1);
+        }
+        // username is now stored fully qualified (<domain>\<user>).  However, removal
+        // code expects the unqualified name. Split it out here.
         if (installState.getStringValue(installCreatedDDDomain.c_str(), installedDomain)) {
-            installedDomainPtr = installedDomain.c_str();
-            toMbcs(usershort, installedDomainPtr);
-            WcaLog(LOGMSG_STANDARD, "NOT Removing user from domain %s", usershort.c_str());
+            WcaLog(LOGMSG_STANDARD, "NOT Removing user from domain %S", installedDomain.c_str());
             WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
             installedComplete = installedDomain + L"\\";
         } else if (isDC) {
-            WcaLog(LOGMSG_STANDARD, "NOT Removing user %s from domain controller", usershort.c_str());
+            WcaLog(LOGMSG_STANDARD, "NOT Removing user %S from domain controller", installedUser.c_str());
             WcaLog(LOGMSG_STANDARD, "Domain user can be removed.");
     
         } else {
-            WcaLog(LOGMSG_STANDARD, "Will delete user %s from local user store", usershort.c_str());
+            WcaLog(LOGMSG_STANDARD, "Will delete user %S from local user store", installedUser.c_str());
             willDeleteUser = true;
         }
         installedComplete += installedUser;

@@ -182,6 +182,26 @@ api_key:
 #
 # collect_gce_tags: true
 
+## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
+## Google Cloud Engine metadata attribute to exclude from being converted into
+## host tags -- only applicable when collect_gce_tags is true.
+#
+# exclude_gce_tags:
+#   - "kube-env"
+#   - "kubelet-config"
+#   - "containerd-configure-sh"
+#   - "startup-script"
+#   - "shutdown-script"
+#   - "configure-sh"
+#   - "sshKeys"
+#   - "ssh-keys"
+#   - "user-data"
+#   - "cli-cert"
+#   - "ipsec-cert"
+#   - "ssl-cert"
+#   - "google-container-manifest"
+#   - "bosh_settings"
+
 {{ end }}
 {{- if .Agent }}
 {{- if .BothPythonPresent -}}
@@ -1353,7 +1373,14 @@ api_key:
 
 ## @param clustername - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
+## The cluster name can be up to 40 characters with the following restrictions:
+## * Lowercase letters, numbers, and hyphens only.
+## * Must start with a letter.
+## * Must end with a number or a letter.
+##
+## These are the same rules as the ones enforced by GKE:
+## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
-# clustername: <CLUSTER_IDENTIFIER>
+# cluster_name: <CLUSTER_IDENTIFIER>
 
 {{ end -}}

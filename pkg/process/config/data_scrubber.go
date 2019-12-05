@@ -13,10 +13,10 @@ import (
 
 var (
 	defaultSensitiveWords = []string{
-		"password", "passwd", "mysql_pwd",
-		"access_token", "auth_token",
-		"api_key", "apikey",
-		"secret", "credentials", "stripetoken"}
+		"*password*", "*passwd*", "*mysql_pwd*",
+		"*access_token*", "*auth_token*",
+		"*api_key*", "*apikey*",
+		"*secret*", "*credentials*", "stripetoken"}
 )
 
 const (

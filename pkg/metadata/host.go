@@ -8,7 +8,7 @@ package metadata
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
+	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -19,9 +19,9 @@ type HostCollector struct{}
 
 // Send collects the data needed and submits the payload
 func (hp *HostCollector) Send(s *serializer.Serializer) error {
-	hostname, _ := util.GetHostname()
+	hostnameData, _ := util.GetHostnameData()
 
-	payload := v5.GetPayload(hostname)
+	payload := v5.GetPayload(hostnameData)
 	if err := s.SendMetadata(payload); err != nil {
 		return fmt.Errorf("unable to submit host metadata payload, %s", err)
 	}

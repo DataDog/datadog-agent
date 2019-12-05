@@ -166,6 +166,11 @@ func initConfig(config Config) {
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
 	config.BindEnvAndSetDefault("hostname_fqdn", false)
+
+	// When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
+	// canonical hostname, otherwise the instance-id is used as canonical hostname.
+	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
+
 	config.BindEnvAndSetDefault("cluster_name", "")
 
 	// secrets backend
@@ -185,6 +190,9 @@ func initConfig(config Config) {
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
+
+	// Yaml keys which values are stripped from flare
+	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
@@ -348,6 +356,7 @@ func initConfig(config Config) {
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
+	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"})
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
@@ -471,7 +480,7 @@ func initConfig(config Config) {
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")
 	config.SetKnown("config_providers")
-	config.SetKnown("clustername")
+	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
 	config.SetKnown("additional_endpoints.*")
 	config.SetKnown("proxy.http")

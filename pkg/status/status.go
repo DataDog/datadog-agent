@@ -39,14 +39,14 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	stats["version"] = version.AgentVersion
-	hostname, err := util.GetHostname()
+	hostnameData, err := util.GetHostnameData()
 
 	var metadata *host.Payload
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache("unknown")
+		metadata = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
 	} else {
-		metadata = host.GetPayloadFromCache(hostname)
+		metadata = host.GetPayloadFromCache(hostnameData)
 	}
 	stats["metadata"] = metadata
 
@@ -64,6 +64,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["agent_start"] = startTime.Format(timeFormat)
 	stats["hostinfo"] = host.GetStatusInformation()
+	stats["build_arch"] = runtime.GOARCH
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 
@@ -149,12 +150,12 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 	stats["version"] = version.AgentVersion
 	stats["pid"] = os.Getpid()
-	hostname, err := util.GetHostname()
+	hostnameData, err := util.GetHostnameData()
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache("unknown")
+		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
 	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostname)
+		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
 	}
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
@@ -316,6 +317,41 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 
 	if expvar.Get("ntpOffset").String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
+	}
+
+	inventories := expvar.Get("inventories")
+	var inventoriesStats map[string]interface{}
+	if inventories != nil {
+		inventoriesStatsJSON := []byte(inventories.String())
+		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats)
+	}
+
+	checkMetadata := map[string]map[string]string{}
+	if data, ok := inventoriesStats["check_metadata"]; ok {
+		for _, instances := range data.(map[string]interface{}) {
+			for _, instance := range instances.([]interface{}) {
+				metadata := map[string]string{}
+				checkHash := ""
+				for k, v := range instance.(map[string]interface{}) {
+					if vStr, ok := v.(string); ok {
+						if k == "config.hash" {
+							checkHash = vStr
+						} else if k != "config.provider" && k != "last_updated" {
+							metadata[k] = vStr
+						}
+					}
+				}
+				if checkHash != "" && len(metadata) != 0 {
+					checkMetadata[checkHash] = metadata
+				}
+			}
+		}
+	}
+	stats["inventories"] = checkMetadata
+	if data, ok := inventoriesStats["agent_metadata"]; ok {
+		stats["agent_metadata"] = data
+	} else {
+		stats["agent_metadata"] = map[string]string{}
 	}
 
 	return stats, err
