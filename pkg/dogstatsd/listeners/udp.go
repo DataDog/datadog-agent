@@ -107,6 +107,7 @@ func (l *UDPListener) Listen() {
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
+	l.packetBuffer.close()
 	l.packetsBuffer.close()
 	l.conn.Close()
 }
