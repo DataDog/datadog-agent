@@ -110,7 +110,7 @@ func TestServiceCollector(t *testing.T) {
 			expectedRelations: []*topology.Relation{},
 		},
 		{
-			testCase: "Test Service 5 - LoadBalancer + Ingress Points + Ingress Correlation",
+			testCase: "Test Service 5 - Minimal - Cluster IP - None",
 			expectedComponent: &topology.Component{
 				ExternalID: "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
 				Type:       topology.Type{Name: "service"},
@@ -120,6 +120,22 @@ func TestServiceCollector(t *testing.T) {
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
 					"namespace":         "test-namespace",
 					"uid":               types.UID("test-service-5"),
+					"identifiers":       []string{},
+				},
+			},
+			expectedRelations: []*topology.Relation{},
+		},
+		{
+			testCase: "Test Service 6 - LoadBalancer + Ingress Points + Ingress Correlation",
+			expectedComponent: &topology.Component{
+				ExternalID: "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-6",
+				Type:       topology.Type{Name: "service"},
+				Data: topology.Data{
+					"name":              "test-service-6",
+					"creationTimestamp": creationTime,
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
+					"namespace":         "test-namespace",
+					"uid":               types.UID("test-service-6"),
 					"identifiers": []string{"urn:endpoint:/test-cluster-name:10.100.200.2:85", "urn:endpoint:/test-cluster-name:10.100.200.2:10205",
 						"urn:endpoint:/test-cluster-name:10.100.200.23", "urn:ingress-point:/34.100.200.15",
 						"urn:ingress-point:/64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com"},
@@ -127,9 +143,9 @@ func TestServiceCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5->urn:/kubernetes:test-cluster-name:pod:some-pod-name",
+					ExternalID: "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-6->urn:/kubernetes:test-cluster-name:pod:some-pod-name",
 					Type:       topology.Type{Name: "exposes"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-5",
+					SourceID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-6",
 					TargetID:   "urn:/kubernetes:test-cluster-name:pod:some-pod-name",
 					Data:       map[string]interface{}{},
 				},
@@ -154,7 +170,7 @@ type MockServiceAPICollectorClient struct {
 
 func (m MockServiceAPICollectorClient) GetServices() ([]coreV1.Service, error) {
 	services := make([]coreV1.Service, 0)
-	for i := 1; i <= 5; i++ {
+	for i := 1; i <= 6; i++ {
 
 		service := coreV1.Service{
 			TypeMeta: v1.TypeMeta{
@@ -190,6 +206,7 @@ func (m MockServiceAPICollectorClient) GetServices() ([]coreV1.Service, error) {
 			}
 			service.Spec.ClusterIP = "10.100.200.20"
 		}
+
 		if i == 3 {
 			service.Spec.Type = coreV1.ServiceTypeClusterIP
 			service.Spec.ExternalIPs = []string{"34.100.200.12", "34.100.200.13"}
@@ -202,6 +219,11 @@ func (m MockServiceAPICollectorClient) GetServices() ([]coreV1.Service, error) {
 		}
 
 		if i == 5 {
+			service.Spec.Type = coreV1.ServiceTypeClusterIP
+			service.Spec.ClusterIP = "None"
+		}
+
+		if i == 6 {
 			service.Spec.Type = coreV1.ServiceTypeLoadBalancer
 			service.Spec.Ports = []coreV1.ServicePort{
 				{
@@ -260,19 +282,19 @@ func (m MockServiceAPICollectorClient) GetEndpoints() ([]coreV1.Endpoints, error
 		},
 	})
 
-	// endpoints for test case 5
+	// endpoints for test case 6
 	endpoints = append(endpoints, coreV1.Endpoints{
 		TypeMeta: v1.TypeMeta{
 			Kind: "",
 		},
 		ObjectMeta: v1.ObjectMeta{
-			Name:              "test-service-5",
+			Name:              "test-service-6",
 			CreationTimestamp: creationTime,
 			Namespace:         "test-namespace",
 			Labels: map[string]string{
 				"test": "label",
 			},
-			UID:          types.UID("test-service-5"),
+			UID:          types.UID("test-service-6"),
 			GenerateName: "",
 		},
 		Subsets: []coreV1.EndpointSubset{

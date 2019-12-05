@@ -85,8 +85,10 @@ spec:
               name: books-app
               protocol: TCP
           env:
+          - name: KUBERNETES_SERVICE
+            value: "stackstate-authors-app"
           - name: MAVEN_OPTS
-            value: "-Dsts.service.name=stackstate-books-app -Dsts.agent.host=${TRACE_AGENT_SERVICE_HOST} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
+            value: "-Dsts.service.name=stackstate-books-app -Dsts.agent.host=stackstate-agent.default.svc.cluster.local -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
       hostPID: true
       imagePullSecrets:
         - name: docker-registry-key
@@ -131,7 +133,7 @@ spec:
               protocol: TCP
           env:
             - name: MAVEN_OPTS
-              value: "-Dsts.service.name=stackstate-authors-app -Dsts.agent.host=${TRACE_AGENT_SERVICE_HOST} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
+              value: "-Dsts.service.name=stackstate-authors-app -Dsts.agent.host=stackstate-agent.default.svc.cluster.local -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
       hostPID: true
       imagePullSecrets:
         - name: docker-registry-key

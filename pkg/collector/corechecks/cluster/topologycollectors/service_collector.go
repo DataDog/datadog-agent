@@ -114,7 +114,7 @@ func (sc *ServiceCollector) CollectorFunction() error {
 func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, endpoints []EndpointID) *topology.Component {
 	log.Tracef("Mapping kubernetes pod service to StackState component: %s", service.String())
 	// create identifier list to merge with StackState components
-	var identifiers []string
+	identifiers := make([]string, 0)
 	serviceID := buildServiceID(service.Namespace, service.Name)
 
 	// all external ip's which are associated with this service, but are not managed by kubernetes
@@ -146,12 +146,12 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 	// identifier for
 	case v1.ServiceTypeClusterIP:
 		// verify that the cluster ip is not empty
-		if service.Spec.ClusterIP != "" {
+		if service.Spec.ClusterIP != "None" && service.Spec.ClusterIP != "" {
 			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
 		}
 	case v1.ServiceTypeNodePort:
 		// verify that the node port is not empty
-		if service.Spec.ClusterIP != "" {
+		if service.Spec.ClusterIP != "None" && service.Spec.ClusterIP != "" {
 			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
 			// map all of the node ports for the ip
 			for _, port := range service.Spec.Ports {
@@ -167,7 +167,7 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.LoadBalancerIP))
 		}
 		// verify that the cluster ip is not empty
-		if service.Spec.ClusterIP != "" {
+		if service.Spec.ClusterIP != "None" && service.Spec.ClusterIP != "" {
 			identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, service.Spec.ClusterIP))
 		}
 	default:
