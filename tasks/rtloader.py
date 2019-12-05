@@ -10,13 +10,16 @@ def get_rtloader_path():
     here = os.path.abspath(os.path.dirname(__file__))
     return os.path.abspath(os.path.join(here, '..', 'rtloader'))
 
+def get_cmake_cache_path(rtloader_path):
+    return os.path.join(rtloader_path, "CMakeCache.txt")
+
 def clear_cmake_cache(rtloader_path, settings):
     """
     CMake is not regenerated when we change an option. This function detect the
     current cmake settings and remove the cache if they have change to retrigger
     a cmake build.
     """
-    cmake_cache = os.path.join(rtloader_path, "CMakeCache.txt")
+    cmake_cache = get_cmake_cache_path(rtloader_path)
     if not os.path.exists(cmake_cache):
         return
 
@@ -65,6 +68,20 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch
 
     ctx.run("cd {} && cmake {} .".format(rtloader_path, cmake_args))
     ctx.run("make -C {}".format(rtloader_path))
+
+@task
+def clean(ctx):
+    """
+    Clean up CMake's cache.
+    Necessary when the paths to some libraries found by CMake (for example Python) have changed on the system.
+    This command does not clean all the temporary artifacts created by CMake.
+    """
+    cmake_cache_path = get_cmake_cache_path(get_rtloader_path())
+    if os.path.exists(cmake_cache_path):
+        os.remove(cmake_cache_path)
+        print("Successfully cleaned '{}'".format(cmake_cache_path))
+    else:
+        print("Nothing to clean up")
 
 @task
 def install(ctx):
