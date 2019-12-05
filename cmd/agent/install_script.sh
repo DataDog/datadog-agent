@@ -102,12 +102,12 @@ else
     code_name="stable"
 fi
 
-if [ -z "$DEBIAN_REPO"]; then
+if [ -z "$DEBIAN_REPO" ]; then
     # for offline script remember default production repo address
     DEBIAN_REPO="https://stackstate-agent-2.s3.amazonaws.com"
 fi
 
-if [ -z "$YUM_REPO"]; then
+if [ -z "$YUM_REPO" ]; then
     # for offline script remember default production repo address
     YUM_REPO="https://stackstate-agent-2-rpm.s3.amazonaws.com"
 fi
