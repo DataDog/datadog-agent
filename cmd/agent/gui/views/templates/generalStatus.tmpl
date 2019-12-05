@@ -219,13 +219,13 @@
       {{- if .endpoints }}
 
         {{- range $endpoint := .endpoints }}
-          {{ $endpoint }}
+          {{ $endpoint }}<br>
         {{- end }}
       {{- end }}
       {{- if .metrics }}
 
         {{- range $metric_name, $metric_value := .metrics }}
-          {{$metric_name}}: {{$metric_value}}
+          {{$metric_name}}: {{$metric_value}}<br>
         {{- end }}
       {{- end }}
       {{- if .errors }}
