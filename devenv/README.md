@@ -1,15 +1,19 @@
-### Windows Dev Env
+## Windows Dev Env
 
-This folder contains a few scripts to help get setup with a Windows Development Environment on a Mac.
+This folder contains a few scripts to help get setup with a Windows Development Environment.
 There is a Powershell script that uses Chocolatey to install the recommended dependencies to build the agent and some Packer files to build ready-to-use Vagrant boxes.
 
-### Using the Powershell script
+If you already have a Windows machine and just want to install the required dependencies to build the agent, see [Using the Powershell script](#Using_the_Powershell_script).
+If you need to setup a new environment, including building your own Windows development image for various virtual machine providers, see [Using Packer to generate the base boxes](#Using_Packer_to_generate_the_base_boxes).
+
+
+## Using the Powershell script
 
 Copy the script `devenv\scripts\Install-DevEnv.ps1` on the target machine and then in an Administrator Powershell prompt:
 
 `Set-ExecutionPolicy Bypass -Scope Process -Force; <path_to_ps1>\Install-DevEnv.ps1`
 
-### Using Packer to generate the base boxes
+## Using Packer to generate the base boxes
 
 There is a Ruby template file to generate the various Packer combinations.
 To generate the Packer file and then invoke Packer the `Invoke!` library is used.
@@ -40,7 +44,7 @@ Then, it's just a matter of building the images:
 
 **Note:** The base boxes are based on Windows 10 Enterprise Evaluation (1903) and Windows Server 2019 Evaluation ISOs. They are good for 90 days, after that a valid license must be provided.
 
-### Using Vagrant to start a dev VM
+## Using Vagrant to start a dev VM
 
 The provided `Vagrantfile` expects the box to exist in the same directory.
 
@@ -71,7 +75,7 @@ cd vm
 tar zxvf ../windows_10_ent_vmware.box
 ```
 
-### Third party notice
+## Third party notice
 
 Two third party files are used and adapted:
 - `devenv\scripts\Install-GuestTools.ps1` from https://github.com/luciusbono/Packer-Windows10/blob/master/install-guest-tools.ps1
