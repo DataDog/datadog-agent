@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -111,15 +110,6 @@ func GetKubeUtil() (*KubeUtil, error) {
 	return globalKubeUtil, nil
 }
 
-// HostnameProvider kubelet implementation for the hostname provider
-func HostnameProvider() (string, error) {
-	ku, err := GetKubeUtil()
-	if err != nil {
-		return "", err
-	}
-	return ku.GetHostname()
-}
-
 // GetNodeInfo returns the IP address and the hostname of the first valid pod in the PodList
 func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	pods, err := ku.GetLocalPodList()
@@ -135,22 +125,6 @@ func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	}
 
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
-}
-
-// GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
-func (ku *KubeUtil) GetHostname() (string, error) {
-	nodeName, err := ku.GetNodename()
-	if err != nil {
-		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
-	}
-
-	clusterName := clustername.GetClusterName()
-	if clusterName == "" {
-		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
-		return nodeName, nil
-	} else {
-		return (nodeName + "-" + clusterName), nil
-	}
 }
 
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList

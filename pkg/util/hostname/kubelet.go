@@ -7,8 +7,8 @@
 
 package hostname
 
-import "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+import "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 
 func init() {
-	RegisterHostnameProvider("kubelet", kubelet.HostnameProvider)
+	RegisterHostnameProvider("kubelet", hostinfo.KubeletHostnameProvider)
 }

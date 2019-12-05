@@ -10,14 +10,13 @@ package hostinfo
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
 // GetHostAlias uses the "kubelet" hostname provider to fetch the kubernetes alias
 func GetHostAlias() (string, error) {
-	name, err := kubelet.HostnameProvider()
-	if err == nil && util.ValidHostname(name) == nil {
+	name, err := KubeletHostnameProvider()
+	if err == nil && validate.ValidHostname(name) == nil {
 		return name, nil
 	}
 	return "", fmt.Errorf("Couldn't extract a host alias from the kubelet: %s", err)

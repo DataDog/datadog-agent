@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -298,69 +297,69 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	}
 }
 
-func (suite *KubeletTestSuite) TestGetHostname() {
-	mockConfig := config.Mock()
+// func (suite *KubeletTestSuite) TestGetHostname() {
+// 	mockConfig := config.Mock()
 
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
-	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
-	require.Nil(suite.T(), err)
+// 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+// 	require.Nil(suite.T(), err)
+// 	ts, kubeletPort, err := kubelet.Start()
+// 	defer ts.Close()
+// 	require.Nil(suite.T(), err)
 
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubelet_tls_verify", false)
-	mockConfig.Set("kubelet_auth_token_path", "")
+// 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+// 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+// 	mockConfig.Set("kubelet_tls_verify", false)
+// 	mockConfig.Set("kubelet_auth_token_path", "")
 
-	kubeutil, err := GetKubeUtil()
-	require.Nil(suite.T(), err)
-	require.NotNil(suite.T(), kubeutil)
-	kubelet.dropRequests() // Throwing away first GETs
+// 	kubeutil, err := GetKubeUtil()
+// 	require.Nil(suite.T(), err)
+// 	require.NotNil(suite.T(), kubeutil)
+// 	kubelet.dropRequests() // Throwing away first GETs
 
-	hostname, err := kubeutil.GetHostname()
-	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "my-node-name", hostname)
+// 	hostname, err := kubeutil.GetHostname()
+// 	require.Nil(suite.T(), err)
+// 	require.Equal(suite.T(), "my-node-name", hostname)
 
-	// Testing hostname when a cluster name is set
-	var testClusterName = "laika"
-	mockConfig.Set("cluster_name", testClusterName)
-	clustername.ResetClusterName() // reset state as clustername was already read
+// 	// Testing hostname when a cluster name is set
+// 	var testClusterName = "laika"
+// 	mockConfig.Set("cluster_name", testClusterName)
+// 	clustername.ResetClusterName() // reset state as clustername was already read
 
-	// defer a reset of the state so that future hostname fetches are not impacted
-	defer mockConfig.Set("cluster_name", "")
-	defer clustername.ResetClusterName()
+// 	// defer a reset of the state so that future hostname fetches are not impacted
+// 	defer mockConfig.Set("cluster_name", "")
+// 	defer clustername.ResetClusterName()
 
-	hostname, err = kubeutil.GetHostname()
-	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "my-node-name-"+testClusterName, hostname)
+// 	hostname, err = kubeutil.GetHostname()
+// 	require.Nil(suite.T(), err)
+// 	require.Equal(suite.T(), "my-node-name-"+testClusterName, hostname)
 
-	select {
-	case r := <-kubelet.Requests:
-		require.Equal(suite.T(), r.Method, "GET")
-		require.Equal(suite.T(), r.URL.Path, "/pods")
-	case <-time.After(2 * time.Second):
-		require.FailNow(suite.T(), "Timeout on receive channel")
-	}
-}
+// 	select {
+// 	case r := <-kubelet.Requests:
+// 		require.Equal(suite.T(), r.Method, "GET")
+// 		require.Equal(suite.T(), r.URL.Path, "/pods")
+// 	case <-time.After(2 * time.Second):
+// 		require.FailNow(suite.T(), "Timeout on receive channel")
+// 	}
+// }
 
-func (suite *KubeletTestSuite) TestHostnameProvider() {
-	mockConfig := config.Mock()
+// func (suite *KubeletTestSuite) TestHostnameProvider() {
+// 	mockConfig := config.Mock()
 
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
-	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
-	require.Nil(suite.T(), err)
+// 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+// 	require.Nil(suite.T(), err)
+// 	ts, kubeletPort, err := kubelet.Start()
+// 	defer ts.Close()
+// 	require.Nil(suite.T(), err)
 
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubelet_tls_verify", false)
-	mockConfig.Set("kubelet_auth_token_path", "")
+// 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
+// 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+// 	mockConfig.Set("kubelet_tls_verify", false)
+// 	mockConfig.Set("kubelet_auth_token_path", "")
 
-	hostname, err := HostnameProvider()
-	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "my-node-name", hostname)
-}
+// 	hostname, err := HostnameProvider()
+// 	require.Nil(suite.T(), err)
+// 	require.Equal(suite.T(), "my-node-name", hostname)
+// }
 
 func (suite *KubeletTestSuite) TestPodlistCache() {
 	mockConfig := config.Mock()
