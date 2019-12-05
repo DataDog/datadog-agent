@@ -19,6 +19,7 @@ metadata:
   labels:
     app: stackstate-db
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: stackstate-db
@@ -40,6 +41,7 @@ spec:
           ports:
             - containerPort: 5432
               name: db
+              protocol: TCP
       hostPID: true
       imagePullSecrets:
         - name: docker-registry-key
@@ -52,8 +54,8 @@ metadata:
     app: stackstate-books-app
 spec:
   ports:
-    - port: 8080
-      targetPort: 8081
+    - port: 8082
+      targetPort: 8082
       name: books-app
   selector:
     app: stackstate-books-app
@@ -78,8 +80,13 @@ spec:
         - name: books-app
           image: quay.io/stackstate/stackstate-trace-java-demo:books-app-master
           ports:
-            - containerPort: 8081
+            - hostPort: 8082
+              containerPort: 8081
               name: books-app
+              protocol: TCP
+          env:
+          - name: MAVEN_OPTS
+            value: "-Dsts.service.name=stackstate-books-app -Dsts.agent.host=${TRACE_AGENT_SERVICE_HOST} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
       hostPID: true
       imagePullSecrets:
         - name: docker-registry-key
@@ -92,8 +99,8 @@ metadata:
     app: stackstate-authors-app
 spec:
   ports:
-    - port: 8080
-      targetPort: 8081
+    - port: 8083
+      targetPort: 8083
       name: authors-app
   selector:
     app: stackstate-authors-app
@@ -118,8 +125,13 @@ spec:
         - name: authors-app
           image: quay.io/stackstate/stackstate-trace-java-demo:authors-app-master
           ports:
-            - containerPort: 8081
+            - hostPort: 8083
+              containerPort: 8081
               name: authors-app
+              protocol: TCP
+          env:
+            - name: MAVEN_OPTS
+              value: "-Dsts.service.name=stackstate-authors-app -Dsts.agent.host=${TRACE_AGENT_SERVICE_HOST} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
       hostPID: true
       imagePullSecrets:
         - name: docker-registry-key
