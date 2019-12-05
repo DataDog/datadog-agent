@@ -181,7 +181,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 				return nil
 			}
 		case <-timeout:
-			return fmt.Errorf("leader election still not running, timeout after %s", timeoutDuration)
+			return fmt.Errorf("leader election still not running, timeout after %s", getLeaderTimeout)
 		}
 	}
 }
