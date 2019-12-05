@@ -161,6 +161,29 @@ Other Notes
 - JMXFetch upgraded from 0.32.1 to 0.33.0
   https://github.com/DataDog/jmxfetch/blob/master/CHANGELOG.md#0330--2019-10-10
 
+.. _Release Notes_6.14.3:
+
+6.14.3
+======
+
+.. _Release Notes_6.14.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-12-05
+
+This release is only available for Windows.
+
+.. _Release Notes_6.14.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On windows, fixes problem where Agent would intermittently fail to install
+  on domain-joined machine, when another Agent was already installed on the
+  DC.
+
 .. _Release Notes_6.14.2:
 
 6.14.2
@@ -338,7 +361,7 @@ Enhancement Notes
 
 - Windows events will now display a full text message instead of a JSON
   object. When available, the agent will now enrich the events with status,
-  human readable task name and opcode. 
+  human readable task name and opcode.
 
 - On Windows, adds system.mem.pagefile.* stats, previously available
   only in Agent 5.
@@ -375,7 +398,7 @@ Bug Fixes
 - Fix system.io.* metrics on Linux that were off by 1 when the kernel counters
   were wrapping back to 0.
 
-- Fixed placeholder value for the marathon entry point to match the new configuration file layout. 
+- Fixed placeholder value for the marathon entry point to match the new configuration file layout.
 
 - Fix a ``tagger`` goroutine race issue when adding a new entry in the ``tagger.Store`` and requesting an entry in another goroutine.
 
@@ -395,7 +418,7 @@ Bug Fixes
 - APM: Fix incorrect ``traces_dropped`` and ``spans_malformed`` metric counts.
 
 - On Windows, "ddagentuser" (the user context under which the Agent runs),
-  is now added to the "Event Log Readers" group, granting access to 
+  is now added to the "Event Log Readers" group, granting access to
   Security event logs.
 
 
@@ -404,10 +427,10 @@ Bug Fixes
 Other Notes
 -----------
 
-- The Windows agent no longer depends on the Windows WMI service.  
-  If the WMI service stops for any reason, the Windows agent will no 
+- The Windows agent no longer depends on the Windows WMI service.
+  If the WMI service stops for any reason, the Windows agent will no
   longer stop with it.  However, any integrations that do use WMI
-  (wmi_check and win32_event_log) will not be able to function until 
+  (wmi_check and win32_event_log) will not be able to function until
   the WMI service restarts.
 
 - Ignore the containerd startup script and the kubeconfig as part of the host metadata on GKE.
@@ -415,7 +438,7 @@ Other Notes
 - JMXFetch upgraded to `0.31.0 <https://github.com/DataDog/jmxfetch/releases/0.31.0>`_
 
 - On Windows, during an uninstall, if the user context for the datadog agent
-  is a domain user, the user will no longer be deleted even when the user 
+  is a domain user, the user will no longer be deleted even when the user
   was created by the corresponding install.
 
 
