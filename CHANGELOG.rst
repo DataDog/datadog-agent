@@ -2,6 +2,31 @@
 Release Notes
 =============
 
+.. _Release Notes_6.14.3:
+
+6.14.3
+======
+
+.. _Release Notes_6.14.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-12-05
+
+This release is only available for Windows.
+
+
+.. _Release Notes_6.14.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On windows, fixes problem where Agent would intermittently fail to install
+  on domain-joined machine, when another Agent was already installed on the
+  DC.
+
+
 .. _Release Notes_6.14.2:
 
 6.14.2
