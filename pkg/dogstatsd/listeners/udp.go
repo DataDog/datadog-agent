@@ -65,11 +65,12 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	bufferSize := config.Datadog.GetInt("dogstatsd_packet_buffer_size")
+	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
+	packetsBufferSize := config.Datadog.GetInt("dogstatsd_packet_buffer_size")
 	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := newPacketsBuffer(uint(bufferSize), flushTimeout, packetOut)
+	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
 	packetBuffer := newPacketBuffer(packetPool, flushTimeout, packetsBuffer)
 
 	listener := &UDPListener{
