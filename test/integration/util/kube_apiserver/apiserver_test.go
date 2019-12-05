@@ -44,6 +44,7 @@ func TestSuiteKube(t *testing.T) {
 	require.Nil(t, err)
 	output, err := compose.Start()
 	defer compose.Stop()
+	t.Logf("error: %v", err)
 	require.Nil(t, err, string(output))
 
 	// Init apiclient

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
 )
 
 type controllerFuncs struct {
@@ -42,6 +43,7 @@ type ControllerContext struct {
 	WPAInformerFactory externalversions.SharedInformerFactory
 	Client             kubernetes.Interface
 	LeaderElector      LeaderElectorInterface
+	EventRecorder      record.EventRecorder
 	StopCh             chan struct{}
 }
 
@@ -87,6 +89,7 @@ func startAutoscalersController(ctx ControllerContext) error {
 	}
 	autoscalersController, err := NewAutoscalersController(
 		ctx.Client,
+		ctx.EventRecorder,
 		ctx.LeaderElector,
 		dogCl,
 	)
