@@ -39,7 +39,7 @@ func init() {
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
 	conn            *net.UnixConn
-	packetBuffer    *packetBuffer
+	packetsBuffer   *packetsBuffer
 	packetPool      *PacketPool
 	oobPool         *sync.Pool // For origin detection ancilary data
 	OriginDetection bool
@@ -97,7 +97,7 @@ func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListene
 		OriginDetection: originDetection,
 		packetPool:      packetPool,
 		conn:            conn,
-		packetBuffer: newPacketBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
+		packetsBuffer: newPacketsBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
 	}
 
@@ -157,13 +157,13 @@ func (l *UDSListener) Listen() {
 		packet.Contents = packet.buffer[:n]
 
 		// packetBuffer handles the forwarding of the packets to the dogstatsd server intake channel
-		l.packetBuffer.append(packet)
+		l.packetsBuffer.append(packet)
 	}
 }
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
-	l.packetBuffer.close()
+	l.packetsBuffer.close()
 	l.conn.Close()
 
 	// Socket cleanup on exit

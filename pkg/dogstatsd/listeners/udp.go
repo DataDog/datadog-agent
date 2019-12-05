@@ -34,9 +34,9 @@ func init() {
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn         net.PacketConn
-	packetPool   *PacketPool
-	packetBuffer *packetBuffer
+	conn          net.PacketConn
+	packetPool    *PacketPool
+	packetsBuffer *packetsBuffer
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
@@ -67,7 +67,7 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 	listener := &UDPListener{
 		packetPool: packetPool,
 		conn:       conn,
-		packetBuffer: newPacketBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
+		packetsBuffer: newPacketsBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
@@ -95,12 +95,12 @@ func (l *UDPListener) Listen() {
 		packet.Contents = packet.buffer[:n]
 
 		// packetBuffer handles the forwarding of the packets to the dogstatsd server intake channel
-		l.packetBuffer.append(packet)
+		l.packetsBuffer.append(packet)
 	}
 }
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
-	l.packetBuffer.close()
+	l.packetsBuffer.close()
 	l.conn.Close()
 }
