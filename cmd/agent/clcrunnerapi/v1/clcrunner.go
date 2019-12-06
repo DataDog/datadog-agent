@@ -37,6 +37,7 @@ func SetupHandlers(r *mux.Router) {
 func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the runner stats. Making stats.")
 	w.Header().Set("Content-Type", "text/plain")
+
 	stats, err := status.GetExpvarRunnerStats()
 	if err != nil {
 		log.Errorf("Error getting exp var stats: %v", err)

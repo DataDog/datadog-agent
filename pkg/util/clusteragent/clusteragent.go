@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -33,6 +34,8 @@ Client to query the Datadog Cluster Agent (DCA) API.
 
 const (
 	authorizationHeaderKey = "Authorization"
+	// RealIPHeader refers to the cluster level check runner ip passed in the request headers
+	RealIPHeader = "X-Real-Ip"
 )
 
 var globalClusterAgentClient *DCAClient
@@ -106,6 +109,8 @@ func (c *DCAClient) init() error {
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
 	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
+	podIP := getLocalIP()
+	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
 	// TODO remove insecure
 	c.clusterAgentAPIClient = util.GetClient(false)
@@ -369,4 +374,20 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 	}
 
 	return metadataNames, nil
+}
+
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		// check the address type and if it is not a loopback the display it
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
 }
