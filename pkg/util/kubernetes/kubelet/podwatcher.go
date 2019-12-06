@@ -23,7 +23,7 @@ const unreadinessTimeout = 30 * time.Second
 // It keeps an internal state to only send the updated pods.
 type PodWatcher struct {
 	sync.Mutex
-	kubeUtil       *KubeUtil
+	kubeUtil       KubeUtilInterface
 	expiryDuration time.Duration
 	lastSeen       map[string]time.Time
 	lastSeenReady  map[string]time.Time

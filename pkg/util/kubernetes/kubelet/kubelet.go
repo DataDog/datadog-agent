@@ -44,6 +44,23 @@ var (
 	kubeletExpVar  = expvar.NewInt("kubeletQueries")
 )
 
+// KubeUtilInterface defines the interface for kubelet api
+type KubeUtilInterface interface {
+	GetNodeInfo() (string, string, error)
+	GetNodename() (string, error)
+	GetLocalPodList() ([]*Pod, error)
+	ForceGetLocalPodList() ([]*Pod, error)
+	GetPodForContainerID(containerID string) (*Pod, error)
+	GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error)
+	GetPodFromUID(podUID string) (*Pod, error)
+	GetPodForEntityID(entityID string) (*Pod, error)
+	GetKubeletApiEndpoint() string
+	GetRawConnectionInfo() map[string]string
+	GetRawMetrics() ([]byte, error)
+	ListContainers() ([]*containers.Container, error)
+	UpdateContainerMetrics(ctrList []*containers.Container) error
+}
+
 // KubeUtil is a struct to hold the kubelet api url
 // Instantiate with GetKubeUtil
 type KubeUtil struct {
@@ -91,7 +108,7 @@ func newKubeUtil() *KubeUtil {
 }
 
 // GetKubeUtil returns an instance of KubeUtil.
-func GetKubeUtil() (*KubeUtil, error) {
+func GetKubeUtil() (KubeUtilInterface, error) {
 	if globalKubeUtil == nil {
 		globalKubeUtil = newKubeUtil()
 		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{

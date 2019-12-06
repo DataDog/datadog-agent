@@ -23,7 +23,7 @@ import (
 // running in kubernetes
 type DockerKubeletService struct {
 	DockerService
-	kubeUtil *kubelet.KubeUtil
+	kubeUtil kubelet.KubeUtilInterface
 	Hosts    map[string]string
 	Ports    []ContainerPort
 	sync.RWMutex

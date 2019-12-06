@@ -15,9 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type kubeUtilGetter func() (k.KubeUtilInterface, error)
+
+var kubeUtilGet kubeUtilGetter = k.GetKubeUtil
+
 // HostnameProvider builds a hostname from the kubernetes nodename and an optional cluster-name
 func HostnameProvider() (string, error) {
-	ku, err := k.GetKubeUtil()
+	ku, err := kubeUtilGet()
 	if err != nil {
 		return "", err
 	}
