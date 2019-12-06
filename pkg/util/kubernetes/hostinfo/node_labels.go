@@ -10,7 +10,6 @@ package hostinfo
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -37,14 +36,7 @@ func GetNodeLabels() (map[string]string, error) {
 			return nil, err
 		}
 	} else {
-		client, err := apiserver.GetAPIClient()
-		if err != nil {
-			return nil, err
-		}
-		nodeLabels, err = client.NodeLabels(nodeName)
-		if err != nil {
-			return nil, err
-		}
+		nodeLabels, err = apiserverNodeLabels(nodeName)
 	}
 	return nodeLabels, nil
 }
