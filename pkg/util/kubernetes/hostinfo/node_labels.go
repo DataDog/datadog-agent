@@ -25,20 +25,14 @@ func GetNodeLabels() (map[string]string, error) {
 		return nil, err
 	}
 
-	var nodeLabels map[string]string
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		cl, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
 			return nil, err
 		}
-		nodeLabels, err = cl.GetNodeLabels(nodeName)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		nodeLabels, err = apiserverNodeLabels(nodeName)
+		return cl.GetNodeLabels(nodeName)
 	}
-	return nodeLabels, nil
+	return apiserverNodeLabels(nodeName)
 }
 
 // GetNodeClusterNameLabel returns clustername by fetching a node label
