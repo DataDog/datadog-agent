@@ -2,6 +2,7 @@ package dogstatsd
 
 import (
 	"bytes"
+	"strings"
 )
 
 type messageType int
@@ -19,6 +20,8 @@ var (
 	fieldSeparator = []byte("|")
 	colonSeparator = []byte(":")
 	commaSeparator = []byte(",")
+
+	commaSeparatorString = ","
 )
 
 func findMessageType(message []byte) messageType {
@@ -43,9 +46,9 @@ func nextField(message []byte) ([]byte, []byte) {
 	return message[:sepIndex], message[sepIndex+1:]
 }
 
-func parseTags(rawTags []byte) [][]byte {
+func parseTags(rawTags []byte) []string {
 	if len(rawTags) == 0 {
 		return nil
 	}
-	return bytes.Split(rawTags, commaSeparator)
+	return strings.Split(string(rawTags), commaSeparatorString)
 }

@@ -11,42 +11,42 @@ func TestEventMinimal(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test text"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, [][]byte(nil), e.tags)
+	assert.Equal(t, []string(nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
-	assert.Equal(t, []byte(nil), e.aggregationKey)
-	assert.Equal(t, []byte(nil), e.sourceType)
+	assert.Equal(t, "", e.aggregationKey)
+	assert.Equal(t, "", e.sourceType)
 }
 
 func TestEventMultilinesText(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test\\line1\nline2\nline3"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test\\line1\nline2\nline3"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, [][]byte(nil), e.tags)
+	assert.Equal(t, []string(nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
-	assert.Equal(t, []byte(nil), e.aggregationKey)
-	assert.Equal(t, []byte(nil), e.sourceType)
+	assert.Equal(t, "", e.aggregationKey)
+	assert.Equal(t, "", e.sourceType)
 }
 
 func TestEventPipeInTitle(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test|title"), e.title)
-	assert.Equal(t, []byte("test\\line1\nline2\nline3"), e.text)
+	assert.Equal(t, string("test|title"), e.title)
+	assert.Equal(t, string("test\\line1\nline2\nline3"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, [][]byte(nil), e.tags)
+	assert.Equal(t, []string(nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
-	assert.Equal(t, []byte(nil), e.aggregationKey)
-	assert.Equal(t, []byte(nil), e.sourceType)
+	assert.Equal(t, "", e.aggregationKey)
+	assert.Equal(t, "", e.sourceType)
 }
 
 func TestEventError(t *testing.T) {
@@ -118,110 +118,110 @@ func TestEventMetadataTimestamp(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text|d:21"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test text"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(21), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, [][]byte(nil), e.tags)
+	assert.Equal(t, []string(nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
-	assert.Equal(t, []byte(nil), e.aggregationKey)
-	assert.Equal(t, []byte(nil), e.sourceType)
+	assert.Equal(t, "", e.aggregationKey)
+	assert.Equal(t, "", e.sourceType)
 }
 
 func TestEventMetadataPriority(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text|p:low"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test text"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityLow, e.priority)
-	assert.Equal(t, [][]byte(nil), e.tags)
+	assert.Equal(t, []string(nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
-	assert.Equal(t, []byte(nil), e.aggregationKey)
-	assert.Equal(t, []byte(nil), e.sourceType)
+	assert.Equal(t, "", e.aggregationKey)
+	assert.Equal(t, "", e.sourceType)
 }
 
 func TestEventMetadataHostname(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text|h:localhost"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test text"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, [][]byte(nil), e.tags)
+	assert.Equal(t, []string(nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
-	assert.Equal(t, []byte(nil), e.aggregationKey)
-	assert.Equal(t, []byte(nil), e.sourceType)
+	assert.Equal(t, "", e.aggregationKey)
+	assert.Equal(t, "", e.sourceType)
 }
 
 func TestEventMetadataAlertType(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text|t:warning"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test text"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, [][]byte(nil), e.tags)
+	assert.Equal(t, []string(nil), e.tags)
 	assert.Equal(t, alertTypeWarning, e.alertType)
-	assert.Equal(t, []byte(nil), e.aggregationKey)
-	assert.Equal(t, []byte(nil), e.sourceType)
+	assert.Equal(t, "", e.aggregationKey)
+	assert.Equal(t, "", e.sourceType)
 }
 
 func TestEventMetadataAggregatioKey(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text|k:some aggregation key"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test text"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, [][]byte(nil), e.tags)
+	assert.Equal(t, []string(nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
-	assert.Equal(t, []byte("some aggregation key"), e.aggregationKey)
-	assert.Equal(t, []byte(nil), e.sourceType)
+	assert.Equal(t, string("some aggregation key"), e.aggregationKey)
+	assert.Equal(t, "", e.sourceType)
 }
 
 func TestEventMetadataSourceType(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text|s:this is the source"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test text"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, [][]byte(nil), e.tags)
+	assert.Equal(t, []string(nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
-	assert.Equal(t, []byte(nil), e.aggregationKey)
-	assert.Equal(t, []byte("this is the source"), e.sourceType)
+	assert.Equal(t, "", e.aggregationKey)
+	assert.Equal(t, string("this is the source"), e.sourceType)
 }
 
 func TestEventMetadataTags(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test text"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, [][]byte{[]byte("tag1"), []byte("tag2:test")}, e.tags)
+	assert.Equal(t, []string{string("tag1"), string("tag2:test")}, e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
-	assert.Equal(t, []byte(nil), e.aggregationKey)
-	assert.Equal(t, []byte(nil), e.sourceType)
+	assert.Equal(t, "", e.aggregationKey)
+	assert.Equal(t, "", e.sourceType)
 }
 
 func TestEventMetadataMultiple(t *testing.T) {
 	e, err := parseEvent([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
 
 	require.Nil(t, err)
-	assert.Equal(t, []byte("test title"), e.title)
-	assert.Equal(t, []byte("test text"), e.text)
+	assert.Equal(t, string("test title"), e.title)
+	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(12345), e.timestamp)
 	assert.Equal(t, priorityLow, e.priority)
-	assert.Equal(t, [][]byte{[]byte("tag1"), []byte("tag2:test")}, e.tags)
+	assert.Equal(t, []string{string("tag1"), string("tag2:test")}, e.tags)
 	assert.Equal(t, alertTypeWarning, e.alertType)
-	assert.Equal(t, []byte("aggKey"), e.aggregationKey)
-	assert.Equal(t, []byte("source test"), e.sourceType)
+	assert.Equal(t, string("aggKey"), e.aggregationKey)
+	assert.Equal(t, string("source test"), e.sourceType)
 }

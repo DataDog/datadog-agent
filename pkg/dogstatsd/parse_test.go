@@ -33,7 +33,7 @@ func TestIdentifyRandomString(t *testing.T) {
 func TestParseTags(t *testing.T) {
 	rawTags := []byte("tag:test,mytag,good:boy")
 	tags := parseTags(rawTags)
-	expectedTags := [][]byte{[]byte("tag:test"), []byte("mytag"), []byte("good:boy")}
+	expectedTags := []string{"tag:test", "mytag", "good:boy"}
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 

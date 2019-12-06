@@ -724,10 +724,7 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	require.Equal(t, 4, len(parsed.Tags))
-	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
-	assert.Equal(t, "foo:bar", parsed.Tags[1])
-	assert.Equal(t, "bar:buz", parsed.Tags[2])
-	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[3])
+	assert.ElementsMatch(t, []string{"sometag1:somevalue1", "foo:bar", "bar:buz", "sometag2:somevalue2"}, parsed.Tags)
 	assert.Equal(t, "my-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }

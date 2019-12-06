@@ -1,7 +1,6 @@
 package dogstatsd
 
 import (
-	"bytes"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -14,8 +13,8 @@ import (
 type tagRetriever func(entity string, cardinality collectors.TagCardinality) ([]string, error)
 
 var (
-	hostTagPrefix     = []byte("host:")
-	entityIDTagPrefix = []byte("dd.internal.entity_id:")
+	hostTagPrefix     = "host:"
+	entityIDTagPrefix = "dd.internal.entity_id:"
 
 	getTags tagRetriever = tagger.Tag
 )
@@ -44,18 +43,19 @@ func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.
 	return convertServiceCheck(sample, defaultHostname), nil
 }
 
-func convertTags(tags [][]byte, defaultHostname string) ([]string, string) {
+func convertTags(tags []string, defaultHostname string) ([]string, string) {
 	if len(tags) == 0 {
 		return nil, defaultHostname
 	}
 
-	tagsList := make([]string, 0, len(tags))
+	extraTags := make([]string, 0, 8)
 	host := defaultHostname
 
+	n := 0
 	for _, tag := range tags {
-		if bytes.HasPrefix(tag, hostTagPrefix) {
+		if strings.HasPrefix(tag, hostTagPrefix) {
 			host = string(tag[len(hostTagPrefix):])
-		} else if bytes.HasPrefix(tag, entityIDTagPrefix) {
+		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
 			// currently only supported for pods
 			entity := kubelet.KubePodTaggerEntityPrefix + string(tag[len(entityIDTagPrefix):])
 			entityTags, err := getTags(entity, tagger.DogstatsdCardinality)
@@ -63,12 +63,15 @@ func convertTags(tags [][]byte, defaultHostname string) ([]string, string) {
 				log.Tracef("Cannot get tags for entity %s: %s", entity, err)
 				continue
 			}
-			tagsList = append(tagsList, entityTags...)
+			extraTags = append(extraTags, entityTags...)
 		} else {
-			tagsList = append(tagsList, string(tag))
+			tags[n] = tag
+			n++
 		}
 	}
-	return tagsList, host
+	tags = tags[:n]
+	tags = append(tags, extraTags...)
+	return tags, host
 }
 
 func convertMetricType(dogstatsdMetricType metricType) metrics.MetricType {

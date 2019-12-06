@@ -25,15 +25,15 @@ const (
 )
 
 type dogstatsdEvent struct {
-	title          []byte
-	text           []byte
+	title          string
+	text           string
 	timestamp      int64
-	hostname       []byte
-	aggregationKey []byte
+	hostname       string
+	aggregationKey string
 	priority       eventPriority
-	sourceType     []byte
+	sourceType     string
 	alertType      alertType
-	tags           [][]byte
+	tags           []string
 }
 
 type eventHeader struct {
@@ -132,13 +132,13 @@ func applyEventOptionalField(event dogstatsdEvent, optionalField []byte) (dogsta
 	case bytes.HasPrefix(optionalField, eventTimestampPrefix):
 		newEvent.timestamp, err = parseEventTimestamp(optionalField[len(eventTimestampPrefix):])
 	case bytes.HasPrefix(optionalField, eventHostnamePrefix):
-		newEvent.hostname = optionalField[len(eventHostnamePrefix):]
+		newEvent.hostname = string(optionalField[len(eventHostnamePrefix):])
 	case bytes.HasPrefix(optionalField, eventAggregationKeyPrefix):
-		newEvent.aggregationKey = optionalField[len(eventAggregationKeyPrefix):]
+		newEvent.aggregationKey = string(optionalField[len(eventAggregationKeyPrefix):])
 	case bytes.HasPrefix(optionalField, eventPriorityPrefix):
 		newEvent.priority, err = parseEventPriority(optionalField[len(eventPriorityPrefix):])
 	case bytes.HasPrefix(optionalField, eventSourceTypePrefix):
-		newEvent.sourceType = optionalField[len(eventSourceTypePrefix):]
+		newEvent.sourceType = string(optionalField[len(eventSourceTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventAlertTypePrefix):
 		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
@@ -169,8 +169,8 @@ func parseEvent(message []byte) (dogstatsdEvent, error) {
 	text := cleanEventText(rawEvent[header.titleLength+1 : header.titleLength+1+header.textLength])
 
 	event := dogstatsdEvent{
-		title:     title,
-		text:      text,
+		title:     string(title),
+		text:      string(text),
 		priority:  priorityNormal,
 		alertType: alertTypeInfo,
 	}
