@@ -8,11 +8,13 @@
 package apiserver
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
 	v1alpha12 "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -20,6 +22,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	autoscalerslister "k8s.io/client-go/listers/autoscaling/v2beta1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -62,6 +65,8 @@ type AutoscalersController struct {
 	// Autoscalers that need to be added to the cache.
 	HPAqueue workqueue.RateLimitingInterface
 	WPAqueue workqueue.RateLimitingInterface
+
+	EventRecorder record.EventRecorder
 
 	// used in unit tests to wait until hpas are synced
 	autoscalers chan interface{}
@@ -159,13 +164,16 @@ func (h *AutoscalersController) syncHPA(key interface{}) error {
 		newMetrics := h.hpaProc.ProcessEMList(emList)
 		// The syncWPA can also interact with the overflowing store.
 		if len(newMetrics)+h.metricsProcessedCount > maxMetricsCount {
-			log.Warnf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
+			warningMsg := fmt.Sprintf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
 				h.metricsProcessedCount, hpaCached.Namespace, hpaCached.Name, maxMetricsCount)
+			log.Warn(warningMsg)
 			h.overFlowingAutoscalers[hpaCached.UID] = len(newMetrics)
+			h.EventRecorder.Event(hpaCached, corev1.EventTypeNormal, autoscalerIgnoreMsgEvent, warningMsg)
 			return nil
 		}
 		if _, ok := h.overFlowingAutoscalers[hpaCached.UID]; ok {
 			log.Debugf("Previously ignored HPA %s/%s will now be processed", hpaCached.Namespace, hpaCached.Name)
+			h.EventRecorder.Event(hpaCached, corev1.EventTypeNormal, autoscalerUnIgnoreMsgEvent, "Previously ignored HPA, will now be processed")
 			delete(h.overFlowingAutoscalers, hpaCached.UID)
 		}
 		h.toStore.m.Lock()
@@ -187,6 +195,7 @@ func (h *AutoscalersController) addAutoscaler(obj interface{}) {
 		return
 	}
 	log.Debugf("Adding autoscaler %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
+	h.EventRecorder.Event(newAutoscaler, corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
 	h.enqueue(newAutoscaler)
 }
 

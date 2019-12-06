@@ -18,7 +18,10 @@ import (
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 
 	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 	"k8s.io/apimachinery/pkg/types"
@@ -49,7 +52,7 @@ func TestUpdateWPA(t *testing.T) {
 		},
 	}
 
-	hctrl, _ := newFakeAutoscalerController(client, alwaysLeader, autoscalers.DatadogClient(d))
+	hctrl, _ := newFakeAutoscalerController(t, client, alwaysLeader, autoscalers.DatadogClient(d))
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
 	hctrl.autoscalers = make(chan interface{}, 1)
@@ -144,11 +147,16 @@ func TestUpdateWPA(t *testing.T) {
 
 }
 
-func newFakeWPAController(kubeClient kubernetes.Interface, client wpa_client.Interface, itf LeaderElectorInterface, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.SharedInformerFactory) {
+func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client wpa_client.Interface, itf LeaderElectorInterface, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.SharedInformerFactory) {
+
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(t.Logf)
+
 	// need to fake wpa_client.
 	inf := wpa_informers.NewSharedInformerFactory(client, 0)
 	autoscalerController, _ := NewAutoscalersController(
 		kubeClient,
+		eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "FakeWPAController"}),
 		itf,
 		dcl,
 	)
@@ -215,7 +223,7 @@ func TestWPAController(t *testing.T) {
 		},
 	}
 	wpaClient := fake.NewSimpleClientset()
-	hctrl, inf := newFakeWPAController(client, wpaClient, alwaysLeader, autoscalers.DatadogClient(d))
+	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, autoscalers.DatadogClient(d))
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
 	hctrl.autoscalers = make(chan interface{}, 1)
@@ -359,7 +367,7 @@ func TestWPASync(t *testing.T) {
 	client := k8s_fake.NewSimpleClientset()
 	wpaClient := fake.NewSimpleClientset()
 	d := &fakeDatadogClient{}
-	hctrl, inf := newFakeWPAController(client, wpaClient, alwaysLeader, d)
+	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, d)
 
 	obj := newFakeWatermarkPodAutoscaler(
 		"wpa_1",
@@ -517,7 +525,7 @@ func TestWPAGC(t *testing.T) {
 			d := &fakeDatadogClient{}
 			wpaCl := fake.NewSimpleClientset()
 
-			hctrl, _ := newFakeAutoscalerController(client, i, d)
+			hctrl, _ := newFakeAutoscalerController(t, client, i, d)
 			hctrl.wpaEnabled = true
 			inf := wpa_informers.NewSharedInformerFactory(wpaCl, 0)
 			ExtendToWPAController(hctrl, inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers())

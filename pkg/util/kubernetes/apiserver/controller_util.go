@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -29,13 +30,14 @@ import (
 )
 
 // NewAutoscalersController returns a new AutoscalersController
-func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl autoscalers.DatadogClient) (*AutoscalersController, error) {
+func NewAutoscalersController(client kubernetes.Interface, eventRecorder record.EventRecorder, le LeaderElectorInterface, dogCl autoscalers.DatadogClient) (*AutoscalersController, error) {
 	var err error
 
 	h := &AutoscalersController{
-		clientSet: client,
-		le:        le, // only trigger GC and updateExternalMetrics by the Leader.
-		HPAqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		clientSet:     client,
+		le:            le, // only trigger GC and updateExternalMetrics by the Leader.
+		HPAqueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		EventRecorder: eventRecorder,
 	}
 
 	h.toStore.data = make(map[string]custommetrics.ExternalMetricValue)

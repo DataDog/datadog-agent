@@ -18,11 +18,14 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	"k8s.io/api/autoscaling/v2beta1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -61,11 +64,15 @@ func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName stri
 	}
 }
 
-func newFakeAutoscalerController(client kubernetes.Interface, itf LeaderElectorInterface, dcl autoscalers.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
+func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, itf LeaderElectorInterface, dcl autoscalers.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
+
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(t.Logf)
 
 	autoscalerController, _ := NewAutoscalersController(
 		client,
+		eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
 		itf,
 		dcl,
 	)
@@ -167,7 +174,7 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
-	hctrl, _ := newFakeAutoscalerController(client, alwaysLeader, autoscalers.DatadogClient(d))
+	hctrl, _ := newFakeAutoscalerController(t, client, alwaysLeader, autoscalers.DatadogClient(d))
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
 	hctrl.autoscalers = make(chan interface{}, 1)
@@ -293,7 +300,7 @@ func TestAutoscalerController(t *testing.T) {
 			return ddSeries, nil
 		},
 	}
-	hctrl, inf := newFakeAutoscalerController(client, alwaysLeader, autoscalers.DatadogClient(d))
+	hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, autoscalers.DatadogClient(d))
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
 	hctrl.autoscalers = make(chan interface{}, 1)
@@ -488,7 +495,7 @@ func TestAutoscalerController(t *testing.T) {
 func TestAutoscalerSync(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	d := &fakeDatadogClient{}
-	hctrl, inf := newFakeAutoscalerController(client, alwaysLeader, d)
+	hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, d)
 	obj := newFakeHorizontalPodAutoscaler(
 		"hpa_1",
 		"default",
@@ -705,7 +712,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
 			i := &fakeLeaderElector{}
 			d := &fakeDatadogClient{}
-			hctrl, inf := newFakeAutoscalerController(client, i, d)
+			hctrl, inf := newFakeAutoscalerController(t, client, i, d)
 
 			hctrl.store = store
 			hctrl.overFlowingAutoscalers = testCase.ignored
