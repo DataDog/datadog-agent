@@ -361,7 +361,6 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 		subtraceSublayers := ComputeSublayers(subtrace.Trace)
 		sublayers[subtrace.Root] = subtraceSublayers
 	}
-	assert.Equal(1, 2, "GOT %+v", subtraces)
 
 	testTrace := &Input{
 		Env:       "none",
