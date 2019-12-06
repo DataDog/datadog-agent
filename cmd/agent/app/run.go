@@ -215,7 +215,7 @@ func StartAgent() error {
 	// start the cmd HTTP server
 	if runtime.GOOS != "android" {
 		if err = api.StartServer(); err != nil {
-			return log.Errorf("Error while starting api server, exiting: %v", err)
+			log.Errorf("Major error while starting api server (API will not be accessible): %v", err)
 		}
 	}
 

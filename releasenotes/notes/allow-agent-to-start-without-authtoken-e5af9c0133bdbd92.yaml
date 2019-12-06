@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Do not exit the agent if the 'auth_token' for the API can't be created. On
+    windows, if the agent doesn't have the right to create the file it would
+    trigger a rollback when installing/upgrading the agent.
