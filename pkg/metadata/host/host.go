@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
+	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
 )
 
 const packageCachePrefix = "host"
