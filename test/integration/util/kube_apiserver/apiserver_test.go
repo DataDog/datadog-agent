@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
