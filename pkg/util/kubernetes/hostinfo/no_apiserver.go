@@ -7,6 +7,6 @@
 
 package hostinfo
 
-func apiserverNodeLabels() (map[string]string, error) {
+func apiserverNodeLabels(nodeName string) (map[string]string, error) {
 	return nil, nil
 }
