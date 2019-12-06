@@ -5,23 +5,19 @@
 
 // +build kubelet
 
-package hostinfo
+package kubelet
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// KubeletHostnameProvider is the kubelet implementation for the hostname provider
-func KubeletHostnameProvider() (string, error) {
-	return kubeletHostname()
-}
-
-// kubeletHostname builds a hostname from the kubernetes nodename and an optional cluster-name
-func kubeletHostname() (string, error) {
-	ku, err := kubelet.GetKubeUtil()
+// HostnameProvider builds a hostname from the kubernetes nodename and an optional cluster-name
+func HostnameProvider() (string, error) {
+	ku, err := k.GetKubeUtil()
 	if err != nil {
 		return "", err
 	}
@@ -30,7 +26,7 @@ func kubeletHostname() (string, error) {
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}
 
-	clusterName := GetClusterName()
+	clusterName := clustername.GetClusterName()
 	if clusterName == "" {
 		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
 		return nodeName, nil

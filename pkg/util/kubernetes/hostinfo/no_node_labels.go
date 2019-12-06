@@ -7,12 +7,12 @@
 
 package hostinfo
 
-// getNodeLabels returns node labels for this host
-func getNodeLabels() (map[string]string, error) {
+// GetNodeLabels returns node labels for this host
+func GetNodeLabels() (map[string]string, error) {
 	return nil, nil
 }
 
-// getNodeClusterNameLabel returns clustername by fetching a node label
-func getNodeClusterNameLabel() (string, error) {
+// GetNodeClusterNameLabel returns clustername by fetching a node label
+func GetNodeClusterNameLabel() (string, error) {
 	return "", nil
 }

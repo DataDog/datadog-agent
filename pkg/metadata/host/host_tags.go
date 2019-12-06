@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,7 +62,7 @@ func getHostTags() *tags {
 		}
 	}
 
-	clusterName := k8s.GetClusterName()
+	clusterName := clustername.GetClusterName()
 	if len(clusterName) != 0 {
 		hostTags = appendToHostTags(hostTags, []string{"cluster_name:" + clusterName})
 	}

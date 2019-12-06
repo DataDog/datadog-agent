@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
-	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
 )
 
 const packageCachePrefix = "host"
@@ -115,7 +115,7 @@ func getHostAliases() []string {
 		aliases = append(aliases, cfAliases...)
 	}
 
-	k8sAlias, err := k8s.GetHostAlias()
+	k8sAlias, err := kubelet.GetHostAlias()
 	if err != nil {
 		log.Debugf("no Kubernetes Host Alias (through kubelet API): %s", err)
 	} else if k8sAlias != "" {

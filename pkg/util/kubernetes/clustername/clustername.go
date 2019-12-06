@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -85,6 +86,15 @@ func getClusterName(data *clusterNameData) string {
 					data.clusterName = clusterName
 					break
 				}
+			}
+		}
+
+		if data.clusterName == "" {
+			clusterName, err := hostinfo.GetNodeClusterNameLabel()
+			if err != nil {
+				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+			} else {
+				data.clusterName = clusterName
 			}
 		}
 		data.initDone = true

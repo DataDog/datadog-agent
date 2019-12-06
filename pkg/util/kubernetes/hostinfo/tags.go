@@ -29,7 +29,7 @@ func GetTags() ([]string, error) {
 		labelsToTags[strings.ToLower(label)] = value
 	}
 
-	nodeLabels, err := getNodeLabels()
+	nodeLabels, err := GetNodeLabels()
 	if err != nil {
 		return nil, err
 	}

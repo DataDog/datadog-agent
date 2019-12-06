@@ -14,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// getNodeLabels returns node labels for this host
-func getNodeLabels() (map[string]string, error) {
+// GetNodeLabels returns node labels for this host
+func GetNodeLabels() (map[string]string, error) {
 	ku, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -49,9 +49,9 @@ func getNodeLabels() (map[string]string, error) {
 	return nodeLabels, nil
 }
 
-// getNodeClusterNameLabel returns clustername by fetching a node label
-func getNodeClusterNameLabel() (string, error) {
-	nodeLabels, err := getNodeLabels()
+// GetNodeClusterNameLabel returns clustername by fetching a node label
+func GetNodeClusterNameLabel() (string, error) {
+	nodeLabels, err := GetNodeLabels()
 	if err != nil {
 		return "", err
 	}
