@@ -361,6 +361,7 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 		subtraceSublayers := ComputeSublayers(subtrace.Trace)
 		sublayers[subtrace.Root] = subtraceSublayers
 	}
+	assert.Equal(1, 2, "GOT %+v", subtraces)
 
 	testTrace := &Input{
 		Env:       "none",
@@ -388,12 +389,18 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 		"query|_sublayers.duration.by_service|env:none,resource:resource4,service:A3,sublayer_service:A3": 340,
 		"query|_sublayers.duration.by_service|env:none,resource:resource2,service:A2,sublayer_service:A2": 1000,
 		"query|_sublayers.duration.by_service|env:none,resource:resource2,service:A2,sublayer_service:A3": 370,
+		"query|_sublayers.duration.by_service|env:none,resource:resource3,service:A2,sublayer_service:A2": 1000,
+		"query|_sublayers.duration.by_service|env:none,resource:resource6,service:A3,sublayer_service:A3": 30,
 		"query|_sublayers.duration.by_type|env:none,resource:resource1,service:A1,sublayer_type:db":       4370,
 		"query|_sublayers.duration.by_type|env:none,resource:resource2,service:A2,sublayer_type:db":       1370,
 		"query|_sublayers.duration.by_type|env:none,resource:resource4,service:A3,sublayer_type:db":       340,
+		"query|_sublayers.duration.by_type|env:none,resource:resource3,service:A2,sublayer_type:db":       1000,
+		"query|_sublayers.duration.by_type|env:none,resource:resource6,service:A3,sublayer_type:db":       30,
 		"query|_sublayers.span_count|env:none,resource:resource1,service:A1,:":                            6,
 		"query|_sublayers.span_count|env:none,resource:resource2,service:A2,:":                            4,
 		"query|_sublayers.span_count|env:none,resource:resource4,service:A3,:":                            2,
+		"query|_sublayers.span_count|env:none,resource:resource3,service:A2,:":                            1,
+		"query|_sublayers.span_count|env:none,resource:resource6,service:A3,:":                            1,
 		"query|duration|env:none,resource:resource1,service:A1":                                           2000,
 		"query|duration|env:none,resource:resource2,service:A2":                                           1000,
 		"query|duration|env:none,resource:resource3,service:A2":                                           1000,
@@ -412,7 +419,7 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 	}
 
 	// verify we got all counts
-	assert.Equal(len(expectedCountValByKey), len(receivedCounts), "GOT %v", receivedCounts)
+	assert.Equal(len(expectedCountValByKey), len(receivedCounts), "GOT %+v", receivedCounts)
 	// verify values
 	for key, val := range expectedCountValByKey {
 		count, ok := receivedCounts[key]
