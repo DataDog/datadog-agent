@@ -64,6 +64,7 @@
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
+/pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/baklava
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
@@ -98,6 +99,3 @@
 /test/util                              @DataDog/agent-all
 
 /tools/ebpf/                            @DataDog/burrito
-
-# Match specific files first (at the bottom of the file to be matched first)
-config_template.yaml                    @DataDog/agent-all @DataDog/baklava
