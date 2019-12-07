@@ -122,6 +122,10 @@ func TestMask(t *testing.T) {
 	shouldProcess, redactedMessage = p.applyRedactingRules(newMessage([]byte("New data added to data_values=123456 on prod"), &source, ""))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("New data added to data_values=[masked_value] on prod"), redactedMessage)
+
+	shouldProcess, redactedMessage = p.applyRedactingRules(newMessage([]byte("New data added to data_values= on prod"), &source, ""))
+	assert.Equal(t, true, shouldProcess)
+	assert.Equal(t, []byte("New data added to data_values= on prod"), redactedMessage)
 }
 
 func TestTruncate(t *testing.T) {
