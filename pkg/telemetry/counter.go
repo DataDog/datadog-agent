@@ -5,7 +5,9 @@
 
 package telemetry
 
-import "fmt"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // Counter tracks how many times something is happening.
 type Counter interface {
@@ -18,12 +20,19 @@ type Counter interface {
 }
 
 // NewCounter creates a Counter for telemetry purpose.
-// If the telemetry's not enabled, returns a noop Counter.
+// Current implementation used: Prometheus Counter.
 func NewCounter(subsystem, name string, tags []string, help string) Counter {
-	return &lazyCounter{
-		subsystem: subsystem,
-		name:      fmt.Sprintf("_%s", name),
-		help:      help,
-		tags:      tags,
+	c := &promCounter{
+		pc: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      name,
+				Help:      help,
+			},
+			tags,
+		),
 	}
+	prometheus.MustRegister(c.pc)
+	return c
 }

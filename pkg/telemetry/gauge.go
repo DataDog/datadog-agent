@@ -5,7 +5,9 @@
 
 package telemetry
 
-import "fmt"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // Gauge tracks the value of one health metric of the Agent.
 type Gauge interface {
@@ -24,12 +26,19 @@ type Gauge interface {
 }
 
 // NewGauge creates a Gauge for telemetry purpose.
-// It returns a lazyGauge: the lazy gauge will wait for the first call to Add
+// Current implementation used: Prometheus Gauge
 func NewGauge(subsystem, name string, tags []string, help string) Gauge {
-	return &lazyGauge{
-		subsystem: subsystem,
-		name:      fmt.Sprintf("_%s", name),
-		tags:      tags,
-		help:      help,
+	g := &promGauge{
+		pg: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      name,
+				Help:      help,
+			},
+			tags,
+		),
 	}
+	prometheus.MustRegister(g.pg)
+	return g
 }
