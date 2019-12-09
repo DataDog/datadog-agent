@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -41,7 +42,7 @@ func NewECSConfigProvider(config config.ConfigurationProviders) (ConfigProvider,
 
 // String returns a string representation of the ECSConfigProvider
 func (p *ECSConfigProvider) String() string {
-	return ECS
+	return names.ECS
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ECS' data.
@@ -61,8 +62,8 @@ func (p *ECSConfigProvider) Collect() ([]integration.Config, error) {
 
 // getTaskMetadata queries the ECS metadata API and unmarshals the resulting json
 // into a TaskMetadata object.
-func (p *ECSConfigProvider) getTaskMetadata() (ecs.TaskMetadata, error) {
-	var meta ecs.TaskMetadata
+func (p *ECSConfigProvider) getTaskMetadata() (metadata.TaskMetadata, error) {
+	var meta metadata.TaskMetadata
 	resp, err := p.client.Get(metadataURL)
 	if err != nil {
 		log.Errorf("unable to get task metadata - %s", err)
@@ -80,7 +81,7 @@ func (p *ECSConfigProvider) getTaskMetadata() (ecs.TaskMetadata, error) {
 
 // parseECSContainers loops through ecs containers found in the ecs metadata response
 // and extracts configuration templates out of their labels.
-func parseECSContainers(containers []ecs.Container) ([]integration.Config, error) {
+func parseECSContainers(containers []metadata.ContainerMetadata) ([]integration.Config, error) {
 	var templates []integration.Config
 	for _, c := range containers {
 		dockerEntityName := docker.ContainerIDToEntityName(c.DockerID)

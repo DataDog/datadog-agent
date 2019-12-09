@@ -197,7 +197,6 @@ If the cause is unclear, please contact Datadog support.
     $sudo_cmd apt-get install -y --force-yes datadog-agent
     ERROR_MESSAGE=""
 elif [ $OS = "SUSE" ]; then
-
   UNAME_M=$(uname -m)
   if [ "$UNAME_M"  == "i686" -o "$UNAME_M"  == "i386" -o "$UNAME_M"  == "x86" ]; then
       printf "\033[31mThe Datadog Agent installer is only available for 64 bit SUSE Enterprise machines.\033[0m\n"
@@ -208,12 +207,24 @@ elif [ $OS = "SUSE" ]; then
       ARCHI="x86_64"
   fi
 
+  # Try to guess if we're installing on SUSE 11, as it needs a different flow to work
+  if cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
+    SUSE11="yes"
+  fi
+
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
   $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://yum.${repo_url}/suse/${dd_agent_dist_channel}/${dd_agent_major_version}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=https://yum.${repo_url}/DATADOG_RPM_KEY.public\n       https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/zypp/repos.d/datadog.repo"
 
   echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
-  $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY.public
-  $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
+  if [ "$SUSE11" == "yes" ]; then
+    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public https://yum.${repo_url}/DATADOG_RPM_KEY.public
+    $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY.public
+    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
+    $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public
+  else
+    $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY.public
+    $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
+  fi
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
@@ -282,12 +293,19 @@ else
   $sudo_cmd chmod 640 $CONF
 fi
 
+# On SUSE 11, sudo service datadog-agent start fails (because /sbin is not in a base user's path)
+# However, sudo /sbin/service datadog-agent does work.
+# Use which (from root user) to find the absolute path to service
+
+if [ "$SUSE11" == "yes" ]; then
+  service_cmd=`$sudo_cmd which service`
+fi
 
 # Use /usr/sbin/service by default.
 # Some distros usually include compatibility scripts with Upstart or Systemd. Check with: `command -v service | xargs grep -E "(upstart|systemd)"`
-restart_cmd="$sudo_cmd service datadog-agent restart"
-stop_instructions="$sudo_cmd service datadog-agent stop"
-start_instructions="$sudo_cmd service datadog-agent start"
+restart_cmd="$sudo_cmd $service_cmd datadog-agent restart"
+stop_instructions="$sudo_cmd $service_cmd datadog-agent stop"
+start_instructions="$sudo_cmd $service_cmd datadog-agent start"
 
 if command -v systemctl 2>&1; then
   # Use systemd if systemctl binary exists

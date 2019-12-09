@@ -7,6 +7,7 @@ package status
 
 import (
 	"expvar"
+	"fmt"
 	"strings"
 	"sync/atomic"
 
@@ -16,6 +17,7 @@ import (
 // Builder is used to build the status.
 type Builder struct {
 	isRunning   *int32
+	endpoints   *config.Endpoints
 	sources     *config.LogSources
 	warnings    *config.Messages
 	errors      *config.Messages
@@ -23,9 +25,10 @@ type Builder struct {
 }
 
 // NewBuilder returns a new builder.
-func NewBuilder(isRunning *int32, sources *config.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
+func NewBuilder(isRunning *int32, endpoints *config.Endpoints, sources *config.LogSources, warnings *config.Messages, errors *config.Messages, logExpVars *expvar.Map) *Builder {
 	return &Builder{
 		isRunning:   isRunning,
+		endpoints:   endpoints,
 		sources:     sources,
 		warnings:    warnings,
 		errors:      errors,
@@ -37,6 +40,7 @@ func NewBuilder(isRunning *int32, sources *config.LogSources, warnings *config.M
 func (b *Builder) BuildStatus() Status {
 	return Status{
 		IsRunning:     b.getIsRunning(),
+		Endpoints:     b.getEndpoints(),
 		Integrations:  b.getIntegrations(),
 		StatusMetrics: b.getMetricsStatus(),
 		Warnings:      b.getWarnings(),
@@ -49,6 +53,39 @@ func (b *Builder) BuildStatus() Status {
 // from different commands (start, stop, status).
 func (b *Builder) getIsRunning() bool {
 	return atomic.LoadInt32(b.isRunning) != 0
+}
+
+func (b *Builder) getEndpoints() []string {
+	result := make([]string, 0)
+	result = append(result, b.formatEndpoint(b.endpoints.Main, ""))
+	for _, additional := range b.endpoints.Additionals {
+		result = append(result, b.formatEndpoint(additional, "Additional: "))
+	}
+	return result
+}
+
+func (b *Builder) formatEndpoint(endpoint config.Endpoint, prefix string) string {
+	compression := "uncompressed"
+	if endpoint.UseCompression {
+		compression = "compressed"
+	}
+	var protocol string
+	if b.endpoints.UseHTTP {
+		if endpoint.UseSSL {
+			protocol = "HTTPS"
+		} else {
+			protocol = "HTTP"
+		}
+	} else {
+		if endpoint.UseSSL {
+			protocol = "SSL encrypted TCP"
+		} else {
+			protocol = "TCP"
+		}
+	}
+	host := endpoint.Host
+	port := endpoint.Port
+	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
 }
 
 // getWarnings returns all the warning messages that

@@ -24,16 +24,19 @@ const openFilesLimitWarningType = "open_files_limit_warning"
 
 // File represents a file to tail
 type File struct {
-	Path           string
+	Path string
+	// IsWildcardPath is set to true when the File has been discovered
+	// in a directory with wildcard(s) in the configuration.
 	IsWildcardPath bool
 	Source         *config.LogSource
 }
 
 // NewFile returns a new File
-func NewFile(path string, source *config.LogSource) *File {
+func NewFile(path string, source *config.LogSource, isWildcardPath bool) *File {
 	return &File{
-		Path:   path,
-		Source: source,
+		Path:           path,
+		Source:         source,
+		IsWildcardPath: isWildcardPath,
 	}
 }
 
@@ -77,7 +80,6 @@ func (p *Provider) FilesToTail(sources []*config.LogSource) []*File {
 		}
 		for j := 0; j < len(files) && len(filesToTail) < p.filesLimit; j++ {
 			file := files[j]
-			file.IsWildcardPath = isWildcardPath
 			filesToTail = append(filesToTail, file)
 			tailedFileCounter++
 		}
@@ -114,7 +116,7 @@ func (p *Provider) CollectFiles(source *config.LogSource) ([]*File, error) {
 	switch {
 	case fileExists:
 		return []*File{
-			NewFile(path, source),
+			NewFile(path, source, false),
 		}, nil
 	case p.containsWildcard(path):
 		pattern := path
@@ -151,7 +153,7 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 		return filepath.Base(paths[i]) > filepath.Base(paths[j])
 	})
 	for _, path := range paths {
-		files = append(files, NewFile(path, source))
+		files = append(files, NewFile(path, source, true))
 	}
 	return files, nil
 }

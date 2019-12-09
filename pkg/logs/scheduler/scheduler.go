@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -59,7 +59,16 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.sources.AddSource(source)
 			}
 		case s.newService(config):
-			log.Debugf("Received a new service: %v", config.Entity)
+			entityType, _, err := s.parseEntity(config.TaggerEntity)
+			if err != nil {
+				log.Warnf("Invalid service: %v", err)
+				continue
+			}
+			// logs only consider container services
+			if entityType != containers.ContainerEntityName {
+				continue
+			}
+			log.Infof("Received a new service: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
 				log.Warnf("Invalid service: %v", err)
@@ -96,6 +105,15 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			}
 		case s.newService(config):
 			// new service to remove
+			entityType, _, err := s.parseEntity(config.TaggerEntity)
+			if err != nil {
+				log.Warnf("Invalid service: %v", err)
+				continue
+			}
+			// logs only consider container services
+			if entityType != containers.ContainerEntityName {
+				continue
+			}
 			log.Infof("New service to remove: entity: %v", config.Entity)
 			service, err := s.toService(config)
 			if err != nil {
@@ -139,10 +157,10 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	var err error
 
 	switch config.Provider {
-	case providers.File:
+	case names.File:
 		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
-	case providers.Docker, providers.Kubernetes:
+	case names.Docker, names.Kubernetes:
 		// config attached to a docker label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	default:

@@ -35,6 +35,16 @@ func GetInstanceID() (string, error) {
 	return getMetadataItemWithMaxLength("/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 }
 
+// GetLocalIPv4 gets the local IPv4 for the currently running host using the EC2 metadata API.
+// Returns a []string to implement the HostIPProvider interface expected in pkg/process/util
+func GetLocalIPv4() ([]string, error) {
+	ip, err := getMetadataItem("/local-ipv4")
+	if err != nil {
+		return nil, err
+	}
+	return []string{ip}, nil
+}
+
 // IsRunningOn returns true if the agent is running on AWS
 func IsRunningOn() bool {
 	if _, err := GetHostname(); err == nil {
@@ -159,12 +169,21 @@ func getResponse(url string) (*http.Response, error) {
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2
 func IsDefaultHostname(hostname string) bool {
+	return isDefaultHostname(hostname, config.Datadog.GetBool("ec2_use_windows_prefix_detection"))
+}
+
+// IsDefaultHostnameForIntake returns whether the given hostname is a default one for EC2 for the intake
+func IsDefaultHostnameForIntake(hostname string) bool {
+	return isDefaultHostname(hostname, false)
+}
+
+func isDefaultHostname(hostname string, useWindowsPrefix bool) bool {
 	hostname = strings.ToLower(hostname)
 	isDefault := false
 
 	var prefixes []string
 
-	if config.Datadog.GetBool("ec2_use_windows_prefix_detection") {
+	if useWindowsPrefix {
 		prefixes = defaultPrefixes
 	} else {
 		prefixes = oldDefaultPrefixes

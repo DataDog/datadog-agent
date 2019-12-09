@@ -33,7 +33,7 @@ type Config struct {
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
 
-	// MaxTrackedConnections specifies the maximum number of connections we can track, this will be the size of the eBPF + Conntrack.
+	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
 	MaxTrackedConnections uint
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
@@ -55,6 +55,9 @@ type Config struct {
 
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
+
+	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
+	ConntrackMaxStateSize int
 
 	// ConntrackShortTermBufferSize is the maximum number of short term conntracked connections that will
 	// held in memory at once
@@ -84,6 +87,7 @@ func NewDefaultConfig() *Config {
 		UDPConnTimeout:        30 * time.Second,
 		TCPConnTimeout:        2 * time.Minute,
 		MaxTrackedConnections: 65536,
+		ConntrackMaxStateSize: 65536,
 		ProcRoot:              "/proc",
 		BPFDebug:              false,
 		EnableConntrack:       true,
@@ -97,12 +101,12 @@ func NewDefaultConfig() *Config {
 
 // EnabledKProbes returns a map of kprobes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func (c *Config) EnabledKProbes(isRHELOrCentos bool) map[KProbeName]struct{} {
+func (c *Config) EnabledKProbes(pre410Kernel bool) map[KProbeName]struct{} {
 	enabled := make(map[KProbeName]struct{}, 0)
 
 	if c.CollectTCPConns {
-		if isRHELOrCentos {
-			enabled[TCPSendMsgRHEL] = struct{}{}
+		if pre410Kernel {
+			enabled[TCPSendMsgPre410] = struct{}{}
 		} else {
 			enabled[TCPSendMsg] = struct{}{}
 		}
@@ -119,10 +123,11 @@ func (c *Config) EnabledKProbes(isRHELOrCentos bool) map[KProbeName]struct{} {
 
 	if c.CollectUDPConns {
 		enabled[UDPRecvMsgReturn] = struct{}{}
-		enabled[UDPRecvMsg] = struct{}{}
-		if isRHELOrCentos {
-			enabled[UDPSendMsgRHEL] = struct{}{}
+		if pre410Kernel {
+			enabled[UDPSendMsgPre410] = struct{}{}
+			enabled[UDPRecvMsgPre410] = struct{}{}
 		} else {
+			enabled[UDPRecvMsg] = struct{}{}
 			enabled[UDPSendMsg] = struct{}{}
 		}
 

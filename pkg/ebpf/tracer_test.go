@@ -64,6 +64,13 @@ func TestTracerExpvar(t *testing.T) {
 			"Lookups",
 			"Resolved",
 			"Ips",
+			"Added",
+			"Expired",
+			"PacketsCaptured",
+			"PacketsProcessed",
+			"PacketsDropped",
+			"SocketPolls",
+			"DecodingErrors",
 		},
 		"kprobes": {
 			"PtcpCleanupRbufHits",
@@ -670,6 +677,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
+	assert.Equal(t, NONE, conn.Direction)
 
 	doneChan <- struct{}{}
 }

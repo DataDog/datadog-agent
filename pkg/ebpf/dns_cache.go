@@ -59,16 +59,16 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 	}
 
 	exp := now.Add(c.ttl).UnixNano()
-	for addr := range translation.ips {
+	for _, addr := range translation.ips {
 		val, ok := c.data[addr]
 		if ok {
 			val.expiration = exp
-			val.merge(translation.name)
+			val.merge(translation.dns)
 			continue
 		}
 
 		atomic.AddInt64(&c.added, 1)
-		c.data[addr] = &dnsCacheVal{names: []string{translation.name}, expiration: exp}
+		c.data[addr] = &dnsCacheVal{names: []string{translation.dns}, expiration: exp}
 	}
 
 	// Update cache length for telemetry purposes
@@ -200,17 +200,23 @@ func (v *dnsCacheVal) copy() []string {
 }
 
 type translation struct {
-	name string
-	ips  map[util.Address]struct{}
+	dns string
+	ips []util.Address
 }
 
 func newTranslation(domain []byte) *translation {
 	return &translation{
-		name: string(domain),
-		ips:  make(map[util.Address]struct{}),
+		dns: string(domain),
+		ips: nil,
 	}
 }
 
 func (t *translation) add(addr util.Address) {
-	t.ips[addr] = struct{}{}
+	for _, other := range t.ips {
+		if other == addr {
+			return
+		}
+	}
+
+	t.ips = append(t.ips, addr)
 }

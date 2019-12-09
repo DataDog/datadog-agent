@@ -6,6 +6,7 @@
 package inventories
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -14,15 +15,16 @@ import (
 )
 
 type schedulerInterface interface {
-	AddCollector(name string, interval time.Duration) error
 	TriggerAndResetCollectorTimer(name string, delay time.Duration)
 }
 
-type autoConfigInterface interface {
+// AutoConfigInterface is an interface for the GetLoadedConfigs method of autodiscovery
+type AutoConfigInterface interface {
 	GetLoadedConfigs() map[string]integration.Config
 }
 
-type collectorInterface interface {
+// CollectorInterface is an interface for the GetAllInstanceIDs method of the collector
+type CollectorInterface interface {
 	GetAllInstanceIDs(checkName string) []check.ID
 }
 
@@ -96,7 +98,7 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 	}
 }
 
-func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
+func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
 
 	var checkInstanceMetadata CheckInstanceMetadata
 	lastUpdated := agentStartupTime
@@ -116,46 +118,60 @@ func getCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMeta
 	return &checkInstanceMetadata
 }
 
-// GetPayload fills and returns the check metadata payload
-func GetPayload(hostname string, ac autoConfigInterface, coll collectorInterface) *Payload {
-	lastGetPayloadMutex.Lock()
-	lastGetPayload = timeNow()
-	lastGetPayloadMutex.Unlock()
-
+// CreatePayload fills and returns the inventory metadata payload
+func CreatePayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
 
 	checkMetadata := make(CheckMetadata)
 
-	newCheckMetadataCache := make(map[string]*checkMetadataCacheEntry)
-
+	foundInCollector := map[string]struct{}{}
 	if ac != nil {
 		configs := ac.GetLoadedConfigs()
 		for _, config := range configs {
 			checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
 			instanceIDs := coll.GetAllInstanceIDs(config.Name)
 			for _, id := range instanceIDs {
-				checkInstanceMetadata := getCheckInstanceMetadata(string(id), config.Provider)
+				checkInstanceMetadata := createCheckInstanceMetadata(string(id), config.Provider)
 				checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
-				if entry, found := checkMetadataCache[string(id)]; found {
-					newCheckMetadataCache[string(id)] = entry
-				}
+				foundInCollector[string(id)] = struct{}{}
 			}
 		}
 	}
-
-	// newCheckMetadataCache only contains checks that are still running, this way it doesn't grow forever
-	checkMetadataCache = newCheckMetadataCache
+	// if metadata where added for check not in the collector we still need
+	// to add them to the checkMetadata (this happens when using the
+	// 'check' command)
+	for id := range checkMetadataCache {
+		if _, found := foundInCollector[id]; !found {
+			// id should be "check_name:check_hash"
+			parts := strings.SplitN(id, ":", 2)
+			checkMetadata[parts[0]] = append(checkMetadata[parts[0]], createCheckInstanceMetadata(id, ""))
+		}
+	}
 
 	agentCacheMutex.Lock()
 	defer agentCacheMutex.Unlock()
+	// Creating a copy of agentMetadataCache
+	agentMetadata := make(AgentMetadata)
+	for k, v := range agentMetadataCache {
+		agentMetadata[k] = v
+	}
 
 	return &Payload{
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &checkMetadata,
-		AgentMetadata: &agentMetadataCache,
+		AgentMetadata: &agentMetadata,
 	}
+}
+
+// GetPayload returns a new inventory metadata payload and updates lastGetPayload
+func GetPayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+	lastGetPayloadMutex.Lock()
+	defer lastGetPayloadMutex.Unlock()
+	lastGetPayload = timeNow()
+
+	return CreatePayload(hostname, ac, coll)
 }
 
 // StartMetadataUpdatedGoroutine starts a routine that listens to the metadataUpdatedC

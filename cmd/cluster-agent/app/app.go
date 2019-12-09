@@ -18,6 +18,10 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
@@ -175,13 +179,21 @@ func start(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
+
+		// Create event recorder
+		eventBroadcaster := record.NewBroadcaster()
+		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
+
 		stopCh := make(chan struct{})
 		ctx := apiserver.ControllerContext{
-			InformerFactory: apiCl.InformerFactory,
-			Client:          apiCl.Cl,
-			LeaderElector:   le,
-			StopCh:          stopCh,
+			InformerFactory:    apiCl.InformerFactory,
+			WPAInformerFactory: apiCl.WPAInformerFactory,
+			Client:             apiCl.Cl,
+			LeaderElector:      le,
+			EventRecorder:      eventRecorder,
+			StopCh:             stopCh,
 		}
+
 		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
 		}
@@ -205,7 +217,7 @@ func start(cmd *cobra.Command, args []string) error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 	wg := sync.WaitGroup{}
-	// HPA Process
+	// Autoscaler Controller Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
 		wg.Add(1)

@@ -6,6 +6,8 @@
 package traceutil
 
 import (
+	"math"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -67,7 +69,7 @@ func GetRoot(t pb.Trace) *pb.Span {
 // APITrace returns an APITrace from t, as required by the Datadog API.
 // It also returns an estimated size in bytes.
 func APITrace(t pb.Trace) *pb.APITrace {
-	var earliest, latest int64
+	earliest, latest := int64(math.MaxInt64), int64(0)
 	for _, s := range t {
 		start := s.Start
 		if start < earliest {

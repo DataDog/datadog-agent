@@ -1,0 +1,16 @@
+suites:
+
+# Installs the latest release candidate using the step-by-step instructions (on dogweb)
+- name: dd-agent-step-by-step
+  run_list:
+    - "recipe[dd-agent-step-by-step]"
+  attributes:
+    apt:
+      unattended_upgrades:
+        enable: false
+    dd-agent-step-by-step:
+      <% dd_agent_config.each do |key, value| %>
+      <%= key %>: <%= value %>
+      <% end %>
+    dd-agent-rspec:
+      skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

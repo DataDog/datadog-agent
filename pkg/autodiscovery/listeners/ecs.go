@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +24,7 @@ import (
 // It pulls its tasks container list periodically and checks for
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
-	task       ecs.TaskMetadata
+	task       metadata.TaskMetadata
 	filter     *containers.Filter
 	services   map[string]Service // maps container IDs to services
 	newService chan<- Service
@@ -45,7 +46,11 @@ type ECSService struct {
 	taskFamily    string
 	taskVersion   string
 	creationTime  integration.CreationTime
+	checkNames    []string
 }
+
+// Make sure ECSService implements the Service interface
+var _ Service = &ECSService{}
 
 func init() {
 	Register("ecs", NewECSListener)
@@ -148,7 +153,7 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 }
 
-func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService, error) {
+func (l *ECSListener) createService(c metadata.ContainerMetadata, firstRun bool) (ECSService, error) {
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before
@@ -168,6 +173,11 @@ func (l *ECSListener) createService(c ecs.Container, firstRun bool) (ECSService,
 	image := c.Image
 	labels := c.Labels
 	svc.ADIdentifiers = ComputeContainerServiceIDs(svc.GetEntity(), image, labels)
+	var err error
+	svc.checkNames, err = getCheckNamesFromLabels(labels)
+	if err != nil {
+		log.Errorf("Error getting check names from docker labels on container %s: %v", c.DockerID, err)
+	}
 
 	// Host
 	ips := make(map[string]string)
@@ -247,4 +257,9 @@ func (s *ECSService) GetCreationTime() integration.CreationTime {
 
 func (s *ECSService) IsReady() bool {
 	return true
+}
+
+// GetCheckNames returns slice check names defined in docker labels
+func (s *ECSService) GetCheckNames() []string {
+	return s.checkNames
 }

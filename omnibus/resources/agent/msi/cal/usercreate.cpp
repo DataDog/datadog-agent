@@ -86,7 +86,7 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
     //ExplicitAccess suser;
     //suser.BuildGrantUser(secretUserUsername.c_str(), GENERIC_READ | GENERIC_EXECUTE | READ_CONTROL | KEY_READ);
 
-    PSID  usersid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
+    PSID  usersid = GetSidForUser(NULL, data.Username().c_str());
     ExplicitAccess dduser;
     dduser.BuildGrantUser((SID *)usersid, GENERIC_ALL | KEY_ALL_ACCESS,
         SUB_CONTAINERS_AND_OBJECTS_INHERIT);
@@ -118,17 +118,15 @@ DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 
 DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename)
 {
-    std::string shortfile;
-    toMbcs(shortfile, (LPCWSTR)filename.c_str());
 
     if(!PathFileExistsW((LPCWSTR) filename.c_str()))
     {
         // return success; we don't need to do anything
-        WcaLog(LOGMSG_STANDARD, "file %s doesn't exist, not doing anything", shortfile.c_str());
+        WcaLog(LOGMSG_STANDARD, "file %S doesn't exist, not doing anything", filename.c_str());
         return 0;
     }
-    WcaLog(LOGMSG_STANDARD, "Changing file permissions on %s", shortfile.c_str());
-    PSID  usersid = GetSidForUser(NULL, data.getQualifiedUsername().c_str());
+    WcaLog(LOGMSG_STANDARD, "Changing file permissions on %S", filename.c_str());
+    PSID  usersid = GetSidForUser(NULL, data.Username().c_str());
     ExplicitAccess dduser;
     dduser.BuildGrantUser((SID *)usersid, FILE_ALL_ACCESS,
                           SUB_CONTAINERS_AND_OBJECTS_INHERIT);
@@ -226,7 +224,7 @@ doneRemove:
     return ;
 }
 
-int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf)
+int doCreateUser(const std::wstring& name, const std::wstring& comment, const wchar_t* passbuf)
 {
     
     USER_INFO_1 ui;
@@ -250,8 +248,15 @@ int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring&
 
 }
 
-
-
+int doSetUserPassword(const std::wstring& name,  const wchar_t* passbuf)
+{
+    USER_INFO_1003 ui;
+    memset(&ui,0, sizeof(USER_INFO_1003));
+    ui.usri1003_password = (LPWSTR)passbuf;
+    DWORD ret = NetUserSetInfo(NULL, name.c_str(), 1003, (LPBYTE)&ui, NULL);
+    WcaLog(LOGMSG_STANDARD, "NetUserSetInfo Change Password %d", ret);
+    return ret;
+}
 DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
     NET_API_STATUS ret = NetUserDel(NULL, name);
     return (DWORD)ret;
@@ -299,9 +304,9 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC)
     LPWSTR refDomain = NULL;
     DWORD cchRefDomain = 0;
     SID_NAME_USE use;
-    std::string narrowdomain;
     DWORD err = 0;
-    const wchar_t * userToTry = data.getQualifiedUsername().c_str();
+    const wchar_t * userToTry = data.Username().c_str();
+    const wchar_t * hostToTry = NULL;
 
     BOOL bRet = LookupAccountName(NULL, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
     if (bRet) {
@@ -324,9 +329,9 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC)
                 WcaLog(LOGMSG_STANDARD, "Can't reach domain controller %d", err);
                 // if the user specified a domain, then also must be able to contact
                 // the domain authority
-                if (data.getDomainPtr() == NULL) {
+                if (data.isUserLocalUser() == NULL) {
                     WcaLog(LOGMSG_STANDARD, "trying fully qualified local account");
-                    bRet = LookupAccountName(NULL, data.getFullUsername().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
+                    bRet = LookupAccountName(computername.c_str(), data.Username().c_str(), newsid, &cbSid, refDomain, &cchRefDomain, &use);
                     if (bRet) {
                         // this should *never* happen, because we didn't pass in a buffer large enough for
                         // the sid or the domain name.
@@ -353,7 +358,7 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC)
                 WcaLog(LOGMSG_STANDARD, "doesUserExist: Lookup Account Name: Unexpected error %d 0x%x", err, err);
                 return -1;
             }
-            userToTry = data.getFullUsername().c_str();
+            hostToTry = computername.c_str();
 
         }
         else {        // we don't know what happened
@@ -369,7 +374,7 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC)
     ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
 
     // try it again
-    bRet = LookupAccountName(NULL, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
+    bRet = LookupAccountName(hostToTry, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
     if (!bRet) {
         err = GetLastError();
         WcaLog(LOGMSG_STANDARD, "Failed to lookup account name %d", GetLastError());
@@ -382,8 +387,7 @@ int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC)
         goto cleanAndFail;
     }
     retval = 1;
-    toMbcs(narrowdomain, refDomain);
-    WcaLog(LOGMSG_STANDARD, "Got SID from %s", narrowdomain.c_str());
+    WcaLog(LOGMSG_STANDARD, "Got SID from %S", refDomain);
 
 cleanAndFail:
     if (newsid) {

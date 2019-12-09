@@ -8,72 +8,23 @@
 package docker
 
 import (
-	"io/ioutil"
-	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	dockernetwork "github.com/docker/docker/api/types/network"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
-func TestDefaultGateway(t *testing.T) {
-	testCases := []struct {
-		netRouteContent []byte
-		expectedIP      string
-	}{
-		{
-			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
-ens33	00000000	0280A8C0	0003	0	0	100	00000000	0	0	0
-`),
-			"192.168.128.2",
-		},
-		{
-			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
-ens33	00000000	FE01A8C0	0003	0	0	100	00000000	0	0	0
-`),
-			"192.168.1.254",
-		},
-		{
-			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
-ens33	00000000	FEFEA8C0	0003	0	0	100	00000000	0	0	0
-`),
-			"192.168.254.254",
-		},
-	}
-	for _, testCase := range testCases {
-		t.Run("", func(t *testing.T) {
-			testProc, err := newTempFolder("test-default-gateway")
-			require.NoError(t, err)
-			defer testProc.removeAll()
-			err = os.MkdirAll(path.Join(testProc.RootPath, "net"), os.ModePerm)
-			require.NoError(t, err)
-
-			err = ioutil.WriteFile(path.Join(testProc.RootPath, "net", "route"), testCase.netRouteContent, os.ModePerm)
-			require.NoError(t, err)
-			config.Datadog.SetDefault("proc_root", testProc.RootPath)
-			ip, err := DefaultGateway()
-			require.NoError(t, err)
-			assert.Equal(t, testCase.expectedIP, ip.String())
-
-			testProc.removeAll()
-			ip, err = DefaultGateway()
-			require.NoError(t, err)
-			require.Nil(t, ip)
-		})
-	}
-}
-
 func TestFindDockerNetworks(t *testing.T) {
-	dummyProcDir, err := newTempFolder("test-find-docker-networks")
+	dummyProcDir, err := testutil.NewTempFolder("test-find-docker-networks")
 	assert.Nil(t, err)
-	defer dummyProcDir.removeAll() // clean up
+	defer dummyProcDir.RemoveAll() // clean up
 	config.Datadog.SetDefault("container_proc_root", dummyProcDir.RootPath)
 
 	containerNetworks := make(map[string][]dockerNetwork)
@@ -95,7 +46,7 @@ func TestFindDockerNetworks(t *testing.T) {
 				},
 				NetworkSettings: &types.SummaryNetworkSettings{},
 			},
-			routes: detab(`
+			routes: testutil.Detab(`
                 Iface   Destination Gateway     Flags   RefCnt  Use Metric  Mask        MTU Window  IRTT
                 eth0    00000000    010011AC    0003    0   0   0   00000000    0   0   0
                 eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
@@ -114,7 +65,7 @@ func TestFindDockerNetworks(t *testing.T) {
 				},
 				NetworkSettings: &types.SummaryNetworkSettings{},
 			},
-			routes: detab(`
+			routes: testutil.Detab(`
                 Iface   Destination Gateway     Flags   RefCnt  Use Metric  Mask        MTU Window  IRTT
                 eth0    00000000    010011AC    0003    0   0   0   00000000    0   0   0
                 eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
@@ -133,7 +84,7 @@ func TestFindDockerNetworks(t *testing.T) {
 				},
 				NetworkSettings: &types.SummaryNetworkSettings{},
 			},
-			routes: detab(`
+			routes: testutil.Detab(`
                 Iface   Destination Gateway     Flags   RefCnt  Use Metric  Mask        MTU Window  IRTT
                 eth0    00000000    010011AC    0003    0   0   0   00000000    0   0   0
                 eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
@@ -157,7 +108,7 @@ func TestFindDockerNetworks(t *testing.T) {
 					},
 				},
 			},
-			routes: detab(`
+			routes: testutil.Detab(`
                 Iface   Destination Gateway     Flags   RefCnt  Use Metric  Mask        MTU Window  IRTT
                 eth0    00000000    010011AC    0003    0   0   0   00000000    0   0   0
                 eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
@@ -182,7 +133,7 @@ func TestFindDockerNetworks(t *testing.T) {
 					},
 				},
 			},
-			routes: detab(`
+			routes: testutil.Detab(`
 		                Iface   Destination Gateway     Flags   RefCnt  Use Metric  Mask        MTU Window  IRTT
 		                eth0    00000000    FEFEA8C0    0003    0   0   0   00000000    0   0   0
 		                eth0    00FEA8C0    00000000    0001    0   0   0   00FFFFFF    0   0   0
@@ -205,7 +156,7 @@ func TestFindDockerNetworks(t *testing.T) {
 					},
 				},
 			},
-			routes: detab(`
+			routes: testutil.Detab(`
 				Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
 				eth0	00000000	010011AC	0003	0	0	0	00000000	0	0	0
 				eth0	000011AC	00000000	0001	0	0	0	0000FFFF	0	0	0
@@ -219,7 +170,7 @@ func TestFindDockerNetworks(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			// Create temporary files on disk with the routes and stats.
-			err = dummyProcDir.add(filepath.Join(strconv.Itoa(int(tc.pid)), "net", "route"), tc.routes)
+			err = dummyProcDir.Add(filepath.Join(strconv.Itoa(int(tc.pid)), "net", "route"), tc.routes)
 			assert.NoError(t, err)
 
 			// Use the routes file and settings to get our networks.
@@ -230,6 +181,82 @@ func TestFindDockerNetworks(t *testing.T) {
 			resolveDockerNetworks(containerNetworks)
 			networks = containerNetworks[tc.container.ID]
 			assert.Equal(t, tc.networks, networks)
+		})
+	}
+}
+
+func TestParseContainerNetworkMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		hostConfig *container.HostConfig
+		want       string
+		wantErr    bool
+	}{
+		{
+			name: "default",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "default",
+			},
+			want:    "default",
+			wantErr: false,
+		},
+		{
+			name: "host",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "host",
+			},
+			want:    "host",
+			wantErr: false,
+		},
+		{
+			name: "bridge",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "bridge",
+			},
+			want:    "bridge",
+			wantErr: false,
+		},
+		{
+			name: "none",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "none",
+			},
+			want:    "none",
+			wantErr: false,
+		},
+		{
+			name: "attached to container",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "container:0a8f83f35f7d0161f29b819d9b533b57acade8d99609bba63664dd3326e4d301",
+			},
+			want:    "container:0a8f83f35f7d0161f29b819d9b533b57acade8d99609bba63664dd3326e4d301",
+			wantErr: false,
+		},
+		{
+			name: "unknown",
+			hostConfig: &container.HostConfig{
+				NetworkMode: "unknown network",
+			},
+			want:    "unknown",
+			wantErr: true,
+		},
+		{
+			name:       "nil hostConfig",
+			hostConfig: nil,
+			want:       "",
+			wantErr:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseContainerNetworkMode(tt.hostConfig)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseContainerNetworkMode() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("parseContainerNetworkMode() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }

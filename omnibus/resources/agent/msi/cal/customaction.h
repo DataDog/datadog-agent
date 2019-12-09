@@ -3,7 +3,8 @@
 #define MAX_PASS_LEN 18
 // usercreate.cpp
 bool generatePassword(wchar_t* passbuf, int passbuflen);
-int doCreateUser(const std::wstring& name, const wchar_t * domain, std::wstring& comment, const wchar_t* passbuf);
+int doCreateUser(const std::wstring& name, const std::wstring& comment, const wchar_t* passbuf);
+int doSetUserPassword(const std::wstring& name, const wchar_t* passbuf);
 DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name);
 DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename);
 bool isDomainController(MSIHANDLE hInstall);
@@ -39,8 +40,10 @@ int uninstallServices(MSIHANDLE hInstall, CustomActionData& data);
 int verifyServices(MSIHANDLE hInstall, CustomActionData& data);
 
 //delfiles.cpp
-BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext);
+BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dirs = false);
 
+//caninstall.cpp 
+bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword);
 extern HMODULE hDllModule;
 // rights we might be interested in
 /*

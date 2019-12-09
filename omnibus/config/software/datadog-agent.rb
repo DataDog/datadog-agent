@@ -117,12 +117,16 @@ build do
     # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
     command "invoke -e process-agent.build --go-version=1.10.1", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
-    # We don't use the system-probe in macOS builds
-    if !osx?
-      copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
-      block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
-    end
   end
+
+
+  # Build the system-probe
+  if linux?
+    command "invoke -e system-probe.build --go-version=1.10.1", :env => env
+    copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
+    block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
+  end
+
 
   if linux?
     if debian?
@@ -150,10 +154,6 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-process",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.sysprobe.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-sysprobe",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.trace.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace",
           mode: 0755,
@@ -176,6 +176,20 @@ build do
       erb source: "upstart_redhat.trace.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
           mode: 0644,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+    end
+    if suse?
+      erb source: "sysvinit_suse.erb",
+          dest: "#{install_dir}/scripts/datadog-agent",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_suse.process.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-process",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_suse.trace.erb",
+          dest: "#{install_dir}/scripts/datadog-agent-trace",
+          mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
 

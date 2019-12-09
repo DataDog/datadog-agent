@@ -6,15 +6,18 @@
 package util
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -133,4 +136,30 @@ func GetJSONSerializableMap(m interface{}) interface{} {
 	}
 	return m
 
+}
+
+// GetGoRoutinesDump returns the stack trace of every Go routine of a running Agent.
+func GetGoRoutinesDump() (string, error) {
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+
+	pprofURL := fmt.Sprintf("http://%v:%s/debug/pprof/goroutine?debug=2",
+		ipcAddress, config.Datadog.GetString("expvar_port"))
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodGet, pprofURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	data, err := ioutil.ReadAll(resp.Body)
+	return string(data), err
 }

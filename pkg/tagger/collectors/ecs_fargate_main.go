@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
@@ -110,7 +110,7 @@ func (c *ECSFargateCollector) parseExpires(idList []string) ([]*TagInfo, error) 
 	for _, id := range idList {
 		info := &TagInfo{
 			Source:       ecsFargateCollectorName,
-			Entity:       docker.ContainerIDToTaggerEntityName(id),
+			Entity:       containers.BuildTaggerEntityName(id),
 			DeleteEntity: true,
 		}
 		output = append(output, info)

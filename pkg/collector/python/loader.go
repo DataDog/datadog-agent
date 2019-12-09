@@ -38,7 +38,7 @@ import "C"
 var (
 	pyLoaderStats    *expvar.Map
 	configureErrors  map[string][]string
-	py3Warnings      map[string]string
+	py3Warnings      map[string][]string
 	statsLock        sync.RWMutex
 	agentVersionTags []string
 )
@@ -58,7 +58,7 @@ func init() {
 	loaders.RegisterLoader(10, factory)
 
 	configureErrors = map[string][]string{}
-	py3Warnings = map[string]string{}
+	py3Warnings = map[string][]string{}
 	pyLoaderStats = expvar.NewMap("pyLoader")
 	pyLoaderStats.Set("ConfigureErrors", expvar.Func(expvarConfigureErrors))
 	pyLoaderStats.Set("Py3Warnings", expvar.Func(expvarPy3Warnings))
@@ -271,13 +271,13 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			metricValue = 1.0
 		} else {
 			status = a7TagNotReady
-			log.Warnf("The Python 3 linter returned warnings for check '%s'. Set the log level to \"debug\" and restart the Agent to have the linter warnings logged.", checkName)
+			log.Warnf("The Python 3 linter returned warnings for check '%s'. For more details, check the output of the 'status' command or the status page of the Agent GUI).", checkName)
 			for _, warning := range warnings {
 				log.Debug(warning)
+				py3Warnings[checkName] = append(py3Warnings[checkName], warning)
 			}
 		}
 	}
-	py3Warnings[checkName] = status
 
 	// add a serie to the aggregator to be sent on every flush
 	tags := []string{

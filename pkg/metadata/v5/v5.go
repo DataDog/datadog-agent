@@ -13,13 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // GetPayload returns the complete metadata payload as seen in Agent v5
-func GetPayload(hostname string) *Payload {
-	cp := common.GetPayload(hostname)
-	hp := host.GetPayload(hostname)
-	rp := resources.GetPayload(hostname)
+func GetPayload(hostnameData util.HostnameData) *Payload {
+	cp := common.GetPayload(hostnameData.Hostname)
+	hp := host.GetPayload(hostnameData)
+	rp := resources.GetPayload(hostnameData.Hostname)
 
 	p := &Payload{
 		CommonPayload: CommonPayload{*cp},
