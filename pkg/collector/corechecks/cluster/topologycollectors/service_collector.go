@@ -193,6 +193,10 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 
 	tags := sc.initTags(service.ObjectMeta)
 
+	if service.Spec.ClusterIP == "None" {
+		tags["service"] = "headless"
+	}
+
 	component := &topology.Component{
 		ExternalID: serviceExternalID,
 		Type:       topology.Type{Name: "service"},

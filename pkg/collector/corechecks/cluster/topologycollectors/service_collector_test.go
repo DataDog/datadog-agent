@@ -121,7 +121,9 @@ func TestServiceCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-service-5",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+					"tags":              map[string]string{
+						"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service": "headless",
+					},
 					"uid":               types.UID("test-service-5"),
 					"identifiers":       []string{"urn:service:/test-cluster-name:test-namespace:test-service-5"},
 				},
@@ -136,8 +138,9 @@ func TestServiceCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-service-6",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{
+						"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace",
+					},
 					"uid":               types.UID("test-service-6"),
 					"identifiers": []string{"urn:endpoint:/test-cluster-name:10.100.200.2:85", "urn:endpoint:/test-cluster-name:10.100.200.2:10205",
 						"urn:endpoint:/test-cluster-name:10.100.200.23", "urn:ingress-point:/34.100.200.15",
