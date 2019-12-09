@@ -435,7 +435,8 @@
       <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" ]]> </Custom>
 
       <!-- Same deal here -->
-      <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" ]]></Custom>
+      <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND ALLOWSTARTFAIL="" ]]></Custom>
+      <Custom Action='StartDDServicesAllowStartFail' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND ALLOWSTARTFAIL<>"" ]]></Custom>
       
       <!-- only do the uninstall (which removes the user state and file perms) 
            on a full uninstall -->
@@ -579,6 +580,7 @@
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='check' Impersonate='no'/>
+    <CustomAction Id='StartDDServicesAllowStartFail' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
 
     <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall' 
         Value='PROJECTLOCATION=[PROJECTLOCATION];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
