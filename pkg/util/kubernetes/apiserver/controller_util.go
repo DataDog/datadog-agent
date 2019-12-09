@@ -100,24 +100,23 @@ func (h *AutoscalersController) gc() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	log.Infof("Starting garbage collection process on the Autoscalers")
-	rawListWPA := []*v1alpha1.WatermarkPodAutoscaler{}
+	wpaList := []*v1alpha1.WatermarkPodAutoscaler{}
 	var err error
 
 	if h.wpaEnabled {
-		rawListWPA, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+		wpaList, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 		if err != nil {
 			log.Errorf("Error listing the WatermarkPodAutoscalers %v", err)
 			return
 		}
 	}
 
-	rawListHPA, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+	hpaList, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
 		log.Errorf("Could not list hpas: %v", err)
 		return
 	}
 
-	hpaList, wpaList := removeIgnoredAutoscaler(h.overFlowingAutoscalers, rawListHPA, rawListWPA)
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Could not list external metrics from store: %v", err)
