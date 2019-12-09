@@ -6,6 +6,8 @@
 package telemetry
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -31,9 +33,8 @@ func NewGauge(subsystem, name string, tags []string, help string) Gauge {
 	g := &promGauge{
 		pg: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      name,
+				Name:      fmt.Sprintf("_%s", name),
 				Help:      help,
 			},
 			tags,

@@ -6,6 +6,8 @@
 package telemetry
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -25,9 +27,8 @@ func NewCounter(subsystem, name string, tags []string, help string) Counter {
 	c := &promCounter{
 		pc: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      name,
+				Name:      fmt.Sprintf("_%s", name),
 				Help:      help,
 			},
 			tags,
