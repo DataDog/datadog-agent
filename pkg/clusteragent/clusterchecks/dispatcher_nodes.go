@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -166,6 +167,17 @@ func (d *dispatcher) updateRunnersStats() {
 			continue
 		}
 		node.Lock()
+		for id, checkStats := range stats {
+			// Stats contain info about all the running checks on a node
+			// Node checks must be filtered from Cluster Checks
+			// so they can be included in calculating node Agent busyness and excluded from rebalancing decisions.
+			if _, found := d.store.idToDigest[check.ID(id)]; found {
+				// Cluster check detected (exists in the Cluster Agent checks store)
+				log.Tracef("Check %s running on node %s is a cluster check", id, node.name)
+				checkStats.IsClusterCheck = true
+				stats[id] = checkStats
+			}
+		}
 		node.clcRunnerStats = stats
 		log.Tracef("Updated CLC Runner stats on node: %s, node IP: %s, stats: %v", name, node.clientIP, stats)
 		node.busyness = calculateBusyness(stats)
