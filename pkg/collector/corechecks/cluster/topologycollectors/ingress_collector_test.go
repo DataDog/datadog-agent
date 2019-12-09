@@ -45,8 +45,7 @@ func TestIngressCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-ingress-1",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-ingress-1"),
 					"identifiers": []string{"urn:endpoint:/test-cluster-name:34.100.200.15",
 						"urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com"},
@@ -62,8 +61,7 @@ func TestIngressCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-ingress-2",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-ingress-2"),
 					"identifiers": []string{"urn:endpoint:/test-cluster-name:34.100.200.15",
 						"urn:endpoint:/test-cluster-name:64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com"},
@@ -87,8 +85,7 @@ func TestIngressCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-ingress-3",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-ingress-3"),
 					"kind":              "some-specified-kind",
 					"generateName":      "some-specified-generation",

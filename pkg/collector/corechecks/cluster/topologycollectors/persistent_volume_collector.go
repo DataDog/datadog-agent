@@ -112,9 +112,7 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 
 	persistentVolumeExternalID := pvc.buildPersistentVolumeExternalID(persistentVolume.Name)
 
-	tags := emptyIfNil(persistentVolume.Labels)
-	// add service account as a label to filter on
-	tags = pvc.addClusterNameTag(tags)
+	tags := pvc.initTags(persistentVolume.ObjectMeta)
 
 	component := &topology.Component{
 		ExternalID: persistentVolumeExternalID,
@@ -123,7 +121,6 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 			"name":              persistentVolume.Name,
 			"creationTimestamp": persistentVolume.CreationTimestamp,
 			"tags":              tags,
-			"namespace":         persistentVolume.Namespace,
 			"uid":               persistentVolume.UID,
 			"identifiers":       identifiers,
 			"status":            persistentVolume.Status.Phase,

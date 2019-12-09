@@ -41,8 +41,7 @@ func TestDaemonSetCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-daemonset-1",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-daemonset-1"),
 					"updateStrategy":    appsV1.RollingUpdateDaemonSetStrategyType,
 				},
@@ -56,8 +55,7 @@ func TestDaemonSetCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-daemonset-2",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-daemonset-2"),
 					"updateStrategy":    appsV1.RollingUpdateDaemonSetStrategyType,
 				},
@@ -71,8 +69,7 @@ func TestDaemonSetCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-daemonset-3",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-daemonset-3"),
 					"updateStrategy":    appsV1.RollingUpdateDaemonSetStrategyType,
 					"kind":              "some-specified-kind",
