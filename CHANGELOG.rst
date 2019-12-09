@@ -13,7 +13,7 @@ Prelude
 -------
 
 Release on: 2019-11-27
-
+This release was published for Windows on 2019-12-09.
 
 .. _Release Notes_6.15.1_New Features:
 
