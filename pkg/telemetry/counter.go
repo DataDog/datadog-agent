@@ -5,6 +5,8 @@
 
 package telemetry
 
+import "fmt"
+
 // Counter tracks how many times something is happening.
 type Counter interface {
 	// Inc increments the counter for the given tags.
@@ -20,7 +22,7 @@ type Counter interface {
 func NewCounter(subsystem, name string, tags []string, help string) Counter {
 	return &lazyCounter{
 		subsystem: subsystem,
-		name:      name,
+		name:      fmt.Sprintf("_%s", name),
 		help:      help,
 		tags:      tags,
 	}

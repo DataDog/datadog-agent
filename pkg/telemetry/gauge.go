@@ -5,6 +5,8 @@
 
 package telemetry
 
+import "fmt"
+
 // Gauge tracks the value of one health metric of the Agent.
 type Gauge interface {
 	// Set stores the value for the given tags.
@@ -26,7 +28,7 @@ type Gauge interface {
 func NewGauge(subsystem, name string, tags []string, help string) Gauge {
 	return &lazyGauge{
 		subsystem: subsystem,
-		name:      name,
+		name:      fmt.Sprintf("_%s", name),
 		tags:      tags,
 		help:      help,
 	}
