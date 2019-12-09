@@ -184,6 +184,9 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 		}
 	}
 
+	// add identifier for this service name
+	identifiers = append(identifiers, fmt.Sprintf("urn:service:/%s:%s", sc.GetInstance().URL, serviceID))
+
 	log.Tracef("Created identifiers for %s: %v", service.Name, identifiers)
 
 	serviceExternalID := sc.buildServiceExternalID(serviceID)

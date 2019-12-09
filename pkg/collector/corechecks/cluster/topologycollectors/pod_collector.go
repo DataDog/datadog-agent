@@ -114,7 +114,7 @@ func (pc *PodCollector) CollectorFunction() error {
 		// send the containers to be correlated
 		if len(pod.Status.ContainerStatuses) > 0 {
 			containerCorrelation := &ContainerCorrelation{
-				Pod:               ContainerPod{ExternalID: component.ExternalID, Name: pod.Name, Labels: pod.Labels, PodIP: pod.Status.PodIP, Namespace: pod.Namespace, NodeName: pod.Spec.NodeName},
+				Pod:               ContainerPod{ExternalID: component.ExternalID, Name: pod.Name, Labels: pod.Labels, PodIP: pod.Status.PodIP, Namespace: pod.Namespace, NodeName: pod.Spec.NodeName, Phase: string(pod.Status.Phase)},
 				Containers:        pod.Spec.Containers,
 				ContainerStatuses: pod.Status.ContainerStatuses,
 			}
