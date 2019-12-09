@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix eBPF code compilation errors about `asm goto` on Ubuntu 19.04 (Disco)
+    Fix eBPF code compilation errors about ``asm goto`` on Ubuntu 19.04 (Disco)
