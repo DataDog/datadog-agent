@@ -45,8 +45,7 @@ func TestReplicaSetCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-replicaset-1",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-replicaset-1"),
 					"desiredReplicas":   &replicas,
 				},
@@ -61,8 +60,7 @@ func TestReplicaSetCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-replicaset-2",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-replicaset-2"),
 					"desiredReplicas":   &replicas,
 					"kind":              "some-specified-kind",
@@ -79,8 +77,7 @@ func TestReplicaSetCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-replicaset-3",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-replicaset-3"),
 					"desiredReplicas":   &replicas,
 					"kind":              "some-specified-kind",

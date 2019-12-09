@@ -191,15 +191,13 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 
 	serviceExternalID := sc.buildServiceExternalID(serviceID)
 
-	tags := emptyIfNil(service.Labels)
-	tags = sc.addClusterNameTag(tags)
+	tags := sc.initTags(service.ObjectMeta)
 
 	component := &topology.Component{
 		ExternalID: serviceExternalID,
 		Type:       topology.Type{Name: "service"},
 		Data: map[string]interface{}{
 			"name":              service.Name,
-			"namespace":         service.Namespace,
 			"creationTimestamp": service.CreationTimestamp,
 			"tags":              tags,
 			"identifiers":       identifiers,

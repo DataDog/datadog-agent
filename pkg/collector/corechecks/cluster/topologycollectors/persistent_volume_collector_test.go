@@ -57,8 +57,7 @@ func TestPersistentVolumeCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-persistent-volume-1",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-persistent-volume-1"),
 					"identifiers":       []string{},
 					"status":            coreV1.VolumeAvailable,
@@ -78,8 +77,7 @@ func TestPersistentVolumeCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-persistent-volume-2",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-persistent-volume-2"),
 					"identifiers":       []string{},
 					"status":            coreV1.VolumeAvailable,
@@ -99,8 +97,7 @@ func TestPersistentVolumeCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-persistent-volume-3",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":         "test-namespace",
+					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-persistent-volume-3"),
 					"identifiers":       []string{},
 					"kind":              "some-specified-kind",

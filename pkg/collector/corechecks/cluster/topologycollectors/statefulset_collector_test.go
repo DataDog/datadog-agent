@@ -43,8 +43,7 @@ func TestStatefulSetCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":                "test-statefulset-1",
 					"creationTimestamp":   creationTime,
-					"tags":                map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":           "test-namespace",
+					"tags":                map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":                 types.UID("test-statefulset-1"),
 					"updateStrategy":      appsV1.StatefulSetUpdateStrategyType(appsV1.RollingUpdateStatefulSetStrategyType),
 					"desiredReplicas":     &replicas,
@@ -61,8 +60,7 @@ func TestStatefulSetCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":                "test-statefulset-2",
 					"creationTimestamp":   creationTime,
-					"tags":                map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":           "test-namespace",
+					"tags":                map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":                 types.UID("test-statefulset-2"),
 					"updateStrategy":      appsV1.StatefulSetUpdateStrategyType(appsV1.RollingUpdateStatefulSetStrategyType),
 					"desiredReplicas":     &replicas,
@@ -79,8 +77,7 @@ func TestStatefulSetCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":                "test-statefulset-3",
 					"creationTimestamp":   creationTime,
-					"tags":                map[string]string{"test": "label", "cluster-name": "test-cluster-name"},
-					"namespace":           "test-namespace",
+					"tags":                map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":                 types.UID("test-statefulset-3"),
 					"kind":                "some-specified-kind",
 					"generateName":        "some-specified-generation",

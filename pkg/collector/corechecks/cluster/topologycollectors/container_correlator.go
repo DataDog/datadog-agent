@@ -7,6 +7,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ContainerToNodeCorrelation
@@ -133,8 +134,7 @@ func (cc *ContainerCorrelator) containerToStackStateComponent(nodeIdentifier str
 
 	containerExternalID := cc.buildContainerExternalID(pod.Name, container.Name)
 
-	tags := emptyIfNil(pod.Labels)
-	tags = cc.addClusterNameTag(tags)
+	tags := cc.initTags(metav1.ObjectMeta{Namespace: pod.Namespace})
 
 	data := map[string]interface{}{
 		"name": container.Name,
@@ -145,7 +145,6 @@ func (cc *ContainerCorrelator) containerToStackStateComponent(nodeIdentifier str
 		"pod":          pod.Name,
 		"podIP":        pod.PodIP,
 		"podPhase":		pod.Phase,
-		"namespace":    pod.Namespace,
 		"restartCount": container.RestartCount,
 		"tags":         tags,
 	}
