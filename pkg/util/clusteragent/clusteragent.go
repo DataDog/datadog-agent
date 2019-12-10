@@ -109,7 +109,7 @@ func (c *DCAClient) init() error {
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
 	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
-	podIP := getLocalIP()
+	podIP := config.Datadog.GetString("clc_runner_host")
 	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
 	// TODO remove insecure
