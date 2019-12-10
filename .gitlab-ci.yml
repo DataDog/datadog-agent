@@ -459,6 +459,9 @@ pre_release_cluster_agent_image:
 
 molecule_tests_vms:
   stage: acceptance
+  needs:
+    - pre_release_deb
+    - pre_release_rpm
   dependencies: []
   before_script: []
   script:
@@ -477,8 +480,6 @@ molecule_tests_vms:
 molecule_tests_compose:
   stage: acceptance
   needs:
-    - pre_release_cluster_agent_image
-    - pre_release_trace_agent_image
     - pre_release_image
   dependencies: []
   before_script: []
@@ -517,7 +518,6 @@ molecule_tests_kubernetes:
   stage: acceptance
   needs:
     - pre_release_cluster_agent_image
-    - pre_release_trace_agent_image
     - pre_release_image
   dependencies: []
   before_script: []
