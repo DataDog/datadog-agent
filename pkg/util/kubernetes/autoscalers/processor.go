@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	datadog "gopkg.in/zorkian/go-datadog-api.v2"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -22,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
+	"sync"
+)
+
+const (
+	chunkSize = 45
 )
 
 type DatadogClient interface {
@@ -131,14 +136,49 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 	return externalMetrics
 }
 
+func makeChunks(batch []string) (chunks [][]string) {
+	for i := 0; i < len(batch); i += chunkSize {
+		if i+chunkSize > len(batch) {
+			chunks = append(chunks, batch[i:])
+			break
+		}
+		chunks = append(chunks, batch[i:i+chunkSize])
+	}
+	return chunks
+}
+
 // validateExternalMetric queries Datadog to validate the availability and value of one or more external metrics
 func (p *Processor) validateExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
-	var batch []string
+	batch := []string{}
+
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
 		batch = append(batch, q)
 	}
-	return p.queryDatadogExternal(batch)
+
+	chunks := makeChunks(batch)
+
+	// we have a number of chunks with 45 metrics.
+	responses := make(chan map[string]Point, len(batch))
+	var waitResp sync.WaitGroup
+	for _, c := range chunks {
+		waitResp.Add(1)
+		go func(chunk []string) {
+			defer waitResp.Done()
+			resp, err := p.queryDatadogExternal(chunk)
+			if err != nil {
+				return
+			}
+			responses <- resp
+		}(c)
+	}
+	waitResp.Wait()
+	close(responses)
+	for elem := range responses {
+		processed = elem
+	}
+	log.Infof("Processed %d chunks, returning %d metrics", len(chunks), len(processed))
+	return processed, nil
 }
 
 func invalidate(emList map[string]custommetrics.ExternalMetricValue) (invList map[string]custommetrics.ExternalMetricValue) {
