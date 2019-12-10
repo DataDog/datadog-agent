@@ -136,7 +136,7 @@ deps_win:
 
 unit_tests:
   stage: build_and_test
-  dependencies:
+  needs:
     - deps_deb
   script:
     # We run inv deps again because /go/bin is not cached and we need binaries like golint, misspell
@@ -149,7 +149,7 @@ unit_tests:
 
 integration_tests:
   stage: build_and_test
-  dependencies:
+  needs:
     - deps_deb
   script:
     - inv -e integration-tests --race --remote-docker
@@ -158,14 +158,14 @@ integration_tests:
 
 filename_linting:
   stage: build_and_test
-  dependencies:
+  needs:
     - deps_deb
   script:
     - inv -e lint-filenames
 
 docker_integration_tests:
   stage: build_and_test
-  dependencies:
+  needs:
     - deps_deb
   variables:
       DOCKER_DRIVER: overlay
@@ -178,7 +178,7 @@ docker_integration_tests:
 
 build_binaries:
   stage: build_and_test
-  dependencies:
+  needs:
     - deps_deb
   script:
     - inv -e dogstatsd.build --static
@@ -186,7 +186,7 @@ build_binaries:
 
 build_puppy:
   stage: build_and_test
-  dependencies:
+  needs:
     - deps_deb
   script:
     - inv -e agent.build --puppy
@@ -194,7 +194,7 @@ build_puppy:
 
 build_cluster_agent:
   stage: build_and_test
-  dependencies:
+  needs:
     - deps_deb
   script:
     - inv -e cluster-agent.build
@@ -232,7 +232,7 @@ clear_build_rpm_cache:
 
 build_deb:
   stage: build_and_test
-  dependencies:
+  needs:
     - deps_deb
   tags:
     # We put the deb build on sts-aws because it runs long and we do want to have it run fast.
@@ -282,7 +282,7 @@ build_deb:
 build_rpm:
   stage: build_and_test
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
-  dependencies:
+  needs:
     - deps_rpm
   tags:
     # We put the deb build on sts-aws because it runs long and we do want to have it run fast.
@@ -328,7 +328,7 @@ build_rpm:
 
 build_win:
   stage: build_and_test
-  dependencies:
+  needs:
     - deps_win
   before_script: []
   script:
@@ -353,7 +353,7 @@ build_win:
 
 test_deb_renaming:
   stage: pre_release
-  dependencies:
+  needs:
     - build_deb
   before_script: []
   script:
@@ -362,7 +362,7 @@ test_deb_renaming:
 test_rpm_renaming:
   stage: pre_release
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
-  dependencies:
+  needs:
     - build_rpm
   before_script: []
   script:
@@ -370,7 +370,7 @@ test_rpm_renaming:
 
 pre_release_deb:
   stage: pre_release
-  dependencies:
+  needs:
     - deps_deb
     - build_deb
   script:
@@ -383,7 +383,7 @@ pre_release_deb:
 
 pre_release_win:
   stage: pre_release
-  dependencies:
+  needs:
     - deps_win
     - build_win
   before_script: []
@@ -403,7 +403,7 @@ pre_release_win:
 pre_release_rpm:
   stage: pre_release
 #  image: docker.io/stackstate/stackstate-agent-runner-gitlab:rpm.latest
-  dependencies:
+  needs:
     - build_rpm
   before_script: []
   script:
@@ -413,7 +413,7 @@ pre_release_rpm:
 pre_release_image:
   stage: pre_release
   image: docker:18.06.0
-  dependencies:
+  needs:
     - build_deb
   variables:
     DOCKER_DRIVER: overlay
@@ -429,7 +429,7 @@ pre_release_image:
 pre_release_trace_agent_image:
   stage: pre_release
   image: docker:18.06.0
-  dependencies:
+  needs:
     - build_deb
   variables:
     DOCKER_DRIVER: overlay
@@ -445,7 +445,7 @@ pre_release_trace_agent_image:
 pre_release_cluster_agent_image:
   stage: pre_release
   image: docker:18.06.0
-  dependencies:
+  needs:
     - build_cluster_agent
   variables:
     DOCKER_DRIVER: overlay
@@ -459,6 +459,10 @@ pre_release_cluster_agent_image:
 
 molecule_tests_vms:
   stage: acceptance
+  needs:
+    - pre_release_deb
+    - pre_release_rpm
+    - pre_release_win
   dependencies: []
   before_script: []
   script:
@@ -476,6 +480,8 @@ molecule_tests_vms:
 
 molecule_tests_compose:
   stage: acceptance
+  needs:
+    - pre_release_image
   dependencies: []
   before_script: []
   script:
@@ -493,6 +499,9 @@ molecule_tests_compose:
 
 molecule_tests_local_install:
   stage: acceptance
+  needs:
+    - pre_release_deb
+    - pre_release_rpm
   dependencies: []
   before_script: []
   script:
@@ -508,6 +517,9 @@ molecule_tests_local_install:
 
 molecule_tests_kubernetes:
   stage: acceptance
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_image
   dependencies: []
   before_script: []
   script:
@@ -525,6 +537,8 @@ molecule_tests_kubernetes:
 
 molecule_tests_secrets:
   stage: acceptance
+  needs:
+    - pre_release_deb
   dependencies: []
   before_script: []
   script:
@@ -660,16 +674,3 @@ release_cluster_agent_image:
   only:
     - tags
     - trigger
-
-#docker_test:
-#  stage: docker_test
-#  image: docker:latest
-#  variables:
-#    DOCKER_DRIVER: overlay
-#  services:
-#  - docker:dind
-#  before_script:
-#  - printenv
-#  - docker info
-#  script:
-#    - docker ps
