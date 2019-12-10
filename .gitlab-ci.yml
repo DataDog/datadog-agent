@@ -462,6 +462,7 @@ molecule_tests_vms:
   needs:
     - pre_release_deb
     - pre_release_rpm
+    - pre_release_win
   dependencies: []
   before_script: []
   script:
