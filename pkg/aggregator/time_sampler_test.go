@@ -23,20 +23,6 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	return l.Generate(serie.Name, serie.Host, serie.Tags)
 }
 
-func metrics.AssertSeriesEqual(t *testing.T, expected metrics.Series, series metrics.Series) {
-	assert.Equal(t, len(expected), len(series))
-	for _, serie := range series {
-		found := false
-		for _, expectedSerie := range expected {
-			if ckey.Compare(serie.ContextKey, expectedSerie.ContextKey) == 0 {
-				metrics.AssertSerieEqual(t, expectedSerie, serie)
-				found = true
-			}
-		}
-		assert.True(t, found)
-	}
-}
-
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
 	sampler := NewTimeSampler(10)
