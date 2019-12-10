@@ -37,8 +37,8 @@ func TestGenerateReproductible(t *testing.T) {
 
 	otherKey := generator.Generate("othername", hostname, tags)
 	assert.NotEqual(t, firstKey, otherKey)
-	assert.Equal(t, uint64(0xcd3bca32c0520309), otherKey[0])
-	assert.Equal(t, uint64(0xfbb533e63ac0d40f), otherKey[1])
+	assert.Equal(t, uint64(0x90352c032ca3bcd), otherKey[0])
+	assert.Equal(t, uint64(0xfd4c03ae633b5fb), otherKey[1])
 }
 
 func TestCompare(t *testing.T) {
