@@ -33,5 +33,5 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: stackstate-agent
-  namespace: default
+  namespace: {{ agent_current_branch|lower}}
 

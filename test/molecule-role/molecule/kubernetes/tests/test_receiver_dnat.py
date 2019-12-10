@@ -9,17 +9,17 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('kubernetes-cluster-agent')
 
 kubeconfig_env = "KUBECONFIG=/home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig "
-
+namespace = os.environ['AGENT_CURRENT_BRANCH'].lower()
 
 def _get_pod_ip(host, pod_name):
-    pod_server_c = kubeconfig_env + "kubectl get pods/%s -o json" % pod_name
+    pod_server_c = kubeconfig_env + "kubectl get pods/%s -o json --namespace=%s" % (pod_name, namespace)
     pod_server_exec = host.check_output(pod_server_c)
     pod_server_data = json.loads(pod_server_exec)
     return pod_server_data["status"]["podIP"]
 
 
 def _get_service_ip(host):
-    service_c = kubeconfig_env + "kubectl get service/pod-service -o json"
+    service_c = kubeconfig_env + "kubectl get service/pod-service -o json --namespace=%s" % (namespace)
     pod_service_exec = host.check_output(service_c)
     pod_service_data = json.loads(pod_service_exec)
     return pod_service_data["spec"]["clusterIP"]

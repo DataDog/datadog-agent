@@ -72,7 +72,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: stackstate-cluster-agent
-  namespace: default
+  namespace: {{ agent_current_branch|lower}}
 ---
 kind: ServiceAccount
 apiVersion: v1
