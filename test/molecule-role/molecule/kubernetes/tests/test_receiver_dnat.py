@@ -63,7 +63,7 @@ def _relation_data(json_data, type_name, external_id_assert_fn):
 
 @pytest.mark.last
 def test_dnat(host, common_vars):
-    url = "http://localhost:7070/api/topic/sts_topo_process_agents?offset=0&limit=1000"
+    url = "http://localhost:7070/api/topic/sts_topo_process_agents?limit=1000"
 
     dnat_service_port = int(common_vars["dnat_service_port"])
     dnat_server_port = int(common_vars["dnat_server_port"])
