@@ -63,6 +63,8 @@ func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
 	platform, err := util.GetPlatform()
 	if err != nil {
 		log.Warnf("error retrieving current platform: %s", err)
+	} else {
+		log.Infof("running on platform: %s", platform)
 	}
 	return verifyOSVersion(currentKernelCode, platform, exclusionList)
 }
@@ -103,8 +105,8 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		return true, ""
 	}
 
-	errMsg := fmt.Sprintf("Kernel:%s Platform:%s ", kernelCodeToString(kernelCode), platform)
-	errMsg += fmt.Sprintf("Some required functions are missing: %s", strings.Join(missing, ", "))
+	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCodeToString(kernelCode))
+	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missing, ", "))
 	return false, errMsg
 }
 

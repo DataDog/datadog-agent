@@ -107,6 +107,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	log.Infof("running system-probe with version: %s", versionString(", "))
+
 	// configure statsd
 	if err := statsd.Configure(cfg); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
@@ -124,14 +126,6 @@ func main() {
 	}
 	defer sysprobe.Close()
 
-	platform, err := util.GetPlatform()
-	if err != nil {
-		log.Debugf("error retrieving platform: %s", err)
-	} else {
-		log.Infof("running on platform: %s", platform)
-	}
-
-	log.Infof("running system-probe with version: %s", versionString(", "))
 	go sysprobe.Run()
 	log.Infof("system probe started")
 
