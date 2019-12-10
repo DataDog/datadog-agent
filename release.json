@@ -2,7 +2,7 @@
 	"nightly": {
 		"INTEGRATIONS_CORE_VERSION": "master",
 		"OMNIBUS_SOFTWARE_VERSION": "master",
-		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+		"OMNIBUS_RUBY_VERSION": "db/zip-archive",
 		"JMXFETCH_VERSION": "0.33.1",
 		"JMXFETCH_HASH": "140dd8568b78f5a616da8664f34bb37397c3d3ed87af106d632714f7218e8e88"
 	},

@@ -82,6 +82,23 @@ compress :dmg do
 end
 
 # Windows .msi specific flags
+package :zip do
+  if windows_arch_i386?
+    skip_packager true
+  else
+    extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
+  
+    additional_sign_files [
+        "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
+        "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
+        "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+      ]
+    if ENV['SIGN_PFX']
+      signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
+    end
+  end
+end
+
 package :msi do
 
   # For a consistent package management, please NEVER change this code

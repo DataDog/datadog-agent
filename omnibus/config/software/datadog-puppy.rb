@@ -56,6 +56,31 @@ build do
           vars: { install_dir: install_dir }
     end
   end
+  if windows?
+    conf_dir = "#{install_dir}/etc/datadog-agent"
+      mkdir conf_dir
+    mkdir "#{install_dir}/bin/agent"
+
+    command "inv agent.build --puppy --rebuild --no-development", env: env
+
+      # move around bin and config files
+    move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
+    #move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+    move 'bin/agent/dist/conf.d', "#{conf_dir}/"
+    copy 'bin/agent', "#{install_dir}/bin/"
+
+  end
+  block do
+    if windows?
+      # defer compilation step in a block to allow getting the project's build version, which is populated
+      # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
+      env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
+      platform = windows_arch_i386? ? "x86" : "x64"
+      command "invoke trace-agent.build --arch #{platform}", :env => env
+
+      copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
+    end
+  end
 
   # The file below is touched by software builds that don't put anything in the installation
   # directory (libgcc right now) so that the git_cache gets updated let's remove it from the

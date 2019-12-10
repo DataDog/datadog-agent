@@ -372,12 +372,17 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
 
         bundle_done = datetime.datetime.now()
         bundle_elapsed = bundle_done - bundle_start
+        target_project = "agent"
+        if puppy:
+            target_project = "puppy"
+        elif cf_windows:
+            target_project = "cf-windows"
 
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
             "omnibus": omnibus,
-            "project_name": "puppy" if puppy else "agent",
+            "project_name": target_project,
             "log_level": log_level,
             "overrides": overrides_cmd,
             "populate_s3_cache": ""
