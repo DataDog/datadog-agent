@@ -12,3 +12,6 @@ ExecStart=<%= install_dir %>/embedded/bin/system-probe --config=<%= etc_dir %>/s
 # it is also supported to have it here.
 StartLimitInterval=10
 StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
