@@ -103,7 +103,9 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		return true, ""
 	}
 
-	return false, fmt.Sprintf("some required functions are missing: %s", strings.Join(missing, ", "))
+	errMsg := fmt.Sprintf("Kernel:%s Platform:%s ", kernelCodeToString(kernelCode), platform)
+	errMsg += fmt.Sprintf("Some required functions are missing: %s", strings.Join(missing, ", "))
+	return false, errMsg
 }
 
 func verifyKernelFuncs(path string) ([]string, error) {
