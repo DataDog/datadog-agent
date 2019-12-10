@@ -7,7 +7,7 @@ package writer
 
 import (
 	"compress/gzip"
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"math"
 	"math/rand"
 	"strings"

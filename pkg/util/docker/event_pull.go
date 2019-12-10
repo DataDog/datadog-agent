@@ -9,8 +9,8 @@ package docker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io"
 	"strings"
 	"time"

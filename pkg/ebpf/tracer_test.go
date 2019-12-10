@@ -5,8 +5,8 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io"
 	"io/ioutil"
 	"math/rand"

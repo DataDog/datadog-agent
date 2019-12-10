@@ -8,7 +8,7 @@
 package kubelet
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

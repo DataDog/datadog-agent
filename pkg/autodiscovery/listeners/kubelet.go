@@ -8,8 +8,8 @@
 package listeners
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"sort"
 	"sync"
 	"time"

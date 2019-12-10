@@ -7,8 +7,8 @@ package info
 
 import (
 	"bytes"
-	"encoding/json"
 	"expvar" // automatically publish `/debug/vars` on HTTP port
+	"github.com/segmentio/encoding/json"
 
 	"fmt"
 	"io"

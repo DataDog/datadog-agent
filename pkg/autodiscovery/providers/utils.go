@@ -6,9 +6,9 @@
 package providers
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"path"
 	"time"
 

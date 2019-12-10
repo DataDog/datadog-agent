@@ -2,9 +2,9 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"expvar"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"html/template"
 	"io"
 	"net/http"

@@ -6,8 +6,8 @@
 package v5
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"

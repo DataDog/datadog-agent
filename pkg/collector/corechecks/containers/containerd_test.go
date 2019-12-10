@@ -8,7 +8,7 @@
 package containers
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"sort"
 	"testing"
 	"time"

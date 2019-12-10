@@ -9,7 +9,7 @@
 package v1
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"

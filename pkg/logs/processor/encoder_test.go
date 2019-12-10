@@ -6,7 +6,7 @@
 package processor
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"testing"
 
 	"strings"

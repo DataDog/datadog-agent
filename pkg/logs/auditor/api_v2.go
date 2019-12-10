@@ -6,7 +6,7 @@
 package auditor
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 )
 
 // v2: In the third version of the auditor, we dropped Timestamp and used a generic Offset instead to reinforce the separation of concerns

@@ -3,8 +3,8 @@ package gui
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"html/template"
 	"io/ioutil"
 	"net"

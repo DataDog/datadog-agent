@@ -6,7 +6,7 @@
 package legacy
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"testing"
 

@@ -7,9 +7,9 @@ package dogstatsd
 
 import (
 	"bytes"
-	"encoding/json"
 	"expvar"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"net"
 	"runtime"
 	"sort"

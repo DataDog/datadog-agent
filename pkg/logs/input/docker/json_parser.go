@@ -6,8 +6,8 @@
 package docker
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"

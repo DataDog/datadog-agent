@@ -9,8 +9,8 @@ package app
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 
 	"github.com/fatih/color"

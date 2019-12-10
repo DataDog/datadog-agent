@@ -6,7 +6,7 @@
 package quantile
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"math/rand"
 	"testing"
 )

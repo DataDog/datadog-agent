@@ -7,9 +7,9 @@ package metrics
 
 import (
 	"bytes"
-	"encoding/json"
 	"expvar"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/gogo/protobuf/proto"
 

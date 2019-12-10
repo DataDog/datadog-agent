@@ -7,9 +7,9 @@ package healthprobe
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"net"
 	"net/http"
 	"time"

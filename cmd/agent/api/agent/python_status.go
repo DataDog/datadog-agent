@@ -13,7 +13,7 @@
 package agent
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"

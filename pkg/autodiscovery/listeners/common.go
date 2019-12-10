@@ -6,8 +6,8 @@
 package listeners
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

@@ -6,7 +6,7 @@
 package agentchecks
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"

@@ -6,7 +6,7 @@
 package testsuite
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"os"
 	"testing"

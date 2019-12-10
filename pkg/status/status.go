@@ -6,8 +6,8 @@
 package status
 
 import (
-	"encoding/json"
 	"expvar"
+	"github.com/segmentio/encoding/json"
 	"os"
 	"runtime"
 	"strconv"

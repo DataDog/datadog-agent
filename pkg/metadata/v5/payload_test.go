@@ -8,7 +8,7 @@
 package v5
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"

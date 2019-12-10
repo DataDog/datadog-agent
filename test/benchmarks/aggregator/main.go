@@ -6,10 +6,10 @@
 package main
 
 import (
-	"encoding/json"
 	_ "expvar"
 	"flag"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"math/rand"
 	"net/http"

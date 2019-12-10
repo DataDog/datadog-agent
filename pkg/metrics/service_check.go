@@ -7,10 +7,10 @@ package metrics
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"

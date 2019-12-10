@@ -7,9 +7,9 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"expvar"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io"
 	"io/ioutil"
 	stdlog "log"

@@ -1,8 +1,8 @@
 package gui
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"html"
 	"io/ioutil"
 	"net/http"

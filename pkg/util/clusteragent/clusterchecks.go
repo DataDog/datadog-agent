@@ -7,8 +7,8 @@ package clusteragent
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"net/http"
 

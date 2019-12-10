@@ -115,6 +115,7 @@ core,github.com/prometheus/client_model,Apache-2.0
 core,github.com/prometheus/common,Apache-2.0
 core,github.com/prometheus/procfs,Apache-2.0
 core,github.com/samuel/go-zookeeper,BSD-3-Clause
+core,github.com/segmentio/encoding,MIT
 core,github.com/shirou/gopsutil,BSD-3-Clause
 core,github.com/shirou/w32,BSD-3-Clause
 core,github.com/sirupsen/logrus,MIT

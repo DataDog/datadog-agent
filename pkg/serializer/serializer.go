@@ -6,8 +6,8 @@
 package serializer
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"net/http"
 	"regexp"
 

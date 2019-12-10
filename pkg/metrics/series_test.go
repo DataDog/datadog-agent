@@ -8,8 +8,8 @@ package metrics
 import (
 	"bytes"
 	"compress/zlib"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"testing"
 

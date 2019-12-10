@@ -8,8 +8,8 @@
 package custommetrics
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"strings"
 	"sync"
 	"time"

@@ -2,8 +2,8 @@ package gui
 
 import (
 	"bytes"
-	"encoding/json"
 	"expvar"
+	"github.com/segmentio/encoding/json"
 	"html/template"
 	"io"
 	"path/filepath"

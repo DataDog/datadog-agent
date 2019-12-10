@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"net/http"
 	_ "net/http/pprof"
 	"os"

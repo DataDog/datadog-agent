@@ -8,7 +8,7 @@
 package ecs
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"net/http"
 	"time"
 

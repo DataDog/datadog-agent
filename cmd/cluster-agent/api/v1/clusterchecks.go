@@ -8,8 +8,8 @@
 package v1
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"net"
 	"net/http"
 

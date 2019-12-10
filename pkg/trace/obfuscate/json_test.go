@@ -6,8 +6,8 @@
 package obfuscate
 
 import (
-	"encoding/json"
 	"encoding/xml"
+	"github.com/segmentio/encoding/json"
 	"log"
 	"os"
 	"path/filepath"

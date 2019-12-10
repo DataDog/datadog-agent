@@ -8,8 +8,8 @@
 package collectors
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"path/filepath"
 	"strings"
 

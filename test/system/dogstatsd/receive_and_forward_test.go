@@ -6,8 +6,8 @@
 package dogstatsd_test
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"testing"
 	"time"
 

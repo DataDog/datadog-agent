@@ -251,3 +251,7 @@
 [[constraint]]
   name = "github.com/DataDog/watermarkpodautoscaler"
   revision = "ad62a4aaf72c29831f04296c2a2f6a99c895daf6"
+
+[[constraint]]
+  name = "github.com/segmentio/encoding"
+  version = "0.1.5"

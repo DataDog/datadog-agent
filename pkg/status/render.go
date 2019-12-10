@@ -7,8 +7,8 @@ package status
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"html/template"
 	"io"
 	"path/filepath"

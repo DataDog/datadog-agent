@@ -8,8 +8,8 @@
 package ec2
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 
 	"github.com/aws/aws-sdk-go/aws"

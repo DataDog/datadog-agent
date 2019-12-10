@@ -7,8 +7,8 @@ package flare
 
 import (
 	"archive/zip"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"log"
 	"net/http"

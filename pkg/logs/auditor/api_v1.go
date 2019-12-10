@@ -6,7 +6,7 @@
 package auditor
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"strconv"
 	"time"
 )

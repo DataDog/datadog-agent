@@ -9,8 +9,8 @@ package flare
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"

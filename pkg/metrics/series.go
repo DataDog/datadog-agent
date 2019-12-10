@@ -7,10 +7,10 @@ package metrics
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"strings"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"

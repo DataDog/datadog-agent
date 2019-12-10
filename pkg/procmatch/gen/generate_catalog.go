@@ -4,8 +4,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"html/template"
 	"io/ioutil"
 	"os"

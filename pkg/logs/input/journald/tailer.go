@@ -8,8 +8,8 @@
 package journald
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io"
 	"time"
 

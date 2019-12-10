@@ -1,9 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"

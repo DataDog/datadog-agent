@@ -8,7 +8,7 @@
 package leaderelection
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"

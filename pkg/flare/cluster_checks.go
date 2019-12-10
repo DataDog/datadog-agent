@@ -6,8 +6,8 @@
 package flare
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io"
 	"sort"
 	"text/tabwriter"

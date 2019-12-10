@@ -7,8 +7,8 @@ package config
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/DataDog/viper"
 )

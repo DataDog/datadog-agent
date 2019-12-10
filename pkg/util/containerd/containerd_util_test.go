@@ -9,8 +9,8 @@ package containerd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"testing"
 
 	"github.com/containerd/cgroups"

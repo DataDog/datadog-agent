@@ -6,8 +6,8 @@
 package status
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"html/template"
 	"strconv"
 	"strings"

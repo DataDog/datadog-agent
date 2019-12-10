@@ -8,9 +8,9 @@ package test
 import (
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io"
 	"io/ioutil"
 	"log"

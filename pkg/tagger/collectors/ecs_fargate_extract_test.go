@@ -8,7 +8,7 @@
 package collectors
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"testing"
 	"time"

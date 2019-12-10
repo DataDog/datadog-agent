@@ -8,8 +8,8 @@
 package gce
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"

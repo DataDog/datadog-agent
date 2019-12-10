@@ -7,9 +7,9 @@ package info
 
 import (
 	"bytes"
-	"encoding/json"
 	"expvar"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"

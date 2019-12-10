@@ -7,8 +7,8 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io"
 	"io/ioutil"
 	fmtlog "log"

@@ -10,8 +10,8 @@ package secrets
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"os/exec"
 	"strings"
 	"time"

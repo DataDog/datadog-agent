@@ -6,8 +6,8 @@
 package metrics
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

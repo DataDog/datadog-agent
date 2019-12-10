@@ -6,8 +6,8 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"

@@ -6,8 +6,8 @@
 package dogstatsd
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"net"
 	"strconv"
 	"testing"

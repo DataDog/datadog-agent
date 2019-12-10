@@ -6,8 +6,8 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"os"
 	"strconv"
 	"strings"

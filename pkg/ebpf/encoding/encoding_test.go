@@ -1,7 +1,7 @@
 package encoding
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/process"

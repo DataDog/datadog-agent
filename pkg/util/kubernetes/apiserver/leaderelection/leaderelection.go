@@ -8,8 +8,8 @@
 package leaderelection
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"os"
 	"sync"
 	"time"

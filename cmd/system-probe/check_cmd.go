@@ -3,9 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io/ioutil"
 	"net"
 	"net/http"

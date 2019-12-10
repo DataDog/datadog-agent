@@ -8,7 +8,7 @@
 package metadata
 
 import (
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"net"
 	"net/http"
 	"time"

@@ -7,7 +7,7 @@ package stats
 
 import (
 	"compress/gzip"
-	"encoding/json"
+	"github.com/segmentio/encoding/json"
 	"io"
 )
 

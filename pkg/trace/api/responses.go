@@ -6,8 +6,8 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/segmentio/encoding/json"
 	"io"
 	"net/http"
 
