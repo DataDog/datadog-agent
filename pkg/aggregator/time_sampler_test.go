@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"math"
 	"sort"
 	"testing"
 
@@ -17,20 +18,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 )
 
-type OrderedSeries struct {
-	series []*metrics.Serie
+func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
+	l := ckey.NewKeyGenerator()
+	return l.Generate(serie.Name, serie.Host, serie.Tags)
 }
 
-func (os OrderedSeries) Len() int {
-	return len(os.series)
-}
-
-func (os OrderedSeries) Less(i, j int) bool {
-	return ckey.Compare(os.series[i].ContextKey, os.series[j].ContextKey) == -1
-}
-
-func (os OrderedSeries) Swap(i, j int) {
-	os.series[j], os.series[i] = os.series[i], os.series[j]
+func metrics.AssertSeriesEqual(t *testing.T, expected metrics.Series, series metrics.Series) {
+	assert.Equal(t, len(expected), len(series))
+	for _, serie := range series {
+		found := false
+		for _, expectedSerie := range expected {
+			if ckey.Compare(serie.ContextKey, expectedSerie.ContextKey) == 0 {
+				metrics.AssertSerieEqual(t, expectedSerie, serie)
+				found = true
+			}
+		}
+		assert.True(t, found)
+	}
 }
 
 // TimeSampler
@@ -103,10 +107,6 @@ func TestContextSampling(t *testing.T) {
 	sampler.addSample(&mSample3, 12346.0)
 
 	series, _ := sampler.flush(12360.0)
-	orderedSeries := OrderedSeries{series}
-	sort.Sort(orderedSeries)
-
-	series = orderedSeries.series
 
 	expectedSerie1 := &metrics.Serie{
 		Name:     "my.metric.name1",
@@ -116,6 +116,7 @@ func TestContextSampling(t *testing.T) {
 		MType:    metrics.APIGaugeType,
 		Interval: 10,
 	}
+	expectedSerie1.ContextKey = generateSerieContextKey(expectedSerie1)
 	expectedSerie2 := &metrics.Serie{
 		Name:     "my.metric.name3",
 		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
@@ -124,6 +125,7 @@ func TestContextSampling(t *testing.T) {
 		MType:    metrics.APIGaugeType,
 		Interval: 10,
 	}
+	expectedSerie2.ContextKey = generateSerieContextKey(expectedSerie2)
 	expectedSerie3 := &metrics.Serie{
 		Name:     "my.metric.name2",
 		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
@@ -132,16 +134,15 @@ func TestContextSampling(t *testing.T) {
 		MType:    metrics.APIGaugeType,
 		Interval: 10,
 	}
+	expectedSerie3.ContextKey = generateSerieContextKey(expectedSerie3)
 
-	require.Equal(t, 3, len(series))
-	metrics.AssertSerieEqual(t, expectedSerie1, series[0])
-	metrics.AssertSerieEqual(t, expectedSerie2, series[1])
-	metrics.AssertSerieEqual(t, expectedSerie3, series[2])
+	expectedSeries := metrics.Series{expectedSerie1, expectedSerie2, expectedSerie3}
+	metrics.AssertSeriesEqual(t, expectedSeries, series)
 }
 
 func TestCounterExpirySeconds(t *testing.T) {
 	sampler := NewTimeSampler(10)
-
+	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
 		Name:       "my.counter1",
 		Value:      1,
@@ -175,34 +176,40 @@ func TestCounterExpirySeconds(t *testing.T) {
 	assert.Equal(t, 2, len(sampler.counterLastSampledByContext))
 
 	series, _ := sampler.flush(1010.0)
-	orderedSeries := OrderedSeries{series}
-
-	sort.Sort(orderedSeries)
-
-	series = orderedSeries.series
 
 	expectedSerie1 := &metrics.Serie{
-		Name:     "my.counter1",
-		Points:   []metrics.Point{{Ts: 1000.0, Value: .1}},
-		Tags:     []string{"bar", "foo"},
-		Host:     "",
-		MType:    metrics.APIRateType,
-		Interval: 10,
+		Name:       "my.counter1",
+		Points:     []metrics.Point{{Ts: 1000.0, Value: .1}},
+		Tags:       []string{"bar", "foo"},
+		Host:       "",
+		MType:      metrics.APIRateType,
+		ContextKey: generateContextKey(sampleCounter1),
+		Interval:   10,
 	}
 
 	expectedSerie2 := &metrics.Serie{
-		Name:     "my.counter2",
-		Points:   []metrics.Point{{Ts: 1000.0, Value: .2}},
-		Tags:     []string{"bar", "foo"},
-		Host:     "",
-		MType:    metrics.APIRateType,
-		Interval: 10,
+		Name:       "my.counter2",
+		Points:     []metrics.Point{{Ts: 1000.0, Value: .2}},
+		Tags:       []string{"bar", "foo"},
+		Host:       "",
+		MType:      metrics.APIRateType,
+		ContextKey: generateContextKey(sampleCounter2),
+		Interval:   10,
 	}
 
-	require.Equal(t, 3, len(series))
+	expectedSerie3 := &metrics.Serie{
+		Name:       "my.gauge",
+		Points:     []metrics.Point{{Ts: 1000.0, Value: 2}},
+		Tags:       []string{"bar", "foo"},
+		Host:       "",
+		MType:      metrics.APIGaugeType,
+		ContextKey: generateContextKey(sampleGauge3),
+		Interval:   10,
+	}
+	expectedSeries := metrics.Series{expectedSerie1, expectedSerie2, expectedSerie3}
+
 	require.Equal(t, 2, len(sampler.counterLastSampledByContext))
-	metrics.AssertSerieEqual(t, expectedSerie1, series[0])
-	metrics.AssertSerieEqual(t, expectedSerie2, series[1])
+	metrics.AssertSeriesEqual(t, expectedSeries, series)
 	assert.Equal(t, 1004.0, sampler.counterLastSampledByContext[contextCounter1])
 	assert.Equal(t, 1002.0, sampler.counterLastSampledByContext[contextCounter2])
 
@@ -219,32 +226,29 @@ func TestCounterExpirySeconds(t *testing.T) {
 	sampler.addSample(sampleCounter2, 1020.0)
 
 	series, _ = sampler.flush(1040.0)
-	orderedSeries = OrderedSeries{series}
-	sort.Sort(orderedSeries)
-
-	series = orderedSeries.series
 
 	expectedSerie1 = &metrics.Serie{
-		Name:     "my.counter1",
-		Points:   []metrics.Point{{Ts: 1010.0, Value: .1}, {Ts: 1020.0, Value: 0.0}, {Ts: 1030.0, Value: 0.0}},
-		Tags:     []string{"bar", "foo"},
-		Host:     "",
-		MType:    metrics.APIRateType,
-		Interval: 10,
+		Name:       "my.counter1",
+		Points:     []metrics.Point{{Ts: 1010.0, Value: .1}, {Ts: 1020.0, Value: 0.0}, {Ts: 1030.0, Value: 0.0}},
+		Tags:       []string{"bar", "foo"},
+		Host:       "",
+		MType:      metrics.APIRateType,
+		ContextKey: generateContextKey(sampleCounter1),
+		Interval:   10,
 	}
 
 	expectedSerie2 = &metrics.Serie{
-		Name:     "my.counter2",
-		Points:   []metrics.Point{{Ts: 1010, Value: 0}, {Ts: 1020.0, Value: .2}, {Ts: 1030.0, Value: .2}},
-		Tags:     []string{"bar", "foo"},
-		Host:     "",
-		MType:    metrics.APIRateType,
-		Interval: 10,
+		Name:       "my.counter2",
+		Points:     []metrics.Point{{Ts: 1010, Value: 0}, {Ts: 1020.0, Value: .2}, {Ts: 1030.0, Value: .2}},
+		Tags:       []string{"bar", "foo"},
+		Host:       "",
+		MType:      metrics.APIRateType,
+		ContextKey: generateContextKey(sampleCounter2),
+		Interval:   10,
 	}
+	expectedSeries = metrics.Series{expectedSerie1, expectedSerie2}
 
-	require.Equal(t, 2, len(series))
-	metrics.AssertSerieEqual(t, expectedSerie1, series[0])
-	metrics.AssertSerieEqual(t, expectedSerie2, series[1])
+	metrics.AssertSeriesEqual(t, expectedSeries, series)
 
 	// We shouldn't get any empty counter since the last flushSeries was during the same interval
 	series, _ = sampler.flush(1045.0)
@@ -301,9 +305,10 @@ func TestSketch(t *testing.T) {
 
 	t.Run("single bucket", func(t *testing.T) {
 		var (
-			now float64
-			ctx = Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
-			exp = &quantile.Sketch{}
+			now    float64
+			ctx    = Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
+			exp    = &quantile.Sketch{}
+			keyGen = ckey.NewKeyGenerator()
 		)
 
 		for i := 0; i < bucketSize; i++ {
@@ -326,7 +331,7 @@ func TestSketch(t *testing.T) {
 					Ts:     0,
 				},
 			},
-			ContextKey: ckey.Generate(ctx.Name, ctx.Host, ctx.Tags),
+			ContextKey: keyGen.Generate(ctx.Name, ctx.Host, ctx.Tags),
 		}, flushed[0])
 
 		_, flushed = sampler.flush(now)
