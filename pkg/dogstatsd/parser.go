@@ -361,10 +361,18 @@ func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []s
 	return sample, nil
 }
 
+// the std API does not have methods to do []byte => float parsing
+// we use this unsafe trick to avoid having to allocate one string for
+// every parsed float
+// see https://github.com/golang/go/issues/2632
 func parseFloat64(rawFloat []byte) (float64, error) {
 	return strconv.ParseFloat(*(*string)(unsafe.Pointer(&rawFloat)), 64)
 }
 
+// the std API does not have methods to do []byte => float parsing
+// we use this unsafe trick to avoid having to allocate one string for
+// every parsed float
+// see https://github.com/golang/go/issues/2632
 func parseInt64(rawInt []byte) (int64, error) {
 	return strconv.ParseInt(*(*string)(unsafe.Pointer(&rawInt)), 10, 64)
 }
