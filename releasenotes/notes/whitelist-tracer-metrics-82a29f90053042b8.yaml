@@ -6,5 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
+enhancements:
   - |
     Add datadog.tracer to the list of standard statsd prefixes. Tracer metrics are published with this prefix.
