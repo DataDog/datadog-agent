@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	conf "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -58,7 +58,7 @@ func NewStats(c Check) *Stats {
 	var telemetry bool
 
 	// by default, we don't enable telemetry for every checks stats
-	for _, check := range config.Datadog.GetStringSlice("telemetry.checks") {
+	for _, check := range conf.Datadog.GetStringSlice("telemetry.checks") {
 		if check == "*" {
 			telemetry = true
 			break
