@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "gopkg.in/yaml.v2"
@@ -38,6 +39,7 @@ type APMCheck struct {
 	stop        chan struct{}
 	stopDone    chan struct{}
 	source      string
+	telemetry   bool
 }
 
 func (c *APMCheck) String() string {
@@ -166,6 +168,8 @@ func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data,
 	}
 
 	c.source = source
+	// TODO(remy): confirm that
+	c.telemetry = telemetry.IsCheckEnabled("apm")
 	return nil
 }
 
@@ -178,6 +182,11 @@ func (c *APMCheck) Interval() time.Duration {
 // ID returns the name of the check since there should be only one instance running
 func (c *APMCheck) ID() check.ID {
 	return "APM_AGENT"
+}
+
+// IsTelemetryEnabled returns if the telemetry is enabled for this check
+func (c *APMCheck) IsTelemetryEnabled() bool {
+	return c.telemetry
 }
 
 // Stop sends a termination signal to the APM process

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	conf "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -55,25 +54,12 @@ type Stats struct {
 
 // NewStats returns a new check stats instance
 func NewStats(c Check) *Stats {
-	var telemetry bool
-
-	// by default, we don't enable telemetry for every checks stats
-	for _, check := range conf.Datadog.GetStringSlice("telemetry.checks") {
-		if check == "*" {
-			telemetry = true
-			break
-		} else if check == c.String() {
-			telemetry = true
-			break
-		}
-	}
-
 	return &Stats{
 		CheckID:           c.ID(),
 		CheckName:         c.String(),
 		CheckVersion:      c.Version(),
 		CheckConfigSource: c.ConfigSource(),
-		telemetry:         telemetry,
+		telemetry:         telemetry.IsCheckEnabled(c.String()),
 	}
 }
 
@@ -87,7 +73,9 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	cs.LastExecutionTime = tms
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
-	tlmExecutionTime.Set(float64(tms), cs.CheckName)
+	if cs.telemetry {
+		tlmExecutionTime.Set(float64(tms), cs.CheckName)
+	}
 	var totalExecutionTime int64
 	ringSize := cs.TotalRuns
 	if ringSize > uint64(len(cs.ExecutionTimes)) {

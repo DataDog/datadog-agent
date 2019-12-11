@@ -7,6 +7,8 @@ package metrics
 
 import (
 	"expvar"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
@@ -14,8 +16,15 @@ var (
 	LogsExpvars *expvar.Map
 	// LogsDecoded is the total number of decoded logs
 	LogsDecoded = expvar.Int{}
+	// TlmLogsDecoded is the total number of decoded logs
+	TlmLogsDecoded = telemetry.NewCounter("logs", "decoded",
+		nil, "Total number of decoded logs")
 	// LogsProcessed is the total number of processed logs.
 	LogsProcessed = expvar.Int{}
+	// TlmLogsProcessed is the total number of processed logs.
+	TlmLogsProcessed = telemetry.NewCounter("logs", "processed",
+		nil, "Total number of processed logs")
+
 	// LogsSent is the total number of sent logs.
 	LogsSent = expvar.Int{}
 	// DestinationErrors is the total number of network errors.
@@ -27,6 +36,7 @@ var (
 	// EncodedBytesSent is the total number of sent bytes after encoding if any
 	EncodedBytesSent = expvar.Int{}
 	// TODO: Add LogsCollected for the total number of collected logs.
+
 )
 
 func init() {

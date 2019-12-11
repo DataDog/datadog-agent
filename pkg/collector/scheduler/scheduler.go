@@ -89,7 +89,9 @@ func (s *Scheduler) Enter(check check.Check) error {
 	if _, ok := s.jobQueues[check.Interval()]; !ok {
 		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
 		s.startQueue(s.jobQueues[check.Interval()])
-		tlmQueuesCount.Inc(check.String())
+		if check.IsTelemetryEnabled() {
+			tlmQueuesCount.Inc(check.String())
+		}
 		schedulerQueuesCount.Add(1)
 	}
 	s.jobQueues[check.Interval()].addJob(check)
@@ -97,7 +99,9 @@ func (s *Scheduler) Enter(check check.Check) error {
 	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
 
 	schedulerChecksEntered.Add(1)
-	tlmChecksEntered.Inc(check.String())
+	if check.IsTelemetryEnabled() {
+		tlmChecksEntered.Inc(check.String())
+	}
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
 	return nil
 }
