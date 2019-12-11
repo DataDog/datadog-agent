@@ -110,6 +110,13 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clcRunnerIP := r.Header.Get(RealIPHeader)
+	if clcRunnerIP == "" {
+		log.Errorf("clc runner IP not provided")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	// Handle http redirect
 	d.RLock()
 	redirectURL := d.redirectURL
@@ -228,6 +235,7 @@ const (
 	clusterAgentServiceHost = clusterAgentServiceName + "_SERVICE_HOST"
 	clusterAgentServicePort = clusterAgentServiceName + "_SERVICE_PORT"
 	clusterAgentTokenValue  = "01234567890123456789012345678901"
+	clcRunnerIP             = "10.92.1.39"
 )
 
 func (suite *clusterAgentSuite) SetupTest() {
@@ -235,6 +243,7 @@ func (suite *clusterAgentSuite) SetupTest() {
 	mockConfig.Set("cluster_agent.auth_token", clusterAgentTokenValue)
 	mockConfig.Set("cluster_agent.url", "")
 	mockConfig.Set("cluster_agent.kubernetes_service_name", "")
+	mockConfig.Set("clc_runner_host", clcRunnerIP)
 	os.Unsetenv(clusterAgentServiceHost)
 	os.Unsetenv(clusterAgentServicePort)
 }
