@@ -12,6 +12,7 @@ void __cdecl WcaLog(__in LOGLEVEL llv, __in_z __format_string PCSTR fmt, ...)
     va_list args;
     va_start(args, fmt);
     vprintf(fmt, args);
+    wprintf(L"\n");
     va_end(args);
 }
 
@@ -24,11 +25,14 @@ UINT  WINAPI MsiGetPropertyW(MSIHANDLE hInstall,
 {
     return ERROR_INVALID_FUNCTION;
 }
-int main()
+int wmain(int argc, wchar_t **argv)
 {
     hDllModule = GetModuleHandle(NULL);
     initializeStringsFromStringTable();
-    std::wstring defaultData = L"PROJECTLOCATION=C:\\Program Files\\Datadog\\Datadog Agent\\;APPLICATIONDATADIRECTORY = C:\\ProgramData\\Datadog\\; DDAGENTUSER_NAME = ; DDAGENTUSER_PASSWORD = ; ";
+    std::wstring defaultData;
+    parseArgs(argc - 1, &(argv[1]), defaultData);
+    wprintf(L"%s\n", defaultData.c_str());
+    return 0;
     CustomActionData data;
     data.init(defaultData);
 //    doFinalizeInstall(data);

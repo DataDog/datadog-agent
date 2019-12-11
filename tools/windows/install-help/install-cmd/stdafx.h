@@ -40,6 +40,7 @@
 
 // WiX Header Files:
 #include "install-cmd.h"
+#include "cmdargs.h"
 
 
 // TODO: reference additional headers your program requires here

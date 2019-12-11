@@ -163,6 +163,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="cmdargs.h" />
     <ClInclude Include="install-cmd.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="resource.h" />
@@ -177,6 +178,7 @@
     <ClCompile Include="..\cal\usercreate.cpp" />
     <ClCompile Include="..\cal\userrights.cpp" />
     <ClCompile Include="..\cal\winacl.cpp" />
+    <ClCompile Include="cmdline.cpp" />
     <ClCompile Include="install-cmd.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
