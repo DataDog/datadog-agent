@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -49,15 +50,30 @@ type Stats struct {
 	LastWarnings         []string  // warnings that occurred in the last run, if any
 	UpdateTimestamp      int64     // latest update to this instance, unix timestamp in seconds
 	m                    sync.Mutex
+	telemetry            bool // do we want telemetry on this Check
 }
 
 // NewStats returns a new check stats instance
 func NewStats(c Check) *Stats {
+	var telemetry bool
+
+	// by default, we don't enable telemetry for every checks stats
+	for _, check := range config.Datadog.GetStringSlice("telemetry.checks") {
+		if check == "*" {
+			telemetry = true
+			break
+		} else if check == c.String() {
+			telemetry = true
+			break
+		}
+	}
+
 	return &Stats{
 		CheckID:           c.ID(),
 		CheckName:         c.String(),
 		CheckVersion:      c.Version(),
 		CheckConfigSource: c.ConfigSource(),
+		telemetry:         telemetry,
 	}
 }
 
@@ -83,15 +99,21 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	cs.AverageExecutionTime = totalExecutionTime / int64(ringSize)
 	if err != nil {
 		cs.TotalErrors++
-		tlmRuns.Inc(cs.CheckName, "fail")
+		if cs.telemetry {
+			tlmRuns.Inc(cs.CheckName, "fail")
+		}
 		cs.LastError = err.Error()
 	} else {
-		tlmRuns.Inc(cs.CheckName, "ok")
+		if cs.telemetry {
+			tlmRuns.Inc(cs.CheckName, "ok")
+		}
 		cs.LastError = ""
 	}
 	cs.LastWarnings = []string{}
 	if len(warnings) != 0 {
-		tlmWarnings.Add(float64(len(warnings)), cs.CheckName)
+		if cs.telemetry {
+			tlmWarnings.Add(float64(len(warnings)), cs.CheckName)
+		}
 		for _, w := range warnings {
 			cs.TotalWarnings++
 			cs.LastWarnings = append(cs.LastWarnings, w.Error())
@@ -103,21 +125,27 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 		cs.MetricSamples = m
 		if cs.TotalMetricSamples <= 1000001 {
 			cs.TotalMetricSamples += m
-			tlmMetricsSamples.Add(float64(m), cs.CheckName)
+			if cs.telemetry {
+				tlmMetricsSamples.Add(float64(m), cs.CheckName)
+			}
 		}
 	}
 	if ev, ok := metricStats["Events"]; ok {
 		cs.Events = ev
 		if cs.TotalEvents <= 1000001 {
 			cs.TotalEvents += ev
-			tlmEvents.Add(float64(ev), cs.CheckName)
+			if cs.telemetry {
+				tlmEvents.Add(float64(ev), cs.CheckName)
+			}
 		}
 	}
 	if sc, ok := metricStats["ServiceChecks"]; ok {
 		cs.ServiceChecks = sc
 		if cs.TotalServiceChecks <= 1000001 {
 			cs.TotalServiceChecks += sc
-			tlmServices.Add(float64(sc), cs.CheckName)
+			if cs.telemetry {
+				tlmServices.Add(float64(sc), cs.CheckName)
+			}
 		}
 	}
 }
