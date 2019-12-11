@@ -26,23 +26,14 @@ var (
 	udsPackets               = expvar.Int{}
 	udsBytes                 = expvar.Int{}
 
-	tlmUDSPackets = telemetry.NewCounter(
-		"dogstatsd", "uds_packets",
-		[]string{"state"},
-		"Dogstatsd UDS packets count",
-	)
+	tlmUDSPackets = telemetry.NewCounter("dogstatsd", "uds_packets",
+		[]string{"state"}, "Dogstatsd UDS packets count")
 
-	tlmUDSOriginDetectionError = telemetry.NewCounter(
-		"dogstatsd", "uds_origin_detection_error",
-		nil,
-		"Dogstatsd UDS origin detection error count",
-	)
+	tlmUDSOriginDetectionError = telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",
+		nil, "Dogstatsd UDS origin detection error count")
 
-	tlmUDSPacketsBytes = telemetry.NewCounter(
-		"dogstatsd", "uds_packets_bytes",
-		[]string{"state"},
-		"Dogstatsd UDS packets count",
-	)
+	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
+		[]string{"state"}, "Dogstatsd UDS packets count")
 )
 
 func init() {

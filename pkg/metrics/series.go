@@ -25,11 +25,8 @@ import (
 var (
 	seriesExpvar = expvar.NewMap("series")
 
-	tlmSeries = telemetry.NewCounter(
-		"metrics", "series_split",
-		[]string{"action"},
-		"Series split",
-	)
+	tlmSeries = telemetry.NewCounter("metrics", "series_split",
+		[]string{"action"}, "Series split")
 )
 
 // Point represents a metric value at a specific time

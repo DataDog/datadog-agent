@@ -30,11 +30,8 @@ const (
 
 var (
 	eventExpvar = expvar.NewMap("Event")
-	tlmEvent    = telemetry.NewCounter(
-		"metrics", "event_split",
-		[]string{"action"},
-		"Events action split",
-	)
+	tlmEvent    = telemetry.NewCounter("metrics", "event_split",
+		[]string{"action"}, "Events action split")
 )
 
 // GetEventPriorityFromString returns the EventPriority from its string representation

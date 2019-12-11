@@ -35,11 +35,8 @@ const (
 var (
 	serviceCheckExpvar = expvar.NewMap("ServiceCheck")
 
-	tlmServiceCheck = telemetry.NewCounter(
-		"metrics", "service_check_split",
-		[]string{"action"},
-		"Service check split",
-	)
+	tlmServiceCheck = telemetry.NewCounter("metrics", "service_check_split",
+		[]string{"action"}, "Service check split")
 )
 
 // GetServiceCheckStatus returns the ServiceCheckStatus from and integer value

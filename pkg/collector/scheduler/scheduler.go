@@ -24,9 +24,9 @@ var (
 	schedulerQueuesCount   = expvar.Int{}
 	schedulerChecksEntered = expvar.Int{}
 
-	tlmChecksEntered = telemetry.NewGauge("checks", "entered",
+	tlmChecksEntered = telemetry.NewGauge("agent__scheduler", "checks_entered",
 		[]string{"check_name"}, "How many checks entered the scheduler")
-	tlmQueuesCount = telemetry.NewCounter("checks", "queues_count",
+	tlmQueuesCount = telemetry.NewCounter("agent__scheduler", "queues_count",
 		[]string{"check_name"}, "How many queues were opened")
 )
 

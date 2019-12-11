@@ -34,11 +34,8 @@ var (
 	transactionsCheckRunsV1   = expvar.Int{}
 	transactionsIntakeV1      = expvar.Int{}
 
-	tlm = telemetry.NewCounter(
-		"forwarder", "transactions",
-		[]string{"endpoint", "route"},
-		"Forwarder telemetry",
-	)
+	tlm = telemetry.NewCounter("forwarder", "transactions",
+		[]string{"endpoint", "route"}, "Forwarder telemetry")
 
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
