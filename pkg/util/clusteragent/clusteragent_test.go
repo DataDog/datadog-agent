@@ -112,7 +112,7 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	podIP := r.Header.Get(RealIPHeader)
 	if podIP != clcRunnerIP {
-		log.Errorf("clc runner IP not provided")
+		log.Errorf("wrong clc runner IP: %s", podIP)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
