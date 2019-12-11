@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	chunkSize = 45
+	chunkSize = 3
 )
 
 type DatadogClient interface {
@@ -150,14 +150,14 @@ func makeChunks(batch []string) (chunks [][]string) {
 // validateExternalMetric queries Datadog to validate the availability and value of one or more external metrics
 func (p *Processor) validateExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
 	batch := []string{}
-
+	log.Infof("DEV evaluating %v", emList)
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
 		batch = append(batch, q)
 	}
-
+	log.Infof("DEV batches %v", batch)
 	chunks := makeChunks(batch)
-
+	log.Infof("DEV chunks %v", chunks)
 	// we have a number of chunks with 45 metrics.
 	responses := make(chan map[string]Point, len(batch))
 	var waitResp sync.WaitGroup
@@ -167,9 +167,12 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 			defer waitResp.Done()
 			resp, err := p.queryDatadogExternal(chunk)
 			if err != nil {
-				return
+				log.Infof("DEV error %s", err.Error())
+				return // do I always want to return ?
 			}
+			log.Infof("DEV Sending %v to channel", resp)
 			responses <- resp
+
 		}(c)
 	}
 	waitResp.Wait()
@@ -177,6 +180,7 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 	for elem := range responses {
 		processed = elem
 	}
+	log.Infof("DEV processed %v", processed)
 	log.Infof("Processed %d chunks, returning %d metrics", len(chunks), len(processed))
 	return processed, nil
 }
