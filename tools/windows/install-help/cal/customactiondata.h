@@ -8,6 +8,7 @@ class CustomActionData
         ~CustomActionData();
 
         bool init(MSIHANDLE hInstall);
+        bool init(const std::wstring &initstring);
 
         bool present(const std::wstring& key) const;
         bool value( std::wstring& key, std::wstring &val) ;
@@ -28,9 +29,6 @@ class CustomActionData
         const std::wstring& Domain() const {
             return this->domain;
         }
-        const std::wstring& Hostname() const {
-            return this->hostname;
-        }
     private:
         MSIHANDLE hInstall;
         bool domainUser;
@@ -38,8 +36,6 @@ class CustomActionData
         std::wstring username; // qualified
         std::wstring uqusername;// unqualified
         std::wstring domain;
-        std::wstring hostname;
-
 
         bool parseUsernameData();
 };

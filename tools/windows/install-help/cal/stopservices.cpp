@@ -2,7 +2,7 @@
 
 static BOOL StopDependentServices(SC_HANDLE hScManager, SC_HANDLE hService);
 
-int doesServiceExist(MSIHANDLE hInstall, std::wstring& svcName)
+int doesServiceExist(std::wstring& svcName)
 {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
@@ -61,7 +61,7 @@ int doesServiceExist(MSIHANDLE hInstall, std::wstring& svcName)
 // Return value:
 //   None
 //
-VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring &svcName)
+VOID  DoStopSvc(std::wstring &svcName)
 {
     SERVICE_STATUS_PROCESS ssp;
     DWORD dwStartTime = GetTickCount();
@@ -72,9 +72,7 @@ VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring &svcName)
     SC_HANDLE hService = NULL;
 
     // Get a handle to the SCM database. 
-    std::string shortname;
-    toMbcs(shortname, svcName.c_str());
-    WcaLog(LOGMSG_STANDARD, "Stopping service %s", shortname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Stopping service %S", svcName.c_str());
     hScManager = OpenSCManager(
         NULL,                    // local computer
         NULL,                    // ServicesActive database 
@@ -324,7 +322,7 @@ BOOL StopDependentServices(SC_HANDLE hScManager, SC_HANDLE hService)
 // Return value:
 //   None
 //
-DWORD  DoStartSvc(MSIHANDLE hInstall, std::wstring& svcname)
+DWORD  DoStartSvc(std::wstring& svcname)
 {
     SERVICE_STATUS_PROCESS ssStatus;
     DWORD dwOldCheckPoint;
@@ -333,9 +331,7 @@ DWORD  DoStartSvc(MSIHANDLE hInstall, std::wstring& svcname)
     DWORD dwBytesNeeded;
     DWORD err = 0;
     SC_HANDLE schSCManager = NULL;
-    std::string shortname;
-    toMbcs(shortname, svcname.c_str());
-    WcaLog(LOGMSG_STANDARD, "Starting service %s", shortname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Starting service %S", svcname.c_str());
     // Get a handle to the SCM database. 
 
     schSCManager = OpenSCManager(
@@ -737,7 +733,7 @@ public:
     }
 };
 
-int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *password) {
+int installServices(CustomActionData& data, const wchar_t *password) {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
     int retval = 0;
@@ -809,7 +805,7 @@ int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *p
     return retval;
 
 }
-int uninstallServices(MSIHANDLE hInstall, CustomActionData& data) {
+int uninstallServices(CustomActionData& data) {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;
     int retval = 0;
@@ -858,7 +854,7 @@ int uninstallServices(MSIHANDLE hInstall, CustomActionData& data) {
     CloseServiceHandle(hScManager);
     return retval;
 }
-int verifyServices(MSIHANDLE hInstall, CustomActionData& data) 
+int verifyServices(CustomActionData& data) 
 {
     SC_HANDLE hScManager = NULL;
     SC_HANDLE hService = NULL;

@@ -74,9 +74,7 @@ bool generatePassword(wchar_t* passbuf, int passbuflen) {
 }
 DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name) {
 
-    std::string namestr;
-    toMbcs(namestr, name);
-    WcaLog(LOGMSG_STANDARD, "Changing registry ACL on %s", namestr.c_str());
+    WcaLog(LOGMSG_STANDARD, "Changing registry ACL on %S", name);
     ExplicitAccess localsystem;
     localsystem.BuildGrantSid(TRUSTEE_IS_USER, GENERIC_ALL | KEY_ALL_ACCESS, SECURITY_LOCAL_SYSTEM_RID, 0);
 
@@ -176,8 +174,6 @@ void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
     ExplicitAccess dduser;
     // get the current ACLs;  check to see if the DD user is in there, if so
     // remove
-    std::string shortfile;
-    toMbcs(shortfile, filename.c_str());
     DWORD dwRes = 0;
     PACL pOldDacl = NULL;
     PSECURITY_DESCRIPTOR pSD = NULL;
@@ -196,15 +192,15 @@ void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
         WcaLog(LOGMSG_STANDARD, "Failed to get DACL size information");
         goto doneRemove;
     }
-    for(int i = 0; i < sizeInfo.AceCount; i++) {
+    for(DWORD i = 0; i < sizeInfo.AceCount; i++) {
         ACCESS_ALLOWED_ACE *ace;
 
         if (GetAce(pOldDacl, i, (LPVOID*)&ace)) {
             PSID compareSid = (PSID)(&ace->SidStart);
             if (EqualSid(compareSid, sidremove)) {
-                WcaLog(LOGMSG_STANDARD, "Matched sid on file %s, removing", shortfile.c_str());
+                WcaLog(LOGMSG_STANDARD, "Matched sid on file %S, removing", filename.c_str());
                 if (!DeleteAce(pOldDacl, i)) {
-                    WcaLog(LOGMSG_STANDARD, "Failed to delete ACE on file %s", shortfile.c_str());
+                    WcaLog(LOGMSG_STANDARD, "Failed to delete ACE on file %S", filename.c_str());
                 }
             }
         }
@@ -212,7 +208,7 @@ void removeUserPermsFromFile(std::wstring &filename, PSID sidremove)
     dwRes = SetNamedSecurityInfoW((LPWSTR) filename.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
             NULL, NULL, pOldDacl, NULL);
     if(dwRes != 0) {
-        WcaLog(LOGMSG_STANDARD, "%d resetting permissions on %s", dwRes, shortfile.c_str());
+        WcaLog(LOGMSG_STANDARD, "%d resetting permissions on %S", dwRes, filename.c_str());
     }
 
 doneRemove:
@@ -264,7 +260,7 @@ DWORD DeleteUser(const wchar_t* host, const wchar_t* name){
 
 
 
-bool isDomainController(MSIHANDLE hInstall)
+bool isDomainController()
 {
     bool ret = false;
     DWORD status = 0;
@@ -296,7 +292,7 @@ bool isDomainController(MSIHANDLE hInstall)
     return ret;
 }
 
-int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC)
+int doesUserExist(const CustomActionData& data, bool isDC)
 {
     int retval = 0;
     SID *newsid = NULL;

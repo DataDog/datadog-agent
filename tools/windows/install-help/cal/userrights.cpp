@@ -8,7 +8,6 @@ PSID GetSidForUser(LPCWSTR host, LPCWSTR user) {
 	LPWSTR refDomain = NULL;
 	DWORD cchRefDomain = 0;
 	SID_NAME_USE use;
-	std::string narrowdomain;
 	BOOL bRet = LookupAccountName(host, user, newsid, &cbSid, refDomain, &cchRefDomain, &use);
 	if (bRet) {
 		// this should *never* happen, because we didn't pass in a buffer large enough for
@@ -37,8 +36,7 @@ PSID GetSidForUser(LPCWSTR host, LPCWSTR user) {
 		goto cleanAndFail;
 	}
 	
-	toMbcs(narrowdomain, refDomain);
-	WcaLog(LOGMSG_STANDARD, "Got SID from %s", narrowdomain.c_str());
+	WcaLog(LOGMSG_STANDARD, "Got SID from %S", refDomain);
 	delete[] refDomain;
 	return newsid;
 
@@ -59,7 +57,6 @@ bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr)
     LPWSTR refDomain = NULL;
     DWORD cchRefDomain = 0;
     SID_NAME_USE use;
-    std::string narrowdomain;
     BOOL success = false;
     BOOL bRet = LookupAccountSid(host, sid, name, &cchName, refDomain, &cchRefDomain, &use);
     if (bRet) {
@@ -87,8 +84,7 @@ bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr)
         goto cleanAndDone;
     }
     success = true;
-    toMbcs(narrowdomain, refDomain);
-    WcaLog(LOGMSG_STANDARD, "Got account from sid from %s\n", narrowdomain.c_str());
+    WcaLog(LOGMSG_STANDARD, "Got account from sid from %s\n", refDomain);
     namestr = name;
 
 cleanAndDone:
@@ -210,7 +206,7 @@ bool InitLsaString(
 
 	if (NULL != pwszString)
 	{
-		dwLen = wcslen(pwszString);
+		dwLen = (DWORD)wcslen(pwszString);
 		if (dwLen > 0x7ffe)   // String is too large
 			return FALSE;
 	}
@@ -257,9 +253,7 @@ int EnableServiceForUser(CustomActionData& data, const std::wstring& service)
 	BOOL bDaclPresent = FALSE;
 	DWORD dwError = 0;
 	SECURITY_DESCRIPTOR sd;
-    std::string asciiservice;
-    toMbcs(asciiservice, service.c_str());
-    WcaLog(LOGMSG_STANDARD, "attempting to open %s", asciiservice.c_str());
+    WcaLog(LOGMSG_STANDARD, "attempting to open %s", service.c_str());
     SC_HANDLE hService = OpenServiceW(hscm, (LPCWSTR)service.c_str(), SERVICE_ALL_ACCESS | READ_CONTROL | WRITE_DAC);
 	if (!hService) {
 		WcaLog(LOGMSG_STANDARD,"Failed to open service %d\n", GetLastError());
@@ -365,8 +359,7 @@ DWORD AddUserToGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGrou
     std::string asciiname;
    
     getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
-    toMbcs(asciiname, groupname.c_str());
-    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %s", asciiname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %s", groupname.c_str());
     nErr = NetLocalGroupAddMembers(NULL, groupname.c_str(), 0, (LPBYTE)&lmi0, 1);
     if (nErr == NERR_Success) {
         WcaLog(LOGMSG_STANDARD, "Added ddagentuser to %s", asciiname.c_str());
@@ -386,18 +379,16 @@ DWORD DelUserFromGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGr
 {
     DWORD nErr  = 0;
     std::wstring groupname;
-    std::string asciiname;
 
     LOCALGROUP_MEMBERS_INFO_0 lmi0;
     memset(&lmi0, 0, sizeof(LOCALGROUP_MEMBERS_INFO_0));
     lmi0.lgrmi0_sid = userSid;
 
     getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
-    toMbcs(asciiname, groupname.c_str());
-    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %s", asciiname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %s", groupname.c_str());
     nErr = NetLocalGroupDelMembers(NULL, L"Performance Monitor Users", 0, (LPBYTE)&lmi0, 1);
     if (nErr == NERR_Success) {
-        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to %s", asciiname.c_str());
+        WcaLog(LOGMSG_STANDARD, "Added ddagentuser to %S", groupname.c_str());
     }
     else if (nErr == ERROR_NO_SUCH_MEMBER || nErr == ERROR_MEMBER_NOT_IN_ALIAS) {
         WcaLog(LOGMSG_STANDARD, "User wasn't in group, continuing %d", nErr);

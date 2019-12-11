@@ -8,9 +8,7 @@ RegKey::RegKey()
 RegKey::RegKey(HKEY parentKey, const wchar_t* subkey)
     : hKeyRoot(NULL)
 {
-    std::string ls;
-    toMbcs(ls, subkey);
-    WcaLog(LOGMSG_STANDARD, "Creating/opening key %s", ls.c_str());
+    WcaLog(LOGMSG_STANDARD, "Creating/opening key %S", subkey);
     LSTATUS st = RegCreateKeyEx(parentKey,
         subkey,
         0, //reserved, must be zero
@@ -62,7 +60,7 @@ bool RegKey::getStringValue(const wchar_t* valname, std::wstring& val)
 
 bool RegKey::setStringValue(const wchar_t* valname, const wchar_t* value)
 {
-    RegSetValueEx(this->hKeyRoot, valname, 0, REG_SZ, (const BYTE*)value, (wcslen(value) + 1) * sizeof(wchar_t));
+    RegSetValueEx(this->hKeyRoot, valname, 0, REG_SZ, (const BYTE*)value, (DWORD)(wcslen(value) + 1) * sizeof(wchar_t));
     return true;
 }
 
@@ -72,10 +70,7 @@ bool RegKey::deleteSubKey(const wchar_t * keyname) {
 
 bool RegKey::createSubKey(const wchar_t *keyname, RegKey& subkey, DWORD options)
 {
-    std::string ls;
-    toMbcs(ls, keyname);
-    
-    WcaLog(LOGMSG_STANDARD, "Creating/opening subkey %s", ls.c_str());
+    WcaLog(LOGMSG_STANDARD, "Creating/opening subkey %S", keyname);
     LSTATUS st = RegCreateKeyEx(this->hKeyRoot,
         keyname,
         0, //reserved, must be zero

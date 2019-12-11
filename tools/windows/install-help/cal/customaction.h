@@ -7,8 +7,8 @@ int doCreateUser(const std::wstring& name, const std::wstring& comment, const wc
 int doSetUserPassword(const std::wstring& name, const wchar_t* passbuf);
 DWORD changeRegistryAcls(CustomActionData& data, const wchar_t* name);
 DWORD addDdUserPermsToFile(CustomActionData& data, std::wstring &filename);
-bool isDomainController(MSIHANDLE hInstall);
-int doesUserExist(MSIHANDLE hInstall, const CustomActionData& data, bool isDC = false);
+bool isDomainController();
+int doesUserExist(const CustomActionData& data, bool isDC = false);
 
 void removeUserPermsFromFile(std::wstring &filename, PSID sidremove);
 
@@ -32,12 +32,12 @@ LSA_HANDLE GetPolicyHandle();
 
 
 //stopservices.cpp
-VOID  DoStopSvc(MSIHANDLE hInstall, std::wstring &svcName);
-DWORD DoStartSvc(MSIHANDLE hInstall, std::wstring &svcName);
-int doesServiceExist(MSIHANDLE hInstall, std::wstring& svcName);
-int installServices(MSIHANDLE hInstall, CustomActionData& data, const wchar_t *password);
-int uninstallServices(MSIHANDLE hInstall, CustomActionData& data);
-int verifyServices(MSIHANDLE hInstall, CustomActionData& data);
+VOID  DoStopSvc(std::wstring &svcName);
+DWORD DoStartSvc(std::wstring &svcName);
+int doesServiceExist(std::wstring& svcName);
+int installServices(CustomActionData& data, const wchar_t *password);
+int uninstallServices(CustomActionData& data);
+int verifyServices(CustomActionData& data);
 
 //delfiles.cpp
 BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dirs = false);
@@ -60,3 +60,6 @@ extern HMODULE hDllModule;
 #define SE_DENY_REMOTE_INTERACTIVE_LOGON_NAME TEXT("SeDenyRemoteInteractiveLogonRight")
 #endif
 */
+
+//FinalizeInstall.cpp
+UINT doFinalizeInstall(CustomActionData &data);

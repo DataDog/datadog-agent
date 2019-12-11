@@ -144,7 +144,7 @@ bool wrapGetComputerNameExW(COMPUTER_NAME_FORMAT fmt, std::wstring& result)
     sz = sz + 1;
     res = GetComputerNameExW(fmt, buffer, &sz);
     if(res){
-        result = _wcslwr(buffer);
+        result = _wcslwr_s(buffer, sz + 1);
     } else {
         err = GetLastError();
         WcaLog(LOGMSG_STANDARD, "Unable to get computername info %d", err);
@@ -160,7 +160,7 @@ void getHostInformation() {
     if(!GetComputerNameW(buf, &sz)){
         WcaLog(LOGMSG_STANDARD, "Failed to get computername %d", GetLastError());
     } else {
-        computername = _wcslwr(buf);
+        computername = _wcslwr_s(buf, MAX_COMPUTERNAME_LENGTH + 1);
         WcaLog(LOGMSG_STANDARD, "Computername is %S (%d)", computername.c_str(), sz);
     }
     // get the computername again and compare, just to make sure
@@ -187,7 +187,7 @@ void getHostInformation() {
     NETSETUP_JOIN_STATUS st;
     int nErr = NetGetJoinInformation(NULL, &name, &st);
     if(nErr == NERR_Success) {
-        joined_domain = _wcslwr(name);
+        joined_domain = _wcslwr_s(name, wcslen(name) + 1);
         NetApiBufferFree(name);
     } else {
         WcaLog(LOGMSG_STANDARD, "Error getting domain joining information %d", GetLastError());
@@ -280,19 +280,6 @@ void initializeStringsFromStringTable()
     initialized = true;
 }
 
-void toMbcs(std::string& target, LPCWSTR src) {
-    size_t len = wcslen(src);
-    size_t narrowlen = (2 * len) + 1;
-    char * tgt = new char[narrowlen];
-    wcstombs(tgt, src, narrowlen);
-    target = tgt;
-    delete[] tgt;
-    return;
-}
-
-void toMbcs(std::string& target, std::wstring& src){
-    return toMbcs(target, src.c_str());
-}
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dststr)
 {
     wchar_t *dst = NULL;
@@ -309,9 +296,6 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
 {
     TCHAR* szValueBuf = NULL;
     DWORD cchValueBuf = 0;
-    std::string propertyname;
-    std::string propval;
-    toMbcs(propertyname, propertyName);
 
     UINT uiStat =  MsiGetProperty(hInstall, propertyName, L"", &cchValueBuf);
     //cchValueBuf now contains the size of the property's string, without null termination
@@ -332,13 +316,12 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
         return false;
     }
     if (wcslen(szValueBuf) == 0){
-        WcaLog(LOGMSG_STANDARD, "Property %s is empty", propertyname.c_str());
+        WcaLog(LOGMSG_STANDARD, "Property %S is empty", propertyName);
         delete [] szValueBuf;
         return false;
     }
     *dst=szValueBuf;
     *len = cchValueBuf;
-    toMbcs(propval, szValueBuf);
     return true;
 }
 

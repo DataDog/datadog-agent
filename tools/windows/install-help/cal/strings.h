@@ -51,9 +51,6 @@ extern std::wstring installInstalledServices;
 void initializeStringsFromStringTable();
 
 
-void toMbcs(std::string& target, LPCWSTR src);
-void toMbcs(std::string& target, std::wstring& src);
-
 bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName = NULL);
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dst);
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst, DWORD *len);

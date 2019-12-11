@@ -17,6 +17,12 @@ bool CustomActionData::init(MSIHANDLE hi)
     if (!loadPropertyString(this->hInstall, propertyCustomActionData.c_str(), data)) {
         return false;
     }
+    return init(data);
+
+}
+
+bool CustomActionData::init(const std::wstring& data)
+{
     // first, the string is KEY=VAL;KEY=VAL....
     // first split into key/value pairs
     std::wstringstream ss(data);
@@ -38,7 +44,6 @@ bool CustomActionData::init(MSIHANDLE hi)
     // pre-populate the domain/user information
     this->parseUsernameData();
     return true;
-
 }
 
 bool CustomActionData::present(const std::wstring& key) const {
