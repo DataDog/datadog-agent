@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	chunkSize = 3
+	chunkSize = 45
 )
 
 type DatadogClient interface {
@@ -150,27 +150,35 @@ func makeChunks(batch []string) (chunks [][]string) {
 // validateExternalMetric queries Datadog to validate the availability and value of one or more external metrics
 func (p *Processor) validateExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
 	batch := []string{}
-	log.Infof("DEV evaluating %v", emList)
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
 		batch = append(batch, q)
 	}
-	log.Infof("DEV batches %v", batch)
 	chunks := makeChunks(batch)
-	log.Infof("DEV chunks %v", chunks)
-	// we have a number of chunks with 45 metrics.
+	log.Tracef("List of batches %v", chunks)
+
+	// we have a number of chunks with `chunkSize` metrics.
 	responses := make(chan map[string]Point, len(batch))
+	var errors []string
+	processed = make(map[string]Point)
 	var waitResp sync.WaitGroup
+	///
+	//var waitCtxResp errgroup.Group
+	//ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+	//defer cancel()
+	//group, _ := errgroup.WithContext(ctx)
+	//group.Wait()
+	///
 	for _, c := range chunks {
 		waitResp.Add(1)
 		go func(chunk []string) {
 			defer waitResp.Done()
 			resp, err := p.queryDatadogExternal(chunk)
 			if err != nil {
-				log.Infof("DEV error %s", err.Error())
-				return // do I always want to return ?
+				errors = append(errors, fmt.Sprintf("Error retrieving values for %s: %v", chunk, err.Error()))
+				// if we hit an error we do not want to send the metric to the channel
+				return
 			}
-			log.Infof("DEV Sending %v to channel", resp)
 			responses <- resp
 
 		}(c)
@@ -178,11 +186,16 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 	waitResp.Wait()
 	close(responses)
 	for elem := range responses {
-		processed = elem
+		for k, v := range elem {
+			processed[k] = v
+		}
 	}
-	log.Infof("DEV processed %v", processed)
-	log.Infof("Processed %d chunks, returning %d metrics", len(chunks), len(processed))
-	return processed, nil
+
+	log.Debugf("Processed %d chunks", len(chunks))
+	if len(errors) > 0 {
+		err = fmt.Errorf(strings.Join(errors, ","))
+	}
+	return processed, err
 }
 
 func invalidate(emList map[string]custommetrics.ExternalMetricValue) (invList map[string]custommetrics.ExternalMetricValue) {

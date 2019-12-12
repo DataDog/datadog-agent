@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/stretchr/testify/assert"
 )
 
 type fakeDatadogClient struct {
@@ -31,6 +32,25 @@ func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datado
 	}
 	return nil, nil
 }
+type fakeProcessor struct {
+	QueryDatadogExternalFunc func(metricNames []string) (map[string]Point, error)
+	//validateExternalMetricFunc func(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error)
+}
+
+func (p *fakeProcessor) QueryDatadogExternal(metricNames []string) (map[string]Point, error) {
+	if p.QueryDatadogExternalFunc != nil {
+		return p.QueryDatadogExternalFunc(metricNames)
+	}
+	return nil, nil
+}
+
+//func (h *fakeProcessor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
+//	return nil
+//}
+//
+//func (h *fakeProcessor) ProcessEMList(metrics []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
+//	return nil
+//}
 
 var maxAge = time.Duration(30 * time.Second)
 
@@ -171,6 +191,108 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 		require.False(t, i.Valid)
 	}
 
+}
+
+func TestValidateExternalMetricsBatching(t *testing.T) {
+	metricName := "foo"
+	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
+	tests := []struct {
+		desc string
+		in   map[string]custommetrics.ExternalMetricValue
+		out  []datadog.Series
+		//expected map[string]Point
+		batchCalls int
+		err error
+		timeout bool
+	} {
+		{
+			desc: "one batch",
+			in: lambdaMakeChunks(14,custommetrics.ExternalMetricValue{
+				MetricName: "foo",
+				Labels: map[string]string{"foo":"bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 1,
+			err: nil,
+			timeout: false,
+		},
+		{
+			desc: "several batches",
+			in: lambdaMakeChunks(158,custommetrics.ExternalMetricValue{
+				MetricName: "foo",
+				Labels: map[string]string{"foo":"bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 4,
+			err: nil,
+			timeout: false,
+		},
+	}
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T){
+			var bc int
+			datadogClient := &fakeDatadogClient{
+				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
+					bc += 1
+					return tt.out, nil
+				},
+			}
+			p := &Processor{datadogClient: datadogClient}
+
+			_, err := p.validateExternalMetric(tt.in)
+			if err != nil {
+				assert.Equal(t, err, tt.err)
+			}
+			//assert.Equal(t, results, tt.expected)
+			assert.Equal(t, bc, tt.batchCalls)
+			//p := &fakeProcessor{
+			//	QueryDatadogExternalFunc: func(metricNames []string) (map[string]Point, error) {
+			//		return tt.out, tt.err
+			//	},
+			//}
+
+			//foo := p.(Processor)
+
+			//tuu := p.(Processor)
+			//foo.ProcessEMList(nil)
+			//pro, _ := NewProcessor(nil)
+			//f := 	ProcessorInterface(pro)
+			//
+			//pro.validateExternalMetric()
+			////out, err := fakeProcessor.(tt.in)
+
+
+		})
+	}
+}
+
+func lambdaMakeChunks(numChunks int, chunkToExpand custommetrics.ExternalMetricValue) (expanded map[string]custommetrics.ExternalMetricValue) {
+	expanded = make(map[string]custommetrics.ExternalMetricValue)
+	for i := 0; i <= numChunks; i++ {
+		expanded[fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i)] = custommetrics.ExternalMetricValue{
+			MetricName: fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i),
+			Labels: chunkToExpand.Labels,
+		}
+	}
+	return expanded
 }
 
 func TestProcessor_ProcessHPAs(t *testing.T) {

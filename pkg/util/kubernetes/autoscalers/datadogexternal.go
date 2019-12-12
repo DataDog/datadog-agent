@@ -63,7 +63,6 @@ const (
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
 func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point, error) {
-	log.Infof("DEV Querying %s", metricNames)
 	if metricNames == nil {
 		log.Tracef("No processed external metrics to query")
 		return nil, nil
