@@ -47,7 +47,7 @@ const (
 var (
 	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
 		config.Datadog.GetString("expvar_port"))
-	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/metrics",
+	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/telemetry",
 		config.Datadog.GetString("expvar_port"))
 
 	// Match .yaml and .yml to ship configuration files in the flare.

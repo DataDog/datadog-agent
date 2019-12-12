@@ -181,7 +181,7 @@ func StartAgent() error {
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	if config.Datadog.GetBool("telemetry.enabled") {
-		http.Handle("/metrics", promhttp.Handler())
+		http.Handle("/telemetry", promhttp.Handler())
 	}
 	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
 
