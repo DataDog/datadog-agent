@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
@@ -247,13 +249,15 @@ func StartAgent() error {
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
+	metricSamplePool := metrics.NewMetricSamplePool(32)
 	agg := aggregator.InitAggregator(s, hostname, "agent")
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(agg.GetBufferedChannels())
+		sampleC, eventC, serviceCheckC := agg.GetBufferedChannels()
+		common.DSD, err = dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}

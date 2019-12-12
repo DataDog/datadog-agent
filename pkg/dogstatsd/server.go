@@ -52,6 +52,7 @@ func init() {
 type Server struct {
 	listeners             []listeners.StatsdListener
 	packetsIn             chan listeners.Packets
+	samplePool            *metrics.MetricSamplePool
 	Statistics            *util.Stats
 	Started               bool
 	packetPool            *listeners.PacketPool
@@ -76,7 +77,7 @@ type metricStat struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
+func NewServer(samplePool *metrics.MetricSamplePool, metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -140,6 +141,7 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	s := &Server{
 		Started:               true,
 		Statistics:            stats,
+		samplePool:            samplePool,
 		packetsIn:             packetsChannel,
 		listeners:             tmpListeners,
 		packetPool:            packetPool,
