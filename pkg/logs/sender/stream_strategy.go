@@ -29,6 +29,7 @@ func (s *streamStrategy) Send(inputChan chan *message.Message, outputChan chan *
 			log.Warnf("Could not send payload: %v", err)
 		}
 		metrics.LogsSent.Add(1)
+		metrics.TlmLogsSent.Inc()
 		outputChan <- message
 	}
 }
