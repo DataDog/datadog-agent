@@ -87,6 +87,12 @@ process-agent-msg.h
 # process agent test artifacts
 pkg/process/config/logs
 
+# dsd artifacts
+cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
+cmd/dogstatsd/windows_resources/*.bin
+dogstatsd-msg.h
+
+
 #visual studio files
 *.aps
 

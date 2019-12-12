@@ -64,6 +64,43 @@ package :rpm do
   end
 end
 
+
+# Windows .msi specific flags
+package :zip do
+  skip_packager true
+end
+
+package :msi do
+
+  # For a consistent package management, please NEVER change this code
+  arch = "x64"
+  if windows_arch_i386?
+    upgrade_code 'a8c5b8ae-ac27-4d66-b63f-edba0e5ea477'
+    arch = "x86"
+  else
+    upgrade_code 'dd60e9df-487b-415c-ba2f-dba19ddc7ebd'
+  end
+  wix_candle_extension 'WixUtilExtension'
+  wix_light_extension 'WixUtilExtension'
+  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
+
+  additional_sign_files [
+      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\dogstatsd.exe"
+    ]
+  #if ENV['SIGN_WINDOWS']
+  #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
+  #end
+  if ENV['SIGN_PFX']
+    signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
+  end
+  parameters({
+    'InstallDir' => install_dir,
+    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
+    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent",
+    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-dogstatsd",
+    'Platform' => "#{arch}",
+  })
+end
 # OSX .pkg specific flags
 package :pkg do
   identifier 'com.datadoghq.dogstatsd'

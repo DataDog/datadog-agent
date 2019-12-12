@@ -11,7 +11,6 @@ import (
 	"context"
 	_ "expvar"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -84,9 +83,30 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
+
+	mainCtx, mainCtxCancel, err := runAgent()
+	if err != nil {
+		return err
+	}
+	// Setup a channel to catch OS signals
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+
+	// Block here until we receive the interrupt signal
+	<-signalCh
+
+	stopAgent(mainCtx, mainCtxCancel)
+	return nil
+}
+
+var (
+	metaScheduler *metadata.Scheduler
+	statsd        *dogstatsd.Server
+)
+
+func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err error) {
 	// Main context passed to components
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
-	defer mainCtxCancel() // Calling cancel twice is safe
+	mainCtx, mainCtxCancel = context.WithCancel(context.Background())
 
 	configFound := false
 
@@ -119,7 +139,7 @@ func start(cmd *cobra.Command, args []string) error {
 		logFile = ""
 	}
 
-	err := config.SetupLogger(
+	err = config.SetupLogger(
 		loggerName,
 		config.Datadog.GetString("log_level"),
 		logFile,
@@ -130,20 +150,21 @@ func start(cmd *cobra.Command, args []string) error {
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
-		return nil
+		return
 	}
 
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
-		return nil
+		return
 	}
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, healthPort)
+		err = healthprobe.Serve(mainCtx, healthPort)
 		if err != nil {
-			return log.Errorf("Error starting health port, exiting: %v", err)
+			err = log.Errorf("Error starting health port, exiting: %v", err)
+			return
 		}
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
@@ -165,15 +186,15 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Debugf("Using hostname: %s", hname)
 
 	// setup the metadata collector
-	metaScheduler := metadata.NewScheduler(s)
-	if err := metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
+	metaScheduler = metadata.NewScheduler(s)
+	if err = metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
 		metaScheduler.Stop()
-		return err
+		return
 	}
 
 	if config.Datadog.GetBool("inventories_enabled") {
-		if err := metadata.SetupInventories(metaScheduler, nil, nil); err != nil {
-			return err
+		if err = metadata.SetupInventories(metaScheduler, nil, nil); err != nil {
+			return
 		}
 	}
 
@@ -183,19 +204,15 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
-	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
+	statsd, err = dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
-		return nil
+		return
 	}
+	return
+}
 
-	// Setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-
-	// Block here until we receive the interrupt signal
-	<-signalCh
-
+func stopAgent(ctx context.Context, cancel context.CancelFunc) {
 	// retrieve the agent health before stopping the components
 	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetStatusNonBlocking()
@@ -206,23 +223,11 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// gracefully shut down any component
-	mainCtxCancel()
+	cancel()
 
 	metaScheduler.Stop()
 	statsd.Stop()
 	log.Info("See ya!")
 	log.Flush()
-	return nil
-}
-
-func main() {
-	// go_expvar server
-	go http.ListenAndServe(
-		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
-		http.DefaultServeMux)
-
-	if err := dogstatsdCmd.Execute(); err != nil {
-		log.Error(err)
-		os.Exit(-1)
-	}
+	return
 }

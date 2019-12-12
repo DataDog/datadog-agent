@@ -864,6 +864,25 @@ dockerbuild_windows_msi_x86-a6:
     - set RELEASE_VERSION $RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
 
+# build dogstatsd package for Windows
+build_dsd_windows:
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    ARCH: "x64"
+  before_script:
+    - set RELEASE_VERSION %RELEASE_VERSION_7%
+  script:
+    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - mkdir .omnibus\pkg
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\builddsdwin.bat --release-version %RELEASE_VERSION%
+    - copy build-out\*.zip .omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg
 
 # build Agent package for android
 agent_android_apk:

@@ -1,0 +1,12 @@
+buildpack (priority)
+ - puppy
+ - dsd
+ - apm
+ - tarball puppy/dsd/apm
+   - service (maybe)
+
+bosh
+ - full agent (but can't use MSI)
+   - can't run as local system
+
+can be A7 (no py2)
