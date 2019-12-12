@@ -435,8 +435,8 @@
       <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" ]]> </Custom>
 
       <!-- Same deal here -->
-      <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND ALLOWSTARTFAIL="" ]]></Custom>
-      <Custom Action='StartDDServicesAllowStartFail' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND ALLOWSTARTFAIL<>"" ]]></Custom>
+      <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND IGNORESVCSTATUS="" ]]></Custom>
+      <Custom Action='StartDDServicesAllowStartFail' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND IGNORESVCSTATUS<>"" ]]></Custom>
       
       <!-- only do the uninstall (which removes the user state and file perms) 
            on a full uninstall -->
