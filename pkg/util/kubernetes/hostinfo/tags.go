@@ -14,9 +14,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 )
 
+func getDefaultLabelsToTags() map[string]string {
+	return map[string]string{
+		"kubernetes.io/role": "kube_node_role",
+	}
+}
+
 // GetTags gets the tags from the kubernetes apiserver
 func GetTags() ([]string, error) {
-	labelsToTags := config.Datadog.GetStringMapString("kubernetes_node_labels_as_tags")
+	labelsToTags := getDefaultLabelsToTags()
+	for k, v := range config.Datadog.GetStringMapString("kubernetes_node_labels_as_tags") {
+		labelsToTags[k] = v
+	}
 
 	if len(labelsToTags) == 0 {
 		// Nothing to extract
