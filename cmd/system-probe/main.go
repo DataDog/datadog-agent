@@ -127,7 +127,7 @@ func main() {
 	defer sysprobe.Close()
 
 	go sysprobe.Run()
-	log.Infof("system probe started")
+	log.Infof("system probe successfully started")
 
 	// Handles signals, which tells us whether we should exit.
 	e := make(chan bool)
