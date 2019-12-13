@@ -18,18 +18,13 @@ import (
 	"time"
 )
 
-var volumeLocation coreV1.HostPathType
-var gcePersistentDisk coreV1.GCEPersistentDiskVolumeSource
-var awsElasticBlockStore coreV1.AWSElasticBlockStoreVolumeSource
-var hostPath coreV1.HostPathVolumeSource
-
 func TestPersistentVolumeCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
-	volumeLocation = coreV1.HostPathFileOrCreate
+	pathType = coreV1.HostPathFileOrCreate
 	gcePersistentDisk = coreV1.GCEPersistentDiskVolumeSource{
 		PDName: "name-of-the-gce-persistent-disk",
 	}
@@ -38,7 +33,7 @@ func TestPersistentVolumeCollector(t *testing.T) {
 	}
 	hostPath = coreV1.HostPathVolumeSource{
 		Path: "some/path/to/the/volume",
-		Type: &volumeLocation,
+		Type: &pathType,
 	}
 
 	cmc := NewPersistentVolumeCollector(componentChannel, NewTestCommonClusterCollector(MockPersistentVolumeAPICollectorClient{}))
