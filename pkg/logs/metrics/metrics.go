@@ -37,7 +37,7 @@ var (
 		nil, "Total number of network errors")
 	// DestinationLogsDropped is the total number of logs dropped per Destination
 	DestinationLogsDropped = expvar.Map{}
-	// TlmDestinationLogsDropped is the total number of logs dropped per Destination
+	// TlmLogsDropped is the total number of logs dropped per Destination
 	TlmLogsDropped = telemetry.NewCounter("logs", "dropped",
 		[]string{"destination"}, "Total number of logs dropped per Destination")
 	// BytesSent is the total number of sent bytes before encoding if any

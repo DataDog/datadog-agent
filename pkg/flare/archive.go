@@ -521,17 +521,17 @@ func zipHealth(tempDir, hostname string) error {
 }
 
 func zipTelemetry(tempDir, hostname string) error {
-	return zipHttpCallContent(tempDir, hostname, "telemetry.log", telemetryURL)
+	return zipHTTPCallContent(tempDir, hostname, "telemetry.log", telemetryURL)
 }
 
 func zipStackTraces(tempDir, hostname string) error {
-	return zipHttpCallContent(tempDir, hostname, routineDumpFilename, pprofURL)
+	return zipHTTPCallContent(tempDir, hostname, routineDumpFilename, pprofURL)
 }
 
-// zipHttpCallContent does a GET HTTP call to the given url and
+// zipHTTPCallContent does a GET HTTP call to the given url and
 // writes the content of the HTTP response in the given file, ready
 // to be shipped in a flare.
-func zipHttpCallContent(tempDir, hostname, filename, url string) error {
+func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
