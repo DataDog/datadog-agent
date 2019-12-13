@@ -2,7 +2,49 @@
 Release Notes
 =============
 
+.. _Release Notes_6.15.1:
+
+6.15.1
+======
+
+.. _Release Notes_6.15.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-11-27
+This release was published for Windows on 2019-12-09.
+
+.. _Release Notes_6.15.1_New Features:
+
+New Features
+------------
+
+- Collect IP address from containers in awsvpc mode
+
+.. _Release Notes_6.15.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Reintroduce legacy checks directory to make legacy AgentCheck import path
+  (``from checks import AgentCheck``) work again.
+
+- Systemd integration points are re-ordered so that ``dbus`` is used in
+  preference to the systemd private API at ``/run/systemd/private``, as per
+  the systemd documentation. This prevents unnecessary logging to the system
+  journal when datadog-agent is run without root permissions.
+
+
+.. _Release Notes_6.15.1_Other Notes:
+
+Other Notes
+-----------
+
+- Bump embedded Python to 2.7.17.
+
 .. _Release Notes_6.15.0:
+
 
 6.15.0
 ======

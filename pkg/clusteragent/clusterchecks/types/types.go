@@ -63,6 +63,7 @@ type CLCRunnersStats map[string]CLCRunnerStats
 
 // CLCRunnerStats is used to unmarshall the stats of each CLC Runner
 type CLCRunnerStats struct {
-	AverageExecutionTime int `json:"AverageExecutionTime"`
-	MetricSamples        int `json:"MetricSamples"`
+	AverageExecutionTime int  `json:"AverageExecutionTime"`
+	MetricSamples        int  `json:"MetricSamples"`
+	IsClusterCheck       bool `json:"IsClusterCheck"`
 }

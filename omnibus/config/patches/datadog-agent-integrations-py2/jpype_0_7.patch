@@ -1,19 +1,39 @@
 --- a/__init__.py
 +++ b/__init__.py
-@@ -173,7 +173,19 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
+@@ -17,7 +17,7 @@
+ # License along with JayDeBeApi.  If not, see
+ # <http://www.gnu.org/licenses/>.
+
+-__version_info__ = (1, 1, 1)
++__version_info__ = (1, 1, 2)
+ __version__ = ".".join(str(i) for i in __version_info__)
+
+ import datetime
+@@ -74,6 +74,8 @@ _java_array_byte = None
+
+ _handle_sql_exception = None
+
++old_jpype = False
++
+ def _handle_sql_exception_jython():
+     from java.sql import SQLException
+     exc_info = sys.exc_info()
+@@ -173,14 +175,32 @@ def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
          # jvm_path = ('/usr/lib/jvm/java-6-openjdk'
          #             '/jre/lib/i386/client/libjvm.so')
          jvm_path = jpype.getDefaultJVMPath()
 -        jpype.startJVM(jvm_path, *args)
-+        jpype_ver = 0.
++        global old_jpype
 +        if hasattr(jpype, '__version__'):
 +            try:
 +                ver_match = re.match('\d+\.\d+', jpype.__version__)
 +                if ver_match:
 +                    jpype_ver = float(ver_match.group(0))
++                    if jpype_ver < 0.7:
++                        old_jpype = True
 +            except ValueError:
 +                pass
-+        if jpype_ver < 0.7:
++        if old_jpype:
 +            jpype.startJVM(jvm_path, *args)
 +        else:
 +            jpype.startJVM(jvm_path, *args, ignoreUnrecognized=True,
@@ -21,3 +41,15 @@
      if not jpype.isThreadAttachedToJVM():
          jpype.attachThreadToJVM()
      if _jdbc_name_to_const is None:
+         types = jpype.java.sql.Types
+         types_map = {}
+         for i in types.__javaclass__.getClassFields():
+-            types_map[i.getName()] = i.getStaticAttribute()
++            if old_jpype:
++                const = i.getStaticAttribute()
++            else:
++                const = i.__get__(i)
++            types_map[i.getName()] = const
+         _init_types(types_map)
+     global _java_array_byte
+     if _java_array_byte is None:
