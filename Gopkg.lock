@@ -841,16 +841,17 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:1b6f213327a9343809b0328f41d7f2835a8750438292ab0898dbff1d6a60b7ad"
+  digest = "1:d113f3f920e4f5eb7890b7cb131aef30f6362ea9efbc06e5a7ca9de668e904f7"
   name = "github.com/iovisor/gobpf"
   packages = [
+    "bcc",
     "elf",
     "pkg/bpffs",
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "a14c39bf99c7539b5578baf2449ff2e37dd35901"
-  source = "github.com/DataDog/gobpf"
+  revision = "merge"
+  source = "github.com/L3n41c/gobpf"
 
 [[projects]]
   digest = "1:6f49eae0c1e5dab1dafafee34b207aeb7a42303105960944828c2079b92fc88e"
@@ -2147,6 +2148,7 @@
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hectane/go-acl",
+    "github.com/iovisor/gobpf/bcc",
     "github.com/iovisor/gobpf/elf",
     "github.com/json-iterator/go",
     "github.com/kardianos/osext",

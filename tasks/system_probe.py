@@ -278,12 +278,13 @@ def build_object_files(ctx, install=True):
         # Now update the assets stored in the go code
         commands.append("go get -u github.com/jteeuwen/go-bindata/...")
 
-        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}'"
+        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}'"
         commands.append(assets_cmd.format(
             c_dir=c_dir,
             go_file=os.path.join(bpf_dir, "tracer-ebpf.go"),
             obj_file=obj_file,
             debug_obj_file=debug_obj_file,
+            tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp_queue_length_kern.c"),
         ))
 
     for cmd in commands:
