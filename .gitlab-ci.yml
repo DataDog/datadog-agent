@@ -2566,6 +2566,7 @@ latest_release_6:
   stage: deploy6
   when: manual
   variables:
+    AGENT_MAJOR_VERSION: 6
     <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version)
@@ -2581,6 +2582,7 @@ latest_release_7:
   stage: deploy7
   when: manual
   variables:
+    AGENT_MAJOR_VERSION: 7
     <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version)
