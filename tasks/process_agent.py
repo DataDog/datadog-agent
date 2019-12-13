@@ -3,8 +3,10 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 
 from invoke import task
+from invoke.exceptions import Exit
 from subprocess import check_output
 
 from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
@@ -95,3 +97,31 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+
+@task
+def build_dev_image(ctx, image=None, push=False):
+    """
+    Build a dev image of the process-agent based off an existing datadog-agent image
+
+    image: the image name used to tag the image
+    push: if true, run a docker push on the image
+    """
+    if image == None:
+        raise Exit(message="image was not specified")
+
+    docker_context = tempfile.mkdtemp()
+    ctx.run("cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {to}".format(
+        to=docker_context + "/Dockerfile"))
+
+    ctx.run("cp bin/process-agent/process-agent {to}".format(
+        to=docker_context + "/process-agent"))
+
+    ctx.run("cp bin/system-probe/system-probe {to}".format(
+        to=docker_context + "/system-probe"))
+
+    with ctx.cd(docker_context):
+        ctx.run("docker build --tag {image} .".format(image=image))
+
+    if push:
+        ctx.run("docker push {image}".format(image=image))

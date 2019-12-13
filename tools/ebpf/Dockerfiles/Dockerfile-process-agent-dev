@@ -1,0 +1,10 @@
+FROM datadog/agent:6.15.1
+
+# include some useful dev tools since this will be used or development
+RUN apt-get update -y && apt-get install -y jq conntrack netcat dnsutils
+
+# inv -e process-agent.build-dev-image will set up a temporary
+# build directory where this Dockerfile, and the necessary binaries
+# are in the same directory
+COPY process-agent /opt/datadog-agent/embedded/bin/process-agent
+COPY system-probe /opt/datadog-agent/embedded/bin/system-probe
