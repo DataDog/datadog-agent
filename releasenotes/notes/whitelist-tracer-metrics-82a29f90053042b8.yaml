@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add datadog.tracer to the list of standard statsd prefixes. Tracer metrics are published with this prefix.
+    Do not apply the metric namespace configured under `statsd_metric_namespace` to dogstatsd metrics prefixed with `datadog.tracer`. Tracer metrics are published with this prefix.
