@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,6 +40,7 @@ type ProcessAgentCheck struct {
 	stop        chan struct{}
 	stopDone    chan struct{}
 	source      string
+	telemetry   bool
 }
 
 func (c *ProcessAgentCheck) String() string {
@@ -163,7 +165,7 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 	}
 
 	c.source = source
-
+	c.telemetry = telemetry.IsCheckEnabled("process_agent")
 	return nil
 }
 
@@ -179,6 +181,11 @@ func (c *ProcessAgentCheck) Interval() time.Duration {
 // ID returns the name of the check since there should be only one instance running
 func (c *ProcessAgentCheck) ID() check.ID {
 	return "PROCESS_AGENT"
+}
+
+// IsTelemetryEnabled returns if the telemetry is enabled for this check
+func (c *ProcessAgentCheck) IsTelemetryEnabled() bool {
+	return c.telemetry
 }
 
 // Stop sends a termination signal to the process-agent process
