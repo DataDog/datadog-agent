@@ -2,7 +2,7 @@
 #  Preparation stage: extract and cleanup  #
 ############################################
 
-FROM debian:buster-slim AS extract
+FROM debian:bullseye-slim AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_AGENT_ARTIFACT=datadog-agent*_amd64.deb
@@ -73,7 +73,7 @@ COPY datadog*.yaml etc/datadog-agent/
 #  Actual docker image construction  #
 ######################################
 
-FROM debian:buster-slim AS release
+FROM debian:bullseye-slim AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
