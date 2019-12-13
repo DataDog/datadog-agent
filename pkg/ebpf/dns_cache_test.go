@@ -169,6 +169,37 @@ func TestDNSCacheTelemetry(t *testing.T) {
 	assert.Equal(t, expected, cache.Stats())
 }
 
+func TestDNSCacheMerge(t *testing.T) {
+	ttl := 100 * time.Millisecond
+	cache := newReverseDNSCache(1000, ttl, disableAutomaticExpiration)
+
+	ts := time.Now()
+	conns := []ConnectionStats{
+		{
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("192.168.0.1"),
+		},
+	}
+
+	t1 := newTranslation([]byte("host-b"))
+	t1.add(util.AddressFromString("192.168.0.1"))
+	cache.Add(t1, ts)
+	res := cache.Get(conns, ts)
+	assert.Equal(t, []string{"host-b"}, res[util.AddressFromString("192.168.0.1")])
+
+	t2 := newTranslation([]byte("host-a"))
+	t2.add(util.AddressFromString("192.168.0.1"))
+	cache.Add(t2, ts)
+
+	t3 := newTranslation([]byte("host-b"))
+	t3.add(util.AddressFromString("192.168.0.1"))
+	cache.Add(t3, ts)
+
+	res = cache.Get(conns, ts)
+
+	assert.Equal(t, []string{"host-a", "host-b"}, res[util.AddressFromString("192.168.0.1")])
+}
+
 func BenchmarkDNSCacheGet(b *testing.B) {
 	const numIPs = 10000
 

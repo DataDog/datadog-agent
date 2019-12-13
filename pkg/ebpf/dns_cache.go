@@ -185,7 +185,7 @@ type dnsCacheVal struct {
 }
 
 func (v *dnsCacheVal) merge(name string) {
-	if sort.SearchStrings(v.names, name) < len(v.names) {
+	if i := sort.SearchStrings(v.names, name); i < len(v.names) && v.names[i] == name {
 		return
 	}
 
