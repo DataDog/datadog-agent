@@ -553,6 +553,8 @@ puppy_deb-x64:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
+    # FIXME: we set PYTHON_RUNTIMES to '3' here so that `inv agent.omnibus-build` picks up the v7 tag
+    PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only --no-checks
