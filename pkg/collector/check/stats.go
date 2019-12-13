@@ -17,7 +17,7 @@ var (
 		[]string{"check_name", "state"}, "Check runs")
 	tlmWarnings = telemetry.NewCounter("checks", "warnings",
 		[]string{"check_name"}, "Check warnings")
-	tlmMetricsSamples = telemetry.NewGauge("checks", "metrics_samples",
+	tlmMetricsSamples = telemetry.NewCounter("checks", "metrics_samples",
 		[]string{"check_name"}, "Metrics count")
 	tlmEvents = telemetry.NewCounter("checks", "events",
 		[]string{"check_name"}, "Events count")
