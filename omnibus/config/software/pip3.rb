@@ -1,6 +1,6 @@
 name "pip3"
 
-default_version "19.0.3"
+default_version "19.3.1"
 
 dependency "setuptools3"
 
