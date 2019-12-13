@@ -15,6 +15,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	_ "github.com/benesch/cgosymbolizer"
 	"github.com/cihub/seelog"
@@ -34,6 +35,8 @@ import (
 var (
 	pointerCache = sync.Map{}
 
+	// TODO(remy): if they're not exposed in the status page we may
+	// remove all these expvars
 	rtLoaderExpvars = expvar.NewMap("rtloader")
 	inuseBytes      = expvar.Int{}
 	allocatedBytes  = expvar.Int{}
@@ -41,6 +44,19 @@ var (
 	allocations     = expvar.Int{}
 	frees           = expvar.Int{}
 	untrackedFrees  = expvar.Int{}
+
+	tlmFreedBytes = telemetry.NewCounter("rtloader", "freed_bytes",
+		nil, "Freed memory amount")
+	tlmInuseBytes = telemetry.NewGauge("rtloader", "inuse_bytes",
+		nil, "In-use memory")
+	tlmAllocatedBytes = telemetry.NewCounter("rtloader", "allocated_bytes",
+		nil, "Allocated bytes amount")
+	tlmAllocations = telemetry.NewCounter("rtloader", "allocations",
+		nil, "Allocations count")
+	tlmFrees = telemetry.NewCounter("rtloader", "frees",
+		nil, "Frees count")
+	tlmUntrackedFrees = telemetry.NewCounter("rtloader", "untracked_frees",
+		nil, "Untracked frees count")
 )
 
 func init() {
@@ -61,8 +77,11 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
 		pointerCache.Store(ptr, sz)
 		allocations.Add(1)
+		tlmAllocations.Inc()
 		allocatedBytes.Add(int64(sz))
+		tlmAllocatedBytes.Add(float64(sz))
 		inuseBytes.Add(int64(sz))
+		tlmInuseBytes.Set(float64(inuseBytes.Value()))
 
 	case C.DATADOG_AGENT_RTLOADER_FREE:
 		bytes, ok := pointerCache.Load(ptr)
@@ -74,13 +93,17 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 				log.Tracef("Memory Tracker - stacktrace: \n%s", stack)
 			}
 			untrackedFrees.Add(1)
+			tlmUntrackedFrees.Inc()
 			return
 		}
 		defer pointerCache.Delete(ptr)
 
 		frees.Add(1)
+		tlmFrees.Inc()
 		freedBytes.Add(int64(bytes.(C.size_t)))
+		tlmFreedBytes.Add(float64(bytes.(C.size_t)))
 		inuseBytes.Add(-1 * int64(bytes.(C.size_t)))
+		tlmInuseBytes.Set(float64(inuseBytes.Value()))
 	}
 }
 

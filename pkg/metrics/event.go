@@ -15,6 +15,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -27,7 +28,11 @@ const (
 	EventPriorityLow    EventPriority = "low"
 )
 
-var eventExpvar = expvar.NewMap("Event")
+var (
+	eventExpvar = expvar.NewMap("Event")
+	tlmEvent    = telemetry.NewCounter("metrics", "event_split",
+		[]string{"action"}, "Events action split")
+)
 
 // GetEventPriorityFromString returns the EventPriority from its string representation
 func GetEventPriorityFromString(val string) (EventPriority, error) {
@@ -149,12 +154,14 @@ func (events Events) MarshalJSON() ([]byte, error) {
 // SplitPayload breaks the payload into times number of pieces
 func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	eventExpvar.Add("TimesSplit", 1)
+	tlmEvent.Inc("times_split")
 	// An individual event cannot be split,
 	// we can only split up the events
 
 	// only split as much as possible
 	if len(events) < times {
 		eventExpvar.Add("EventsShorter", 1)
+		tlmEvent.Inc("shorter")
 		times = len(events)
 	}
 	splitPayloads := make([]marshaler.Marshaler, times)

@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,6 +24,13 @@ var (
 	transactionsRetried  = expvar.Int{}
 	transactionsDropped  = expvar.Int{}
 	transactionsRequeued = expvar.Int{}
+
+	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
+		[]string{"domain"}, "Transaction retry count")
+	tlmTxDropped = telemetry.NewCounter("transactions", "dropped",
+		[]string{"domain"}, "Transaction drop count")
+	tlmTxRequeud = telemetry.NewCounter("transactions", "requeud",
+		[]string{"domain"}, "Transaction requeue count")
 )
 
 func initDomainForwarderExpvars() {
@@ -87,21 +95,26 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 			select {
 			case f.lowPrio <- t:
 				transactionsRetried.Add(1)
+				tlmTxRetried.Inc(f.domain)
 			default:
 				droppedWorkerBusy++
 				transactionsDropped.Add(1)
+				tlmTxDropped.Inc(f.domain)
 			}
 		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
 			transactionsRequeued.Add(1)
+			tlmTxRequeud.Inc(f.domain)
 		} else {
 			droppedRetryQueueFull++
 			transactionsDropped.Add(1)
+			tlmTxDropped.Inc(f.domain)
 		}
 	}
 
 	f.retryQueue = newQueue
 	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
+	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
 
 	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
 		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding the retry queue size limit of %d, %d because the workers are too busy",
@@ -113,6 +126,7 @@ func (f *domainForwarder) requeueTransaction(t Transaction) {
 	f.retryQueue = append(f.retryQueue, t)
 	transactionsRequeued.Add(1)
 	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
+	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
 }
 
 func (f *domainForwarder) handleFailedTransactions() {
@@ -201,6 +215,7 @@ func (f *domainForwarder) sendHTTPTransactions(transaction Transaction) error {
 	case f.highPrio <- transaction:
 	default:
 		transactionsDroppedOnInput.Add(1)
+		tlmTxDroppedOnInput.Inc(f.domain)
 		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
 	}
 	return nil

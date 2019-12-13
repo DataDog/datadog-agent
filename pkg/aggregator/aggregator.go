@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -94,6 +95,13 @@ var (
 	aggregatorServiceCheck                     = expvar.Int{}
 	aggregatorEvent                            = expvar.Int{}
 	aggregatorHostnameUpdate                   = expvar.Int{}
+
+	tlmFlush = telemetry.NewCounter("aggregator", "flush",
+		[]string{"type", "state"}, "Count of flush")
+	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
+		[]string{"type"}, "Amount of metrics/services_checks/events processed by the aggregator")
+	tlmHostnameUpdate = telemetry.NewCounter("aggregator", "hostname_update",
+		nil, "Count of hostname update")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -380,23 +388,29 @@ func (agg *BufferedAggregator) GetSeriesAndSketches() (metrics.Series, metrics.S
 func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
 	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
 	err := agg.serializer.SendSketch(sketches)
+	state := "ok"
 	if err != nil {
 		log.Warnf("Error flushing sketch: %v", err)
 		aggregatorSketchesFlushErrors.Add(1)
+		state = "error"
 	}
 	addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 	aggregatorSketchesFlushed.Add(int64(len(sketches)))
+	tlmFlush.Add(float64(len(sketches)), "sketches", state)
 }
 
 func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
 	log.Debugf("Flushing %d series to the forwarder", len(series))
 	err := agg.serializer.SendSeries(series)
+	state := "ok"
 	if err != nil {
 		log.Warnf("Error flushing series: %v", err)
 		aggregatorSeriesFlushErrors.Add(1)
+		state = "error"
 	}
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 	aggregatorSeriesFlushed.Add(int64(len(series)))
+	tlmFlush.Add(float64(len(series)), "series", state)
 }
 
 func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
@@ -500,12 +514,15 @@ func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 
 func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metrics.ServiceChecks) {
 	log.Debugf("Flushing %d service checks to the forwarder", len(serviceChecks))
+	state := "ok"
 	if err := agg.serializer.SendServiceChecks(serviceChecks); err != nil {
 		log.Warnf("Error flushing service checks: %v", err)
 		aggregatorServiceCheckFlushErrors.Add(1)
+		state = "error"
 	}
 	addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
 	aggregatorServiceCheckFlushed.Add(int64(len(serviceChecks)))
+	tlmFlush.Add(float64(len(serviceChecks)), "service_checks", state)
 }
 
 func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerializer bool) {
@@ -546,12 +563,15 @@ func (agg *BufferedAggregator) GetEvents() metrics.Events {
 func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events) {
 	log.Debugf("Flushing %d events to the forwarder", len(events))
 	err := agg.serializer.SendEvents(events)
+	state := "ok"
 	if err != nil {
 		log.Warnf("Error flushing events: %v", err)
 		aggregatorEventsFlushErrors.Add(1)
+		state = "fail"
 	}
 	addFlushTime("EventFlushTime", int64(time.Since(start)))
 	aggregatorEventsFlushed.Add(int64(len(events)))
+	tlmFlush.Add(float64(len(events)), "events", state)
 }
 
 // flushEvents serializes and forwards events in a separate goroutine
@@ -622,42 +642,47 @@ func (agg *BufferedAggregator) run() {
 			agg.flush(start, false)
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
-
 		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
+			tlmProcessed.Inc("metrics")
 			agg.handleSenderSample(checkMetric)
 		case checkHistogramBucket := <-agg.checkHistogramBucketIn:
 			aggregatorCheckHistogramBucketMetricSample.Add(1)
+			tlmProcessed.Inc("histogram_bucket")
 			agg.handleSenderBucket(checkHistogramBucket)
-
 		case metric := <-agg.metricIn:
 			aggregatorDogstatsdMetricSample.Add(1)
+			tlmProcessed.Inc("dogstatsd_metrics")
 			agg.addSample(metric, timeNowNano())
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
+			tlmProcessed.Inc("events")
 			agg.addEvent(event)
 		case serviceCheck := <-agg.serviceCheckIn:
 			aggregatorServiceCheck.Add(1)
+			tlmProcessed.Inc("service_checks")
 			agg.addServiceCheck(serviceCheck)
-
 		case metrics := <-agg.bufferedMetricIn:
 			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
+			tlmProcessed.Add(float64(len(metrics)), "dogstatsd_metrics")
 			for _, sample := range metrics {
 				agg.addSample(sample, timeNowNano())
 			}
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
+			tlmProcessed.Add(float64(len(serviceChecks)), "service_checks")
 			for _, serviceCheck := range serviceChecks {
 				agg.addServiceCheck(*serviceCheck)
 			}
 		case events := <-agg.bufferedEventIn:
 			aggregatorEvent.Add(int64(len(events)))
+			tlmProcessed.Add(float64(len(events)), "events")
 			for _, event := range events {
 				agg.addEvent(*event)
 			}
-
 		case h := <-agg.hostnameUpdate:
 			aggregatorHostnameUpdate.Add(1)
+			tlmHostnameUpdate.Inc()
 			agg.hostname = h
 			changeAllSendersDefaultHostname(h)
 			agg.hostnameUpdateDone <- struct{}{}

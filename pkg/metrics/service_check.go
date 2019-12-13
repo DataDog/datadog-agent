@@ -17,6 +17,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
@@ -31,7 +32,12 @@ const (
 	ServiceCheckUnknown  ServiceCheckStatus = 3
 )
 
-var serviceCheckExpvar = expvar.NewMap("ServiceCheck")
+var (
+	serviceCheckExpvar = expvar.NewMap("ServiceCheck")
+
+	tlmServiceCheck = telemetry.NewCounter("metrics", "service_check_split",
+		[]string{"action"}, "Service check split")
+)
 
 // GetServiceCheckStatus returns the ServiceCheckStatus from and integer value
 func GetServiceCheckStatus(val int) (ServiceCheckStatus, error) {
@@ -114,9 +120,11 @@ func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
 // SplitPayload breaks the payload into times number of pieces
 func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	serviceCheckExpvar.Add("TimesSplit", 1)
+	tlmServiceCheck.Inc("times_split")
 	// only split it up as much as possible
 	if len(sc) < times {
 		serviceCheckExpvar.Add("ServiceChecksShorter", 1)
+		tlmServiceCheck.Inc("shorter")
 		times = len(sc)
 	}
 	splitPayloads := make([]marshaler.Marshaler, times)
