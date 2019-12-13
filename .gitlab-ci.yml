@@ -2489,7 +2489,7 @@ deploy_suse_rpm-7:
 # deploy dsd binary to staging bucket
 deploy_dsd:
   <<: *run_when_triggered
-  stage: deploy6
+  stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -2504,7 +2504,7 @@ deploy_dsd:
 # deploy dsd binary to staging bucket
 deploy_puppy:
   <<: *run_when_triggered
-  stage: deploy6
+  stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   variables:
     AGENT_MAJOR_VERSION: 7
