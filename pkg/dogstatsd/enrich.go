@@ -19,30 +19,6 @@ var (
 	getTags tagRetriever = tagger.Tag
 )
 
-func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
-	sample, err := parseMetricSample(message)
-	if err != nil {
-		return nil, err
-	}
-	return enrichMetricSample(sample, namespace, namespaceBlacklist, defaultHostname), nil
-}
-
-func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
-	sample, err := parseEvent(message)
-	if err != nil {
-		return nil, err
-	}
-	return enrichEvent(sample, defaultHostname), nil
-}
-
-func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
-	sample, err := parseServiceCheck(message)
-	if err != nil {
-		return nil, err
-	}
-	return enrichServiceCheck(sample, defaultHostname), nil
-}
-
 func enrichTags(tags []string, defaultHostname string) ([]string, string) {
 	if len(tags) == 0 {
 		return nil, defaultHostname
