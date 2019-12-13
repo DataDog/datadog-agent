@@ -79,29 +79,40 @@
       </Directory>
       <Directory Id="CommonAppDataFolder" SourceName="CommonAppData">
         <Directory Id="APPLICATIONDATADIRECTORY" Name="Datadog">
-          <Component Id="conffolder" Guid="e540d2db-f443-4a98-bd72-7ab2654f4ffb">
+          <Component Id="conffolder" Guid="8f246b53-dcd4-46f9-a16e-bc11292fa7ef">
             <CreateFolder>
                 <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+                <util:PermissionEx GenericAll="yes" Domain="NT Service" User="Datadog-dogstatsd" />
             </CreateFolder>
           </Component>
         </Directory>
-      </Directory>
-      <Directory Id="ProgramMenuFolder">
-        <Directory Id="ApplicationProgramsFolder" Name="Datadog"/>
       </Directory>
     </Directory>
 
 
 
     <DirectoryRef Id="PROJECTLOCATION">
-      
+      <Component Id="SetFolderKeys" Guid="5878543d-2abc-4023-b85c-d693d5609cca">
+        <RegistryValue Root="HKLM"
+                      Key="SOFTWARE\Datadog\Datadog Dogstatsd"
+                      Name="InstallPath"
+                      Type="string"
+                      Value="[PROJECTLOCATION]"/>
+        <RegistryValue Root="HKLM"
+                      Key="SOFTWARE\Datadog\Datadog Dogstatsd"
+                      Name="ConfigRoot"
+                      Type="string"
+                      Value="[APPLICATIONDATADIRECTORY]"/>
+      </Component>      
       <!-- Register variables that will be used by the agent at startup -->
-      <Component Id="RegisterConfVariables" Guid="e2423815-704d-4f29-af3b-9baf23ef03d6">
+      <Component Id="RegisterConfVariables" Guid="ff5b161a-1d5b-45e2-9cff-2f5ed205e9d0">
         <RegistryKey Root="HKLM"
-                     Key="SOFTWARE\Datadog\Datadog Agent"
+                     Key="SOFTWARE\Datadog\Datadog Dogstatsd"
+                     ForceCreateOnInstall="yes"
                      >
+          <util:PermissionEx GenericAll="yes" Domain="NT Service" User="Datadog-dogstatsd" />
 
 
           <RegistryValue Name="api_key"
@@ -168,7 +179,12 @@
                 Vital="yes"
                 Interactive="no"
                 Account="[WIX_ACCOUNT_LOCALSERVICE]">
-            <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
+            <ServiceConfig 
+              DelayedAutoStart="yes" 
+              OnInstall="yes" 
+              OnReinstall ="yes" 
+              ServiceSid ="unrestricted"
+              />
             <util:ServiceConfig
                 FirstFailureActionType='restart'
                 SecondFailureActionType='restart'
@@ -201,7 +217,7 @@
 
     <DirectoryRef Id="APPLICATIONDATADIRECTORY">
       <Component Id="datadog.yaml.example"
-                 Guid="83461594-01AC-11E2-BE35-37EC6088709B"
+                 Guid="24bca647-7853-4dde-a7bf-c08883bf333d"
                  NeverOverwrite="yes"
                  Permanent="yes">
         <File Id="dogstatsd.yaml.example"
@@ -213,7 +229,7 @@
 
       <Directory Id="EXAMPLECONFSLOCATION" Name= "conf.d">
         <Component Id="conf.d"
-                   Guid="54fcfacb-726b-46e3-a699-ec19258a24be"
+                   Guid="45c0b81e-d695-4524-9662-494782f78015"
                    Permanent="yes"
                    Location="either"
                    NeverOverwrite="yes">
@@ -221,7 +237,23 @@
               <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
               <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
               <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+              <util:PermissionEx GenericAll="yes" Domain="NT Service" User="Datadog-dogstatsd" />
+
           </CreateFolder>
+        </Component>
+      </Directory>
+      <Directory Id="logs" Name="logs">
+        <Component Id="logs"
+                   Guid="1df1ade3-1201-4acf-93df-a7e675c39fbc"
+                   Permanent="yes"
+                   Location="either"
+                   NeverOverwrite="yes">
+            <CreateFolder>
+                <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
+                <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
+                <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+            </CreateFolder>
+     
         </Component>
       </Directory>
     </DirectoryRef>
@@ -232,9 +264,11 @@
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentRef Id="conffolder" />
       <ComponentRef Id="datadog.yaml.example" />
+      <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="DATADOGDSDSERVICE" />
       <ComponentRef Id="RegisterConfVariables" />
+      <ComponentRef Id="SetFolderKeys" />
     </Feature>
 
     <!-- UI Stuff: 100% Omnibus Generated -->

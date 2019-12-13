@@ -82,18 +82,25 @@ func getDefaultProgramDataDir() (path string, err error) {
 // GetProgramDataDir returns the current programdatadir, usually
 // c:\programdata\Datadog
 func GetProgramDataDir() (path string, err error) {
+	return GetProgramDataDirForProduct("Datadog Agent")
+}
+
+// GetProgramDataDirForProduct returns the current programdatadir, usually
+// c:\programdata\Datadog given a product key name
+func GetProgramDataDirForProduct(product string) (path string, err error) {
+	keyname := "SOFTWARE\\Datadog\\" + product
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		"SOFTWARE\\Datadog\\Datadog Agent",
+		keyname,
 		registry.ALL_ACCESS)
 	if err != nil {
 		// otherwise, unexpected error
-		log.Warnf("Windows installation key not found, using default program data dir")
+		log.Warnf("Windows installation key root not found, using default program data dir %s", keyname)
 		return getDefaultProgramDataDir()
 	}
 	defer k.Close()
 	val, _, err := k.GetStringValue("ConfigRoot")
 	if err != nil {
-		log.Warnf("Windows installation key not found, using default program data dir")
+		log.Warnf("Windows installation key config not found, using default program data dir", keyname)
 		return getDefaultProgramDataDir()
 	}
 	path = val
