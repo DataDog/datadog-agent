@@ -23,4 +23,5 @@ type Check interface {
 	GetMetricStats() (map[string]int64, error)                          // get metric stats from the sender
 	Version() string                                                    // return the version of the check if available
 	ConfigSource() string                                               // return the configuration source of the check
+	IsTelemetryEnabled() bool                                           // return if telemetry is enabled for this check
 }

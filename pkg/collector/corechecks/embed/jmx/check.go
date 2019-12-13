@@ -13,24 +13,27 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type JMXCheck struct {
-	id     check.ID
-	name   string
-	config integration.Config
-	stop   chan struct{}
-	source string
+	id        check.ID
+	name      string
+	config    integration.Config
+	stop      chan struct{}
+	source    string
+	telemetry bool
 }
 
 func newJMXCheck(config integration.Config, source string) *JMXCheck {
 	check := &JMXCheck{
-		config: config,
-		stop:   make(chan struct{}),
-		name:   config.Name,
-		id:     check.ID(fmt.Sprintf("%v_%v", config.Name, config.Digest())),
-		source: source,
+		config:    config,
+		stop:      make(chan struct{}),
+		name:      config.Name,
+		id:        check.ID(fmt.Sprintf("%v_%v", config.Name, config.Digest())),
+		source:    source,
+		telemetry: telemetry.IsCheckEnabled("jmx"),
 	}
 	check.Configure(config.InitConfig, config.MetricConfig, source)
 
@@ -80,6 +83,10 @@ func (c *JMXCheck) Interval() time.Duration {
 
 func (c *JMXCheck) ID() check.ID {
 	return c.id
+}
+
+func (c *JMXCheck) IsTelemetryEnabled() bool {
+	return c.telemetry
 }
 
 func (c *JMXCheck) GetWarnings() []error {
