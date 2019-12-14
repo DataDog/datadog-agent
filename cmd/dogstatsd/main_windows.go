@@ -54,6 +54,7 @@ func init() {
 	}
 }
 
+// name of service in service control manager
 const ServiceName = "dogstatsd"
 
 // EnableLoggingToFile -- set up logging to file

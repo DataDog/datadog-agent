@@ -144,7 +144,8 @@ bool wrapGetComputerNameExW(COMPUTER_NAME_FORMAT fmt, std::wstring& result)
     sz = sz + 1;
     res = GetComputerNameExW(fmt, buffer, &sz);
     if(res){
-        result = _wcslwr_s(buffer, sz + 1);
+        _wcslwr_s(buffer, sz + 1);
+        result = buffer;
     } else {
         err = GetLastError();
         WcaLog(LOGMSG_STANDARD, "Unable to get computername info %d", err);
@@ -160,7 +161,8 @@ void getHostInformation() {
     if(!GetComputerNameW(buf, &sz)){
         WcaLog(LOGMSG_STANDARD, "Failed to get computername %d", GetLastError());
     } else {
-        computername = _wcslwr_s(buf, MAX_COMPUTERNAME_LENGTH + 1);
+        _wcslwr_s(buf, MAX_COMPUTERNAME_LENGTH + 1);
+        computername = buf;
         WcaLog(LOGMSG_STANDARD, "Computername is %S (%d)", computername.c_str(), sz);
     }
     // get the computername again and compare, just to make sure
@@ -187,7 +189,8 @@ void getHostInformation() {
     NETSETUP_JOIN_STATUS st;
     int nErr = NetGetJoinInformation(NULL, &name, &st);
     if(nErr == NERR_Success) {
-        joined_domain = _wcslwr_s(name, wcslen(name) + 1);
+        _wcslwr_s(name, wcslen(name) + 1);
+        joined_domain = name;
         NetApiBufferFree(name);
     } else {
         WcaLog(LOGMSG_STANDARD, "Error getting domain joining information %d", GetLastError());
@@ -266,6 +269,10 @@ void getOsStrings()
 }
 void initializeStringsFromStringTable()
 {
+#ifdef _DEBUG
+    MessageBoxA(NULL, "Strings", "initializeStringsFromStringtable", MB_OK);
+#endif
+
     if (initialized) {
         return;
     }

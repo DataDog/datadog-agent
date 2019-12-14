@@ -430,7 +430,7 @@ cluster_agent-build_arm64:
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
-    
+
 # cloudfoundry puppy build/windows
 build_cf_puppy_windows:
   stage: binary_build
@@ -443,7 +443,7 @@ build_cf_puppy_windows:
     - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir .omnibus\pkg
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\buildcf.bat --release-version %RELEASE_VERSION%
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\buildcf.bat --release-version %RELEASE_VERSION%
     - copy build-out\*.zip .omnibus\pkg
   artifacts:
     expire_in: 2 weeks
@@ -806,7 +806,8 @@ agent_suse-x64-a7:
 ##
 ## windows dockerized builds
 ##
-.dockerbuild_windows_msi_base:
+
+.windows_msi_base:
   stage: package_build
   needs: ["run_dep_check_lock"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
@@ -816,7 +817,7 @@ agent_suse-x64-a7:
     - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir .omnibus\pkg
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\build-agent6.bat $RELEASE_VERSION $AGENT_MAJOR_VERSION
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\${BUILDSCRIPT}  $RELEASE_VERSION $AGENT_MAJOR_VERSION
     - copy build-out\*.msi .omnibus\pkg
     - if (Test-Path build-out\*.zip) { copy build-out\*.zip .omnibus\pkg }
   artifacts:
@@ -824,8 +825,13 @@ agent_suse-x64-a7:
     paths:
       - .omnibus/pkg
 
-dockerbuild_windows_msi_x64-a7:
-  extends: .dockerbuild_windows_msi_base
+.windows_main_agent_base:
+  extends: .windows_msi_base
+  variables: 
+    BUILDSCRIPT: build-agent6.bat
+
+windows_msi_x64-a7:
+  extends: .windows_main_agent_base
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7
@@ -834,8 +840,8 @@ dockerbuild_windows_msi_x64-a7:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
 
-dockerbuild_windows_msi_x86-a7:
-  extends: .dockerbuild_windows_msi_base
+windows_msi_x86-a7:
+  extends: .windows_main_agent_base
   variables:
     ARCH: "x86"
     AGENT_MAJOR_VERSION: 7
@@ -844,8 +850,8 @@ dockerbuild_windows_msi_x86-a7:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
 
-dockerbuild_windows_msi_x64-a6:
-  extends: .dockerbuild_windows_msi_base
+windows_msi_x64-a6:
+  extends: .windows_main_agent_base
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 6
@@ -854,8 +860,8 @@ dockerbuild_windows_msi_x64-a6:
     - set RELEASE_VERSION $RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
 
-dockerbuild_windows_msi_x86-a6:
-  extends: .dockerbuild_windows_msi_base
+windows_msi_x86-a6:
+  extends: .windows_main_agent_base
   variables:
     ARCH: "x86"
     AGENT_MAJOR_VERSION: 6
@@ -864,26 +870,40 @@ dockerbuild_windows_msi_x86-a6:
     - set RELEASE_VERSION $RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
 
-# build dogstatsd package for Windows
-build_dsd_windows:
-  stage: package_build
-  needs: ["run_dep_check_lock"]
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+.windows_puppy_agent_base:
+  extends: .windows_msi_base
+  variables: 
+    BUILDSCRIPT: build-puppy.bat
+
+windows_puppy_msi_x64-a7:
+  extends: .windows_puppy_agent_base
   variables:
     ARCH: "x64"
+    PYTHON_RUNTIMES: '3'
   before_script:
     - set RELEASE_VERSION %RELEASE_VERSION_7%
-  script:
-    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
-    - if (Test-Path build-out) { remove-item -recurse -force build-out }
-    - mkdir .omnibus\pkg
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\builddsdwin.bat --release-version %RELEASE_VERSION%
-    - copy build-out\*.zip .omnibus\pkg
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - .omnibus/pkg
+  <<: *skip_when_unwanted_on_7
 
+windows_puppy_msi_x86-a7:
+  extends: .windows_puppy_agent_base
+  variables:
+    ARCH: "x86"
+    PYTHON_RUNTIMES: '3'
+  before_script:
+    - set RELEASE_VERSION %RELEASE_VERSION_7%
+  <<: *skip_when_unwanted_on_7
+
+
+# build dogstatsd package for Windows
+windows_dsd_msi_x64:
+  extends: .windows_msi_base
+  variables:
+    ARCH: "x64"
+    PYTHON_RUNTIMES: ""
+    BUILDSCRIPT: builddsdwin.bat
+  before_script:
+    - set RELEASE_VERSION %RELEASE_VERSION_7%
+  
 # build Agent package for android
 agent_android_apk:
   stage: package_build
@@ -1166,7 +1186,7 @@ deploy_windows_testing-a6:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
-  needs: ["dockerbuild_windows_msi_x86-a6", "dockerbuild_windows_msi_x64-a6"]
+  needs: ["windows_msi_x86-a6", "windows_msi_x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1178,7 +1198,7 @@ deploy_windows_testing-a7:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
-  needs: ["dockerbuild_windows_msi_x86-a7", "dockerbuild_windows_msi_x64-a7"]
+  needs: ["windows_msi_x86-a7", "windows_msi_x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR

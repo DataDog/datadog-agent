@@ -27,3 +27,5 @@ goto :EOF
 @echo directory not mounted, parameters incorrect
 exit /b 1
 goto :EOF
+
+

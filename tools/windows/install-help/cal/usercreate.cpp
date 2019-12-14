@@ -313,6 +313,7 @@ int doesUserExist(const CustomActionData& data, bool isDC)
         return -1;
     }
     err = GetLastError();
+    WcaLog(LOGMSG_STANDARD, "First lookup acount name %d", err);
     if (ERROR_NONE_MAPPED == err) {
         // this user doesn't exist.  We're done
         return 0;
@@ -370,6 +371,7 @@ int doesUserExist(const CustomActionData& data, bool isDC)
     ZeroMemory(refDomain, (cchRefDomain + 1) * sizeof(wchar_t));
 
     // try it again
+    WcaLog(LOGMSG_STANDARD, "Looking up account %S in %S", userToTry, hostToTry);
     bRet = LookupAccountName(hostToTry, userToTry, newsid, &cbSid, refDomain, &cchRefDomain, &use);
     if (!bRet) {
         err = GetLastError();
