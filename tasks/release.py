@@ -56,6 +56,8 @@ def update_changelog(ctx, new_version):
 
     # removing releasenotes from bugfix on the old minor.
     previous_minor = "%s.%s" % (new_version_int[0], new_version_int[1] - 1)
+    if previous_minor == "7.15":
+        previous_minor = "6.15" # 7.15 is the first release in the 7.x series
     log_result = ctx.run("git log {}.0...remotes/origin/{}.x --name-only | \
             grep releasenotes/notes/ || true".format(previous_minor, previous_minor))
     log_result = log_result.stdout.replace('\n', ' ').strip()
