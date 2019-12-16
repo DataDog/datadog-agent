@@ -21,6 +21,7 @@ struct stats {
 };
 
 struct conn {
+  /* u64 pid_tgid; */
   u32 saddr;
   u32 daddr;
   u16 sport;
@@ -34,16 +35,9 @@ BPF_HASH(who_recvmsg, pid_t, struct sock *);
 BPF_HASH(who_sendmsg, pid_t, struct sock *);
 
 static inline int check_sock(struct sock *sk) {
-  /* unsigned char sk_sk_state; */
-  /* bpf_probe_read(&sk_sk_state, sizeof(sk_sk_state), &sk->sk_state); */
-  /* if (sk_sk_state == TCP_LISTEN) */
-  /*   return 0; */
-
-//  if (sk->sk_type != SOCK_STREAM)
-//    return 0;
-
   const struct inet_sock *ip = inet_sk(sk);
   struct conn c;
+  /* c.pid_tgid = bpf_get_current_pid_tgid(); */
   bpf_probe_read(&c.saddr, sizeof(c.saddr), &ip->inet_saddr);
   bpf_probe_read(&c.daddr, sizeof(c.daddr), &ip->inet_daddr);
   bpf_probe_read(&c.sport, sizeof(c.sport), &ip->inet_sport);
@@ -72,7 +66,9 @@ static inline int check_sock(struct sock *sk) {
       .max = 0
     }
   };
+
   struct stats *s = queue.lookup_or_init(&c, &zero);
+
   if (s) {
     if (rqueue > s->rqueue.max)
       s->rqueue.max = rqueue;
@@ -84,14 +80,9 @@ static inline int check_sock(struct sock *sk) {
       s->wqueue.min = wqueue;
   }
 
-//  bpf_trace_printk("%x:%d->", ntohl(c.saddr), ntohs(c.sport));
-//  bpf_trace_printk("%x:%d ", ntohl(c.daddr), ntohs(c.dport));
-//  bpf_trace_printk("rqueue: %d, wqueue: %d", rqueue, wqueue);
-
   return 0;
 }
 
-//SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs *ctx)
 {
   struct sock *sk = (struct sock *)ctx->di;
@@ -103,6 +94,3 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx)
   struct sock *sk = (struct sock *)ctx->di;
   return check_sock(sk);
 }
-
-//char _license[] SEC("license") = "GPL";
-

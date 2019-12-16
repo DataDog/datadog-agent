@@ -17,28 +17,30 @@ type TCPQueueLengthTracer struct {
 }
 
 type QueueLength struct {
-	Min uint32
-	Max uint32
+	Min uint32 `json: "min"`
+	Max uint32 `json: "max"`
 }
 
 type Stats struct {
-	Rqueue QueueLength
-	Wqueue QueueLength
+	Rqueue QueueLength `json: "read queue"`
+	Wqueue QueueLength `json: "write queue"`
 }
 
 type Conn struct {
-	Saddr net.IP
-	Daddr net.IP
-	Sport uint16
-	Dport uint16
+	// Pid   uint64 `json: "pid"`
+	Saddr net.IP `json: "saddr"`
+	Daddr net.IP `json: "daddr"`
+	Sport uint16 `json: "sport"`
+	Dport uint16 `json: "dport"`
 }
 
 type StatLine struct {
-	Conn  Conn
-	Stats Stats
+	Conn  Conn  `json: "conn"`
+	Stats Stats `json: "stats"`
 }
 
 type conn struct {
+	// Pid   uint64
 	Saddr uint32
 	Daddr uint32
 	Sport uint16
@@ -87,6 +89,10 @@ func (t *TCPQueueLengthTracer) Close() {
 }
 
 func (t *TCPQueueLengthTracer) Get() []StatLine {
+	if t == nil {
+		return nil
+	}
+
 	var result []StatLine
 
 	for it := t.queueMap.Iter(); it.Next(); {
@@ -103,10 +109,11 @@ func (t *TCPQueueLengthTracer) Get() []StatLine {
 
 		result = append(result, StatLine{
 			Conn: Conn{
+				// Pid:   c.Pid,
 				Saddr: saddr,
 				Daddr: daddr,
-				Sport: c.Sport, //strconv.Itoa(int(c.Sport)),
-				Dport: c.Dport, //strconv.Itoa(int(c.Dport)),
+				Sport: c.Sport,
+				Dport: c.Dport,
 			},
 			Stats: s,
 		})
