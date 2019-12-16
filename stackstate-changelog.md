@@ -7,6 +7,11 @@
 **Improvements**
 
 - Enrich kubernetes topology information with the namespace as a label on all StackState components _[(STAC-7084)](https://stackstate.atlassian.net/browse/STAC-7084)_
+- Cluster agent publishes phase information for Pods and adds another identifier to services that allows merging with trace services _[(STAC-6605)](https://stackstate.atlassian.net/browse/STAC-6605)_
+
+**Bugs**
+
+- Fix service identifiers that have no endpoint defined _[(STAC-7125)](https://stackstate.atlassian.net/browse/STAC-7125)_
 
 ## 2.0.6 (2019-11-28)
 
@@ -27,7 +32,7 @@
 - Node agent reports cluster name in the connection namespace if present _[(STAC-5376)](https://stackstate.atlassian.net/browse/STAC-5376)_
 
   This feature allows the DNAT endpoint (which is observed looking at connections flowing through it) to be merged with the service gathered by the cluster agent.
-   
+
 - Make cluster agent gather OpenShift topology _[(STAC-5847)](https://stackstate.atlassian.net/browse/STAC-5847)_
 - Enable new cluster agent to gather Kubernetes topology _[(STAC-5008)](https://stackstate.atlassian.net/browse/STAC-5008)_
 
@@ -56,9 +61,9 @@
 - Filter reported processes _[(STAC-3401)](https://stackstate.atlassian.net/browse/STAC-3401)_
 
   This feature changed and extended the agent configuration.
-  
+
   Under the `process_config` section we removed `blacklist_patterns` and introduced the following:
-  
+
   ```
   process_blacklist:
     # A list of regex patterns that will exclude a process arguments if matched.
@@ -73,9 +78,9 @@
       amount_top_mem_usage: 3
       mem_usage_threshold: 35
   ```
-  
+
   Those configurations can be provided through environment variables as well:
-    
+
   | Parameter | Default | Description |
   |-----------|---------|-------------|
   | `STS_PROCESS_BLACKLIST_PATTERNS` | [see github](https://github.com/StackVista/stackstate-process-agent/blob/master/config/config_nix.go) | A list of regex patterns that will exclude a process if matched |
@@ -87,9 +92,9 @@
   | `STS_PROCESS_BLACKLIST_INCLUSIONS_MEM_THRESHOLD` |  | Threshold that enables the reporting of high Memory usage processes |
 
 - Report localhost connections within the same network namespace _[(STAC-2891)](https://stackstate.atlassian.net/browse/STAC-2891)_
-  
+
   This feature adds support to identify localhost connections within docker containers within the same network namespace.
-  
+
   The network namespace of the reported connection can be observed in StackState on the connection between the components.
 
 - Upstream upgrade to 6.10.2 _[(STAC-3220)](https://stackstate.atlassian.net/browse/STAC-3220)_
