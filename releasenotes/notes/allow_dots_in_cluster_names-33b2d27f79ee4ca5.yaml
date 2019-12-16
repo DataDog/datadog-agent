@@ -1,0 +1,13 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Allow dots in cluster names because some users are alredy using domains as cluster names:
+    https://github.com/helm/charts/pull/19327#issuecomment-565535449
+    This will make the agent accept as cluster names values which wouldn’t be valid of GKE.
