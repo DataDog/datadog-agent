@@ -659,7 +659,7 @@ func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionD
 		return LOCAL
 	}
 
-	if sourceLocal && t.portMapping.IsListening(conn.SPort) {
+	if t.portMapping.IsListening(conn.SPort) {
 		return INCOMING
 	}
 
