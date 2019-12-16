@@ -492,7 +492,6 @@ func initConfig(config Config) {
 
 	// Ochestrator explorer
 	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
-	config.BindEnvAndSetDefault("orchestrator_explorer.cluster_name", "")
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")

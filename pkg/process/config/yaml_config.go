@@ -314,7 +314,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		a.OrchestrationCollectionEnabled = true
 		// Set clustername
-		if clusterName := config.Datadog.GetString("orchestrator_explorer.cluster_name"); clusterName != "" {
+		if clusterName := config.Datadog.GetString("cluster_name"); clusterName != "" {
 			a.KubeClusterName = clusterName
 		}
 	}
