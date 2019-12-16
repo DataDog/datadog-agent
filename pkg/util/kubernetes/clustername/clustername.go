@@ -23,7 +23,7 @@ var (
 	// * Lowercase letters, numbers, dots and hyphens only.
 	// * Must start with a letter.
 	// * Must end with a number or a letter.
-	validClusterName = regexp.MustCompile(`^[a-z]([a-z0-9\-.]{0,38}[a-z0-9])?$`)
+	validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]{0,38}[a-z0-9])?\.)*([a-z]([a-z0-9\-]{0,38}[a-z0-9])?)$`)
 )
 
 type clusterNameData struct {
@@ -61,7 +61,7 @@ func getClusterName(data *clusterNameData) string {
 		data.clusterName = config.Datadog.GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
-			if !validClusterName.MatchString(data.clusterName) {
+			if !validClusterName.MatchString(data.clusterName) || len(data.clusterName) > 40 {
 				log.Errorf("%q isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
 					"start with a lowercase letter followed by up to 39 lowercase letters, numbers, or "+
 					"hyphens, and cannot end with a hyphen.", data.clusterName)
