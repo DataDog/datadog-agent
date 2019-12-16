@@ -12,17 +12,18 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
-	"sync"
 )
 
 const (
@@ -159,28 +160,20 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 
 	// we have a number of chunks with `chunkSize` metrics.
 	responses := make(chan map[string]Point, len(batch))
-	var errors []string
+	var errors []error
 	processed = make(map[string]Point)
 	var waitResp sync.WaitGroup
-	///
-	//var waitCtxResp errgroup.Group
-	//ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
-	//defer cancel()
-	//group, _ := errgroup.WithContext(ctx)
-	//group.Wait()
-	///
 	for _, c := range chunks {
 		waitResp.Add(1)
 		go func(chunk []string) {
 			defer waitResp.Done()
 			resp, err := p.queryDatadogExternal(chunk)
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("Error retrieving values for %s: %v", chunk, err.Error()))
+				errors = append(errors, err)
 				// if we hit an error we do not want to send the metric to the channel
 				return
 			}
 			responses <- resp
-
 		}(c)
 	}
 	waitResp.Wait()
@@ -190,12 +183,8 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 			processed[k] = v
 		}
 	}
-
 	log.Debugf("Processed %d chunks", len(chunks))
-	if len(errors) > 0 {
-		err = fmt.Errorf(strings.Join(errors, ","))
-	}
-	return processed, err
+	return processed, utilserror.NewAggregate(errors)
 }
 
 func invalidate(emList map[string]custommetrics.ExternalMetricValue) (invList map[string]custommetrics.ExternalMetricValue) {

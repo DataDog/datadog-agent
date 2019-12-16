@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"testing"
 	"time"
+	"sync"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -32,25 +33,6 @@ func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datado
 	}
 	return nil, nil
 }
-type fakeProcessor struct {
-	QueryDatadogExternalFunc func(metricNames []string) (map[string]Point, error)
-	//validateExternalMetricFunc func(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error)
-}
-
-func (p *fakeProcessor) QueryDatadogExternal(metricNames []string) (map[string]Point, error) {
-	if p.QueryDatadogExternalFunc != nil {
-		return p.QueryDatadogExternalFunc(metricNames)
-	}
-	return nil, nil
-}
-
-//func (h *fakeProcessor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
-//	return nil
-//}
-//
-//func (h *fakeProcessor) ProcessEMList(metrics []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
-//	return nil
-//}
 
 var maxAge = time.Duration(30 * time.Second)
 
@@ -197,19 +179,19 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 	metricName := "foo"
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	tests := []struct {
-		desc string
-		in   map[string]custommetrics.ExternalMetricValue
-		out  []datadog.Series
-		//expected map[string]Point
+		desc       string
+		in         map[string]custommetrics.ExternalMetricValue
+		out        []datadog.Series
+		l          sync.Mutex
 		batchCalls int
-		err error
-		timeout bool
-	} {
+		err        error
+		timeout    bool
+	}{
 		{
 			desc: "one batch",
-			in: lambdaMakeChunks(14,custommetrics.ExternalMetricValue{
+			in: lambdaMakeChunks(14, custommetrics.ExternalMetricValue{
 				MetricName: "foo",
-				Labels: map[string]string{"foo":"bar"}}),
+				Labels:     map[string]string{"foo": "bar"}}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -222,14 +204,14 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 				},
 			},
 			batchCalls: 1,
-			err: nil,
-			timeout: false,
+			err:        nil,
+			timeout:    false,
 		},
 		{
 			desc: "several batches",
-			in: lambdaMakeChunks(158,custommetrics.ExternalMetricValue{
+			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
 				MetricName: "foo",
-				Labels: map[string]string{"foo":"bar"}}),
+				Labels:     map[string]string{"foo": "bar"}}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -242,16 +224,43 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 				},
 			},
 			batchCalls: 4,
-			err: nil,
-			timeout: false,
+			err:        nil,
+			timeout:    false,
+		},
+		{
+			desc: "several batches, one error",
+			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
+				MetricName: "foo",
+				Labels:     map[string]string{"foo": "bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 4,
+			err:        fmt.Errorf("Networking Error, timeout!!!"),
+			timeout:    true,
 		},
 	}
 	for i, tt := range tests {
-		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T){
-			var bc int
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
 			datadogClient := &fakeDatadogClient{
 				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
-					bc += 1
+					tt.l.Lock()
+					defer tt.l.Unlock()
+					tt.batchCalls -= 1
+					if tt.timeout == true && tt.batchCalls == 1 {
+						// Error will be under the format:
+						// Error: Error while executing metric query avg:foo-56{foo:bar}.rollup(30),avg:foo-93{foo:bar}.rollup(30),[...],avg:foo-64{foo:bar}.rollup(30),avg:foo-81{foo:bar}.rollup(30): Networking Error, timeout!!!
+						// In the logs, we will be able to see which bundle failed, but for the tests, we can't know which routine will finish first (and therefore have `bc == 1`), so we only check the error returned by the Datadog Servers.
+						return nil, fmt.Errorf("Networking Error, timeout!!!")
+					}
 					return tt.out, nil
 				},
 			}
@@ -259,27 +268,9 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 
 			_, err := p.validateExternalMetric(tt.in)
 			if err != nil {
-				assert.Equal(t, err, tt.err)
+				assert.Contains(t, err.Error(), tt.err.Error())
 			}
-			//assert.Equal(t, results, tt.expected)
-			assert.Equal(t, bc, tt.batchCalls)
-			//p := &fakeProcessor{
-			//	QueryDatadogExternalFunc: func(metricNames []string) (map[string]Point, error) {
-			//		return tt.out, tt.err
-			//	},
-			//}
-
-			//foo := p.(Processor)
-
-			//tuu := p.(Processor)
-			//foo.ProcessEMList(nil)
-			//pro, _ := NewProcessor(nil)
-			//f := 	ProcessorInterface(pro)
-			//
-			//pro.validateExternalMetric()
-			////out, err := fakeProcessor.(tt.in)
-
-
+			assert.Equal(t, 0, tt.batchCalls)
 		})
 	}
 }
@@ -289,7 +280,7 @@ func lambdaMakeChunks(numChunks int, chunkToExpand custommetrics.ExternalMetricV
 	for i := 0; i <= numChunks; i++ {
 		expanded[fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i)] = custommetrics.ExternalMetricValue{
 			MetricName: fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i),
-			Labels: chunkToExpand.Labels,
+			Labels:     chunkToExpand.Labels,
 		}
 	}
 	return expanded
