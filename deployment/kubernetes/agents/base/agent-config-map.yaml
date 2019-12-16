@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: sts-agent-config
+  namespace: default
 data:
   STS_API_KEY: "API_KEY"
   STS_STS_URL: "<STACKSTATE_BACKEND_URL>/stsAgent"

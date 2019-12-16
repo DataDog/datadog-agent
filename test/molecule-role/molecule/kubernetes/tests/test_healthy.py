@@ -8,6 +8,7 @@ testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts
 kubeconfig_env = "KUBECONFIG=/home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig "
 namespace = os.environ['AGENT_CURRENT_BRANCH'].lower()
 
+
 @pytest.mark.first
 def test_receiver_healthy(host):
     def assert_healthy():

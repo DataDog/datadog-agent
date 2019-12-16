@@ -5,93 +5,85 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Configure aws credentials
-      copy:
-        content: |
-          [default]
-          aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
-          aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
-        dest: /home/ubuntu/.aws/credentials
-    - name: Docker login
-      docker_login:
-        registry: quay.io
-        username: "{{ quay_user }}"
-        password: "{{ quay_password }}"
-        reauthorize: yes
-    - name: Copy Terraform Files and Manifests
-      copy:
-        src: "../../../../deployment/kubernetes/"
-        dest: "/home/ubuntu/deployment"
-    - name: Copy Receiver file
-      copy:
-        src: "files/receiver"
-        dest: "/home/ubuntu/"
-    - name: Generate env token
-      shell: echo token=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1) > env.txt
-      args:
-        chdir: /home/ubuntu/deployment/agents/overlays
-    - name: Kustomization template
-      template:
-        src: files/template/kustomization.yaml
-        dest: /home/ubuntu/deployment/agents/overlays
-    - name: RBAC template agent
-      template:
-        src: files/template/rbac/agent-rbac.yaml
-        dest: /home/ubuntu/deployment/agents/base 
-    - name: RBAC template cluster-agent
-      template:
-        src: files/template/rbac/cluster-agent-rbac.yaml
-        dest: /home/ubuntu/deployment/agents/base         
-    - name: Run Docker compose
-      command: docker-compose up -d
-      args:
-        chdir: /home/ubuntu/receiver
-      environment:
-        STACKSTATE_BRANCH: "{{ stackstate_branch }}"
-        CLUSTER_NAME: "{{ cluster_name }}"
-    - name: Removing existing config files if exists
-      file:
-        path: "/home/ubuntu/deployment/aws-eks/tf-cluster/{{ item }}"
-        state: absent
-      with_items:
-        - .terraform
-        - kubeconfig
-    - name: Run make plan
-      make:
-        chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
-        target: plan
-      environment:
-        AWS_ACCESS_KEY_ID: '{{lookup("env", "AWS_ACCESS_KEY_ID")}}'
-        AWS_SECRET_ACCESS_KEY: '{{lookup("env", "AWS_SECRET_ACCESS_KEY")}}'
-        TF_VAR_AWS_SECRET_ACCESS_KEY: '{{lookup("env", "AWS_SECRET_ACCESS_KEY")}}'
-        TF_VAR_AWS_ACCESS_KEY_ID: '{{lookup("env", "AWS_ACCESS_KEY_ID")}}'
-        TF_VAR_SCALING_DESIRED_CAPACITY: 2
-        TF_VAR_AWS_REGION: eu-west-1
-        TF_VAR_CLUSTER_NAME: "{{ cluster_name }}"
-    - name: Run make apply
-      make:
-        chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
-        target: apply
-    - name: Run make kubeconfig
-      make:
-        chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
-        target: kubeconfig
-    - name: Run make config-map-aws-auth
-      make:
-        chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
-        target: config-map-aws-auth
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-    - name: Create secret to allow pulling from private docker registry
-      shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-    - name: Create namespace for tests.
-      shell: kubectl get ns {{ agent_current_branch|lower}} || kubectl create ns {{ agent_current_branch|lower}}
-      args:
-        chdir: /home/ubuntu/deployment
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig    
+    # - name: Configure aws credentials
+      # copy:
+        # content: |
+          # [default]
+          # aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
+          # aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
+        # dest: /home/ubuntu/.aws/credentials
+    # - name: Docker login
+      # docker_login:
+        # registry: quay.io
+        # username: "{{ quay_user }}"
+        # password: "{{ quay_password }}"
+        # reauthorize: yes
+    # - name: Copy Terraform Files and Manifests
+      # copy:
+        # src: "../../../../deployment/kubernetes/"
+        # dest: "/home/ubuntu/deployment"
+    # - name: Copy Receiver file
+      # copy:
+        # src: "files/receiver"
+        # dest: "/home/ubuntu/"
+    # - name: Generate env token
+      # shell: echo token=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1) > env.txt
+      # args:
+        # chdir: /home/ubuntu/deployment/agents/overlays
+    # - name: Kustomization template
+      # template:
+        # src: files/template/kustomization.yaml
+        # dest: /home/ubuntu/deployment/agents/overlays
+    # - name: Run Docker compose
+      # command: docker-compose up -d
+      # args:
+        # chdir: /home/ubuntu/receiver
+      # environment:
+        # STACKSTATE_BRANCH: "{{ stackstate_branch }}"
+        # CLUSTER_NAME: "{{ cluster_name }}"
+    # - name: Removing existing config files if exists
+      # file:
+        # path: "/home/ubuntu/deployment/aws-eks/tf-cluster/{{ item }}"
+        # state: absent
+      # with_items:
+        # - .terraform
+        # - kubeconfig
+    # - name: Run make plan
+      # make:
+        # chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
+        # target: plan
+      # environment:
+        # AWS_ACCESS_KEY_ID: '{{lookup("env", "AWS_ACCESS_KEY_ID")}}'
+        # AWS_SECRET_ACCESS_KEY: '{{lookup("env", "AWS_SECRET_ACCESS_KEY")}}'
+        # TF_VAR_AWS_SECRET_ACCESS_KEY: '{{lookup("env", "AWS_SECRET_ACCESS_KEY")}}'
+        # TF_VAR_AWS_ACCESS_KEY_ID: '{{lookup("env", "AWS_ACCESS_KEY_ID")}}'
+        # TF_VAR_SCALING_DESIRED_CAPACITY: 2
+        # TF_VAR_AWS_REGION: eu-west-1
+        # TF_VAR_CLUSTER_NAME: "{{ cluster_name }}"
+    # - name: Run make apply
+      # make:
+        # chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
+        # target: apply
+    # - name: Run make kubeconfig
+      # make:
+        # chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
+        # target: kubeconfig
+    # - name: Run make config-map-aws-auth
+      # make:
+        # chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
+        # target: config-map-aws-auth
+      # environment:
+        # KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    # - name: Create secret to allow pulling from private docker registry
+      # shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
+      # environment:
+        # KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    # - name: Create namespace for tests.
+      # shell: kubectl get ns {{ agent_current_branch|lower}} || kubectl create ns {{ agent_current_branch|lower}}
+      # args:
+        # chdir: /home/ubuntu/deployment    
+      # environment:
+        # KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig      
     - name: Apply manifests for test workloads
       command: kubectl -n={{ agent_current_branch|lower}} apply -f test_workloads
       args:

@@ -38,9 +38,7 @@
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
-    - name: Delete kubernetes namespace
-      command: kubectl  delete ns {{ agent_current_branch|lower}}
-      args:
-        chdir: /home/ubuntu/deployment
+    - name: cleanup namespace
+      command: kubectl delete ns {{ agent_current_branch|lower}}
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

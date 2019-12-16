@@ -11,6 +11,7 @@ testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts
 kubeconfig_env = "KUBECONFIG=/home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig "
 namespace = os.environ['AGENT_CURRENT_BRANCH'].lower()
 
+
 def _get_pod_ip(host, pod_name):
     pod_server_c = kubeconfig_env + "kubectl get pods/%s -o json --namespace=%s" % (pod_name, namespace)
     pod_server_exec = host.check_output(pod_server_c)
