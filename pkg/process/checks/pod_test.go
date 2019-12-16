@@ -79,6 +79,7 @@ func TestExtractPodMessage(t *testing.T) {
 					},
 				},
 				ObjectMeta: metav1.ObjectMeta{
+					UID:               types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 					Name:              "pod",
 					Namespace:         "namespace",
 					CreationTimestamp: timestamp,
@@ -103,6 +104,7 @@ func TestExtractPodMessage(t *testing.T) {
 			}, expected: model.Pod{
 				Name:              "pod",
 				Namespace:         "namespace",
+				Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
 				CreationTimestamp: 1389744000,
 				Phase:             "Running",
 				NominatedNodeName: "nominated",

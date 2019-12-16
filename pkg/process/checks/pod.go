@@ -99,10 +99,11 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorPod{
-			HostName:  cfg.HostName,
-			Pods:      chunked[i],
-			GroupId:   groupID,
-			GroupSize: int32(groupSize),
+			HostName:    cfg.HostName,
+			ClusterName: cfg.KubeClusterName,
+			Pods:        chunked[i],
+			GroupId:     groupID,
+			GroupSize:   int32(groupSize),
 		})
 	}
 
@@ -150,6 +151,7 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel := model.Pod{
 		Name:      p.Name,
 		Namespace: p.Namespace,
+		Uid:       string(p.UID),
 	}
 	if len(p.Annotations) > 0 {
 		podModel.Annotations = make([]string, len(p.Annotations))
