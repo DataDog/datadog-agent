@@ -62,9 +62,9 @@ func getClusterName(data *clusterNameData) string {
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
 			if !validClusterName.MatchString(data.clusterName) {
-				log.Errorf("\"%s\" isn’t a valid cluster name. It must start with a lowercase "+
-					"letter followed by up to 39 lowercase letters, numbers, or hyphens, and "+
-					"cannot end with a hyphen.", data.clusterName)
+				log.Errorf("\"%s\" isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
+					"start with a lowercase letter followed by up to 39 lowercase letters, numbers, or "+
+					"hyphens, and cannot end with a hyphen.", data.clusterName)
 				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
 				data.clusterName = ""
 			}
