@@ -21,6 +21,7 @@ AGENT_TAG = "datadog/cluster_agent:master"
 DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
     "clusterchecks",
+    "secrets",
 ]
 
 
