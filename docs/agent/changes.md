@@ -1,6 +1,13 @@
-# Agent v6 Changes
+# Agent v7 vs v6
 
 This information is available in the Datadog documentation:<br>
-[docs.datadoghq.com/agent/faq/agent-v6-changes][1]
+[docs.datadoghq.com/agent/agent/versions?tab=agentv7vsv6][1]
 
-[1]: https://docs.datadoghq.com/agent/faq/agent-v6-changes
+[1]: https://docs.datadoghq.com/agent/versions?tab=agentv7vsv6
+
+# Agent v6 vs v5
+
+This information is available in the Datadog documentation:<br>
+[docs.datadoghq.com/agent/agent/versions?tab=agentv6vsv5][1]
+
+[1]: https://docs.datadoghq.com/agent/versions?tab=agentv6vsv5
