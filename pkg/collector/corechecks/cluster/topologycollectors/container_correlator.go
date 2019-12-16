@@ -24,6 +24,7 @@ type ContainerPod struct {
 	PodIP      string
 	Namespace  string
 	NodeName   string
+	Phase	   string
 }
 
 // ContainerCorrelation
@@ -143,6 +144,7 @@ func (cc *ContainerCorrelator) containerToStackStateComponent(nodeIdentifier str
 		},
 		"pod":          pod.Name,
 		"podIP":        pod.PodIP,
+		"podPhase":		pod.Phase,
 		"restartCount": container.RestartCount,
 		"tags":         tags,
 	}

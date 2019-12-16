@@ -301,7 +301,7 @@ func TestPodCollector(t *testing.T) {
 								ConfigMap: &configMap,
 							},
 							"identifiers": []string{"urn:/kubernetes:test-cluster-name:configmap:test-namespace:name-of-the-config-map"},
-							"tags": map[string]string{"test":"label", "cluster-name":"test-cluster-name", "namespace":"test-namespace"},
+							"tags":        map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 						},
 					}
 					assert.EqualValues(t, expectedComponent, component)
@@ -424,11 +424,12 @@ func TestPodCollector(t *testing.T) {
 					expectedCorrelation := &ContainerCorrelation{
 						Pod: ContainerPod{
 							ExternalID: "urn:/kubernetes:test-cluster-name:pod:test-pod-6",
-							Name      : "test-pod-6",
-							Labels     : map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
-							PodIP      : "10.0.0.1",
-							Namespace  : "test-namespace",
-							NodeName   : "test-node",
+							Name:       "test-pod-6",
+							Labels:     map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
+							PodIP:      "10.0.0.1",
+							Namespace:  "test-namespace",
+							NodeName:   "test-node",
+							Phase:      "Running",
 						},
 						ContainerStatuses: []coreV1.ContainerStatus{
 							{
@@ -509,10 +510,10 @@ func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 		}
 
 		if i == 4 {
-			pod.Spec.Volumes = []coreV1.Volume {
-				{Name: "test-volume-1", VolumeSource: coreV1.VolumeSource{ AWSElasticBlockStore: &awsElasticBlockStore }},
-				{Name: "test-volume-2", VolumeSource: coreV1.VolumeSource{ GCEPersistentDisk: &gcePersistentDisk }},
-				{Name: "test-volume-3", VolumeSource: coreV1.VolumeSource{ ConfigMap: &configMap }},
+			pod.Spec.Volumes = []coreV1.Volume{
+				{Name: "test-volume-1", VolumeSource: coreV1.VolumeSource{AWSElasticBlockStore: &awsElasticBlockStore}},
+				{Name: "test-volume-2", VolumeSource: coreV1.VolumeSource{GCEPersistentDisk: &gcePersistentDisk}},
+				{Name: "test-volume-3", VolumeSource: coreV1.VolumeSource{ConfigMap: &configMap}},
 			}
 		}
 
@@ -526,7 +527,7 @@ func (m MockPodAPICollectorClient) GetPods() ([]coreV1.Pod, error) {
 							Name: "env-var",
 							ValueFrom: &coreV1.EnvVarSource{
 								ConfigMapKeyRef: &coreV1.ConfigMapKeySelector{
-									LocalObjectReference: coreV1.LocalObjectReference{ Name: "name-of-the-env-config-map"},
+									LocalObjectReference: coreV1.LocalObjectReference{Name: "name-of-the-env-config-map"},
 								},
 							},
 						},
