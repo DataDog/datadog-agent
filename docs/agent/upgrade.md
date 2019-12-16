@@ -2,8 +2,8 @@
 
 Instructions to upgrade your Agent to version 7:
 
-  * from Agent v6 - [Link to the instructions](https://docs.datadoghq.com/agent/versions/upgrade_to_agent_v7/#from-agent-v6-to-agent-v7)
-  * from Agent v5 - [Link to the instructions](https://docs.datadoghq.com/agent/versions/upgrade_to_agent_v7/#from-agent-v5-to-agent-v7)
+  * [Upgrade from Agent v6 to Agent v7](https://docs.datadoghq.com/agent/versions/upgrade_to_agent_v7/#from-agent-v6-to-agent-v7)
+  * [Upgrade from Agent v5 to Agent v7](https://docs.datadoghq.com/agent/versions/upgrade_to_agent_v7/#from-agent-v5-to-agent-v7)
 
 # Upgrade to Agent v6
 

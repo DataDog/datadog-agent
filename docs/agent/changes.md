@@ -8,6 +8,6 @@ This information is available in the Datadog documentation:<br>
 # Agent v6 vs v5
 
 This information is available in the Datadog documentation:<br>
-[docs.datadoghq.com/agent/agent/versions?tab=agentv6vsv5][1]
+[docs.datadoghq.com/agent/agent/versions?tab=agentv6vsv5][2]
 
-[1]: https://docs.datadoghq.com/agent/versions?tab=agentv6vsv5
+[2]: https://docs.datadoghq.com/agent/versions?tab=agentv6vsv5
