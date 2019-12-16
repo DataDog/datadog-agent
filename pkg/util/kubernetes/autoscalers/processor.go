@@ -47,6 +47,12 @@ type Processor struct {
 	datadogClient  DatadogClient
 }
 
+// queryResponse ensures that we capture all the signals from the call to Datadog's backend.
+type queryResponse struct {
+	metrics map[string]Point
+	err     error
+}
+
 // NewProcessor returns a new Processor
 func NewProcessor(datadogCl DatadogClient) (*Processor, error) {
 	externalMaxAge := math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog.GetFloat64("external_metrics_provider.rollup"))
@@ -159,28 +165,27 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 	log.Tracef("List of batches %v", chunks)
 
 	// we have a number of chunks with `chunkSize` metrics.
-	responses := make(chan map[string]Point, len(batch))
-	var errors []error
+	responses := make(chan queryResponse, len(batch))
 	processed = make(map[string]Point)
+	errors := []error{}
+
 	var waitResp sync.WaitGroup
 	for _, c := range chunks {
 		waitResp.Add(1)
 		go func(chunk []string) {
 			defer waitResp.Done()
 			resp, err := p.queryDatadogExternal(chunk)
-			if err != nil {
-				errors = append(errors, err)
-				// if we hit an error we do not want to send the metric to the channel
-				return
-			}
-			responses <- resp
+			responses <- queryResponse{resp, err}
 		}(c)
 	}
 	waitResp.Wait()
 	close(responses)
 	for elem := range responses {
-		for k, v := range elem {
+		for k, v := range elem.metrics {
 			processed[k] = v
+		}
+		if elem.err != nil {
+			errors = append(errors, elem.err)
 		}
 	}
 	log.Debugf("Processed %d chunks", len(chunks))
