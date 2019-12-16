@@ -23,7 +23,7 @@ var (
 	// * Lowercase letters, numbers, dots and hyphens only.
 	// * Must start with a letter.
 	// * Must end with a number or a letter.
-	validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]{0,38}[a-z0-9])?\.)*([a-z]([a-z0-9\-]{0,38}[a-z0-9])?)$`)
+	validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
 )
 
 type clusterNameData struct {
