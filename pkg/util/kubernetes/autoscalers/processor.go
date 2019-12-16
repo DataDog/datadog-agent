@@ -27,6 +27,7 @@ import (
 )
 
 const (
+	// chunkSize ensures batch queries are limited in size.
 	chunkSize = 45
 )
 
@@ -167,11 +168,10 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 	// we have a number of chunks with `chunkSize` metrics.
 	responses := make(chan queryResponse, len(batch))
 	processed = make(map[string]Point)
-	errors := []error{}
 
 	var waitResp sync.WaitGroup
+	waitResp.Add(len(chunks))
 	for _, c := range chunks {
-		waitResp.Add(1)
 		go func(chunk []string) {
 			defer waitResp.Done()
 			resp, err := p.queryDatadogExternal(chunk)
@@ -180,6 +180,7 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 	}
 	waitResp.Wait()
 	close(responses)
+	var errors []error
 	for elem := range responses {
 		for k, v := range elem.metrics {
 			processed[k] = v
