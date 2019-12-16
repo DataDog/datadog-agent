@@ -10,9 +10,9 @@ package autoscalers
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
-	"sync"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -182,7 +182,6 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 		desc       string
 		in         map[string]custommetrics.ExternalMetricValue
 		out        []datadog.Series
-		l          sync.Mutex
 		batchCalls int
 		err        error
 		timeout    bool
@@ -248,14 +247,22 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			timeout:    true,
 		},
 	}
+	var result struct {
+		bc int
+		m  sync.Mutex
+	}
+	res := &result
 	for i, tt := range tests {
+		res.m.Lock()
+		res.bc = 0
+		res.m.Unlock()
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
 			datadogClient := &fakeDatadogClient{
 				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
-					tt.l.Lock()
-					defer tt.l.Unlock()
-					tt.batchCalls -= 1
-					if tt.timeout == true && tt.batchCalls == 1 {
+					res.m.Lock()
+					defer res.m.Unlock()
+					result.bc += 1
+					if tt.timeout == true && res.bc == 1 {
 						// Error will be under the format:
 						// Error: Error while executing metric query avg:foo-56{foo:bar}.rollup(30),avg:foo-93{foo:bar}.rollup(30),[...],avg:foo-64{foo:bar}.rollup(30),avg:foo-81{foo:bar}.rollup(30): Networking Error, timeout!!!
 						// In the logs, we will be able to see which bundle failed, but for the tests, we can't know which routine will finish first (and therefore have `bc == 1`), so we only check the error returned by the Datadog Servers.
@@ -270,7 +277,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			if err != nil {
 				assert.Contains(t, err.Error(), tt.err.Error())
 			}
-			assert.Equal(t, 0, tt.batchCalls)
+			assert.Equal(t, tt.batchCalls, res.bc)
 		})
 	}
 }
