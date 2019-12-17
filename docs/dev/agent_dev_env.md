@@ -177,7 +177,7 @@ To get the dependency graphs, you may also need to install the `dot` executable 
 ## Run the agent
 
 Running `invoke build` creates an Agent binary, located at `./bin/agent/agent`.
-If DataDog agent is not installed or if you do not want to edit your `datadog.yaml`, a configuration file is available at `./bin/agent/dist/datadog.yaml`. To run the agent with this configuration file use `-c`: `./bin/agent/agent CMD -c ./bin/agent/dist/datadog.yaml` where `CMD` is an agent command.
+If the Datadog Agent is not installed, or if you do not want to edit your `datadog.yaml`, a configuration file is available at `./bin/agent/dist/datadog.yaml`. To run the Agent with this configuration file, use `-c`: `./bin/agent/agent CMD -c ./bin/agent/dist/datadog.yaml` where `CMD` is an Agent command.
 
 **Important note**: 
 Running `invoke build`: 
