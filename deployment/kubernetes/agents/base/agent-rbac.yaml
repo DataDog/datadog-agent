@@ -2,6 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: stackstate-agent
+  namespace: default
 rules:
 - apiGroups:  # Kubelet connectivity
   - ""
@@ -17,7 +18,7 @@ kind: ServiceAccount
 apiVersion: v1
 metadata:
   name: stackstate-agent
-  namespace: default
+
 ---
 # Your admin user needs the same permissions to be able to grant them
 # Easiest way is to bind your user to the cluster-admin role
@@ -34,3 +35,4 @@ subjects:
 - kind: ServiceAccount
   name: stackstate-agent
   namespace: default
+

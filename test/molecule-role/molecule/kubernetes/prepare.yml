@@ -78,14 +78,20 @@
       shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Create namespace for tests.
+      shell: kubectl get ns {{ agent_current_branch|lower}} || kubectl create ns {{ agent_current_branch|lower}}
+      args:
+        chdir: /home/ubuntu/deployment
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Apply manifests for test workloads
-      command: kubectl apply -f test_workloads
+      command: kubectl -n={{ agent_current_branch|lower}} apply -f test_workloads
       args:
         chdir: /home/ubuntu/deployment
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Apply manifests for stackstate node agent and cluster agent
-      command: kubectl apply -k overlays
+      command: kubectl -n={{ agent_current_branch|lower}} apply -k overlays
       args:
         chdir: /home/ubuntu/deployment/agents
       environment:

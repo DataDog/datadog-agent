@@ -4,6 +4,7 @@ kind: Kustomization
 bases:
   - ../base
 
+namespace: {{ agent_current_branch|lower}}
 configMapGenerator:
   - name: sts-agent-config
     behavior: merge

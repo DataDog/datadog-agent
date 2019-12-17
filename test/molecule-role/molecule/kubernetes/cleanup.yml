@@ -8,26 +8,26 @@
     - common_vars.yml
   tasks:
     - name: Delete kubernetes test workloads
-      command: kubectl delete -f test_workloads
+      command: kubectl -n={{ agent_current_branch|lower}} delete -f test_workloads
       args:
         chdir: /home/ubuntu/deployment
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
     - name: Delete kubernetes test persistent volumes
-      command: kubectl delete pvc --all
+      command: kubectl -n={{ agent_current_branch|lower}} delete pvc --all
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
     - name: Delete kubernetes stackstate objects
-      command: kubectl delete -k overlays
+      command: kubectl -n={{ agent_current_branch|lower}} delete -k overlays
       args:
         chdir: /home/ubuntu/deployment/agents
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
     - name: Delete kubernetes DNAT test objects
-      command: kubectl delete -f pod-to-service-cluster-ip.yaml
+      command: kubectl  -n={{ agent_current_branch|lower}} delete -f pod-to-service-cluster-ip.yaml
       args:
         chdir: /home/ubuntu/deployment/test_connections
       environment:
@@ -38,29 +38,7 @@
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
-    - name: Fetch list of nodes
-      command: kubectl get nodes -o json
+    - name: cleanup namespace
+      command: kubectl delete ns {{ agent_current_branch|lower}}
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-      register: node_list
-
-    - name: Nodes
-      set_fact:
-        k8s_nodes: "{{ node_list.stdout | from_json | json_query('items[*].metadata.name') }}"
-
-    - name: Drain nodes
-      command: "kubectl drain {{ item }} --ignore-daemonsets --delete-local-data"
-      loop: "{{ k8s_nodes }}"
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-
-    - name: Delete nodes
-      command: "kubectl delete node {{ item }}"
-      loop: "{{ k8s_nodes }}"
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-
-    - name: Downsize the cluster
-      ec2_asg:
-        name: "eks-{{ cluster_name }}-cluster"
-        desired_capacity: 0

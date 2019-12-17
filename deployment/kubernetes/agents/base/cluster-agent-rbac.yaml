@@ -78,4 +78,3 @@ kind: ServiceAccount
 apiVersion: v1
 metadata:
   name: stackstate-cluster-agent
-  namespace: default
