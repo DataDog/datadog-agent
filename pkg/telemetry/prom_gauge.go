@@ -6,15 +6,12 @@
 package telemetry
 
 import (
-	"sync"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Gauge implementation using Prometheus.
 type promGauge struct {
-	pg   *prometheus.GaugeVec
-	once sync.Once
+	pg *prometheus.GaugeVec
 }
 
 // Set stores the value for the given tags.

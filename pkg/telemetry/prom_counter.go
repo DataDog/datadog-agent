@@ -6,15 +6,12 @@
 package telemetry
 
 import (
-	"sync"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Counter implementation using Prometheus.
 type promCounter struct {
-	pc   *prometheus.CounterVec
-	once sync.Once
+	pc *prometheus.CounterVec
 }
 
 // Add adds the given value to the counter for the given tags.
