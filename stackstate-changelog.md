@@ -12,6 +12,7 @@
 **Bugs**
 
 - Fix service identifiers that have no endpoint defined _[(STAC-7125)](https://stackstate.atlassian.net/browse/STAC-7125)_
+- Do not include pod endpoint as identifier for the services _[(STAC-7248)](https://stackstate.atlassian.net/browse/STAC-7248)_
 
 ## 2.0.6 (2019-11-28)
 
