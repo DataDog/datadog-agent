@@ -24,7 +24,7 @@ type ContainerPod struct {
 	PodIP      string
 	Namespace  string
 	NodeName   string
-	Phase	   string
+	Phase      string
 }
 
 // ContainerCorrelation
@@ -102,7 +102,7 @@ func (cc *ContainerCorrelator) CorrelateFunction() error {
 				containerComponent := cc.containerToStackStateComponent(nodeIdentifier, pod, container, containerPort)
 				cc.ComponentChan <- containerComponent
 				// create the relation between the container and pod
-				cc.RelationChan <- cc.containerToPodStackStateRelation(containerComponent.ExternalID, pod.ExternalID)
+				cc.RelationChan <- cc.podToContainerStackStateRelation(pod.ExternalID, containerComponent.ExternalID)
 			}
 		}
 	}
@@ -144,7 +144,7 @@ func (cc *ContainerCorrelator) containerToStackStateComponent(nodeIdentifier str
 		},
 		"pod":          pod.Name,
 		"podIP":        pod.PodIP,
-		"podPhase":		pod.Phase,
+		"podPhase":     pod.Phase,
 		"restartCount": container.RestartCount,
 		"tags":         tags,
 	}
@@ -176,13 +176,13 @@ func (cc *ContainerCorrelator) containerToStackStateComponent(nodeIdentifier str
 	return component
 }
 
-// Creates a StackState relation from a Kubernetes / OpenShift Container to Pod relation
-func (cc *ContainerCorrelator) containerToPodStackStateRelation(containerExternalID, podExternalID string) *topology.Relation {
-	log.Tracef("Mapping kubernetes container to pod relation: %s -> %s", containerExternalID, podExternalID)
+// Creates a StackState relation from a Pod to Kubernetes / OpenShift Container relation
+func (cc *ContainerCorrelator) podToContainerStackStateRelation(podExternalID, containerExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes pod to container relation: %s -> %s", podExternalID, containerExternalID)
 
-	relation := cc.CreateRelation(containerExternalID, podExternalID, "enclosed_in")
+	relation := cc.CreateRelation(podExternalID, containerExternalID, "encloses")
 
-	log.Tracef("Created StackState container -> pod relation %s->%s", relation.SourceID, relation.TargetID)
+	log.Tracef("Created StackState pod -> container relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }
