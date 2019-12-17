@@ -6,19 +6,19 @@ FROM debian:buster-slim as builder
 
 WORKDIR /output
 
-COPY datadog-cluster-agent.arm64 opt/datadog-agent/bin/datadog-cluster-agent
-COPY ./conf.d etc/datadog-agent/conf.d
-COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
-COPY ./dist/templates opt/datadog-agent/bin/dist/templates
-COPY entrypoint.sh .
-COPY secrets-helper/readsecret.py /
+COPY cluster-agent/datadog-cluster-agent.arm64 opt/datadog-agent/bin/datadog-cluster-agent
+COPY cluster-agent/conf.d etc/datadog-agent/conf.d
+COPY cluster-agent/datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
+COPY cluster-agent/dist/templates opt/datadog-agent/bin/dist/templates
+COPY cluster-agent/entrypoint.sh .
+COPY agent/secrets-helper/readsecret.py .
 
 RUN chmod 755 entrypoint.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent \
-    && chown root:root /readsecret.py \
-    && chmod 500 /readsecret.py
+    && chown root:root readsecret.py \
+    && chmod 500 readsecret.py
 
 ####################################
 # Actual docker image construction #
@@ -31,10 +31,10 @@ LABEL maintainer "Datadog <package@datadoghq.com>"
 ENV PATH="/opt/datadog-agent/bin/:$PATH"
 
 RUN apt-get update \
- && apt-get install --no-install-recommends -y ca-certificates curl \
- # https://security-tracker.debian.org/tracker/CVE-2018-15686
- && apt-get install -y libudev1 libsystemd0 \
- && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && apt-get install --no-install-recommends -y ca-certificates curl \
+    # https://security-tracker.debian.org/tracker/CVE-2018-15686
+    && apt-get install -y libudev1 libsystemd0 \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder /output /
 
@@ -43,11 +43,11 @@ COPY --from=builder /output /
 # And we need to do it here because capabilities set in `builder` stage are not kept
 # by the `COPY --from=builder`.
 RUN apt-get update \
- && apt-get install -y libcap2-bin \
- && setcap cap_net_bind_service+ep /opt/datadog-agent/bin/datadog-cluster-agent \
- && apt-get remove -y libcap2-bin \
- && apt-get autoremove -y \
- && apt-get clean
+    && apt-get install -y libcap2-bin \
+    && setcap cap_net_bind_service+ep /opt/datadog-agent/bin/datadog-cluster-agent \
+    && apt-get remove -y libcap2-bin \
+    && apt-get autoremove -y \
+    && apt-get clean
 
 # Allow running as an unprivileged user:
 # - General case is the dd-agent user
@@ -57,11 +57,11 @@ RUN apt-get update \
 # of an empty folder. Creating .placeholder files as a workaround.
 #
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
- && mkdir -p /var/log/datadog/ /conf.d \
- && touch /var/log/datadog/.placeholder \
- && touch /tmp/.placeholder \
- && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ \
- && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/
+    && mkdir -p /var/log/datadog/ /conf.d \
+    && touch /var/log/datadog/.placeholder \
+    && touch /tmp/.placeholder \
+    && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ \
+    && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/
 
 # Incompatible with the custom metrics API on port 443
 # Set DD_EXTERNAL_METRICS_PROVIDER_PORT to a higher value to run as non-root

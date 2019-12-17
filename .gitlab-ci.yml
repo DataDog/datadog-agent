@@ -1949,7 +1949,7 @@ build_cluster_agent_amd64:
   needs: ["cluster_agent-build_amd64"]
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
-    BUILD_CONTEXT: Dockerfiles/cluster-agent
+    BUILD_CONTEXT: Dockerfiles
 
 build_cluster_agent_arm64:
   <<: *docker_build_job_definition
@@ -1957,7 +1957,7 @@ build_cluster_agent_arm64:
   needs: ["cluster_agent-build_arm64"]
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
-    BUILD_CONTEXT: Dockerfiles/cluster-agent
+    BUILD_CONTEXT: Dockerfiles
 
 # build the dogstatsd image
 build_dogstatsd_amd64:

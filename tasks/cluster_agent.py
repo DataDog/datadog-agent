@@ -149,9 +149,9 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
     latest_file = max(dca_binary, key=os.path.getctime)
     ctx.run("chmod +x {}".format(latest_file))
 
-    build_context = "Dockerfiles/cluster-agent"
-    exec_path = "{}/datadog-cluster-agent.{}".format(build_context,arch)
-    dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
+    build_context = "Dockerfiles"
+    exec_path = "{}/cluster-agent/datadog-cluster-agent.{}".format(build_context,arch)
+    dockerfile_path = "{}/cluster-agent/{}/Dockerfile".format(build_context, arch)
 
     shutil.copy2(latest_file, exec_path)
     ctx.run("docker build -t {} {} -f {}".format(tag, build_context, dockerfile_path))
