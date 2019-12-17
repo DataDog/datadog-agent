@@ -16,10 +16,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	configJSON bool
-)
-
 func init() {
 	AgentCmd.AddCommand(configCommand)
 }

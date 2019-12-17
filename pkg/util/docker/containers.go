@@ -291,7 +291,7 @@ func (d *DockerUtil) parseContainerNetworkAddresses(cID string, ports []types.Po
 			// Add IP to the cached and not exposed ports
 			addrList = append(addrList, containers.NetworkAddress{
 				IP:       IP,
-				Port:     int(addr.Port),
+				Port:     addr.Port,
 				Protocol: addr.Protocol,
 			})
 		}

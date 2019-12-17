@@ -19,7 +19,7 @@ import (
 )
 
 // YearNS is the number of nanoseconds in a year
-var YearNS = time.Duration(time.Hour * 24 * 365).Nanoseconds()
+var YearNS = (time.Hour * 24 * 365).Nanoseconds()
 
 var durations = []int64{
 	1 * 1e3,   // 1us

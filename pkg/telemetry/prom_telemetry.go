@@ -8,9 +8,7 @@ import (
 )
 
 var (
-	telemetryRegistry                         = prometheus.NewRegistry()
-	telemetryRegisterer prometheus.Registerer = telemetryRegistry
-	telemetryGatherer   prometheus.Gatherer   = telemetryRegistry
+	telemetryRegistry = prometheus.NewRegistry()
 )
 
 func init() {

@@ -8,8 +8,6 @@
 package checks
 
 import (
-	"time"
-
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
@@ -20,7 +18,6 @@ var Pod = &PodCheck{}
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
 	sysInfo *model.SystemInfo
-	lastRun time.Time
 }
 
 // Init initializes a ContainerCheck instance.

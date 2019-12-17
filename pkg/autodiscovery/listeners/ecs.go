@@ -185,7 +185,7 @@ func (l *ECSListener) createService(c v2.Container, firstRun bool) (ECSService, 
 
 	for _, net := range c.Networks {
 		if net.NetworkMode == "awsvpc" && len(net.IPv4Addresses) > 0 {
-			ips["awsvpc"] = string(net.IPv4Addresses[0])
+			ips["awsvpc"] = net.IPv4Addresses[0]
 		}
 	}
 	svc.hosts = ips

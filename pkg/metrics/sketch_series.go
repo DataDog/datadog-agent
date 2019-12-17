@@ -95,7 +95,7 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.Marshaler, error
 		} else {
 			end = len(sl)
 		}
-		newSL := SketchSeriesList(sl[n:end])
+		newSL := sl[n:end]
 		splitPayloads[i] = newSL
 		n += batchSize
 	}
