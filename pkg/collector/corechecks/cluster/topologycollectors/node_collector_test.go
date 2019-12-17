@@ -59,9 +59,9 @@ func TestNodeCollector(t *testing.T) {
 							"status": NodeStatus{
 								Phase: coreV1.NodeRunning,
 								NodeInfo: coreV1.NodeSystemInfo{
-									MachineID:               "test-machine-id-1",
-									KernelVersion:           "4.19.0",
-									Architecture:            "x86_64",
+									MachineID:     "test-machine-id-1",
+									KernelVersion: "4.19.0",
+									Architecture:  "x86_64",
 								},
 								KubeletEndpoint: coreV1.DaemonEndpoint{Port: 5000},
 							},

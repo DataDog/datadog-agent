@@ -47,7 +47,7 @@ func TestServiceCollector(t *testing.T) {
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-service-1"),
-					"identifiers":       []string{"urn:endpoint:/test-cluster-name:10.100.200.1:81", "urn:service:/test-cluster-name:test-namespace:test-service-1"},
+					"identifiers":       []string{"urn:service:/test-cluster-name:test-namespace:test-service-1"},
 				},
 			},
 			expectedRelations: []*topology.Relation{
@@ -70,7 +70,7 @@ func TestServiceCollector(t *testing.T) {
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-service-2"),
-					"identifiers":       []string{
+					"identifiers": []string{
 						"urn:endpoint:/test-cluster-name:10.100.200.20",
 						"urn:endpoint:/test-cluster-name:10.100.200.20:10202",
 						"urn:service:/test-cluster-name:test-namespace:test-service-2",
@@ -89,7 +89,7 @@ func TestServiceCollector(t *testing.T) {
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-service-3"),
-					"identifiers":       []string{
+					"identifiers": []string{
 						"urn:endpoint:/34.100.200.12:83", "urn:endpoint:/34.100.200.13:83",
 						"urn:endpoint:/test-cluster-name:10.100.200.21",
 						"urn:service:/test-cluster-name:test-namespace:test-service-3",
@@ -121,11 +121,11 @@ func TestServiceCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-service-5",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{
+					"tags": map[string]string{
 						"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace", "service": "headless",
 					},
-					"uid":               types.UID("test-service-5"),
-					"identifiers":       []string{"urn:service:/test-cluster-name:test-namespace:test-service-5"},
+					"uid":         types.UID("test-service-5"),
+					"identifiers": []string{"urn:service:/test-cluster-name:test-namespace:test-service-5"},
 				},
 			},
 			expectedRelations: []*topology.Relation{},
@@ -138,11 +138,11 @@ func TestServiceCollector(t *testing.T) {
 				Data: topology.Data{
 					"name":              "test-service-6",
 					"creationTimestamp": creationTime,
-					"tags":              map[string]string{
+					"tags": map[string]string{
 						"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace",
 					},
-					"uid":               types.UID("test-service-6"),
-					"identifiers": []string{"urn:endpoint:/test-cluster-name:10.100.200.2:85", "urn:endpoint:/test-cluster-name:10.100.200.2:10205",
+					"uid": types.UID("test-service-6"),
+					"identifiers": []string{
 						"urn:endpoint:/test-cluster-name:10.100.200.23", "urn:ingress-point:/34.100.200.15",
 						"urn:ingress-point:/64047e8f24bb48e9a406ac8286ee8b7d.eu-west-1.elb.amazonaws.com",
 						"urn:service:/test-cluster-name:test-namespace:test-service-6"},

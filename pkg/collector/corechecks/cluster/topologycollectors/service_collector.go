@@ -64,7 +64,7 @@ func (sc *ServiceCollector) CollectorFunction() error {
 					// check if the target reference is populated, so we can create relations
 					if address.TargetRef != nil {
 						switch kind := address.TargetRef.Kind; kind {
-						// add endpoint url as identifier and create service -> pod relation
+						// add endpoint url as identifier, will be used for service -> pod relation
 						case "Pod":
 							endpointID.RefExternalID = sc.buildPodExternalID(address.TargetRef.Name)
 						// ignore different Kind's for now, create no relation
@@ -83,14 +83,13 @@ func (sc *ServiceCollector) CollectorFunction() error {
 	for _, service := range services {
 		// creates and publishes StackState service component with relations
 		serviceID := buildServiceID(service.Namespace, service.Name)
-		serviceEndpoints := serviceEndpointIdentifiers[serviceID]
-		component := sc.serviceToStackStateComponent(service, serviceEndpoints)
+		component := sc.serviceToStackStateComponent(service)
 
 		sc.ComponentChan <- component
 
 		publishedPodRelations := make(map[string]string, 0)
-		for _, endpoint := range serviceEndpoints {
-			// create the relation between the pod and the service on the endpoint
+		for _, endpoint := range serviceEndpointIdentifiers[serviceID] {
+			// create the relation between the service and the pod
 			podExternalID := endpoint.RefExternalID
 			relationExternalID := fmt.Sprintf("%s->%s", component.ExternalID, podExternalID)
 
@@ -111,7 +110,7 @@ func (sc *ServiceCollector) CollectorFunction() error {
 }
 
 // Creates a StackState component from a Kubernetes / OpenShift Service
-func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, endpoints []EndpointID) *topology.Component {
+func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service) *topology.Component {
 	log.Tracef("Mapping kubernetes pod service to StackState component: %s", service.String())
 	// create identifier list to merge with StackState components
 	identifiers := make([]string, 0)
@@ -131,15 +130,6 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service, end
 				identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%d", ip, port.NodePort))
 			}
 		}
-	}
-
-	// all endpoints for this service
-	for _, endpoint := range endpoints {
-		// verify that the endpoint url is not empty
-		if endpoint.URL == "" {
-			continue
-		}
-		identifiers = append(identifiers, fmt.Sprintf("urn:endpoint:/%s:%s", sc.GetInstance().URL, endpoint.URL))
 	}
 
 	switch service.Spec.Type {
