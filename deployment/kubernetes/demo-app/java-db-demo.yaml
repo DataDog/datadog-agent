@@ -1,17 +1,3 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: db
-  labels:
-    app: stackstate-db
-spec:
-  ports:
-    - port: 5432
-      targetPort: 5432
-      name: db
-  selector:
-    app: stackstate-db
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,6 +5,7 @@ metadata:
   labels:
     app: stackstate-db
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: stackstate-db
@@ -40,6 +27,7 @@ spec:
           ports:
             - containerPort: 5432
               name: db
+              protocol: TCP
       hostPID: true
       imagePullSecrets:
         - name: docker-registry-key
@@ -47,17 +35,17 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: books-app
+  name: db
   labels:
-    app: stackstate-books-app
+    app: stackstate-db
 spec:
+  type: ClusterIP
   ports:
-    - port: 8080
-      targetPort: 8081
-      name: books-app
+    - port: 5432
+      targetPort: 5432
+      name: db
   selector:
-    app: stackstate-books-app
-  clusterIP: None
+    app: stackstate-db
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -77,9 +65,14 @@ spec:
       containers:
         - name: books-app
           image: quay.io/stackstate/stackstate-trace-java-demo:books-app-master
+          imagePullPolicy: Always
           ports:
             - containerPort: 8081
               name: books-app
+              protocol: TCP
+          env:
+          - name: MAVEN_OPTS
+            value: "-Dkubernetes.service.name=authors-app -Dkubernetes.service.port=8081 -Dsts.service.name=stackstate-demo-cluster:books-app -Dsts.agent.host=stackstate-agent -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
       hostPID: true
       imagePullSecrets:
         - name: docker-registry-key
@@ -87,17 +80,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: authors-app
+  name: books-app
   labels:
-    app: stackstate-authors-app
+    app: stackstate-books-app
 spec:
+  type: ClusterIP
   ports:
-    - port: 8080
-      targetPort: 8081
-      name: authors-app
+    - port: 8081
+      name: books-app
   selector:
-    app: stackstate-authors-app
-  clusterIP: None
+    app: stackstate-books-app
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -117,9 +109,44 @@ spec:
       containers:
         - name: authors-app
           image: quay.io/stackstate/stackstate-trace-java-demo:authors-app-master
+          imagePullPolicy: Always
           ports:
             - containerPort: 8081
               name: authors-app
+              protocol: TCP
+          env:
+            - name: MAVEN_OPTS
+              value: "-Dsts.service.name=stackstate-demo-cluster:authors-app -Dsts.agent.host=stackstate-agent -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
       hostPID: true
       imagePullSecrets:
         - name: docker-registry-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authors-app
+  labels:
+    app: stackstate-authors-app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8081
+      name: authors-app
+  selector:
+    app: stackstate-authors-app
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: books-app-curl
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: books-app-curl
+              image: curlimages/curl:7.67.0
+              args: [ "-v", "http://books-app:8081/stackstate-books-app/listbooks" ]
+          restartPolicy: Never
