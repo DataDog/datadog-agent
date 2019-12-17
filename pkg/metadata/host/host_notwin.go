@@ -18,17 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Collect at init time
-var cpuInfo []cpu.InfoStat
-
 // InitHostMetadata initializes necessary CPU info
 func InitHostMetadata() error {
 	var err error
-	cpuInfo, err = cpu.Info()
+	_, err = cpu.Info()
 
 	return err
 
 }
+
 func getSystemStats() *systemStats {
 	var stats *systemStats
 	key := buildKey("systemStats")

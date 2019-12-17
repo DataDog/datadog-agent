@@ -21,10 +21,10 @@ func formatUser(fp *process.FilledProcess) *model.ProcessUser {
 		if err == nil {
 			username = u.Username
 		}
-		uid = int32(fp.Uids[0])
+		uid = fp.Uids[0]
 	}
 	if len(fp.Gids) > 0 {
-		gid = int32(fp.Gids[0])
+		gid = fp.Gids[0]
 	}
 
 	return &model.ProcessUser{

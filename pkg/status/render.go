@@ -15,11 +15,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 var (
-	here, _        = executable.Folder()
 	fmap           = Fmap()
 	templateFolder string
 )

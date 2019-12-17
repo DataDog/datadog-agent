@@ -32,7 +32,7 @@ var (
 	tlmUDSOriginDetectionError = telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",
 		nil, "Dogstatsd UDS origin detection error count")
 
-	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
+	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes", // nolint unused for now
 		[]string{"state"}, "Dogstatsd UDS packets count")
 )
 

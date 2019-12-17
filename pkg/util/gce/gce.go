@@ -25,25 +25,6 @@ var (
 	CloudProviderName = "GCP"
 )
 
-type gceMetadata struct {
-	Instance gceInstanceMetadata
-	Project  gceProjectMetadata
-}
-
-type gceInstanceMetadata struct {
-	ID          int64
-	Tags        []string
-	Zone        string
-	MachineType string
-	Hostname    string
-	Attributes  map[string]string
-}
-
-type gceProjectMetadata struct {
-	ProjectID        string
-	NumericProjectID int64
-}
-
 // IsRunningOn returns true if the agent is running on GCE
 func IsRunningOn() bool {
 	if _, err := GetHostname(); err == nil {
