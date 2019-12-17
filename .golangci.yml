@@ -1,0 +1,60 @@
+run:
+  skip-files:
+    - cmd/agent/app/reloadcheck.go # ignore unused command for now
+    - cmd/agent/app/listchecks.go  # ignore unused command for now
+  skip-dirs:
+    # ignore test helper
+    - pkg/util/testutil
+
+    # TODO APM
+    - pkg/trace
+    # TODO metrics-aggregation
+    - pkg/quantile
+    # TODO burito
+    - pkg/ebpf
+    - pkg/procmatch
+    - cmd/process-agent
+    - cmd/system-probe
+    # TODO containers-integrations
+    - pkg/util/kubernetes
+    - pkg/clusteragent
+    - pkg/util/docker
+    - pkg/autodiscovery/listeners
+    - pkg/collector/corechecks/containers
+    - pkg/tagger
+    - pkg/util/containerd
+    - pkg/collector/corechecks/systemd
+    - pkg/util/containers
+
+issues:
+  exclude:
+    - "`eventContext` is unused"
+    - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
+    - "`defaultRetryDuration` is unused" # used by APM and Process
+    - "`defaultRetries` is unused"       # used by APM and Process
+    - "python._Ctype_char, which can be annoying to use" # ignore warning abour returning unexported field from CGO
+
+    # [Golint] Ignore package name repetition for checks since it makes code easier to read/maintain
+    - "type name will be used as jmx.JMXCheck by other packages, and that stutters"
+    - "type name will be used as jmx.JMXCheckLoader by other packages, and that stutters"
+    - "type name will be used as python.PythonCheck by other packages, and that stutters"
+    - "type name will be used as python.PythonStatsEntry by other packages, and that stutters"
+    - "type name will be used as python.PythonStats by other packages, and that stutters"
+    - "type name will be used as python.PythonCheckLoader by other packages, and that stutters"
+
+    # ignore warning on linux about fields used only on windows
+    - "`context` is unused"
+    - "`id` is unused"
+
+
+linters:
+  disable-all: true
+  enable:
+    - deadcode    # Finds unused code
+    - structcheck # Finds unused struct fields
+    - unconvert   # Remove unnecessary type conversions
+    - unused      # Checks Go code for unused constants, variables, functions and types
+    - ineffassign # Detects when assignments to existing variables are not used
+    - misspell    # Finds commonly misspelled English words in comments
+    - gofmt       # Gofmt checks whether code was gofmt-ed
+    - golint      # Golint differs from gofmt. Gofmt reformats Go source code, whereas golint prints out style mistakes
