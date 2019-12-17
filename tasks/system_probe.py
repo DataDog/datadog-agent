@@ -287,7 +287,7 @@ def build_object_files(ctx, install=True):
             debug_obj_file=debug_obj_file,
         ))
 
-        commands.append("gofmt -w {go_file}".format(go_file=go_file))
+        commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
 
     for cmd in commands:
         ctx.run(cmd)
