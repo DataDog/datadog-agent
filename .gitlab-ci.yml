@@ -1748,7 +1748,8 @@ testkitchen_cleanup_azure-a7:
   before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artifacts
   script:
-    - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
+    - ARTIFACTS_PATH=${ARTIFACTS_PATH:-$BUILD_CONTEXT}
+    - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $ARTIFACTS_PATH
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX-$ARCH
@@ -1951,6 +1952,7 @@ build_cluster_agent_amd64:
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles
+    ARTIFACTS_PATH: Dockerfiles/cluster-agent
     DOCKERFILE: Dockerfiles/cluster-agent/amd64/Dockerfile
 
 build_cluster_agent_arm64:
@@ -1960,6 +1962,7 @@ build_cluster_agent_arm64:
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles
+    ARTIFACTS_PATH: Dockerfiles/cluster-agent
     DOCKERFILE: Dockerfiles/cluster-agent/arm64/Dockerfile
 
 # build the dogstatsd image
