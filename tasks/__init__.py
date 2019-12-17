@@ -22,7 +22,7 @@ from . import (agent,
 )
 
 
-from .go import fmt, lint, vet, cyclo, ineffassign, misspell, deps, lint_licenses, reset
+from .go import fmt, lint, vet, cyclo, golangci_lint, deps, lint_licenses, reset
 from .test import test, integration_tests, lint_teamassignment, lint_releasenote, lint_milestone, lint_filenames, e2e_tests, make_kitchen_gitlab_yml
 from .build_tags import audit_tag_impact
 
@@ -34,8 +34,7 @@ ns.add_task(fmt)
 ns.add_task(lint)
 ns.add_task(vet)
 ns.add_task(cyclo)
-ns.add_task(ineffassign)
-ns.add_task(misspell)
+ns.add_task(golangci_lint)
 ns.add_task(test)
 ns.add_task(integration_tests)
 ns.add_task(deps)
