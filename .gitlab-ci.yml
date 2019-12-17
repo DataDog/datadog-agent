@@ -1752,13 +1752,14 @@ testkitchen_cleanup_azure-a7:
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX-$ARCH
+    - DOCKERFILE=${DOCKERFILE:-$BUILD_CONTEXT/$ARCH/Dockerfile}
     # Pull base image(s) with content trust enabled
     - pip install -r requirements.txt
-    - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/$ARCH/Dockerfile
+    - inv -e docker.pull-base-images --signed-pull $DOCKERFILE
     # Build testing stage if provided
-    - test "$TESTING_ARG" && docker build --file $BUILD_CONTEXT/$ARCH/Dockerfile $TESTING_ARG $BUILD_CONTEXT
+    - test "$TESTING_ARG" && docker build --file $DOCKERFILE $TESTING_ARG $BUILD_CONTEXT
     # Build release stage and push to ECR
-    - docker build $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --pull --tag $TARGET_TAG $BUILD_CONTEXT
+    - docker build $BUILD_ARG --file $DOCKERFILE --pull --tag $TARGET_TAG $BUILD_CONTEXT
     - docker push $TARGET_TAG
 
 .docker_build_job_definition_amd64: &docker_build_job_definition_amd64
@@ -1950,6 +1951,7 @@ build_cluster_agent_amd64:
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles
+    DOCKERFILE: Dockerfiles/cluster-agent/amd64/Dockerfile
 
 build_cluster_agent_arm64:
   <<: *docker_build_job_definition
@@ -1958,6 +1960,7 @@ build_cluster_agent_arm64:
   variables:
     IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles
+    DOCKERFILE: Dockerfiles/cluster-agent/arm64/Dockerfile
 
 # build the dogstatsd image
 build_dogstatsd_amd64:
