@@ -17,30 +17,29 @@ type TCPQueueLengthTracer struct {
 }
 
 type QueueLength struct {
-	Min uint32 `json: "min"`
-	Max uint32 `json: "max"`
+	Min uint32 `json:"min"`
+	Max uint32 `json:"max"`
 }
 
 type Stats struct {
-	Rqueue QueueLength `json: "read queue"`
-	Wqueue QueueLength `json: "write queue"`
+	Pid    uint32      `json:"pid"`
+	Rqueue QueueLength `json:"read queue"`
+	Wqueue QueueLength `json:"write queue"`
 }
 
 type Conn struct {
-	// Pid   uint64 `json: "pid"`
-	Saddr net.IP `json: "saddr"`
-	Daddr net.IP `json: "daddr"`
-	Sport uint16 `json: "sport"`
-	Dport uint16 `json: "dport"`
+	Saddr net.IP `json:"saddr"`
+	Daddr net.IP `json:"daddr"`
+	Sport uint16 `json:"sport"`
+	Dport uint16 `json:"dport"`
 }
 
 type StatLine struct {
-	Conn  Conn  `json: "conn"`
-	Stats Stats `json: "stats"`
+	Conn  Conn  `json:"conn"`
+	Stats Stats `json:"stats"`
 }
 
 type conn struct {
-	// Pid   uint64
 	Saddr uint32
 	Daddr uint32
 	Sport uint16
@@ -67,12 +66,30 @@ func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 		return nil, fmt.Errorf("Failed to attach tcp_recvmsg: %s\n", err)
 	}
 
+	kretprobe_recvmsg, err := m.LoadKprobe("kretprobe__tcp_recvmsg")
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load kretprobe__tcp_recvmsg: %s\n", err)
+	}
+
+	if err := m.AttachKretprobe("tcp_recvmsg", kretprobe_recvmsg, -1); err != nil {
+		return nil, fmt.Errorf("Failed to attach tcp_recvmsg: %s\n", err)
+	}
+
 	kprobe_sendmsg, err := m.LoadKprobe("kprobe__tcp_sendmsg")
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load kprobe__tcp_recvmsg: %s\n", err)
 	}
 
 	if err := m.AttachKprobe("tcp_sendmsg", kprobe_sendmsg, -1); err != nil {
+		return nil, fmt.Errorf("Failed to attach tcp_sendmsg: %s\n", err)
+	}
+
+	kretprobe_sendmsg, err := m.LoadKprobe("kretprobe__tcp_sendmsg")
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load kretprobe__tcp_recvmsg: %s\n", err)
+	}
+
+	if err := m.AttachKretprobe("tcp_sendmsg", kretprobe_sendmsg, -1); err != nil {
 		return nil, fmt.Errorf("Failed to attach tcp_sendmsg: %s\n", err)
 	}
 
@@ -109,7 +126,6 @@ func (t *TCPQueueLengthTracer) Get() []StatLine {
 
 		result = append(result, StatLine{
 			Conn: Conn{
-				// Pid:   c.Pid,
 				Saddr: saddr,
 				Daddr: daddr,
 				Sport: c.Sport,

@@ -1,14 +1,9 @@
 #include <linux/kconfig.h>
 #define KBUILD_MODNAME "foo"
-//#include <linux/compiler_types.h>
-//#define __inline __attribute__((always_inline))
 #include <linux/ptrace.h>
 #include <linux/bpf.h>
-/* #include </lib/modules/5.4.2-arch1-1/build/include/net/inet_sock.h> */
-#include </lib/modules/5.0.0-1022-gke/build/include/net/inet_sock.h>
+#include <net/inet_sock.h>
 #include <linux/tcp.h>
-
-//#include <bpf/bpf_helpers.h>
 
 struct queue_length {
   u32 min;
@@ -16,12 +11,12 @@ struct queue_length {
 };
 
 struct stats {
+  u32 pid;
   struct queue_length rqueue;
   struct queue_length wqueue;
 };
 
 struct conn {
-  /* u64 pid_tgid; */
   u32 saddr;
   u32 daddr;
   u16 sport;
@@ -31,13 +26,12 @@ struct conn {
 
 BPF_HASH(queue, struct conn, struct stats);
 
-BPF_HASH(who_recvmsg, pid_t, struct sock *);
-BPF_HASH(who_sendmsg, pid_t, struct sock *);
+BPF_HASH(who_recvmsg, u64, struct sock *);
+BPF_HASH(who_sendmsg, u64, struct sock *);
 
 static inline int check_sock(struct sock *sk) {
   const struct inet_sock *ip = inet_sk(sk);
   struct conn c;
-  /* c.pid_tgid = bpf_get_current_pid_tgid(); */
   bpf_probe_read(&c.saddr, sizeof(c.saddr), &ip->inet_saddr);
   bpf_probe_read(&c.daddr, sizeof(c.daddr), &ip->inet_daddr);
   bpf_probe_read(&c.sport, sizeof(c.sport), &ip->inet_sport);
@@ -70,6 +64,7 @@ static inline int check_sock(struct sock *sk) {
   struct stats *s = queue.lookup_or_init(&c, &zero);
 
   if (s) {
+    s->pid = bpf_get_current_pid_tgid() >> 32;
     if (rqueue > s->rqueue.max)
       s->rqueue.max = rqueue;
     if (rqueue < s->rqueue.min)
@@ -83,14 +78,46 @@ static inline int check_sock(struct sock *sk) {
   return 0;
 }
 
+// TODO: do not call the same check_sock() function in kretprobe.
+// The retrieval of the conn quadruplet can be done once and cached in the map
 int kprobe__tcp_recvmsg(struct pt_regs *ctx)
 {
   struct sock *sk = (struct sock *)ctx->di;
+
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+  who_recvmsg.insert(&pid_tgid, &sk);
+
   return check_sock(sk);
+}
+
+int kretprobe__tcp_recvmsg(struct pt_regs *ctx)
+{
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+  struct sock **sk = who_recvmsg.lookup(&pid_tgid);
+  who_recvmsg.delete(&pid_tgid);
+
+  if (sk)
+    return check_sock(*sk);
+  return 0;
 }
 
 int kprobe__tcp_sendmsg(struct pt_regs *ctx)
 {
   struct sock *sk = (struct sock *)ctx->di;
+
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+  who_sendmsg.insert(&pid_tgid, &sk);
+
   return check_sock(sk);
+}
+
+int kretprobe__tcp_sendmsg(struct pt_regs *ctx)
+{
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+  struct sock **sk = who_sendmsg.lookup(&pid_tgid);
+  who_sendmsg.delete(&pid_tgid);
+
+  if (sk)
+    return check_sock(*sk);
+  return 0;
 }
