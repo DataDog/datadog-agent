@@ -182,5 +182,5 @@ If the Datadog Agent is not installed, or if you do not want to edit your `datad
 **Important note**: 
 Running `invoke build`: 
   * Discards any changes done in `./bin/agent/dist` 
-  * Copy files from `./dev/dist` to `./bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/master/dev/dist/README.md` for more information.
+  * Copies files from `./dev/dist` to `./bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/master/dev/dist/README.md` for more information.
   * Copy `./pkg/config/config_template.yaml` to `./bin/agent/dist/datadog.yaml`
