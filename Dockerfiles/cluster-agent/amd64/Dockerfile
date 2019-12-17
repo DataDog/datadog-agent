@@ -11,11 +11,14 @@ COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
 COPY ./dist/templates opt/datadog-agent/bin/dist/templates
 COPY entrypoint.sh .
+COPY secrets-helper/readsecret.py /
 
 RUN chmod 755 entrypoint.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
-    && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent
+    && ln -s /opt/datadog-agent/bin/datadog-cluster-agent opt/datadog-agent/bin/agent \
+    && chown root:root /readsecret.py \
+    && chmod 500 /readsecret.py
 
 ####################################
 # Actual docker image construction #
