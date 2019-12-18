@@ -21,7 +21,7 @@ for more information.
 
 Except for the supported Python versions, v7.16.0 and v6.16.0 have the same features.
 
-- Please refer to the `7.16.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7160>`_ for the list of changes on the Core Checks
+Please refer to the `7.16.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7160>`_ for the list of changes on the Core Checks
 
 
 .. _Release Notes_7.16.0_New Features:
@@ -3807,4 +3807,3 @@ Other Notes
 - Refactor corecheck boilerplate in CheckBase
 
 - [flare] Rename config file dumped from memory
-
