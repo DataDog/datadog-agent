@@ -185,7 +185,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	metricSamplePool := metrics.NewMetricSamplePool(32)
-	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
+	aggregatorInstance := aggregator.InitAggregator(s, metricSamplePool, hname, "agent")
 	sampleC, eventC, serviceCheckC := aggregatorInstance.GetBufferedChannels()
 	statsd, err := dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
 	if err != nil {

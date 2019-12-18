@@ -132,14 +132,14 @@ func init() {
 }
 
 // InitAggregator returns the Singleton instance
-func InitAggregator(s serializer.MetricSerializer, hostname, agentName string) *BufferedAggregator {
-	return InitAggregatorWithFlushInterval(s, hostname, agentName, DefaultFlushInterval)
+func InitAggregator(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string) *BufferedAggregator {
+	return InitAggregatorWithFlushInterval(s, metricPool, hostname, agentName, DefaultFlushInterval)
 }
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
-func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = NewBufferedAggregator(s, hostname, agentName, flushInterval)
+		aggregatorInstance = NewBufferedAggregator(s, metricPool, hostname, agentName, flushInterval)
 		go aggregatorInstance.run()
 	})
 
@@ -164,7 +164,8 @@ func StopDefaultAggregator() {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	bufferedMetricIn       chan []*metrics.MetricSample
+	metricPool             *metrics.MetricSamplePool
+	bufferedMetricIn       chan []metrics.MetricSample
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
 	bufferedEventIn        chan []*metrics.Event
 
@@ -192,9 +193,10 @@ type BufferedAggregator struct {
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		bufferedMetricIn:       make(chan []*metrics.MetricSample, 100), // TODO make buffer size configurable
+		metricPool:             metricPool,
+		bufferedMetricIn:       make(chan []metrics.MetricSample, 100),  // TODO make buffer size configurable
 		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, 100), // TODO make buffer size configurable
 		bufferedEventIn:        make(chan []*metrics.Event, 100),        // TODO make buffer size configurable
 
@@ -259,7 +261,7 @@ func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan m
 }
 
 // GetBufferedChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
-func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.MetricSample, chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+func (agg *BufferedAggregator) GetBufferedChannels() (chan []metrics.MetricSample, chan []*metrics.Event, chan []*metrics.ServiceCheck) {
 	return agg.bufferedMetricIn, agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
@@ -642,9 +644,10 @@ func (agg *BufferedAggregator) run() {
 
 		case metrics := <-agg.bufferedMetricIn:
 			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
-			for _, sample := range metrics {
-				agg.addSample(sample, timeNowNano())
+			for i := 0; i < len(metrics); i++ {
+				agg.addSample(&metrics[i], timeNowNano())
 			}
+			agg.metricPool.PutBatch(metrics)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
 			for _, serviceCheck := range serviceChecks {

@@ -250,7 +250,7 @@ func StartAgent() error {
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
 	metricSamplePool := metrics.NewMetricSamplePool(32)
-	agg := aggregator.InitAggregator(s, hostname, "agent")
+	agg := aggregator.InitAggregator(s, metricSamplePool, hostname, "agent")
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd

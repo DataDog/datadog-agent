@@ -43,7 +43,7 @@ func buildPacketConent(numberOfMetrics int) []byte {
 	return []byte(rawPacket)
 }
 
-func BenchmarkParsePacket(b *testing.B) {
+func BenchmarkParsePackets(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
@@ -54,7 +54,8 @@ func BenchmarkParsePacket(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(pool, sampleOut, eventOut, scOut)
-		rawPacket := buildPacketConent(25)
+		// 32 packets of 20 samples
+		rawPacket := buildPacketConent(20 * 32)
 		packet := listeners.Packet{
 			Contents: rawPacket,
 			Origin:   listeners.NoOrigin,

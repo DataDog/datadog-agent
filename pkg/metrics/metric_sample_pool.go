@@ -22,10 +22,16 @@ func NewMetricSamplePool(batchSize int) *MetricSamplePool {
 
 // GetBatch gets a batch of metric samples from the pool
 func (m *MetricSamplePool) GetBatch() []MetricSample {
+	if m == nil {
+		return nil
+	}
 	return m.pool.Get().([]MetricSample)
 }
 
 // PutBatch puts a batch back into the pool
 func (m *MetricSamplePool) PutBatch(batch []MetricSample) {
+	if m == nil {
+		return
+	}
 	m.pool.Put(batch[:cap(batch)])
 }
