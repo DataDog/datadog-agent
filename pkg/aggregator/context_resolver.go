@@ -23,23 +23,25 @@ type Context struct {
 type ContextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
 	lastSeenByKey map[ckey.ContextKey]float64
+	keyGenerator  *ckey.KeyGenerator
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return ckey.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), metricSampleContext.GetTags())
+func (cr *ContextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), metricSampleContext.GetTags())
 }
 
 func newContextResolver() *ContextResolver {
 	return &ContextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
+		keyGenerator:  ckey.NewKeyGenerator(),
 	}
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *ContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) ckey.ContextKey {
-	contextKey := generateContextKey(metricSampleContext)
+	contextKey := cr.generateContextKey(metricSampleContext)
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
