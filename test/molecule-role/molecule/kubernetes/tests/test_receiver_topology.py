@@ -226,29 +226,29 @@ def test_agent_base_topology(host, ansible_var):
             type_name="scheduled_on",
             external_id_assert_fn=lambda eid: cluster_agent_pod_scheduled_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:pod:stackstate-cluster-agent" % cluster_name)
-        # Container -> Pod (enclosed in)
-        # stackstate-agent containers are enclosed_in a pod (2 times)
+        # Pod -> Container (encloses)
+        # stackstate-agent pod encloses a container (2 times)
         node_agent_container_enclosed_match = re.compile(
-            "urn:/kubernetes:%s:pod:stackstate-agent-.*:container:stackstate-agent->urn:/kubernetes:%s:pod:stackstate-agent-.*"
+            "urn:/kubernetes:%s:pod:stackstate-agent-.*->urn:/kubernetes:%s:pod:stackstate-agent-.*:container:stackstate-agent"
             % (cluster_name, cluster_name))
-        node_enclosed_source_id = _relation_data(
+        pod_encloses_source_id = _relation_data(
             json_data=json_data,
-            type_name="enclosed_in",
+            type_name="encloses",
             external_id_assert_fn=lambda eid: node_agent_container_enclosed_match.findall(eid)
         )
         assert re.match(
-            "urn:/kubernetes:%s:pod:stackstate-agent-.*:container:stackstate-agent"
-            % cluster_name, node_enclosed_source_id)
-        # stackstate-cluster-agent container are enclosed_in a pod (1 time)
+            "urn:/kubernetes:%s:pod:stackstate-agent-.*"
+            % cluster_name, pod_encloses_source_id)
+        # stackstate-cluster-agent pod encloses a container (1 time)
         cluster_agent_container_enclosed_match = re.compile(
-            "urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*:container:stackstate-cluster-agent->urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*"
+            "urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*->urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*:container:stackstate-cluster-agent"
             % (cluster_name, cluster_name))
-        node_enclosed_source_id = _relation_data(
+        pod_encloses_source_id = _relation_data(
             json_data=json_data,
-            type_name="enclosed_in",
+            type_name="encloses",
             external_id_assert_fn=lambda eid: cluster_agent_container_enclosed_match.findall(eid)
         )
-        assert re.match("urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*:container:stackstate-cluster-agent" % cluster_name, node_enclosed_source_id)
+        assert re.match("urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*" % cluster_name, pod_encloses_source_id)
         # Pod -> Service (exposes)
         # stackstate-agent exposes stackstate-agent pods (2 times)
         node_agent_service_match = re.compile("urn:/kubernetes:%s:service:%s:stackstate-cluster-agent->urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*" % (cluster_name, namespace, cluster_name))
