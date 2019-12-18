@@ -7,6 +7,7 @@ package dogstatsd
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
@@ -37,19 +38,23 @@ func BenchmarkParsePacket(b *testing.B) {
 func BenchmarkWithMapper(b *testing.B) {
 	datadogYaml := `
 dogstatsd_mapper_profiles:
-  - match: "airflow.job.duration.*.*"       # metric format: airflow.job.duration.<job_type>.<job_name>
-    name: "airflow.job.duration"            # remap the metric name
-    tags:
-      job_type: "$1"
-      job_name: "$2"
-  - match: "airflow.job.size.*.*"           # metric format: airflow.job.size.<job_type>.<job_name>
-    name: "airflow.job.size"                # remap the metric name
-    tags:
-      foo: "$1"
-      bar: "$2"
+  - name: airflow
+    prefix: 'airflow.'
+    mappings:
+      - match: "airflow.job.duration.*.*"       # metric format: airflow.job.duration.<job_type>.<job_name>
+        name: "airflow.job.duration"            # remap the metric name
+        tags:
+          job_type: "$1"
+          job_name: "$2"
+      - match: "airflow.job.size.*.*"           # metric format: airflow.job.size.<job_type>.<job_name>
+        name: "airflow.job.size"                # remap the metric name
+        tags:
+          foo: "$1"
+          bar: "$2"
 `
 	config.Datadog.SetConfigType("yaml")
-	config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
+	err := config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
+	assert.NoError(b, err)
 
 	BenchmarkMapperControl(b)
 }
