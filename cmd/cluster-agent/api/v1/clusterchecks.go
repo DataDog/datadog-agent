@@ -19,11 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	dcautil "github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// realIPHeader refers to the cluster level check runner ip passed in the request headers
-const realIPHeader = "X-Real-Ip"
 
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
@@ -55,7 +53,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		clientIP, err := validateClientIP(r.Header.Get(realIPHeader))
+		clientIP, err := validateClientIP(r.Header.Get(dcautil.RealIPHeader))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
