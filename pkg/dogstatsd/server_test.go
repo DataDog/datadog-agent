@@ -81,7 +81,7 @@ func TestUPDReceive(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
@@ -240,7 +240,7 @@ func TestUDPForward(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
@@ -277,7 +277,7 @@ func TestHistToDist(t *testing.T) {
 	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
 	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
@@ -317,7 +317,7 @@ func TestExtraTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
@@ -346,7 +346,7 @@ func TestExtraTags(t *testing.T) {
 }
 
 func TestDebugStats(t *testing.T) {
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
 	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)

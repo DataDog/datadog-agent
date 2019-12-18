@@ -14,8 +14,7 @@ func NewMetricSamplePool(batchSize int) *MetricSamplePool {
 	return &MetricSamplePool{
 		pool: &sync.Pool{
 			New: func() interface{} {
-				batch := make([]MetricSample, 0, batchSize)
-				return &batch
+				return make([]MetricSample, batchSize)
 			},
 		},
 	}
@@ -28,5 +27,5 @@ func (m *MetricSamplePool) GetBatch() []MetricSample {
 
 // PutBatch puts a batch back into the pool
 func (m *MetricSamplePool) PutBatch(batch []MetricSample) {
-	m.pool.Put(batch[:0])
+	m.pool.Put(batch[:cap(batch)])
 }

@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func parseAndEnrichMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
+func parseAndEnrichMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (metrics.MetricSample, error) {
 	parsed, err := parseMetricSample(message)
 	if err != nil {
-		return nil, err
+		return metrics.MetricSample{}, err
 	}
 	return enrichMetricSample(parsed, namespace, namespaceBlacklist, defaultHostname), nil
 }

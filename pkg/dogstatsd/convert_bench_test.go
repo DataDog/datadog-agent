@@ -17,7 +17,7 @@ func buildRawSample(tagCount int) []byte {
 }
 
 // used to store the result and avoid optimizations
-var sample *metrics.MetricSample
+var sample metrics.MetricSample
 
 func BenchmarkParseMetric(b *testing.B) {
 	for i := 1; i < 1000; i *= 4 {

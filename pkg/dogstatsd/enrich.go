@@ -68,7 +68,7 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 	return metrics.GaugeType
 }
 
-func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string) *metrics.MetricSample {
+func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string) metrics.MetricSample {
 	metricName := metricSample.name
 	if namespace != "" {
 		blacklisted := false
@@ -84,7 +84,7 @@ func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, na
 
 	tags, hostname := enrichTags(metricSample.tags, defaultHostname)
 
-	return &metrics.MetricSample{
+	return metrics.MetricSample{
 		Host:       hostname,
 		Name:       metricName,
 		Tags:       tags,

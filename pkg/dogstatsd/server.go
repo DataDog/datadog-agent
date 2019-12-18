@@ -54,7 +54,7 @@ type Server struct {
 	listeners             []listeners.StatsdListener
 	packetsIn             chan listeners.Packets
 	samplePool            *metrics.MetricSamplePool
-	samplesOut            chan<- []*metrics.MetricSample
+	samplesOut            chan<- []metrics.MetricSample
 	eventsOut             chan<- []*metrics.Event
 	servicesCheckOut      chan<- []*metrics.ServiceCheck
 	Statistics            *util.Stats
@@ -81,7 +81,7 @@ type metricStat struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []*metrics.MetricSample, eventsOut chan<- []*metrics.Event, servicesCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
+func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics.MetricSample, eventsOut chan<- []*metrics.Event, servicesCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -225,13 +225,14 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 }
 
 func (s *Server) worker() {
+	batcher := newBatcher(s.samplePool, s.samplesOut, s.eventsOut, s.servicesCheckOut)
 	for {
 		select {
 		case <-s.stopChan:
 			return
 		case <-s.health.C:
 		case packets := <-s.packetsIn:
-			s.parsePackets(packets)
+			s.parsePackets(batcher, packets)
 		}
 	}
 }
@@ -250,14 +251,10 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
-func (s *Server) parsePackets(packets []*listeners.Packet) {
-	var events []*metrics.Event
-	var serviceChecks []*metrics.ServiceCheck
-	var metricSamples []*metrics.MetricSample
-
+func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 	for _, packet := range packets {
 		originTags := findOriginTags(packet.Origin)
-		log.Tracef("Dogstatsd receive: %s", packet.Contents)
+		//log.Tracef("Dogstatsd receive: %s", packet.Contents)
 		for {
 			message := nextMessage(&packet.Contents)
 			if message == nil {
@@ -276,7 +273,7 @@ func (s *Server) parsePackets(packets []*listeners.Packet) {
 					continue
 				}
 				serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
-				serviceChecks = append(serviceChecks, serviceCheck)
+				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
 				event, err := s.parseEventMessage(message)
 				if err != nil {
@@ -284,7 +281,7 @@ func (s *Server) parsePackets(packets []*listeners.Packet) {
 					continue
 				}
 				event.Tags = append(event.Tags, originTags...)
-				events = append(events, event)
+				batcher.appendEvent(event)
 			case metricSampleType:
 				sample, err := s.parseMetricMessage(message)
 				if err != nil {
@@ -295,32 +292,24 @@ func (s *Server) parsePackets(packets []*listeners.Packet) {
 					s.storeMetricStats(sample.Name)
 				}
 				sample.Tags = append(sample.Tags, originTags...)
-				metricSamples = append(metricSamples, sample)
+				batcher.appendSample(sample)
 				if s.histToDist && sample.Mtype == metrics.HistogramType {
 					distSample := sample.Copy()
 					distSample.Name = s.histToDistPrefix + distSample.Name
 					distSample.Mtype = metrics.DistributionType
-					metricSamples = append(metricSamples, distSample)
+					batcher.appendSample(*distSample)
 				}
 			}
 		}
 	}
-	if len(serviceChecks) > 0 {
-		s.servicesCheckOut <- serviceChecks
-	}
-	if len(events) > 0 {
-		s.eventsOut <- events
-	}
-	if len(metricSamples) > 0 {
-		s.samplesOut <- metricSamples
-	}
+	batcher.flush()
 }
 
-func (s *Server) parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
+func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error) {
 	sample, err := parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
-		return nil, err
+		return metrics.MetricSample{}, err
 	}
 	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
