@@ -3,7 +3,6 @@ package dogstatsd
 import (
 	"bytes"
 	"fmt"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -79,11 +78,11 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	}
 	rawTitleLength := rawLengths[:sepIndex]
 	rawTextLength := rawLengths[sepIndex+1:]
-	titleLength, err := strconv.ParseInt(string(rawTitleLength), 10, 32)
+	titleLength, err := parseInt64(rawTitleLength)
 	if err != nil {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
-	textLength, err := strconv.ParseInt(string(rawTextLength), 10, 32)
+	textLength, err := parseInt64(rawTextLength)
 	if err != nil {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
@@ -98,7 +97,7 @@ func cleanEventText(text []byte) []byte {
 }
 
 func parseEventTimestamp(rawTimestamp []byte) (int64, error) {
-	return strconv.ParseInt(string(rawTimestamp), 10, 64)
+	return parseInt64(rawTimestamp)
 }
 
 func parseEventPriority(rawPriority []byte) (eventPriority, error) {
