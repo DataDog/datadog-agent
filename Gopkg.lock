@@ -1294,6 +1294,14 @@
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:1127282cb88e5c41a212d0c56cb892be494ae315822eb7d1f32ba9e47163a277"
+  name = "github.com/twmb/murmur3"
+  packages = ["."]
+  pruneopts = ""
+  revision = "b0c3ada27de84fabb1f036561c0c8c03b1115b77"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:444c05e2a216066b0def62df62e3cef74d51f5ea0ecd6547a100daa2281547ff"
   name = "github.com/ugorji/go"
   packages = ["codec"]
@@ -2087,7 +2095,6 @@
     "github.com/DataDog/gopsutil/host",
     "github.com/DataDog/gopsutil/mem",
     "github.com/DataDog/gopsutil/process",
-    "github.com/DataDog/mmh3",
     "github.com/DataDog/viper",
     "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned",
@@ -2177,6 +2184,7 @@
     "github.com/stretchr/testify/require",
     "github.com/stretchr/testify/suite",
     "github.com/tinylib/msgp/msgp",
+    "github.com/twmb/murmur3",
     "github.com/urfave/negroni",
     "golang.org/x/mobile/asset",
     "golang.org/x/net/context",
