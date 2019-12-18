@@ -86,6 +86,8 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
     exit 1;
   fi
   dd_agent_major_version=$DD_AGENT_MAJOR_VERSION
+else
+  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
 fi
 
 dd_agent_dist_channel=stable
