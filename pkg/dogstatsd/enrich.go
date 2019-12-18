@@ -54,10 +54,10 @@ func enrichTags(tags []string, defaultHostname string) ([]string, string) {
 	n := 0
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, hostTagPrefix) {
-			host = string(tag[len(hostTagPrefix):])
+			host = tag[len(hostTagPrefix):]
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
 			// currently only supported for pods
-			entity := kubelet.KubePodTaggerEntityPrefix + string(tag[len(entityIDTagPrefix):])
+			entity := kubelet.KubePodTaggerEntityPrefix + tag[len(entityIDTagPrefix):]
 			entityTags, err := getTags(entity, tagger.DogstatsdCardinality)
 			if err != nil {
 				log.Tracef("Cannot get tags for entity %s: %s", entity, err)
@@ -93,7 +93,7 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 }
 
 func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string) *metrics.MetricSample {
-	metricName := string(metricSample.name)
+	metricName := metricSample.name
 	if namespace != "" {
 		blacklisted := false
 		for _, prefix := range namespaceBlacklist {
@@ -115,7 +115,7 @@ func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, na
 		Mtype:      enrichMetricType(metricSample.metricType),
 		Value:      metricSample.value,
 		SampleRate: metricSample.sampleRate,
-		RawValue:   string(metricSample.setValue),
+		RawValue:   metricSample.setValue,
 	}
 }
 
@@ -147,18 +147,18 @@ func enrichEvent(event dogstatsdEvent, defaultHostname string) *metrics.Event {
 	tags, hostFromTags := enrichTags(event.tags, defaultHostname)
 
 	enrichedEvent := &metrics.Event{
-		Title:          string(event.title),
-		Text:           string(event.text),
+		Title:          event.title,
+		Text:           event.text,
 		Ts:             event.timestamp,
 		Priority:       enrichEventPriority(event.priority),
 		Tags:           tags,
 		AlertType:      enrichEventAlertType(event.alertType),
-		AggregationKey: string(event.aggregationKey),
-		SourceTypeName: string(event.sourceType),
+		AggregationKey: event.aggregationKey,
+		SourceTypeName: event.sourceType,
 	}
 
 	if len(event.hostname) != 0 {
-		enrichedEvent.Host = string(event.hostname)
+		enrichedEvent.Host = event.hostname
 	} else {
 		enrichedEvent.Host = hostFromTags
 	}
@@ -183,15 +183,15 @@ func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname stri
 	tags, hostFromTags := enrichTags(serviceCheck.tags, defaultHostname)
 
 	enrichedServiceCheck := &metrics.ServiceCheck{
-		CheckName: string(serviceCheck.name),
+		CheckName: serviceCheck.name,
 		Ts:        serviceCheck.timestamp,
 		Status:    enrichServiceCheckStatus(serviceCheck.status),
-		Message:   string(serviceCheck.message),
+		Message:   serviceCheck.message,
 		Tags:      tags,
 	}
 
 	if len(serviceCheck.hostname) != 0 {
-		enrichedServiceCheck.Host = string(serviceCheck.hostname)
+		enrichedServiceCheck.Host = serviceCheck.hostname
 	} else {
 		enrichedServiceCheck.Host = hostFromTags
 	}
