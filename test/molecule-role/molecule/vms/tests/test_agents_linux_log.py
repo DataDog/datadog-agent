@@ -23,18 +23,26 @@ def test_stackstate_agent_log(host, hostname):
 
     util.wait_until(wait_for_check_successes, 30, 3)
 
+    ignored_errors_regex = [
+        # TODO: Collecting processes snap -> Will be addressed with STAC-3531
+        "Error code \"400 Bad Request\" received while "
+        "sending transaction to \"https://.*/stsAgent/intake/.*"
+        "Failed to deserialize JSON on fields: , "
+        "with message: Object is missing required member \'internalHostname\'",
+        "net/ntp.go.*There was an error querying the ntp host",
+    ]
+
     # Check for errors
     agent_log = _get_log(host, hostname, agent_log_path)
     for line in agent_log.splitlines():
-        print("Considering: %s" % line)
-        # TODO: Collecting processes snap -> Will be addressed with STAC-3531
-        if re.search("Error code \"400 Bad Request\" received while "
-                     "sending transaction to \"https://.*/stsAgent/intake/.*"
-                     "Failed to deserialize JSON on fields: , "
-                     "with message: Object is missing required member \'internalHostname\'",
-                     line):
+        ignored = False
+        for ignored_error in ignored_errors_regex:
+            if len(re.findall(ignored_error, line, re.DOTALL)) > 0:
+                ignored = True
+        if ignored:
             continue
 
+        print("Considering: %s" % line)
         assert not re.search("error", line, re.IGNORECASE)
 
 

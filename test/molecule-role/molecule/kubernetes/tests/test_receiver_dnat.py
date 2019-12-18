@@ -9,18 +9,17 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('kubernetes-cluster-agent')
 
 kubeconfig_env = "KUBECONFIG=/home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig "
-namespace = os.environ['AGENT_CURRENT_BRANCH'].lower()
 
 
-def _get_pod_ip(host, pod_name):
-    pod_server_c = kubeconfig_env + "kubectl get pods/%s -o json --namespace=%s" % (pod_name, namespace)
+def _get_pod_ip(host, namespace, pod_name):
+    pod_server_c = kubeconfig_env + "kubectl get pods/{0} -o json --namespace={1}".format(pod_name, namespace)
     pod_server_exec = host.check_output(pod_server_c)
     pod_server_data = json.loads(pod_server_exec)
     return pod_server_data["status"]["podIP"]
 
 
-def _get_service_ip(host):
-    service_c = kubeconfig_env + "kubectl get service/pod-service -o json --namespace=%s" % (namespace)
+def _get_service_ip(host, namespace):
+    service_c = kubeconfig_env + "kubectl get service/pod-service -o json --namespace={0}".format(namespace)
     pod_service_exec = host.check_output(service_c)
     pod_service_data = json.loads(pod_service_exec)
     return pod_service_data["spec"]["clusterIP"]
@@ -63,12 +62,13 @@ def _relation_data(json_data, type_name, external_id_assert_fn):
 
 
 @pytest.mark.last
-def test_dnat(host, common_vars):
+def test_dnat(host, ansible_var):
     url = "http://localhost:7070/api/topic/sts_topo_process_agents?limit=1000"
 
-    dnat_service_port = int(common_vars["dnat_service_port"])
-    dnat_server_port = int(common_vars["dnat_server_port"])
-    cluster_name = common_vars['cluster_name']
+    dnat_service_port = int(ansible_var("dnat_service_port"))
+    dnat_server_port = int(ansible_var("dnat_server_port"))
+    cluster_name = ansible_var("cluster_name")
+    namespace = ansible_var("namespace")
 
     def wait_for_components():
         data = host.check_output("curl \"%s\"" % url)
@@ -76,9 +76,9 @@ def test_dnat(host, common_vars):
         with open("./topic-topo-process-agents-dnat.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
-        pod_server_ip = _get_pod_ip(host, "pod-server")
-        pod_service_ip = _get_service_ip(host)
-        pod_client = _get_pod_ip(host, "pod-client")
+        pod_server_ip = _get_pod_ip(host, namespace, "pod-server")
+        pod_service_ip = _get_service_ip(host, namespace)
+        pod_client = _get_pod_ip(host, namespace, "pod-client")
 
         endpoint_match = re.compile("urn:endpoint:/.*:{}".format(pod_service_ip))
         endpoint = _find_component(

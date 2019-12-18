@@ -20,10 +20,10 @@ def _get_pods(host, controller_name):
 def _get_log(host, pod):
     cmd = host.ansible("shell", kubeconfig_env + "/usr/local/bin/kubectl logs " + pod, check=False)
     assert cmd["rc"] == 0
-    stackstate_agent_log = cmd["stdout"]
+    agent_log = cmd["stdout"]
     with open("./stackstate-agent-%s.log" % pod, 'wb') as f:
-        f.write(stackstate_agent_log.encode('utf-8'))
-    return stackstate_agent_log
+        f.write(agent_log.encode('utf-8'))
+    return agent_log
 
 
 def _check_logs(host, controller_name, success_regex, ignored_errors_regex):
@@ -60,7 +60,6 @@ def test_stackstate_agent_log_no_errors(host):
         "clusteragent/clusteragent.go.*temporary failure in clusterAgentClient",  # happens when agents start together
         "collectors/kubernetes_main.go.*temporary failure in clusterAgentClient",
         "kubernetes/apiserver/apiserver.go.*temporary failure in apiserver",
-
     ]
     _check_logs(host, "stackstate-agent", "Successfully posted payload to.*stsAgent/api/v1", ignored_errors_regex)
 
