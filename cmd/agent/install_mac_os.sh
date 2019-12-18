@@ -40,11 +40,11 @@ else
   echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
 fi
 
-dmg_file="datadogagent.dmg"
+dmg_remote_file="datadogagent.dmg"
 if [ "$dd_agent_major_version" = "7" ]; then
-    dmg_file="datadog-agent-7-latest.dmg"
+    dmg_remote_file="datadog-agent-7-latest.dmg"
 fi
-dmg_url="$dmg_base_url/$dmg_file"
+dmg_url="$dmg_base_url/$dmg_remote_file"
 
 if [ $dd_upgrade ]; then
     if [ ! -f /opt/datadog-agent/etc/datadog.conf ]; then
