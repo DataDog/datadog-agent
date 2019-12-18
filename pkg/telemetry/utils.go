@@ -1,10 +1,18 @@
 package telemetry
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 // IsCheckEnabled returns if we want telemetry for the given check.
 // Returns true if a * is present in the telemetry.checks list.
 func IsCheckEnabled(checkName string) bool {
+	// false if telemetry is disabled
+	if !config.Datadog.IsSet("telemetry.enabled") ||
+		config.Datadog.GetBool("telemetry.enabled") == false {
+		return false
+	}
+
 	// by default, we don't enable telemetry for every checks stats
 	if config.Datadog.IsSet("telemetry.checks") {
 		for _, check := range config.Datadog.GetStringSlice("telemetry.checks") {
