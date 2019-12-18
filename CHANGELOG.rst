@@ -12,12 +12,16 @@ Release Notes
 Prelude
 -------
 
+Release on: 2019-12-18
+
 This release introduces major version 7 of the Datadog Agent, which starts at v7.16.0. The only change from Agent v6 is that
 v7 defaults to Python 3 and only includes support for Python 3. Before upgrading to v7, confirm that any
 custom checks you have are compatible with Python 3. See this `guide <https://docs.datadoghq.com/agent/guide/python-3/>`_
 for more information.
 
 Except for the supported Python versions, v7.16.0 and v6.16.0 have the same features.
+
+- Please refer to the `7.16.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7160>`_ for the list of changes on the Core Checks
 
 
 .. _Release Notes_7.16.0_New Features:
@@ -69,10 +73,10 @@ Bug Fixes
 - The default list of sensitive keywords for process argument scrubbing now uses wildcards before and after.
 
 - On Windows process agent, fix problem wherein if the agent is unable
-  to figure out the process' user name, the process info/stats were not
+  to figure out the process user name, the process info/stats were not
   sent at all.  Now sends all relevant stats without the username
 
-- On windows, correctly deletes python 3 precompiled files (py3) in
+- On windows, correctly deletes python 3 precompiled files (.pyc) in
   the event of an installation failure and rollback
 
 - Logs: tailed files discovered through a configuration entry with
