@@ -162,7 +162,17 @@ if [ $OS = "RedHat" ]; then
 
     printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
     $sudo_cmd yum -y clean metadata
-    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install datadog-agent || $sudo_cmd yum -y install datadog-agent
+
+    dnf_flag=""
+    if [ -f "/etc/fedora-release" ]; then
+      # On Fedora, yum is an alias of dnf, dnf install doesn't
+      # upgrade a package if a newer version is available, until
+      # the --best flag is set
+      dnf_flag="--best"
+    fi
+
+    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag datadog-agent || $sudo_cmd yum -y install $dnf_flag datadog-agent
+
 elif [ $OS = "Debian" ]; then
 
     printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
