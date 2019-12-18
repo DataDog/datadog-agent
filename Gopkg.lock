@@ -2,15 +2,15 @@
 
 
 [[projects]]
-  digest = "1:c4e071eb2f960b14286f0fe2057d4f87dfd83c840c059377f01c37b5112595ed"
+  digest = "1:e2fc614bdd3a92702f18c139dc28bf99c96296d89d3c7076ec8f7b3562c094a9"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "8cebd5a06a08dc27a4d822940f5275b0fa41aa34"
-  version = "4.15.0"
+  revision = "a50316bb3ffc06088cdfa8c2a7eda3fd19d2d0cc"
+  version = "4.19.0"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -51,7 +51,6 @@
   revision = "833e93ecbcfd25e491eceea5e42c49c22dac7ed1"
 
 [[projects]]
-  branch = "master"
   digest = "1:eb704e209bd926f5f44c97c0646cd20906c1cd714ba7a5ad4dc70f37ca98c7c0"
   name = "github.com/DataDog/mmh3"
   packages = ["."]
@@ -1999,7 +1998,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
+  digest = "0:"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
