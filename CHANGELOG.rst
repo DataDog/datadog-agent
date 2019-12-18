@@ -14,7 +14,7 @@ Prelude
 
 This release introduces major version 7 of the Datadog Agent, which starts at v7.16.0. The only change from Agent v6 is that
 v7 defaults to Python 3 and only includes support for Python 3. Before upgrading to v7, confirm that any
-custom checks you have are compatible with Python 3. See this ``guide <https://docs.datadoghq.com/agent/guide/python-3/>``_
+custom checks you have are compatible with Python 3. See this `guide <https://docs.datadoghq.com/agent/guide/python-3/>`_
 for more information.
 
 Except for the supported Python versions, v7.16.0 and v6.16.0 have the same features.
@@ -48,7 +48,7 @@ Enhancement Notes
 - Adds a new ``flare_stripped_keys`` config setting to clean up additional
   configuration information from flare.
 
-- Adding a new config option "exclude_gce_tags", to configure which metadata
+- Adding a new config option ``exclude_gce_tags``, to configure which metadata
   attribute from Google Cloud Engine to exclude from being converted into
   host tags.
 
@@ -91,7 +91,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- JMXFetch upgraded to ``0.33.1 <https://github.com/DataDog/jmxfetch/releases/0.33.1>``_
+- JMXFetch upgraded to `0.33.1 <https://github.com/DataDog/jmxfetch/releases/0.33.1>`_
 
 - JQuery, used in the web base agent GUI, has been upgraded to 3.4.1
 
