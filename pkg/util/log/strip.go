@@ -84,6 +84,18 @@ func matchCert() *regexp.Regexp {
 	)
 }
 
+// AddStrippedKeys allows configuration keys cleaned up
+func AddStrippedKeys(strippedKeys []string) {
+	if len(strippedKeys) > 0 {
+		configReplacer := Replacer{
+			Regex: matchYAMLKey(fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|"))),
+			Hints: strippedKeys,
+			Repl:  []byte(`$1 ********`),
+		}
+		singleLineReplacers = append(singleLineReplacers, configReplacer)
+	}
+}
+
 // CredentialsCleanerFile scrubs credentials from file in path
 func CredentialsCleanerFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)

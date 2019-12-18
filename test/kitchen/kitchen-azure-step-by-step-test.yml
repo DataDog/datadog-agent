@@ -8,16 +8,9 @@ suites:
     apt:
       unattended_upgrades:
         enable: false
-    datadog:
-      agent6: true
     dd-agent-step-by-step:
       <% dd_agent_config.each do |key, value| %>
       <%= key %>: <%= value %>
       <% end %>
-      api_key: <%= api_key %>
-      repo_branch_apt: pipeline-<%= ENV['DD_PIPELINE_ID'] %>
-      repo_branch_yum: pipeline-<%= ENV['DD_PIPELINE_ID'] %>
-      candidate_repo_branch: pipeline-<%= ENV['DD_PIPELINE_ID'] %>
-      install_candidate: true
     dd-agent-rspec:
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

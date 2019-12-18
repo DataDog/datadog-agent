@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -129,6 +130,10 @@ var checkCmd = &cobra.Command{
 		s := serializer.NewSerializer(common.Forwarder)
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+
+		if config.Datadog.GetBool("inventories_enabled") {
+			metadata.SetupInventoriesExpvar(common.AC, common.Coll)
+		}
 
 		allConfigs := common.AC.GetAllConfigs()
 
@@ -285,8 +290,9 @@ var checkCmd = &cobra.Command{
 				}
 
 				instanceData := map[string]interface{}{
-					"aggregator": aggregatorData,
-					"runner":     runnerData,
+					"aggregator":  aggregatorData,
+					"runner":      runnerData,
+					"inventories": collectorData["inventories"],
 				}
 				instancesData = append(instancesData, instanceData)
 			} else if profileMemory {

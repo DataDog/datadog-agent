@@ -12,6 +12,7 @@ NOTE: Changes made to this template should be reflected on the following templat
   {{- if .python_version }}
   Python Version: {{.python_version}}
   {{- end }}
+  Build arch: {{.build_arch}}
   {{- if .runnerStats.Workers}}
   Check Runners: {{.runnerStats.Workers}}
   {{end -}}
@@ -75,6 +76,12 @@ NOTE: Changes made to this template should be reflected on the following templat
   {{- end }}
   {{- if .hostnameStats.errors.all }}
     error: {{.hostnameStats.errors.all}}
+  {{- end }}
+
+  Metadata
+  ========
+  {{- range $key, $value := .agent_metadata }}
+    {{ $key }}: {{ $value }}
   {{- end }}
 
 {{- if .leaderelection}}

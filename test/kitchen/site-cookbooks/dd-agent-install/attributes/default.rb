@@ -1,29 +1,41 @@
+#
+# Linux options (Linux uses the official datadog cookbook)
+#
+
+default['datadog']['agent_start'] = true
+default['datadog']['agent_enable'] = true
+
+# On SUSE 11, skip system-probe management since it's not shipped with the Agent.
+if node['platform_family'] == 'suse' && node['platform_version'].to_i <= 11
+  default['datadog']['system_probe']['manage_config'] = false
+end
+
+# All other options use the defaults set in the official cookbook,
+# or the options set in the kitchen job (eg. aptrepo, yumrepo, etc.)
+
+#
+# Windows options (Windows uses the custom dd-agent-install cookbook)
+#
+
+# The dd-agent-install recipe is a copy of the official install recipe,
+# the only difference being the command used to install the Agent.
+# Here, we add a start /wait to the command, otherwise chef doesn't wait 
+# for the Agent to be installed before ending its run.
+# This behavior could make kitchen tests fail, because we would start testing
+# the Agent before it is ready.
+
 default['dd-agent-install']['api_key'] = nil
-default['dd-agent-install']['version'] = nil # => install the latest available version
-default['dd-agent-upgrade']['windows_version'] = nil # => install the latest available version
-default['dd-agent-install']['add_new_repo'] = false # If set to true, be sure to set aptrepo and yumrepo
-default['dd-agent-install']['aptrepo'] =  nil
-default['dd-agent-install']['yumrepo'] = nil
-default['dd-agent-install']['package_name'] = 'datadog-agent'
-default['dd-agent-install']['version'] = nil
-default['dd-agent-install']['agent6'] = nil
+default['dd-agent-install']['agent_major_version'] = nil
+default['dd-agent-install']['windows_version'] = nil # => install the latest available version
 default['dd-agent-install']['windows_agent_checksum'] = nil
 default['dd-agent-install']['windows_agent_url'] = 'https://s3.amazonaws.com/ddagent-windows-stable/'
 
 default['dd-agent-install']['agent_package_retries'] = nil
 default['dd-agent-install']['agent_package_retry_delay'] = nil
-if node['platform_family'] == 'windows'
-  default['dd-agent-install']['config_dir'] = "#{ENV['ProgramData']}/Datadog"
-  default['dd-agent-install']['agent_name'] = 'DatadogAgent'
-  default['dd-agent-install']['agent6_config_dir'] = "#{ENV['ProgramData']}/Datadog"
-  # Some settings from the chef recipe it needs
-  default['datadog']['config_dir'] = "#{ENV['ProgramData']}/Datadog"
-  default['datadog']['agent_name'] = 'DatadogAgent'
-  default['datadog']['agent6_config_dir'] = "#{ENV['ProgramData']}/Datadog"
-else
-  default['dd-agent-install']['config_dir'] = '/etc/dd-agent'
-  default['dd-agent-install']['agent_name'] = 'datadog-agent'
-end
+default['dd-agent-install']['config_dir'] = "#{ENV['ProgramData']}/Datadog"
+default['dd-agent-install']['agent_name'] = 'DatadogAgent'
+default['dd-agent-install']['agent6_config_dir'] = "#{ENV['ProgramData']}/Datadog"
+
 # Enable the agent to start at boot
 default['dd-agent-install']['agent_enable'] = true
 
@@ -31,9 +43,6 @@ default['dd-agent-install']['agent_enable'] = true
 default['dd-agent-install']['agent_start'] = true
 default['dd-agent-install']['enable_trace_agent'] = true
 default['dd-agent-install']['enable_process_agent'] = true
-
-default['datadog']['agent_start'] = true
-default['datadog']['agent_enable'] = true
 
 # Set the defaults from the chef recipe
 default['dd-agent-install']['extra_endpoints']['prod']['enabled'] = nil
@@ -52,12 +61,7 @@ default['dd-agent-install']['syslog']['active'] = false
 default['dd-agent-install']['syslog']['udp'] = false
 default['dd-agent-install']['syslog']['host'] = nil
 default['dd-agent-install']['syslog']['port'] = nil
-default['dd-agent-install']['log_file_directory'] =
-  if node['platform_family'] == 'windows'
-    nil # let the agent use a default log file dir
-  else
-    '/var/log/datadog'
-  end
+default['dd-agent-install']['log_file_directory'] = nil
 default['dd-agent-install']['process_agent']['blacklist'] = nil
 default['dd-agent-install']['process_agent']['container_blacklist'] = nil
 default['dd-agent-install']['process_agent']['container_whitelist'] = nil

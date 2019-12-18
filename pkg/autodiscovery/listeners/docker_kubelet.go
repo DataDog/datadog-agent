@@ -29,6 +29,9 @@ type DockerKubeletService struct {
 	sync.RWMutex
 }
 
+// Make sure DockerKubeletService implements the Service interface
+var _ Service = &DockerKubeletService{}
+
 // getPod wraps KubeUtil init and pod lookup for both public methods.
 func (s *DockerKubeletService) getPod() (*kubelet.Pod, error) {
 	if s.kubeUtil == nil {
@@ -104,4 +107,10 @@ func (s *DockerKubeletService) IsReady() bool {
 	}
 
 	return kubelet.IsPodReady(pod)
+}
+
+// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
+// DockerKubeletService doesn't implement this method
+func (s *DockerKubeletService) GetCheckNames() []string {
+	return nil
 }

@@ -2,7 +2,147 @@
 Release Notes
 =============
 
+.. _Release Notes_7.16.0:
+
+7.16.0 / 6.16.0
+======
+
+.. _Release Notes_7.16.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-12-18
+
+This release introduces major version 7 of the Datadog Agent, which starts at v7.16.0. The only change from Agent v6 is that
+v7 defaults to Python 3 and only includes support for Python 3. Before upgrading to v7, confirm that any
+custom checks you have are compatible with Python 3. See this `guide <https://docs.datadoghq.com/agent/guide/python-3/>`_
+for more information.
+
+Except for the supported Python versions, v7.16.0 and v6.16.0 have the same features.
+
+Please refer to the `7.16.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7160>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.16.0_New Features:
+
+New Features
+------------
+
+- Add support for SysVInit on SUSE 11.
+
+- Add information on endpoints inside the logs-agent section of the agent status.
+
+
+.. _Release Notes_7.16.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add Python 3 linter results to status page
+
+- Log a warning when the hostname defined in the configuration will not be used as the in-app hostname.
+
+- Add ``ignore_autodiscovery_tags`` parameter config check.
+  
+  In some cases, a check should not receive tags coming from the autodiscovery listeners.
+  By default ``ignore_autodiscovery_tags`` is set to false which doesn't change the behavior of the checks.
+  The first check that will use it is ``kubernetes_state``.
+
+- Adds a new ``flare_stripped_keys`` config setting to clean up additional
+  configuration information from flare.
+
+- Adding a new config option ``exclude_gce_tags``, to configure which metadata
+  attribute from Google Cloud Engine to exclude from being converted into
+  host tags.
+
+- Extends the docker and containerd checks to include an open file descriptors
+  metric. This metric reports the number of open file descriptors per container.
+
+- Allow the Agent to schedule different checks from different sources on the same service.
+
+
+.. _Release Notes_7.16.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Added a fallback into the SQL obfuscator to handle SQL engines that treat
+  backslashes literally.
+
+- The default list of sensitive keywords for process argument scrubbing now uses wildcards before and after.
+
+- On Windows process agent, fix problem wherein if the agent is unable
+  to figure out the process user name, the process info/stats were not
+  sent at all.  Now sends all relevant stats without the username
+
+- On windows, correctly deletes python 3 precompiled files (.pyc) in
+  the event of an installation failure and rollback
+
+- Logs: tailed files discovered through a configuration entry with
+  wildcard will properly have the ``dirname`` tag on all log entries.
+
+- Fix small memory leak in ``datadog_agent.set_external_tags`` when an empty
+  source_type dict is passed for a given hostname.
+
+- Carry a custom patch for jaydebeapi to support latest jpype.
+
+- Check that cluster-name provided by configuraiton file are compliant with the same rule as on GKE. Logs an error and ignore it otherwise.
+
+
+.. _Release Notes_7.16.0_Other Notes:
+
+Other Notes
+-----------
+
+- JMXFetch upgraded to `0.33.1 <https://github.com/DataDog/jmxfetch/releases/0.33.1>`_
+
+- JQuery, used in the web base agent GUI, has been upgraded to 3.4.1
+
+
+.. _Release Notes_6.15.1:
+
+6.15.1
+======
+
+.. _Release Notes_6.15.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-11-27
+This release was published for Windows on 2019-12-09.
+
+.. _Release Notes_6.15.1_New Features:
+
+New Features
+------------
+
+- Collect IP address from containers in awsvpc mode
+
+.. _Release Notes_6.15.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Reintroduce legacy checks directory to make legacy AgentCheck import path
+  (``from checks import AgentCheck``) work again.
+
+- Systemd integration points are re-ordered so that ``dbus`` is used in
+  preference to the systemd private API at ``/run/systemd/private``, as per
+  the systemd documentation. This prevents unnecessary logging to the system
+  journal when datadog-agent is run without root permissions.
+
+
+.. _Release Notes_6.15.1_Other Notes:
+
+Other Notes
+-----------
+
+- Bump embedded Python to 2.7.17.
+
 .. _Release Notes_6.15.0:
+
 
 6.15.0
 ======
@@ -161,6 +301,52 @@ Other Notes
 - JMXFetch upgraded from 0.32.1 to 0.33.0
   https://github.com/DataDog/jmxfetch/blob/master/CHANGELOG.md#0330--2019-10-10
 
+.. _Release Notes_6.14.3:
+
+6.14.3
+======
+
+.. _Release Notes_6.14.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-12-05
+
+This release is only available for Windows.
+
+.. _Release Notes_6.14.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On windows, fixes problem where Agent would intermittently fail to install
+  on domain-joined machine, when another Agent was already installed on the
+  DC.
+
+.. _Release Notes_6.14.2:
+
+6.14.2
+======
+
+.. _Release Notes_6.14.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2019-10-29
+
+This release is only available for Windows.
+
+.. _Release Notes_6.14.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, allows the install to succeed successfully even in the event
+  that the user was not cleaned up successfully from a previous install.
+
+- On Windows, do not remove the home folder of the Agent's user (`dd-agent-user`) on uninstall.
 
 .. _Release Notes_6.14.1:
 
@@ -216,6 +402,9 @@ Upgrade Notes
 
 - Several metrics sent by the systemd check have been renamed. The integration is now stable.
 
+- All integrations that make HTTP(S) requests now properly fall back to proxy settings defined in
+  ``datadog.yaml`` if none are specified at the integration level. If this is undesired, you can
+  set ``skip_proxy`` to ``true`` in every instance config or in the ``init_config`` fallback.
 
 .. _Release Notes_6.14.0_New Features:
 
@@ -312,7 +501,7 @@ Enhancement Notes
 
 - Windows events will now display a full text message instead of a JSON
   object. When available, the agent will now enrich the events with status,
-  human readable task name and opcode. 
+  human readable task name and opcode.
 
 - On Windows, adds system.mem.pagefile.* stats, previously available
   only in Agent 5.
@@ -349,7 +538,7 @@ Bug Fixes
 - Fix system.io.* metrics on Linux that were off by 1 when the kernel counters
   were wrapping back to 0.
 
-- Fixed placeholder value for the marathon entry point to match the new configuration file layout. 
+- Fixed placeholder value for the marathon entry point to match the new configuration file layout.
 
 - Fix a ``tagger`` goroutine race issue when adding a new entry in the ``tagger.Store`` and requesting an entry in another goroutine.
 
@@ -369,7 +558,7 @@ Bug Fixes
 - APM: Fix incorrect ``traces_dropped`` and ``spans_malformed`` metric counts.
 
 - On Windows, "ddagentuser" (the user context under which the Agent runs),
-  is now added to the "Event Log Readers" group, granting access to 
+  is now added to the "Event Log Readers" group, granting access to
   Security event logs.
 
 
@@ -378,10 +567,10 @@ Bug Fixes
 Other Notes
 -----------
 
-- The Windows agent no longer depends on the Windows WMI service.  
-  If the WMI service stops for any reason, the Windows agent will no 
+- The Windows agent no longer depends on the Windows WMI service.
+  If the WMI service stops for any reason, the Windows agent will no
   longer stop with it.  However, any integrations that do use WMI
-  (wmi_check and win32_event_log) will not be able to function until 
+  (wmi_check and win32_event_log) will not be able to function until
   the WMI service restarts.
 
 - Ignore the containerd startup script and the kubeconfig as part of the host metadata on GKE.
@@ -389,7 +578,7 @@ Other Notes
 - JMXFetch upgraded to `0.31.0 <https://github.com/DataDog/jmxfetch/releases/0.31.0>`_
 
 - On Windows, during an uninstall, if the user context for the datadog agent
-  is a domain user, the user will no longer be deleted even when the user 
+  is a domain user, the user will no longer be deleted even when the user
   was created by the corresponding install.
 
 
@@ -3618,4 +3807,3 @@ Other Notes
 - Refactor corecheck boilerplate in CheckBase
 
 - [flare] Rename config file dumped from memory
-

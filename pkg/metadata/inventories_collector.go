@@ -23,18 +23,22 @@ var (
 	expvarPayload func() interface{}
 )
 
-func (c inventoriesCollector) createPayload() (*inventories.Payload, error) {
+func createPayload(ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) (*inventories.Payload, error) {
 	hostname, err := util.GetHostname()
 	if err != nil {
 		return nil, fmt.Errorf("unable to submit inventories metadata payload, no hostname: %s", err)
 	}
 
-	return inventories.GetPayload(hostname, c.ac, c.coll), nil
+	return inventories.GetPayload(hostname, ac, coll), nil
 }
 
 // Send collects the data needed and submits the payload
 func (c inventoriesCollector) Send(s *serializer.Serializer) error {
-	payload, err := c.createPayload()
+	if s == nil {
+		return nil
+	}
+
+	payload, err := createPayload(c.ac, c.coll)
 	if err != nil {
 		return err
 	}
@@ -50,6 +54,19 @@ func (c inventoriesCollector) Init() error {
 	return inventories.StartMetadataUpdatedGoroutine(c.sc, config.Datadog.GetDuration("inventories_min_interval")*time.Second)
 }
 
+// SetupInventoriesExpvar init the expvar function for inventories
+func SetupInventoriesExpvar(ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) {
+	expvar.Publish("inventories", expvar.Func(func() interface{} {
+		log.Debugf("Creating inventory payload for expvar")
+		p, err := createPayload(ac, coll)
+		if err != nil {
+			log.Errorf("Could not create inventory payload for expvar: %s", err)
+			return &inventories.Payload{}
+		}
+		return p
+	}))
+}
+
 // SetupInventories registers the inventories collector into the Scheduler and, if configured, schedules it
 func SetupInventories(sc *Scheduler, ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) error {
 	ic := inventoriesCollector{
@@ -63,14 +80,6 @@ func SetupInventories(sc *Scheduler, ac inventories.AutoConfigInterface, coll in
 		return err
 	}
 
-	expvar.Publish("inventories", expvar.Func(func() interface{} {
-		log.Debugf("Creating inventory payload for expvar")
-		p, err := ic.createPayload()
-		if err != nil {
-			log.Errorf("Could not create inventory payload for expvar: %s", err)
-			return nil
-		}
-		return p
-	}))
+	SetupInventoriesExpvar(ac, coll)
 	return nil
 }

@@ -7,9 +7,10 @@ package scheduler
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,8 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
-		Provider:      providers.Kubernetes,
+		Provider:      names.Kubernetes,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,
@@ -51,6 +53,7 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
+		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
 		CreationTime: 0,
@@ -59,6 +62,22 @@ func TestScheduleConfigCreatesNewService(t *testing.T) {
 	go scheduler.Schedule([]integration.Config{configService})
 	svc := <-servicesStream
 	assert.Equal(t, configService.Entity, svc.GetEntityID())
+
+	// shouldn't consider pods
+	configService = integration.Config{
+		LogsConfig:   []byte(""),
+		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		Entity:       "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		ClusterCheck: false,
+		CreationTime: 0,
+	}
+	go scheduler.Schedule([]integration.Config{configService})
+	select {
+	case <-servicesStream:
+		assert.Fail(t, "Pod should be ignored")
+	case <-time.After(100 * time.Millisecond):
+		break
+	}
 }
 
 func TestUnscheduleConfigRemovesSource(t *testing.T) {
@@ -70,7 +89,8 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	configSource := integration.Config{
 		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
 		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
-		Provider:      providers.Kubernetes,
+		Provider:      names.Kubernetes,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck:  false,
 		CreationTime:  0,
@@ -99,6 +119,7 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 
 	configService := integration.Config{
 		LogsConfig:   []byte(""),
+		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
 		ClusterCheck: false,
 		CreationTime: 0,
@@ -107,4 +128,21 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 	go scheduler.Unschedule([]integration.Config{configService})
 	svc := <-servicesStream
 	assert.Equal(t, configService.Entity, svc.GetEntityID())
+
+	// shouldn't consider pods
+	configService = integration.Config{
+		LogsConfig:   []byte(""),
+		TaggerEntity: "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		Entity:       "kubernetes_pod://ee9a4083-10fc-11ea-a545-02c6fa0ccfb0",
+		ClusterCheck: false,
+		CreationTime: 0,
+	}
+
+	go scheduler.Unschedule([]integration.Config{configService})
+	select {
+	case <-servicesStream:
+		assert.Fail(t, "Pod should be ignored")
+	case <-time.After(100 * time.Millisecond):
+		break
+	}
 }

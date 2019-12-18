@@ -44,6 +44,7 @@ func TestSuiteKube(t *testing.T) {
 	require.Nil(t, err)
 	output, err := compose.Start()
 	defer compose.Stop()
+	t.Logf("error: %v", err)
 	require.Nil(t, err, string(output))
 
 	// Init apiclient
@@ -184,12 +185,12 @@ func (suite *testSuite) TestHostnameProvider() {
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
-	var testClusterName = "Laika"
+	var testClusterName = "laika"
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName()
 	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
 	foundHost, err = apiserver.HostnameProvider()
-	assert.Equal(suite.T(), "target.host-Laika", foundHost)
+	assert.Equal(suite.T(), "target.host-laika", foundHost)
 }

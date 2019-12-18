@@ -8,10 +8,13 @@
 package apiserver
 
 import (
+	"fmt"
 	"time"
 
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1"
+
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -102,13 +105,17 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 		newMetrics := h.hpaProc.ProcessEMList(emList)
 		// The syncWPA can also interact with the overflowing store.
 		if len(newMetrics)+h.metricsProcessedCount > maxMetricsCount {
-			log.Warnf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
+			warningMsg := fmt.Sprintf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
 				h.metricsProcessedCount, wpaCached.Namespace, wpaCached.Name, maxMetricsCount)
+			log.Warn(warningMsg)
+
 			h.overFlowingAutoscalers[wpaCached.UID] = len(newMetrics)
+			h.EventRecorder.Event(wpaCached, corev1.EventTypeNormal, autoscalerIgnoreMsgEvent, warningMsg)
 			return nil
 		}
 		if _, ok := h.overFlowingAutoscalers[wpaCached.UID]; ok {
 			log.Debugf("Previously ignored HPA %s/%s will now be processed", wpaCached.Namespace, wpaCached.Name)
+			h.EventRecorder.Event(wpaCached, corev1.EventTypeNormal, autoscalerUnIgnoreMsgEvent, "Previously ignored WPA, will now be processed")
 			delete(h.overFlowingAutoscalers, wpaCached.UID)
 		}
 
@@ -132,6 +139,7 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 		return
 	}
 	log.Debugf("Adding WPA %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
+	h.EventRecorder.Event(newAutoscaler, corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
 	h.enqueueWPA(newAutoscaler)
 }
 

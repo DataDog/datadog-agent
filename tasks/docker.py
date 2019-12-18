@@ -144,6 +144,65 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
         env=push_env
     )
 
+@task(iterable=['platform'])
+def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
+    """
+    Publish a group of platform-specific images.
+    """
+    for p in platform:
+        parts = p.split("/")
+
+        if len(parts) != 2:
+            print("Invalid platform format: expected 'OS/ARCH' parameter, got {}".format(p))
+            raise Exit(code=1)
+
+        def evalTemplate(s):
+            s = s.replace("OS", parts[0].lower())
+            s = s.replace("ARCH", parts[1].lower())
+            return s
+
+        publish(ctx, evalTemplate(src_template), evalTemplate(dst_template), signed_push=signed_push)
+
+@task(iterable=['platform'])
+def publish_manifest(ctx, name, tag, template, platform, signed_push=False):
+    """
+    Publish a manifest referencing image names matching the specified pattern.
+    In that pattern, OS and ARCH strings are replaced, if found, by corresponding
+    entries in the list of platforms passed as an argument. This allows creating
+    a set of image references more easily. See the manifest tool documentation for
+    further details: https://github.com/estesp/manifest-tool.
+    """
+    platforms = ",".join(platform)
+    print("Publishing {}:{} for platforms {}".format(name, tag, platforms))
+
+    # Create the manifest referencing platform-specific images
+    cmd = "manifest-tool push from-args --template {} --platforms {} --target {}:{}"
+    result = ctx.run(cmd.format(template, platforms, name, tag))
+    if result.stdout:
+        out = result.stdout.split('\n')[0]
+        fields = out.split(" ")
+
+        if len(fields) != 3:
+            print("Unexpected output when invoking manifest-tool")
+            raise Exit(code=1)
+
+        digest_fields = fields[1].split(":")
+
+        if len(digest_fields) != 2 or digest_fields[0] != "sha256":
+            print("Unexpected digest format in manifest-tool output")
+            raise Exit(code=1)
+
+        digest = digest_fields[1]
+        length = fields[2]
+
+    if signed_push:
+        cmd = """
+        notary -s https://notary.docker.io -d {home}/.docker/trust addhash \
+            -p docker.io/{name} {tag} {length} --sha256 {sha256} \
+            -r targets/releases
+        """
+        ctx.run(cmd.format(home=os.environ.get("HOME"), name=name, tag=tag, length=length, sha256=digest))
+
 @task
 def delete(ctx, org, image, tag, token):
     print("Deleting {org}/{image}:{tag}".format(org=org, image=image, tag=tag))

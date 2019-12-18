@@ -1,8 +1,7 @@
 #include "stdafx.h"
 
 CustomActionData::CustomActionData() :
-    domainPtr(NULL),
-    userPtr(NULL)
+    domainUser(false)
 {
 
 }
@@ -57,6 +56,7 @@ bool CustomActionData::value(std::wstring& key, std::wstring &val)  {
 bool CustomActionData::parseUsernameData()
 {
     std::wstring tmpName = ddAgentUserName;
+    
     if (this->value(propertyDDAgentUserName, tmpName)) {
         if (tmpName.length() == 0) {
             tmpName = ddAgentUserName;
@@ -64,30 +64,36 @@ bool CustomActionData::parseUsernameData()
     }
     if (std::wstring::npos == tmpName.find(L'\\')) {
         WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
-        this->fullusername = L".\\" + tmpName;
-    }
-    else {
-        this->fullusername = tmpName;
+        tmpName = L".\\" + tmpName;
     }
     // now create the splits between the domain and user for all to use, too
-    std::wstring domain, user;
+    std::wstring computed_domain, computed_user;
     std::wistringstream asStream(tmpName);
     // username is going to be of the form <domain>\<username>
     // if the <domain> is ".", then just do local machine
-    getline(asStream, this->userdomain, L'\\');
-    getline(asStream, this->username, L'\\');
+    getline(asStream, computed_domain, L'\\');
+    getline(asStream, computed_user, L'\\');
 
-    if (this->userdomain != L".") {
-        this->domainPtr = this->userdomain.c_str();
+    if (computed_domain == L".") {
+        WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
+        computed_domain = computername;
+        this->domainUser = false;
+    } else {
+        if(0 == _wcsicmp(computed_domain.c_str(), computername.c_str())){
+            WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
+            this->domainUser = false;
+        } else if(0 == _wcsicmp(computed_domain.c_str(), domainname.c_str())){
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(), domainname.c_str());
+            this->domainUser = true;
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(), domainname.c_str());
+            this->domainUser = true;
+        }
     }
-    this->userPtr = this->username.c_str();
-    toMbcs(this->fullusermbcs, this->fullusername.c_str());
+    this->domain = computed_domain;
+    this->username = computed_domain + L"\\" + computed_user;
+    this->uqusername = computed_user;
 
-    if (this->domainPtr == NULL) {
-        this->qualifieduser = this->username;
-    }
-    else {
-        this->qualifieduser = this->fullusername;
-    }
+    WcaLog(LOGMSG_STANDARD, "Computed fully qualified username %S", this->username.c_str());
     return true;
 }
