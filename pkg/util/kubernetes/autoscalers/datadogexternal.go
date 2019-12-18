@@ -154,6 +154,7 @@ func NewDatadogClient() (*datadog.Client, error) {
 
 	client := datadog.NewClient(apiKey, appKey)
 	client.HttpClient.Transport = httputils.CreateHTTPTransport()
+	client.RetryTimeout = 3 * time.Second
 
 	return client, nil
 }
