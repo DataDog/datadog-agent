@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fix an issue where the system-probe incorrectly marks certain connections as DNAT-ed.
