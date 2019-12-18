@@ -1,12 +1,14 @@
 --- a/src/pip/_internal/cli/base_command.py
 +++ b/src/pip/_internal/cli/base_command.py
-@@ -145,17 +145,6 @@ class Command(object):
-                 replacement=None,
-                 gone_in='19.2',
-             )
--        elif sys.version_info[:2] == (2, 7):
+@@ -117,20 +117,6 @@ class Command(CommandContextMixIn):
+             user_log_file=options.log,
+         )
+
+-        if sys.version_info[:2] == (2, 7):
 -            message = (
--                "A future version of pip will drop support for Python 2.7."
+-                "A future version of pip will drop support for Python 2.7. "
+-                "More details about Python 2 support in pip, can be found at "
+-                "https://pip.pypa.io/en/latest/development/release-process/#python-2-support"  # noqa
 -            )
 -            if platform.python_implementation() == "CPython":
 -                message = (
@@ -15,6 +17,7 @@
 -                    "won't be maintained after that date. "
 -                ) + message
 -            deprecated(message, replacement=None, gone_in=None)
-
+-
          # TODO: Try to get these passing down from the command?
          #       without resorting to os.environ to hold these.
+         #       This also affects isolated builds and it should.
