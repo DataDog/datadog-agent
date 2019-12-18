@@ -484,6 +484,22 @@ run_dogstatsd_size_test:
   script:
     - inv -e dogstatsd.size-test --skip-build
 
+# check the size of the static dogstatsd binary
+run_dogstatsd_arm_size_test:
+  stage: integration_test
+  needs: ["build_dogstatsd_static-deb_arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Disable global before_script
+    - mkdir -p $STATIC_BINARIES_DIR
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH $STATIC_BINARIES_DIR/dogstatsd
+  script:
+    - inv -e dogstatsd.size-test --skip-build
+
 #
 # package_build
 #
