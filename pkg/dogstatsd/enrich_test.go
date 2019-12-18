@@ -11,7 +11,7 @@ import (
 )
 
 func TestConvertParseGauge(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -24,7 +24,7 @@ func TestConvertParseGauge(t *testing.T) {
 }
 
 func TestConvertParseCounter(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|c"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:21|c"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -37,7 +37,7 @@ func TestConvertParseCounter(t *testing.T) {
 }
 
 func TestConvertParseCounterWithTags(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("custom_counter:1|c|#protocol:http,bench"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("custom_counter:1|c|#protocol:http,bench"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -52,7 +52,7 @@ func TestConvertParseCounterWithTags(t *testing.T) {
 }
 
 func TestConvertParseHistogram(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|h"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:21|h"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -65,7 +65,7 @@ func TestConvertParseHistogram(t *testing.T) {
 }
 
 func TestConvertParseTimer(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -78,7 +78,7 @@ func TestConvertParseTimer(t *testing.T) {
 }
 
 func TestConvertParseSet(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:abc|s"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:abc|s"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -91,7 +91,7 @@ func TestConvertParseSet(t *testing.T) {
 }
 
 func TestConvertParseDistribution(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:3.5|d"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:3.5|d"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -103,7 +103,7 @@ func TestConvertParseDistribution(t *testing.T) {
 }
 
 func TestConvertParseSetUnicode(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -116,7 +116,7 @@ func TestConvertParseSetUnicode(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithTags(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -131,7 +131,7 @@ func TestConvertParseGaugeWithTags(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithHostTag(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"), "", nil, "default-hostname", nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -145,7 +145,7 @@ func TestConvertParseGaugeWithHostTag(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithEmptyHostTag(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:,sometag2:somevalue2"), "", nil, "default-hostname", nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -159,7 +159,7 @@ func TestConvertParseGaugeWithEmptyHostTag(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithNoTags(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g"), "", nil, "default-hostname", nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -171,7 +171,7 @@ func TestConvertParseGaugeWithNoTags(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithSampleRate(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|@0.21"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|@0.21"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -184,7 +184,7 @@ func TestConvertParseGaugeWithSampleRate(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -197,7 +197,7 @@ func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
 }
 
 func TestConvertParseGaugeWithUnicode(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), "", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -212,36 +212,36 @@ func TestConvertParseGaugeWithUnicode(t *testing.T) {
 
 func TestConvertParseMetricError(t *testing.T) {
 	// not enough information
-	_, err := parseMetricMessage([]byte("daemon:666"), "", nil, "default-hostname")
+	_, err := parseMetricMessage([]byte("daemon:666"), "", nil, "default-hostname", nil)
 	assert.Error(t, err)
 
-	_, err = parseMetricMessage([]byte("daemon:666|"), "", nil, "default-hostname")
+	_, err = parseMetricMessage([]byte("daemon:666|"), "", nil, "default-hostname", nil)
 	assert.Error(t, err)
 
-	_, err = parseMetricMessage([]byte("daemon:|g"), "", nil, "default-hostname")
+	_, err = parseMetricMessage([]byte("daemon:|g"), "", nil, "default-hostname", nil)
 	assert.Error(t, err)
 
-	_, err = parseMetricMessage([]byte(":666|g"), "", nil, "default-hostname")
+	_, err = parseMetricMessage([]byte(":666|g"), "", nil, "default-hostname", nil)
 	assert.Error(t, err)
 
 	// too many value
-	_, err = parseMetricMessage([]byte("daemon:666:777|g"), "", nil, "default-hostname")
+	_, err = parseMetricMessage([]byte("daemon:666:777|g"), "", nil, "default-hostname", nil)
 	assert.Error(t, err)
 
 	// unknown metadata prefix
-	_, err = parseMetricMessage([]byte("daemon:666|g|m:test"), "", nil, "default-hostname")
+	_, err = parseMetricMessage([]byte("daemon:666|g|m:test"), "", nil, "default-hostname", nil)
 	assert.NoError(t, err)
 
 	// invalid value
-	_, err = parseMetricMessage([]byte("daemon:abc|g"), "", nil, "default-hostname")
+	_, err = parseMetricMessage([]byte("daemon:abc|g"), "", nil, "default-hostname", nil)
 	assert.Error(t, err)
 
 	// invalid metric type
-	_, err = parseMetricMessage([]byte("daemon:666|unknown"), "", nil, "default-hostname")
+	_, err = parseMetricMessage([]byte("daemon:666|unknown"), "", nil, "default-hostname", nil)
 	assert.Error(t, err)
 
 	// invalid sample rate
-	_, err = parseMetricMessage([]byte("daemon:666|g|@abc"), "", nil, "default-hostname")
+	_, err = parseMetricMessage([]byte("daemon:666|g|@abc"), "", nil, "default-hostname", nil)
 	assert.Error(t, err)
 }
 
@@ -671,7 +671,7 @@ func TestConvertEventMetadataMultiple(t *testing.T) {
 }
 
 func TestConvertNamespace(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -680,7 +680,7 @@ func TestConvertNamespace(t *testing.T) {
 }
 
 func TestConvertNamespaceBlacklist(t *testing.T) {
-	parsed, err := parseMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("datadog.agent.daemon:21|ms"), "testNamespace.", []string{"datadog.agent"}, "default-hostname", nil)
 
 	assert.NoError(t, err)
 
@@ -696,7 +696,7 @@ func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
 		return []string{}, nil
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname", nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -717,7 +717,7 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 		return []string{}, nil
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname", nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -734,7 +734,7 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 		return nil, errors.New("cannot get tags")
 	}
 
-	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname", nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
