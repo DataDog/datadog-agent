@@ -37,6 +37,11 @@ type Stats struct {
 	m          sync.Mutex
 }
 
+var (
+	stateOk    = "ok"
+	stateError = "error"
+)
+
 func (s *Stats) add(stat int64) {
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -388,11 +393,11 @@ func (agg *BufferedAggregator) GetSeriesAndSketches() (metrics.Series, metrics.S
 func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
 	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
 	err := agg.serializer.SendSketch(sketches)
-	state := "ok"
+	state := stateOk
 	if err != nil {
 		log.Warnf("Error flushing sketch: %v", err)
 		aggregatorSketchesFlushErrors.Add(1)
-		state = "error"
+		state = stateError
 	}
 	addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 	aggregatorSketchesFlushed.Add(int64(len(sketches)))
@@ -402,11 +407,11 @@ func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.Sk
 func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
 	log.Debugf("Flushing %d series to the forwarder", len(series))
 	err := agg.serializer.SendSeries(series)
-	state := "ok"
+	state := stateOk
 	if err != nil {
 		log.Warnf("Error flushing series: %v", err)
 		aggregatorSeriesFlushErrors.Add(1)
-		state = "error"
+		state = stateError
 	}
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 	aggregatorSeriesFlushed.Add(int64(len(series)))
@@ -514,11 +519,11 @@ func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 
 func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metrics.ServiceChecks) {
 	log.Debugf("Flushing %d service checks to the forwarder", len(serviceChecks))
-	state := "ok"
+	state := stateOk
 	if err := agg.serializer.SendServiceChecks(serviceChecks); err != nil {
 		log.Warnf("Error flushing service checks: %v", err)
 		aggregatorServiceCheckFlushErrors.Add(1)
-		state = "error"
+		state = stateError
 	}
 	addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
 	aggregatorServiceCheckFlushed.Add(int64(len(serviceChecks)))
@@ -563,11 +568,11 @@ func (agg *BufferedAggregator) GetEvents() metrics.Events {
 func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events) {
 	log.Debugf("Flushing %d events to the forwarder", len(events))
 	err := agg.serializer.SendEvents(events)
-	state := "ok"
+	state := stateOk
 	if err != nil {
 		log.Warnf("Error flushing events: %v", err)
 		aggregatorEventsFlushErrors.Add(1)
-		state = "fail"
+		state = stateError
 	}
 	addFlushTime("EventFlushTime", int64(time.Since(start)))
 	aggregatorEventsFlushed.Add(int64(len(events)))
