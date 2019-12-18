@@ -4,41 +4,8 @@
   ignore_errors: true
   ignore_unreachable: true
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
-    - name: Delete kubernetes test workloads
-      command: kubectl -n={{ namespace }} delete -f test_workloads
-      args:
-        chdir: /home/ubuntu/deployment
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-
-    - name: Delete kubernetes test persistent volumes
-      command: kubectl -n={{ namespace }} delete pvc --all
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-
-    - name: Delete kubernetes stackstate objects
-      command: kubectl -n={{ namespace }} delete -k overlays
-      args:
-        chdir: /home/ubuntu/deployment/agents
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-
-    - name: Delete kubernetes DNAT test objects
-      command: kubectl -n={{ namespace }} delete -f pod-to-service-cluster-ip.yaml
-      args:
-        chdir: /home/ubuntu/deployment/test_connections
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-
-    - name: Wait for pods to be deleted
-      command: kubectl wait --timeout=30s --for=delete pods --all
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-
-    - name: cleanup namespace
+    - name: Delete namespace '{{namespace}}'
       command: kubectl delete ns {{ namespace }}
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

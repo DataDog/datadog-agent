@@ -2,8 +2,6 @@
 - name: Prepare Receiver and EKS cluster
   hosts: kubernetes-cluster-agent
   gather_facts: true
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Configure aws credentials
       copy:
@@ -78,7 +76,7 @@
       shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-    - name: Create namespace for tests.
+    - name: Create test namespace '{{namespace}}'
       shell: kubectl get ns {{ namespace }} || kubectl create ns {{ namespace }}
       args:
         chdir: /home/ubuntu/deployment

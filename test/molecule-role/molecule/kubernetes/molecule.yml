@@ -25,6 +25,9 @@ provisioner:
     destroy: destroy.yml
   lint:
     name: ansible-lint
+  inventory:
+    links:
+      group_vars: group_vars/
 scenario:
   name: kubernetes
 verifier:

@@ -18,8 +18,8 @@ def test_receiver_healthy(host):
 
 
 @pytest.mark.second
-def test_node_agent_healthy(host, common_vars):
-    namespace = common_vars['namespace']
+def test_node_agent_healthy(host, ansible_var):
+    namespace = ansible_var("namespace")
 
     def assert_healthy():
         c = kubeconfig_env + "kubectl wait --for=condition=ready --timeout=1s -l app=stackstate-agent pod --namespace={}".format(namespace)
@@ -29,8 +29,8 @@ def test_node_agent_healthy(host, common_vars):
 
 
 @pytest.mark.third
-def test_cluster_agent_healthy(host, common_vars):
-    namespace = common_vars['namespace']
+def test_cluster_agent_healthy(host, ansible_var):
+    namespace = ansible_var("namespace")
 
     def assert_healthy():
         c = kubeconfig_env + "kubectl wait --for=condition=available --timeout=1s deployment/stackstate-cluster-agent --namespace={}".format(namespace)
@@ -40,8 +40,8 @@ def test_cluster_agent_healthy(host, common_vars):
 
 
 @pytest.mark.fourth
-def test_apply_pod_to_service_demo(host, common_vars):
-    namespace = common_vars['namespace']
+def test_apply_pod_to_service_demo(host, ansible_var):
+    namespace = ansible_var('namespace')
 
     # We recognize DNAT connections after the agent is started, because we dunno directions of in-flight connections
     # so we make sure we deploy the demo after the node agent is healthy

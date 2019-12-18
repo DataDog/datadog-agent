@@ -43,9 +43,9 @@ def _find_component(json_data, type_name, external_id_assert_fn):
     return None
 
 
-def test_agent_base_topology(host, common_vars):
-    cluster_name = common_vars['cluster_name']
-    namespace = common_vars['namespace']
+def test_agent_base_topology(host, ansible_var):
+    cluster_name = ansible_var("cluster_name")
+    namespace = ansible_var("namespace")
 
     topic = "sts_topo_kubernetes_%s" % cluster_name
     url = "http://localhost:7070/api/topic/%s?limit=1000" % topic

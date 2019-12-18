@@ -62,13 +62,13 @@ def _relation_data(json_data, type_name, external_id_assert_fn):
 
 
 @pytest.mark.last
-def test_dnat(host, common_vars):
+def test_dnat(host, ansible_var):
     url = "http://localhost:7070/api/topic/sts_topo_process_agents?limit=1000"
 
-    dnat_service_port = int(common_vars["dnat_service_port"])
-    dnat_server_port = int(common_vars["dnat_server_port"])
-    cluster_name = common_vars['cluster_name']
-    namespace = common_vars['namespace']
+    dnat_service_port = int(ansible_var("dnat_service_port"))
+    dnat_server_port = int(ansible_var("dnat_server_port"))
+    cluster_name = ansible_var("cluster_name")
+    namespace = ansible_var("namespace")
 
     def wait_for_components():
         data = host.check_output("curl \"%s\"" % url)
