@@ -334,7 +334,6 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 				dogstatsdMetricParseErrors.Add(1)
 				continue
 			}
-
 			if s.debugMetricsStats {
 				s.storeMetricStats(sample.Name)
 			}
