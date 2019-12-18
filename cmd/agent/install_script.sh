@@ -164,7 +164,7 @@ if [ $OS = "RedHat" ]; then
     $sudo_cmd yum -y clean metadata
 
     dnf_flag=""
-    if [ -f "/etc/fedora-release" ]; then
+    if [ -f "/etc/fedora-release" ] && [ -f "/usr/bin/dnf" ]; then
       # On Fedora, yum is an alias of dnf, dnf install doesn't
       # upgrade a package if a newer version is available, until
       # the --best flag is set
