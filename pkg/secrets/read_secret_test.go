@@ -40,6 +40,16 @@ func TestReadSecret(t *testing.T) {
 			err: `incompatible protocol version "2.0"`,
 		},
 		{
+			name: "no secrets",
+			in: `
+			{
+				"version": "1.0"
+			}
+			`,
+			out: "",
+			err: `no secrets listed in input`,
+		},
+		{
 			name: "valid",
 			in: `
 			{
@@ -69,20 +79,22 @@ func TestReadSecret(t *testing.T) {
 
 	path := filepath.Join("testdata", "read-secrets")
 	for _, test := range tests {
-		var w bytes.Buffer
-		err := ReadSecrets(strings.NewReader(test.in), &w, path)
-		out := string(w.Bytes())
+		t.Run(test.name, func(t *testing.T) {
+			var w bytes.Buffer
+			err := ReadSecrets(strings.NewReader(test.in), &w, path)
+			out := string(w.Bytes())
 
-		if test.out != "" {
-			assert.JSONEq(t, test.out, out)
-		} else {
-			assert.Empty(t, out)
-		}
+			if test.out != "" {
+				assert.JSONEq(t, test.out, out)
+			} else {
+				assert.Empty(t, out)
+			}
 
-		if test.err != "" {
-			assert.EqualError(t, err, test.err)
-		} else {
-			assert.NoError(t, err)
-		}
+			if test.err != "" {
+				assert.EqualError(t, err, test.err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }

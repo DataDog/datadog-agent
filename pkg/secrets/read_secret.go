@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	maxSecretFileSize = 1024
+	maxSecretFileSize    = 1024
 	compatibleMajVersion = "1"
 )
 
@@ -30,7 +30,7 @@ var ReadSecretCmd = &cobra.Command{
 	Use:   "read-secret",
 	Short: "Read secret from a directory",
 	Long:  ``,
-	Args: cobra.ExactArgs(1),
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return ReadSecrets(os.Stdin, os.Stdout, args[0])
 	},
@@ -57,6 +57,10 @@ func ReadSecrets(r io.Reader, w io.Writer, dir string) error {
 	version := strings.SplitN(request.Version, ".", 2)
 	if version[0] != compatibleMajVersion {
 		return fmt.Errorf("incompatible protocol version %q", request.Version)
+	}
+
+	if len(request.Secrets) == 0 {
+		return errors.New("no secrets listed in input")
 	}
 
 	response := map[string]secret{}
