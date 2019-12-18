@@ -16,7 +16,6 @@ platforms:
     groups:
       - agent_linux_vm
     ssh_user: ubuntu
-    user_data: files/agent/none.txt
 
   - name: agent-centos
     image: ami-0451e9d3427711cb1    # CentOS Linux 6.10 x86_64 HVM EBS ENA 1901_01
@@ -26,7 +25,6 @@ platforms:
     groups:
       - agent_linux_vm
     ssh_user: centos
-    user_data: files/agent/none.txt
 provisioner:
   name: ansible
   config_options:
