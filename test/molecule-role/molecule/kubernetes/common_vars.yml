@@ -11,3 +11,4 @@ stackstate_branch: "{{ lookup('env', 'STACKSTATE_BRANCH') }}"
 cluster_name: "molecule_k8s_test"
 dnat_service_port: 321
 dnat_server_port: 123
+namespace: "{{ agent_current_branch.replace('.','_') | lower }}"

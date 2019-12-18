@@ -79,19 +79,19 @@
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Create namespace for tests.
-      shell: kubectl get ns {{ agent_current_branch|lower}} || kubectl create ns {{ agent_current_branch|lower}}
+      shell: kubectl get ns {{ namespace }} || kubectl create ns {{ namespace }}
       args:
         chdir: /home/ubuntu/deployment
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Apply manifests for test workloads
-      command: kubectl -n={{ agent_current_branch|lower}} apply -f test_workloads
+      command: kubectl -n={{ namespace }} apply -f test_workloads
       args:
         chdir: /home/ubuntu/deployment
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Apply manifests for stackstate node agent and cluster agent
-      command: kubectl -n={{ agent_current_branch|lower}} apply -k overlays
+      command: kubectl apply -k overlays
       args:
         chdir: /home/ubuntu/deployment/agents
       environment:

@@ -45,7 +45,8 @@ def _find_component(json_data, type_name, external_id_assert_fn):
 
 def test_agent_base_topology(host, common_vars):
     cluster_name = common_vars['cluster_name']
-    namespace = os.environ['AGENT_CURRENT_BRANCH'].lower()
+    namespace = common_vars['namespace']
+
     topic = "sts_topo_kubernetes_%s" % cluster_name
     url = "http://localhost:7070/api/topic/%s?limit=1000" % topic
 

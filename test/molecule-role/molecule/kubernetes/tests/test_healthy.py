@@ -6,7 +6,6 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('kubernetes-cluster-agent')
 
 kubeconfig_env = "KUBECONFIG=/home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig "
-namespace = os.environ['AGENT_CURRENT_BRANCH'].lower()
 
 
 @pytest.mark.first
@@ -19,7 +18,9 @@ def test_receiver_healthy(host):
 
 
 @pytest.mark.second
-def test_node_agent_healthy(host):
+def test_node_agent_healthy(host, common_vars):
+    namespace = common_vars['namespace']
+
     def assert_healthy():
         c = kubeconfig_env + "kubectl wait --for=condition=ready --timeout=1s -l app=stackstate-agent pod --namespace={}".format(namespace)
         assert host.run(c).rc == 0
@@ -28,7 +29,9 @@ def test_node_agent_healthy(host):
 
 
 @pytest.mark.third
-def test_cluster_agent_healthy(host):
+def test_cluster_agent_healthy(host, common_vars):
+    namespace = common_vars['namespace']
+
     def assert_healthy():
         c = kubeconfig_env + "kubectl wait --for=condition=available --timeout=1s deployment/stackstate-cluster-agent --namespace={}".format(namespace)
         assert host.run(c).rc == 0
@@ -37,7 +40,9 @@ def test_cluster_agent_healthy(host):
 
 
 @pytest.mark.fourth
-def test_apply_pod_to_service_demo(host):
+def test_apply_pod_to_service_demo(host, common_vars):
+    namespace = common_vars['namespace']
+
     # We recognize DNAT connections after the agent is started, because we dunno directions of in-flight connections
     # so we make sure we deploy the demo after the node agent is healthy
     c = kubeconfig_env + "kubectl -n={} apply -f /home/ubuntu/deployment/test_connections/pod-to-service-cluster-ip.yaml".format(namespace)
