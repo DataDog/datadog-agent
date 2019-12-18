@@ -166,7 +166,7 @@ if [ $OS = "RedHat" ]; then
     dnf_flag=""
     if [ -f "/etc/fedora-release" ] && [ -f "/usr/bin/dnf" ]; then
       # On Fedora, yum is an alias of dnf, dnf install doesn't
-      # upgrade a package if a newer version is available, until
+      # upgrade a package if a newer version is available, unless
       # the --best flag is set
       dnf_flag="--best"
     fi
