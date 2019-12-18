@@ -14,7 +14,7 @@ Prelude
 
 This release introduces major version 7 of the Datadog Agent, which starts at v7.16.0. The only change from Agent v6 is that
 v7 defaults to Python 3 and only includes support for Python 3. Before upgrading to v7, confirm that any
-custom checks you have are compatible with Python 3. See this `guide <https://docs.datadoghq.com/agent/guide/python-3/>`_
+custom checks you have are compatible with Python 3. See this ``guide <https://docs.datadoghq.com/agent/guide/python-3/>``_
 for more information.
 
 Except for the supported Python versions, v7.16.0 and v6.16.0 have the same features.
@@ -39,13 +39,13 @@ Enhancement Notes
 
 - Log a warning when the hostname defined in the configuration will not be used as the in-app hostname.
 
-- Add `ignore_autodiscovery_tags` parameter config check.
+- Add ``ignore_autodiscovery_tags`` parameter config check.
   
   In some cases, a check should not receive tags coming from the autodiscovery listeners.
-  By default `ignore_autodiscovery_tags` is set to false which doesn't change the behavior of the checks.
-  The first check that will use it is `kubernetes_state`.
+  By default ``ignore_autodiscovery_tags`` is set to false which doesn't change the behavior of the checks.
+  The first check that will use it is ``kubernetes_state``.
 
-- Adds a new `flare_stripped_keys` config setting to clean up additional
+- Adds a new ``flare_stripped_keys`` config setting to clean up additional
   configuration information from flare.
 
 - Adding a new config option "exclude_gce_tags", to configure which metadata
@@ -76,7 +76,7 @@ Bug Fixes
   the event of an installation failure and rollback
 
 - Logs: tailed files discovered through a configuration entry with
-  wildcard will properly have the `dirname` tag on all log entries.
+  wildcard will properly have the ``dirname`` tag on all log entries.
 
 - Fix small memory leak in ``datadog_agent.set_external_tags`` when an empty
   source_type dict is passed for a given hostname.
@@ -91,7 +91,7 @@ Bug Fixes
 Other Notes
 -----------
 
-- JMXFetch upgraded to `0.33.1 <https://github.com/DataDog/jmxfetch/releases/0.33.1>`_
+- JMXFetch upgraded to ``0.33.1 <https://github.com/DataDog/jmxfetch/releases/0.33.1>``_
 
 - JQuery, used in the web base agent GUI, has been upgraded to 3.4.1
 
