@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_7.16.0:
 
-7.16.0
+7.16.0 / 6.16.0
 ======
 
 .. _Release Notes_7.16.0_Prelude:
