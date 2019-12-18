@@ -7,7 +7,7 @@
 set -e
 logfile=ddagent-install.log
 dmg_file=/tmp/datadog-agent.dmg
-dmg_url="https://s3.amazonaws.com/dd-agent/datadogagent.dmg"
+dmg_base_url="https://s3.amazonaws.com/dd-agent"
 
 dd_upgrade=
 if [ -n "$DD_UPGRADE" ]; then
@@ -28,6 +28,23 @@ fi
 if [ -n "$DD_SITE" ]; then
     site=$DD_SITE
 fi
+
+dd_agent_major_version=6
+if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
+  if [ "$DD_AGENT_MAJOR_VERSION" != "6" -a "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
+    echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
+    exit 1;
+  fi
+  dd_agent_major_version=$DD_AGENT_MAJOR_VERSION
+else
+  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+fi
+
+dmg_remote_file="datadogagent.dmg"
+if [ "$dd_agent_major_version" = "7" ]; then
+    dmg_remote_file="datadog-agent-7-latest.dmg"
+fi
+dmg_url="$dmg_base_url/$dmg_remote_file"
 
 if [ $dd_upgrade ]; then
     if [ ! -f /opt/datadog-agent/etc/datadog.conf ]; then
@@ -109,7 +126,7 @@ function import_config() {
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
 rm -f $dmg_file
-curl --progress-bar $dmg_url > $dmg_file
+curl --fail --progress-bar $dmg_url > $dmg_file
 printf "\033[34m\n* Installing datadog-agent, you might be asked for your sudo password...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "\033[34m\n    - Mounting the DMG installer...\n\033[0m"
