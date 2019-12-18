@@ -434,7 +434,7 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, git_sha_length=7):
+def version(ctx, url_safe=False, git_sha_length=7, major_version='7'):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
@@ -442,4 +442,4 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
-    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, major_version=major_version))

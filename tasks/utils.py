@@ -198,15 +198,15 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('utf-8').strip()
 
 
-def query_version(ctx, git_sha_length=7, prefix=None, hint=None):
+def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     cmd = "git describe --tags --candidates=50"
     if prefix and type(prefix) == str:
         cmd += " --match \"{}-*\"".format(prefix)
     else:
-        if hint:
-            cmd += " --match \"{}\.*\"".format(hint)
+        if major_version_hint:
+            cmd += " --match \"{}\.*\"".format(major_version_hint)
         else:
             cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
@@ -245,12 +245,11 @@ def query_version(ctx, git_sha_length=7, prefix=None, hint=None):
     return version, pre, commit_number, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
-    version_hint = '7' if env.get('AGENT_MAJOR_VERSION', '') == '7' or env.get('PYTHON_RUNTIMES', '') == '3' else '6'
 
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix, hint=version_hint)
+    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix, major_version_hint=major_version)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:
@@ -262,11 +261,10 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
     # version could be unicode as it comes from `query_version`
     return str(version)
 
-def get_version_numeric_only(ctx, env=os.environ):
+def get_version_numeric_only(ctx, env=os.environ, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
-    version_hint = '7' if env.get('PYTHON_RUNTIMES', '') == '3' else '6'
 
-    version, _, _, _ = query_version(ctx, hint=version_hint)
+    version, _, _, _ = query_version(ctx, major_version_hint=major_version)
     return version
 
 def load_release_versions(ctx, target_version):

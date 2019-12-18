@@ -2500,7 +2500,7 @@ deploy_dsd:
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe)
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy dsd binary to staging bucket
@@ -2515,7 +2515,7 @@ deploy_puppy:
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/puppy/agent ./agent
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe)
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)
     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy process agent and system-probe to staging bucket
@@ -2551,7 +2551,7 @@ tag_release_6:
     AGENT_MAJOR_VERSION: 6
     <<: *docker_hub_variables
   script:
-    - VERSION=$(inv -e agent.version)
+    - VERSION=$(inv -e agent.version --major-version $AGENT_MAJOR_VERSION)
     # Platform-specific agent images
     - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
     - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-py2-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
@@ -2568,7 +2568,7 @@ tag_release_7:
     AGENT_MAJOR_VERSION: 7
     <<: *docker_hub_variables
   script:
-    - VERSION=$(inv -e agent.version)
+    - VERSION=$(inv -e agent.version --major-version $AGENT_MAJOR_VERSION)
     # Images
     - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-py3-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
     - inv -e docker.publish-bulk --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
@@ -2587,7 +2587,7 @@ latest_release_6:
     AGENT_MAJOR_VERSION: 6
     <<: *docker_hub_variables
   script:
-    - VERSION=$(inv -e agent.version)
+    - VERSION=$(inv -e agent.version --major-version $AGENT_MAJOR_VERSION)
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2        --template datadog/agent-ARCH:${VERSION}
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2-jmx    --template datadog/agent-ARCH:${VERSION}-jmx
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6                 --template datadog/agent-ARCH:${VERSION}
@@ -2602,7 +2602,7 @@ latest_release_7:
     AGENT_MAJOR_VERSION: 7
     <<: *docker_hub_variables
   script:
-    - VERSION=$(inv -e agent.version)
+    - VERSION=$(inv -e agent.version --major-version $AGENT_MAJOR_VERSION)
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest      --template datadog/agent-ARCH:${VERSION}
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 7           --template datadog/agent-ARCH:${VERSION}
@@ -2730,20 +2730,20 @@ pupernetes-tags-6:
   <<: *pupernetes_template
   <<: *run_when_triggered_on_tag_6
   variables:
-    PYTHON_RUNTIMES: '2,3'
+    AGENT_MAJOR_VERSION: 6
   when: manual
   script:
-  - VERSION=$(inv -e agent.version)
+  - VERSION=$(inv -e agent.version --major-version $AGENT_MAJOR_VERSION)
   - inv -e e2e-tests --image=datadog/agent:${VERSION}
 
 pupernetes-tags-7:
   <<: *pupernetes_template
   <<: *run_when_triggered_on_tag_7
   variables:
-    PYTHON_RUNTIMES: '3'
+    AGENT_MAJOR_VERSION: 7
   when: manual
   script:
-  - VERSION=$(inv -e agent.version)
+  - VERSION=$(inv -e agent.version --major-version $AGENT_MAJOR_VERSION)
   - inv -e e2e-tests --image=datadog/agent:${VERSION}
 
 notify-on-failure:
