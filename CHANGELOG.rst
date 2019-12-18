@@ -2,6 +2,104 @@
 Release Notes
 =============
 
+.. _Release Notes_7.16.0:
+
+7.16.0 / 6.16.0
+======
+
+.. _Release Notes_7.16.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2019-12-18
+
+This release introduces major version 7 of the Datadog Agent, which starts at v7.16.0. The only change from Agent v6 is that
+v7 defaults to Python 3 and only includes support for Python 3. Before upgrading to v7, confirm that any
+custom checks you have are compatible with Python 3. See this `guide <https://docs.datadoghq.com/agent/guide/python-3/>`_
+for more information.
+
+Except for the supported Python versions, v7.16.0 and v6.16.0 have the same features.
+
+Please refer to the `7.16.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7160>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.16.0_New Features:
+
+New Features
+------------
+
+- Add support for SysVInit on SUSE 11.
+
+- Add information on endpoints inside the logs-agent section of the agent status.
+
+
+.. _Release Notes_7.16.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add Python 3 linter results to status page
+
+- Log a warning when the hostname defined in the configuration will not be used as the in-app hostname.
+
+- Add ``ignore_autodiscovery_tags`` parameter config check.
+  
+  In some cases, a check should not receive tags coming from the autodiscovery listeners.
+  By default ``ignore_autodiscovery_tags`` is set to false which doesn't change the behavior of the checks.
+  The first check that will use it is ``kubernetes_state``.
+
+- Adds a new ``flare_stripped_keys`` config setting to clean up additional
+  configuration information from flare.
+
+- Adding a new config option ``exclude_gce_tags``, to configure which metadata
+  attribute from Google Cloud Engine to exclude from being converted into
+  host tags.
+
+- Extends the docker and containerd checks to include an open file descriptors
+  metric. This metric reports the number of open file descriptors per container.
+
+- Allow the Agent to schedule different checks from different sources on the same service.
+
+
+.. _Release Notes_7.16.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Added a fallback into the SQL obfuscator to handle SQL engines that treat
+  backslashes literally.
+
+- The default list of sensitive keywords for process argument scrubbing now uses wildcards before and after.
+
+- On Windows process agent, fix problem wherein if the agent is unable
+  to figure out the process user name, the process info/stats were not
+  sent at all.  Now sends all relevant stats without the username
+
+- On windows, correctly deletes python 3 precompiled files (.pyc) in
+  the event of an installation failure and rollback
+
+- Logs: tailed files discovered through a configuration entry with
+  wildcard will properly have the ``dirname`` tag on all log entries.
+
+- Fix small memory leak in ``datadog_agent.set_external_tags`` when an empty
+  source_type dict is passed for a given hostname.
+
+- Carry a custom patch for jaydebeapi to support latest jpype.
+
+- Check that cluster-name provided by configuraiton file are compliant with the same rule as on GKE. Logs an error and ignore it otherwise.
+
+
+.. _Release Notes_7.16.0_Other Notes:
+
+Other Notes
+-----------
+
+- JMXFetch upgraded to `0.33.1 <https://github.com/DataDog/jmxfetch/releases/0.33.1>`_
+
+- JQuery, used in the web base agent GUI, has been upgraded to 3.4.1
+
+
 .. _Release Notes_6.15.1:
 
 6.15.1
@@ -3709,4 +3807,3 @@ Other Notes
 - Refactor corecheck boilerplate in CheckBase
 
 - [flare] Rename config file dumped from memory
-
