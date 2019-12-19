@@ -3,7 +3,6 @@ package dogstatsd
 import (
 	"bytes"
 	"fmt"
-	"strconv"
 )
 
 type metricType int
@@ -82,7 +81,7 @@ func parseMetricSampleMetricType(rawMetricType []byte) (metricType, error) {
 }
 
 func parseMetricSampleSampleRate(rawSampleRate []byte) (float64, error) {
-	return strconv.ParseFloat(string(rawSampleRate), 64)
+	return parseFloat64(rawSampleRate)
 }
 
 func parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
@@ -110,7 +109,7 @@ func parseMetricSample(message []byte) (dogstatsdMetricSample, error) {
 	if metricType == setType {
 		setValue = rawValue
 	} else {
-		value, err = strconv.ParseFloat(string(rawValue), 64)
+		value, err = parseFloat64(rawValue)
 		if err != nil {
 			return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd metric value: %v", err)
 		}

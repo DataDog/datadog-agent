@@ -255,3 +255,7 @@
 [[override]]
   name = "github.com/hashicorp/golang-lru"
   version = "v0.5.3"
+
+[[constraint]]
+  name = "github.com/twmb/murmur3"
+  version = "1.0.0"
