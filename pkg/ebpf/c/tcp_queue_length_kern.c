@@ -6,6 +6,7 @@
 #include <linux/tcp.h>
 
 struct queue_length {
+  int size;
   u32 min;
   u32 max;
 };
@@ -37,7 +38,6 @@ static inline int check_sock(struct sock *sk) {
   bpf_probe_read(&c.sport, sizeof(c.sport), &ip->inet_sport);
   bpf_probe_read(&c.dport, sizeof(c.dport), &ip->inet_dport);
 
-
   const struct tcp_sock *tp = tcp_sk(sk);
 
   u32 rcv_nxt, copied_seq, write_seq, snd_una;
@@ -64,7 +64,11 @@ static inline int check_sock(struct sock *sk) {
   struct stats *s = queue.lookup_or_init(&c, &zero);
 
   if (s) {
+    bpf_probe_read(&s->rqueue.size, sizeof(s->rqueue.size), &sk->sk_rcvbuf);
+    bpf_probe_read(&s->wqueue.size, sizeof(s->wqueue.size), &sk->sk_sndbuf);
+
     s->pid = bpf_get_current_pid_tgid() >> 32;
+
     if (rqueue > s->rqueue.max)
       s->rqueue.max = rqueue;
     if (rqueue < s->rqueue.min)

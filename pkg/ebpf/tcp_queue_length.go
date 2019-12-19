@@ -8,8 +8,15 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+
 	bpflib "github.com/iovisor/gobpf/bcc"
 )
+
+/*
+#include <stdint.h>
+*/
+import "C"
 
 type TCPQueueLengthTracer struct {
 	m        *bpflib.Module
@@ -17,12 +24,13 @@ type TCPQueueLengthTracer struct {
 }
 
 type QueueLength struct {
-	Min uint32 `json:"min"`
-	Max uint32 `json:"max"`
+	Size C.int      `json:"size"`
+	Min  C.uint32_t `json:"min"`
+	Max  C.uint32_t `json:"max"`
 }
 
 type Stats struct {
-	Pid    uint32      `json:"pid"`
+	Pid    C.uint32_t  `json:"pid"`
 	Rqueue QueueLength `json:"read queue"`
 	Wqueue QueueLength `json:"write queue"`
 }
@@ -35,15 +43,16 @@ type Conn struct {
 }
 
 type StatLine struct {
-	Conn  Conn  `json:"conn"`
-	Stats Stats `json:"stats"`
+	Conn        Conn   `json:"conn"`
+	ContainerID string `json:"containerid"`
+	Stats       Stats  `json:"stats"`
 }
 
 type conn struct {
-	Saddr uint32
-	Daddr uint32
-	Sport uint16
-	Dport uint16
+	Saddr C.uint32_t
+	Daddr C.uint32_t
+	Sport C.uint16_t
+	Dport C.uint16_t
 }
 
 func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
@@ -112,6 +121,8 @@ func (t *TCPQueueLengthTracer) Get() []StatLine {
 
 	var result []StatLine
 
+	containerOfPID := make(map[C.uint32_t]string)
+
 	for it := t.queueMap.Iter(); it.Next(); {
 		var c conn
 		var s Stats
@@ -120,18 +131,27 @@ func (t *TCPQueueLengthTracer) Get() []StatLine {
 		binary.Read(bytes.NewBuffer(it.Leaf()), nativeEndian, &s)
 
 		saddr := make(net.IP, 4)
-		binary.BigEndian.PutUint32(saddr, c.Saddr)
+		binary.BigEndian.PutUint32(saddr, uint32(c.Saddr))
 		daddr := make(net.IP, 4)
-		binary.BigEndian.PutUint32(daddr, c.Daddr)
+		binary.BigEndian.PutUint32(daddr, uint32(c.Daddr))
+
+		containerID, found := containerOfPID[s.Pid]
+		if !found {
+			containerID, err := metrics.ContainerIDForPID(int(s.Pid))
+			if err == nil {
+				containerOfPID[s.Pid] = containerID
+			}
+		}
 
 		result = append(result, StatLine{
 			Conn: Conn{
 				Saddr: saddr,
 				Daddr: daddr,
-				Sport: c.Sport,
-				Dport: c.Dport,
+				Sport: uint16(c.Sport),
+				Dport: uint16(c.Dport),
 			},
-			Stats: s,
+			ContainerID: containerID,
+			Stats:       s,
 		})
 	}
 
