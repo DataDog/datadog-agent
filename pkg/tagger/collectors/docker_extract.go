@@ -71,6 +71,8 @@ func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve res
 
 // dockerExtractLabels contain hard-coded labels from:
 // - Docker swarm
+// - Rancher
+// - Custom
 func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string, labelsAsTags map[string]string) {
 	for labelName, labelValue := range containerLabels {
 		switch labelName {
@@ -87,6 +89,19 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 			tags.AddLow("rancher_stack", labelValue)
 		case "io.rancher.stack_service.name":
 			tags.AddLow("rancher_service", labelValue)
+
+		// Custom labels as tags
+		case "com.datadoghq.ad.tags":
+			// labelValue is a space-delimited list of strings
+			tagList := strings.Split(labelValue, " ")
+			for _, tag := range tagList {
+				tagParts := strings.Split(tag, ":")
+				// skip if tag is not in expected k:v format
+				if len(tagParts) != 2 {
+					continue
+				}
+				tags.AddHigh(tagParts[0], tagParts[1])
+			}
 
 		default:
 			if tagName, found := labelsAsTags[strings.ToLower(labelName)]; found {
