@@ -93,8 +93,25 @@ func readSecretFile(path string) (string, error) {
 		}
 		return "", err
 	}
+
 	if fi.Mode()&os.ModeSymlink != 0 {
-		return "", fmt.Errorf("not following symlink %q", path)
+		// Ensure that the symlink is in the same dir
+		target, err := os.Readlink(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to read symlink target: %v", err)
+		}
+
+		dir := filepath.Dir(path)
+		if !filepath.IsAbs(target) {
+			target, err = filepath.Abs(filepath.Join(dir, target))
+			if err != nil {
+				return "", fmt.Errorf("failed to resolve symlink absolute path: %v", err)
+			}
+		}
+
+		if !filepath.HasPrefix(target, dir) {
+			return "", fmt.Errorf("not following symlink %q outside of %q", target, dir)
+		}
 	}
 	file, err := os.Open(path)
 	if err != nil {
