@@ -418,58 +418,6 @@ func TestNoMappingsConfig(t *testing.T) {
 	assert.Equal(t, 1, len(sample))
 }
 
-type mappingTest struct {
-	Match     string
-	MatchType string
-	Name      string
-	Tags      map[string]string
-}
-
-func TestMappingsConfig(t *testing.T) {
-	datadogYaml := `
-dogstatsd_mapper_profiles:
-  - name: "airflow"
-    prefix: "airflow."
-    mappings:
-      - match: "airflow.job.duration_sec.*.*"   # metric format: airflow.job.duration_sec.<job_type>.<job_name>
-        name: "airflow.job.duration"            # remap the metric name
-        tags:
-          job_type: "$1"
-          job_name: "$2"
-      - match: "airflow.job.size.*.*"   # metric format: airflow.job.duration_sec.<job_type>.<job_name>
-        name: "airflow.job.size"            # remap the metric name
-        tags:
-          foo: "$1"
-          bar: "$2"
-`
-
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
-
-	config.Datadog.SetConfigType("yaml")
-	err = config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
-	require.NoError(t, err)
-
-	s, err := NewServer(nil, nil, nil)
-	require.NoError(t, err, "cannot start DSD")
-	require.NotNil(t, s.mapper)
-
-	expectedMappings := []mappingTest{
-		{Match: "airflow.job.duration_sec.*.*", Name: "airflow.job.duration", Tags: map[string]string{"job_type": "$1", "job_name": "$2"}, MatchType: "wildcard"},
-		{Match: "airflow.job.size.*.*", Name: "airflow.job.size", Tags: map[string]string{"foo": "$1", "bar": "$2"}, MatchType: "wildcard"},
-	}
-
-	var actualMappings []mappingTest
-	for _, profile := range s.mapper.Profiles {
-		for _, m := range profile.Mappings {
-			actualMappings = append(actualMappings, mappingTest{Match: m.Match, Name: m.Name, Tags: m.Tags, MatchType: m.MatchType})
-		}
-	}
-
-	assert.Equal(t, expectedMappings, actualMappings)
-}
-
 type MetricSample struct {
 	Name  string
 	Value float64
@@ -492,7 +440,7 @@ dogstatsd_mapper_profiles:
   - name: test
     prefix: 'test.'
     mappings:
-      - match: "test.job.duration.*.*" 
+      - match: "test.job.duration.*.*"
         name: "test.job.duration"
         tags:
           job_type: "$1"
@@ -522,7 +470,7 @@ dogstatsd_mapper_profiles:
   - name: test
     prefix: 'test.'
     mappings:
-      - match: "test.job.duration.*.*" 
+      - match: "test.job.duration.*.*"
         name: "test.job.duration"
         tags:
           job_type: "$1"

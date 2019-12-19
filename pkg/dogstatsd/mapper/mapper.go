@@ -9,6 +9,7 @@ package mapper
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"regexp"
 	"strings"
 )
@@ -30,18 +31,16 @@ type MetricMapper struct {
 
 // MappingProfile represent a group of mappings
 type MappingProfile struct {
-	Name     string           `mapstructure:"name"`
-	Prefix   string           `mapstructure:"prefix"`
-	Mappings []*MetricMapping `mapstructure:"mappings"`
+	Name     string
+	Prefix   string
+	Mappings []*MetricMapping
 }
 
 // MetricMapping represent one mapping rule
 type MetricMapping struct {
-	Match     string            `mapstructure:"match"`
-	MatchType string            `mapstructure:"match_type"`
-	Name      string            `mapstructure:"name"`
-	Tags      map[string]string `mapstructure:"tags"`
-	regex     *regexp.Regexp
+	name  string
+	tags  map[string]string
+	regex *regexp.Regexp
 }
 
 // MapResult represent the outcome of the mapping
@@ -52,19 +51,22 @@ type MapResult struct {
 }
 
 // NewMetricMapper creates, validates, prepares a new MetricMapper
-func NewMetricMapper(profiles []MappingProfile, cacheSize int) (*MetricMapper, error) {
-	for profileIndex, profile := range profiles {
-		if profile.Name == "" {
+func NewMetricMapper(configProfiles []config.MappingProfile, cacheSize int) (*MetricMapper, error) {
+	var profiles []MappingProfile
+	for profileIndex, configProfile := range configProfiles {
+		if configProfile.Name == "" {
 			return nil, fmt.Errorf("missing profile name %d", profileIndex)
 		}
-		if profile.Prefix == "" {
-			return nil, fmt.Errorf("missing prefix for profile: %s", profile.Name)
+		if configProfile.Prefix == "" {
+			return nil, fmt.Errorf("missing prefix for profile: %s", configProfile.Name)
 		}
-		for i, currentMapping := range profile.Mappings {
-			if currentMapping.MatchType == "" {
-				currentMapping.MatchType = matchTypeWildcard
+		profile := MappingProfile{Name: configProfile.Name, Prefix: configProfile.Prefix}
+		for i, currentMapping := range configProfile.Mappings {
+			matchType := currentMapping.MatchType
+			if matchType == "" {
+				matchType = matchTypeWildcard
 			}
-			if currentMapping.MatchType != matchTypeWildcard && currentMapping.MatchType != matchTypeRegex {
+			if matchType != matchTypeWildcard && matchType != matchTypeRegex {
 				return nil, fmt.Errorf("profile: %s, mapping num %d: invalid match type, must be `wildcard` or `regex`", profile.Name, i)
 			}
 			if currentMapping.Name == "" {
@@ -73,11 +75,13 @@ func NewMetricMapper(profiles []MappingProfile, cacheSize int) (*MetricMapper, e
 			if currentMapping.Match == "" {
 				return nil, fmt.Errorf("profile: %s, mapping num %d: match is required", profile.Name, i)
 			}
-			err := currentMapping.prepare()
+			regex, err := buildRegex(currentMapping.Match, matchType)
 			if err != nil {
 				return nil, err
 			}
+			profile.Mappings = append(profile.Mappings, &MetricMapping{name: currentMapping.Name, tags: currentMapping.Tags, regex: regex})
 		}
+		profiles = append(profiles, profile)
 	}
 	cache, err := newMapperCache(cacheSize)
 	if err != nil {
@@ -86,25 +90,22 @@ func NewMetricMapper(profiles []MappingProfile, cacheSize int) (*MetricMapper, e
 	return &MetricMapper{Profiles: profiles, cache: cache}, nil
 }
 
-// prepare compiles the match patterns into regexes
-func (m *MetricMapping) prepare() error {
-	metricRe := m.Match
-	if m.MatchType == matchTypeWildcard {
-		if !allowedWildcardMatchPattern.MatchString(m.Match) {
-			return fmt.Errorf("invalid wildcard match pattern `%s`, it does not match allowed match regex `%s`", m.Match, allowedWildcardMatchPattern)
+func buildRegex(matchRe string, matchType string) (*regexp.Regexp, error) {
+	if matchType == matchTypeWildcard {
+		if !allowedWildcardMatchPattern.MatchString(matchRe) {
+			return nil, fmt.Errorf("invalid wildcard match pattern `%s`, it does not match allowed match regex `%s`", matchRe, allowedWildcardMatchPattern)
 		}
-		if strings.Contains(m.Match, "**") {
-			return fmt.Errorf("invalid wildcard match pattern `%s`, it should not contain consecutive `*`", m.Match)
+		if strings.Contains(matchRe, "**") {
+			return nil, fmt.Errorf("invalid wildcard match pattern `%s`, it should not contain consecutive `*`", matchRe)
 		}
-		metricRe = strings.Replace(metricRe, ".", "\\.", -1)
-		metricRe = strings.Replace(metricRe, "*", "([^.]*)", -1)
+		matchRe = strings.Replace(matchRe, ".", "\\.", -1)
+		matchRe = strings.Replace(matchRe, "*", "([^.]*)", -1)
 	}
-	regex, err := regexp.Compile("^" + metricRe + "$")
+	regex, err := regexp.Compile("^" + matchRe + "$")
 	if err != nil {
-		return fmt.Errorf("invalid match `%s`. cannot compile regex: %v", m.Match, err)
+		return nil, fmt.Errorf("invalid match `%s`. cannot compile regex: %v", matchRe, err)
 	}
-	m.regex = regex
-	return nil
+	return regex, nil
 }
 
 // Map returns a MapResult
@@ -125,13 +126,13 @@ func (m *MetricMapper) Map(metricName string) (*MapResult, bool) {
 
 			name := string(mapping.regex.ExpandString(
 				[]byte{},
-				mapping.Name,
+				mapping.name,
 				metricName,
 				matches,
 			))
 
 			var tags []string
-			for tagKey, tagValueExpr := range mapping.Tags {
+			for tagKey, tagValueExpr := range mapping.tags {
 				tagValue := string(mapping.regex.ExpandString([]byte{}, tagValueExpr, metricName, matches))
 				tags = append(tags, tagKey+":"+tagValue)
 			}

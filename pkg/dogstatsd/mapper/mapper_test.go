@@ -514,7 +514,7 @@ dogstatsd_mapper_profiles:
 }
 
 func getMapper(configString string) (*MetricMapper, error) {
-	var profiles []MappingProfile
+	var profiles []config.MappingProfile
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(configString))
 	if err != nil {
