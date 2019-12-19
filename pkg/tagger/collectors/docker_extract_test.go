@@ -234,7 +234,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				Config: &container.Config{
 					Env: []string{"PATH=/bin"},
 					Labels: map[string]string{
-						"com.datadoghq.ad.tags": "adTestKey:adTestVal1 adTestKey:adTestVal2",
+						"com.datadoghq.ad.tags": "[\"adTestKey:adTestVal1\", \"adTestKey:adTestVal2\"]",
 					},
 				},
 			},

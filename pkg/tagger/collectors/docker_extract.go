@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -92,12 +93,16 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 
 		// Custom labels as tags
 		case "com.datadoghq.ad.tags":
-			// labelValue is a space-delimited list of strings
-			tagList := strings.Split(labelValue, " ")
-			for _, tag := range tagList {
+			tagNames := []string{}
+			err := json.Unmarshal([]byte(labelValue), &tagNames)
+			if err != nil {
+				log.Debugf("Cannot unmarshal AD tags: %s", err)
+			}
+			for _, tag := range tagNames {
 				tagParts := strings.Split(tag, ":")
 				// skip if tag is not in expected k:v format
 				if len(tagParts) != 2 {
+					log.Debugf("Tag %s is not in k:v format", strings.Join(tagParts, ", "))
 					continue
 				}
 				tags.AddHigh(tagParts[0], tagParts[1])
