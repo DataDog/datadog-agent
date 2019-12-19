@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"net"
 	"runtime"
 	"sort"
@@ -19,14 +18,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
