@@ -420,7 +420,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 func (suite *PodwatcherTestSuite) TestPullChanges() {
 	mockConfig := config.Mock()
 
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	kubelet, err := newDummyKubelet("testdata/podlist_1.8-2.json", "testdata/spec.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.StartTLS()
 	defer ts.Close()

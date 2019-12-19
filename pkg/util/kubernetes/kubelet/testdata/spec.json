@@ -1,0 +1,100 @@
+{
+  "num_cores": 2,
+  "cpu_frequency_khz": 2300098,
+  "memory_capacity": 8358805504,
+  "hugepages": [
+   {
+    "page_size": 1048576,
+    "num_pages": 0
+   },
+   {
+    "page_size": 2048,
+    "num_pages": 0
+   }
+  ],
+  "machine_id": "f3fa05a976504e8c8ffcb34a89916d90",
+  "system_uuid": "ec2856b5-7a2c-88e8-8e73-bcba2855ea4c",
+  "boot_id": "bdab808d-5d4f-416e-82d3-2abe8a2b9940",
+  "filesystems": [
+   {
+    "device": "tmpfs",
+    "capacity": 4179402752,
+    "type": "vfs",
+    "inodes": 1020362,
+    "has_inodes": true
+   },
+   {
+    "device": "/dev/xvda3",
+    "capacity": 127762673664,
+    "type": "vfs",
+    "inodes": 62389184,
+    "has_inodes": true
+   },
+   {
+    "device": "/dev/xvda2",
+    "capacity": 1023303680,
+    "type": "vfs",
+    "inodes": 65536,
+    "has_inodes": true
+   }
+  ],
+  "disk_map": {
+   "202:0": {
+    "name": "xvda",
+    "major": 202,
+    "minor": 0,
+    "size": 128849018880,
+    "scheduler": "mq-deadline"
+   }
+  },
+  "network_devices": [
+   {
+    "name": "ens3",
+    "mac_address": "02:d5:8f:10:a3:95",
+    "speed": 10000,
+    "mtu": 9001
+   }
+  ],
+  "topology": [
+   {
+    "node_id": 0,
+    "memory": 8358805504,
+    "cores": [
+     {
+      "core_id": 0,
+      "thread_ids": [
+       0,
+       1
+      ],
+      "caches": [
+       {
+        "size": 32768,
+        "type": "Data",
+        "level": 1
+       },
+       {
+        "size": 32768,
+        "type": "Instruction",
+        "level": 1
+       },
+       {
+        "size": 262144,
+        "type": "Unified",
+        "level": 2
+       }
+      ]
+     }
+    ],
+    "caches": [
+     {
+      "size": 47185920,
+      "type": "Unified",
+      "level": 3
+     }
+    ]
+   }
+  ],
+  "cloud_provider": "AWS",
+  "instance_type": "m4.large",
+  "instance_id": "i-0df70970cfb000872"
+ }

@@ -34,6 +34,7 @@ import (
 const (
 	kubeletPodPath         = "/pods"
 	kubeletMetricsPath     = "/metrics"
+	kubeletSpecPath        = "/spec"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
 	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
@@ -61,6 +62,7 @@ type KubeUtil struct {
 	filter                   *containers.Filter
 	waitOnMissingContainer   time.Duration
 	podUnmarshaller          *podUnmarshaller
+	kubeletSpecUnmarshaller  *kubeletSpecUnmarshaller
 }
 
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
@@ -81,6 +83,7 @@ func newKubeUtil() *KubeUtil {
 		rawConnectionInfo:        make(map[string]string),
 		podListCacheDuration:     config.Datadog.GetDuration("kubelet_cache_pods_duration") * time.Second,
 		podUnmarshaller:          newPodUnmarshaller(),
+		kubeletSpecUnmarshaller:  newKubeletSpecUnmarshaller(),
 	}
 
 	waitOnMissingContainer := config.Datadog.GetDuration("kubelet_wait_on_missing_container")
@@ -137,8 +140,66 @@ func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
 }
 
-// GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
+// GetHostname attempts to retrieve the same hostname as the AWS or GCE hostname provider.
+// But it tries to do that even on setups where the agent POD hasn’t access to the metadata server.
+// For this, it relies on the information available from the kubelet API, some of those are indirectly coming from the metadata server.
+// If we are not on AWS or GCE, it defaults to building a hostname from the kubernetes nodename and an optional cluster-name.
 func (ku *KubeUtil) GetHostname() (string, error) {
+	name, err := ku.getHostnameFromKubelet()
+	if err == nil {
+		return name, err
+	} else {
+		log.Debugf("couldn’t find the hostname from the information provided by the kubelet: %v", err)
+		return ku.getHostnameFromNodeAndClusterName()
+	}
+}
+
+func (ku *KubeUtil) getHostnameFromKubelet() (string, error) {
+	data, code, err := ku.QueryKubelet(kubeletSpecPath)
+	if err != nil {
+		return "", fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletSpecPath, err)
+	}
+	if code != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletSpecPath, string(data))
+	}
+
+	spec := KubeletSpec{}
+	err = ku.kubeletSpecUnmarshaller.unmarshal(data, &spec)
+	if err != nil {
+		return "", fmt.Errorf("unable to unmarshall kubelet spec, invalid or null: %s", err)
+	}
+
+	switch spec.CloudProvider {
+	// The EC2 hostname provider returns the instance-id. That piece of information is also available form the /spec/ kubelet API endpoint.
+	case "AWS":
+		name, err := ku.getHostnameFromInstanceId(&spec)
+		if err == nil {
+			return name, err
+		}
+
+		// The GCE hostname provider returns the full hostname.
+		// We could use the nodeName, but it contains only the short hostname and we are missing the suffix which is `<GCE_project>.internal`.
+		// case "GCE":
+		// 	name, err := ku.GetNodename()
+		// 	if err != nil {
+		// 		return name, err
+		// 	}
+	}
+
+	return "", fmt.Errorf("Given the current cloud-provider, it is not possible to get the proper hostname from the kubelet")
+}
+
+// getHostnameFromInstanceId retrieves the instance-id field from the /spec/ endpoint of the kubelet
+func (ku *KubeUtil) getHostnameFromInstanceId(spec *KubeletSpec) (string, error) {
+	// Check that InstanceId is valid
+	if spec.InstanceId == "" || spec.InstanceId == "Unknown" || spec.InstanceId == "None" {
+		return "", fmt.Errorf("instance_id returned by kubelet is invalid: %s", spec.InstanceId)
+	} else {
+		return spec.InstanceId, nil
+	}
+}
+
+func (ku *KubeUtil) getHostnameFromNodeAndClusterName() (string, error) {
 	nodeName, err := ku.GetNodename()
 	if err != nil {
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)

@@ -146,3 +146,10 @@ type ContainerStateTerminated struct {
 	StartedAt  time.Time `json:"startedAt"`
 	FinishedAt time.Time `json:"finishedAt"`
 }
+
+// KubeletSpec contains fields for unmarshalling a Kubelet Spec
+type KubeletSpec struct {
+	CloudProvider string `json:"cloud_provider"`
+	InstanceType  string `json:"instance_type"`
+	InstanceId    string `json:"instance_id"`
+}
