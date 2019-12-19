@@ -6,7 +6,7 @@
 
 #### Agent 7
 
-The Datadog agent, including a Python 3 interpreter for custom checks.
+The Datadog agent, including a Python 3 interpreter for Python checks.
 
 Relevant tags are:
 
