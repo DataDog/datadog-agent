@@ -89,7 +89,7 @@ func readSecretFile(path string) (string, error) {
 	fi, err := os.Lstat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", fmt.Errorf("secret %q does not exist", path)
+			return "", errors.New("secret does not exist")
 		}
 		return "", err
 	}
@@ -103,10 +103,9 @@ func readSecretFile(path string) (string, error) {
 
 	bufSize := fi.Size()
 	if bufSize > maxSecretFileSize {
-		return "", fmt.Errorf("secret %q exceeds max file size of %d", path, maxSecretFileSize)
+		return "", errors.New("secret exceeds max allowed size")
 	}
-	bytes := make([]byte, bufSize)
-	_, err = file.Read(bytes)
+	bytes, err := ioutil.ReadAll(file)
 	if err != nil {
 		return "", err
 	}

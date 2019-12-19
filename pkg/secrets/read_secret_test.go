@@ -67,10 +67,10 @@ func TestReadSecret(t *testing.T) {
 					"value": "secret1-value\n"
 				},
 				"secret2": {
-					"error": "secret \"testdata/read-secrets/secret2\" does not exist"
+					"error": "secret does not exist"
 				},
 				"secret3": {
-					"error": "secret \"testdata/read-secrets/secret3\" exceeds max file size of 1024"
+					"error": "secret exceeds max allowed size"
 				}
 			}
 			`,
