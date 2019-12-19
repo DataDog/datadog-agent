@@ -26,7 +26,7 @@ const (
 )
 
 type KubeMetadataCollector struct {
-	kubeUtil  *kubelet.KubeUtil
+	kubeUtil  kubelet.KubeUtilInterface
 	apiClient *apiserver.APIClient
 	infoOut   chan<- []*TagInfo
 	dcaClient clusteragent.DCAClientInterface

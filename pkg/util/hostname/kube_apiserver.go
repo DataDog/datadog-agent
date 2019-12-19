@@ -12,7 +12,9 @@
 
 package hostname
 
-import "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/apiserver"
+)
 
 func init() {
 	RegisterHostnameProvider("kube_apiserver", apiserver.HostnameProvider)

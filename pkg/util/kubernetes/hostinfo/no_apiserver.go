@@ -3,14 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build kubelet
+// +build !kubeapiserver
 
-package hostname
+package hostinfo
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
-)
-
-func init() {
-	RegisterHostnameProvider("kubelet", kubelet.HostnameProvider)
+func apiserverNodeLabels(nodeName string) (map[string]string, error) {
+	return nil, nil
 }
