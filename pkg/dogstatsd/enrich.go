@@ -1,9 +1,9 @@
 package dogstatsd
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
