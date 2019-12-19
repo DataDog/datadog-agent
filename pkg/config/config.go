@@ -1027,7 +1027,7 @@ func setNumWorkers(config Config) {
 	config.Set("check_runners", numWorkers)
 }
 
-// GetDogstatsdMappings returns mapping profiles used in DogStatsD mapper
+// GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
 func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
 	return getDogstatsdMappingProfilesConfig(Datadog)
 }
