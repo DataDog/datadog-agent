@@ -16,7 +16,7 @@ Relevant tags are:
 
 #### Agent 6
 
-The Datadog agent, including a Python 2 interpreter for custom checks. Note that Python 2 EOL is set for January 1, 2020.
+The Datadog agent, including a Python 2 interpreter for Python checks. Note that Python 2 EOL is set for January 1, 2020.
 
 Relevant tags are:
 
