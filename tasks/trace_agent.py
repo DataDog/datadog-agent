@@ -22,13 +22,13 @@ DEFAULT_BUILD_TAGS = [
 
 @task
 def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=None,
-          build_exclude=None, arch="x64"):
+          build_exclude=None, major_version='7', arch="x64"):
     """
     Build the trace agent.
     """
 
     # get env prior to windows sources so we only have to set the target architecture once
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch)
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -37,7 +37,7 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, env)
+        ver = get_version_numeric_only(ctx, env, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run("windmc --target {target_arch}  -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc".format(target_arch=windres_target))

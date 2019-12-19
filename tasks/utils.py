@@ -52,7 +52,7 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
 
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
                     rtloader_root=None, python_home_2=None, python_home_3=None,
-                    with_both_python=False, arch="x64"):
+                    with_both_python=False, major_version='7', arch="x64"):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -60,7 +60,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     Context object.
     """
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, prefix)
+    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version)
     env = {}
 
     # lets pass the build runtimes around with the env
@@ -148,7 +148,7 @@ def get_payload_version():
 
     return ""
 
-def get_version_ldflags(ctx, prefix=None):
+def get_version_ldflags(ctx, prefix=None, major_version='7'):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -157,7 +157,7 @@ def get_version_ldflags(ctx, prefix=None):
     commit = get_git_commit()
 
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
-    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix))
+    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix, major_version=major_version))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
 
     return ldflags

@@ -321,7 +321,7 @@ build_dogstatsd_static-deb_x64:
     - source /root/.bashrc && conda activate ddpy3
     - inv deps --verbose --dep-vendor-only
   script:
-    - inv -e dogstatsd.build --static
+    - inv -e dogstatsd.build --static --major-version "$AGENT_MAJOR_VERSION"
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
 
 # build puppy agent for deb-x64, to make sure the build is not broken because of build flags
@@ -335,7 +335,7 @@ build_puppy_agent-deb_x64:
     - source /root/.bashrc && conda activate ddpy3
     - inv deps --verbose --dep-vendor-only --no-checks
   script:
-    - inv -e agent.build --puppy
+    - inv -e agent.build --puppy --major-version "$AGENT_MAJOR_VERSION"
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/puppy/agent
 
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
@@ -349,7 +349,7 @@ build_puppy_agent-deb_x64_arm:
     - source /root/.bashrc && conda activate ddpy3
     - inv deps --verbose --dep-vendor-only --no-checks
   script:
-    - GOOS=linux GOARCH=arm inv -e agent.build --puppy
+    - GOOS=linux GOARCH=arm inv -e agent.build --puppy --major-version "$AGENT_MAJOR_VERSION"
 
 # build dogstatsd for deb-x64
 build_dogstatsd-deb_x64:
@@ -362,7 +362,7 @@ build_dogstatsd-deb_x64:
     - source /root/.bashrc && conda activate ddpy3
     - inv deps --verbose --dep-vendor-only
   script:
-    - inv -e dogstatsd.build
+    - inv -e dogstatsd.build --major-version "$AGENT_MAJOR_VERSION"
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
 
 
@@ -806,6 +806,7 @@ agent_android_apk:
   tags: [ "runner:main", "size:large" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    AGENT_MAJOR_VERSION: 7
   <<: *skip_when_unwanted_on_6
   before_script:
     - echo running android before_script
@@ -824,7 +825,7 @@ agent_android_apk:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # for now do the steps manually.  Should eventually move this to an invoke
     # task
-    - inv -e android.build
+    - inv -e android.build --major-version "$AGENT_MAJOR_VERSION"
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - cp ./bin/agent/ddagent-*-unsigned.apk $OMNIBUS_PACKAGE_DIR
   artifacts:

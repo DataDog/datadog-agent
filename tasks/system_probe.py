@@ -22,7 +22,7 @@ GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
 @task
-def build(ctx, race=False, go_version=None, incremental_build=False):
+def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7'):
     """
     Build the system_probe
     """
@@ -32,7 +32,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False):
     # TODO use pkg/version for this
     main = "main."
     ld_vars = {
-        "Version": get_version(ctx),
+        "Version": get_version(ctx, major_version=major_version),
         "GoVersion": get_go_version(),
         "GitBranch": get_git_branch_name(),
         "GitCommit": get_git_commit(),
@@ -49,7 +49,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False):
                     goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
-    ldflags, gcflags, env = get_build_flags(ctx)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version)
 
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:
@@ -78,7 +78,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False):
 
 
 @task
-def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False):
+def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7'):
     """
     Build the system_probe using a container
     This can be used when the current OS don't have up to date linux headers
@@ -96,7 +96,7 @@ def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_bui
     if should_use_sudo(ctx):
         docker_cmd = "sudo " + docker_cmd
 
-    cmd = "invoke -e system-probe.build"
+    cmd = "invoke -e system-probe.build --major-version {}".format(major_version)
 
     if race:
         cmd += " --race"

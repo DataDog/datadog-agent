@@ -22,7 +22,7 @@ build do
   }
 
   # we assume the go deps are already installed before running omnibus
-  command "invoke dogstatsd.build --rebuild", env: env
+  command "invoke dogstatsd.build --rebuild --major-version $MAJOR_VERSION", env: env
 
   mkdir "#{install_dir}/etc/datadog-dogstatsd"
   unless windows?
