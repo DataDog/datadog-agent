@@ -4,8 +4,8 @@ import "sort"
 
 const insertionSortThreshold = 20
 
-// SortUniqInPlace sorts and remove duplicates from src and puts the result in dst
-// The returned slice is a subslice of dst
+// SortUniqInPlace sorts and remove duplicates from elements in place
+// The returned slice is a subslice of elements
 func SortUniqInPlace(elements []string) []string {
 	if len(elements) < 2 {
 		return elements
