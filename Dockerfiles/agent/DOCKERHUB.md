@@ -11,7 +11,7 @@ The Datadog agent, including a Python 3 interpreter for Python checks.
 Relevant tags are:
 
 - `7` , `7-jmx` --> use these if you want to track the latest `7` minor release, without breaking change
-- `7.X.X` , `7.X.X-jmx`
+- `7.X.X` , `7.X.X-jmx` --> use these if you want to pin the agent to a precise version (don't forget to upgrade regularly for the latest features)
 - `latest` , `latest-jmx`
 
 #### Agent 6
