@@ -10,7 +10,7 @@ The Datadog agent, including a Python 3 interpreter for Python checks.
 
 Relevant tags are:
 
-- `7` , `7-jmx`
+- `7` , `7-jmx` --> use these if you want to track the latest `7` minor release, without breaking change
 - `7.X.X` , `7.X.X-jmx`
 - `latest` , `latest-jmx`
 
