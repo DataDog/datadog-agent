@@ -197,7 +197,7 @@ before_script:
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
-    - inv deps --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
 
 # run tests for deb-x64
 run_tests_deb-x64-py2:
@@ -283,7 +283,7 @@ run_security_scan_test:
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
     - pip install -r requirements.txt
-    - inv deps --dep-vendor-only
+    - inv -e deps --dep-vendor-only
   script:
     - set +x     # don't print the api key to the logs
     # send the list of the dependencies to snyk
@@ -319,7 +319,7 @@ build_dogstatsd_static-deb_x64:
     AGENT_MAJOR_VERSION: 7
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --static
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
@@ -333,7 +333,7 @@ build_puppy_agent-deb_x64:
     AGENT_MAJOR_VERSION: 7
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
     - inv -e agent.build --puppy
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/puppy/agent
@@ -347,7 +347,7 @@ build_puppy_agent-deb_x64_arm:
     AGENT_MAJOR_VERSION: 7
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only --no-checks
+    - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
 
@@ -360,7 +360,7 @@ build_dogstatsd-deb_x64:
     AGENT_MAJOR_VERSION: 7
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
@@ -454,7 +454,6 @@ run_dogstatsd_size_test:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
-    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_${PACKAGE_ARCH}.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_${PACKAGE_ARCH}.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
