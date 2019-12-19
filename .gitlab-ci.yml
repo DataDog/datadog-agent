@@ -453,7 +453,7 @@ run_dogstatsd_size_test:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_${PACKAGE_ARCH}.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
@@ -484,6 +484,7 @@ agent_deb-x64-a6:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
+    AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: amd64
     DESTINATION_DEB: 'datadog-agent_6_amd64.deb'
@@ -503,6 +504,7 @@ agent_deb-x64-a7:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
+    AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: amd64
     DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
@@ -518,6 +520,7 @@ agent_deb-arm-a6:
   extends: .agent_build_common_arm
   variables:
     PKG_TARGET: deb_arm_x64
+    AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: 'datadog-agent_6_arm64.deb'
@@ -533,6 +536,7 @@ agent_deb-arm-a7:
   extends: .agent_build_common_arm
   variables:
     PKG_TARGET: deb_arm_x64
+    AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
@@ -565,7 +569,7 @@ puppy_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-puppy*_amd64.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb $S3_ARTIFACTS_URI/datadog-puppy_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -593,7 +597,7 @@ puppy_deb-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -615,6 +619,7 @@ agent_rpm-x64-a6:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
     CONDA_ENV: ddpy3
   before_script:
@@ -631,6 +636,7 @@ agent_rpm-x64-a7:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
   before_script:
@@ -645,6 +651,7 @@ agent_rpm-arm-a6:
   extends: .agent_build_common_arm
   variables:
     PKG_TARGET: rpm_arm_x64
+    AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
   before_script:
     - source /root/.bashrc
@@ -658,6 +665,7 @@ agent_rpm-arm-a7:
   extends: .agent_build_common_arm
   variables:
     PKG_TARGET: rpm_arm_x64
+    AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc
@@ -680,7 +688,7 @@ agent_rpm-arm-a7:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
@@ -705,6 +713,7 @@ agent_suse-x64-a6:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
@@ -719,6 +728,7 @@ agent_suse-x64-a7:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -741,7 +751,7 @@ agent_suse-x64-a7:
     - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir .omnibus\pkg
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \build-agent6.bat --release-version %RELEASE_VERSION%
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e AGENT_MAJOR_VERSION=${AGENT_MAJOR_VERSION} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \build-agent6.bat --release-version %RELEASE_VERSION%
     - copy build-out\*.msi .omnibus\pkg
   artifacts:
     expire_in: 2 weeks
@@ -752,6 +762,7 @@ dockerbuild_windows_msi_x64-a7:
   extends: .dockerbuild_windows_msi_base
   variables:
     ARCH: "x64"
+    AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
   before_script:
     - set RELEASE_VERSION %RELEASE_VERSION_7%
@@ -761,6 +772,7 @@ dockerbuild_windows_msi_x86-a7:
   extends: .dockerbuild_windows_msi_base
   variables:
     ARCH: "x86"
+    AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
   before_script:
     - set RELEASE_VERSION %RELEASE_VERSION_7%
@@ -770,6 +782,7 @@ dockerbuild_windows_msi_x64-a6:
   extends: .dockerbuild_windows_msi_base
   variables:
     ARCH: "x64"
+    AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
   before_script:
     - set RELEASE_VERSION %RELEASE_VERSION_6%
@@ -779,6 +792,7 @@ dockerbuild_windows_msi_x86-a6:
   extends: .dockerbuild_windows_msi_base
   variables:
     ARCH: "x86"
+    AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
   before_script:
     - set RELEASE_VERSION %RELEASE_VERSION_6%
@@ -836,7 +850,7 @@ dogstatsd_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-dogstatsd*_amd64.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb $S3_ARTIFACTS_URI/datadog-dogstatsd_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-dogstatsd*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -875,7 +889,7 @@ dogstatsd_rpm-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' -print0 | sort -z | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
