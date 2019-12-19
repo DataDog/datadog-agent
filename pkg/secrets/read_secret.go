@@ -88,8 +88,8 @@ func readSecret(path string) secret {
 func readSecretFile(path string) (string, error) {
 	fi, err := os.Lstat(path)
 	if err != nil {
-		if pathError, ok := err.(*os.PathError); ok {
-			return "", pathError.Err
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("secret %q does not exist", path)
 		}
 		return "", err
 	}

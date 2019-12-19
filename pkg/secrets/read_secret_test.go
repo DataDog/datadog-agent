@@ -67,7 +67,7 @@ func TestReadSecret(t *testing.T) {
 					"value": "secret1-value\n"
 				},
 				"secret2": {
-					"error": "no such file or directory"
+					"error": "secret \"testdata/read-secrets/secret2\" does not exist"
 				},
 				"secret3": {
 					"error": "secret \"testdata/read-secrets/secret3\" exceeds max file size of 1024"
