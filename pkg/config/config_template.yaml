@@ -753,8 +753,8 @@ api_key:
 ##      This alternative syntax can also be used: ${1}, ${2}, etc
 #
 # dogstatsd_mapper_profiles:
-#   - name: <PROFILE_NAME>                    # e.g. "airflow", "consul", "some_database"
-#     prefix: <PROFILE_PREFIX>                # e.g. "airflow.", "consul.", "some_database."
+#   - name: <PROFILE_NAME>                        # e.g. "airflow", "consul", "some_database"
+#     prefix: <PROFILE_PREFIX>                    # e.g. "airflow.", "consul.", "some_database."
 #     mappings:
 #       - match: <METRIC_TO_MATCH>                # e.g. `test.job.duration.*` to match `test.job.duration.my_job_name`
 #         match_type: <MATCH_TYPE>                # e.g. `wildcard` or `regex`
