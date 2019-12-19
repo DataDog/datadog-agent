@@ -12,7 +12,7 @@ Relevant tags are:
 
 - `7` , `7-jmx` --> use these if you want to track the latest `7` minor release, without breaking change
 - `7.X.X` , `7.X.X-jmx` --> use these if you want to pin the agent to a precise version (don't forget to upgrade regularly for the latest features)
-- `latest` , `latest-jmx`
+- `latest` , `latest-jmx` --> use these for following the latest agent release, but keep in mind that it will update automatically to the next major release, which will have breaking changes. Major releases are very infrequent (less than one per year)
 
 #### Agent 6
 
