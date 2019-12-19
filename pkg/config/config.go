@@ -98,6 +98,21 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
+// MappingProfile represent a group of mappings
+type MappingProfile struct {
+	Name     string          `mapstructure:"name"`
+	Prefix   string          `mapstructure:"prefix"`
+	Mappings []MetricMapping `mapstructure:"mappings"`
+}
+
+// MetricMapping represent one mapping rule
+type MetricMapping struct {
+	Match     string            `mapstructure:"match"`
+	MatchType string            `mapstructure:"match_type"`
+	Name      string            `mapstructure:"name"`
+	Tags      map[string]string `mapstructure:"tags"`
+}
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -1010,4 +1025,20 @@ func setNumWorkers(config Config) {
 
 	// update config with the actual effective number of workers
 	config.Set("check_runners", numWorkers)
+}
+
+// GetDogstatsdMappings returns mapping profiles used in DogStatsD mapper
+func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
+	return getDogstatsdMappingProfilesConfig(Datadog)
+}
+
+func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) {
+	var mappings []MappingProfile
+	if config.IsSet("dogstatsd_mapper_profiles") {
+		err := config.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
+		if err != nil {
+			return []MappingProfile{}, log.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
+		}
+	}
+	return mappings, nil
 }

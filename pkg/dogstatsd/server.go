@@ -178,19 +178,15 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 
 	cacheSize := config.Datadog.GetInt("dogstatsd_mapper_cache_size")
 
-	if config.Datadog.IsSet("dogstatsd_mapper_profiles") {
-		var mappings []mapper.MappingProfile
-		config.Datadog.SetConfigType("yaml")
-		err = config.Datadog.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
+	mappings, err := config.GetDogstatsdMappingProfiles()
+	if err != nil {
+		log.Warnf("Could not parse mapping profiles: %v", err)
+	} else if len(mappings) != 0 {
+		mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
 		if err != nil {
-			log.Warnf("Could not parse dogstatsd_mapping_config.mappings for logs: %v", err)
+			log.Warnf("Could not create metric mapper: %v", err)
 		} else {
-			mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
-			if err != nil {
-				log.Warnf("Could not create metric mapper: %v", err)
-			} else {
-				s.mapper = mapperInstance
-			}
+			s.mapper = mapperInstance
 		}
 	}
 
