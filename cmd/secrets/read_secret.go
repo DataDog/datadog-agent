@@ -25,6 +25,11 @@ const (
 	compatibleMajVersion = "1"
 )
 
+type secret struct {
+	Value    string `json:"value,omitempty"`
+	ErrorMsg string `json:"error,omitempty"`
+}
+
 // ReadSecretsCmd implements a secrets backend command reading secrets from a directory/mount
 var ReadSecretCmd = &cobra.Command{
 	Use:   "read-secret",
