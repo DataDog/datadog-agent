@@ -123,7 +123,7 @@ the source files for the `datadog-agent` software definition.
 - Python >= 2.7
     
 *Note:* Windows 8.1 SDK is not longer shipped with Visual Studio, starting with version 2019.
-It can be downloaded separately [here](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive).
+It can be [downloaded separately](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive).
 
 ### Installation
 - Launch a "Developer Command Prompt for VS 201X"
