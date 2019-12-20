@@ -223,20 +223,22 @@ elif [ $OS = "SUSE" ]; then
   echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
   if [ "$SUSE11" == "yes" ]; then
     # SUSE 11 special case
-    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public https://yum.${repo_url}/DATADOG_RPM_KEY.public
-    $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY.public
+    if [ $dd_agent_major_version -lt 7 ]; then
+      $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public https://yum.${repo_url}/DATADOG_RPM_KEY.public
+      $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY.public
+    fi
     $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
     $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public
-
-    gpgkeys="https://yum.${repo_url}/DATADOG_RPM_KEY.public\n       https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public"
-  elif [ $dd_agent_major_version -eq 7 ]; then
+  else
+    if [ $dd_agent_major_version -lt 7 ]; then
+      $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY.public
+    fi
     $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
+  fi
 
+  if [ $dd_agent_major_version -eq 7 ]; then
     gpgkeys="https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public"
   else
-    $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY.public
-    $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
-
     gpgkeys="https://yum.${repo_url}/DATADOG_RPM_KEY.public\n       https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public"
   fi
 
