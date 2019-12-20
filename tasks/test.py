@@ -103,7 +103,12 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     if cpus:
         build_cpus_opt = "-p {}".format(cpus)
     if race:
-        race_opt = "-race"
+        # race doesn't appear to be supported on non-x64 platforms
+        if arch == "x86":
+            print("\n -- Warning... disabling race test, not supported on this platform --\n")
+        else:
+            race_opt = "-race"
+
     if coverage:
         if race:
             # atomic is quite expensive but it's the only way to run
