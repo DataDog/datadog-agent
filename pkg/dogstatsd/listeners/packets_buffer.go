@@ -50,7 +50,7 @@ func (pb *packetsBuffer) append(packet *Packet) {
 	pb.m.Lock()
 	defer pb.m.Unlock()
 	pb.packets = append(pb.packets, packet)
-	if uint(len(pb.packets)) == pb.bufferSize {
+	if uint(len(pb.packets)) >= pb.bufferSize {
 		pb.flush()
 	}
 }

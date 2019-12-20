@@ -156,7 +156,7 @@ func (l *UDSListener) Listen() {
 		udsBytes.Add(int64(n))
 		packet.Contents = packet.buffer[:n]
 
-		// packetBuffer handles the forwarding of the packets to the dogstatsd server intake channel
+		// packetsBuffer handles the forwarding of the packets to the dogstatsd server intake channel
 		l.packetsBuffer.append(packet)
 	}
 }

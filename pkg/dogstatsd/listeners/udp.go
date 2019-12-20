@@ -101,7 +101,7 @@ func (l *UDPListener) Listen() {
 		}
 		udpBytes.Add(int64(n))
 
-		// packetBuffer merges multiple packets together and sends them when it's buffer is full
+		// packetBuffer merges multiple packets together and sends them when its buffer is full
 		l.packetBuffer.addMessage(l.buffer[:n])
 	}
 }
