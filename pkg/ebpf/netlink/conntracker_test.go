@@ -18,28 +18,69 @@ import (
 func TestIsNat(t *testing.T) {
 	src := net.ParseIP("1.1.1.1")
 	dst := net.ParseIP("2.2.2..2")
+	tdst := net.ParseIP("3.3.3.3")
 	var srcPort uint16 = 42
 	var dstPort uint16 = 8080
-	c := ct.Con{
-		Origin: &ct.IPTuple{
-			Src: &src,
-			Dst: &dst,
-			Proto: &ct.ProtoTuple{
-				SrcPort: &srcPort,
-				DstPort: &dstPort,
-			},
-		},
-		Reply: &ct.IPTuple{
-			Src: &dst,
-			Dst: &src,
-			Proto: &ct.ProtoTuple{
-				SrcPort: &dstPort,
-				DstPort: &srcPort,
-			},
-		},
-	}
 
-	assert.False(t, isNAT(c))
+	t.Run("not nat", func(t *testing.T) {
+
+		c := ct.Con{
+			Origin: &ct.IPTuple{
+				Src: &src,
+				Dst: &dst,
+				Proto: &ct.ProtoTuple{
+					SrcPort: &srcPort,
+					DstPort: &dstPort,
+				},
+			},
+			Reply: &ct.IPTuple{
+				Src: &dst,
+				Dst: &src,
+				Proto: &ct.ProtoTuple{
+					SrcPort: &dstPort,
+					DstPort: &srcPort,
+				},
+			},
+		}
+		assert.False(t, isNAT(c))
+	})
+
+	t.Run("nil proto field", func(t *testing.T) {
+		c := ct.Con{
+			Origin: &ct.IPTuple{
+				Src: &src,
+				Dst: &dst,
+			},
+			Reply: &ct.IPTuple{
+				Src: &dst,
+				Dst: &src,
+			},
+		}
+		assert.False(t, isNAT(c))
+	})
+
+	t.Run("nat", func(t *testing.T) {
+
+		c := ct.Con{
+			Origin: &ct.IPTuple{
+				Src: &src,
+				Dst: &dst,
+				Proto: &ct.ProtoTuple{
+					SrcPort: &srcPort,
+					DstPort: &dstPort,
+				},
+			},
+			Reply: &ct.IPTuple{
+				Src: &tdst,
+				Dst: &src,
+				Proto: &ct.ProtoTuple{
+					SrcPort: &dstPort,
+					DstPort: &srcPort,
+				},
+			},
+		}
+		assert.True(t, isNAT(c))
+	})
 }
 
 func TestRegisterNonNat(t *testing.T) {

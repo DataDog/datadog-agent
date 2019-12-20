@@ -33,6 +33,8 @@ Client to query the Datadog Cluster Agent (DCA) API.
 
 const (
 	authorizationHeaderKey = "Authorization"
+	// RealIPHeader refers to the cluster level check runner ip passed in the request headers
+	RealIPHeader = "X-Real-Ip"
 )
 
 var globalClusterAgentClient *DCAClient
@@ -106,6 +108,8 @@ func (c *DCAClient) init() error {
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
 	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
+	podIP := config.Datadog.GetString("clc_runner_host")
+	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
 	// TODO remove insecure
 	c.clusterAgentAPIClient = util.GetClient(false)

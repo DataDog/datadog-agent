@@ -23,7 +23,7 @@ if [[ ! -e /etc/datadog-agent/conf.d/kubelet.d/conf.yaml.default ]]; then
 fi
 
 # The apiserver check requires leader election to be enabled
-if [[ "$DD_LEADER_ELECTION" ]] && [[ ! -e /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.default ]]; then
+if [[ "$DD_LEADER_ELECTION" == "true" ]] && [[ ! -e /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.default ]]; then
     mv /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.example \
     /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.default
 else

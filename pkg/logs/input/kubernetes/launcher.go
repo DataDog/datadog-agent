@@ -33,7 +33,7 @@ type Launcher struct {
 	sources            *config.LogSources
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
-	kubeutil           *kubelet.KubeUtil
+	kubeutil           kubelet.KubeUtilInterface
 	addedServices      chan *service.Service
 	removedServices    chan *service.Service
 	collectAll         bool

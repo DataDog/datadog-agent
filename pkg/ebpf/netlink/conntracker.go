@@ -333,6 +333,16 @@ func (ctr *realConntracker) compact() {
 }
 
 func isNAT(c ct.Con) bool {
+	if c.Origin == nil ||
+		c.Reply == nil ||
+		c.Origin.Proto == nil ||
+		c.Reply.Proto == nil ||
+		c.Origin.Proto.SrcPort == nil ||
+		c.Origin.Proto.DstPort == nil ||
+		c.Reply.Proto.SrcPort == nil ||
+		c.Reply.Proto.DstPort == nil {
+		return false
+	}
 
 	return !(*c.Origin.Src).Equal(*c.Reply.Dst) ||
 		!(*c.Origin.Dst).Equal(*c.Reply.Src) ||

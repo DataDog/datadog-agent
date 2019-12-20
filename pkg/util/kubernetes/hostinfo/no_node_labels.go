@@ -7,11 +7,12 @@
 
 package hostinfo
 
-import (
-	"fmt"
-)
+// GetNodeLabels returns node labels for this host
+func GetNodeLabels() (map[string]string, error) {
+	return nil, nil
+}
 
-// GetHostAlias uses the "kubelet" hostname provider to fetch the kubernetes alias
-func GetHostAlias() (string, error) {
-	return "", fmt.Errorf("Kubernetes support not build: couldn't extract a host alias from the kubelet")
+// GetNodeClusterNameLabel returns clustername by fetching a node label
+func GetNodeClusterNameLabel() (string, error) {
+	return "", nil
 }

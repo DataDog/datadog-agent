@@ -12,14 +12,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 // GetTags gets the tags from the kubernetes apiserver
 func GetTags() ([]string, error) {
 	labelsToTags := config.Datadog.GetStringMapString("kubernetes_node_labels_as_tags")
+
 	if len(labelsToTags) == 0 {
 		// Nothing to extract
 		return nil, nil
@@ -31,34 +29,9 @@ func GetTags() ([]string, error) {
 		labelsToTags[strings.ToLower(label)] = value
 	}
 
-	ku, err := kubelet.GetKubeUtil()
+	nodeLabels, err := GetNodeLabels()
 	if err != nil {
 		return nil, err
-	}
-	nodeName, err := ku.GetNodename()
-	if err != nil {
-		return nil, err
-	}
-
-	var nodeLabels map[string]string
-	if config.Datadog.GetBool("cluster_agent.enabled") {
-		cl, err := clusteragent.GetClusterAgentClient()
-		if err != nil {
-			return nil, err
-		}
-		nodeLabels, err = cl.GetNodeLabels(nodeName)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		client, err := apiserver.GetAPIClient()
-		if err != nil {
-			return nil, err
-		}
-		nodeLabels, err = client.NodeLabels(nodeName)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return extractTags(nodeLabels, labelsToTags), nil
