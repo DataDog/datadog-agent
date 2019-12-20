@@ -341,12 +341,17 @@ build_puppy_agent-deb_x64:
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
 build_puppy_agent-deb_x64_arm:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:v1949502-eda0bce
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
+    ARCH: arm64
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
+    - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
