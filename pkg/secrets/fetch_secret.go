@@ -71,7 +71,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 
 type secret struct {
 	Value    string
-	ErrorMsg string `json:"error,omitempty"`
+	ErrorMsg string `json:"error"`
 }
 
 // for testing purpose
