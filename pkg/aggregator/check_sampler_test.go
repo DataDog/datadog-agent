@@ -6,9 +6,9 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	// stdlib
 	"math"
-	"sort"
 	"testing"
 	"time"
 
@@ -19,6 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 )
+
+func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
+	k := ckey.NewKeyGenerator()
+	return k.Generate(sample.GetName(), sample.GetHost(), sample.GetTags())
+}
 
 func TestCheckGaugeSampling(t *testing.T) {
 	checkSampler := newCheckSampler()
@@ -53,14 +58,11 @@ func TestCheckGaugeSampling(t *testing.T) {
 	checkSampler.addSample(&mSample3)
 
 	checkSampler.commit(12349.0)
-	s, _ := checkSampler.flush()
-	orderedSeries := OrderedSeries{s}
-	sort.Sort(orderedSeries)
-	series := orderedSeries.series
+	series, _ := checkSampler.flush()
 
 	expectedSerie1 := &metrics.Serie{
 		Name:           "my.metric.name",
-		Tags:           []string{"foo", "bar"},
+		Tags:           []string{"bar", "foo"},
 		Points:         []metrics.Point{{Ts: 12349.0, Value: mSample2.Value}},
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
@@ -70,7 +72,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 
 	expectedSerie2 := &metrics.Serie{
 		Name:           "my.metric.name",
-		Tags:           []string{"foo", "bar", "baz"},
+		Tags:           []string{"bar", "baz", "foo"},
 		Points:         []metrics.Point{{Ts: 12349.0, Value: mSample3.Value}},
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
@@ -78,14 +80,8 @@ func TestCheckGaugeSampling(t *testing.T) {
 		NameSuffix:     "",
 	}
 
-	orderedExpectedSeries := OrderedSeries{[]*metrics.Serie{expectedSerie1, expectedSerie2}}
-	sort.Sort(orderedExpectedSeries)
-	expectedSeries := orderedExpectedSeries.series
-
-	if assert.Equal(t, 2, len(series)) {
-		metrics.AssertSerieEqual(t, expectedSeries[0], series[0])
-		metrics.AssertSerieEqual(t, expectedSeries[1], series[1])
-	}
+	expectedSeries := []*metrics.Serie{expectedSerie1, expectedSerie2}
+	metrics.AssertSeriesEqual(t, expectedSeries, series)
 }
 
 func TestCheckRateSampling(t *testing.T) {

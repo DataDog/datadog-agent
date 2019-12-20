@@ -19,7 +19,7 @@ const (
 // KubeletCollector lists containers from the kubelet podlist and populates
 // performance metric from the linux cgroups
 type KubeletCollector struct {
-	kubeUtil *kubelet.KubeUtil
+	kubeUtil kubelet.KubeUtilInterface
 }
 
 // Detect tries to connect to the kubelet

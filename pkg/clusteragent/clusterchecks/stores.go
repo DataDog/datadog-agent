@@ -162,9 +162,9 @@ func (s *nodeStore) GetBusyness(busynessFunc func(avgExecTime, mSamples int) int
 	return busyness
 }
 
-// GetMostWeightedCheck returns the check with the most weight on the node
+// GetMostWeightedClusterCheck returns the Cluster Check with the most weight on the node
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetMostWeightedCheck(busynessFunc func(avgExecTime, mSamples int) int) (string, int, error) {
+func (s *nodeStore) GetMostWeightedClusterCheck(busynessFunc func(avgExecTime, mSamples int) int) (string, int, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if len(s.clcRunnerStats) == 0 {
@@ -176,11 +176,16 @@ func (s *nodeStore) GetMostWeightedCheck(busynessFunc func(avgExecTime, mSamples
 	checkWeight := 0
 	for id, stats := range s.clcRunnerStats {
 		busyness := busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
-		if busyness > checkWeight || firstItr {
+		if (busyness > checkWeight || firstItr) && stats.IsClusterCheck {
+			// Only consider Cluster Checks
 			checkWeight = busyness
 			checkID = id
 			firstItr = false
 		}
+	}
+	if firstItr {
+		log.Debugf("Node %s has no check stats for cluster checks: %v", s.name, s.clcRunnerStats)
+		return "", -1, fmt.Errorf("no cluster checks found on node %s", s.name)
 	}
 	return checkID, checkWeight, nil
 }

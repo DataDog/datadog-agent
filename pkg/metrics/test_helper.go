@@ -14,6 +14,7 @@ import (
 
 	// 3p
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,6 +33,21 @@ func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 		for _, tag := range expected {
 			assert.Contains(t, actual, tag)
 		}
+	}
+}
+
+// AssertSeriesEqual evaluate if two list of series match
+func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
+	assert.Equal(t, len(expected), len(series))
+	for _, serie := range series {
+		found := false
+		for _, expectedSerie := range expected {
+			if ckey.Compare(serie.ContextKey, expectedSerie.ContextKey) == 0 {
+				AssertSerieEqual(t, expectedSerie, serie)
+				found = true
+			}
+		}
+		assert.True(t, found)
 	}
 }
 

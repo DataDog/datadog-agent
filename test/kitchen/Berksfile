@@ -1,8 +1,6 @@
 source 'https://supermarket.chef.io'
 
-# Pinning a commit on the 4.0 branch for now
-# TODO: use the released 4.0 once it's out
-cookbook 'datadog', git: "https://github.com/DataDog/chef-datadog", ref: "608378de1e221229f3eab7531054e3616833d4b9"
+cookbook 'datadog', '~> 4.0.0'
 
 # We pin an old version of the apt cookbook because this cookbook triggers an "apt update" by default
 # and in newer versions this update is not allowed to fail, while in 3.X it is. For some reason

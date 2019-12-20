@@ -122,11 +122,11 @@ func (a *Agent) Stop() {
 		select {
 		case <-c:
 		case <-timeout.C:
-			log.Debug("Force close of the Logs Agent, dumping the Go routines.")
+			log.Warn("Force close of the Logs Agent, dumping the Go routines.")
 			if stack, err := util.GetGoRoutinesDump(); err != nil {
-				log.Debugf("can't get the Go routines dump: %s\n", err)
+				log.Warnf("can't get the Go routines dump: %s\n", err)
 			} else {
-				log.Debug(stack)
+				log.Warn(stack)
 			}
 		}
 	}
