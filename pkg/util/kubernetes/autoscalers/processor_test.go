@@ -10,6 +10,7 @@ package autoscalers
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/stretchr/testify/assert"
 )
 
 type fakeDatadogClient struct {
@@ -171,6 +173,124 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 		require.False(t, i.Valid)
 	}
 
+}
+
+func TestValidateExternalMetricsBatching(t *testing.T) {
+	metricName := "foo"
+	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
+	tests := []struct {
+		desc       string
+		in         map[string]custommetrics.ExternalMetricValue
+		out        []datadog.Series
+		batchCalls int
+		err        error
+		timeout    bool
+	}{
+		{
+			desc: "one batch",
+			in: lambdaMakeChunks(14, custommetrics.ExternalMetricValue{
+				MetricName: "foo",
+				Labels:     map[string]string{"foo": "bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 1,
+			err:        nil,
+			timeout:    false,
+		},
+		{
+			desc: "several batches",
+			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
+				MetricName: "foo",
+				Labels:     map[string]string{"foo": "bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 4,
+			err:        nil,
+			timeout:    false,
+		},
+		{
+			desc: "several batches, one error",
+			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
+				MetricName: "foo",
+				Labels:     map[string]string{"foo": "bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 4,
+			err:        fmt.Errorf("Networking Error, timeout!!!"),
+			timeout:    true,
+		},
+	}
+	var result struct {
+		bc int
+		m  sync.Mutex
+	}
+	res := &result
+	for i, tt := range tests {
+		res.m.Lock()
+		res.bc = 0
+		res.m.Unlock()
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
+			datadogClient := &fakeDatadogClient{
+				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
+					res.m.Lock()
+					defer res.m.Unlock()
+					result.bc += 1
+					if tt.timeout == true && res.bc == 1 {
+						// Error will be under the format:
+						// Error: Error while executing metric query avg:foo-56{foo:bar}.rollup(30),avg:foo-93{foo:bar}.rollup(30),[...],avg:foo-64{foo:bar}.rollup(30),avg:foo-81{foo:bar}.rollup(30): Networking Error, timeout!!!
+						// In the logs, we will be able to see which bundle failed, but for the tests, we can't know which routine will finish first (and therefore have `bc == 1`), so we only check the error returned by the Datadog Servers.
+						return nil, fmt.Errorf("Networking Error, timeout!!!")
+					}
+					return tt.out, nil
+				},
+			}
+			p := &Processor{datadogClient: datadogClient}
+
+			_, err := p.validateExternalMetric(tt.in)
+			if err != nil || tt.err != nil {
+				assert.Contains(t, err.Error(), tt.err.Error())
+			}
+			assert.Equal(t, tt.batchCalls, res.bc)
+		})
+	}
+}
+
+func lambdaMakeChunks(numChunks int, chunkToExpand custommetrics.ExternalMetricValue) (expanded map[string]custommetrics.ExternalMetricValue) {
+	expanded = make(map[string]custommetrics.ExternalMetricValue)
+	for i := 0; i <= numChunks; i++ {
+		expanded[fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i)] = custommetrics.ExternalMetricValue{
+			MetricName: fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i),
+			Labels:     chunkToExpand.Labels,
+		}
+	}
+	return expanded
 }
 
 func TestProcessor_ProcessHPAs(t *testing.T) {

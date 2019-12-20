@@ -12,16 +12,23 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
-	datadog "gopkg.in/zorkian/go-datadog-api.v2"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
+)
+
+const (
+	// chunkSize ensures batch queries are limited in size.
+	chunkSize = 45
 )
 
 type DatadogClient interface {
@@ -39,6 +46,12 @@ type ProcessorInterface interface {
 type Processor struct {
 	externalMaxAge time.Duration
 	datadogClient  DatadogClient
+}
+
+// queryResponse ensures that we capture all the signals from the call to Datadog's backend.
+type queryResponse struct {
+	metrics map[string]Point
+	err     error
 }
 
 // NewProcessor returns a new Processor
@@ -131,14 +144,53 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 	return externalMetrics
 }
 
+func makeChunks(batch []string) (chunks [][]string) {
+	for i := 0; i < len(batch); i += chunkSize {
+		if i+chunkSize > len(batch) {
+			chunks = append(chunks, batch[i:])
+			break
+		}
+		chunks = append(chunks, batch[i:i+chunkSize])
+	}
+	return chunks
+}
+
 // validateExternalMetric queries Datadog to validate the availability and value of one or more external metrics
 func (p *Processor) validateExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
-	var batch []string
+	batch := []string{}
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
 		batch = append(batch, q)
 	}
-	return p.queryDatadogExternal(batch)
+	chunks := makeChunks(batch)
+	log.Tracef("List of batches %v", chunks)
+
+	// we have a number of chunks with `chunkSize` metrics.
+	responses := make(chan queryResponse, len(batch))
+	processed = make(map[string]Point)
+
+	var waitResp sync.WaitGroup
+	waitResp.Add(len(chunks))
+	for _, c := range chunks {
+		go func(chunk []string) {
+			defer waitResp.Done()
+			resp, err := p.queryDatadogExternal(chunk)
+			responses <- queryResponse{resp, err}
+		}(c)
+	}
+	waitResp.Wait()
+	close(responses)
+	var errors []error
+	for elem := range responses {
+		for k, v := range elem.metrics {
+			processed[k] = v
+		}
+		if elem.err != nil {
+			errors = append(errors, elem.err)
+		}
+	}
+	log.Debugf("Processed %d chunks", len(chunks))
+	return processed, utilserror.NewAggregate(errors)
 }
 
 func invalidate(emList map[string]custommetrics.ExternalMetricValue) (invList map[string]custommetrics.ExternalMetricValue) {

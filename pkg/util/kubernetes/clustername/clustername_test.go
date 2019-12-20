@@ -30,10 +30,21 @@ func TestGetClusterName(t *testing.T) {
 	freshData := newClusterNameData()
 	assert.Equal(t, newClusterName, getClusterName(freshData))
 
+	var dotClusterName = "aclusternamewitha.dot"
+	mockConfig.Set("cluster_name", dotClusterName)
+	data = newClusterNameData()
+	assert.Equal(t, dotClusterName, getClusterName(data))
+
+	var dotsClusterName = "a.cluster.name.with.dots"
+	mockConfig.Set("cluster_name", dotsClusterName)
+	data = newClusterNameData()
+	assert.Equal(t, dotsClusterName, getClusterName(data))
+
 	// Test invalid cluster names
 	for _, invalidClusterName := range []string{
 		"Capital",
 		"with_underscore",
+		"with_dot._underscore",
 		"toolongtoolongtoolongtoolongtoolongtoolong"} {
 		mockConfig.Set("cluster_name", invalidClusterName)
 		freshData = newClusterNameData()
