@@ -88,7 +88,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
 
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-i" if incremental_build else "-a",
+        "build_type": "" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": BIN_PATH,
         "gcflags": gcflags,
