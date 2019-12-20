@@ -246,13 +246,12 @@ func (ctr *realConntracker) register(c ct.Con) int {
 		return 0
 	}
 
+	now := time.Now().UnixNano()
 	registerTuple := func(keyTuple, transTuple *ct.IPTuple) {
 		key, ok := formatKey(keyTuple)
 		if !ok {
 			return
 		}
-
-		now := time.Now().UnixNano()
 
 		if len(ctr.state) >= ctr.maxStateSize {
 			ctr.logExceededSize()
@@ -261,16 +260,15 @@ func (ctr *realConntracker) register(c ct.Con) int {
 
 		generation := getNthGeneration(generationLength, now, 3)
 		ctr.state[key] = formatIPTranslation(transTuple, generation)
-
-		then := time.Now().UnixNano()
-		atomic.AddInt64(&ctr.stats.registers, 1)
-		atomic.AddInt64(&ctr.stats.registersTotalTime, then-now)
 	}
 
 	ctr.Lock()
 	defer ctr.Unlock()
 	registerTuple(c.Origin, c.Reply)
 	registerTuple(c.Reply, c.Origin)
+	then := time.Now().UnixNano()
+	atomic.AddInt64(&ctr.stats.registers, 1)
+	atomic.AddInt64(&ctr.stats.registersTotalTime, then-now)
 
 	return 0
 }
@@ -294,8 +292,6 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 			return
 		}
 
-		now := time.Now().UnixNano()
-
 		// move the mapping from the permanent to "short lived" connection
 		translation, ok := ctr.state[key]
 
@@ -305,16 +301,16 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 		} else {
 			log.Warn("exceeded maximum tracked short lived connections")
 		}
-
-		then := time.Now().UnixNano()
-		atomic.AddInt64(&ctr.stats.unregisters, 1)
-		atomic.AddInt64(&ctr.stats.unregistersTotalTime, then-now)
 	}
 
+	now := time.Now().UnixNano()
 	ctr.Lock()
 	defer ctr.Unlock()
 	unregisterTuple(c.Origin)
 	unregisterTuple(c.Reply)
+	then := time.Now().UnixNano()
+	atomic.AddInt64(&ctr.stats.unregisters, 1)
+	atomic.AddInt64(&ctr.stats.unregistersTotalTime, then-now)
 
 	return 0
 }
