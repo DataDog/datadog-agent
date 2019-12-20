@@ -102,7 +102,7 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 				tagParts := strings.Split(tag, ":")
 				// skip if tag is not in expected k:v format
 				if len(tagParts) != 2 {
-					log.Debugf("Tag %s is not in k:v format", strings.Join(tagParts, ", "))
+					log.Debugf("Tag '%s' is not in k:v format", tag)
 					continue
 				}
 				tags.AddHigh(tagParts[0], tagParts[1])
