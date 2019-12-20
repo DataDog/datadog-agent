@@ -473,12 +473,6 @@ run_dogstatsd_size_test:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-.agent_build_common_arm:
-  stage: package_build
-  needs: ["run_dep_check_lock"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/$PKG_TARGET:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
-
 # build Agent package for deb-x64
 agent_deb-x64-a6:
   stage: package_build
@@ -519,9 +513,11 @@ agent_deb-x64-a7:
   <<: *agent_build_common_deb
 
 agent_deb-arm-a6:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_arm_x64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: deb_arm_x64
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: 'datadog-agent_6_arm64.deb'
@@ -534,9 +530,11 @@ agent_deb-arm-a6:
   <<: *agent_build_common_deb
 
 agent_deb-arm-a7:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_arm_x64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: deb_arm_x64
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
@@ -646,9 +644,11 @@ agent_rpm-x64-a7:
 
   # build Agent package for rpm-x64
 agent_rpm-arm-a6:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_arm_x64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: rpm_arm_x64
     PYTHON_RUNTIMES: '2,3'
   before_script:
     - source /root/.bashrc
@@ -659,9 +659,11 @@ agent_rpm-arm-a6:
 
 # build Agent package for rpm-x64
 agent_rpm-arm-a7:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_arm_x64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: rpm_arm_x64
     PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc
