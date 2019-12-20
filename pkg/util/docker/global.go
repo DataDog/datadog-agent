@@ -26,6 +26,7 @@ var (
 // GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
 func GetDockerUtil() (*DockerUtil, error) {
 	globalDockerUtilMutex.Lock()
+	defer globalDockerUtilMutex.Unlock()
 	if globalDockerUtil == nil {
 		globalDockerUtil = &DockerUtil{}
 		globalDockerUtil.initRetry.SetupRetrier(&retry.Config{
@@ -36,7 +37,6 @@ func GetDockerUtil() (*DockerUtil, error) {
 			RetryDelay:    30 * time.Second,
 		})
 	}
-	globalDockerUtilMutex.Unlock()
 	if err := globalDockerUtil.initRetry.TriggerRetry(); err != nil {
 		log.Debugf("Docker init error: %s", err)
 		return nil, err

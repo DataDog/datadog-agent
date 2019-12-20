@@ -68,8 +68,8 @@ type KubeUtil struct {
 // It is ONLY to be used for tests
 func ResetGlobalKubeUtil() {
 	globalKubeUtilMutex.Lock()
+	defer globalKubeUtilMutex.Unlock()
 	globalKubeUtil = nil
-	globalKubeUtilMutex.Unlock()
 }
 
 // ResetCache deletes existing kubeutil related cache
@@ -97,6 +97,7 @@ func newKubeUtil() *KubeUtil {
 // GetKubeUtil returns an instance of KubeUtil.
 func GetKubeUtil() (*KubeUtil, error) {
 	globalKubeUtilMutex.Lock()
+	defer globalKubeUtilMutex.Unlock()
 	if globalKubeUtil == nil {
 		globalKubeUtil = newKubeUtil()
 		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{
@@ -107,7 +108,6 @@ func GetKubeUtil() (*KubeUtil, error) {
 			RetryDelay:    30 * time.Second,
 		})
 	}
-	globalKubeUtilMutex.Unlock()
 	err := globalKubeUtil.initRetry.TriggerRetry()
 	if err != nil {
 		log.Debugf("Kube util init error: %s", err)
