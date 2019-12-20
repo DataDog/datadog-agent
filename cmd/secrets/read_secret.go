@@ -114,19 +114,29 @@ func readSecretFile(path string) (string, error) {
 			}
 		}
 
-		if !filepath.HasPrefix(target, dir) {
+		dirAbs, err := filepath.Abs(dir)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve absolute path of directory: %v", err)
+		}
+
+		if !filepath.HasPrefix(target, dirAbs) {
 			return "", fmt.Errorf("not following symlink %q outside of %q", target, dir)
 		}
 	}
+	fi, err = os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+
+	if fi.Size() > maxSecretFileSize {
+		return "", errors.New("secret exceeds max allowed size")
+	}
+
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
 
-	bufSize := fi.Size()
-	if bufSize > maxSecretFileSize {
-		return "", errors.New("secret exceeds max allowed size")
-	}
 	bytes, err := ioutil.ReadAll(file)
 	if err != nil {
 		return "", err

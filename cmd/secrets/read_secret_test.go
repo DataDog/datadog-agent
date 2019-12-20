@@ -10,6 +10,7 @@ package secrets
 import (
 	"bytes"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -18,10 +19,11 @@ import (
 
 func TestReadSecret(t *testing.T) {
 	tests := []struct {
-		name string
-		in   string
-		out  string
-		err  string
+		name        string
+		in          string
+		out         string
+		err         string
+		skipWindows bool
 	}{
 		{
 			name: "invalid input",
@@ -75,11 +77,41 @@ func TestReadSecret(t *testing.T) {
 			}
 			`,
 		},
+		{
+			name:        "symlinks",
+			skipWindows: true,
+			in: `
+			{
+				"version": "1.0",
+				"secrets": [
+					"secret4",
+					"secret5",
+					"secret6"
+				]
+			}
+			`,
+			out: `
+			{
+				"secret4": {
+					"value": "secret1-value\n"
+				},
+				"secret5": {
+					"error": "not following symlink \"/etc/passwd\" outside of \"testdata/read-secrets\""
+				},
+				"secret6": {
+					"error": "secret exceeds max allowed size"
+				}
+			}
+			`,
+		},
 	}
 
 	path := filepath.Join("testdata", "read-secrets")
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.skipWindows && runtime.GOOS == "windows" {
+				t.Skip("skipped on windows")
+			}
 			var w bytes.Buffer
 			err := ReadSecrets(strings.NewReader(test.in), &w, path)
 			out := string(w.Bytes())
