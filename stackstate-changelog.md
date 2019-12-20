@@ -1,12 +1,10 @@
 # StackState Agent v2 releases
 
-## 2.0.8 ( ??? )
+## 2.0.8 (2019-12-20)
 
 **Features**
 
-**Improvements**
-
-**Bugs**
+- Cloudera Manager integration _[(STAC-6702)](https://stackstate.atlassian.net/browse/STAC-6702)_
 
 ## 2.0.7 (2019-12-17)
 

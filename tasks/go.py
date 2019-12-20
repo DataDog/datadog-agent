@@ -265,7 +265,12 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False):
                 ctx.run('git clone -{} https://github.com/StackVista/stackstate-agent-integrations {}'.format(verbosity, core_dir))
             integrations_core_version = os.getenv('STACKSTATE_INTEGRATIONS_VERSION') or env['STACKSTATE_INTEGRATIONS_VERSION'] or "master"
             ctx.run('git -C {} checkout {}'.format(core_dir, integrations_core_version))
-            ctx.run('git -C {} pull'.format(core_dir))
+            tags_output = ctx.run("git -C " + core_dir + " ls-remote --tags | awk -F/ '{ print $3 }'")
+            tags = tags_output.stdout
+            if integrations_core_version in tags:
+                ctx.run('git -C {} pull origin master'.format(core_dir))
+            else:
+                ctx.run('git -C {} pull'.format(core_dir))
             ctx.run('pip install -{} {}'.format(verbosity, checks_base))
             ctx.run('pip install -{} -r {}'.format(verbosity, os.path.join(checks_base, 'requirements.in')))
     checks_done = datetime.datetime.now()
