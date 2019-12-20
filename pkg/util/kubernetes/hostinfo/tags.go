@@ -14,28 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 )
 
-func getDefaultLabelsToTags() map[string]string {
-	return map[string]string{
-		"kubernetes.io/role": "kube_node_role",
-	}
-}
-
 // GetTags gets the tags from the kubernetes apiserver
 func GetTags() ([]string, error) {
-	labelsToTags := getDefaultLabelsToTags()
-	for k, v := range config.Datadog.GetStringMapString("kubernetes_node_labels_as_tags") {
-		labelsToTags[k] = v
-	}
-
+	labelsToTags := getLabelsToTags()
 	if len(labelsToTags) == 0 {
 		// Nothing to extract
 		return nil, nil
-	}
-
-	// viper lower-cases map keys from yaml, but not from envvars
-	for label, value := range labelsToTags {
-		delete(labelsToTags, label)
-		labelsToTags[strings.ToLower(label)] = value
 	}
 
 	nodeLabels, err := GetNodeLabels()
@@ -44,6 +28,28 @@ func GetTags() ([]string, error) {
 	}
 
 	return extractTags(nodeLabels, labelsToTags), nil
+}
+
+func getDefaultLabelsToTags() map[string]string {
+	return map[string]string{
+		"kubernetes.io/role": "kube_node_role",
+	}
+}
+
+func getLabelsToTags() map[string]string {
+	labelsToTags := getDefaultLabelsToTags()
+	for k, v := range config.Datadog.GetStringMapString("kubernetes_node_labels_as_tags") {
+		labelsToTags[k] = v
+	}
+	if len(labelsToTags) == 0 {
+		return nil
+	}
+	// viper lower-cases map keys from yaml, but not from envvars
+	for label, value := range labelsToTags {
+		delete(labelsToTags, label)
+		labelsToTags[strings.ToLower(label)] = value
+	}
+	return labelsToTags
 }
 
 func extractTags(nodeLabels, labelsToTags map[string]string) []string {
