@@ -1,4 +1,4 @@
-Agent hostname config as canonical 
+## Make config-provided hostname canonical
 
 If `hostname` is set in `datadog.yaml` and the value starts with `ip-` or `domu`, this hostname is not used as a canonical hostname.
 More information about what a canonical hostname is can be found at [How does Datadog determine the Agent hostname?](https://docs.datadoghq.com/agent/faq/how-datadog-agent-determines-the-hostname/?tab=agentv6v7#agent-versions).
