@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -17,12 +18,15 @@ import (
 )
 
 var (
-	globalDockerUtil     *DockerUtil
-	invalidationInterval = 5 * time.Minute
+	globalDockerUtil      *DockerUtil
+	globalDockerUtilMutex sync.Mutex
+	invalidationInterval  = 5 * time.Minute
 )
 
 // GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
 func GetDockerUtil() (*DockerUtil, error) {
+	globalDockerUtilMutex.Lock()
+	defer globalDockerUtilMutex.Unlock()
 	if globalDockerUtil == nil {
 		globalDockerUtil = &DockerUtil{}
 		globalDockerUtil.initRetry.SetupRetrier(&retry.Config{
@@ -44,6 +48,8 @@ func GetDockerUtil() (*DockerUtil, error) {
 // tests that will hit on the docker inspect cache. Please note that all
 // calls to the docker server will result in nil pointer exceptions.
 func EnableTestingMode() {
+	globalDockerUtilMutex.Lock()
+	defer globalDockerUtilMutex.Unlock()
 	globalDockerUtil = &DockerUtil{}
 	globalDockerUtil.initRetry.SetupRetrier(&retry.Config{
 		Name:     "dockerutil",
