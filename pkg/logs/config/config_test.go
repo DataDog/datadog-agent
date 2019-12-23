@@ -7,6 +7,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 
@@ -123,6 +124,24 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 	suite.Equal("([A-Fa-f0-9]{28})", rule.Pattern)
 	suite.Equal("****************************", rule.ReplacePlaceholder)
 	suite.NotNil(rule.Regex)
+}
+
+func (suite *ConfigTestSuite) TestTagProviderConfig() {
+	var tagConfig TagConfig
+
+	// default config
+	tagConfig = TagProviderConfig()
+	suite.False(tagConfig.ForceRefresh)
+	suite.Equal(0*time.Second, tagConfig.TaggerWarmupDuration)
+	suite.Equal(0*time.Second, tagConfig.ForceRefreshDuration)
+
+	// k8s_wait_for_tags enabled config
+	suite.config.Set("logs_config.k8s_wait_for_tags", true)
+
+	tagConfig = TagProviderConfig()
+	suite.True(tagConfig.ForceRefresh)
+	suite.Equal(2*time.Second, tagConfig.TaggerWarmupDuration)
+	suite.Equal(5*time.Second, tagConfig.ForceRefreshDuration)
 }
 
 func TestConfigTestSuite(t *testing.T) {

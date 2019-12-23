@@ -419,6 +419,8 @@ func initConfig(config Config) {
 	config.BindEnv("logs_config.processing_rules")
 	// enforce the agent to use files to collect container logs on kubernetes environment
 	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
+	// enforce waiting for kubelet tags on initial logs
+	config.BindEnvAndSetDefault("logs_config.k8s_wait_for_tags", false)
 
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
@@ -432,6 +434,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 	config.SetKnown("logs_config.additional_endpoints")
+	// Internal Use Only: additional config to ensure logs are tagged with kubelet tags
+	config.BindEnvAndSetDefault("logs_config.force_tagger_call_duration", 5) // Force calling the tagger for logs collected during the first 5s after discovering AD services
+	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 2)     // Wait for tagger before start fetching tags of new AD services
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
