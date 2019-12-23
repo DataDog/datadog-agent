@@ -1,5 +1,5 @@
 {
-	"airflow_beta": {
+	"6.16.0-beta-airflow": {
 		"INTEGRATIONS_CORE_VERSION": "alex/airflow",
 		"OMNIBUS_SOFTWARE_VERSION": "master",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
