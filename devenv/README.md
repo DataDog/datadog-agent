@@ -67,7 +67,7 @@ The VMs are customized to:
 
 There are a few alternatives to this:
 - Use [the FOSS equivalent](https://github.com/orenmazor/vagrant-vmware-provider)
-- Use [mech](https://github.com/mechboxes/mech), which replaces Vagrant, in a way
+- Use [mech](https://github.com/mechboxes/mech), which replaces Vagrant
 - Use tar to extract the VMWare files and use them directly:
 ```
 mkdir vm
