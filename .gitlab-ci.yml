@@ -353,7 +353,7 @@ build_puppy_agent-deb_x64:
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/puppy/agent
 
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
-build_puppy_agent-deb_x64_arm:
+build_puppy_agent-deb_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:v1949502-eda0bce
   tags: ["runner:docker-arm", "platform:arm64"]
