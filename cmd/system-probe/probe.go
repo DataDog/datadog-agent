@@ -143,7 +143,7 @@ func (nt *SystemProbe) Run() {
 		writeAsJSON(w, stats)
 	})
 
-	httpMux.HandleFunc("/probe/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
 		stats := nt.tcpQueueLengthTracer.GetAndFlush()
 
 		writeAsJSON(w, stats)
