@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	maxSecretFileSize    = 1024
+	maxSecretFileSize = 1024
 )
 
 // ReadSecretsCmd implements a secrets backend command reading secrets from a directory/mount
