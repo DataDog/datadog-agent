@@ -88,7 +88,7 @@ func TestExecCommandError(t *testing.T) {
 		secretBackendTimeout = 0
 	}()
 
-	inputPayload := "{\"version\": \"" + payloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
+	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 
 	// empty secretBackendCommand
 	secretBackendCommand = ""

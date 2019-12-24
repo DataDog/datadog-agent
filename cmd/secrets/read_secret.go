@@ -18,17 +18,14 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	s "github.com/DataDog/datadog-agent/pkg/secrets"
 )
 
 const (
 	maxSecretFileSize    = 1024
 	compatibleMajVersion = "1"
 )
-
-type secret struct {
-	Value    string `json:"value,omitempty"`
-	ErrorMsg string `json:"error,omitempty"`
-}
 
 // ReadSecretsCmd implements a secrets backend command reading secrets from a directory/mount
 var ReadSecretCmd = &cobra.Command{
@@ -60,7 +57,7 @@ func ReadSecrets(r io.Reader, w io.Writer, dir string) error {
 	}
 
 	version := strings.SplitN(request.Version, ".", 2)
-	if version[0] != compatibleMajVersion {
+	if version[0] != s.CompatibleMajVersion {
 		return fmt.Errorf("incompatible protocol version %q", request.Version)
 	}
 
@@ -68,7 +65,7 @@ func ReadSecrets(r io.Reader, w io.Writer, dir string) error {
 		return errors.New("no secrets listed in input")
 	}
 
-	response := map[string]secret{}
+	response := map[string]s.Secret{}
 	for _, name := range request.Secrets {
 		response[name] = readSecret(filepath.Join(dir, name))
 	}
@@ -81,13 +78,13 @@ func ReadSecrets(r io.Reader, w io.Writer, dir string) error {
 	return err
 }
 
-func readSecret(path string) secret {
+func readSecret(path string) s.Secret {
 	value, err := readSecretFile(path)
 	var errMsg string
 	if err != nil {
 		errMsg = err.Error()
 	}
-	return secret{Value: value, ErrorMsg: errMsg}
+	return s.Secret{Value: value, ErrorMsg: errMsg}
 }
 
 func readSecretFile(path string) (string, error) {

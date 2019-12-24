@@ -20,7 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const payloadVersion = "1.0"
+// PayloadVersion defines the current payload version sent to a secret backend
+const PayloadVersion = "1.0"
+
+// CompatibleMajVersion defines the compatible maj version of payload
+const CompatibleMajVersion = "1"
 
 type limitBuffer struct {
 	max int
@@ -69,9 +73,10 @@ func execCommand(inputPayload string) ([]byte, error) {
 	return stdout.buf.Bytes(), nil
 }
 
-type secret struct {
-	Value    string
-	ErrorMsg string `json:"error"`
+// Secret defines the structure for secrets in JSON output
+type Secret struct {
+	Value    string `json:"value,omitempty"`
+	ErrorMsg string `json:"error,omitempty"`
 }
 
 // for testing purpose
@@ -82,7 +87,7 @@ var runCommand = execCommand
 // the name of the configuration where the secret was referenced.
 func fetchSecret(secretsHandle []string, origin string) (map[string]string, error) {
 	payload := map[string]interface{}{
-		"version": payloadVersion,
+		"version": PayloadVersion,
 		"secrets": secretsHandle,
 	}
 	jsonPayload, err := json.Marshal(payload)
@@ -95,7 +100,7 @@ func fetchSecret(secretsHandle []string, origin string) (map[string]string, erro
 		return nil, err
 	}
 
-	secrets := map[string]secret{}
+	secrets := map[string]Secret{}
 	err = json.Unmarshal(output, &secrets)
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal 'secret_backend_command' output: %s", err)
