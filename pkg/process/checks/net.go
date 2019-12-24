@@ -9,6 +9,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,6 +27,7 @@ var (
 type ConnectionsCheck struct {
 	tracerClientID string
 	networkID      string
+	proxyFilter    *dockerproxy.Filter
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -42,6 +44,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
+	c.proxyFilter = dockerproxy.NewFilter()
 
 	// Run the check one time on init to register the client on the system probe
 	_, _ = c.Run(cfg, 0)
@@ -72,6 +75,9 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		}
 		return nil, err
 	}
+
+	// Filter out connection data associated with docker-proxy
+	c.proxyFilter.Filter(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID), nil
