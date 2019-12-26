@@ -763,6 +763,9 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 				continue
 			}
 			continue
+		// Skip incomplete configuration specs
+		} else if filename == "conf_spec.yaml" {
+			continue
 		}
 
 		// Replace existing file

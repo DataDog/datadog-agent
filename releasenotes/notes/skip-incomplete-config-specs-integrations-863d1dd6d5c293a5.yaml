@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Don't copy incomplete configuration specs for the integration command.
