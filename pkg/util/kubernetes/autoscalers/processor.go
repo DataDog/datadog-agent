@@ -70,7 +70,7 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 	maxAge := int64(p.externalMaxAge.Seconds())
 	var err error
 	updated = make(map[string]custommetrics.ExternalMetricValue)
-	metrics, err := p.validateExternalMetric(emList)
+	metrics, err := p.queryExternalMetric(emList)
 	if len(metrics) == 0 && err != nil {
 		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
 		// If no metrics can be retrieved from Datadog in a given list, we need to invalidate them
@@ -156,8 +156,9 @@ func makeChunks(batch []string) (chunks [][]string) {
 	return chunks
 }
 
-// validateExternalMetric queries Datadog to validate the availability and value of one or more external metrics
-func (p *Processor) validateExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
+// queryExternalMetric queries Datadog to validate the availability and value of one or more external metrics
+// Also updates the rate limits statistics as a result of the query.
+func (p *Processor) queryExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
 	batch := []string{}
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
