@@ -67,9 +67,13 @@ when 'suse'
 
   execute 'install suse' do
     command <<-EOF
+      sudo curl -o /tmp/DATADOG_RPM_KEY.public https://yum.${repo_url}/DATADOG_RPM_KEY.public
+      sudo rpm --import /tmp/DATADOG_RPM_KEY.public
+      sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
+      sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public
       sudo rpm --import https://yum.datadoghq.com/DATADOG_RPM_KEY.public
       sudo rpm --import https://yum.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public
-      sudo zypper --non-interactive refresh datadog
+      sudo zypper --non-interactive --no-gpg-check refresh datadog
       sudo zypper --non-interactive install #{node['dd-agent-step-by-step']['package_name']}
     EOF
   end

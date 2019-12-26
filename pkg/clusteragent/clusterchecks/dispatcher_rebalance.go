@@ -101,7 +101,7 @@ func (d *dispatcher) pickCheckToMove(nodeName string) (string, int, error) {
 		return "", -1, fmt.Errorf("node %s not found in store", nodeName)
 	}
 
-	return node.GetMostWeightedCheck(busynessFunc)
+	return node.GetMostWeightedClusterCheck(busynessFunc)
 }
 
 // pickNode select the most appropriate node to receive a specific check.
@@ -182,8 +182,8 @@ func (d *dispatcher) rebalance() {
 			sourceNodeName := nodeWeight.nodeName
 			checkID, checkWeight, err := d.pickCheckToMove(sourceNodeName)
 			if err != nil {
-				log.Debugf("Cannot pick a destination node to receive check: %v", err)
-				continue
+				log.Debugf("Cannot pick a check to move from node %s: %v", sourceNodeName, err)
+				break
 			}
 
 			pickedNodeName := pickNode(diffMap, sourceNodeName)

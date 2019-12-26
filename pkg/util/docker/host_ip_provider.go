@@ -41,16 +41,10 @@ type hostIPProvider struct {
 }
 
 func getDockerHostIPsUncached() []string {
-	var isHostMode bool
-	if mode, err := GetAgentContainerNetworkMode(); err == nil && mode == containers.HostNetworkMode {
-		isHostMode = true
-	}
-
-	var providers []hostIPProvider
-	providers = append(providers, hostIPProvider{"config", getHostIPsFromConfig})
-	providers = append(providers, hostIPProvider{"ec2 metadata endpoint", ec2.GetLocalIPv4})
-	if isHostMode {
-		providers = append(providers, hostIPProvider{"/proc/net/route", containers.DefaultHostIPs})
+	providers := []hostIPProvider{
+		{"config", getHostIPsFromConfig},
+		{"ec2 metadata endpoint", ec2.GetLocalIPv4},
+		{"/proc/net/route", containers.DefaultHostIPs},
 	}
 
 	return tryProviders(providers)

@@ -202,6 +202,16 @@ api_key:
 #   - "google-container-manifest"
 #   - "bosh_settings"
 
+## @param flare_stripped_keys - list of strings - optional
+## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
+## including them in the flare.
+## Use this parameter to define additional sensitive keys that the Agent should scrub from
+## the yaml files included in the flare.
+#
+# flare_stripped_keys:
+#   - "sensitive_key_1"
+#   - "sensitive_key_2"
+
 {{ end }}
 {{- if .Agent }}
 {{- if .BothPythonPresent -}}

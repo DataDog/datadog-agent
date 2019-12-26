@@ -29,13 +29,13 @@ type ConnectionsCheck struct {
 }
 
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemInfo) {
+func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
 	net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
-	net.GetRemoteSystemProbeUtil()
+	_, _ = net.GetRemoteSystemProbeUtil()
 
 	networkID, err := util.GetNetworkID()
 	if err != nil {
@@ -44,7 +44,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemIn
 	c.networkID = networkID
 
 	// Run the check one time on init to register the client on the system probe
-	c.Run(cfg, 0)
+	_, _ = c.Run(cfg, 0)
 }
 
 // Name returns the name of the ConnectionsCheck.
@@ -113,6 +113,8 @@ func batchConnections(
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
+	dnsEncoder := model.NewV1DNSEncoder()
+
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
 		batchConns := cxs[:batchSize] // Connections for this particular batch
@@ -134,7 +136,7 @@ func batchConnections(
 			GroupId:         groupID,
 			GroupSize:       groupSize,
 			ContainerForPid: ctrIDForPID,
-			Dns:             batchDNS,
+			EncodedDNS:      dnsEncoder.Encode(batchDNS),
 		})
 		cxs = cxs[batchSize:]
 	}

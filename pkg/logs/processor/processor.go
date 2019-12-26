@@ -84,7 +84,7 @@ func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
 				return false, nil
 			}
 		case config.MaskSequences:
-			content = rule.Regex.ReplaceAllLiteral(content, rule.Placeholder)
+			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
 		}
 	}
 	return true, content

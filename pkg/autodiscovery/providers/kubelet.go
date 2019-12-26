@@ -28,7 +28,7 @@ const (
 
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeletConfigProvider struct {
-	kubelet *kubelet.KubeUtil
+	kubelet kubelet.KubeUtilInterface
 }
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.

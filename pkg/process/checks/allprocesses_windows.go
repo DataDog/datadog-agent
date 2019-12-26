@@ -181,7 +181,7 @@ func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess,
 				}
 
 				if err = cp.fill(&proc); err != nil {
-					log.Debugf("could not fill WMI process information for pid %v %v", pid, err)
+					log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
 					continue
 				}
 			} else {
@@ -282,6 +282,9 @@ func getUsernameForProcess(h windows.Handle) (name string, err error) {
 	tokenUser, err := t.GetTokenUser()
 
 	user, domain, _, err := tokenUser.User.Sid.LookupAccount("")
+	if nil != err {
+		return "", err
+	}
 	return domain + "\\" + user, err
 }
 
@@ -387,10 +390,12 @@ func (cp *cachedProcess) fill(proc *Win32_Process) (err error) {
 		log.Debugf("Couldn't open process %v %v", proc.ProcessID, err)
 		return err
 	}
-	cp.userName, err = getUsernameForProcess(cp.procHandle)
-	if err != nil {
+	var usererr error
+	cp.userName, usererr = getUsernameForProcess(cp.procHandle)
+	if usererr != nil {
 		log.Debugf("Couldn't get process username %v %v", proc.ProcessID, err)
 	}
+
 	cp.executablePath = *proc.ExecutablePath
 	if len(cp.executablePath) == 0 {
 		// some system processes don't give us the executable path variable.  Just
@@ -417,10 +422,10 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 		log.Infof("Couldn't open process %v %v", pe32.Th32ProcessID, err)
 		return err
 	}
-	cp.userName, err = getUsernameForProcess(cp.procHandle)
-	if err != nil {
-		log.Infof("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
-		return err
+	var usererr error
+	cp.userName, usererr = getUsernameForProcess(cp.procHandle)
+	if usererr != nil {
+		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
 	cp.commandLine = convertWindowsString(pe32.SzExeFile[:])
 	cp.executablePath = cp.commandLine
