@@ -33,6 +33,8 @@
 /docs/cluster-agent/                    @DataDog/baklava @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/baklava @DataDog/agent-core
 
+/google-marketplace                     @Datadog/container-integrations
+
 /Gopkg.lock                             @DataDog/agent-all
 /Gopkg.toml                             @DataDog/agent-all
 
