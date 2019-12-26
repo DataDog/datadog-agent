@@ -866,7 +866,7 @@ agent_android_apk:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
-  <<: *skip_when_unwanted_on_6
+  <<: *skip_when_unwanted_on_7
   before_script:
     - echo running android before_script
     - cd $SRC_PATH
