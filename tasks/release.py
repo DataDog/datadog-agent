@@ -29,7 +29,7 @@ def add_prelude(ctx, version):
 def update_changelog(ctx, new_version):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
-    version (linux only).
+    version (linux/macOS only).
     """
     new_version_int = list(map(int, new_version.split(".")))
 
@@ -74,11 +74,18 @@ def update_changelog(ctx, new_version):
     # reseting git
     ctx.run("git reset --hard HEAD")
 
-    # remove the old header. Mac don't have the same sed CLI
+    # mac's `sed` has a different syntax for the "-i" paramter
+    sed_i_arg = "-i"
     if sys.platform == 'darwin':
-        ctx.run("sed -i '' -e '1,4d' CHANGELOG.rst")
-    else:
-        ctx.run("sed -i -e '1,4d' CHANGELOG.rst")
+        sed_i_arg = "-i ''"
+    # check whether there is a v6 tag on the same v7 tag, if so add the v6 tag to the release title
+    v6_tag = ""
+    if new_version_int[0] == 7:
+        v6_tag = _find_v6_tag(ctx, new_version)
+        if v6_tag:
+            ctx.run("sed {0} -E 's#^{1}#{1} / {2}#' /tmp/new_changelog.rst".format(sed_i_arg, new_version, v6_tag))
+    # remove the old header from the existing changelog
+    ctx.run("sed {0} -e '1,4d' CHANGELOG.rst".format(sed_i_arg))
 
     # merging to CHANGELOG.rst
     ctx.run("cat CHANGELOG.rst >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst CHANGELOG.rst")
@@ -86,3 +93,27 @@ def update_changelog(ctx, new_version):
     # commit new CHANGELOG
     ctx.run("git add CHANGELOG.rst \
             && git commit -m \"Update CHANGELOG for {}\"".format(new_version))
+
+@task
+def _find_v6_tag(ctx, v7_tag):
+    """
+    Returns one of the v6 tags that point at the same commit as the passed v7 tag.
+    If none are found, returns the empty string.
+    """
+    v6_tag = ""
+
+    print("Looking for a v6 tag pointing to same commit as tag '{}'...".format(v7_tag))
+    # Find commit at which the v7_tag points
+    commit = ctx.run("git rev-list --max-count=1 {}".format(v7_tag), hide='out').stdout.strip()
+    try:
+        v6_tags = ctx.run("git tag --points-at {} | grep -E '^6\\.'".format(commit), hide='out').stdout.strip().split("\n")
+    except Failure as e:
+        print("Found no v6 tag pointing at same commit as '{}'.".format(v7_tag))
+    else:
+        v6_tag = v6_tags[0]
+        if len(v6_tags) > 1:
+            print("Found v6 tags '{}', picking {}'".format(v6_tags, v6_tag))
+        else:
+            print("Found v6 tag '{}'".format(v6_tag))
+
+    return v6_tag

@@ -70,7 +70,7 @@ variables:
   DATADOG_AGENT_BUILDIMAGES: v1709713-2adac2a
   DATADOG_AGENT_BUILDERS: v1793959-4e4c346
   DATADOG_AGENT_WINBUILDIMAGES: v1876043-a759bdd
-  DATADOG_AGENT_ARMBUILDIMAGES: v1897460-9b1848b
+  DATADOG_AGENT_ARMBUILDIMAGES: v1949502-eda0bce
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -197,7 +197,7 @@ before_script:
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
-    - inv deps --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
 
 # run tests for deb-x64
 run_tests_deb-x64-py2:
@@ -283,7 +283,7 @@ run_security_scan_test:
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
     - pip install -r requirements.txt
-    - inv deps --dep-vendor-only
+    - inv -e deps --dep-vendor-only
   script:
     - set +x     # don't print the api key to the logs
     # send the list of the dependencies to snyk
@@ -319,37 +319,10 @@ build_dogstatsd_static-deb_x64:
     AGENT_MAJOR_VERSION: 7
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --static --major-version "$AGENT_MAJOR_VERSION"
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
-
-# build puppy agent for deb-x64, to make sure the build is not broken because of build flags
-build_puppy_agent-deb_x64:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-  before_script:
-    - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only --no-checks
-  script:
-    - inv -e agent.build --puppy --major-version "$AGENT_MAJOR_VERSION"
-    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/puppy/agent
-
-# build puppy agent for ARM, to make sure the build is not broken because of build targets
-build_puppy_agent-deb_x64_arm:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-  before_script:
-    - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only --no-checks
-  script:
-    - GOOS=linux GOARCH=arm inv -e agent.build --puppy --major-version "$AGENT_MAJOR_VERSION"
 
 # build dogstatsd for deb-x64
 build_dogstatsd-deb_x64:
@@ -360,11 +333,80 @@ build_dogstatsd-deb_x64:
     AGENT_MAJOR_VERSION: 7
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv deps --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --major-version "$AGENT_MAJOR_VERSION"
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
 
+# build dogstatsd static for deb-arm
+build_dogstatsd_static-deb_arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only
+  script:
+    - inv -e dogstatsd.build --static --major-version "$AGENT_MAJOR_VERSION"
+    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
+
+# build dogstatsd linked for deb-arm
+build_dogstatsd-deb_arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only
+  script:
+    - inv -e dogstatsd.build --major-version "$AGENT_MAJOR_VERSION"
+    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
+
+# build puppy agent for deb-x64, to make sure the build is not broken because of build flags
+build_puppy_agent-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only --no-checks
+  script:
+    - inv -e agent.build --puppy --major-version "$AGENT_MAJOR_VERSION"
+    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/puppy/agent
+
+# build puppy agent for ARM, to make sure the build is not broken because of build targets
+build_puppy_agent-deb_arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only --no-checks
+  script:
+    - GOOS=linux GOARCH=arm inv -e agent.build --puppy --major-version "$AGENT_MAJOR_VERSION"
 
 .cluster_agent-build_common: &cluster_agent-build_common
   stage: binary_build
@@ -388,7 +430,7 @@ cluster_agent-build_amd64:
 
 cluster_agent-build_arm64:
   <<: *cluster_agent-build_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_arm_x64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
@@ -441,6 +483,22 @@ run_dogstatsd_size_test:
   script:
     - inv -e dogstatsd.size-test --skip-build
 
+# check the size of the static dogstatsd binary
+run_dogstatsd_arm_size_test:
+  stage: integration_test
+  needs: ["build_dogstatsd_static-deb_arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Disable global before_script
+    - mkdir -p $STATIC_BINARIES_DIR
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH $STATIC_BINARIES_DIR/dogstatsd
+  script:
+    - inv -e dogstatsd.size-test --skip-build
+
 #
 # package_build
 #
@@ -454,7 +512,6 @@ run_dogstatsd_size_test:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
-    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-agent*_${PACKAGE_ARCH}.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_${PACKAGE_ARCH}.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -468,12 +525,6 @@ run_dogstatsd_size_test:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-
-.agent_build_common_arm:
-  stage: package_build
-  needs: ["run_dep_check_lock"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/$PKG_TARGET:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
 
 # build Agent package for deb-x64
 agent_deb-x64-a6:
@@ -517,9 +568,11 @@ agent_deb-x64-a7:
   <<: *agent_build_common_deb
 
 agent_deb-arm-a6:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: deb_arm_x64
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: arm64
@@ -533,9 +586,11 @@ agent_deb-arm-a6:
   <<: *agent_build_common_deb
 
 agent_deb-arm-a7:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: deb_arm_x64
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: arm64
@@ -648,9 +703,11 @@ agent_rpm-x64-a7:
 
   # build Agent package for rpm-x64
 agent_rpm-arm-a6:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: rpm_arm_x64
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
   before_script:
@@ -662,9 +719,11 @@ agent_rpm-arm-a6:
 
 # build Agent package for rpm-x64
 agent_rpm-arm-a7:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: rpm_arm_x64
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
   before_script:
@@ -2767,7 +2826,9 @@ notify-on-failure:
   only:
     - master
     - triggers
-  script:
-    - BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
-    - 'MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME $CI_COMMIT_REF_NAME pipeline <$BUILD_URL|$CI_PIPELINE_ID> failed."'
-    - postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
+  script: |
+    BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
+    COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
+    MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME: Pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
+    $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>)"
+    postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"

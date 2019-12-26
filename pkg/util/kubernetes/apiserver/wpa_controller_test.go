@@ -389,37 +389,12 @@ func TestWPASync(t *testing.T) {
 
 }
 
-func TestRemoveIgnoredWPAs(t *testing.T) {
-	listToIgnore := map[types.UID]int{
-		"aaa": 1,
-		"bbb": 2,
-	}
-	cachedWPAs := []*v1alpha1.WatermarkPodAutoscaler{
-		{
-			ObjectMeta: v1.ObjectMeta{
-				UID: "aaa",
-			},
-		},
-		{
-			ObjectMeta: v1.ObjectMeta{
-				UID: "ccc",
-			},
-		},
-	}
-
-	_, e := removeIgnoredAutoscaler(listToIgnore, nil, cachedWPAs)
-	require.Equal(t, len(e), 1)
-	require.Equal(t, e[0].UID, types.UID("ccc"))
-
-}
-
 // TestAutoscalerControllerGC tests the GC process of of the controller
 func TestWPAGC(t *testing.T) {
 	testCases := []struct {
 		caseName string
 		metrics  map[string]custommetrics.ExternalMetricValue
 		wpa      *v1alpha1.WatermarkPodAutoscaler
-		ignored  map[types.UID]int
 		expected []custommetrics.ExternalMetricValue
 	}{
 		{
@@ -511,9 +486,6 @@ func TestWPAGC(t *testing.T) {
 					},
 				},
 			},
-			ignored: map[types.UID]int{
-				"1111": 1,
-			},
 			expected: []custommetrics.ExternalMetricValue{},
 		},
 	}
@@ -531,7 +503,6 @@ func TestWPAGC(t *testing.T) {
 			ExtendToWPAController(hctrl, inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
 
 			hctrl.store = store
-			hctrl.overFlowingAutoscalers = testCase.ignored
 
 			if testCase.wpa != nil {
 				err := inf.Datadoghq().

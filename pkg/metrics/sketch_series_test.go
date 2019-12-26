@@ -42,7 +42,8 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 				})
 			}
 
-			ss.ContextKey = ckey.Generate(ss.Name, ss.Host, ss.Tags)
+			gen := ckey.NewKeyGenerator()
+			ss.ContextKey = gen.Generate(ss.Name, ss.Host, ss.Tags)
 
 			return ss
 		}

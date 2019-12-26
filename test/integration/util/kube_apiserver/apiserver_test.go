@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	hostname_apiserver "github.com/DataDog/datadog-agent/pkg/util/hostname/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
@@ -181,7 +182,7 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer core.Pods("default").Delete(myHostname, nil)
 
 	// Hostname provider should return the expected value
-	foundHost, err := apiserver.HostnameProvider()
+	foundHost, err := hostname_apiserver.HostnameProvider()
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
@@ -191,6 +192,6 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
-	foundHost, err = apiserver.HostnameProvider()
+	foundHost, err = hostname_apiserver.HostnameProvider()
 	assert.Equal(suite.T(), "target.host-laika", foundHost)
 }

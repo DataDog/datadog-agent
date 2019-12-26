@@ -12,15 +12,13 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// HostnameProvider retrieves the hostname from the apiserver, assuming our hostname
+// HostNodeName retrieves the hostname from the apiserver, assuming our hostname
 // is the pod name. It connects to the apiserver, and returns the node name where
 // our pod is scheduled.
 // Tested in the TestHostnameProvider integration test
-func HostnameProvider() (string, error) {
+func HostNodeName() (string, error) {
 	c, err := GetAPIClient()
 	if err != nil {
 		return "", fmt.Errorf("could not connect to the apiserver: %s", err)
@@ -34,11 +32,5 @@ func HostnameProvider() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not fetch the host nodename from the apiserver: %s", err)
 	}
-	clusterName := clustername.GetClusterName()
-	if clusterName == "" {
-		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
-		return nodeName, nil
-	} else {
-		return (nodeName + "-" + clusterName), nil
-	}
+	return nodeName, nil
 }

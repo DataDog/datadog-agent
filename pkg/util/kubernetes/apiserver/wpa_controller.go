@@ -8,7 +8,6 @@
 package apiserver
 
 import (
-	"fmt"
 	"time"
 
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
@@ -103,22 +102,6 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 			return nil
 		}
 		newMetrics := h.hpaProc.ProcessEMList(emList)
-		// The syncWPA can also interact with the overflowing store.
-		if len(newMetrics)+h.metricsProcessedCount > maxMetricsCount {
-			warningMsg := fmt.Sprintf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
-				h.metricsProcessedCount, wpaCached.Namespace, wpaCached.Name, maxMetricsCount)
-			log.Warn(warningMsg)
-
-			h.overFlowingAutoscalers[wpaCached.UID] = len(newMetrics)
-			h.EventRecorder.Event(wpaCached, corev1.EventTypeNormal, autoscalerIgnoreMsgEvent, warningMsg)
-			return nil
-		}
-		if _, ok := h.overFlowingAutoscalers[wpaCached.UID]; ok {
-			log.Debugf("Previously ignored HPA %s/%s will now be processed", wpaCached.Namespace, wpaCached.Name)
-			h.EventRecorder.Event(wpaCached, corev1.EventTypeNormal, autoscalerUnIgnoreMsgEvent, "Previously ignored WPA, will now be processed")
-			delete(h.overFlowingAutoscalers, wpaCached.UID)
-		}
-
 		h.toStore.m.Lock()
 		for metric, value := range newMetrics {
 			// We should only insert placeholders in the local cache.
@@ -163,13 +146,6 @@ func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	// Need to delete the old object from the local cache. If the labels have changed, the syncAutoscaler would not override the old key.
 	toDelete := autoscalers.InspectWPA(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
-	// We re-evaluate if the WPA can be processed in syncWPA, subsequently to the enqueue.
-	h.mu.Lock()
-	if _, ok := h.overFlowingAutoscalers[oldAutoscaler.UID]; !ok {
-		h.metricsProcessedCount -= len(toDelete)
-	}
-	delete(h.overFlowingAutoscalers, oldAutoscaler.UID)
-	h.mu.Unlock()
 	log.Tracef("Processing update event for wpa %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueueWPA(newAutoscaler)
 }
@@ -195,14 +171,6 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 			h.enqueueWPA(deletedWPA)
 			return
 		}
-		// Only decrease the count of processed metrics if we are able to successfully remove them from the global store.
-		// TODO pop WPAs from h.overFlowingAutoscalers and start processing the one(s) we have been ignoring up to the maxMetricsCount
-		// Current behavior: HPA will be evaluated next resync and processed if it does not have too many metrics.
-		if _, ok := h.overFlowingAutoscalers[deletedWPA.UID]; !ok {
-			h.metricsProcessedCount -= len(toDelete.External)
-		}
-		delete(h.overFlowingAutoscalers, deletedWPA.UID)
-		return
 	}
 
 	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -225,10 +193,4 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 		h.enqueueWPA(deletedWPA)
 		return
 	}
-	// Only decrease the count of processed metrics if the HPA was not ignored and if we are able to successfully remove them from the global store.
-	// TODO pop WPAs from h.overFlowingAutoscalers and start processing the one(s) we have been ignoring, up to the maxMetricsCount
-	if _, ok := h.overFlowingAutoscalers[deletedWPA.UID]; !ok {
-		h.metricsProcessedCount -= len(toDelete.External)
-	}
-	delete(h.overFlowingAutoscalers, deletedWPA.UID)
 }
