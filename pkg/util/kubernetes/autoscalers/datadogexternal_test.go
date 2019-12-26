@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/CharlyF/go-datadog-api"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 // TestDatadogExternalQuery tests that the outputs gotten from Datadog are appropriately dealt with.

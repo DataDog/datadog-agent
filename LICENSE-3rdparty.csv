@@ -15,6 +15,7 @@ core,github.com/NYTimes/gziphandler,Apache-2.0
 core,github.com/PuerkitoBio/purell,BSD-3-Clause
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause
 core,github.com/StackExchange/wmi,MIT
+core,github.com/CharlyF/go-datadog-api,BSD-3-Clause
 core,github.com/aws/aws-sdk-go,Apache-2.0
 core,github.com/beevik/ntp,BSD-2-Clause
 core,github.com/beorn7/perks,MIT
@@ -142,7 +143,6 @@ core,gopkg.in/Knetic/govaluate.v3,MIT
 core,gopkg.in/inf.v0,BSD-3-Clause
 core,gopkg.in/natefinch/lumberjack.v2,MIT
 core,gopkg.in/yaml.v2,Apache-2.0
-core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause
 core,k8s.io/api,Apache-2.0
 core,k8s.io/apimachinery,Apache-2.0
 core,k8s.io/apiserver,Apache-2.0

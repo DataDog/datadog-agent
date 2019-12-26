@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/test/util"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
+	"github.com/CharlyF/go-datadog-api"
 )
 
 var (

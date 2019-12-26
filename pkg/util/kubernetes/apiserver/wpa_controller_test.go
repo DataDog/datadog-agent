@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/CharlyF/go-datadog-api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"

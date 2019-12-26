@@ -10,15 +10,17 @@ package autoscalers
 import (
 	"errors"
 	"fmt"
+	utilserror "k8s.io/apimachinery/pkg/util/errors"
 	"strings"
 	"time"
 
+	"github.com/CharlyF/go-datadog-api"
 	"github.com/prometheus/client_golang/prometheus"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"strconv"
 )
 
 var (
@@ -41,12 +43,40 @@ var (
 	},
 		[]string{"metric"},
 	)
+	rateLimitsRemaining = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rate_limit_queries_remaining",
+		Help: "number of queries remaining before next reset",
+	},
+		[]string{"endpoint"},
+	)
+	rateLimitsReset = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rate_limit_queries_reset",
+		Help: "number of seconds before next reset",
+	},
+		[]string{"endpoint"},
+	)
+	rateLimitsPeriod = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rate_limit_queries_period",
+		Help: "period of rate limiting",
+	},
+		[]string{"endpoint"},
+	)
+	rateLimitsLimit = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rate_limit_queries_limit",
+		Help: "maximum number of queries allowed in the period",
+	},
+		[]string{"endpoint"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(ddRequests)
 	prometheus.MustRegister(metricsEval)
 	prometheus.MustRegister(metricsDelay)
+	prometheus.MustRegister(rateLimitsRemaining)
+	prometheus.MustRegister(rateLimitsReset)
+	prometheus.MustRegister(rateLimitsPeriod)
+	prometheus.MustRegister(rateLimitsLimit)
 }
 
 type Point struct {
@@ -56,8 +86,9 @@ type Point struct {
 }
 
 const (
-	value     = 1
-	timestamp = 0
+	value         = 1
+	timestamp     = 0
+	queryEndpoint = "/v1/query"
 )
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
@@ -139,6 +170,34 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 		}
 	}
 	return processedMetrics, nil
+}
+
+func (p *Processor) updateRateLimiting() error {
+	updateMap := p.datadogClient.GetRateLimitStats()
+	queryLimits := updateMap[queryEndpoint]
+
+	var errors []error
+
+	lim, errLim := strconv.Atoi(queryLimits.Limit)
+	if errLim == nil {
+		rateLimitsLimit.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(lim))
+	}
+
+	rem, errRem := strconv.Atoi(queryLimits.Remaining)
+	if errRem == nil {
+		rateLimitsRemaining.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(rem))
+	}
+	per, errPer := strconv.Atoi(queryLimits.Period)
+	if errPer == nil {
+		rateLimitsPeriod.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(per))
+	}
+	res, errRes := strconv.Atoi(queryLimits.Reset)
+	if errRes == nil {
+		rateLimitsReset.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(res))
+	}
+
+	errors = append(errors, errLim, errPer, errRem, errRes)
+	return utilserror.NewAggregate(errors)
 }
 
 // NewDatadogClient generates a new client to query metrics from Datadog

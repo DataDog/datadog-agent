@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/util"
 	log "github.com/cihub/seelog"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
+	"github.com/CharlyF/go-datadog-api"
 )
 
 func preAllocateMetrics(n int) map[string][]*metrics.MetricSample {

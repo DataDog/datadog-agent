@@ -9,7 +9,7 @@ import (
 	"os"
 
 	log "github.com/cihub/seelog"
-	"gopkg.in/zorkian/go-datadog-api.v2"
+	"github.com/CharlyF/go-datadog-api"
 )
 
 func createMetric(value float64, tags []string, name string, t int64) datadog.Metric {

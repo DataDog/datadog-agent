@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
+	"github.com/CharlyF/go-datadog-api"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
@@ -33,6 +33,7 @@ const (
 
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
+	GetRateLimitStats() map[string]datadog.RateLimit
 }
 
 // ProcessorInterface is used to easily mock the interface for testing
@@ -190,6 +191,11 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 		}
 	}
 	log.Debugf("Processed %d chunks", len(chunks))
+
+	err = p.updateRateLimiting()
+	if err != nil {
+		errors = append(errors, err)
+	}
 	return processed, utilserror.NewAggregate(errors)
 }
 
