@@ -569,7 +569,7 @@ func TestUpdateRateLimiting(t *testing.T) {
 			}
 			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
 
-			err := hpaCl.updateRateLimiting()
+			err := hpaCl.updateRateLimitingMetrics()
 			if err != nil {
 				assert.EqualError(t, tt.error, err.Error())
 			}

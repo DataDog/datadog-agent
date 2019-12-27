@@ -193,8 +193,7 @@ func (p *Processor) queryExternalMetric(emList map[string]custommetrics.External
 	}
 	log.Debugf("Processed %d chunks", len(chunks))
 
-	err = p.updateRateLimiting()
-	if err != nil {
+	if err := p.updateRateLimitingMetrics(); err != nil {
 		errors = append(errors, err)
 	}
 	return processed, utilserror.NewAggregate(errors)

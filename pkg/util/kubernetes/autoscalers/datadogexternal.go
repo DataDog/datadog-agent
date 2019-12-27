@@ -10,17 +10,17 @@ package autoscalers
 import (
 	"errors"
 	"fmt"
-	utilserror "k8s.io/apimachinery/pkg/util/errors"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/CharlyF/go-datadog-api"
 	"github.com/prometheus/client_golang/prometheus"
+	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"strconv"
 )
 
 var (
@@ -181,7 +181,7 @@ func setPrometheusMetric(val string, metric *prometheus.GaugeVec) error {
 	return err
 }
 
-func (p *Processor) updateRateLimiting() error {
+func (p *Processor) updateRateLimitingMetrics() error {
 	updateMap := p.datadogClient.GetRateLimitStats()
 	queryLimits := updateMap[queryEndpoint]
 	var errors []error
