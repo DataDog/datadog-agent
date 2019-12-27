@@ -10,7 +10,6 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -106,10 +105,10 @@ func (a *Agent) Stop() {
 		stopper.Stop()
 		close(c)
 	}()
-	timeout := time.Duration(coreConfig.Datadog.GetInt("logs_config.stop_grace_period")) * time.Second
+	//timeout := time.Duration(coreConfig.Datadog.GetInt("logs_config.stop_grace_period")) * time.Second
 	select {
 	case <-c:
-	case <-time.After(timeout):
+	case <-time.After(15 * time.Second): //timeout):
 		log.Info("Timed out when stopping logs-agent, forcing it to stop now")
 		// We force all destinations to read/flush all the messages they get without
 		// trying to write to the network.
@@ -122,12 +121,13 @@ func (a *Agent) Stop() {
 		select {
 		case <-c:
 		case <-timeout.C:
-			log.Warn("Force close of the Logs Agent, dumping the Go routines.")
-			if stack, err := util.GetGoRoutinesDump(); err != nil {
-				log.Warnf("can't get the Go routines dump: %s\n", err)
-			} else {
-				log.Warn(stack)
-			}
+			panic("We didn’t manage to stop the agent in time. So, we were about to force its close.")
+			// log.Warn("Force close of the Logs Agent, dumping the Go routines.")
+			// if stack, err := util.GetGoRoutinesDump(); err != nil {
+			// 	log.Warnf("can't get the Go routines dump: %s\n", err)
+			// } else {
+			// 	log.Warn(stack)
+			// }
 		}
 	}
 }
