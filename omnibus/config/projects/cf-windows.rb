@@ -42,7 +42,7 @@ description 'Datadog Monitoring Agent
 # Generic package information
 # ------------------------------------
 
-# .deb specific flags
+# .msi specific flags
 package :msi do
   skip_packager true
 end
@@ -63,24 +63,6 @@ package :zip do
     
 end
 
-# ------------------------------------
-# OS specific DSLs and dependencies
-# ------------------------------------
-
-# Linux
-if linux?
-  if debian?
-    extra_package_file '/etc/init/datadog-agent.conf'
-    extra_package_file '/lib/systemd/system/datadog-agent.service'
-  end
-
-  # Example configuration files for the agent and the checks
-  extra_package_file '/etc/datadog-agent/datadog.yaml.example'
-  extra_package_file '/etc/datadog-agent/conf.d/'
-
-  # Logs directory
-  extra_package_file '/var/log/datadog/'
-end
 
 # ------------------------------------
 # Dependencies

@@ -43,7 +43,6 @@ build do
   else
     copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
   end
-  copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
   move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
 
   if linux?

@@ -63,6 +63,9 @@ extensions for special Datadog features.`,
 
 	confPath   string
 	socketPath string
+
+	metaScheduler *metadata.Scheduler
+	statsd        *dogstatsd.Server
 )
 
 const (
@@ -99,10 +102,6 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-var (
-	metaScheduler *metadata.Scheduler
-	statsd        *dogstatsd.Server
-)
 
 func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err error) {
 	// Main context passed to components

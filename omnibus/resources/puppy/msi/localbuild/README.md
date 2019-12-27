@@ -1,6 +1,6 @@
 ## LocalInstall
 
-The files here provide a means to more quickly test iterations of the Windows installer by creating an environment in which an installer can be recreated without an entire omnibus build.
+The files here provide a means to more quickly test iterations of the Windows Puppy Agent installer by creating an environment in which an installer can be recreated without an entire omnibus build.
 
 ### Requirements
 

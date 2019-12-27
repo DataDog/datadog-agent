@@ -1,6 +1,6 @@
 # Windows Installation Guide
 
-Welcome to the Datadog installer for Windows.
+Welcome to the Datadog Puppy installer for Windows.
 
 Installation instructions are available on the dedicated [docs website page](https://docs.datadoghq.com/agent/basic_agent_usage/windows/?tab=agentv6#installation)
 
