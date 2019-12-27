@@ -172,31 +172,27 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 	return processedMetrics, nil
 }
 
+// setPrometheusMetric is a helper to submit prometheus metrics
+func setPrometheusMetric(val string, metric *prometheus.GaugeVec) error {
+	valFloat, err := strconv.Atoi(val)
+	if err == nil {
+		metric.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(valFloat))
+	}
+	return err
+}
+
 func (p *Processor) updateRateLimiting() error {
 	updateMap := p.datadogClient.GetRateLimitStats()
 	queryLimits := updateMap[queryEndpoint]
-
 	var errors []error
 
-	lim, errLim := strconv.Atoi(queryLimits.Limit)
-	if errLim == nil {
-		rateLimitsLimit.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(lim))
-	}
+	errors = append(errors,
+		setPrometheusMetric(queryLimits.Limit, rateLimitsLimit),
+		setPrometheusMetric(queryLimits.Remaining, rateLimitsRemaining),
+		setPrometheusMetric(queryLimits.Period, rateLimitsPeriod),
+		setPrometheusMetric(queryLimits.Reset, rateLimitsReset),
+	)
 
-	rem, errRem := strconv.Atoi(queryLimits.Remaining)
-	if errRem == nil {
-		rateLimitsRemaining.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(rem))
-	}
-	per, errPer := strconv.Atoi(queryLimits.Period)
-	if errPer == nil {
-		rateLimitsPeriod.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(per))
-	}
-	res, errRes := strconv.Atoi(queryLimits.Reset)
-	if errRes == nil {
-		rateLimitsReset.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(res))
-	}
-
-	errors = append(errors, errLim, errPer, errRem, errRes)
 	return utilserror.NewAggregate(errors)
 }
 
