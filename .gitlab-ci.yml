@@ -171,20 +171,19 @@ before_script:
   script:
     - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \unittests.bat
 
-# TODO: disabled until slowness issues are solved
-# run_tests_windows-x64:
-#   # temporarily allow failure for tests
-#   extends: .run_tests_windows_base
-#   allow_failure: true
-#   variables:
-#     ARCH: "x64"
+run_tests_windows-x64:
+  # temporarily allow failure for tests
+  extends: .run_tests_windows_base
+  allow_failure: true
+  variables:
+    ARCH: "x64"
 
-# run_tests_windows-x86:
-#   # temporarily allow failure for tests
-#   extends: .run_tests_windows_base
-#   allow_failure: true
-#   variables:
-#     ARCH: "x86"
+run_tests_windows-x86:
+  # temporarily allow failure for tests
+  extends: .run_tests_windows_base
+  allow_failure: true
+  variables:
+    ARCH: "x86"
 
 .run_tests_preparation: &run_tests_preparation
   before_script:
