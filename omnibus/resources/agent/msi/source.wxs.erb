@@ -76,10 +76,46 @@
     <Property Id="DDAGENTUSER_PASSWORD" Hidden="yes" />
     <Property Id="APIKEY" Hidden="yes" />
     <Property Id="FinalizeInstall" Hidden="yes" />
-    
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
+
+    <!--
+      The following four properties are set to see if the user specified the binary dir or config dir on
+      the command line. These properties are loaded before the property is loaded from the registry (below)
+      so we can tell if it was actually supplied on the command line.
+
+      The second of each pair is because the directory can be stored with a trailing "\", but it's the same
+      directory.  Makes the comparison (below) easier.
+    -->
+    <SetProperty Id="PROJECTLOCATIONONCMDLINE" Value="[PROJECTLOCATION]" Before="AppSearch">PROJECTLOCATION </SetProperty>
+    <SetProperty Id="PROJECTLOCATIONONCMDLINESLASH" Value="[PROJECTLOCATION]\" Before="AppSearch">PROJECTLOCATION </SetProperty> 
+    <SetProperty Id="CONFDIRONCOMMANDLINE" Value="[APPLICATIONDATADIRECTORY]" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
+    <SetProperty Id="CONFDIRONCOMMANDLINESLASH" Value="[APPLICATIONDATADIRECTORY]\" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty> 
+
+    <!-- This condition allows the install if
+        1) the user didn't supply the binary directory on the command line
+        2) this is NOT an upgrade
+        3) it is an upgrade, but the supplied directory is the same as the originally installed one. 
+        
+      Case (3) is to allow automation tools to supply the same arguments regardless of whether it's an install or
+      upgrade.-->
+    <Condition
+      Message="!(loc.NoMoveInstallDir)">
+      <!-- Inside of conditional must be TRUE to meet the condition (to NOT fail the install) -->
+      <![CDATA[(NOT PROJECTLOCATIONONCMDLINE) OR (NOT PREVIOUSFOUND) 
+              OR ((PROJECTLOCATIONONCMDLINE~=PROJECTLOCATION) OR
+                  (PROJECTLOCATIONONCMDLINESLASH~=PROJECTLOCATION))]]>
+    </Condition>
+
+    <!-- Same as above, but for the configuration directory. -->
+    <Condition
+      Message="!(loc.NoMoveConfDir)">
+      <!-- Inside of conditional must be TRUE to meet the condition (to NOT fail the install) -->
+      <![CDATA[(NOT CONFDIRONCOMMANDLINE) OR (NOT PREVIOUSFOUND) 
+              OR ((CONFDIRONCOMMANDLINE~=APPLICATIONDATADIRECTORY) OR
+                  (CONFDIRONCOMMANDLINESLASH~=APPLICATIONDATADIRECTORY))]]>
+    </Condition>
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
@@ -123,6 +159,13 @@
                       Type="raw"
                       Id="APPLICATIONROOTDIRECTORY_REGSEARCH"
                       Name="InstallPath" />
+    </Property>
+    <Property Id="APPLICATIONDATADIRECTORY" Secure="yes">
+      <RegistrySearch Key="SOFTWARE\Datadog\Datadog Agent"
+                      Root="HKLM"
+                      Type="raw"
+                      Id="APPLICATIONDATADIRECTORY_REGSEARCH"
+                      Name="ConfigRoot" />
     </Property>
 
     <DirectoryRef Id="PROJECTLOCATION">
