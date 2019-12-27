@@ -108,7 +108,7 @@ func (a *Agent) Stop() {
 	//timeout := time.Duration(coreConfig.Datadog.GetInt("logs_config.stop_grace_period")) * time.Second
 	select {
 	case <-c:
-	case <-time.After(15 * time.Second): //timeout):
+	case <-time.After(30 * time.Second): //timeout):
 		log.Info("Timed out when stopping logs-agent, forcing it to stop now")
 		// We force all destinations to read/flush all the messages they get without
 		// trying to write to the network.
@@ -117,7 +117,7 @@ func (a *Agent) Stop() {
 		// In some situation, the stopper unfortunately never succeed to complete,
 		// we've already reached the grace period, give it some more seconds and
 		// then force quit.
-		timeout := time.NewTimer(5 * time.Second)
+		timeout := time.NewTimer(30 * time.Second)
 		select {
 		case <-c:
 		case <-timeout.C:
