@@ -68,16 +68,6 @@ fi
 (echo "<% subscription_id=\"$AZURE_SUBSCRIPTION_ID\"; client_id=\"$AZURE_CLIENT_ID\"; client_secret=\"$AZURE_CLIENT_SECRET\"; tenant_id=\"$AZURE_TENANT_ID\"; %>" && cat azure-creds.erb) | erb > /root/.azure/credentials
 set -x
 
-# if the agent version isn't set, grab it
-# This is for the windows agent, as it needs to know the exact right version to grab
-# on linux it can just download the latest version from the package manager
-if [ -z ${AGENT_VERSION+x} ]; then
-  pushd ../..
-    export AGENT_VERSION=`inv agent.version --url-safe --git-sha-length=7 --major-version $AGENT_MAJOR_VERSION`
-    export DD_AGENT_EXPECTED_VERSION=`inv agent.version --url-safe --git-sha-length=7 --major-version $AGENT_MAJOR_VERSION`
-  popd
-fi
-
 # Generate a password to use for the windows servers
 if [ -z ${SERVER_PASSWORD+x} ]; then
   export SERVER_PASSWORD="$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)0aZ"
@@ -86,6 +76,23 @@ fi
 if [[ $# == 0 ]]; then
   echo "Missing run suite argument. Exiting."
   exit 1
+fi
+
+if [[ $# == 1 ]]; then
+  echo "Missing major version argument. Exiting."
+  exit 1
+fi
+
+export MAJOR_VERSION=$2
+
+# if the agent version isn't set, grab it
+# This is for the windows agent, as it needs to know the exact right version to grab
+# on linux it can just download the latest version from the package manager
+if [ -z ${AGENT_VERSION+x} ]; then
+  pushd ../..
+    export AGENT_VERSION=`inv agent.version --url-safe --git-sha-length=7 --major-version $MAJOR_VERSION`
+    export DD_AGENT_EXPECTED_VERSION=`inv agent.version --url-safe --git-sha-length=7 --major-version $MAJOR_VERSION`
+  popd
 fi
 
 cp kitchen-azure-common.yml kitchen.yml

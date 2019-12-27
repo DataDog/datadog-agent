@@ -1176,23 +1176,23 @@ deploy_windows_testing-a7:
 
 .kitchen_chef_common: &kitchen_chef_common
   script:
-    - bash -l tasks/run-test-kitchen.sh chef-test
+    - bash -l tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
 
 .kitchen_step_by_step_common: &kitchen_step_by_step_common
   script:
-    - bash -l tasks/run-test-kitchen.sh step-by-step-test
+    - bash -l tasks/run-test-kitchen.sh step-by-step-test $AGENT_MAJOR_VERSION
 
 .kitchen_install_script_common: &kitchen_install_script_common
   script:
-    - bash -l tasks/run-test-kitchen.sh install-script-test
+    - bash -l tasks/run-test-kitchen.sh install-script-test $AGENT_MAJOR_VERSION
 
 .kitchen_upgrade5_common: &kitchen_upgrade5_common
   script:
-    - bash -l tasks/run-test-kitchen.sh upgrade5-test
+    - bash -l tasks/run-test-kitchen.sh upgrade5-test $AGENT_MAJOR_VERSION
 
 .kitchen_upgrade6_common: &kitchen_upgrade6_common
   script:
-    - bash -l tasks/run-test-kitchen.sh upgrade6-test
+    - bash -l tasks/run-test-kitchen.sh upgrade6-test $AGENT_MAJOR_VERSION
 
 .kitchen_windows_installer_common: &kitchen_windows_installer_common
   <<: *kitchen_common
@@ -1201,7 +1201,7 @@ deploy_windows_testing-a7:
     - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
-    - bash -l tasks/run-test-kitchen.sh windows-install-test
+    - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
 .kitchen_windows_a6_common: &kitchen_windows_a6_common
   <<: *kitchen_common
