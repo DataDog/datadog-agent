@@ -32,10 +32,9 @@ int wmain(int argc, wchar_t **argv)
     std::wstring defaultData;
     parseArgs(argc - 1, &(argv[1]), defaultData);
     wprintf(L"%s\n", defaultData.c_str());
-    return 0;
     CustomActionData data;
     data.init(defaultData);
-//    doFinalizeInstall(data);
+    doFinalizeInstall(data);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
