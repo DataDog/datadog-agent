@@ -131,8 +131,12 @@ func (l *Launcher) Stop() {
 // or a new service which is mapped to a container.
 func (l *Launcher) run() {
 	for l.initRetry.RetryStatus() == retry.FailWillRetry {
-		time.Sleep(time.Until(l.initRetry.NextRetry()))
-		l.initRetry.TriggerRetry()
+		select {
+		case <-time.After(time.Until(l.initRetry.NextRetry())):
+			l.initRetry.TriggerRetry()
+		case <-l.stop:
+			return
+		}
 	}
 
 	if l.initRetry.RetryStatus() != retry.OK {
