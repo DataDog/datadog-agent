@@ -19,7 +19,7 @@ dir \omnibus-ruby\pkg\
 
 if not exist c:\mnt\build-out mkdir c:\mnt\build-out || exit /b 6
 copy \omnibus-ruby\pkg\*.msi c:\mnt\build-out || exit /b 7
-if exist \omnibus-ruby\pkg\*.zip copy \omnibus-ruby\pkg\*.zip c:\mnt\build-out || exit /b 7
+if exist \omnibus-ruby\pkg\*.zip copy \omnibus-ruby\pkg\*.zip c:\mnt\build-out || exit /b 8
 
 goto :EOF
 
