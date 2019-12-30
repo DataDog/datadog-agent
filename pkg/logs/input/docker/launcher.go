@@ -67,32 +67,24 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		retryStrategy = retry.OneTry
 	}
 	launcher.initRetry.SetupRetrier(&retry.Config{
-		Name: "docker Launcher setup",
-		AttemptMethod: func() error {
-			err := launcher.setup()
-			if err != nil {
-				return err
-			}
-
-			// Sources and services are added after the setup to avoid creating
-			// a channel that will lock the scheduler in case of setup failure
-			// FIXME(achntrl): Find a better way of choosing the right launcher
-			// between Docker and Kubernetes
-			launcher.addedSources = sources.GetAddedForType(config.DockerType)
-			launcher.removedSources = sources.GetRemovedForType(config.DockerType)
-			launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
-			launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
-
-			return nil
-		},
-		Strategy:   retryStrategy,
-		RetryCount: math.MaxInt32,
-		RetryDelay: 30 * time.Second,
+		Name:          "docker Launcher setup",
+		AttemptMethod: func() error { return launcher.setup() },
+		Strategy:      retryStrategy,
+		RetryCount:    math.MaxInt32,
+		RetryDelay:    30 * time.Second,
 	})
 
 	if err := launcher.initRetry.TriggerRetry(); err != nil && err.RetryStatus == retry.PermaFail {
 		return nil, err
 	}
+	// Sources and services are added after the setup to avoid creating
+	// a channel that will lock the scheduler in case of setup failure
+	// FIXME(achntrl): Find a better way of choosing the right launcher
+	// between Docker and Kubernetes
+	launcher.addedSources = sources.GetAddedForType(config.DockerType)
+	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
+	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
+	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
 	return launcher, nil
 }
 
