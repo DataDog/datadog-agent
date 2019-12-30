@@ -46,6 +46,7 @@ type Launcher struct {
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
+	dockerRetrierStop  chan struct{}
 }
 
 // NewLauncher returns a new launcher
@@ -58,6 +59,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		stop:               make(chan struct{}),
 		erroredContainerID: make(chan string),
 		lock:               &sync.Mutex{},
+		dockerRetrierStop:  make(chan struct{}, 1),
 	}
 
 	var retryStrategy retry.Strategy
@@ -77,6 +79,17 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	if err := launcher.initRetry.TriggerRetry(); err != nil && err.RetryStatus == retry.PermaFail {
 		return nil, err
 	}
+	go func() {
+		for launcher.initRetry.RetryStatus() == retry.FailWillRetry {
+			select {
+			case <-time.After(time.Until(launcher.initRetry.NextRetry())):
+				launcher.initRetry.TriggerRetry()
+			case <-launcher.dockerRetrierStop:
+				return
+			}
+		}
+	}()
+
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
 	launcher.addedSources = sources.GetAddedForType(config.DockerType)
@@ -108,6 +121,7 @@ func (l *Launcher) Start() {
 // Stop stops the Launcher and its tailers in parallel,
 // this call returns only when all the tailers are stopped.
 func (l *Launcher) Stop() {
+	l.dockerRetrierStop <- struct{}{}
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range l.tailers {
@@ -120,19 +134,6 @@ func (l *Launcher) Stop() {
 // run starts and stops new tailers when it receives a new source
 // or a new service which is mapped to a container.
 func (l *Launcher) run() {
-	for l.initRetry.RetryStatus() == retry.FailWillRetry {
-		select {
-		case <-time.After(time.Until(l.initRetry.NextRetry())):
-			l.initRetry.TriggerRetry()
-		case <-l.stop:
-			return
-		}
-	}
-
-	if l.initRetry.RetryStatus() != retry.OK {
-		return
-	}
-
 	for {
 		select {
 		case service := <-l.addedServices:

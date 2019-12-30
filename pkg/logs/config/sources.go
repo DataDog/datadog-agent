@@ -67,7 +67,7 @@ func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
 
 	stream, exists := s.addedByType[sourceType]
 	if !exists {
-		stream = make(chan *LogSource, 1)
+		stream = make(chan *LogSource)
 		s.addedByType[sourceType] = stream
 	}
 	return stream
