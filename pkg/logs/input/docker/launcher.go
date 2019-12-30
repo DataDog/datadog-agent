@@ -77,8 +77,6 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	if err := launcher.initRetry.TriggerRetry(); err != nil && err.RetryStatus == retry.PermaFail {
 		return nil, err
 	}
-	// Sources and services are added after the setup to avoid creating
-	// a channel that will lock the scheduler in case of setup failure
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
 	launcher.addedSources = sources.GetAddedForType(config.DockerType)
