@@ -2814,6 +2814,9 @@ notify-on-failure:
   script: |
     BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
     COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
+
+    COMMIT_AUTHOR=$(git show -s --format="%an" HEAD)
+
     MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME: Pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
-    $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>)"
+    $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $COMMIT_AUTHOR"
     postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
