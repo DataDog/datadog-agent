@@ -62,33 +62,9 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		dockerRetrierStop:  make(chan struct{}, 1),
 	}
 
-	var retryStrategy retry.Strategy
-	if shouldRetry {
-		retryStrategy = retry.RetryCount
-	} else {
-		retryStrategy = retry.OneTry
-	}
-	launcher.initRetry.SetupRetrier(&retry.Config{
-		Name:          "docker Launcher setup",
-		AttemptMethod: func() error { return launcher.setup() },
-		Strategy:      retryStrategy,
-		RetryCount:    math.MaxInt32,
-		RetryDelay:    30 * time.Second,
-	})
-
-	if err := launcher.initRetry.TriggerRetry(); err != nil && err.RetryStatus == retry.PermaFail {
+	if err := launcher.retrySetupInBackground(shouldRetry); err != nil {
 		return nil, err
 	}
-	go func() {
-		for launcher.initRetry.RetryStatus() == retry.FailWillRetry {
-			select {
-			case <-time.After(time.Until(launcher.initRetry.NextRetry())):
-				launcher.initRetry.TriggerRetry()
-			case <-launcher.dockerRetrierStop:
-				return
-			}
-		}
-	}()
 
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
@@ -110,6 +86,39 @@ func (l *Launcher) setup() error {
 	}
 	// initialize the tagger
 	tagger.Init()
+	return nil
+}
+
+func (l *Launcher) retrySetupInBackground(shouldRetry bool) error {
+	var retryStrategy retry.Strategy
+	if shouldRetry {
+		retryStrategy = retry.RetryCount
+	} else {
+		retryStrategy = retry.OneTry
+	}
+	l.initRetry.SetupRetrier(&retry.Config{
+		Name:          "docker Launcher setup",
+		AttemptMethod: func() error { return l.setup() },
+		Strategy:      retryStrategy,
+		RetryCount:    math.MaxInt32,
+		RetryDelay:    30 * time.Second,
+	})
+
+	if err := l.initRetry.TriggerRetry(); err != nil && err.RetryStatus == retry.PermaFail {
+		return err
+	}
+
+	go func() {
+		for l.initRetry.RetryStatus() == retry.FailWillRetry {
+			select {
+			case <-time.After(time.Until(l.initRetry.NextRetry())):
+				l.initRetry.TriggerRetry()
+			case <-l.dockerRetrierStop:
+				return
+			}
+		}
+	}()
+
 	return nil
 }
 
