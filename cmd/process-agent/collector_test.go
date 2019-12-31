@@ -93,3 +93,8 @@ func TestHasContainers(t *testing.T) {
 	assert.Equal(2, getContainerCount(&collectorRealTime))
 	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
 }
+
+func TestIsOrchestratorEndpoint(t *testing.T) {
+	assert.False(t, isOrchestratorEndpoint("/api/v1/collector"))
+	assert.True(t, isOrchestratorEndpoint("/api/v1/orchestrator"))
+}

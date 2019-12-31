@@ -288,6 +288,21 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 		}
 	}
 
+	if k := key(ns, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
+		for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
+			u, err := URL.Parse(endpointURL)
+			if err != nil {
+				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
+			}
+			for _, k := range apiKeys {
+				a.OrchestratorEndpoints = append(a.OrchestratorEndpoints, APIEndpoint{
+					APIKey:   k,
+					Endpoint: u,
+				})
+			}
+		}
+	}
+
 	// Used to override container source auto-detection.
 	// "docker", "ecs_fargate", "kubelet", etc
 	if containerSource := config.Datadog.GetString(key(ns, "container_source")); containerSource != "" {

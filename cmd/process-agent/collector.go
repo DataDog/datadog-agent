@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -113,7 +114,11 @@ func (l *Collector) run(exit chan bool) {
 	for _, e := range l.cfg.APIEndpoints {
 		eps = append(eps, e.Endpoint.String())
 	}
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, l.cfg.EnabledChecks)
+	orchestratorEps := make([]string, 0, len(l.cfg.OrchestratorEndpoints))
+	for _, e := range l.cfg.OrchestratorEndpoints {
+		orchestratorEps = append(eps, e.Endpoint.String())
+	}
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
 
 	go util.HandleSignals(exit)
 	heartbeat := time.NewTicker(15 * time.Second)
@@ -196,14 +201,19 @@ func (l *Collector) postMessage(checkPath string, m model.MessageBody) {
 	containerCount := getContainerCount(m)
 
 	responses := make(chan postResponse)
-	for _, ep := range l.cfg.APIEndpoints {
+	endpoints := l.cfg.APIEndpoints
+	if isOrchestratorEndpoint(checkPath) {
+		endpoints = l.cfg.OrchestratorEndpoints
+	}
+	for _, ep := range endpoints {
 		go l.postToAPI(ep, checkPath, body, responses, containerCount)
 	}
 
 	// Wait for all responses to come back before moving on.
-	statuses := make([]*model.CollectorStatus, 0, len(l.cfg.APIEndpoints))
-	for i := 0; i < len(l.cfg.APIEndpoints); i++ {
-		url := l.cfg.APIEndpoints[i].Endpoint.String()
+	// TODO
+	statuses := make([]*model.CollectorStatus, 0, len(endpoints))
+	for i := 0; i < len(endpoints); i++ {
+		url := endpoints[i].Endpoint.String()
 		res := <-responses
 		if res.err != nil {
 			log.Error(res.err)
@@ -356,4 +366,8 @@ func getContainerCount(mb model.MessageBody) int {
 		return 0
 	}
 	return 0
+}
+
+func isOrchestratorEndpoint(endpoint string) bool {
+	return strings.Contains(endpoint, "orchestrator")
 }

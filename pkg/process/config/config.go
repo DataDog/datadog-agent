@@ -54,23 +54,24 @@ type APIEndpoint struct {
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
-	Enabled            bool
-	HostName           string
-	APIEndpoints       []APIEndpoint
-	LogFile            string
-	LogLevel           string
-	LogToConsole       bool
-	QueueSize          int
-	Blacklist          []*regexp.Regexp
-	Scrubber           *DataScrubber
-	MaxPerMessage      int
-	MaxConnsPerMessage int
-	AllowRealTime      bool
-	Transport          *http.Transport `json:"-"`
-	DDAgentBin         string
-	StatsdHost         string
-	StatsdPort         int
-	ProcessExpVarPort  int
+	Enabled               bool
+	HostName              string
+	APIEndpoints          []APIEndpoint
+	OrchestratorEndpoints []APIEndpoint
+	LogFile               string
+	LogLevel              string
+	LogToConsole          bool
+	QueueSize             int
+	Blacklist             []*regexp.Regexp
+	Scrubber              *DataScrubber
+	MaxPerMessage         int
+	MaxConnsPerMessage    int
+	AllowRealTime         bool
+	Transport             *http.Transport `json:"-"`
+	DDAgentBin            string
+	StatsdHost            string
+	StatsdPort            int
+	ProcessExpVarPort     int
 
 	// System probe collection configuration
 	EnableSystemProbe              bool
@@ -125,7 +126,8 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultEndpoint              = "https://process.datadoghq.com"
+	defaultProcessEndpoint       = "https://process.datadoghq.com"
+	defaultOrchestratorEndpoint  = "https://orchestrator.datadoghq.com"
 	maxMessageBatch              = 100
 	maxConnsMessageBatch         = 1000
 	defaultMaxTrackedConnections = 65536
@@ -148,7 +150,12 @@ func NewDefaultTransport() *http.Transport {
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
-	u, err := url.Parse(defaultEndpoint)
+	processEndpoint, err := url.Parse(defaultProcessEndpoint)
+	if err != nil {
+		// This is a hardcoded URL so parsing it should not fail
+		panic(err)
+	}
+	orchestratorEndpoint, err := url.Parse(defaultOrchestratorEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
@@ -160,18 +167,19 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	}
 
 	ac := &AgentConfig{
-		Enabled:            canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints:       []APIEndpoint{{Endpoint: u}},
-		LogFile:            defaultLogFilePath,
-		LogLevel:           "info",
-		LogToConsole:       false,
-		QueueSize:          20,
-		MaxPerMessage:      100,
-		MaxConnsPerMessage: 300,
-		AllowRealTime:      true,
-		HostName:           "",
-		Transport:          NewDefaultTransport(),
-		ProcessExpVarPort:  6062,
+		Enabled:               canAccessContainers, // We'll always run inside of a container.
+		APIEndpoints:          []APIEndpoint{{Endpoint: processEndpoint}},
+		OrchestratorEndpoints: []APIEndpoint{{Endpoint: orchestratorEndpoint}},
+		LogFile:               defaultLogFilePath,
+		LogLevel:              "info",
+		LogToConsole:          false,
+		QueueSize:             20,
+		MaxPerMessage:         100,
+		MaxConnsPerMessage:    300,
+		AllowRealTime:         true,
+		HostName:              "",
+		Transport:             NewDefaultTransport(),
+		ProcessExpVarPort:     6062,
 
 		// Statsd for internal instrumentation
 		StatsdHost: "127.0.0.1",
