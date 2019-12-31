@@ -80,7 +80,6 @@ func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 
-	t.tagProvider.Stop()
 	t.reader.Close()
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
@@ -148,7 +147,6 @@ func (t *Tailer) tail(since string) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.ContainerID)
 
-	t.tagProvider.Start()
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()

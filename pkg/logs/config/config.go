@@ -204,20 +204,7 @@ func batchWait(config coreConfig.Config) time.Duration {
 	return (time.Duration(batchWait) * time.Second)
 }
 
-// TagConfig contains the tag config used by tag providers
-type TagConfig struct {
-	ForceRefresh         bool
-	ForceRefreshDuration time.Duration
-	TaggerWarmupDuration time.Duration
-}
-
-// TagProviderConfig returns the config used by tag providers
-func TagProviderConfig() TagConfig {
-	tagProviderConfig := TagConfig{}
-	if coreConfig.Datadog.GetBool("logs_config.k8s_wait_for_tags") {
-		tagProviderConfig.ForceRefresh = true
-		tagProviderConfig.ForceRefreshDuration = coreConfig.Datadog.GetDuration("logs_config.force_tagger_call_duration") * time.Second
-		tagProviderConfig.TaggerWarmupDuration = coreConfig.Datadog.GetDuration("logs_config.tagger_warmup_duration") * time.Second
-	}
-	return tagProviderConfig
+// TaggerWarmupDuration is used to configure the tag providers
+func TaggerWarmupDuration() time.Duration {
+	return coreConfig.Datadog.GetDuration("logs_config.tagger_warmup_duration") * time.Second
 }

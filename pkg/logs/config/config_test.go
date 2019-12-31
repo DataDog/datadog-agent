@@ -126,22 +126,15 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 	suite.NotNil(rule.Regex)
 }
 
-func (suite *ConfigTestSuite) TestTagProviderConfig() {
-	var tagConfig TagConfig
+func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
+	// assert TaggerWarmupDuration is disabled by default
+	taggerWarmupDuration := TaggerWarmupDuration()
+	suite.Equal(0*time.Second, taggerWarmupDuration)
 
-	// default config
-	tagConfig = TagProviderConfig()
-	suite.False(tagConfig.ForceRefresh)
-	suite.Equal(0*time.Second, tagConfig.TaggerWarmupDuration)
-	suite.Equal(0*time.Second, tagConfig.ForceRefreshDuration)
-
-	// k8s_wait_for_tags enabled config
-	suite.config.Set("logs_config.k8s_wait_for_tags", true)
-
-	tagConfig = TagProviderConfig()
-	suite.True(tagConfig.ForceRefresh)
-	suite.Equal(2*time.Second, tagConfig.TaggerWarmupDuration)
-	suite.Equal(5*time.Second, tagConfig.ForceRefreshDuration)
+	// override
+	suite.config.Set("logs_config.tagger_warmup_duration", 5)
+	taggerWarmupDuration = TaggerWarmupDuration()
+	suite.Equal(5*time.Second, taggerWarmupDuration)
 }
 
 func TestConfigTestSuite(t *testing.T) {

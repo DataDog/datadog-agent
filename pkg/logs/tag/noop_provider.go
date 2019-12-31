@@ -13,9 +13,3 @@ type noopProvider struct {
 func (p *noopProvider) GetTags() []string {
 	return p.tags
 }
-
-// Start does nothing
-func (p *noopProvider) Start() {}
-
-// Stop does nothing
-func (p *noopProvider) Stop() {}
