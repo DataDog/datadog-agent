@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -29,6 +31,7 @@ const (
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
+	initRetry          retry.Retrier
 	pipelineProvider   pipeline.Provider
 	addedSources       chan *config.LogSource
 	removedSources     chan *config.LogSource
@@ -43,10 +46,11 @@ type Launcher struct {
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
+	dockerRetrierStop  chan struct{}
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
+func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry bool) (*Launcher, error) {
 	launcher := &Launcher{
 		pipelineProvider:   pipelineProvider,
 		tailers:            make(map[string]*Tailer),
@@ -55,13 +59,13 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		stop:               make(chan struct{}),
 		erroredContainerID: make(chan string),
 		lock:               &sync.Mutex{},
+		dockerRetrierStop:  make(chan struct{}, 1),
 	}
-	err := launcher.setup()
-	if err != nil {
+
+	if err := launcher.retrySetupInBackground(shouldRetry); err != nil {
 		return nil, err
 	}
-	// Sources and services are added after the setup to avoid creating
-	// a channel that will lock the scheduler in case of setup failure
+
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
 	launcher.addedSources = sources.GetAddedForType(config.DockerType)
@@ -85,6 +89,39 @@ func (l *Launcher) setup() error {
 	return nil
 }
 
+func (l *Launcher) retrySetupInBackground(shouldRetry bool) error {
+	var retryStrategy retry.Strategy
+	if shouldRetry {
+		retryStrategy = retry.RetryCount
+	} else {
+		retryStrategy = retry.OneTry
+	}
+	l.initRetry.SetupRetrier(&retry.Config{
+		Name:          "docker Launcher setup",
+		AttemptMethod: func() error { return l.setup() },
+		Strategy:      retryStrategy,
+		RetryCount:    math.MaxInt32,
+		RetryDelay:    30 * time.Second,
+	})
+
+	if err := l.initRetry.TriggerRetry(); err != nil && err.RetryStatus == retry.PermaFail {
+		return err
+	}
+
+	go func() {
+		for l.initRetry.RetryStatus() == retry.FailWillRetry {
+			select {
+			case <-time.After(time.Until(l.initRetry.NextRetry())):
+				l.initRetry.TriggerRetry()
+			case <-l.dockerRetrierStop:
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
 // Start starts the Launcher
 func (l *Launcher) Start() {
 	go l.run()
@@ -93,6 +130,7 @@ func (l *Launcher) Start() {
 // Stop stops the Launcher and its tailers in parallel,
 // this call returns only when all the tailers are stopped.
 func (l *Launcher) Stop() {
+	l.dockerRetrierStop <- struct{}{}
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range l.tailers {
