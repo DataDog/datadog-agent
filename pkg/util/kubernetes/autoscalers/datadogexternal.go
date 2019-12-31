@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CharlyF/go-datadog-api"
 	"github.com/prometheus/client_golang/prometheus"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"

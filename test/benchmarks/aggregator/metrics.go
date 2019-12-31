@@ -12,7 +12,7 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/CharlyF/go-datadog-api"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"

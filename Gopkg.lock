@@ -2,14 +2,7 @@
 
 
 [[projects]]
-  digest = "1:35b3b919a3f16d81f3b1279af7e6634c69c8f3d7e8578c74ca1642e87148e6f6"
-  name = "github.com/CharlyF/go-datadog-api"
-  packages = ["."]
-  pruneopts = ""
-  revision = "c43e142d983374da8f334c3ccbcc7b9316d9f1bb"
-
-[[projects]]
-  digest = "1:c4e071eb2f960b14286f0fe2057d4f87dfd83c840c059377f01c37b5112595ed"
+  digest = "1:e2fc614bdd3a92702f18c139dc28bf99c96296d89d3c7076ec8f7b3562c094a9"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
@@ -1553,6 +1546,13 @@
   version = "v2.2.2"
 
 [[projects]]
+  digest = "1:301cc98bab3839bb2f984b661a78c04b73402ed88daf4f1ca6a317ef56acfed2"
+  name = "gopkg.in/zorkian/go-datadog-api.v2"
+  packages = ["."]
+  pruneopts = ""
+  revision = "0784a6c6d9a4659263c67e160442f4f5808793ac"
+
+[[projects]]
   branch = "release-1.15"
   digest = "1:10eebafc84e46eb29e19559c00670eb175f8be8db767cfaa720761bfd3b356af"
   name = "k8s.io/api"
@@ -2084,7 +2084,6 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/CharlyF/go-datadog-api",
     "github.com/DataDog/agent-payload/gogen",
     "github.com/DataDog/agent-payload/process",
     "github.com/DataDog/datadog-go/statsd",
@@ -2203,6 +2202,7 @@
     "golang.org/x/text/unicode/norm",
     "google.golang.org/grpc",
     "gopkg.in/yaml.v2",
+    "gopkg.in/zorkian/go-datadog-api.v2",
     "k8s.io/api/autoscaling/v2beta1",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/equality",

@@ -160,8 +160,8 @@
   version = "~v2.2.2"
 
 [[constraint]]
-  name = "github.com/CharlyF/go-datadog-api"
-  revision = "c43e142d983374da8f334c3ccbcc7b9316d9f1bb"
+  name = "gopkg.in/zorkian/go-datadog-api.v2"
+  revision = "0784a6c6d9a4659263c67e160442f4f5808793ac"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
