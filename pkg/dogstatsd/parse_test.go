@@ -1,6 +1,7 @@
 package dogstatsd
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,4 +42,26 @@ func TestParseTagsEmpty(t *testing.T) {
 	rawTags := []byte("")
 	tags := parseTags(rawTags)
 	assert.Nil(t, tags)
+}
+
+func TestUnsafeParseFloat(t *testing.T) {
+	rawFloat := "1.1234"
+
+	unsafeFloat, err := parseFloat64([]byte(rawFloat))
+	assert.NoError(t, err)
+	float, err := strconv.ParseFloat(rawFloat, 64)
+	assert.NoError(t, err)
+
+	assert.Equal(t, unsafeFloat, float)
+}
+
+func TestUnsafeParseInt(t *testing.T) {
+	rawInt := "123"
+
+	unsafeInteger, err := parseInt64([]byte(rawInt))
+	assert.NoError(t, err)
+	integer, err := strconv.ParseInt(rawInt, 10, 64)
+	assert.NoError(t, err)
+
+	assert.Equal(t, unsafeInteger, integer)
 }
