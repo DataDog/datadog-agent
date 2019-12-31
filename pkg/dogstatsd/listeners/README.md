@@ -16,7 +16,7 @@ an empty `string`.
 
 - `UDPListener`: handles the historical UDP protocol,
 - `UDSListener`: handles the host-local UDS protocol with optional origin detection,
-see [https://github.com/DataDog/datadog-agent/wiki/Unix-Domain-Sockets-support](the wiki)
+see [the wiki](https://github.com/DataDog/datadog-agent/wiki/Unix-Domain-Sockets-support)
 for more info.
 
 ### Origin Detection is Linux only

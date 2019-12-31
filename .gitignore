@@ -84,6 +84,8 @@ trace-agent-msg.h
 cmd/process-agent/windows_resources/process-agent-msg.rc
 cmd/process-agent/windows_resources/*.bin
 process-agent-msg.h
+# process agent test artifacts
+pkg/process/config/logs
 
 #visual studio files
 *.aps
@@ -104,4 +106,7 @@ devenv/packer_cache
 
 # doxygen doc & error log
 rtloader/doc
-rtlodaer/doxygen/errors.log
+rtloader/doxygen/errors.log
+
+# integrations-core when checked out for unit tests
+integrations-core/

@@ -69,8 +69,8 @@ variables:
   RELEASE_VERSION_7: nightly
   DATADOG_AGENT_BUILDIMAGES: v1709713-2adac2a
   DATADOG_AGENT_BUILDERS: v1793959-4e4c346
-  DATADOG_AGENT_WINBUILDIMAGES: v1876043-a759bdd
-  DATADOG_AGENT_ARMBUILDIMAGES: v1897460-9b1848b
+  DATADOG_AGENT_WINBUILDIMAGES: v2021523-34e07eb
+  DATADOG_AGENT_ARMBUILDIMAGES: v1949502-eda0bce
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -171,20 +171,19 @@ before_script:
   script:
     - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \unittests.bat
 
-# TODO: disabled until slowness issues are solved
-# run_tests_windows-x64:
-#   # temporarily allow failure for tests
-#   extends: .run_tests_windows_base
-#   allow_failure: true
-#   variables:
-#     ARCH: "x64"
+run_tests_windows-x64:
+  # temporarily allow failure for tests
+  extends: .run_tests_windows_base
+  allow_failure: true
+  variables:
+    ARCH: "x64"
 
-# run_tests_windows-x86:
-#   # temporarily allow failure for tests
-#   extends: .run_tests_windows_base
-#   allow_failure: true
-#   variables:
-#     ARCH: "x86"
+run_tests_windows-x86:
+  # temporarily allow failure for tests
+  extends: .run_tests_windows_base
+  allow_failure: true
+  variables:
+    ARCH: "x86"
 
 .run_tests_preparation: &run_tests_preparation
   before_script:
@@ -324,6 +323,58 @@ build_dogstatsd_static-deb_x64:
     - inv -e dogstatsd.build --static
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
 
+# build dogstatsd for deb-x64
+build_dogstatsd-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --verbose --dep-vendor-only
+  script:
+    - inv -e dogstatsd.build
+    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
+
+# build dogstatsd static for deb-arm
+build_dogstatsd_static-deb_arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only
+  script:
+    - inv -e dogstatsd.build --static
+    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
+
+# build dogstatsd linked for deb-arm
+build_dogstatsd-deb_arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only
+  script:
+    - inv -e dogstatsd.build
+    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
+
 # build puppy agent for deb-x64, to make sure the build is not broken because of build flags
 build_puppy_agent-deb_x64:
   stage: binary_build
@@ -339,31 +390,22 @@ build_puppy_agent-deb_x64:
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/puppy/agent
 
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
-build_puppy_agent-deb_x64_arm:
+build_puppy_agent-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
+    ARCH: arm64
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
+    - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
-
-# build dogstatsd for deb-x64
-build_dogstatsd-deb_x64:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-  before_script:
-    - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
-  script:
-    - inv -e dogstatsd.build
-    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
 
 
 .cluster_agent-build_common: &cluster_agent-build_common
@@ -388,7 +430,7 @@ cluster_agent-build_amd64:
 
 cluster_agent-build_arm64:
   <<: *cluster_agent-build_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_arm_x64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
@@ -441,6 +483,22 @@ run_dogstatsd_size_test:
   script:
     - inv -e dogstatsd.size-test --skip-build
 
+# check the size of the static dogstatsd binary
+run_dogstatsd_arm_size_test:
+  stage: integration_test
+  needs: ["build_dogstatsd_static-deb_arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    # Disable global before_script
+    - mkdir -p $STATIC_BINARIES_DIR
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH $STATIC_BINARIES_DIR/dogstatsd
+  script:
+    - inv -e dogstatsd.size-test --skip-build
+
 #
 # package_build
 #
@@ -467,12 +525,6 @@ run_dogstatsd_size_test:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-
-.agent_build_common_arm:
-  stage: package_build
-  needs: ["run_dep_check_lock"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/$PKG_TARGET:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
 
 # build Agent package for deb-x64
 agent_deb-x64-a6:
@@ -514,9 +566,11 @@ agent_deb-x64-a7:
   <<: *agent_build_common_deb
 
 agent_deb-arm-a6:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: deb_arm_x64
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: 'datadog-agent_6_arm64.deb'
@@ -529,9 +583,11 @@ agent_deb-arm-a6:
   <<: *agent_build_common_deb
 
 agent_deb-arm-a7:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: deb_arm_x64
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
@@ -641,9 +697,11 @@ agent_rpm-x64-a7:
 
   # build Agent package for rpm-x64
 agent_rpm-arm-a6:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: rpm_arm_x64
     PYTHON_RUNTIMES: '2,3'
   before_script:
     - source /root/.bashrc
@@ -654,9 +712,11 @@ agent_rpm-arm-a6:
 
 # build Agent package for rpm-x64
 agent_rpm-arm-a7:
-  extends: .agent_build_common_arm
+  stage: package_build
+  needs: ["run_dep_check_lock"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
   variables:
-    PKG_TARGET: rpm_arm_x64
     PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc
@@ -740,7 +800,7 @@ agent_suse-x64-a7:
     - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir .omnibus\pkg
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \build-agent6.bat --release-version %RELEASE_VERSION%
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \build-agent6.bat $RELEASE_VERSION
     - copy build-out\*.msi .omnibus\pkg
   artifacts:
     expire_in: 2 weeks
@@ -753,7 +813,7 @@ dockerbuild_windows_msi_x64-a7:
     ARCH: "x64"
     PYTHON_RUNTIMES: '3'
   before_script:
-    - set RELEASE_VERSION %RELEASE_VERSION_7%
+    - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
 
 dockerbuild_windows_msi_x86-a7:
@@ -762,7 +822,7 @@ dockerbuild_windows_msi_x86-a7:
     ARCH: "x86"
     PYTHON_RUNTIMES: '3'
   before_script:
-    - set RELEASE_VERSION %RELEASE_VERSION_7%
+    - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
 
 dockerbuild_windows_msi_x64-a6:
@@ -771,7 +831,7 @@ dockerbuild_windows_msi_x64-a6:
     ARCH: "x64"
     PYTHON_RUNTIMES: '2,3'
   before_script:
-    - set RELEASE_VERSION %RELEASE_VERSION_6%
+    - set RELEASE_VERSION $RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
 
 dockerbuild_windows_msi_x86-a6:
@@ -780,7 +840,7 @@ dockerbuild_windows_msi_x86-a6:
     ARCH: "x86"
     PYTHON_RUNTIMES: '2,3'
   before_script:
-    - set RELEASE_VERSION %RELEASE_VERSION_6%
+    - set RELEASE_VERSION $RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
 
 
@@ -1264,23 +1324,17 @@ kitchen_windows_upgrade5-a7:
   <<: *kitchen_windows_a7_common
   <<: *kitchen_upgrade5_common
 
-
-# Let these two jobs fail for now, as they have to fail
-# (they install latest, ie. 6.14.1, which is blacklisted)
-
 kitchen_windows_upgrade6-a6:
-  allow_failure: true
+  allow_failure: false
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_windows_a6_common
   <<: *kitchen_upgrade6_common
-  retry: 0
 
 kitchen_windows_upgrade6-a7:
-  allow_failure: true
+  allow_failure: false
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_windows_a7_common
   <<: *kitchen_upgrade6_common
-  retry: 0
 
 # run dd-agent-testing on centos
 kitchen_centos_chef-a6:
@@ -2754,6 +2808,9 @@ notify-on-failure:
   script: |
     BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
     COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
+
+    COMMIT_AUTHOR=$(git show -s --format="%an" HEAD)
+
     MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME: Pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME failed.
-    $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>)"
+    $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $COMMIT_AUTHOR"
     postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"

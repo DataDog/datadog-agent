@@ -112,7 +112,7 @@ func GetHostnameData() (HostnameData, error) {
 	if err == nil {
 		hostnameData := saveHostnameData(cacheHostnameKey, configName, HostnameProviderConfiguration)
 		if !isHostnameCanonicalForIntake(configName) && !config.Datadog.GetBool("hostname_force_config_as_canonical") {
-			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-config-as-canonical", configName)
+			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-force-config-as-canonical", configName)
 		}
 		return hostnameData, err
 	}
