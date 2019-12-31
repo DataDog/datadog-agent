@@ -203,3 +203,8 @@ func batchWait(config coreConfig.Config) time.Duration {
 	}
 	return (time.Duration(batchWait) * time.Second)
 }
+
+// TaggerWarmupDuration is used to configure the tag providers
+func TaggerWarmupDuration() time.Duration {
+	return coreConfig.Datadog.GetDuration("logs_config.tagger_warmup_duration") * time.Second
+}

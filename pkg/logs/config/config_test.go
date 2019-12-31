@@ -7,6 +7,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 
@@ -123,6 +124,17 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 	suite.Equal("([A-Fa-f0-9]{28})", rule.Pattern)
 	suite.Equal("****************************", rule.ReplacePlaceholder)
 	suite.NotNil(rule.Regex)
+}
+
+func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
+	// assert TaggerWarmupDuration is disabled by default
+	taggerWarmupDuration := TaggerWarmupDuration()
+	suite.Equal(0*time.Second, taggerWarmupDuration)
+
+	// override
+	suite.config.Set("logs_config.tagger_warmup_duration", 5)
+	taggerWarmupDuration = TaggerWarmupDuration()
+	suite.Equal(5*time.Second, taggerWarmupDuration)
 }
 
 func TestConfigTestSuite(t *testing.T) {

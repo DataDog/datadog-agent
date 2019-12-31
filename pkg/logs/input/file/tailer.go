@@ -112,7 +112,6 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.path)
 
-	t.tagProvider.Start()
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
@@ -193,7 +192,6 @@ func (t *Tailer) StartFromBeginning() error {
 func (t *Tailer) Stop() {
 	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
-	t.tagProvider.Stop()
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
 	<-t.done
