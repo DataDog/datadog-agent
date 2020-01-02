@@ -50,6 +50,7 @@
 /pkg/metrics/                           @DataDog/agent-core
 /pkg/serializer/                        @DataDog/agent-core
 /pkg/status/                            @DataDog/agent-core
+/pkg/telemetry/                         @DataDog/agent-core
 /pkg/version/                           @DataDog/agent-core
 /pkg/trace/                             @DataDog/apm-agent
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-core
