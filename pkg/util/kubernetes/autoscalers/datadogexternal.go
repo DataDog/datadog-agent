@@ -184,14 +184,13 @@ func setPrometheusMetric(val string, metric *prometheus.GaugeVec) error {
 func (p *Processor) updateRateLimitingMetrics() error {
 	updateMap := p.datadogClient.GetRateLimitStats()
 	queryLimits := updateMap[queryEndpoint]
-	var errors []error
 
-	errors = append(errors,
+	errors := []error{
 		setPrometheusMetric(queryLimits.Limit, rateLimitsLimit),
 		setPrometheusMetric(queryLimits.Remaining, rateLimitsRemaining),
 		setPrometheusMetric(queryLimits.Period, rateLimitsPeriod),
 		setPrometheusMetric(queryLimits.Reset, rateLimitsReset),
-	)
+	}
 
 	return utilserror.NewAggregate(errors)
 }
