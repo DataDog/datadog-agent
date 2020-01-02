@@ -92,7 +92,8 @@ type fakeLeaderElector struct {
 func (le *fakeLeaderElector) IsLeader() bool { return le.isLeader }
 
 type fakeDatadogClient struct {
-	queryMetricsFunc func(from, to int64, query string) ([]datadog.Series, error)
+	queryMetricsFunc  func(from, to int64, query string) ([]datadog.Series, error)
+	getRateLimitsFunc func() map[string]datadog.RateLimit
 }
 
 type fakeProcessor struct {
@@ -118,6 +119,13 @@ func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datado
 		return d.queryMetricsFunc(from, to, query)
 	}
 	return nil, nil
+}
+
+func (d *fakeDatadogClient) GetRateLimitStats() map[string]datadog.RateLimit {
+	if d.getRateLimitsFunc != nil {
+		return d.getRateLimitsFunc()
+	}
+	return nil
 }
 
 var maxAge = time.Duration(30 * time.Second)
