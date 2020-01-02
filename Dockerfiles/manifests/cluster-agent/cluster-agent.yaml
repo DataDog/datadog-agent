@@ -42,13 +42,14 @@ spec:
           #     secretKeyRef:
           #       name: datadog-auth-token
           #       key: token
-        livenessProbe:
-          httpGet:
-            port: 443
-            path: /healthz
-            scheme: HTTPS
-        readinessProbe:
-          httpGet:
-            port: 443
-            path: /healthz
-            scheme: HTTPS
+        # If you use the external metrics provider, use these liveness and readyness probes
+        # livenessProbe:
+        #   httpGet:
+        #     port: 443
+        #     path: /healthz
+        #     scheme: HTTPS
+        # readinessProbe:
+        #   httpGet:
+        #     port: 443
+        #     path: /healthz
+        #     scheme: HTTPS
