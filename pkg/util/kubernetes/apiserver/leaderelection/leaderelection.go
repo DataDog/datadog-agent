@@ -31,7 +31,7 @@ import (
 const (
 	defaultLeaderLeaseDuration = 60 * time.Second
 	defaultLeaseName           = "datadog-leader-election"
-	clientTimeout              = 2 * time.Second
+	getLeaderTimeout           = 10 * time.Second
 )
 
 var (
@@ -145,6 +145,15 @@ func (le *LeaderEngine) init() error {
 	return nil
 }
 
+// StartLeaderElectionRun starts the runLeaderElection once
+func (le *LeaderEngine) StartLeaderElectionRun() {
+	le.once.Do(
+		func() {
+			go le.runLeaderElection()
+		},
+	)
+}
+
 // EnsureLeaderElectionRuns start the Leader election process if not already running,
 // return nil if the process is effectively running
 func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
@@ -156,15 +165,10 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 		return nil
 	}
 
-	le.once.Do(
-		func() {
-			go le.runLeaderElection()
-		},
-	)
+	le.StartLeaderElectionRun()
 
-	timeoutDuration := clientTimeout * 2
-	timeout := time.After(timeoutDuration)
-	tick := time.NewTicker(time.Millisecond * 500)
+	timeout := time.After(getLeaderTimeout)
+	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
 		log.Tracef("Waiting for new leader identity...")
@@ -177,7 +181,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 				return nil
 			}
 		case <-timeout:
-			return fmt.Errorf("leader election still not running, timeout after %s", timeoutDuration)
+			return fmt.Errorf("leader election still not running, timeout after %s", getLeaderTimeout)
 		}
 	}
 }

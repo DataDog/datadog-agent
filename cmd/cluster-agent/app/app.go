@@ -207,15 +207,23 @@ func start(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
-	// Start the cluster-check discovery if configured
-	clusterCheckHandler := setupClusterCheck(mainCtx)
-	// start the cmd HTTPS server
-	sc := clusteragent.ServerContext{
-		ClusterCheckHandler: clusterCheckHandler,
+	if config.Datadog.GetBool("cluster_checks.enabled") {
+		// Start the cluster check Autodiscovery
+		clusterCheckHandler, err := setupClusterCheck(mainCtx)
+		if err != nil {
+			log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
+		}
+		// Start the cmd HTTPS server
+		sc := clusteragent.ServerContext{
+			ClusterCheckHandler: clusterCheckHandler,
+		}
+		if err = api.StartServer(sc); err != nil {
+			return log.Errorf("Error while starting agent API, exiting: %v", err)
+		}
+	} else {
+		log.Debug("Cluster check Autodiscovery disabled")
 	}
-	if err = api.StartServer(sc); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
+
 	wg := sync.WaitGroup{}
 	// Autoscaler Controller Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
@@ -256,19 +264,13 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func setupClusterCheck(ctx context.Context) *clusterchecks.Handler {
-	if !config.Datadog.GetBool("cluster_checks.enabled") {
-		log.Debug("Cluster check Autodiscovery disabled")
-		return nil
-	}
-
+func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	handler, err := clusterchecks.NewHandler(common.AC)
 	if err != nil {
-		log.Errorf("Could not setup the cluster-checks Autodiscovery: %s", err.Error())
-		return nil
+		return nil, err
 	}
 	go handler.Run(ctx)
 
 	log.Info("Started cluster check Autodiscovery")
-	return handler
+	return handler, nil
 }
