@@ -29,7 +29,7 @@ func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 }
 
 // Name returns the name of the ProcessCheck.
-func (c *PodCheck) Name() string { return "container" }
+func (c *PodCheck) Name() string { return "pod" }
 
 // Endpoint returns the endpoint where this check is submitted.
 func (c *PodCheck) Endpoint() string { return "/api/v1/orchestrator" }

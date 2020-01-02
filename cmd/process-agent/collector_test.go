@@ -94,7 +94,11 @@ func TestHasContainers(t *testing.T) {
 	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
 }
 
-func TestIsOrchestratorEndpoint(t *testing.T) {
-	assert.False(t, isOrchestratorEndpoint("/api/v1/collector"))
-	assert.True(t, isOrchestratorEndpoint("/api/v1/orchestrator"))
+func TestEndpointsForCheck(t *testing.T) {
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig(false)
+	c, err := NewCollector(cfg)
+	assert.NoError(err)
+	assert.Equal(cfg.OrchestratorEndpoints, c.endpointsForCheck("pod"))
+	assert.Equal(cfg.APIEndpoints, c.endpointsForCheck("process"))
 }
