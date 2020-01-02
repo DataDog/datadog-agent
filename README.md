@@ -19,7 +19,7 @@ and development, is located under [the docs directory](docs) of the present repo
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.11.5 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
+ * [Go](https://golang.org/doc/install) 1.12 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
  * Python 2.7 or 3.x along with development libraries.
  * Python dependencies. You may install these with `pip install -r requirements.txt`
    This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
