@@ -3,20 +3,20 @@
 package net
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
-	"encoding/json"
 
 	"context"
 	"net"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 const (
@@ -106,7 +106,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return conns, nil
 }
 
-func (r *RemoteSysProbeUtil) GetCheck(check string) ([]ebpf.StatLine, error) {
+func (r *RemoteSysProbeUtil) GetCheck(check string) ([]ebpf.Stats, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s", checksURL, check), nil)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (r *RemoteSysProbeUtil) GetCheck(check string) ([]ebpf.StatLine, error) {
 		return nil, err
 	}
 
-	var stats []ebpf.StatLine
+	var stats []ebpf.Stats
 	err = json.Unmarshal(body, &stats)
 	if err != nil {
 		return nil, err

@@ -3,10 +3,13 @@
 package ebpf
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
 	"net"
+	"regexp"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 
@@ -14,7 +17,8 @@ import (
 )
 
 /*
-#include <stdint.h>
+#include <string.h>
+#include "c/tcp_queue_length_kern_user.h"
 */
 import "C"
 
@@ -23,20 +27,32 @@ type TCPQueueLengthTracer struct {
 	queueMap *bpflib.Table
 }
 
-type conn struct {
-	Saddr C.uint32_t
-	Daddr C.uint32_t
-	Sport C.uint16_t
-	Dport C.uint16_t
-}
-
 func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
-	source, err := Asset("tcp_queue_length_kern.c")
+	source_raw, err := Asset("tcp_queue_length_kern.c")
 	if err != nil {
 		return nil, fmt.Errorf("Couldn’t find asset “tcp_queue_length.c”: %v", err)
 	}
 
-	m := bpflib.NewModule(string(source), []string{})
+	// Process the `#include` of embedded headers.
+	// Note that embedded headers including other embedded headers is not managed because
+	// this would also require to properly handle inclusion guards.
+	includeRegexp := regexp.MustCompile(`^\s*#\s*include\s+"(.*)"$`)
+	var source bytes.Buffer
+	scanner := bufio.NewScanner(bytes.NewBuffer(source_raw))
+	for scanner.Scan() {
+		match := includeRegexp.FindSubmatch(scanner.Bytes())
+		if len(match) == 2 {
+			header, err := Asset(string(match[1]))
+			if err == nil {
+				source.Write(header)
+				continue
+			}
+		}
+		source.Write(scanner.Bytes())
+		source.WriteByte('\n')
+	}
+
+	m := bpflib.NewModule(source.String(), []string{})
 	if m == nil {
 		return nil, fmt.Errorf("Failed to compile “tcp_queue_length.c”")
 	}
@@ -89,51 +105,59 @@ func (t *TCPQueueLengthTracer) Close() {
 	t.m.Close()
 }
 
-func (t *TCPQueueLengthTracer) Get() []StatLine {
+func (t *TCPQueueLengthTracer) Get() []Stats {
 	if t == nil {
 		return nil
 	}
 
-	var result []StatLine
+	var result []Stats
 
-	containerOfPID := make(map[C.uint32_t]string)
+	containerOfPID := make(map[C.__u32]string)
 
 	for it := t.queueMap.Iter(); it.Next(); {
-		var c conn
-		var s Stats
+		var in C.struct_stats // kernel       <-> system-probe
+		var out Stats         // system-probe <-> agent
 
-		binary.Read(bytes.NewBuffer(it.Key()), binary.BigEndian, &c)
-		binary.Read(bytes.NewBuffer(it.Leaf()), nativeEndian, &s)
+		// `binary.Read(…)` doesn’t work because reflection doesn’t work with C types.
+		// binary.Read(bytes.NewBuffer(it.Leaf()), bpflib.GetHostByteOrder(), &in)
 
-		saddr := make(net.IP, 4)
-		binary.BigEndian.PutUint32(saddr, uint32(c.Saddr))
-		daddr := make(net.IP, 4)
-		binary.BigEndian.PutUint32(daddr, uint32(c.Daddr))
+		data := it.Leaf()
+		C.memcpy(unsafe.Pointer(&in), unsafe.Pointer(&data[0]), C.sizeof_struct_stats)
 
-		containerID, found := containerOfPID[s.Pid]
+		containerID, found := containerOfPID[in.pid]
 		if !found {
-			containerID, err := metrics.ContainerIDForPID(int(s.Pid))
+			containerID, err := metrics.ContainerIDForPID(int(in.pid))
 			if err == nil {
-				containerOfPID[s.Pid] = containerID
+				containerOfPID[in.pid] = containerID
 			}
 		}
 
-		result = append(result, StatLine{
-			Conn: Conn{
-				Saddr: saddr,
-				Daddr: daddr,
-				Sport: uint16(c.Sport),
-				Dport: uint16(c.Dport),
-			},
-			ContainerID: containerID,
-			Stats:       s,
-		})
+		// TODO: Can this code be handled by using reflection? Would it be clearer?
+		out.Pid = uint32(in.pid)
+		out.ContainerID = containerID
+		out.Conn.Saddr = make(net.IP, 4)
+		bpflib.GetHostByteOrder().PutUint32(out.Conn.Saddr, uint32(in.conn.saddr))
+		out.Conn.Daddr = make(net.IP, 4)
+		bpflib.GetHostByteOrder().PutUint32(out.Conn.Daddr, uint32(in.conn.daddr))
+		port := make([]byte, 2)
+		bpflib.GetHostByteOrder().PutUint16(port, uint16(in.conn.dport))
+		out.Conn.Dport = binary.BigEndian.Uint16(port)
+		bpflib.GetHostByteOrder().PutUint16(port, uint16(in.conn.sport))
+		out.Conn.Sport = binary.BigEndian.Uint16(port)
+		out.Rqueue.Size = int(in.rqueue.size)
+		out.Rqueue.Min = uint32(in.rqueue.min)
+		out.Rqueue.Max = uint32(in.rqueue.max)
+		out.Wqueue.Size = int(in.wqueue.size)
+		out.Wqueue.Min = uint32(in.wqueue.min)
+		out.Wqueue.Max = uint32(in.wqueue.max)
+
+		result = append(result, out)
 	}
 
 	return result
 }
 
-func (t *TCPQueueLengthTracer) GetAndFlush() []StatLine {
+func (t *TCPQueueLengthTracer) GetAndFlush() []Stats {
 	result := t.Get()
 	t.queueMap.DeleteAll()
 	return result

@@ -5,51 +5,14 @@
 #include <net/inet_sock.h>
 #include <linux/tcp.h>
 
-struct queue_length {
-  int size;
-  u32 min;
-  u32 max;
-};
+#include "tcp_queue_length_kern_user.h"
 
-struct stats {
-  u32 pid;
-  struct queue_length rqueue;
-  struct queue_length wqueue;
-};
-
-struct conn {
-  u32 saddr;
-  u32 daddr;
-  u16 sport;
-  u16 dport;
-};
-
-
-BPF_HASH(queue, struct conn, struct stats);
+BPF_HASH(queue, struct sock *, struct stats);
 
 BPF_HASH(who_recvmsg, u64, struct sock *);
 BPF_HASH(who_sendmsg, u64, struct sock *);
 
 static inline int check_sock(struct sock *sk) {
-  const struct inet_sock *ip = inet_sk(sk);
-  struct conn c;
-  bpf_probe_read(&c.saddr, sizeof(c.saddr), &ip->inet_saddr);
-  bpf_probe_read(&c.daddr, sizeof(c.daddr), &ip->inet_daddr);
-  bpf_probe_read(&c.sport, sizeof(c.sport), &ip->inet_sport);
-  bpf_probe_read(&c.dport, sizeof(c.dport), &ip->inet_dport);
-
-  const struct tcp_sock *tp = tcp_sk(sk);
-
-  u32 rcv_nxt, copied_seq, write_seq, snd_una;
-  bpf_probe_read(&rcv_nxt,    sizeof(rcv_nxt),    &tp->rcv_nxt   );  // What we want to receive next
-  bpf_probe_read(&copied_seq, sizeof(copied_seq), &tp->copied_seq);  // Head of yet unread data
-  bpf_probe_read(&write_seq,  sizeof(write_seq),  &tp->write_seq );  // Tail(+1) of data held in tcp send buffer
-  bpf_probe_read(&snd_una,    sizeof(snd_una),    &tp->snd_una   );  // First byte we want an ack for
-
-  int rqueue = rcv_nxt - copied_seq;
-  if (rqueue < 0) rqueue = 0;
-  int wqueue = write_seq - snd_una;
-
   struct stats zero = {
     .rqueue = {
       .min = 2^32-1,
@@ -61,13 +24,40 @@ static inline int check_sock(struct sock *sk) {
     }
   };
 
-  struct stats *s = queue.lookup_or_init(&c, &zero);
+  struct stats *s = queue.lookup_or_init(&sk, &zero);
 
   if (s) {
+    /*
+     * We assume here that only one thread will read and/or write to a given socket.
+     * Indeed, having several unsynchronized threads attempting to read and/or write to a socket
+     * would corrupt the stream.
+     * If that assumption was wrong, we would need to make the following piece of code thread safe.
+     * In that case, per-cpu hash would be a better solution than mutex.
+     */
+    if (s->pid == 0) {
+      s->pid = bpf_get_current_pid_tgid() >> 32;
+
+      const struct inet_sock *ip = inet_sk(sk);
+      bpf_probe_read(&s->conn.saddr, sizeof(s->conn.saddr), &ip->inet_saddr);
+      bpf_probe_read(&s->conn.daddr, sizeof(s->conn.daddr), &ip->inet_daddr);
+      bpf_probe_read(&s->conn.sport, sizeof(s->conn.sport), &ip->inet_sport);
+      bpf_probe_read(&s->conn.dport, sizeof(s->conn.dport), &ip->inet_dport);
+    }
+
+    const struct tcp_sock *tp = tcp_sk(sk);
+
+    u32 rcv_nxt, copied_seq, write_seq, snd_una;
+    bpf_probe_read(&rcv_nxt,    sizeof(rcv_nxt),    &tp->rcv_nxt   );  // What we want to receive next
+    bpf_probe_read(&copied_seq, sizeof(copied_seq), &tp->copied_seq);  // Head of yet unread data
+    bpf_probe_read(&write_seq,  sizeof(write_seq),  &tp->write_seq );  // Tail(+1) of data held in tcp send buffer
+    bpf_probe_read(&snd_una,    sizeof(snd_una),    &tp->snd_una   );  // First byte we want an ack for
+
+    int rqueue = rcv_nxt - copied_seq;
+    if (rqueue < 0) rqueue = 0;
+    int wqueue = write_seq - snd_una;
+
     bpf_probe_read(&s->rqueue.size, sizeof(s->rqueue.size), &sk->sk_rcvbuf);
     bpf_probe_read(&s->wqueue.size, sizeof(s->wqueue.size), &sk->sk_sndbuf);
-
-    s->pid = bpf_get_current_pid_tgid() >> 32;
 
     if (rqueue > s->rqueue.max)
       s->rqueue.max = rqueue;

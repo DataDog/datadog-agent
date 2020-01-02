@@ -6,21 +6,10 @@ import (
 	"net"
 )
 
-/*
-#include <stdint.h>
-*/
-import "C"
-
 type QueueLength struct {
-	Size C.int      `json:"size"`
-	Min  C.uint32_t `json:"min"`
-	Max  C.uint32_t `json:"max"`
-}
-
-type Stats struct {
-	Pid    C.uint32_t  `json:"pid"`
-	Rqueue QueueLength `json:"read queue"`
-	Wqueue QueueLength `json:"write queue"`
+	Size int    `json:"size"`
+	Min  uint32 `json:"min"`
+	Max  uint32 `json:"max"`
 }
 
 type Conn struct {
@@ -30,8 +19,10 @@ type Conn struct {
 	Dport uint16 `json:"dport"`
 }
 
-type StatLine struct {
-	Conn        Conn   `json:"conn"`
-	ContainerID string `json:"containerid"`
-	Stats       Stats  `json:"stats"`
+type Stats struct {
+	Pid         uint32      `json:"pid"`
+	ContainerID string      `json:"containerid"`
+	Conn        Conn        `json:"conn"`
+	Rqueue      QueueLength `json:"read queue"`
+	Wqueue      QueueLength `json:"write queue"`
 }

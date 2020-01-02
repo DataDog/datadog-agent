@@ -144,6 +144,11 @@ func (nt *SystemProbe) Run() {
 	})
 
 	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
+		if nt.tcpQueueLengthTracer == nil {
+			log.Errorf("TCP queue length tracer was not properly initialized")
+			w.WriteHeader(500)
+			return
+		}
 		stats := nt.tcpQueueLengthTracer.GetAndFlush()
 
 		writeAsJSON(w, stats)

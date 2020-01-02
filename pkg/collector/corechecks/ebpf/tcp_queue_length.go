@@ -7,16 +7,17 @@ package ebpf
 
 import (
 	"strconv"
+
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -99,14 +100,14 @@ func (t *TCPQueueLengthCheck) Run() error {
 			"daddr:"+line.Conn.Daddr.String(),
 			"sport:"+strconv.Itoa(int(line.Conn.Sport)),
 			"dport:"+strconv.Itoa(int(line.Conn.Dport)),
-			"pid:"+strconv.Itoa(int(line.Stats.Pid)))
+			"pid:"+strconv.Itoa(int(line.Pid)))
 
-		sender.Gauge("tcp_queue.rqueue.size", float64(line.Stats.Rqueue.Size), "", tags)
-		sender.Gauge("tcp_queue.rqueue.min",  float64(line.Stats.Rqueue.Min),  "", tags)
-		sender.Gauge("tcp_queue.rqueue.max",  float64(line.Stats.Rqueue.Max),  "", tags)
-		sender.Gauge("tcp_queue.wqueue.size", float64(line.Stats.Wqueue.Size), "", tags)
-		sender.Gauge("tcp_queue.wqueue.min",  float64(line.Stats.Wqueue.Min),  "", tags)
-		sender.Gauge("tcp_queue.wqueue.max",  float64(line.Stats.Wqueue.Max),  "", tags)
+		sender.Gauge("tcp_queue.rqueue.size", float64(line.Rqueue.Size), "", tags)
+		sender.Gauge("tcp_queue.rqueue.min", float64(line.Rqueue.Min), "", tags)
+		sender.Gauge("tcp_queue.rqueue.max", float64(line.Rqueue.Max), "", tags)
+		sender.Gauge("tcp_queue.wqueue.size", float64(line.Wqueue.Size), "", tags)
+		sender.Gauge("tcp_queue.wqueue.min", float64(line.Wqueue.Min), "", tags)
+		sender.Gauge("tcp_queue.wqueue.max", float64(line.Wqueue.Max), "", tags)
 	}
 
 	sender.Commit()
