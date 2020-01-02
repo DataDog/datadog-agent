@@ -4,10 +4,10 @@ import re
 import shutil
 import sys
 import tempfile
-
 from invoke import task
 from invoke.exceptions import Exit
 from subprocess import check_output
+from string import Template
 
 from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
 from .build_tags import get_default_build_tags
@@ -100,19 +100,27 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
 
 
 @task
-def build_dev_image(ctx, image=None, push=False):
+def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest"):
     """
     Build a dev image of the process-agent based off an existing datadog-agent image
 
     image: the image name used to tag the image
     push: if true, run a docker push on the image
+    base_image: base the docker image off this already build image (default: datadog/agent:latest)
     """
     if image == None:
         raise Exit(message="image was not specified")
 
     docker_context = tempfile.mkdtemp()
-    ctx.run("cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {to}".format(
-        to=docker_context + "/Dockerfile"))
+
+    docker_file_contents = ""
+    with open("tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev") as docker_file_tpl:
+        txt = docker_file_tpl.read()
+        tpl = Template(txt)
+        docker_file_contents = tpl.substitute({"base_image": base_image})
+
+    with open(docker_context + "/Dockerfile", "w") as docker_file:
+        docker_file.write(docker_file_contents)
 
     ctx.run("cp bin/process-agent/process-agent {to}".format(
         to=docker_context + "/process-agent"))
