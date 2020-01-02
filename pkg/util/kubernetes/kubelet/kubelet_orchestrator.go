@@ -11,10 +11,31 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
 )
+
+// KubeUtilInterface defines the interface for kubelet api
+// and includes extra functions for the orchestrator build flag
+type KubeUtilInterface interface {
+	GetNodeInfo() (string, string, error)
+	GetNodename() (string, error)
+	GetLocalPodList() ([]*Pod, error)
+	ForceGetLocalPodList() ([]*Pod, error)
+	GetPodForContainerID(containerID string) (*Pod, error)
+	GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error)
+	GetPodFromUID(podUID string) (*Pod, error)
+	GetPodForEntityID(entityID string) (*Pod, error)
+	QueryKubelet(path string) ([]byte, int, error)
+	GetKubeletApiEndpoint() string
+	GetRawConnectionInfo() map[string]string
+	GetRawMetrics() ([]byte, error)
+	ListContainers() ([]*containers.Container, error)
+	UpdateContainerMetrics(ctrList []*containers.Container) error
+	GetRawLocalPodList() ([]v1.Pod, error)
+}
 
 // GetRawLocalPodList returns the unfiltered pod list from the kubelet
 func (ku *KubeUtil) GetRawLocalPodList() ([]v1.Pod, error) {
