@@ -88,7 +88,7 @@ type Point struct {
 const (
 	value         = 1
 	timestamp     = 0
-	queryEndpoint = "/v1/query"
+	queryEndpoint = "/api/v1/query"
 )
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
