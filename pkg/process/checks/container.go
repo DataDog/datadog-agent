@@ -66,11 +66,15 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 
 	start := time.Now()
 	ctrList, err := util.GetContainers()
-	if err != nil {
-		if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet && c.containerFailedLogLimit.ShouldLog() {
+	// We ignore certain errors when a container runtime environment isn't available.
+	if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet {
+		if c.containerFailedLogLimit.ShouldLog() {
 			log.Debug("container collector was not detected, container check will not return any data. This message will logged for the first ten occurrences, and then every ten minutes")
-			return nil, nil
 		}
+		return nil, nil
+	}
+
+	if err != nil {
 		return nil, err
 	}
 
