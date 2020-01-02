@@ -84,7 +84,7 @@ bool GetNameForSid(LPCWSTR host, PSID sid, std::wstring& namestr)
         goto cleanAndDone;
     }
     success = true;
-    WcaLog(LOGMSG_STANDARD, "Got account from sid from %s\n", refDomain);
+    WcaLog(LOGMSG_STANDARD, "Got account sid from %S\n", refDomain);
     namestr = name;
 
 cleanAndDone:
@@ -253,7 +253,7 @@ int EnableServiceForUser(CustomActionData& data, const std::wstring& service)
 	BOOL bDaclPresent = FALSE;
 	DWORD dwError = 0;
 	SECURITY_DESCRIPTOR sd;
-    WcaLog(LOGMSG_STANDARD, "attempting to open %s", service.c_str());
+    WcaLog(LOGMSG_STANDARD, "attempting to open %S", service.c_str());
     SC_HANDLE hService = OpenServiceW(hscm, (LPCWSTR)service.c_str(), SERVICE_ALL_ACCESS | READ_CONTROL | WRITE_DAC);
 	if (!hService) {
 		WcaLog(LOGMSG_STANDARD,"Failed to open service %d\n", GetLastError());
@@ -359,7 +359,7 @@ DWORD AddUserToGroup(PSID userSid, wchar_t* groupSidString, wchar_t* defaultGrou
     std::string asciiname;
    
     getGroupNameFromSidString(groupSidString, defaultGroupName, groupname);
-    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %s", groupname.c_str());
+    WcaLog(LOGMSG_STANDARD, "Attempting to add to group %S", groupname.c_str());
     nErr = NetLocalGroupAddMembers(NULL, groupname.c_str(), 0, (LPBYTE)&lmi0, 1);
     if (nErr == NERR_Success) {
         WcaLog(LOGMSG_STANDARD, "Added ddagentuser to %s", asciiname.c_str());

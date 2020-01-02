@@ -88,14 +88,15 @@ package :zip do
   else
     extra_package_dirs [
       "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin",
+      "#{Omnibus::Config.source_dir()}\\cf-root",
     ]
   
     additional_sign_files [
-        "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
-        "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-        "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
-        "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\install-cmd.exe"
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe"
       ]
     if ENV['SIGN_PFX']
       signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
@@ -190,6 +191,7 @@ dependency 'version-manifest'
 # the `extra_package_file` directive.
 # This must be the last dependency in the project.
 dependency 'datadog-agent-finalize'
+dependency 'datadog-cf-finalize'
 
 if linux?
   extra_package_file '/etc/init/datadog-agent.conf'
