@@ -48,15 +48,17 @@ package :msi do
 end
 package :zip do
   extra_package_dirs [
-    "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin"
+      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
+      "#{Omnibus::Config.source_dir()}\\cf-root",
     ]
 
+
   additional_sign_files [
-      #"#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
-      #"#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-      "#{windows_safe_path(install_dir)}\\bin\\agent\\agent.exe"
-    ]
+    "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
+    "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
+    "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\dogstatsd.exe",
+    "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
+  ]
   if ENV['SIGN_PFX']
     signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
   end
@@ -78,5 +80,6 @@ dependency 'datadog-dogstatsd'
 # version manifest file
 dependency 'version-manifest'
 
+dependency 'datadog-buildpack-finalize'
 exclude '\.git*'
 exclude 'bundler\/git'
