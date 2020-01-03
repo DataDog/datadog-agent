@@ -27,8 +27,8 @@ func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []s
 	}
 
 	if mapper != nil && len(sample.tags) == 0 {
-		mapResult, mapped := mapper.Map(sample.name)
-		if mapped && mapResult.Matched {
+		mapResult := mapper.Map(sample.name)
+		if mapResult != nil {
 			sample.name = mapResult.Name
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}

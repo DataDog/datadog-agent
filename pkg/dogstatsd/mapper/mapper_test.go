@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package mapper
 
@@ -45,9 +45,8 @@ dogstatsd_mapper_profiles:
 				"test.job.size.not_match",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, Matched: true},
-				{Name: "test.job.size", Tags: []string{"foo:my_job_type", "bar:my_job_name"}, Matched: true},
-				{Name: "", Tags: nil, Matched: false},
+				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, matched: true},
+				{Name: "test.job.size", Tags: []string{"foo:my_job_type", "bar:my_job_name"}, matched: true},
 			},
 		},
 		{
@@ -69,8 +68,8 @@ dogstatsd_mapper_profiles:
 				"test.task.duration.my_job_type.my_job_name",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type"}, Matched: true},
-				{Name: "test.task.duration", Tags: nil, Matched: true},
+				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type"}, matched: true},
+				{Name: "test.task.duration", Tags: nil, matched: true},
 			},
 		},
 		{
@@ -90,7 +89,7 @@ dogstatsd_mapper_profiles:
 				"test.job.duration.my_job_type.my_job_name",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type_x", "job_name:my_job_name_y"}, Matched: true},
+				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type_x", "job_name:my_job_name_y"}, matched: true},
 			},
 		},
 		{
@@ -110,7 +109,7 @@ dogstatsd_mapper_profiles:
 				"test.job.duration.my_job_type.my_job_name",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.hello.my_job_name.my_job_type", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, Matched: true},
+				{Name: "test.hello.my_job_name.my_job_type", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, matched: true},
 			},
 		},
 		{
@@ -129,7 +128,7 @@ dogstatsd_mapper_profiles:
 				"test.my_job_start",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.start", Tags: []string{"job:my_job"}, Matched: true},
+				{Name: "test.start", Tags: []string{"job:my_job"}, matched: true},
 			},
 		},
 		{
@@ -149,8 +148,8 @@ dogstatsd_mapper_profiles:
 				"test.my-worker.stop.worker-name",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.worker.start", Tags: nil, Matched: true},
-				{Name: "test.worker.stop", Tags: nil, Matched: true},
+				{Name: "test.worker.start", Tags: nil, matched: true},
+				{Name: "test.worker.stop", Tags: nil, matched: true},
 			},
 		},
 		{
@@ -167,7 +166,7 @@ dogstatsd_mapper_profiles:
 				"test.abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ-01234567.123",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.alphabet", Tags: nil, Matched: true},
+				{Name: "test.alphabet", Tags: nil, matched: true},
 			},
 		},
 		{
@@ -193,8 +192,8 @@ dogstatsd_mapper_profiles:
 				"test.task.duration.MY_task_name",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.job.duration", Tags: []string{"job_name:my.funky.job$name-abc/123"}, Matched: true},
-				{Name: "test.task.duration", Tags: []string{"task_name:MY_task_name"}, Matched: true},
+				{Name: "test.job.duration", Tags: []string{"job_name:my.funky.job$name-abc/123"}, matched: true},
+				{Name: "test.task.duration", Tags: []string{"task_name:MY_task_name"}, matched: true},
 			},
 		},
 		{
@@ -216,8 +215,7 @@ dogstatsd_mapper_profiles:
 				"test.job.foo.bar-not-match",
 			},
 			expectedResults: []MapResult{
-				{Name: "test.job", Tags: []string{"job_type:a5-foo", "job_name:bar"}, Matched: true},
-				{Name: "", Tags: nil, Matched: false},
+				{Name: "test.job", Tags: []string{"job_type:a5-foo", "job_name:bar"}, matched: true},
 			},
 		},
 		{
@@ -250,9 +248,8 @@ dogstatsd_mapper_profiles:
 				"z.not.mapped",
 			},
 			expectedResults: []MapResult{
-				{Name: "foo.duration", Tags: []string{"name:foo_name1"}, Matched: true},
-				{Name: "", Tags: nil, Matched: false},
-				{Name: "bar.count", Tags: []string{"name:bar_name1"}, Matched: true},
+				{Name: "foo.duration", Tags: []string{"name:foo_name1"}, matched: true},
+				{Name: "bar.count", Tags: []string{"name:bar_name1"}, matched: true},
 			},
 		},
 		{
@@ -271,7 +268,7 @@ dogstatsd_mapper_profiles:
 				"foo.duration.foo_name1",
 			},
 			expectedResults: []MapResult{
-				{Name: "foo.duration", Tags: []string{"name:foo_name1"}, Matched: true},
+				{Name: "foo.duration", Tags: []string{"name:foo_name1"}, matched: true},
 			},
 		},
 		{
@@ -297,7 +294,7 @@ dogstatsd_mapper_profiles:
 				"foo.duration.foo_name",
 			},
 			expectedResults: []MapResult{
-				{Name: "foo.duration", Tags: []string{"name1:foo_name"}, Matched: true},
+				{Name: "foo.duration", Tags: []string{"name1:foo_name"}, matched: true},
 			},
 		},
 		{
@@ -324,7 +321,7 @@ dogstatsd_mapper_profiles:
 				"foo.bar.duration.foo_name",
 			},
 			expectedResults: []MapResult{
-				{Name: "foo.bar1.duration", Tags: []string{"bar:bar", "foo:foo_name"}, Matched: true},
+				{Name: "foo.bar1.duration", Tags: []string{"bar:bar", "foo:foo_name"}, matched: true},
 			},
 		},
 	}
@@ -336,8 +333,8 @@ dogstatsd_mapper_profiles:
 
 			var actualResults []MapResult
 			for _, packet := range scenario.packets {
-				mapResult, mapped := mapper.Map(packet)
-				if mapped {
+				mapResult := mapper.Map(packet)
+				if mapResult != nil {
 					actualResults = append(actualResults, *mapResult)
 				}
 			}

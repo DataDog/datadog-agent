@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // Mapping feature is inspired by https://github.com/prometheus/statsd_exporter
 
@@ -47,7 +47,7 @@ type MetricMapping struct {
 type MapResult struct {
 	Name    string
 	Tags    []string
-	Matched bool
+	matched bool
 }
 
 // NewMetricMapper creates, validates, prepares a new MetricMapper
@@ -109,14 +109,17 @@ func buildRegex(matchRe string, matchType string) (*regexp.Regexp, error) {
 }
 
 // Map returns a MapResult
-func (m *MetricMapper) Map(metricName string) (*MapResult, bool) {
+func (m *MetricMapper) Map(metricName string) *MapResult {
 	for _, profile := range m.Profiles {
 		if !strings.HasPrefix(metricName, profile.Prefix) && profile.Prefix != "*" {
 			continue
 		}
 		result, cached := m.cache.get(metricName)
 		if cached {
-			return result, true
+			if result.matched {
+				return result
+			}
+			return nil
 		}
 		for _, mapping := range profile.Mappings {
 			matches := mapping.regex.FindStringSubmatchIndex(metricName)
@@ -137,13 +140,13 @@ func (m *MetricMapper) Map(metricName string) (*MapResult, bool) {
 				tags = append(tags, tagKey+":"+tagValue)
 			}
 
-			mapResult := &MapResult{Name: name, Matched: true, Tags: tags}
+			mapResult := &MapResult{Name: name, matched: true, Tags: tags}
 			m.cache.add(metricName, mapResult)
-			return mapResult, true
+			return mapResult
 		}
-		mapResult := &MapResult{Matched: false}
+		mapResult := &MapResult{matched: false}
 		m.cache.add(metricName, mapResult)
-		return mapResult, true
+		return nil
 	}
-	return nil, false
+	return nil
 }
