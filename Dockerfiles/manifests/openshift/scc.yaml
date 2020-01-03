@@ -43,8 +43,8 @@ fsGroup:
   type: MustRunAs
 readOnlyRootFilesystem: false
 runAsUser:
-# With some versions of Openshift, you may need to run the agent as a root user to access the Docker socket. 
-# In that case, use `type: RunAsAny` instead
+# With some versions of Openshift, you may need to run the agent as a user that has access to the Docker socket. 
+# In that case, use `type: RunAsAny` to run the agent as root or add a group under `supplementalGroups` that has access to the Docker socket.
   type: MustRunAsRange
 supplementalGroups:
   type: RunAsAny
