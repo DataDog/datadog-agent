@@ -18,6 +18,7 @@ struct conn {
 
 struct stats {
   __u32 pid;
+  char cgroup_name[64];
   struct conn conn;
   struct queue_length rqueue;
   struct queue_length wqueue;

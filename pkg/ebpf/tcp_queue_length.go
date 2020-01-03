@@ -11,8 +11,6 @@ import (
 	"regexp"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-
 	bpflib "github.com/iovisor/gobpf/bcc"
 )
 
@@ -112,8 +110,6 @@ func (t *TCPQueueLengthTracer) Get() []Stats {
 
 	var result []Stats
 
-	containerOfPID := make(map[C.__u32]string)
-
 	for it := t.queueMap.Iter(); it.Next(); {
 		var in C.struct_stats // kernel       <-> system-probe
 		var out Stats         // system-probe <-> agent
@@ -124,17 +120,9 @@ func (t *TCPQueueLengthTracer) Get() []Stats {
 		data := it.Leaf()
 		C.memcpy(unsafe.Pointer(&in), unsafe.Pointer(&data[0]), C.sizeof_struct_stats)
 
-		containerID, found := containerOfPID[in.pid]
-		if !found {
-			containerID, err := metrics.ContainerIDForPID(int(in.pid))
-			if err == nil {
-				containerOfPID[in.pid] = containerID
-			}
-		}
-
 		// TODO: Can this code be handled by using reflection? Would it be clearer?
 		out.Pid = uint32(in.pid)
-		out.ContainerID = containerID
+		out.ContainerID = C.GoString(&in.cgroup_name[0])
 		out.Conn.Saddr = make(net.IP, 4)
 		bpflib.GetHostByteOrder().PutUint32(out.Conn.Saddr, uint32(in.conn.saddr))
 		out.Conn.Daddr = make(net.IP, 4)
