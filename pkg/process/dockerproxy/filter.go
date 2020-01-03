@@ -4,6 +4,7 @@ package dockerproxy
 
 import (
 	"strconv"
+	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -12,8 +13,10 @@ import (
 
 // Filter keeps track of every docker-proxy instance and filters network traffic going through them
 type Filter struct {
-	proxyByPID    map[int32]*proxy
 	proxyByTarget map[model.Addr]*proxy
+
+	// This "secondary index" is used only during the proxy IP discovery process
+	proxyByPID map[int32]*proxy
 }
 
 type proxy struct {
@@ -24,11 +27,7 @@ type proxy struct {
 
 // NewFilter instantiates a new filter loaded with docker-proxy instance information
 func NewFilter() *Filter {
-	filter := &Filter{
-		proxyByPID:    make(map[int32]*proxy),
-		proxyByTarget: make(map[model.Addr]*proxy),
-	}
-
+	filter := new(Filter)
 	if procs, err := process.AllProcesses(); err == nil {
 		filter.LoadProxies(procs)
 	} else {
@@ -40,8 +39,11 @@ func NewFilter() *Filter {
 
 // LoadProxies by inspecting processes information
 func (f *Filter) LoadProxies(procs map[int32]*process.FilledProcess) {
+	f.proxyByPID = make(map[int32]*proxy)
+	f.proxyByTarget = make(map[model.Addr]*proxy)
+
 	for _, p := range procs {
-		proxy := extractProxyInfo(p)
+		proxy := extractProxyTarget(p)
 		if proxy == nil {
 			continue
 		}
@@ -60,17 +62,29 @@ func (f *Filter) LoadProxies(procs map[int32]*process.FilledProcess) {
 
 // Filter all connections that have a docker-proxy at one end
 func (f *Filter) Filter(payload *model.Connections) {
-	original := payload.Conns
-	filtered := make([]*model.Connection, 0, len(original))
+	if len(f.proxyByPID) == 0 {
+		return
+	}
 
-	for _, c := range original {
-		proxy, ok := f.proxyByPID[c.Pid]
-
-		// Infer proxy address (for future use) and move on
-		if ok && proxy.ip == "" {
-			f.discoverProxyIP(proxy, c)
+	// Discover proxy IPs
+	// TODO: we can probably discard the whole logic below if we determine that each proxy
+	// instance will be always bound to the docker0 IP
+	for _, c := range payload.Conns {
+		if len(f.proxyByPID) == 0 {
+			break
 		}
 
+		if proxy, ok := f.proxyByPID[c.Pid]; ok {
+			if proxyIP := f.discoverProxyIP(proxy, c); proxyIP != "" {
+				proxy.ip = proxyIP
+				delete(f.proxyByPID, c.Pid)
+			}
+		}
+	}
+
+	// Filter out proxy traffic
+	filtered := make([]*model.Connection, 0, len(payload.Conns))
+	for _, c := range payload.Conns {
 		// If either end of the connection is a proxy we can drop it
 		if f.isProxied(c) {
 			continue
@@ -94,29 +108,30 @@ func (f *Filter) isProxied(c *model.Connection) bool {
 	return false
 }
 
-func (f *Filter) discoverProxyIP(p *proxy, c *model.Connection) {
+func (f *Filter) discoverProxyIP(p *proxy, c *model.Connection) string {
 	// The heuristic here goes as follows:
 	// One of the ends of this connections must match p.targetAddr;
 	// The proxy IP will be the other end;
 	if c.Laddr.Ip == p.target.Ip && c.Laddr.Port == p.target.Port {
-		p.ip = c.Raddr.Ip
-		return
+		return c.Raddr.Ip
 	}
 
 	if c.Raddr.Ip == p.target.Ip && c.Raddr.Port == p.target.Port {
-		p.ip = c.Laddr.Ip
+		return c.Laddr.Ip
 	}
+
+	return ""
 }
 
-func extractProxyInfo(p *process.FilledProcess) *proxy {
-	if len(p.Cmdline) == 0 || !strings.EndsWith(p.Cmdline[0], "docker-proxy") {
+func extractProxyTarget(p *process.FilledProcess) *proxy {
+	if len(p.Cmdline) == 0 || !strings.HasSuffix(p.Cmdline[0], "docker-proxy") {
 		return nil
 	}
 
 	// Extract proxy target address
 	proxy := &proxy{pid: p.Pid}
 	for i := 0; i < len(p.Cmdline)-1; i++ {
-		switch p.Cmdline(i) {
+		switch p.Cmdline[i] {
 		case "-container-ip":
 			proxy.target.Ip = p.Cmdline[i+1]
 		case "-container-port":
@@ -128,7 +143,7 @@ func extractProxyInfo(p *process.FilledProcess) *proxy {
 		}
 	}
 
-	if proxy.target.Ip == "" || proxy.target.Ip == 0 {
+	if proxy.target.Ip == "" || proxy.target.Port == 0 {
 		return nil
 	}
 
