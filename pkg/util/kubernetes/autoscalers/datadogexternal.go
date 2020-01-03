@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -88,7 +88,7 @@ type Point struct {
 const (
 	value         = 1
 	timestamp     = 0
-	queryEndpoint = "/v1/query"
+	queryEndpoint = "/api/v1/query"
 )
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
@@ -184,14 +184,13 @@ func setPrometheusMetric(val string, metric *prometheus.GaugeVec) error {
 func (p *Processor) updateRateLimitingMetrics() error {
 	updateMap := p.datadogClient.GetRateLimitStats()
 	queryLimits := updateMap[queryEndpoint]
-	var errors []error
 
-	errors = append(errors,
+	errors := []error{
 		setPrometheusMetric(queryLimits.Limit, rateLimitsLimit),
 		setPrometheusMetric(queryLimits.Remaining, rateLimitsRemaining),
 		setPrometheusMetric(queryLimits.Period, rateLimitsPeriod),
 		setPrometheusMetric(queryLimits.Reset, rateLimitsReset),
-	)
+	}
 
 	return utilserror.NewAggregate(errors)
 }

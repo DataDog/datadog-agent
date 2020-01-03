@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -270,7 +270,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			datadogClient := &fakeDatadogClient{
 				getRateLimitsFunc: func() map[string]datadog.RateLimit {
 					return map[string]datadog.RateLimit{
-						"/v1/query": {
+						queryEndpoint: {
 							Limit:     "12",
 							Period:    "10",
 							Remaining: "200",
@@ -512,7 +512,7 @@ func TestUpdateRateLimiting(t *testing.T) {
 		{
 			desc: "Nominal case",
 			rateLimits: map[string]datadog.RateLimit{
-				"/v1/query": {
+				queryEndpoint: {
 					Limit:     "12",
 					Period:    "3600",
 					Reset:     "11",
@@ -530,7 +530,7 @@ func TestUpdateRateLimiting(t *testing.T) {
 		{
 			desc: "Missing header case",
 			rateLimits: map[string]datadog.RateLimit{
-				"/v1/query": {
+				queryEndpoint: {
 					Limit:  "12",
 					Period: "3600",
 					Reset:  "11",
@@ -546,7 +546,7 @@ func TestUpdateRateLimiting(t *testing.T) {
 		{
 			desc: "Missing headers case",
 			rateLimits: map[string]datadog.RateLimit{
-				"/v1/query": {
+				queryEndpoint: {
 					Limit:  "12",
 					Period: "3600",
 				},
