@@ -4,7 +4,6 @@ package dockerproxy
 
 import (
 	"strconv"
-	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,30 +40,10 @@ func NewFilter() *Filter {
 
 // LoadProxies by inspecting processes information
 func (f *Filter) LoadProxies(procs map[int32]*process.FilledProcess) {
-Loop:
 	for _, p := range procs {
-		if len(p.Cmdline) == 0 {
+		proxy := extractProxyInfo(p)
+		if proxy == nil {
 			continue
-		}
-
-		if !strings.Contains(p.Cmdline[0], "docker-proxy") {
-			continue
-		}
-
-		proxy := &proxy{pid: p.Pid}
-		// Extract container (proxy target) address
-		for i, arg := range p.Cmdline {
-			if arg == "-container-ip" && i+1 < len(p.Cmdline) {
-				proxy.target.Ip = p.Cmdline[i+1]
-			}
-
-			if arg == "-container-port" && i+1 < len(p.Cmdline) {
-				port, err := strconv.Atoi(p.Cmdline[i+1])
-				if err != nil {
-					continue Loop
-				}
-				proxy.target.Port = int32(port)
-			}
 		}
 
 		log.Debugf("detected docker-proxy with pid=%d target.ip=%s target.port=%d",
@@ -127,4 +106,31 @@ func (f *Filter) discoverProxyIP(p *proxy, c *model.Connection) {
 	if c.Raddr.Ip == p.target.Ip && c.Raddr.Port == p.target.Port {
 		p.ip = c.Laddr.Ip
 	}
+}
+
+func extractProxyInfo(p *process.FilledProcess) *proxy {
+	if len(p.Cmdline) == 0 || !strings.EndsWith(p.Cmdline[0], "docker-proxy") {
+		return nil
+	}
+
+	// Extract proxy target address
+	proxy := &proxy{pid: p.Pid}
+	for i := 0; i < len(p.Cmdline)-1; i++ {
+		switch p.Cmdline(i) {
+		case "-container-ip":
+			proxy.target.Ip = p.Cmdline[i+1]
+		case "-container-port":
+			port, err := strconv.Atoi(p.Cmdline[i+1])
+			if err != nil {
+				return nil
+			}
+			proxy.target.Port = int32(port)
+		}
+	}
+
+	if proxy.target.Ip == "" || proxy.target.Ip == 0 {
+		return nil
+	}
+
+	return proxy
 }
