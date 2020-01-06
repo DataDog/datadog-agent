@@ -6,7 +6,9 @@
 package ebpf
 
 import (
+	"sort"
 	"strconv"
+	"strings"
 
 	yaml "gopkg.in/yaml.v2"
 
@@ -28,6 +30,7 @@ const (
 // TCPQueueLengthConfig is the config of the TCP Queue Length check
 type TCPQueueLengthConfig struct {
 	CollectTCPQueueLength bool `yaml:"collect_tcp_queue_length"`
+	OnlyCountNbContexts   bool `yaml:"only_count_nb_contexts"` // For impact analysis only. To be removed after
 }
 
 // TCPQueueLengthCheck grabs TCP queue length metrics
@@ -52,6 +55,7 @@ func TCPQueueLengthFactory() check.Check {
 func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 	// default values
 	t.CollectTCPQueueLength = true
+	t.OnlyCountNbContexts = true
 
 	if err := yaml.Unmarshal(data, t); err != nil {
 		return err
@@ -72,8 +76,14 @@ func (t *TCPQueueLengthCheck) Configure(config, initConfig integration.Data, sou
 	return t.instance.Parse(config)
 }
 
+var tags_set = make(map[string]struct{})
+
 // Run executes the check
 func (t *TCPQueueLengthCheck) Run() error {
+	if !t.instance.CollectTCPQueueLength {
+		return nil
+	}
+
 	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil()
 	if err != nil {
 		return err
@@ -103,12 +113,21 @@ func (t *TCPQueueLengthCheck) Run() error {
 			"dport:"+strconv.Itoa(int(line.Conn.Dport)),
 			"pid:"+strconv.Itoa(int(line.Pid)))
 
-		sender.Gauge("tcp_queue.rqueue.size", float64(line.Rqueue.Size), "", tags)
-		sender.Gauge("tcp_queue.rqueue.min", float64(line.Rqueue.Min), "", tags)
-		sender.Gauge("tcp_queue.rqueue.max", float64(line.Rqueue.Max), "", tags)
-		sender.Gauge("tcp_queue.wqueue.size", float64(line.Wqueue.Size), "", tags)
-		sender.Gauge("tcp_queue.wqueue.min", float64(line.Wqueue.Min), "", tags)
-		sender.Gauge("tcp_queue.wqueue.max", float64(line.Wqueue.Max), "", tags)
+		if t.instance.OnlyCountNbContexts {
+			sort.Strings(tags)
+			tags_set[strings.Join(tags, ",")] = struct{}{}
+		} else {
+			sender.Gauge("tcp_queue.rqueue.size", float64(line.Rqueue.Size), "", tags)
+			sender.Gauge("tcp_queue.rqueue.min", float64(line.Rqueue.Min), "", tags)
+			sender.Gauge("tcp_queue.rqueue.max", float64(line.Rqueue.Max), "", tags)
+			sender.Gauge("tcp_queue.wqueue.size", float64(line.Wqueue.Size), "", tags)
+			sender.Gauge("tcp_queue.wqueue.min", float64(line.Wqueue.Min), "", tags)
+			sender.Gauge("tcp_queue.wqueue.max", float64(line.Wqueue.Max), "", tags)
+		}
+	}
+
+	if t.instance.OnlyCountNbContexts {
+		sender.Gauge("tcp_queue.nb_contexts", float64(len(tags_set)), "", []string{})
 	}
 
 	sender.Commit()
