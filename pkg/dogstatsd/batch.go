@@ -4,8 +4,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-// batcher batchs multiple metrics before submission
-// this struct is not safe for concurent use
+// batcher batches multiple metrics before submission
+// this struct is not safe for concurrent use
 type batcher struct {
 	samples       []metrics.MetricSample
 	samplesCount  int
