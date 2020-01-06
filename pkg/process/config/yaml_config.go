@@ -146,10 +146,16 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 	if err != nil {
 		return fmt.Errorf("error parsing process_dd_url: %s", err)
 	}
-
 	a.APIEndpoints[0].Endpoint = URL
+	URL, err = url.Parse(config.GetMainEndpoint("https://orchestrator.", key(ns, "orchestrator_dd_url")))
+	if err != nil {
+		return fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
+	}
+	a.OrchestratorEndpoints[0].Endpoint = URL
+
 	if key := "api_key"; config.Datadog.IsSet(key) {
 		a.APIEndpoints[0].APIKey = config.Datadog.GetString(key)
+		a.OrchestratorEndpoints[0].APIKey = config.Datadog.GetString(key)
 	}
 
 	if config.Datadog.IsSet("hostname") {

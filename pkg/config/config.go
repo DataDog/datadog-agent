@@ -393,6 +393,7 @@ func initConfig(config Config) {
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
 	config.BindEnv("process_config.process_dd_url", "")
+	config.BindEnv("process_config.orchestrator_dd_url", "")
 
 	// Logs Agent
 

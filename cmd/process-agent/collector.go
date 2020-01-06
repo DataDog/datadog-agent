@@ -116,7 +116,7 @@ func (l *Collector) run(exit chan bool) {
 	}
 	orchestratorEps := make([]string, 0, len(l.cfg.OrchestratorEndpoints))
 	for _, e := range l.cfg.OrchestratorEndpoints {
-		orchestratorEps = append(eps, e.Endpoint.String())
+		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
 	}
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
 
