@@ -252,7 +252,6 @@ run_tests_rpm-x64-py3:
 
 # run tests for eBPF code
 run_tests_ebpf:
-  allow_failure: true
   stage: source_test
   # TODO(processes): change this to use the generic builder image when we use the same version of Go in the
   # system-probe and the agent, or when `system-probe.test` can receive which Go version to use as an argument.

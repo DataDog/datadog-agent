@@ -1,6 +1,14 @@
+
+/**
+ * We need to pull in this header, which is depended upon by ptrace.h
+ * and then re-define asm_volatile_goto which is unsupported in
+ * the version of clang we commonly use to build.
+ */
+#include <linux/compiler.h>
+
 #include <linux/kconfig.h>
 
-/* clang does not support "asm volatile goto" yet.
+/* clang 8 does not support "asm volatile goto" yet.
  * So redefine asm_volatile_goto to some invalid asm code.
  * If asm_volatile_goto is actually used by the bpf program,
  * a compilation error will appear.
