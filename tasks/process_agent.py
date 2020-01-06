@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import sys
+import shutil
 import tempfile
 from invoke import task
 from invoke.exceptions import Exit
@@ -111,8 +112,6 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         raise Exit(message="image was not specified")
 
     with TempDir() as docker_context:
-        docker_context = tempfile.mkdtemp()
-
         ctx.run("cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {to}".format(
             to=docker_context + "/Dockerfile"))
 
@@ -132,7 +131,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 class TempDir():
     def __enter__(self):
         self.fname = tempfile.mkdtemp()
-    def __exit__(self, exception_type, exception_value, traceback):
-        os.rmdir(self.fname)
-    def __str__(self):
+        print("created tempdir: {name}".format(name=self.fname))
         return self.fname
+    def __exit__(self, exception_type, exception_value, traceback):
+        print("deleting tempdir: {name}".format(name=self.fname))
+        shutil.rmtree(self.fname)
