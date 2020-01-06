@@ -78,6 +78,9 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, err
 	}
 
+	// Keep track of containers addresses
+	LocalResolver.LoadAddrs(ctrList)
+
 	// End check early if this is our first run.
 	if c.lastRates == nil {
 		c.lastRates = util.ExtractContainerRateMetric(ctrList)
@@ -105,6 +108,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		})
 	}
 
+	LocalResolver.LoadAddrs(ctrList)
 	c.lastRates = util.ExtractContainerRateMetric(ctrList)
 	c.lastRun = time.Now()
 	c.lastCtrIDForPID = ctrIDForPID(ctrList)
