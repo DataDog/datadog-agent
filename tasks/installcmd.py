@@ -24,7 +24,7 @@ AGENT_TAG = "datadog/agent:master"
 CUSTOM_ACTION_ROOT_DIR = "tools\\windows\\install-help"
 
 @task
-def build(ctx, vstudio_root=None, arch="x64", debug=False):
+def build(ctx, major_version='7', vstudio_root=None, arch="x64", debug=False):
     """
     Build the custom action library for the agent
     """
@@ -33,7 +33,7 @@ def build(ctx, vstudio_root=None, arch="x64", debug=False):
         print("Custom action library is only for Win32")
         raise Exit(code=1)
 
-    ver = get_version_numeric_only(ctx, env=os.environ)
+    ver = get_version_numeric_only(ctx, env=os.environ, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
     verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
             build_maj=build_maj,
