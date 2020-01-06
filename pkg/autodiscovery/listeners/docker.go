@@ -9,14 +9,13 @@ package listeners
 
 import (
 	"fmt"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/go-connections/nat"
 	"io"
 	"sort"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/docker/docker/api/types"
-	"github.com/docker/go-connections/nat"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -174,14 +173,17 @@ func (l *DockerListener) init() {
 // figure out if the AutoConfig could be interested to inspect it.
 func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 	cID := e.ContainerID
-
 	l.m.RLock()
 	_, found := l.services[cID]
 	l.m.RUnlock()
-
 	if found {
 		if e.Action == "die" {
 			l.removeService(cID)
+		} else if e.Action == "start" {
+			// Container restarted with the same ID within 5 seconds.
+			time.AfterFunc(5*time.Second, func() {
+				l.createService(cID)
+			})
 		} else {
 			// FIXME sometimes the agent's container's events are picked up twice at startup
 			log.Debugf("Expected die for container %s got %s: skipping event", cID[:12], e.Action)
@@ -277,12 +279,11 @@ func (l *DockerListener) removeService(cID string) {
 	l.m.RUnlock()
 
 	if ok {
-		l.m.Lock()
-		delete(l.services, cID)
-		l.m.Unlock()
-
 		// delay service removal for short lived service detection
 		time.AfterFunc(5*time.Second, func() {
+			l.m.Lock()
+			delete(l.services, cID)
+			l.m.Unlock()
 			l.delService <- svc
 		})
 	} else {
