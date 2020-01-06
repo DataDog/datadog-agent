@@ -189,6 +189,15 @@ func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarsh
 	return payloads, jsonExtraHeadersWithCompression, err
 }
 
+// As events are gathered by SourceType, the serialization logic is more complex than for the other serializations.
+// We first try to use PayloadBuilder where a single item is the list of all events for the same source type.
+
+// This method may lead to item than can be too big to be serialized. In this case we try the following method.
+// If the count of source type is less than maxItemCountForCreateMarshalersBySourceType then we use a
+// of PayloadBuilder for each source type where an item is a single event. We limit to maxItemCountForCreateMarshalersBySourceType
+// for performance reasons.
+//
+// If none of the previous methods work, we fallback to the old serialization method (Serializer.serializePayload).
 func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 	eventsStreamJSONMarshaler EventsStreamJSONMarshaler, useV1API bool) (forwarder.Payloads, http.Header, error) {
 	marshaler := eventsStreamJSONMarshaler.CreateSingleMarshaler()
