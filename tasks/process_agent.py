@@ -110,19 +110,29 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
     if image == None:
         raise Exit(message="image was not specified")
 
-    docker_context = tempfile.mkdtemp()
+    with TempDir() as docker_context:
+        docker_context = tempfile.mkdtemp()
 
-    ctx.run("cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {to}".format(
-        to=docker_context + "/Dockerfile"))
+        ctx.run("cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {to}".format(
+            to=docker_context + "/Dockerfile"))
 
-    ctx.run("cp bin/process-agent/process-agent {to}".format(
-        to=docker_context + "/process-agent"))
+        ctx.run("cp bin/process-agent/process-agent {to}".format(
+            to=docker_context + "/process-agent"))
 
-    ctx.run("cp bin/system-probe/system-probe {to}".format(
-        to=docker_context + "/system-probe"))
+        ctx.run("cp bin/system-probe/system-probe {to}".format(
+            to=docker_context + "/system-probe"))
 
-    with ctx.cd(docker_context):
-        ctx.run("docker build --tag {image} --build-arg AGENT_BASE={base_image} .".format(image=image, base_image=base_image))
+        with ctx.cd(docker_context):
+            ctx.run("docker build --tag {image} --build-arg AGENT_BASE={base_image} .".format(image=image, base_image=base_image))
 
     if push:
         ctx.run("docker push {image}".format(image=image))
+
+
+class TempDir():
+    def __enter__(self):
+        self.fname = tempfile.mkdtemp()
+    def __exit__(self, exception_type, exception_value, traceback):
+        os.rmdir(self.fname)
+    def __str__(self):
+        return self.fname
