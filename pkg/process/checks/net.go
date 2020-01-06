@@ -44,7 +44,6 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
-	c.proxyFilter = dockerproxy.NewFilter()
 
 	// Run the check one time on init to register the client on the system probe
 	_, _ = c.Run(cfg, 0)
@@ -76,8 +75,8 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		return nil, err
 	}
 
-	// Filter out connection data associated with docker-proxy
-	c.proxyFilter.Filter(conns)
+	// Filter out (in-place) connection data associated with docker-proxy
+	dockerproxy.NewFilter().Filter(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID), nil
