@@ -23,9 +23,6 @@ import (
 // PayloadVersion defines the current payload version sent to a secret backend
 const PayloadVersion = "1.0"
 
-// CompatibleMajVersion defines the compatible maj version of payload
-const CompatibleMajVersion = "1"
-
 type limitBuffer struct {
 	max int
 	buf *bytes.Buffer

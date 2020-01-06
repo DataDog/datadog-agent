@@ -55,8 +55,9 @@ func ReadSecrets(r io.Reader, w io.Writer, dir string) error {
 		return errors.New("failed to unmarshal json input")
 	}
 
-	version := strings.SplitN(request.Version, ".", 2)
-	if version[0] != s.CompatibleMajVersion {
+	version := splitVersion(request.Version)
+	compatVersion := splitVersion(s.PayloadVersion)
+	if version[0] != compatVersion[0] {
 		return fmt.Errorf("incompatible protocol version %q", request.Version)
 	}
 
@@ -75,6 +76,10 @@ func ReadSecrets(r io.Reader, w io.Writer, dir string) error {
 	}
 	_, err = w.Write(out)
 	return err
+}
+
+func splitVersion(ver string) []string {
+	return strings.SplitN(ver, ".", 2)
 }
 
 func readSecret(path string) s.Secret {
