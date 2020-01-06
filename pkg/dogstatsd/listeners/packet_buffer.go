@@ -10,58 +10,72 @@ import (
 	"time"
 )
 
-// packetBuffer is a buffer of packet that will automatically flush to configurable channel
-// when it is full or after a configurable duration
+const messageSeparator = byte('\n')
+
+// packetBuffer merges multiple incoming datagrams into one "Packet" object to
+// save space and make number of message in a single "Packet" more predictable
 type packetBuffer struct {
-	packets       Packets
+	packet        *Packet
+	packetLength  int
+	pool          *PacketPool
+	packetsBuffer *packetsBuffer
 	flushTimer    *time.Ticker
-	bufferSize    uint
-	outputChannel chan Packets
 	closeChannel  chan struct{}
-	m             sync.Mutex
+	sync.Mutex
 }
 
-func newPacketBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *packetBuffer {
-	pb := &packetBuffer{
-		bufferSize:    bufferSize,
+func newPacketBuffer(pool *PacketPool, flushTimer time.Duration, packetsBuffer *packetsBuffer) *packetBuffer {
+	packetBuffer := &packetBuffer{
+		packet:        pool.Get(),
+		pool:          pool,
+		packetsBuffer: packetsBuffer,
 		flushTimer:    time.NewTicker(flushTimer),
-		outputChannel: outputChannel,
-		packets:       make(Packets, 0, bufferSize),
 		closeChannel:  make(chan struct{}),
 	}
-	go pb.flushLoop()
-	return pb
+	go packetBuffer.flushLoop()
+	return packetBuffer
 }
 
-func (pb *packetBuffer) flushLoop() {
+func (p *packetBuffer) flushLoop() {
 	for {
 		select {
-		case <-pb.flushTimer.C:
-			pb.m.Lock()
-			pb.flush()
-			pb.m.Unlock()
-		case <-pb.closeChannel:
+		case <-p.flushTimer.C:
+			p.Lock()
+			p.flush()
+			p.Unlock()
+		case <-p.closeChannel:
 			return
 		}
 	}
 }
 
-func (pb *packetBuffer) append(packet *Packet) {
-	pb.m.Lock()
-	defer pb.m.Unlock()
-	pb.packets = append(pb.packets, packet)
-	if uint(len(pb.packets)) == pb.bufferSize {
-		pb.flush()
+func (p *packetBuffer) addMessage(message []byte) {
+	p.Lock()
+	if p.packetLength == 0 {
+		p.packetLength = copy(p.packet.buffer, message)
+	} else if len(p.packet.buffer) >= len(message)+p.packetLength+1 {
+		p.packet.buffer[p.packetLength] = messageSeparator
+		n := copy(p.packet.buffer[p.packetLength+1:], message)
+		p.packetLength += n + 1
+	} else {
+		p.flush()
+		p.packetLength = copy(p.packet.buffer, message)
 	}
+	p.Unlock()
 }
 
-func (pb *packetBuffer) flush() {
-	if len(pb.packets) > 0 {
-		pb.outputChannel <- pb.packets
-		pb.packets = make(Packets, 0, pb.bufferSize)
+func (p *packetBuffer) flush() {
+	if p.packetLength == 0 {
+		return
 	}
+	p.packet.Contents = p.packet.buffer[:p.packetLength]
+	p.packetsBuffer.append(p.packet)
+	p.packet = p.pool.Get()
+	p.packetLength = 0
 }
 
-func (pb *packetBuffer) close() {
-	close(pb.closeChannel)
+func (p *packetBuffer) close() {
+	p.Lock()
+	close(p.closeChannel)
+	p.Unlock()
 }

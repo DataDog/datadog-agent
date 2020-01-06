@@ -34,9 +34,10 @@ func init() {
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn         net.PacketConn
-	packetPool   *PacketPool
-	packetBuffer *packetBuffer
+	conn          net.PacketConn
+	packetsBuffer *packetsBuffer
+	packetBuffer  *packetBuffer
+	buffer        []byte
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
@@ -64,11 +65,19 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
+	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
+	packetsBufferSize := config.Datadog.GetInt("dogstatsd_packet_buffer_size")
+	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
+
+	buffer := make([]byte, bufferSize)
+	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
+	packetBuffer := newPacketBuffer(packetPool, flushTimeout, packetsBuffer)
+
 	listener := &UDPListener{
-		packetPool: packetPool,
-		conn:       conn,
-		packetBuffer: newPacketBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
-			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
+		conn:          conn,
+		packetsBuffer: packetsBuffer,
+		packetBuffer:  packetBuffer,
+		buffer:        buffer,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -78,9 +87,8 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 func (l *UDPListener) Listen() {
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		packet := l.packetPool.Get()
 		udpPackets.Add(1)
-		n, _, err := l.conn.ReadFrom(packet.buffer)
+		n, _, err := l.conn.ReadFrom(l.buffer)
 		if err != nil {
 			// connection has been closed
 			if strings.HasSuffix(err.Error(), " use of closed network connection") {
@@ -92,15 +100,15 @@ func (l *UDPListener) Listen() {
 			continue
 		}
 		udpBytes.Add(int64(n))
-		packet.Contents = packet.buffer[:n]
 
-		// packetBuffer handles the forwarding of the packets to the dogstatsd server intake channel
-		l.packetBuffer.append(packet)
+		// packetBuffer merges multiple packets together and sends them when its buffer is full
+		l.packetBuffer.addMessage(l.buffer[:n])
 	}
 }
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
 	l.packetBuffer.close()
+	l.packetsBuffer.close()
 	l.conn.Close()
 }

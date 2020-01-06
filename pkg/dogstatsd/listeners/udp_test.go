@@ -23,7 +23,7 @@ var packetPoolUDP = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size")
 
 func TestNewUDPListener(t *testing.T) {
 	s, err := NewUDPListener(nil, packetPoolUDP)
-	require.NotNil(t, s)
+	assert.NotNil(t, s)
 	assert.Nil(t, err)
 
 	s.Stop()
