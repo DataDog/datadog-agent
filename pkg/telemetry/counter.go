@@ -38,6 +38,6 @@ func NewCounter(subsystem, name string, tags []string, help string) Counter {
 			tags,
 		),
 	}
-	prometheus.MustRegister(c.pc)
+	telemetryRegistry.MustRegister(c.pc)
 	return c
 }

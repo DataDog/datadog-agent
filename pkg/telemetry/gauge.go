@@ -44,6 +44,6 @@ func NewGauge(subsystem, name string, tags []string, help string) Gauge {
 			tags,
 		),
 	}
-	prometheus.MustRegister(g.pg)
+	telemetryRegistry.MustRegister(g.pg)
 	return g
 }
