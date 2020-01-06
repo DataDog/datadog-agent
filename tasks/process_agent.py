@@ -7,7 +7,6 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 from subprocess import check_output
-from string import Template
 
 from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
 from .build_tags import get_default_build_tags
@@ -113,14 +112,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
     docker_context = tempfile.mkdtemp()
 
-    docker_file_contents = ""
-    with open("tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev") as docker_file_tpl:
-        txt = docker_file_tpl.read()
-        tpl = Template(txt)
-        docker_file_contents = tpl.substitute({"base_image": base_image})
-
-    with open(docker_context + "/Dockerfile", "w") as docker_file:
-        docker_file.write(docker_file_contents)
+    ctx.run("cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {to}".format(
+        to=docker_context + "/Dockerfile"))
 
     ctx.run("cp bin/process-agent/process-agent {to}".format(
         to=docker_context + "/process-agent"))
@@ -129,7 +122,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         to=docker_context + "/system-probe"))
 
     with ctx.cd(docker_context):
-        ctx.run("docker build --tag {image} .".format(image=image))
+        ctx.run("docker build --tag {image} --build-arg AGENT_BASE={base_image} .".format(image=image, base_image=base_image))
 
     if push:
         ctx.run("docker push {image}".format(image=image))

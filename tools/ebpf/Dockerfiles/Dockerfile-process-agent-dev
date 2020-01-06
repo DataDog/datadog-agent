@@ -1,4 +1,5 @@
-FROM $base_image
+ARG AGENT_BASE=datadog/agent:latest
+FROM $AGENT_BASE
 
 # include some useful dev tools since this will be used or development
 RUN apt-get update -y && apt-get install -y jq conntrack netcat dnsutils
