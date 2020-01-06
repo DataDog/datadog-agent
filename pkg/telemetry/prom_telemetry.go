@@ -19,6 +19,7 @@ func init() {
 	telemetryRegistry.MustRegister(prometheus.NewGoCollector())
 }
 
+// Handler serves the HTTP route containing the prometheus metrics.
 func Handler() http.Handler {
 	return promhttp.HandlerFor(telemetryRegistry, promhttp.HandlerOpts{})
 }
