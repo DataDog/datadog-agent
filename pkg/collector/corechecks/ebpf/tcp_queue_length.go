@@ -25,6 +25,7 @@ const (
 	tcpQueueLengthCheckName = "tcp_queue_length"
 )
 
+// TCPQueueLengthConfig is the config of the TCP Queue Length check
 type TCPQueueLengthConfig struct {
 	CollectTCPQueueLength bool `yaml:"collect_tcp_queue_length"`
 }

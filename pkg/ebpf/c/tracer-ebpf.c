@@ -1,3 +1,4 @@
+#include <linux/compiler.h>
 #include <linux/kconfig.h>
 
 /* clang does not support "asm volatile goto" yet.

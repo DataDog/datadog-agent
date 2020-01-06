@@ -5,7 +5,7 @@
 #include <net/inet_sock.h>
 #include <linux/tcp.h>
 
-#include "tcp_queue_length_kern_user.h"
+#include "tcp-queue-length-kern-user.h"
 
 BPF_HASH(queue, struct sock *, struct stats);
 

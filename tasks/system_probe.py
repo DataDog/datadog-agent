@@ -284,8 +284,8 @@ def build_object_files(ctx, install=True):
             go_file=os.path.join(bpf_dir, "tracer-ebpf.go"),
             obj_file=obj_file,
             debug_obj_file=debug_obj_file,
-            tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp_queue_length_kern.c"),
-            tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp_queue_length_kern_user.h"),
+            tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
+            tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
         ))
 
     for cmd in commands:

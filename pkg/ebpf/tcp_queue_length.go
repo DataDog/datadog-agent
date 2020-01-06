@@ -16,7 +16,7 @@ import (
 
 /*
 #include <string.h>
-#include "c/tcp_queue_length_kern_user.h"
+#include "c/tcp-queue-length-kern-user.h"
 */
 import "C"
 
@@ -26,9 +26,9 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
-	source_raw, err := Asset("tcp_queue_length_kern.c")
+	source_raw, err := Asset("tcp-queue-length-kern.c")
 	if err != nil {
-		return nil, fmt.Errorf("Couldn’t find asset “tcp_queue_length.c”: %v", err)
+		return nil, fmt.Errorf("Couldn’t find asset “tcp-queue-length-kern.c”: %v", err)
 	}
 
 	// Process the `#include` of embedded headers.
@@ -52,7 +52,7 @@ func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 
 	m := bpflib.NewModule(source.String(), []string{})
 	if m == nil {
-		return nil, fmt.Errorf("Failed to compile “tcp_queue_length.c”")
+		return nil, fmt.Errorf("Failed to compile “tcp-queue-length-kern.c”")
 	}
 
 	kprobe_recvmsg, err := m.LoadKprobe("kprobe__tcp_recvmsg")

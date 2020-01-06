@@ -106,6 +106,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return conns, nil
 }
 
+// GetCheck returns the output of the specified check
 func (r *RemoteSysProbeUtil) GetCheck(check string) ([]ebpf.Stats, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s", checksURL, check), nil)
 	if err != nil {
