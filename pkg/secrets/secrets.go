@@ -25,7 +25,7 @@ var (
 	secretBackendCommand       string
 	secretBackendArguments     []string
 	secretBackendTimeout       = 5
-	secretBackendOutputMaxSize = 1024
+	secretBackendOutputMaxSize = 1024 * 1024
 )
 
 func init() {
