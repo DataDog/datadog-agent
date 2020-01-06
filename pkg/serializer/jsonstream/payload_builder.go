@@ -41,7 +41,7 @@ func NewPayloadBuilder() *PayloadBuilder {
 type OnErrItemTooBigPolicy int
 
 const (
-	// ContinueOnErrItemTooBig: when founding an ErrItemTooBig, skips the error and continue
+	// ContinueOnErrItemTooBig:  when ErrItemTooBig is encountered, skips the error and continue
 	ContinueOnErrItemTooBig OnErrItemTooBigPolicy = iota
 
 	// FailedErrItemTooBig: when ErrItemTooBig is encountered, returns the error and stop
