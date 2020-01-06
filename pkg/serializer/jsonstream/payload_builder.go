@@ -44,7 +44,7 @@ const (
 	// ContinueOnErrItemTooBig: when founding an ErrItemTooBig, skips the error and continue
 	ContinueOnErrItemTooBig OnErrItemTooBigPolicy = iota
 
-	// FailedErrItemTooBig: when founding an ErrItemTooBig, returns the error and stop
+	// FailedErrItemTooBig: when ErrItemTooBig is encountered, returns the error and stop
 	FailedErrItemTooBig
 )
 
