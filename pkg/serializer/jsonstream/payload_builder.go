@@ -44,8 +44,8 @@ const (
 	// DropItemOnErrItemTooBig:  when ErrItemTooBig is encountered, skips the error and continue
 	DropItemOnErrItemTooBig OnErrItemTooBigPolicy = iota
 
-	// FailedErrItemTooBig: when ErrItemTooBig is encountered, returns the error and stop
-	FailedErrItemTooBig
+	// FailOnErrItemTooBig: when ErrItemTooBig is encountered, returns the error and stop
+	FailOnErrItemTooBig
 )
 
 // Build serializes a metadata payload and sends it to the forwarder
@@ -120,7 +120,7 @@ func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			expvarsTotalItems.Add(1)
 			continue
 		case ErrItemTooBig:
-			if policy == FailedErrItemTooBig {
+			if policy == FailOnErrItemTooBig {
 				return nil, ErrItemTooBig
 			}
 			fallthrough

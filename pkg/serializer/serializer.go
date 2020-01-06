@@ -192,7 +192,7 @@ func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarsh
 func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 	eventsStreamJSONMarshaler EventsStreamJSONMarshaler, useV1API bool) (forwarder.Payloads, http.Header, error) {
 	marshaler := eventsStreamJSONMarshaler.CreateSingleMarshaler()
-	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, jsonstream.FailedErrItemTooBig)
+	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, jsonstream.FailOnErrItemTooBig)
 
 	if err == jsonstream.ErrItemTooBig {
 		expvarsSendEventsErrItemTooBigs.Add(1)

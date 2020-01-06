@@ -21,8 +21,8 @@ const (
 	// DropItemOnErrItemTooBig when founding an ErrItemTooBig, skips the error and continue
 	DropItemOnErrItemTooBig OnErrItemTooBigPolicy = iota
 
-	// FailedErrItemTooBig when founding an ErrItemTooBig, returns the error and stop
-	FailedErrItemTooBig
+	// FailOnErrItemTooBig when founding an ErrItemTooBig, returns the error and stop
+	FailOnErrItemTooBig
 )
 
 // PayloadBuilder is not implemented when zlib is not available.
