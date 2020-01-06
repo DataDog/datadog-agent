@@ -49,11 +49,11 @@ func execCommand(inputPayload string) ([]byte, error) {
 
 	stdout := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: secretBackendOutputMaxSize,
+		max: SecretBackendOutputMaxSize,
 	}
 	stderr := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: secretBackendOutputMaxSize,
+		max: SecretBackendOutputMaxSize,
 	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
