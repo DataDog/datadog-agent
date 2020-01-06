@@ -157,7 +157,7 @@ func ResolveSourcesWithState(newSources, stateSources hostnameMap) (hostnameMap,
 		newH, newOk := newSources[stage.provider]
 		stateH, stateOk := stateSources[stage.provider]
 
-		if !newOK && !stateOk {
+		if !newOk && !stateOk {
 			// missing source
 			continue
 		}
@@ -205,33 +205,38 @@ func GetHostnameData() (HostnameData, error) {
 		return cacheHostname.(HostnameData), nil
 	}
 
-	var hostname string
+	var hostName string
+	var fqdn string
 	var provider string
 	var err error
 
 	live, err := GetLiveHostnameSources()
-	live, err := GetPersistedHostnameSources()
+	persisted, err := GetPersistedHostnameSources()
 
 	// TODO: address errors
 
 	sources, stateChange := ResolveSourcesWithState(live, persisted)
 
-	for stage := range resolutionPipeline {
+	for _, stage := range resolutionPipeline {
 		log.Debug("Getting hostname collected by: %s", stage.provider)
 
 		if h, ok := sources[stage.provider]; ok {
 
 			if h != "" { // this condition won't play well with fargate
+				if stage.provider == "fqdn" {
+					fqdn = h
+				}
+
 				if !stage.fallback || stage.fallback && hostName == "" {
 					hostName = h
 					provider = stage.provider
 				}
 			}
 			if ok && stage.final {
-				hostnameData := saveHostnameData(cacheHostnameKey, hostname, HostnameProviderConfiguration)
-				if stage.Provider == HostnameProviderConfiguration && !isHostnameCanonicalForIntake(configName) &&
+				hostNameData := saveHostnameData(cacheHostnameKey, hostName, HostnameProviderConfiguration)
+				if stage.provider == HostnameProviderConfiguration && !isHostnameCanonicalForIntake(hostName) &&
 					!config.Datadog.GetBool("hostname_force_config_as_canonical") {
-					_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-force-config-as-canonical", configName)
+					_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-force-config-as-canonical", hostName)
 				}
 				return hostNameData, nil
 			}
@@ -274,7 +279,6 @@ func GetLiveHostnameSources() (hostnameMap, error) {
 
 	var hostName string
 	var err error
-	var provider string
 
 	hostnames := hostnameMap{}
 
@@ -333,7 +337,6 @@ func GetLiveHostnameSources() (hostnameMap, error) {
 	if isContainerized {
 		if containerName != "" {
 			hostName = containerName
-			provider = "container"
 			hostnames["container"] = containerName
 		} else {
 			expErr := new(expvar.String)
@@ -348,7 +351,6 @@ func GetLiveHostnameSources() (hostnameMap, error) {
 		systemName, err := os.Hostname()
 		if err == nil {
 			hostName = systemName
-			provider = "os"
 			hostnames["os"] = systemName
 		} else {
 			expErr := new(expvar.String)
@@ -403,17 +405,17 @@ func GetLiveHostnameSources() (hostnameMap, error) {
 }
 
 func GetPersistedHostnameSources() (hostnameMap, error) {
-	cacheHostnameKey := cache.BuildAgentKey("hostname-sources")
-	if cacheHostnameData, err := persistentcache.Read(cacheHostnameKey); err != nil {
-		return "", err
-	}
+	var err error
+	var cacheHostnameData string
 
 	sources := hostnameMap{}
-	err = json.Unmarshal(cacheHostnameData, &[]byte(hostnameData))
-	if err != nil {
+	cacheHostnameKey := cache.BuildAgentKey("hostname-sources")
+
+	if cacheHostnameData, err = persistentcache.Read(cacheHostnameKey); err != nil {
 		return sources, err
 	}
 
+	err = json.Unmarshal([]byte(cacheHostnameData), &sources)
 	return sources, err
 }
 
