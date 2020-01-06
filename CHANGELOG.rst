@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_7.16.1:
+
+7.16.1 / 6.16.1
+========
+
+.. _Release Notes_7.16.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-01-06
+
+- Please refer to the `7.16.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7161>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.16.1_Security Issues:
+
+Security Issues
+---------------
+
+- UnixODBC software dependency bumped to 2.3.7 to address `CVE-2018-7409
+  <https://access.redhat.com/security/cve/cve-2018-7409>`_.
+
+
 .. _Release Notes_7.16.0:
 
 7.16.0 / 6.16.0
