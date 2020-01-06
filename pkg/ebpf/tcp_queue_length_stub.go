@@ -5,7 +5,7 @@ package ebpf
 // TCPQueueLengthTracer is not implemented on non-linux systems
 type TCPQueueLengthTracer struct{}
 
-// NewTCPQUeueLengthTracer is not implemented on non-linux systems
+// NewTCPQueueLengthTracer is not implemented on non-linux systems
 func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 	return nil, ErrNotImplemented
 }
