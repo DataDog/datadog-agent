@@ -26,7 +26,7 @@ import (
 // 1) redis-client -> redis-server (via host IP)
 // 2) redis-server (via host IP) <- redis-client
 // 3) docker-proxy -> redis-server (redundant)
-// 4) redis-server -> docker-proxy (redundant)
+// 4) redis-server <- docker-proxy (redundant)
 //
 // The purpose of this package is to filter flows like (3) and (4) in order to
 // avoid double counting traffic represented similar to flows (1) and (2)
