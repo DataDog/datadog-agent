@@ -9,13 +9,14 @@ package listeners
 
 import (
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/go-connections/nat"
 	"io"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/go-connections/nat"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -173,9 +174,11 @@ func (l *DockerListener) init() {
 // figure out if the AutoConfig could be interested to inspect it.
 func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 	cID := e.ContainerID
+
 	l.m.RLock()
 	_, found := l.services[cID]
 	l.m.RUnlock()
+
 	if found {
 		if e.Action == "die" {
 			l.removeService(cID)
