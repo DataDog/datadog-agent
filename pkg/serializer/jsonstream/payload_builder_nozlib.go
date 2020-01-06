@@ -18,8 +18,8 @@ import (
 type OnErrItemTooBigPolicy int
 
 const (
-	// ContinueOnErrItemTooBig when founding an ErrItemTooBig, skips the error and continue
-	ContinueOnErrItemTooBig OnErrItemTooBigPolicy = iota
+	// DropItemOnErrItemTooBig when founding an ErrItemTooBig, skips the error and continue
+	DropItemOnErrItemTooBig OnErrItemTooBigPolicy = iota
 
 	// FailedErrItemTooBig when founding an ErrItemTooBig, returns the error and stop
 	FailedErrItemTooBig

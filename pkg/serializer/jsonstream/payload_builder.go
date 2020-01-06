@@ -41,8 +41,8 @@ func NewPayloadBuilder() *PayloadBuilder {
 type OnErrItemTooBigPolicy int
 
 const (
-	// ContinueOnErrItemTooBig:  when ErrItemTooBig is encountered, skips the error and continue
-	ContinueOnErrItemTooBig OnErrItemTooBigPolicy = iota
+	// DropItemOnErrItemTooBig:  when ErrItemTooBig is encountered, skips the error and continue
+	DropItemOnErrItemTooBig OnErrItemTooBigPolicy = iota
 
 	// FailedErrItemTooBig: when ErrItemTooBig is encountered, returns the error and stop
 	FailedErrItemTooBig
@@ -50,7 +50,7 @@ const (
 
 // Build serializes a metadata payload and sends it to the forwarder
 func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
-	return b.BuildWithOnErrItemTooBigPolicy(m, ContinueOnErrItemTooBig)
+	return b.BuildWithOnErrItemTooBigPolicy(m, DropItemOnErrItemTooBig)
 }
 
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder

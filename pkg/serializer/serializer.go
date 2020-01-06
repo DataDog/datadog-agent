@@ -205,7 +205,7 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 			eventPayloads = nil
 			for _, v := range eventsStreamJSONMarshaler.CreateMarshalersBySourceType() {
 				var eventPayloadsForSourceType forwarder.Payloads
-				eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.ContinueOnErrItemTooBig)
+				eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.DropItemOnErrItemTooBig)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -257,7 +257,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	var err error
 
 	if useV1API && s.enableServiceChecksJSONStream {
-		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, jsonstream.ContinueOnErrItemTooBig)
+		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, jsonstream.DropItemOnErrItemTooBig)
 	} else {
 		serviceCheckPayloads, extraHeaders, err = s.serializePayload(sc, true, useV1API)
 	}
@@ -285,7 +285,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	var err error
 
 	if useV1API && s.enableJSONStream {
-		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series, jsonstream.ContinueOnErrItemTooBig)
+		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series, jsonstream.DropItemOnErrItemTooBig)
 	} else {
 		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
 	}
