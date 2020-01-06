@@ -173,13 +173,3 @@ To generate it (using the `invoke rtloader.generate-doc` command), you'll need t
 Alternatively, you can use already-compiled Doxygen binaries from [here](http://www.doxygen.nl/download.html).
 
 To get the dependency graphs, you may also need to install the `dot` executable from [graphviz](http://www.graphviz.org/) and add it to your `$PATH`.
-
-## Run the agent
-
-Running `invoke build` creates an Agent binary, located at `bin/agent/agent`.
-If the Datadog Agent is not installed, or if you do not want to edit your `datadog.yaml`, a configuration file is available at `bin/agent/dist/datadog.yaml`. To run the Agent with this configuration file, use `-c`: `DD_API_KEY=12345678990 bin/agent/agent <command> -c bin/agent/dist/` where `<command>` is an Agent command and `DD_API_KEY=12345678990` is a valid API key.
-
-**Important note**: 
-Running `invoke agent.build`: 
-  * Discards any changes done in `bin/agent/dist` 
-  * Copies files from `dev/dist` to `bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/master/dev/dist/README.md` for more information.
