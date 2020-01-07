@@ -27,11 +27,13 @@ build do
 
   if windows?
     major_version_arg = "%MAJOR_VERSION%"
+    py_runtimes_arg = "%PY_RUNTIMES%"
   else
     major_version_arg = "$MAJOR_VERSION"
+    py_runtimes_arg = "$PY_RUNTIMES"
   end
 
-  command "invoke agent.build --puppy --rebuild --no-development --major-version #{major_version_arg}", env: env
+  command "invoke agent.build --puppy --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
   copy('bin', install_dir)
 
   mkdir "#{install_dir}/run/"
