@@ -475,3 +475,18 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 		ContextKey: generateContextKey(&dSample1),
 	}, sketches[0])
 }
+
+func BenchmarkTimeSampler(b *testing.B) {
+	sampler := NewTimeSampler(10)
+	sample := metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	for n := 0; n < b.N; n++ {
+		sampler.addSample(&sample, 12345.0)
+	}
+}

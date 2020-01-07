@@ -3,7 +3,6 @@ package dogstatsd
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -19,39 +18,6 @@ var (
 
 	getTags tagRetriever = tagger.Tag
 )
-
-func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string, mapper *mapper.MetricMapper) (*metrics.MetricSample, error) {
-	sample, err := parseMetricSample(message)
-	if err != nil {
-		return nil, err
-	}
-
-	if mapper != nil && len(sample.tags) == 0 {
-		mapResult := mapper.Map(sample.name)
-		if mapResult != nil {
-			sample.name = mapResult.Name
-			sample.tags = append(sample.tags, mapResult.Tags...)
-		}
-	}
-
-	return enrichMetricSample(sample, namespace, namespaceBlacklist, defaultHostname), nil
-}
-
-func parseEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
-	sample, err := parseEvent(message)
-	if err != nil {
-		return nil, err
-	}
-	return enrichEvent(sample, defaultHostname), nil
-}
-
-func parseServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
-	sample, err := parseServiceCheck(message)
-	if err != nil {
-		return nil, err
-	}
-	return enrichServiceCheck(sample, defaultHostname), nil
-}
 
 func enrichTags(tags []string, defaultHostname string) ([]string, string) {
 	if len(tags) == 0 {
@@ -102,7 +68,7 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 	return metrics.GaugeType
 }
 
-func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string) *metrics.MetricSample {
+func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string) metrics.MetricSample {
 	metricName := metricSample.name
 	if namespace != "" {
 		blacklisted := false
@@ -118,7 +84,7 @@ func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, na
 
 	tags, hostname := enrichTags(metricSample.tags, defaultHostname)
 
-	return &metrics.MetricSample{
+	return metrics.MetricSample{
 		Host:       hostname,
 		Name:       metricName,
 		Tags:       tags,
