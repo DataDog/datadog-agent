@@ -5,4 +5,4 @@
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2016-2019 Datadog, Inc.
 
-/opt/datadog-agent/bin/datadog-cluster-agent read-secret $@
+/opt/datadog-agent/bin/datadog-cluster-agent secret-helper read $@
