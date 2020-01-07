@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestReadSecret(t *testing.T) {
+func TestReadSecrets(t *testing.T) {
 	tests := []struct {
 		name        string
 		in          string
@@ -113,7 +113,7 @@ func TestReadSecret(t *testing.T) {
 				t.Skip("skipped on windows")
 			}
 			var w bytes.Buffer
-			err := ReadSecrets(strings.NewReader(test.in), &w, path)
+			err := readSecrets(strings.NewReader(test.in), &w, path)
 			out := string(w.Bytes())
 
 			if test.out != "" {

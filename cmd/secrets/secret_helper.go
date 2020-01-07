@@ -26,14 +26,25 @@ const (
 	maxSecretFileSize = 8192
 )
 
-// ReadSecretsCmd implements a secrets backend command reading secrets from a directory/mount
-var ReadSecretCmd = &cobra.Command{
-	Use:   "read-secret",
+func init() {
+	SecretHelperCmd.AddCommand(readSecretCmd)
+}
+
+// SecretHelperCmd implements secrets backend helper commands
+var SecretHelperCmd = &cobra.Command{
+	Use:   "secret-helper",
+	Short: "Secret management backend helper",
+	Long:  ``,
+}
+
+// ReadSecretsCmd implements reading secrets from a directory/volume mount
+var readSecretCmd = &cobra.Command{
+	Use:   "read",
 	Short: "Read secret from a directory",
 	Long:  ``,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return ReadSecrets(os.Stdin, os.Stdout, args[0])
+		return readSecrets(os.Stdin, os.Stdout, args[0])
 	},
 }
 
@@ -43,7 +54,7 @@ type secretsRequest struct {
 }
 
 // ReadSecrets implements a secrets reader from a directory/mount
-func ReadSecrets(r io.Reader, w io.Writer, dir string) error {
+func readSecrets(r io.Reader, w io.Writer, dir string) error {
 	in, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err

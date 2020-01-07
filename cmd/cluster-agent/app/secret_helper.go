@@ -12,5 +12,5 @@ import (
 )
 
 func init() {
-	ClusterAgentCmd.AddCommand(secrets.ReadSecretCmd)
+	ClusterAgentCmd.AddCommand(secrets.SecretHelperCmd)
 }
