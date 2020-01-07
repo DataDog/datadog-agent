@@ -3,6 +3,7 @@ package dogstatsd
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -19,11 +20,20 @@ var (
 	getTags tagRetriever = tagger.Tag
 )
 
-func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (*metrics.MetricSample, error) {
+func parseMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string, mapper *mapper.MetricMapper) (*metrics.MetricSample, error) {
 	sample, err := parseMetricSample(message)
 	if err != nil {
 		return nil, err
 	}
+
+	if mapper != nil && len(sample.tags) == 0 {
+		mapResult := mapper.Map(sample.name)
+		if mapResult != nil {
+			sample.name = mapResult.Name
+			sample.tags = append(sample.tags, mapResult.Tags...)
+		}
+	}
+
 	return enrichMetricSample(sample, namespace, namespaceBlacklist, defaultHostname), nil
 }
 

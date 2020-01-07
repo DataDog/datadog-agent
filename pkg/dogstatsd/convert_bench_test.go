@@ -26,7 +26,7 @@ func BenchmarkParseMetric(b *testing.B) {
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				sample, _ = parseMetricMessage(rawSample, "", []string{}, "default-hostname")
+				sample, _ = parseMetricMessage(rawSample, "", []string{}, "default-hostname", nil)
 			}
 		})
 	}
