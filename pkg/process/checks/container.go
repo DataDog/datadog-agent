@@ -108,7 +108,6 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		})
 	}
 
-	LocalResolver.LoadAddrs(ctrList)
 	c.lastRates = util.ExtractContainerRateMetric(ctrList)
 	c.lastRun = time.Now()
 	c.lastCtrIDForPID = ctrIDForPID(ctrList)
