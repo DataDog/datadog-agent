@@ -37,6 +37,7 @@ const (
 
 // StartObject starts a new JSON object (add '{')
 func (writer *RawObjectWriter) StartObject() error {
+	writer.writeSeparatorIfNeeded()
 	writer.stream.WriteObjectStart()
 	return writer.addScope()
 }
