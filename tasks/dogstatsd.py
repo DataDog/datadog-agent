@@ -50,7 +50,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, env)
+        ver = get_version_numeric_only(ctx, env, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run("windmc --target {target_arch}  -r cmd/dogstatsd/windows_resources cmd/dogstatsd/windows_resources/dogstatsd-msg.mc".format(target_arch=windres_target))

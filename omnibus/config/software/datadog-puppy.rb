@@ -72,10 +72,10 @@ build do
     move 'bin/agent/dist/conf.d', "#{conf_dir}/"
     copy 'bin/agent', "#{install_dir}/bin/"
 
-    command "invoke customaction.build --arch=" + platform
+    command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
 
     # Build the process-agent with the correct go version for windows
-    command "invoke -e process-agent.build --arch #{platform}", :env => env
+    command "invoke -e process-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin/agent"
   
@@ -87,7 +87,7 @@ build do
       # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
       env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
       platform = windows_arch_i386? ? "x86" : "x64"
-      command "invoke trace-agent.build --arch #{platform}", :env => env
+      command "invoke trace-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin/agent"
     end
