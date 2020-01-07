@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -335,7 +336,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	conns := t.state.Connections(clientID, latestTime, latestConns)
+	conns:= t.state.Connections(clientID, latestTime, latestConns)
+	t.setConnectionDirections(conns)
 	names := t.reverseDNS.Resolve(conns)
 	return &Connections{Conns: conns, DNS: names}, nil
 }
@@ -654,6 +656,41 @@ func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionD
 	}
 
 	return OUTGOING
+}
+
+func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
+	connRAddrMap := make(map[util.Address][]*ConnectionStats, len(connections))
+
+	for _, conn := range connections{
+		if conn.IPTranslation == nil{
+			connRAddrMap[conn.Dest] = append(connRAddrMap[conn.Dest], &conn)
+		} else {
+			connRAddrMap[conn.IPTranslation.ReplDstIP] = append(connRAddrMap[conn.IPTranslation.ReplDstIP], &conn)
+		}
+	}
+
+	for i := 0; i < len(connections); i++ {
+		if connections[i].Direction == LOCAL{
+			continue
+		}
+		hit, ok := connRAddrMap[connections[i].Source]
+		if ok {
+			connections[i].Direction = LOCAL
+			for j := 0; j < len (hit); j++ {
+				hit[j].Direction = LOCAL
+			}
+		} else {
+			if connections[i].Type == UDP {
+				connections[i].Direction = NONE
+				continue
+			}
+			if t.portMapping.IsListening(connections[i].SPort) {
+				connections[i].Direction = INCOMING
+				continue
+			}
+			connections[i].Direction = OUTGOING
+		}
+	}
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
