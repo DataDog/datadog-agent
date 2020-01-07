@@ -362,6 +362,7 @@ func loadEnvVariables() {
 		"DD_SCRUB_ARGS":                     "process_config.scrub_args",
 		"DD_STRIP_PROCESS_ARGS":             "process_config.strip_proc_arguments",
 		"DD_PROCESS_AGENT_URL":              "process_config.process_dd_url",
+		"DD_ORCHESTRATOR_URL":               "process_config.orchestrator_dd_url",
 
 		// System probe specific configuration (Beta)
 		"DD_SYSTEM_PROBE_ENABLED":   "system_probe_config.enabled",
