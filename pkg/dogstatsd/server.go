@@ -18,14 +18,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -66,6 +66,7 @@ type Server struct {
 	debugMetricsStats     bool
 	metricsStats          map[string]metricStat
 	statsLock             sync.Mutex
+	mapper                *mapper.MetricMapper
 }
 
 // metricStat holds how many times a metric has been
@@ -173,6 +174,20 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	}
 
 	s.handleMessages(metricOut, eventOut, serviceCheckOut)
+
+	cacheSize := config.Datadog.GetInt("dogstatsd_mapper_cache_size")
+
+	mappings, err := config.GetDogstatsdMappingProfiles()
+	if err != nil {
+		log.Warnf("Could not parse mapping profiles: %v", err)
+	} else if len(mappings) != 0 {
+		mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
+		if err != nil {
+			log.Warnf("Could not create metric mapper: %v", err)
+		} else {
+			s.mapper = mapperInstance
+		}
+	}
 
 	return s, nil
 }
@@ -308,7 +323,7 @@ func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.
 			dogstatsdEventPackets.Add(1)
 			events = append(events, event)
 		} else {
-			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
+			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, s.mapper)
 			if err != nil {
 				log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 				dogstatsdMetricParseErrors.Add(1)

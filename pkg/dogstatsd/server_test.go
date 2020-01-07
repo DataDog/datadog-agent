@@ -8,8 +8,11 @@ package dogstatsd
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"net"
+	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -389,4 +392,157 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric1.Count, uint64(3))
 	require.Equal(t, metric2.Count, uint64(1))
 	require.Equal(t, metric3.Count, uint64(1))
+}
+
+func TestNoMappingsConfig(t *testing.T) {
+	datadogYaml := ``
+
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
+	config.Datadog.SetConfigType("yaml")
+	err = config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
+	require.NoError(t, err)
+
+	s, err := NewServer(nil, nil, nil)
+	require.NoError(t, err, "cannot start DSD")
+
+	assert.Nil(t, s.mapper)
+
+	packet := listeners.Packet{
+		Contents: []byte("test.metric:666|g"),
+		Origin:   listeners.NoOrigin,
+	}
+	sample, _, _ := s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
+	assert.Equal(t, 1, len(sample))
+}
+
+type MetricSample struct {
+	Name  string
+	Value float64
+	Tags  []string
+	Mtype metrics.MetricType
+}
+
+func TestMappingCases(t *testing.T) {
+	scenarios := []struct {
+		name              string
+		config            string
+		packets           []string
+		expectedSamples   []MetricSample
+		expectedCacheSize int
+	}{
+		{
+			name: "Simple OK case",
+			config: `
+dogstatsd_mapper_profiles:
+  - name: test
+    prefix: 'test.'
+    mappings:
+      - match: "test.job.duration.*.*"
+        name: "test.job.duration"
+        tags:
+          job_type: "$1"
+          job_name: "$2"
+      - match: "test.job.size.*.*"
+        name: "test.job.size"
+        tags:
+          foo: "$1"
+          bar: "$2"
+`,
+			packets: []string{
+				"test.job.duration.my_job_type.my_job_name:666|g",
+				"test.job.size.my_job_type.my_job_name:666|g",
+				"test.job.size.not_match:666|g",
+			},
+			expectedSamples: []MetricSample{
+				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, Mtype: metrics.GaugeType, Value: 666.0},
+				{Name: "test.job.size", Tags: []string{"foo:my_job_type", "bar:my_job_name"}, Mtype: metrics.GaugeType, Value: 666.0},
+				{Name: "test.job.size.not_match", Tags: nil, Mtype: metrics.GaugeType, Value: 666.0},
+			},
+			expectedCacheSize: 1000,
+		},
+		{
+			name: "Tag already present",
+			config: `
+dogstatsd_mapper_profiles:
+  - name: test
+    prefix: 'test.'
+    mappings:
+      - match: "test.job.duration.*.*"
+        name: "test.job.duration"
+        tags:
+          job_type: "$1"
+          job_name: "$2"
+`,
+			packets: []string{
+				"test.job.duration.my_job_type.my_job_name:666|g",
+				"test.job.duration.my_job_type.my_job_name:666|g|#some:tag",
+				"test.job.duration.my_job_type.my_job_name:666|g|#some:tag,more:tags",
+			},
+			expectedSamples: []MetricSample{
+				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, Mtype: metrics.GaugeType, Value: 666.0},
+				{Name: "test.job.duration.my_job_type.my_job_name", Tags: []string{"some:tag"}, Mtype: metrics.GaugeType, Value: 666.0},
+				{Name: "test.job.duration.my_job_type.my_job_name", Tags: []string{"some:tag", "more:tags"}, Mtype: metrics.GaugeType, Value: 666.0},
+			},
+			expectedCacheSize: 1000,
+		},
+		{
+			name: "Cache size",
+			config: `
+dogstatsd_mapper_cache_size: 999
+dogstatsd_mapper_profiles:
+  - name: test
+    prefix: 'test.'
+    mappings:
+      - match: "test.job.duration.*.*"
+        name: "test.job.duration"
+        tags:
+          job_type: "$1"
+          job_name: "$2"
+`,
+			packets:           []string{},
+			expectedSamples:   nil,
+			expectedCacheSize: 999,
+		},
+	}
+
+	for _, scenario := range scenarios {
+		t.Run(scenario.name, func(t *testing.T) {
+			config.Datadog.SetConfigType("yaml")
+			err := config.Datadog.ReadConfig(strings.NewReader(scenario.config))
+			assert.NoError(t, err)
+
+			port, err := getAvailableUDPPort()
+			require.NoError(t, err)
+			config.Datadog.SetDefault("dogstatsd_port", port)
+
+			s, err := NewServer(nil, nil, nil)
+			require.NoError(t, err)
+
+			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
+
+			var actualSamples []MetricSample
+			for _, p := range scenario.packets {
+				packet := listeners.Packet{
+					Contents: []byte(p),
+					Origin:   listeners.NoOrigin,
+				}
+				rawSamples, _, _ := s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
+
+				for _, s := range rawSamples {
+					actualSamples = append(actualSamples, MetricSample{Name: s.Name, Tags: s.Tags, Mtype: s.Mtype, Value: s.Value})
+				}
+			}
+			for _, sample := range scenario.expectedSamples {
+				sort.Strings(sample.Tags)
+			}
+			for _, sample := range actualSamples {
+				sort.Strings(sample.Tags)
+			}
+			assert.Equal(t, scenario.expectedSamples, actualSamples, "Case `%s` failed. `%s` should be `%s`", scenario.name, actualSamples, scenario.expectedSamples)
+			s.Stop()
+		})
+	}
 }
