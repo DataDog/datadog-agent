@@ -31,7 +31,6 @@ var (
 type ConnectionsCheck struct {
 	tracerClientID string
 	networkID      string
-	proxyFilter    *dockerproxy.Filter
 }
 
 // Init initializes a ConnectionsCheck instance.
