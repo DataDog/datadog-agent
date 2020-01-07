@@ -213,8 +213,8 @@ type testPayloadMutipleValues struct {
 func (p *testPayloadMutipleValues) Len() int { return p.count }
 
 func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
-	config.Datadog.Set("enable_service_checks_stream_payload_serialization", true)
-	defer config.Datadog.Set("enable_service_checks_stream_payload_serialization", nil)
+	config.Datadog.Set("enable_events_stream_payload_serialization", true)
+	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Intake", mock.Anything, jsonExtraHeadersWithCompression).Return(nil)
 	s := NewSerializer(f)
