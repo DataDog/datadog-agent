@@ -14,7 +14,6 @@ import (
 // Filter keeps track of every docker-proxy instance and filters network traffic going through them
 type Filter struct {
 	proxyByTarget map[target]*proxy
-
 	// This "secondary index" is used only during the proxy IP discovery process
 	proxyByPID map[int32]*proxy
 }
