@@ -203,9 +203,9 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"tracer-ebpf.o": tracerEbpfO,
-	"tracer-ebpf-debug.o": tracerEbpfDebugO,
-	"tcp-queue-length-kern.c": tcpQueueLengthKernC,
+	"tracer-ebpf.o":                tracerEbpfO,
+	"tracer-ebpf-debug.o":          tracerEbpfDebugO,
+	"tcp-queue-length-kern.c":      tcpQueueLengthKernC,
 	"tcp-queue-length-kern-user.h": tcpQueueLengthKernUserH,
 }
 
@@ -248,11 +248,12 @@ type bintree struct {
 	Func     func() (*asset, error)
 	Children map[string]*bintree
 }
+
 var _bintree = &bintree{nil, map[string]*bintree{
-	"tcp-queue-length-kern-user.h": &bintree{tcpQueueLengthKernUserH, map[string]*bintree{}},
-	"tcp-queue-length-kern.c": &bintree{tcpQueueLengthKernC, map[string]*bintree{}},
-	"tracer-ebpf-debug.o": &bintree{tracerEbpfDebugO, map[string]*bintree{}},
-	"tracer-ebpf.o": &bintree{tracerEbpfO, map[string]*bintree{}},
+	"tcp-queue-length-kern-user.h": {tcpQueueLengthKernUserH, map[string]*bintree{}},
+	"tcp-queue-length-kern.c":      {tcpQueueLengthKernC, map[string]*bintree{}},
+	"tracer-ebpf-debug.o":          {tracerEbpfDebugO, map[string]*bintree{}},
+	"tracer-ebpf.o":                {tracerEbpfO, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory
@@ -301,4 +302,3 @@ func _filePath(dir, name string) string {
 	cannonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
 }
-
