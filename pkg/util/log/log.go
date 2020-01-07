@@ -33,10 +33,11 @@ var (
 
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
-	inner seelog.LoggerInterface
-	level seelog.LogLevel
-	extra map[string]seelog.LoggerInterface
-	l     sync.RWMutex
+	inner       seelog.LoggerInterface
+	level       seelog.LogLevel
+	extra       map[string]seelog.LoggerInterface
+	l           sync.RWMutex
+	contextLock sync.Mutex
 }
 
 // SetupDatadogLogger configure logger singleton with seelog interface
@@ -399,9 +400,11 @@ func Info(v ...interface{}) {
 // Infoc logs at the info level with context
 func Infoc(message string, context ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(seelog.InfoLvl) {
+		logger.contextLock.Lock()
 		logger.inner.SetContext(context)
 		logger.info(logger.scrub(message))
 		logger.inner.SetContext(nil)
+		logger.contextLock.Unlock()
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
 		addLogToBuffer(func() { Infoc(message, context) })
 	}
