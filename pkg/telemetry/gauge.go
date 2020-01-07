@@ -30,16 +30,21 @@ type Gauge interface {
 // NewGauge creates a Gauge for telemetry purpose.
 // Current implementation used: Prometheus Gauge
 func NewGauge(subsystem, name string, tags []string, help string) Gauge {
+	// subsystem is optional
+	if subsystem != "" {
+		subsystem = fmt.Sprintf("_%s", subsystem)
+	}
+
 	g := &promGauge{
 		pg: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
+				Subsystem: subsystem,
 				// Prefix metrics with a _, prometheus will add a second _
 				// It will create metrics with a custom separator and
 				// will let us replace it to a dot later in the process.
-				Subsystem: fmt.Sprintf("_%s", subsystem),
-				Name:      fmt.Sprintf("_%s", name),
-				Help:      help,
+				Name: fmt.Sprintf("_%s", name),
+				Help: help,
 			},
 			tags,
 		),
