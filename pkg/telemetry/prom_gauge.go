@@ -15,31 +15,31 @@ type promGauge struct {
 }
 
 // Set stores the value for the given tags.
-func (g *promGauge) Set(value float64, tags ...string) {
-	g.pg.WithLabelValues(tags...).Set(value)
+func (g *promGauge) Set(value float64, tagsValue ...string) {
+	g.pg.WithLabelValues(tagsValue...).Set(value)
 }
 
 // Inc increments the Gauge value.
-func (g *promGauge) Inc(tags ...string) {
-	g.pg.WithLabelValues(tags...).Inc()
+func (g *promGauge) Inc(tagsValue ...string) {
+	g.pg.WithLabelValues(tagsValue...).Inc()
 }
 
 // Dec decrements the Gauge value.
-func (g *promGauge) Dec(tags ...string) {
-	g.pg.WithLabelValues(tags...).Dec()
+func (g *promGauge) Dec(tagsValue ...string) {
+	g.pg.WithLabelValues(tagsValue...).Dec()
 }
 
 // Delete deletes the value for the Gauge with the given tags.
-func (g *promGauge) Delete(tags ...string) {
-	g.pg.DeleteLabelValues(tags...)
+func (g *promGauge) Delete(tagsValue ...string) {
+	g.pg.DeleteLabelValues(tagsValue...)
 }
 
 // Add adds the value to the Gauge value.
-func (g *promGauge) Add(value float64, tags ...string) {
-	g.pg.WithLabelValues(tags...).Add(value)
+func (g *promGauge) Add(value float64, tagsValue ...string) {
+	g.pg.WithLabelValues(tagsValue...).Add(value)
 }
 
 // Sub subtracts the value to the Gauge value.
-func (g *promGauge) Sub(value float64, tags ...string) {
-	g.pg.WithLabelValues(tags...).Sub(value)
+func (g *promGauge) Sub(value float64, tagsValue ...string) {
+	g.pg.WithLabelValues(tagsValue...).Sub(value)
 }

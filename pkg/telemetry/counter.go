@@ -14,11 +14,11 @@ import (
 // Counter tracks how many times something is happening.
 type Counter interface {
 	// Inc increments the counter for the given tags.
-	Inc(tags ...string)
+	Inc(tagsValue ...string)
 	// Add adds the given value to the counter for the given tags.
-	Add(value float64, tags ...string)
+	Add(value float64, tagsValue ...string)
 	// Delete deletes the value for the counter with the given tags.
-	Delete(tags ...string)
+	Delete(tagsValue ...string)
 }
 
 // NewCounter creates a Counter for telemetry purpose.

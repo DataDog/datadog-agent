@@ -15,16 +15,16 @@ type promCounter struct {
 }
 
 // Add adds the given value to the counter for the given tags.
-func (c *promCounter) Add(value float64, tags ...string) {
-	c.pc.WithLabelValues(tags...).Add(value)
+func (c *promCounter) Add(value float64, tagsValue ...string) {
+	c.pc.WithLabelValues(tagsValue...).Add(value)
 }
 
 // Inc increments the counter for the given tags.
-func (c *promCounter) Inc(tags ...string) {
-	c.pc.WithLabelValues(tags...).Inc()
+func (c *promCounter) Inc(tagsValue ...string) {
+	c.pc.WithLabelValues(tagsValue...).Inc()
 }
 
 // Delete deletes the value for the counter with the given tags.
-func (c *promCounter) Delete(tags ...string) {
-	c.pc.DeleteLabelValues(tags...)
+func (c *promCounter) Delete(tagsValue ...string) {
+	c.pc.DeleteLabelValues(tagsValue...)
 }
