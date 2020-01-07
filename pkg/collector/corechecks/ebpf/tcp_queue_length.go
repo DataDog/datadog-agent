@@ -76,7 +76,7 @@ func (t *TCPQueueLengthCheck) Configure(config, initConfig integration.Data, sou
 	return t.instance.Parse(config)
 }
 
-var tags_set = make(map[string]struct{})
+var tagsSet = make(map[string]struct{})
 
 // Run executes the check
 func (t *TCPQueueLengthCheck) Run() error {
@@ -115,7 +115,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 
 		if t.instance.OnlyCountNbContexts {
 			sort.Strings(tags)
-			tags_set[strings.Join(tags, ",")] = struct{}{}
+			tagsSet[strings.Join(tags, ",")] = struct{}{}
 		} else {
 			sender.Gauge("tcp_queue.rqueue.size", float64(line.Rqueue.Size), "", tags)
 			sender.Gauge("tcp_queue.rqueue.min", float64(line.Rqueue.Min), "", tags)
@@ -127,7 +127,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 	}
 
 	if t.instance.OnlyCountNbContexts {
-		sender.Gauge("tcp_queue.nb_contexts", float64(len(tags_set)), "", []string{})
+		sender.Gauge("tcp_queue.nb_contexts", float64(len(tagsSet)), "", []string{})
 	}
 
 	sender.Commit()
