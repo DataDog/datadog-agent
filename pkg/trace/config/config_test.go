@@ -149,6 +149,8 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal("https://user:password@proxy_for_https:1234", c.ProxyURL.String())
 	assert.True(c.SkipSSLValidation)
 	assert.Equal("info", c.LogLevel)
+	assert.Equal(false, c.LogToConsole)
+	assert.Equal(true, c.LogFormatJSON)
 	assert.Equal(18125, c.StatsdPort)
 	assert.False(c.Enabled)
 	assert.Equal("abc", c.LogFilePath)

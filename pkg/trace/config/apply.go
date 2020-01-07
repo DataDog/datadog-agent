@@ -118,6 +118,12 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("log_level") {
 		c.LogLevel = config.Datadog.GetString("log_level")
 	}
+	if config.Datadog.IsSet("log_to_console") {
+		c.LogToConsole = config.Datadog.GetBool("log_to_console")
+	}
+	if config.Datadog.IsSet("log_format_json") {
+		c.LogFormatJSON = config.Datadog.GetBool("log_format_json")
+	}
 	if config.Datadog.IsSet("dogstatsd_port") {
 		c.StatsdPort = config.Datadog.GetInt("dogstatsd_port")
 	}

@@ -6,10 +6,11 @@
 package agent
 
 import (
-	"fmt"
+	"bytes"
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"text/template"
 	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -41,19 +42,20 @@ type throttledReceiver struct {
 // loggerName is the name of the trace agent logger
 const loggerName coreconfig.LoggerName = "TRACE"
 
-// loggerConfigForwarder is used to forward any raw messages received by the throttled
-// receiver.
-const loggerConfigForwarder = `
+// templateForwarder defines the template  used to forward any raw messages received by the throttled receiver.
+var templateForwarder = template.Must(template.New("loggerForwarder").Parse(`
 <seelog>
   <outputs formatid="raw">
-      <console />
-      <rollingfile type="size" filename="%s" maxsize="10000000" maxrolls="5" />
+	 {{- if .Console}}
+	 <console />
+	 {{- end}}
+      <rollingfile type="size" filename="{{.FilePath}}" maxsize="10000000" maxrolls="5" />
   </outputs>
   <formats>
-    <format id="raw" format="%%Msg" />
+    <format id="raw" format="%Msg" />
   </formats>
 </seelog>
-`
+`))
 
 // ReceiveMessage implements seelog.CustomReceiver
 func (r *throttledReceiver) ReceiveMessage(msg string, lvl seelog.LogLevel, _ seelog.LogContextInterface) error {
@@ -67,20 +69,26 @@ func (r *throttledReceiver) ReceiveMessage(msg string, lvl seelog.LogLevel, _ se
 	return nil
 }
 
-// loggerConfigError is the template used by the throttled receiver to report
+// templateError is the template used by the throttled receiver to report
 // that maximum error capacity per the given interval has been reached.
-const loggerConfigError = `
+var templateError = template.Must(template.New("loggerError").Parse(`
 <seelog>
-  <outputs formatid="%[1]s">
-      <console />
-      <rollingfile type="size" filename="%[2]s" maxsize="10000000" maxrolls="5" />
+  {{- if .UseJSON}}
+  <outputs formatid="json">
+  {{- else}}
+  <outputs formatid="common">
+  {{- end}}
+	 {{- if .Console}}
+	 <console />
+	 {{- end}}
+      <rollingfile type="size" filename="{{.FilePath}}" maxsize="10000000" maxrolls="5" />
   </outputs>
   <formats>
-    <format id="json" format="%[3]s"/>
-    <format id="common" format="%[4]s"/>
+    <format id="json" format="{{.JSONFormat}}"/>
+    <format id="common" format="{{.CommonFormat}}"/>
   </formats>
 </seelog>
-`
+`))
 
 // forwardLogMsg forwards the given message to the given logger making
 // sure the log level is kept.
@@ -112,24 +120,33 @@ func (r *throttledReceiver) AfterParse(args seelog.CustomReceiverInitArgs) error
 		return err
 	}
 	logFilePath := args.XmlCustomAttrs["file-path"]
-	format := "common"
-	if args.XmlCustomAttrs["use-json"] == "true" {
-		format = "json"
-	}
+	logToConsole := args.XmlCustomAttrs["console"] == "true"
 
-	cfgError := fmt.Sprintf(
-		loggerConfigError,
-		format,
-		logFilePath,
-		coreconfig.BuildJSONFormat(loggerName),
-		coreconfig.BuildCommonFormat(loggerName),
-	)
+	cfgError := templateString(templateError, struct {
+		UseJSON      bool
+		FilePath     string
+		Console      bool
+		JSONFormat   string
+		CommonFormat string
+	}{
+		FilePath:     logFilePath,
+		Console:      logToConsole,
+		UseJSON:      args.XmlCustomAttrs["use-json"] == "true",
+		JSONFormat:   coreconfig.BuildJSONFormat(loggerName),
+		CommonFormat: coreconfig.BuildCommonFormat(loggerName),
+	})
 	loggerError, err := seelog.LoggerFromConfigAsString(cfgError)
 	if err != nil {
 		return err
 	}
 
-	cfgForwarder := fmt.Sprintf(loggerConfigForwarder, logFilePath)
+	cfgForwarder := templateString(templateForwarder, struct {
+		FilePath string
+		Console  bool
+	}{
+		FilePath: logFilePath,
+		Console:  logToConsole,
+	})
 	loggerForwarder, err := seelog.LoggerFromConfigAsString(cfgForwarder)
 	if err != nil {
 		return err
@@ -186,65 +203,83 @@ func (r *throttledReceiver) Close() error {
 	return nil
 }
 
-// loggerConfig specifies the main agent configuration.
-const loggerConfig = `
-<seelog minlevel="%[1]s">
-  <outputs formatid="%[2]s">
+// templateMain defines the main logger template.
+var templateMain = template.Must(template.New("loggerMain").Parse(`
+<seelog minlevel="{{.MinLevel}}">
+  {{- if .UseJSON}}
+  <outputs formatid="json">
+  {{- else}}
+  <outputs formatid="common">
+  {{- end}}
     <filter levels="warn,error">
-      <custom name="throttled" data-interval="%[3]d" data-max-per-interval="10" data-use-json="%[4]v" data-file-path="%[5]s" />
+      <custom name="throttled" data-interval="{{if .Throttling}}10000000000{{else}}0{{end}}" data-console="{{if .Console}}true{{else}}false{{end}}" data-max-per-interval="10" data-use-json="{{.UseJSON}}" data-file-path="{{.FilePath}}" />
     </filter>
     <filter levels="trace,debug,info,critical">
+      {{- if .Console}}
       <console />
-      <rollingfile type="size" filename="%[5]s" maxsize="10000000" maxrolls="5" />
+      {{- end}}
+      <rollingfile type="size" filename="{{.FilePath}}" maxsize="10000000" maxrolls="5" />
     </filter>
   </outputs>
   <formats>
-    <format id="json" format="%[6]s"/>
-    <format id="common" format="%[7]s"/>
+    <format id="json" format="{{.JSONFormat}}"/>
+    <format id="common" format="{{.CommonFormat}}"/>
   </formats>
 </seelog>
-`
+`))
 
 // setupLogger sets up the agent's logger based on the given agent configuration.
 func setupLogger(cfg *config.AgentConfig) error {
-	logLevel := strings.ToLower(cfg.LogLevel)
-	if logLevel == "warning" {
-		// to match core agent:
-		// https://github.com/DataDog/datadog-agent/blob/6f2d901aeb19f0c0a4e09f149c7cc5a084d2f708/pkg/config/seelog.go#L74-L76
-		logLevel = "warn"
-	}
-	minLogLvl, ok := seelog.LogLevelFromString(logLevel)
-	if !ok {
-		minLogLvl = seelog.InfoLvl
-	}
-	var duration time.Duration
-	if cfg.LogThrottling {
-		duration = 10 * time.Second
-	}
-	format := "common"
-	if coreconfig.Datadog.GetBool("log_format_json") {
-		format = "json"
-	}
-
 	seelog.RegisterReceiver("throttled", &throttledReceiver{})
 
-	logConfig := fmt.Sprintf(
-		loggerConfig,
-		minLogLvl,
-		format,
-		duration,
-		format == "json",
-		cfg.LogFilePath,
-		coreconfig.BuildJSONFormat(loggerName),
-		coreconfig.BuildCommonFormat(loggerName),
-	)
-	logger, err := seelog.LoggerFromConfigAsString(logConfig)
+	logCfg := makeLoggerConfig(cfg)
+	logger, err := seelog.LoggerFromConfigAsString(logCfg)
 	if err != nil {
 		return err
 	}
 
 	seelog.ReplaceLogger(logger)
-	log.SetupDatadogLogger(logger, minLogLvl.String())
+	log.SetupDatadogLogger(logger, normalizeLogLevel(cfg.LogLevel))
 
 	return nil
+}
+
+func normalizeLogLevel(lvl string) string {
+	txt := strings.ToLower(lvl)
+	if txt == "warning" {
+		// to match core agent:
+		// https://github.com/DataDog/datadog-agent/blob/6f2d901aeb19f0c0a4e09f149c7cc5a084d2f708/pkg/config/seelog.go#L74-L76
+		txt = "warn"
+	}
+	level, ok := seelog.LogLevelFromString(txt)
+	if !ok {
+		level = seelog.InfoLvl
+	}
+	return level.String()
+}
+
+func makeLoggerConfig(cfg *config.AgentConfig) string {
+	return templateString(templateMain, struct {
+		MinLevel     string
+		Throttling   bool
+		UseJSON      bool
+		FilePath     string
+		Console      bool
+		JSONFormat   string
+		CommonFormat string
+	}{
+		MinLevel:     normalizeLogLevel(cfg.LogLevel),
+		Throttling:   cfg.LogThrottling,
+		UseJSON:      cfg.LogFormatJSON,
+		FilePath:     cfg.LogFilePath,
+		Console:      cfg.LogToConsole,
+		JSONFormat:   coreconfig.BuildJSONFormat(loggerName),
+		CommonFormat: coreconfig.BuildCommonFormat(loggerName),
+	})
+}
+
+func templateString(t *template.Template, data interface{}) string {
+	var buf bytes.Buffer
+	t.Execute(&buf, data)
+	return buf.String()
 }
