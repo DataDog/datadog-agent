@@ -15,7 +15,7 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
-def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False, major_version='7', arch="x64"):
+def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7', arch="x64"):
     """
     Build the process agent
     """
@@ -73,7 +73,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, puppy=False
     env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(puppy=puppy)
+    build_tags = get_default_build_tags(puppy=False, process=True)
 
     ## secrets is not supported on windows because the process agent still runs as
     ## root.  No matter what `get_default_build_tags()` returns, take secrets out.

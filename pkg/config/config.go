@@ -412,6 +412,7 @@ func initConfig(config Config) {
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
 	config.BindEnv("process_config.process_dd_url", "")
+	config.BindEnv("process_config.orchestrator_dd_url", "")
 
 	// Logs Agent
 
@@ -509,6 +510,9 @@ func initConfig(config Config) {
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
 
+	// Ochestrator explorer
+	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
+
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.enabled")
@@ -526,6 +530,7 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
 	config.SetKnown("process_config.additional_endpoints.*")
+	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
