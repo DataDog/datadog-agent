@@ -86,7 +86,23 @@ resource "aws_autoscaling_group" "eks-autoscaling-group" {
     propagate_at_launch = true
   }
 }
-
+//You can specify a recurrence schedule, in UTC, using the Unix cron syntax format
+resource "aws_autoscaling_schedule" "scale-down" {
+  scheduled_action_name = "scale-down"
+  min_size = 0
+  max_size = 0
+  desired_capacity = 0
+  recurrence = "00 23 * * *" #Mon-Sun at 12AM CET
+  autoscaling_group_name = "${aws_autoscaling_group.eks-autoscaling-group.name}"
+}
+resource "aws_autoscaling_schedule" "scale-up" {
+  scheduled_action_name = "scale-up"
+  min_size = 0
+  max_size = 2
+  desired_capacity = 2
+  recurrence = "00 07 * * *" #Mon-Sun at 08AM CET
+  autoscaling_group_name = "${aws_autoscaling_group.eks-autoscaling-group.name}"
+}
 //NOTE: At this point, your Kubernetes cluster will have running masters and worker nodes, however, the worker nodes will
 //not be able to join the Kubernetes cluster quite yet. The next section has the required Kubernetes configuration to
 //enable the worker nodes to join the cluster.
