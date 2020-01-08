@@ -171,7 +171,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			cLow, cOrch, cHigh := cTags.Compute()
 			entityID, err := kubelet.KubeContainerIDToTaggerEntityID(container.ID)
 			if err != nil {
-				log.Warnf("Unable to parse container: %s", err)
+				log.Warnf("Unable to parse container pName: %s / cName: %s / cId: %s / err: %s", pod.Metadata.Name, container.Name, container.ID, err)
 				continue
 			}
 			info := &TagInfo{
