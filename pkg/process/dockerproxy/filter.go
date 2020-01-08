@@ -124,24 +124,34 @@ func (f *Filter) discoverProxyIP(p *proxy, c *model.Connection) string {
 }
 
 func extractProxyTarget(p *process.FilledProcess) *proxy {
-	if len(p.Cmdline) == 0 || !strings.HasSuffix(p.Cmdline[0], "docker-proxy") {
+	if len(p.Cmdline) == 0 {
+		return nil
+	}
+
+	// Sometimes we get all arguments in the first element of the slice
+	cmd := p.Cmdline
+	if len(cmd) == 1 {
+		cmd = strings.Split(cmd[0], " ")
+	}
+
+	if !strings.HasSuffix(cmd[0], "docker-proxy") {
 		return nil
 	}
 
 	// Extract proxy target address
 	proxy := &proxy{pid: p.Pid}
-	for i := 0; i < len(p.Cmdline)-1; i++ {
-		switch p.Cmdline[i] {
+	for i := 0; i < len(cmd)-1; i++ {
+		switch cmd[i] {
 		case "-container-ip":
-			proxy.target.Ip = p.Cmdline[i+1]
+			proxy.target.Ip = cmd[i+1]
 		case "-container-port":
-			port, err := strconv.Atoi(p.Cmdline[i+1])
+			port, err := strconv.Atoi(cmd[i+1])
 			if err != nil {
 				return nil
 			}
 			proxy.target.Port = int32(port)
 		case "-proto":
-			name := p.Cmdline[i+1]
+			name := cmd[i+1]
 			proto, ok := model.ConnectionType_value[name]
 			if !ok {
 				return nil
