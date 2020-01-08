@@ -18,7 +18,6 @@ func init() {
 	diagnosis.Register("ECS Metadata availability", diagnoseECS)
 	diagnosis.Register("ECS Metadata with tags availability", diagnoseECSTags)
 	diagnosis.Register("ECS Fargate Metadata availability", diagnoseFargate)
-	diagnosis.Register("ECS Fargate Metadata with tags availability", diagnoseFargateTags)
 }
 
 // diagnose the ECS metadata API availability
@@ -64,17 +63,6 @@ func diagnoseFargate() error {
 		return err
 	}
 	log.Info("successfully retrieved task from Fargate metadata endpoint")
-
-	return nil
-}
-
-// diagnose the ECS Fargate metadata with tags API availability
-func diagnoseFargateTags() error {
-	if _, err := ecsmeta.V2().GetTaskWithTags(); err != nil {
-		log.Error(err)
-		return err
-	}
-	log.Info("successfully retrieved task with potential tags from Fargate metadata endpoint")
 
 	return nil
 }

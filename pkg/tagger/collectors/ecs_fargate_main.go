@@ -11,13 +11,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
-	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 )
 
 const (
@@ -27,12 +25,11 @@ const (
 
 // ECSFargateCollector polls the ecs metadata api.
 type ECSFargateCollector struct {
-	infoOut            chan<- []*TagInfo
-	expire             *taggerutil.Expire
-	lastExpire         time.Time
-	expireFreq         time.Duration
-	labelsAsTags       map[string]string
-	taskMetadataGetter func() (*v2.Task, error)
+	infoOut      chan<- []*TagInfo
+	expire       *taggerutil.Expire
+	lastExpire   time.Time
+	expireFreq   time.Duration
+	labelsAsTags map[string]string
 }
 
 // Detect tries to connect to the ECS metadata API
@@ -41,12 +38,6 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 
 	if !ecsutil.IsFargateInstance() {
 		return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
-	}
-
-	if config.Datadog.GetBool("ecs_collect_resource_tags_fargate") && ecsutil.HasFargateResourceTags() {
-		c.taskMetadataGetter = ecsmeta.V2().GetTaskWithTags
-	} else {
-		c.taskMetadataGetter = ecsmeta.V2().GetTask
 	}
 
 	c.infoOut = out
@@ -64,7 +55,7 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 
 // Pull looks for new containers and computes deletions
 func (c *ECSFargateCollector) Pull() error {
-	taskMeta, err := c.taskMetadataGetter()
+	taskMeta, err := ecsmeta.V2().GetTask()
 	if err != nil {
 		return err
 	}
@@ -96,7 +87,7 @@ func (c *ECSFargateCollector) Pull() error {
 // Fetch parses tags for a container on cache miss. We avoid races with Pull,
 // we re-parse the whole list, but don't send updates on other containers.
 func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, []string, error) {
-	taskMeta, err := c.taskMetadataGetter()
+	taskMeta, err := ecsmeta.V2().GetTask()
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}

@@ -1231,12 +1231,6 @@ api_key:
 #
 # ecs_collect_resource_tags_ec2: false
 
-## @param ecs_collect_resource_tags_fargate - boolean - optional - default: false
-## The Agent can collect resource tags from the metadata API for tasks scheduled
-## with the Fargate launch type.
-#
-# ecs_collect_resource_tags_fargate: false
-
 {{ end -}}
 {{- if .CRI }}
 
