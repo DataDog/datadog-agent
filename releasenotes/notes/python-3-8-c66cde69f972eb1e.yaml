@@ -1,6 +1,6 @@
 # Each section from every release note is combined when the
 # CHANGELOG.rst is rendered. Therefore, the text should be worded in a way
-# it does not depend on any information only available in another
+# that does not depend on any information available in another
 # section. This may mean repeating some details, but each section
 # must be readable independently of the other.
 #
