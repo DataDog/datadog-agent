@@ -32,6 +32,7 @@
       {{end}}
       <br>Go Version: {{.go_version}}
       <br>Python Version: {{.python_version}}
+      <br>Build arch: {{.build_arch}}
     </span>
   </div>
 
@@ -88,6 +89,15 @@
       {{- end }}
       {{- end }}
 
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">Metadata</span>
+    <span class="stat_data">
+    {{- range $key, $value := .agent_metadata }}
+      {{ $key }}: {{ $value }}
+    {{- end }}
     </span>
   </div>
 
@@ -206,10 +216,16 @@
 
         Logs Agent is not running </br>
       {{- end }}
+      {{- if .endpoints }}
+
+        {{- range $endpoint := .endpoints }}
+          {{ $endpoint }}<br>
+        {{- end }}
+      {{- end }}
       {{- if .metrics }}
 
         {{- range $metric_name, $metric_value := .metrics }}
-          {{$metric_name}}: {{$metric_value}}
+          {{$metric_name}}: {{$metric_value}}<br>
         {{- end }}
       {{- end }}
       {{- if .errors }}

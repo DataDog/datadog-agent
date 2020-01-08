@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build docker
 
@@ -46,7 +46,11 @@ type ECSService struct {
 	taskFamily    string
 	taskVersion   string
 	creationTime  integration.CreationTime
+	checkNames    []string
 }
+
+// Make sure ECSService implements the Service interface
+var _ Service = &ECSService{}
 
 func init() {
 	Register("ecs", NewECSListener)
@@ -149,7 +153,7 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 }
 
-func (l *ECSListener) createService(c metadata.Container, firstRun bool) (ECSService, error) {
+func (l *ECSListener) createService(c metadata.ContainerMetadata, firstRun bool) (ECSService, error) {
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before
@@ -169,6 +173,11 @@ func (l *ECSListener) createService(c metadata.Container, firstRun bool) (ECSSer
 	image := c.Image
 	labels := c.Labels
 	svc.ADIdentifiers = ComputeContainerServiceIDs(svc.GetEntity(), image, labels)
+	var err error
+	svc.checkNames, err = getCheckNamesFromLabels(labels)
+	if err != nil {
+		log.Errorf("Error getting check names from docker labels on container %s: %v", c.DockerID, err)
+	}
 
 	// Host
 	ips := make(map[string]string)
@@ -248,4 +257,9 @@ func (s *ECSService) GetCreationTime() integration.CreationTime {
 
 func (s *ECSService) IsReady() bool {
 	return true
+}
+
+// GetCheckNames returns slice check names defined in docker labels
+func (s *ECSService) GetCheckNames() []string {
+	return s.checkNames
 }

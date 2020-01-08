@@ -1,24 +1,24 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2019 Datadog, Inc.
+// Copyright 2019-2020 Datadog, Inc.
 
 package metadata
 
 // TaskMetadata is the info returned by the ECS task metadata API
 type TaskMetadata struct {
-	ClusterName   string             `json:"Cluster"`
-	Containers    []Container        `json:"Containers"`
-	KnownStatus   string             `json:"KnownStatus"`
-	TaskARN       string             `json:"TaskARN"`
-	Family        string             `json:"Family"`
-	Version       string             `json:"Revision"`
-	Limits        map[string]float64 `json:"Limits"`
-	DesiredStatus string             `json:"DesiredStatus"`
+	ClusterName   string              `json:"Cluster"`
+	Containers    []ContainerMetadata `json:"Containers"`
+	KnownStatus   string              `json:"KnownStatus"`
+	TaskARN       string              `json:"TaskARN"`
+	Family        string              `json:"Family"`
+	Version       string              `json:"Revision"`
+	Limits        map[string]float64  `json:"Limits"`
+	DesiredStatus string              `json:"DesiredStatus"`
 }
 
-// Container is the representation of a container as exposed by the ECS metadata API
-type Container struct {
+// ContainerMetadata is the representation of a container as exposed by the ECS metadata API
+type ContainerMetadata struct {
 	Name          string            `json:"Name"`
 	Limits        map[string]uint64 `json:"Limits"`
 	ImageID       string            `json:"ImageID,omitempty"`

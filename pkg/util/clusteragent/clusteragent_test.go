@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package clusteragent
 
@@ -107,6 +107,13 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if token != fmt.Sprintf("Bearer %s", d.token) {
 		log.Errorf("wrong token %s", token)
 		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	podIP := r.Header.Get(RealIPHeader)
+	if podIP != clcRunnerIP {
+		log.Errorf("wrong clc runner IP: %s", podIP)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -228,6 +235,7 @@ const (
 	clusterAgentServiceHost = clusterAgentServiceName + "_SERVICE_HOST"
 	clusterAgentServicePort = clusterAgentServiceName + "_SERVICE_PORT"
 	clusterAgentTokenValue  = "01234567890123456789012345678901"
+	clcRunnerIP             = "10.92.1.39"
 )
 
 func (suite *clusterAgentSuite) SetupTest() {
@@ -235,6 +243,7 @@ func (suite *clusterAgentSuite) SetupTest() {
 	mockConfig.Set("cluster_agent.auth_token", clusterAgentTokenValue)
 	mockConfig.Set("cluster_agent.url", "")
 	mockConfig.Set("cluster_agent.kubernetes_service_name", "")
+	mockConfig.Set("clc_runner_host", clcRunnerIP)
 	os.Unsetenv(clusterAgentServiceHost)
 	os.Unsetenv(clusterAgentServicePort)
 }

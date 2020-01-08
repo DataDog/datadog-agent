@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package app
 
@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -129,6 +130,10 @@ var checkCmd = &cobra.Command{
 		s := serializer.NewSerializer(common.Forwarder)
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+
+		if config.Datadog.GetBool("inventories_enabled") {
+			metadata.SetupInventoriesExpvar(common.AC, common.Coll)
+		}
 
 		allConfigs := common.AC.GetAllConfigs()
 
@@ -285,8 +290,9 @@ var checkCmd = &cobra.Command{
 				}
 
 				instanceData := map[string]interface{}{
-					"aggregator": aggregatorData,
-					"runner":     runnerData,
+					"aggregator":  aggregatorData,
+					"runner":      runnerData,
+					"inventories": collectorData["inventories"],
 				}
 				instancesData = append(instancesData, instanceData)
 			} else if profileMemory {

@@ -1,4 +1,23 @@
+
+/**
+ * We need to pull in this header, which is depended upon by ptrace.h
+ * and then re-define asm_volatile_goto which is unsupported in
+ * the version of clang we commonly use to build.
+ */
+#include <linux/compiler.h>
+
 #include <linux/kconfig.h>
+
+/* clang 8 does not support "asm volatile goto" yet.
+ * So redefine asm_volatile_goto to some invalid asm code.
+ * If asm_volatile_goto is actually used by the bpf program,
+ * a compilation error will appear.
+ */
+#ifdef asm_volatile_goto
+#undef asm_volatile_goto
+#endif
+#define asm_volatile_goto(x...) asm volatile("invalid use of asm_volatile_goto")
+#pragma clang diagnostic ignored "-Wunused-label"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-variable-sized-type-not-at-end"
@@ -522,8 +541,8 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     return handle_message(&t, size, 0);
 }
 
-SEC("kprobe/tcp_sendmsg/rhel")
-int kprobe__tcp_sendmsg__rhel(struct pt_regs* ctx) {
+SEC("kprobe/tcp_sendmsg/pre_4_1_0")
+int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -533,7 +552,7 @@ int kprobe__tcp_sendmsg__rhel(struct pt_regs* ctx) {
     if (status == NULL) {
         return 0;
     }
-    log_debug("kprobe/tcp_sendmsg/rhel: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/tcp_sendmsg/pre_4_1_0: pid_tgid: %d, size: %d\n", pid_tgid, size);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, status, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -663,8 +682,8 @@ int kprobe__udp_sendmsg(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/udp_sendmsg/rhel")
-int kprobe__udp_sendmsg__rhel(struct pt_regs* ctx) {
+SEC("kprobe/udp_sendmsg/pre_4_1_0")
+int kprobe__udp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     size_t size = (size_t)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -680,7 +699,7 @@ int kprobe__udp_sendmsg__rhel(struct pt_regs* ctx) {
         return 0;
     }
 
-    log_debug("kprobe/udp_sendmsg/rhel: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/udp_sendmsg/pre_4_1_0: pid_tgid: %d, size: %d\n", pid_tgid, size);
     handle_message(&t, size, 0);
 
     return 0;
@@ -705,14 +724,14 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/udp_recvmsg/rhel")
-int kprobe__udp_recvmsg_rhel(struct pt_regs* ctx) {
+SEC("kprobe/udp_recvmsg/pre_4_1_0")
+int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Store pointer to the socket using the pid/tgid
     bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &sk, BPF_ANY);
-    log_debug("kprobe/udp_recvmsg/rhel: pid_tgid: %d\n", pid_tgid);
+    log_debug("kprobe/udp_recvmsg/pre_4_1_0: pid_tgid: %d\n", pid_tgid);
 
     return 0;
 }

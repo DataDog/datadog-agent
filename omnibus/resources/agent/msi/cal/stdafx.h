@@ -26,6 +26,7 @@
 #include <sstream>
 #include <map>
 #include <sstream>
+#include <filesystem>
 
 // WiX Header Files:
 #include <wcautil.h>

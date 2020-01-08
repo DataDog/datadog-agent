@@ -88,6 +88,7 @@ type AgentConfig struct {
 	ExcludedDestinationConnections map[string][]string
 	EnableConntrack                bool
 	ConntrackShortTermBufferSize   int
+	ConntrackMaxStateSize          int
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
@@ -184,6 +185,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		EnableConntrack:              true,
 		ClosedChannelSize:            500,
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
+		ConntrackMaxStateSize:        defaultMaxTrackedConnections,
 
 		// Check config
 		EnabledChecks: enabledChecks,

@@ -22,7 +22,7 @@ ruby_block 'datadog-api-key-unset' do
   block do
     raise "Set ['datadog']['api_key'] as an attribute or on the node's run_state to configure this node's Datadog Agent."
   end
-  only_if { Chef::Datadog.api_key(node).nil? }
+  only_if { node['dd-agent-import-conf']['api_key'].nil? }
 end
   
 is_windows = node['platform_family'] == 'windows'
@@ -32,7 +32,7 @@ is_windows = node['platform_family'] == 'windows'
 # To add integration-specific configurations, add 'datadog::config_name' to
 # the node's run_list and set the relevant attributes
 #
-agent6_config_file = ::File.join(node['datadog']['agent6_config_dir'], 'datadog.yaml')
+agent6_config_file = ::File.join(node['dd-agent-import-conf']['agent6_config_dir'], 'datadog.yaml')
 
 # Common configuration
 service_provider = nil
@@ -44,17 +44,17 @@ if (((node['platform'] == 'amazon' || node['platform_family'] == 'amazon') && no
 end
 
 service 'datadog-agent-6' do
-  service_name node['datadog']['agent_name']
+  service_name node['dd-agent-import-conf']['agent_name']
   action :nothing
   provider service_provider unless service_provider.nil?
   if is_windows
     supports :restart => true, :start => true, :stop => true
-    restart_command "powershell restart-service #{node['datadog']['agent_name']} -Force"
-    stop_command "powershell stop-service #{node['datadog']['agent_name']} -Force"
+    restart_command "powershell restart-service #{node['dd-agent-import-conf']['agent_name']} -Force"
+    stop_command "powershell stop-service #{node['dd-agent-import-conf']['agent_name']} -Force"
   else
     supports :restart => true, :status => true, :start => true, :stop => true
   end
-  subscribes :restart, "template[#{agent6_config_file}]", :delayed unless node['datadog']['agent_start'] == false
+  subscribes :restart, "template[#{agent6_config_file}]", :delayed unless node['dd-agent-import-conf']['agent_start'] == false
   # HACK: the restart can fail when we hit systemd's restart limits (by default, 5 starts every 10 seconds)
   # To workaround this, retry once after 5 seconds, and a second time after 10 seconds
   retries 2

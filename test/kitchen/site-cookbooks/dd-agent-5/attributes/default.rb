@@ -1,5 +1,5 @@
 default['dd-agent-5']['api_key'] = nil
-default['datadog']['url'] = nil
+default['dd-agent-5']['url'] = nil
 
 if node['platform_family'] == 'windows'
   default['dd-agent-5']['agent_package_retries'] = nil

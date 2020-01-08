@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker,kubelet
 
@@ -23,11 +23,14 @@ import (
 // running in kubernetes
 type DockerKubeletService struct {
 	DockerService
-	kubeUtil *kubelet.KubeUtil
+	kubeUtil kubelet.KubeUtilInterface
 	Hosts    map[string]string
 	Ports    []ContainerPort
 	sync.RWMutex
 }
+
+// Make sure DockerKubeletService implements the Service interface
+var _ Service = &DockerKubeletService{}
 
 // getPod wraps KubeUtil init and pod lookup for both public methods.
 func (s *DockerKubeletService) getPod() (*kubelet.Pod, error) {
@@ -104,4 +107,10 @@ func (s *DockerKubeletService) IsReady() bool {
 	}
 
 	return kubelet.IsPodReady(pod)
+}
+
+// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
+// DockerKubeletService doesn't implement this method
+func (s *DockerKubeletService) GetCheckNames() []string {
+	return nil
 }

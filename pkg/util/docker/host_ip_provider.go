@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -41,16 +41,10 @@ type hostIPProvider struct {
 }
 
 func getDockerHostIPsUncached() []string {
-	var isHostMode bool
-	if mode, err := GetAgentContainerNetworkMode(); err != nil && mode == "host" {
-		isHostMode = true
-	}
-
-	var providers []hostIPProvider
-	providers = append(providers, hostIPProvider{"config", getHostIPsFromConfig})
-	providers = append(providers, hostIPProvider{"ec2 metadata endpoint", ec2.GetLocalIPv4})
-	if isHostMode {
-		providers = append(providers, hostIPProvider{"/proc/net/route", containers.DefaultHostIPs})
+	providers := []hostIPProvider{
+		{"config", getHostIPsFromConfig},
+		{"ec2 metadata endpoint", ec2.GetLocalIPv4},
+		{"/proc/net/route", containers.DefaultHostIPs},
 	}
 
 	return tryProviders(providers)

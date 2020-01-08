@@ -15,7 +15,7 @@ spec:
     spec:
       serviceAccountName: datadog-agent
       containers:
-      - image: datadog/agent:latest
+      - image: datadog/agent:7
         imagePullPolicy: Always
         name: datadog-agent
         env:

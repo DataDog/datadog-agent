@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build !windows
 
@@ -63,7 +63,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	sleepDuration := 20 * time.Millisecond
 	suite.s = NewScanner(config.NewLogSources(), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
-	status.CreateSources([]*config.LogSource{suite.source})
+	status.InitStatus(config.CreateSources([]*config.LogSource{suite.source}))
 	suite.s.scan()
 }
 
@@ -216,7 +216,7 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	scanner.activeSources = append(scanner.activeSources, source)
 	status.Clear()
-	status.CreateSources([]*config.LogSource{source})
+	status.InitStatus(config.CreateSources([]*config.LogSource{source}))
 	defer status.Clear()
 
 	// create file
@@ -268,7 +268,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	scanner.activeSources = append(scanner.activeSources, source)
 	status.Clear()
-	status.CreateSources([]*config.LogSource{source})
+	status.InitStatus(config.CreateSources([]*config.LogSource{source}))
 	defer status.Clear()
 
 	// test at scan

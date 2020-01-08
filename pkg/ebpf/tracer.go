@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -37,9 +35,8 @@ type Tracer struct {
 
 	config *Config
 
-	state          NetworkState
-	portMapping    *PortMapping
-	localAddresses map[util.Address]struct{}
+	state       NetworkState
+	portMapping *PortMapping
 
 	conntracker netlink.Conntracker
 
@@ -96,18 +93,20 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
 	}
 
-	// check if current platform is RHEL or CentOS because it affects what kprobe are we going to enable
-	isRHELOrCentos, err := isRHELOrCentOS()
+	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
+	currKernelVersion, err := CurrentKernelVersion()
 	if err != nil {
-		// if the platform couldn't be determined, treat it as non RHEL case
-		log.Warn("could not detect the platform, will use kprobes from kernel version > 4.1.x")
+		// if the platform couldn't be determined, treat it as new kernel case
+		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
 	}
 
-	if isRHELOrCentos {
-		log.Info("detected platform as RHEL/CentOS, switch to use kprobes from kernel version 3.3.x")
+	// check to see if current kernel is earlier than version 4.1.0
+	pre410Kernel := isPre410Kernel(currKernelVersion)
+	if pre410Kernel {
+		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
 	}
 
-	enableSocketFilter := config.DNSInspection && !isRHELOrCentos
+	enableSocketFilter := config.DNSInspection && !pre410Kernel
 	err = m.Load(SectionsFromConfig(config, enableSocketFilter))
 	if err != nil {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
@@ -132,7 +131,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledKProbes(isRHELOrCentos)
+	enabledProbes := config.EnabledKProbes(pre410Kernel)
 
 	for k := range m.IterKprobes() {
 		probeName := KProbeName(k.Name)
@@ -170,7 +169,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize, int(config.MaxTrackedConnections)); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize, config.ConntrackMaxStateSize); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
@@ -185,7 +184,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		state:          state,
 		portMapping:    portMapping,
 		reverseDNS:     reverseDNS,
-		localAddresses: readLocalAddresses(),
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
@@ -650,54 +648,12 @@ func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionD
 	if conn.Type == UDP {
 		return NONE
 	}
-	sourceLocal := t.isLocalAddress(conn.Source)
-	destLocal := t.isLocalAddress(conn.Dest)
 
-	if sourceLocal && destLocal {
-		return LOCAL
-	}
-
-	if sourceLocal && t.portMapping.IsListening(conn.SPort) {
+	if t.portMapping.IsListening(conn.SPort) {
 		return INCOMING
 	}
 
 	return OUTGOING
-}
-
-func (t *Tracer) isLocalAddress(address util.Address) bool {
-	_, ok := t.localAddresses[address]
-	return ok
-}
-
-func readLocalAddresses() map[util.Address]struct{} {
-	addresses := make(map[util.Address]struct{}, 0)
-
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		_ = log.Errorf("error reading network interfaces: %s", err)
-		return addresses
-	}
-
-	for _, intf := range interfaces {
-		addrs, err := intf.Addrs()
-
-		if err != nil {
-			_ = log.Errorf("error reading interface %s addresses: %s", intf.Name, err)
-			continue
-		}
-
-		for _, addr := range addrs {
-			switch v := addr.(type) {
-			case *net.IPNet:
-				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
-			case *net.IPAddr:
-				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
-			}
-		}
-
-	}
-
-	return addresses
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)

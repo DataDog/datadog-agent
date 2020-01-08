@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -19,16 +19,16 @@ import (
 )
 
 type mockStore struct {
-	mockListAllExternalMetricValues func() ([]ExternalMetricValue, error)
+	mockListAllExternalMetricValues func() (*MetricsBundle, error)
 	metrics                         []ExternalMetricValue
 }
 
-func (m *mockStore) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
+func (m *mockStore) ListAllExternalMetricValues() (*MetricsBundle, error) {
 	return m.mockListAllExternalMetricValues()
 }
-func (m *mockStore) SetExternalMetricValues([]ExternalMetricValue) error    { return nil }
-func (m *mockStore) DeleteExternalMetricValues([]ExternalMetricValue) error { return nil }
-func (m *mockStore) GetMetrics() (*MetricsBundle, error)                    { return nil, nil }
+func (m *mockStore) SetExternalMetricValues([]ExternalMetricValue) error { return nil }
+func (m *mockStore) DeleteExternalMetricValues(*MetricsBundle) error     { return nil }
+func (m *mockStore) GetMetrics() (*MetricsBundle, error)                 { return nil, nil }
 
 type metricCompare struct {
 	name      provider.ExternalMetricInfo

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package tcp
 
@@ -104,7 +104,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 			log.Warn(err)
 			continue
 		}
-		log.Debug("connected to %v", cm.address())
+		log.Debugf("connected to %v", cm.address())
 
 		if cm.endpoint.UseSSL {
 			sslConn := tls.Client(conn, &tls.Config{

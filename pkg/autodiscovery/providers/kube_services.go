@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,7 +62,7 @@ func NewKubeServiceConfigProvider(config config.ConfigurationProviders) (ConfigP
 
 // String returns a string representation of the KubeServiceConfigProvider
 func (k *KubeServiceConfigProvider) String() string {
-	return KubeServices
+	return names.KubeServices
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them

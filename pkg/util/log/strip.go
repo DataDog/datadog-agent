@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package log
 
@@ -82,6 +82,18 @@ func matchCert() *regexp.Regexp {
 	return regexp.MustCompile(
 		`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`,
 	)
+}
+
+// AddStrippedKeys allows configuration keys cleaned up
+func AddStrippedKeys(strippedKeys []string) {
+	if len(strippedKeys) > 0 {
+		configReplacer := Replacer{
+			Regex: matchYAMLKey(fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|"))),
+			Hints: strippedKeys,
+			Repl:  []byte(`$1 ********`),
+		}
+		singleLineReplacers = append(singleLineReplacers, configReplacer)
+	}
 }
 
 // CredentialsCleanerFile scrubs credentials from file in path

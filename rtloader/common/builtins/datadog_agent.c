@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2019 Datadog, Inc.
+// Copyright 2019-2020 Datadog, Inc.
 #include "datadog_agent.h"
 #include "cgo_free.h"
 #include "rtloader_mem.h"
@@ -571,6 +571,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args)
         PyObject *key = NULL, *value = NULL;
         if (!PyDict_Next(dict, &pos, &key, &value)) {
             _free(hostname);
+            hostname = NULL;
             continue;
         }
 

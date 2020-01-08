@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package log
 
@@ -239,6 +239,20 @@ func TestSNMPConfig(t *testing.T) {
 	assertClean(t,
 		`   community_string:   'password'   `,
 		`   community_string: ********`)
+}
+
+func TestYamlConfig(t *testing.T) {
+	contents := `foobar: baz`
+	cleaned, err := CredentialsCleanerBytes([]byte(contents))
+	assert.Nil(t, err)
+	cleanedString := string(cleaned)
+
+	// Sanity check
+	assert.Equal(t, contents, cleanedString)
+
+	AddStrippedKeys([]string{"foobar"})
+
+	assertClean(t, contents, `foobar: ********`)
 }
 
 func TestCertConfig(t *testing.T) {

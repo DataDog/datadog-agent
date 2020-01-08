@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package config
 
@@ -98,6 +98,21 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
+// MappingProfile represent a group of mappings
+type MappingProfile struct {
+	Name     string          `mapstructure:"name"`
+	Prefix   string          `mapstructure:"prefix"`
+	Mappings []MetricMapping `mapstructure:"mappings"`
+}
+
+// MetricMapping represent one mapping rule
+type MetricMapping struct {
+	Match     string            `mapstructure:"match"`
+	MatchType string            `mapstructure:"match_type"`
+	Name      string            `mapstructure:"name"`
+	Tags      map[string]string `mapstructure:"tags"`
+}
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -166,6 +181,11 @@ func initConfig(config Config) {
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
 	config.BindEnvAndSetDefault("hostname_fqdn", false)
+
+	// When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
+	// canonical hostname, otherwise the instance-id is used as canonical hostname.
+	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
+
 	config.BindEnvAndSetDefault("cluster_name", "")
 
 	// secrets backend
@@ -185,6 +205,9 @@ func initConfig(config Config) {
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
+
+	// Yaml keys which values are stripped from flare
+	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
@@ -214,6 +237,7 @@ func initConfig(config Config) {
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", false)
 
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
@@ -250,9 +274,9 @@ func initConfig(config Config) {
 	// After this happens we flush this buffer of datagrams to a queue for processing. The size of this queue
 	// is `dogstatsd_queue_size`.
 	config.BindEnvAndSetDefault("dogstatsd_buffer_size", 1024*8)
-	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 512)
+	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_size", 32)
 	config.BindEnvAndSetDefault("dogstatsd_packet_buffer_flush_timeout", 100*time.Millisecond)
-	config.BindEnvAndSetDefault("dogstatsd_queue_size", 100)
+	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
@@ -264,6 +288,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
+	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
+	config.SetKnown("dogstatsd_mapper_profiles")
+
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
@@ -348,6 +375,7 @@ func initConfig(config Config) {
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
+	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"})
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
@@ -410,6 +438,9 @@ func initConfig(config Config) {
 	config.BindEnv("logs_config.processing_rules")
 	// enforce the agent to use files to collect container logs on kubernetes environment
 	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
+	// additional config to ensure initial logs are tagged with kubelet tags
+	// wait (seconds) for tagger before start fetching tags of new AD services
+	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
 
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
@@ -444,10 +475,11 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
 	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)          // value in seconds. Frequency of batch calls to the ConfigMap persistent store (GlobalStore) by the Leader.
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)            // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
-	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                // value in seconds. 4 cycles from the HPA controller (up to Kubernetes 1.11) is enough to consider a metric stale
+	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
 	config.BindEnvAndSetDefault("external_metrics.aggregator", "avg")                    // aggregator used for the external metrics. Choose from [avg,sum,max,min]
 	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)           // Window to query to get the metric from Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.rollup", 30)                  // Bucket size to circumvent time aggregation side effects.
+	config.BindEnvAndSetDefault("external_metrics_provider.wpa_controller", false)       // Activates the controller for Watermark Pod Autoscalers.
 	config.BindEnvAndSetDefault("kubernetes_event_collection_timeout", 100)              // timeout between two successful event collections in milliseconds.
 	config.BindEnvAndSetDefault("kubernetes_informers_resync_period", 60*5)              // value in seconds. Default to 5 minutes
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30) // value in seconds
@@ -470,7 +502,7 @@ func initConfig(config Config) {
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")
 	config.SetKnown("config_providers")
-	config.SetKnown("clustername")
+	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
 	config.SetKnown("additional_endpoints.*")
 	config.SetKnown("proxy.http")
@@ -564,7 +596,10 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.receiver_timeout")
 	config.SetKnown("apm_config.watchdog_check_delay")
 
+	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
+	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
+	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
 	setAssetFs(config)
 }
@@ -994,4 +1029,20 @@ func setNumWorkers(config Config) {
 
 	// update config with the actual effective number of workers
 	config.Set("check_runners", numWorkers)
+}
+
+// GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
+func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
+	return getDogstatsdMappingProfilesConfig(Datadog)
+}
+
+func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) {
+	var mappings []MappingProfile
+	if config.IsSet("dogstatsd_mapper_profiles") {
+		err := config.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
+		if err != nil {
+			return []MappingProfile{}, log.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
+		}
+	}
+	return mappings, nil
 }

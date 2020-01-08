@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package autodiscovery
 
@@ -18,6 +18,7 @@ type dummyService struct {
 	Pid           int
 	Hostname      string
 	CreationTime  integration.CreationTime
+	CheckNames    []string
 }
 
 // GetEntity returns the service entity name
@@ -68,4 +69,9 @@ func (s *dummyService) GetCreationTime() integration.CreationTime {
 // IsReady returns if the service is ready
 func (s *dummyService) IsReady() bool {
 	return true
+}
+
+// GetCheckNames returns slice of check names defined in docker labels
+func (s *dummyService) GetCheckNames() []string {
+	return s.CheckNames
 }

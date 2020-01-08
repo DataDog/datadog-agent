@@ -20,8 +20,8 @@ fi
 if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
   export AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text)
 fi
-if [ -z ${CI_PIPELINE_ID+x} ]; then
-  export CI_PIPELINE_ID='none'
+if [ -z ${DD_PIPELINE_ID+x} ]; then
+  export DD_PIPELINE_ID='none'
 fi
 
 if [ -z ${AZURE_SUBSCRIPTION_ID+x} -o -z ${AZURE_TENANT_ID+x} -o -z ${AZURE_CLIENT_SECRET+x} -o -z ${AZURE_CLIENT_ID+x} ]; then
@@ -56,7 +56,7 @@ done
 if [ ${CLEAN_ALL+x} ]; then
   vms=$(az vm list --query "[?tags.dd_agent_testing=='dd_agent_testing']|[*].[id]" -o tsv)
 else
-  vms=$(az vm list --query "[?tags.dd_agent_testing=='dd_agent_testing']|[?tags.pipeline_id=='$CI_PIPELINE_ID']|[*].[id]" -o tsv)
+  vms=$(az vm list --query "[?tags.dd_agent_testing=='dd_agent_testing']|[?tags.pipeline_id=='$DD_PIPELINE_ID']|[*].[id]" -o tsv)
 fi
 
 for vm in $vms; do

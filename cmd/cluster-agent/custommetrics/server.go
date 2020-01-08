@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -120,7 +120,7 @@ func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	)
 	serverConfig := genericapiserver.NewConfig(codecs)
 
-	err := o.SecureServing.ApplyTo(serverConfig)
+	err := o.SecureServing.ApplyTo(&serverConfig.SecureServing, &serverConfig.LoopbackClientConfig)
 	if err != nil {
 		log.Errorf("Error while converting SecureServing type %v", err)
 		return nil, err

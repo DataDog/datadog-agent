@@ -8,7 +8,7 @@
 #
 require 'uri'
 
-if node['platform_family'] == 'windows' && node['dd-agent-install']['agent6']
+if node['platform_family'] == 'windows' && node['dd-agent-install']['agent_major_version'].to_i > 5
   include_recipe 'dd-agent-install::_install_windows'
 else
   if node['platform_family'] == 'debian'

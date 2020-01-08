@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -42,11 +42,10 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 	}
 	// Start watcher with the most up to date RV
 	evWatcher, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).Watch(metav1.ListOptions{
-		Watch:                true,
-		ResourceVersion:      resVer,
-		Limit:                eventCardinalityLimit,
-		IncludeUninitialized: false,
-		FieldSelector:        filter,
+		Watch:           true,
+		ResourceVersion: resVer,
+		Limit:           eventCardinalityLimit,
+		FieldSelector:   filter,
 	})
 	if err != nil {
 		return added, resVer, lastListTime, err
@@ -137,10 +136,9 @@ func diffEvents(latestStoredRV int, fullList []*v1.Event) []*v1.Event {
 
 func (c *APIClient) listForEventResync(eventReadTimeout int64, eventCardinalityLimit int64, filter string) (added []*v1.Event, resVer string, lastListTime time.Time, err error) {
 	evList, err := c.Cl.CoreV1().Events(metav1.NamespaceAll).List(metav1.ListOptions{
-		TimeoutSeconds:       &eventReadTimeout,
-		Limit:                eventCardinalityLimit,
-		IncludeUninitialized: false,
-		FieldSelector:        filter,
+		TimeoutSeconds: &eventReadTimeout,
+		Limit:          eventCardinalityLimit,
+		FieldSelector:  filter,
 	})
 	if err != nil {
 		log.Errorf("Error Listing events: %s", err.Error())

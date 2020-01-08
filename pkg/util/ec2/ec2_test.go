@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package ec2
 
@@ -31,6 +31,18 @@ func TestIsDefaultHostname(t *testing.T) {
 		assert.Equal(t, prefix, IsDefaultHostname("EC2AMAZ-FOO"))
 		assert.False(t, IsDefaultHostname(""))
 	}
+}
+
+func TestIsDefaultHostnameForIntake(t *testing.T) {
+	const key = "ec2_use_windows_prefix_detection"
+	prefixDetection := config.Datadog.GetBool(key)
+	config.Datadog.SetDefault(key, true)
+	defer config.Datadog.SetDefault(key, prefixDetection)
+
+	assert.True(t, IsDefaultHostnameForIntake("IP-FOO"))
+	assert.True(t, IsDefaultHostnameForIntake("domuarigato"))
+	assert.False(t, IsDefaultHostnameForIntake("EC2AMAZ-FOO"))
+	assert.True(t, IsDefaultHostname("EC2AMAZ-FOO"))
 }
 
 func TestGetInstanceID(t *testing.T) {
@@ -188,7 +200,7 @@ func TestGetLocalIPv4(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.RequestURI {
-		case "/meta-data/local-ipv4":
+		case "/local-ipv4":
 			io.WriteString(w, ip)
 		default:
 			w.WriteHeader(http.StatusNotFound)

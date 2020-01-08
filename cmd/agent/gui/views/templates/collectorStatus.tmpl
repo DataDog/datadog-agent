@@ -32,6 +32,14 @@
                 Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
                 Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
                 Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
+                {{- if index $.Stats.inventories .CheckID }}
+                Metadata:<br>
+                <span class="stat_subdata">
+                  {{- range $k, $v := index $.Stats.inventories .CheckID }}
+                    {{ $k }}: {{ $v }}<br>
+                  {{- end }}
+                </span>
+                {{- end }}
               {{- if .LastError}}
                 <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
                       {{lastErrorTraceback .LastError -}}
@@ -49,6 +57,21 @@
   </div>
 
   {{- with .pyLoaderStats }}
+    {{- if .Py3Warnings }}
+    <div class="stat">
+      <span class="stat_title">Python 3 Linter Warnings</span>
+      <span class="stat_data">
+      {{ range $checkname, $warnings :=  .Py3Warnings }}
+          <span class="stat_subtitle">{{$checkname}}</span>
+          <span class="stat_subdata">
+            {{- range $idx, $warning := $warnings}}
+              {{pythonLoaderError $warning}}<br>
+            {{- end }}
+          </span>
+      {{- end}}
+      </span>
+    </div>
+    {{- end }}
     {{- if .ConfigureErrors }}
     <div class="stat">
       <span class="stat_title">Check Initialization Errors</span>

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -298,7 +297,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	}
 }
 
-func (suite *KubeletTestSuite) TestGetHostname() {
+func (suite *KubeletTestSuite) TestGetNodename() {
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -317,22 +316,9 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	require.NotNil(suite.T(), kubeutil)
 	kubelet.dropRequests() // Throwing away first GETs
 
-	hostname, err := kubeutil.GetHostname()
+	hostname, err := kubeutil.GetNodename()
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "my-node-name", hostname)
-
-	// Testing hostname when a cluster name is set
-	var testClusterName = "Laika"
-	mockConfig.Set("cluster_name", testClusterName)
-	clustername.ResetClusterName() // reset state as clustername was already read
-
-	// defer a reset of the state so that future hostname fetches are not impacted
-	defer mockConfig.Set("cluster_name", "")
-	defer clustername.ResetClusterName()
-
-	hostname, err = kubeutil.GetHostname()
-	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "my-node-name-"+testClusterName, hostname)
 
 	select {
 	case r := <-kubelet.Requests:
@@ -341,25 +327,6 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	case <-time.After(2 * time.Second):
 		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
-}
-
-func (suite *KubeletTestSuite) TestHostnameProvider() {
-	mockConfig := config.Mock()
-
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
-	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
-	require.Nil(suite.T(), err)
-
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubelet_tls_verify", false)
-	mockConfig.Set("kubelet_auth_token_path", "")
-
-	hostname, err := HostnameProvider()
-	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "my-node-name", hostname)
 }
 
 func (suite *KubeletTestSuite) TestPodlistCache() {
@@ -846,7 +813,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	kubelet.dropRequests() // Throwing away first GETs
 
 	// Mock time.Now call
-	kubeutil.podUnmarshaller.timeNowFunction = func() time.Time {
+	kubeutil.(*KubeUtil).podUnmarshaller.timeNowFunction = func() time.Time {
 		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 		return t
 	}

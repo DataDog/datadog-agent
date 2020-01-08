@@ -41,6 +41,19 @@ def wait_until_stopped(timeout = 60)
     break if !is_running?
     sleep 1
   end
+  # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
+  # Agent start and the moment when the status command starts working
+  # has dramatically increased.
+  # Before (on ubuntu/debian):
+  # - during the first ~0.05s: connection refused
+  # - after: works correctly
+  # Now:
+  # - during the first ~0.05s: connection refused
+  # - between ~0.05s and ~1s: EOF
+  # - after: works correctly
+  # Until we understand and fix the problem, we're adding this sleep
+  # so that we don't get flakes in the kitchen tests.
+  sleep 2
 end
 
 def wait_until_started(timeout = 60)
@@ -50,17 +63,33 @@ def wait_until_started(timeout = 60)
     break if is_running?
     sleep 1
   end
+  # HACK: somewhere between 6.15.0 and 6.16.0, the delay between the
+  # Agent start and the moment when the status command starts working
+  # has dramatically increased.
+  # Before (on ubuntu/debian):
+  # - during the first ~0.05s: connection refused
+  # - after: works correctly
+  # Now:
+  # - during the first ~0.05s: connection refused
+  # - between ~0.05s and ~1s: EOF
+  # - after: works correctly
+  # Until we understand and fix the problem, we're adding this sleep
+  # so that we don't get flakes in the kitchen tests.
+  sleep 2
 end
 
 def stop
   if os == :windows
     # forces the trace agent (and other dependent services) to stop
     result = system 'net stop /y datadogagent 2>&1'
+    sleep 5
   else
     if has_systemctl
       result = system 'sudo systemctl stop datadog-agent.service'
-    else
+    elsif has_upstart
       result = system 'sudo initctl stop datadog-agent'
+    else
+      result = system "sudo /sbin/service datadog-agent stop"
     end
   end
   wait_until_stopped
@@ -70,11 +99,14 @@ end
 def start
   if os == :windows
     result = system 'net start datadogagent 2>&1'
+    sleep 5
   else
     if has_systemctl
       result = system 'sudo systemctl start datadog-agent.service'
-    else
+    elsif has_upstart
       result = system 'sudo initctl start datadog-agent'
+    else
+      result = system "sudo /sbin/service datadog-agent start"
     end
   end
   wait_until_started
@@ -86,9 +118,11 @@ def restart
     # forces the trace agent (and other dependent services) to stop
     if is_running?
       result = system 'net stop /y datadogagent 2>&1'
+      sleep 5
       wait_until_stopped
     end
     result = system 'net start datadogagent 2>&1'
+    sleep 5
     wait_until_started
   else
     if has_systemctl
@@ -97,9 +131,13 @@ def restart
       # and we lose 5 seconds.
       wait_until_stopped 5
       wait_until_started 5
-    else
+    elsif has_upstart
       # initctl can't restart
       result = system '(sudo initctl restart datadog-agent || sudo initctl start datadog-agent)'
+      wait_until_stopped 5
+      wait_until_started 5
+    else
+      result = system "sudo /sbin/service datadog-agent restart"
       wait_until_stopped 5
       wait_until_started 5
     end
@@ -109,6 +147,10 @@ end
 
 def has_systemctl
   system('command -v systemctl 2>&1 > /dev/null')
+end
+
+def has_upstart
+  system('/sbin/init --version 2>&1 | grep -q upstart >/dev/null')
 end
 
 def info
@@ -133,8 +175,10 @@ def status
   else
     if has_systemctl
       system('sudo systemctl status --no-pager datadog-agent.service')
-    else
+    elsif has_upstart
       system('sudo initctl status datadog-agent')
+    else
+      system("sudo /sbin/service datadog-agent status")
     end
   end
 end
@@ -145,9 +189,12 @@ def is_service_running?(svcname)
   else
     if has_systemctl
         system("sudo systemctl status --no-pager #{svcname}.service")
+    elsif has_upstart
+      status = `sudo initctl status #{svcname}`
+      status.include?('start/running')
     else
-        status = `sudo initctl status #{svcname}`
-        status.include?('start/running')
+      status = `sudo /sbin/service #{svcname} status`
+      status.include?('running')
     end
   end
 end
@@ -409,7 +456,6 @@ end
 
 shared_examples_for 'an Agent that stops' do
   it 'stops' do
-    skip if os == :windows
     output = stop
     if os != :windows
       expect(output).to be_truthy
@@ -418,7 +464,6 @@ shared_examples_for 'an Agent that stops' do
   end
 
   it 'has connection refuse in the info command' do
-    skip if os == :windows
     if os == :windows
       expect(info).to include 'No connection could be made'
     else
@@ -427,12 +472,10 @@ shared_examples_for 'an Agent that stops' do
   end
 
   it 'is not running any agent processes' do
-    skip if os == :windows
     expect(agent_processes_running?).to be_falsey
   end
 
   it 'starts after being stopped' do
-    skip if os == :windows
     output = start
     if os != :windows
       expect(output).to be_truthy
@@ -467,7 +510,6 @@ end
 
 shared_examples_for 'an Agent with python3 enabled' do
   it 'restarts after python_version is set to 3' do
-    skip if os == :windows
     conf_path = ""
     if os != :windows
       conf_path = "/etc/datadog-agent/datadog.yaml"
@@ -484,7 +526,6 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'runs Python 3 after python_version is set to 3' do
-    skip if os == :windows
     result = false
     python_version = fetch_python_version
     if ! python_version.nil? && Gem::Version.new('3.0.0') <= Gem::Version.new(python_version)
@@ -494,7 +535,6 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'restarts after python_version is set back to 2' do
-    skip if os == :windows
     skip if info.include? "v7."
     conf_path = ""
     if os != :windows
@@ -512,7 +552,6 @@ shared_examples_for 'an Agent with python3 enabled' do
   end
 
   it 'runs Python 2 after python_version is set back to 2' do
-    skip if os == :windows
     skip if info.include? "v7."
     result = false
     python_version = fetch_python_version

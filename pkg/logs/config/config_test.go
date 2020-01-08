@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 
@@ -123,6 +124,17 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 	suite.Equal("([A-Fa-f0-9]{28})", rule.Pattern)
 	suite.Equal("****************************", rule.ReplacePlaceholder)
 	suite.NotNil(rule.Regex)
+}
+
+func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
+	// assert TaggerWarmupDuration is disabled by default
+	taggerWarmupDuration := TaggerWarmupDuration()
+	suite.Equal(0*time.Second, taggerWarmupDuration)
+
+	// override
+	suite.config.Set("logs_config.tagger_warmup_duration", 5)
+	taggerWarmupDuration = TaggerWarmupDuration()
+	suite.Equal(5*time.Second, taggerWarmupDuration)
 }
 
 func TestConfigTestSuite(t *testing.T) {

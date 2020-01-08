@@ -63,6 +63,8 @@ func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
 	platform, err := util.GetPlatform()
 	if err != nil {
 		log.Warnf("error retrieving current platform: %s", err)
+	} else {
+		log.Infof("running on platform: %s", platform)
 	}
 	return verifyOSVersion(currentKernelCode, platform, exclusionList)
 }
@@ -103,7 +105,9 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		return true, ""
 	}
 
-	return false, fmt.Sprintf("some required functions are missing: %s", strings.Join(missing, ", "))
+	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCodeToString(kernelCode))
+	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missing, ", "))
+	return false, errMsg
 }
 
 func verifyKernelFuncs(path string) ([]string, error) {
@@ -180,4 +184,9 @@ func isRHELOrCentOS() (bool, error) {
 		return false, err
 	}
 	return isCentOS(platform) || isRHEL(platform), nil
+}
+
+// isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
+func isPre410Kernel(currentKernelCode uint32) bool {
+	return currentKernelCode < stringToKernelCode("4.1.0")
 }

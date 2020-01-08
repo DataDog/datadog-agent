@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package listeners
 
@@ -35,6 +35,7 @@ type Service interface {
 	GetHostname() (string, error)              // hostname.domainname for the entity
 	GetCreationTime() integration.CreationTime // created before or after the agent start
 	IsReady() bool                             // is the service ready
+	GetCheckNames() []string                   // slice of check names defined in kubernetes annotations or docker labels
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

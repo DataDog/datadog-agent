@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -17,6 +17,10 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
@@ -175,13 +179,21 @@ func start(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
+
+		// Create event recorder
+		eventBroadcaster := record.NewBroadcaster()
+		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
+
 		stopCh := make(chan struct{})
 		ctx := apiserver.ControllerContext{
-			InformerFactory: apiCl.InformerFactory,
-			Client:          apiCl.Cl,
-			LeaderElector:   le,
-			StopCh:          stopCh,
+			InformerFactory:    apiCl.InformerFactory,
+			WPAInformerFactory: apiCl.WPAInformerFactory,
+			Client:             apiCl.Cl,
+			LeaderElector:      le,
+			EventRecorder:      eventRecorder,
+			StopCh:             stopCh,
 		}
+
 		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
 		}
@@ -195,17 +207,25 @@ func start(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
-	// Start the cluster-check discovery if configured
-	clusterCheckHandler := setupClusterCheck(mainCtx)
-	// start the cmd HTTPS server
-	sc := clusteragent.ServerContext{
-		ClusterCheckHandler: clusterCheckHandler,
+	if config.Datadog.GetBool("cluster_checks.enabled") {
+		// Start the cluster check Autodiscovery
+		clusterCheckHandler, err := setupClusterCheck(mainCtx)
+		if err != nil {
+			log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
+		}
+		// Start the cmd HTTPS server
+		sc := clusteragent.ServerContext{
+			ClusterCheckHandler: clusterCheckHandler,
+		}
+		if err = api.StartServer(sc); err != nil {
+			return log.Errorf("Error while starting agent API, exiting: %v", err)
+		}
+	} else {
+		log.Debug("Cluster check Autodiscovery disabled")
 	}
-	if err = api.StartServer(sc); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
+
 	wg := sync.WaitGroup{}
-	// HPA Process
+	// Autoscaler Controller Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
 		wg.Add(1)
@@ -244,19 +264,13 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func setupClusterCheck(ctx context.Context) *clusterchecks.Handler {
-	if !config.Datadog.GetBool("cluster_checks.enabled") {
-		log.Debug("Cluster check Autodiscovery disabled")
-		return nil
-	}
-
+func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	handler, err := clusterchecks.NewHandler(common.AC)
 	if err != nil {
-		log.Errorf("Could not setup the cluster-checks Autodiscovery: %s", err.Error())
-		return nil
+		return nil, err
 	}
 	go handler.Run(ctx)
 
 	log.Info("Started cluster check Autodiscovery")
-	return handler
+	return handler, nil
 }

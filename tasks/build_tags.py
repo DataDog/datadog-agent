@@ -20,7 +20,6 @@ ALL_TAGS = set([
     "jmx",
     "kubeapiserver",
     "kubelet",
-    "log",
     "netcgo", # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "process",
     "systemd",
