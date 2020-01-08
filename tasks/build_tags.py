@@ -2,7 +2,7 @@
 Utilities to manage build tags
 """
 import sys
-import platform
+import distro
 from invoke import task
 
 # ALL_TAGS lists any available build tag
@@ -69,7 +69,7 @@ def get_default_build_tags(puppy=False):
     exclude = [] if sys.platform.startswith('linux') else LINUX_ONLY_TAGS
 
     # remove all tags that are only available on debian distributions
-    distname = platform.linux_distribution()[0].lower()
+    distname = distro.id().lower()
     if distname not in REDHAT_AND_DEBIAN_DIST:
         exclude = exclude + REDHAT_AND_DEBIAN_ONLY_TAGS
 
