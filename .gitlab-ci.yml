@@ -69,7 +69,6 @@ variables:
   RELEASE_VERSION_7: nightly
   DATADOG_AGENT_BUILDIMAGES: v2052882-c849841
   DATADOG_AGENT_BUILDERS: v2053075-f063f23
-  DATADOG_AGENT_WINBUILDIMAGES: v2053075-f063f23
   DATADOG_AGENT_ARMBUILDIMAGES: v1949502-eda0bce
 
 
@@ -169,7 +168,7 @@ before_script:
     - echo "Running windows source tests"
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES \unittests.bat
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_BUILDERS \unittests.bat
 
 run_tests_windows-x64:
   # temporarily allow failure for tests
@@ -797,7 +796,7 @@ agent_suse-x64-a7:
     - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir .omnibus\pkg
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\build-agent6.bat $RELEASE_VERSION $AGENT_MAJOR_VERSION
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_BUILDERS c:\mnt\tasks\winbuildscripts\build-agent6.bat $RELEASE_VERSION $AGENT_MAJOR_VERSION
     - copy build-out\*.msi .omnibus\pkg
   artifacts:
     expire_in: 2 weeks
