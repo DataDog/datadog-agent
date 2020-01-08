@@ -274,13 +274,9 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
 				cs := decodeRawTCPConn(conn)
-				cs.Direction = t.determineConnectionDirection(&cs)
-				if t.shouldSkipConnection(&cs) {
-					atomic.AddInt64(&t.skippedConns, 1)
-				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
-					t.state.StoreClosedConnection(cs)
-				}
+				cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
+				// Store all connections, we will determine if we should skip/if it is closed in GetConnections
+				t.state.StoreClosedConnection(cs)
 			case lostCount, ok := <-lostChannel:
 				if !ok {
 					return
@@ -336,8 +332,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	conns:= t.state.Connections(clientID, latestTime, latestConns)
-	t.setConnectionDirections(conns)
+	allConns:= t.state.Connections(clientID, latestTime, latestConns)
+	t.setConnectionDirections(allConns)
+	conns := t.removeExpiredConns(allConns)
 	names := t.reverseDNS.Resolve(conns)
 	return &Connections{Conns: conns, DNS: names}, nil
 }
@@ -389,15 +386,9 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 			}
 		} else {
 			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey, seen))
-			conn.Direction = t.determineConnectionDirection(&conn)
-
-			if t.shouldSkipConnection(&conn) {
-				atomic.AddInt64(&t.skippedConns, 1)
-			} else {
-				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort, process.ConnectionType(conn.Type))
-				active = append(active, conn)
-			}
+			// lookup conntrack in for active
+			conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort, process.ConnectionType(conn.Type))
+			active = append(active, conn)
 		}
 		key = nextKey
 	}
@@ -646,18 +637,6 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 	return closedPortBindings, nil
 }
 
-func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionDirection {
-	if conn.Type == UDP {
-		return NONE
-	}
-
-	if t.portMapping.IsListening(conn.SPort) {
-		return INCOMING
-	}
-
-	return OUTGOING
-}
-
 func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 	connRAddrMap := make(map[util.Address][]*ConnectionStats, len(connections))
 
@@ -691,6 +670,18 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 			connections[i].Direction = OUTGOING
 		}
 	}
+}
+
+func (t *Tracer) removeExpiredConns(allConns []ConnectionStats) []ConnectionStats {
+	active := allConns[:0]
+	for _, conn := range allConns{
+		if t.shouldSkipConnection(&conn) {
+			atomic.AddInt64(&t.skippedConns, 1)
+		} else {
+			active = append(active, conn)
+		}
+	}
+	return active
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
