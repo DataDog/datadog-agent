@@ -13,21 +13,15 @@ import (
 
 // Filter keeps track of every docker-proxy instance and filters network traffic going through them
 type Filter struct {
-	proxyByTarget map[target]*proxy
+	proxyByTarget map[model.ContainerAddr]*proxy
 	// This "secondary index" is used only during the proxy IP discovery process
 	proxyByPID map[int32]*proxy
-}
-
-type target struct {
-	ip    string
-	port  int32
-	proto model.ConnectionType
 }
 
 type proxy struct {
 	pid    int32
 	ip     string
-	target target
+	target model.ContainerAddr
 }
 
 // NewFilter instantiates a new filter loaded with docker-proxy instance information
@@ -45,7 +39,7 @@ func NewFilter() *Filter {
 // LoadProxies by inspecting processes information
 func (f *Filter) LoadProxies(procs map[int32]*process.FilledProcess) {
 	f.proxyByPID = make(map[int32]*proxy)
-	f.proxyByTarget = make(map[target]*proxy)
+	f.proxyByTarget = make(map[model.ContainerAddr]*proxy)
 
 	for _, p := range procs {
 		proxy := extractProxyTarget(p)
@@ -55,9 +49,9 @@ func (f *Filter) LoadProxies(procs map[int32]*process.FilledProcess) {
 
 		log.Debugf("detected docker-proxy with pid=%d target.ip=%s target.port=%d target.proto=%s",
 			proxy.pid,
-			proxy.target.ip,
-			proxy.target.port,
-			proxy.target.proto,
+			proxy.target.Ip,
+			proxy.target.Port,
+			proxy.target.Protocol,
 		)
 
 		// Add proxy to cache
@@ -103,11 +97,11 @@ func (f *Filter) Filter(payload *model.Connections) {
 }
 
 func (f *Filter) isProxied(c *model.Connection) bool {
-	if p, ok := f.proxyByTarget[target{ip: c.Laddr.Ip, port: c.Laddr.Port, proto: c.Type}]; ok {
+	if p, ok := f.proxyByTarget[model.ContainerAddr{Ip: c.Laddr.Ip, Port: c.Laddr.Port, Protocol: c.Type}]; ok {
 		return p.ip == c.Raddr.Ip
 	}
 
-	if p, ok := f.proxyByTarget[target{ip: c.Raddr.Ip, port: c.Raddr.Port, proto: c.Type}]; ok {
+	if p, ok := f.proxyByTarget[model.ContainerAddr{Ip: c.Raddr.Ip, Port: c.Raddr.Port, Protocol: c.Type}]; ok {
 		return p.ip == c.Laddr.Ip
 	}
 
@@ -116,13 +110,13 @@ func (f *Filter) isProxied(c *model.Connection) bool {
 
 func (f *Filter) discoverProxyIP(p *proxy, c *model.Connection) string {
 	// The heuristic here goes as follows:
-	// One of the ends of this connections must match p.targetAddr;
+	// One of the ends of this connections must match p.target;
 	// The proxy IP will be the other end;
-	if c.Laddr.Ip == p.target.ip && c.Laddr.Port == p.target.port {
+	if c.Laddr.Ip == p.target.Ip && c.Laddr.Port == p.target.Port {
 		return c.Raddr.Ip
 	}
 
-	if c.Raddr.Ip == p.target.ip && c.Raddr.Port == p.target.port {
+	if c.Raddr.Ip == p.target.Ip && c.Raddr.Port == p.target.Port {
 		return c.Laddr.Ip
 	}
 
@@ -139,24 +133,24 @@ func extractProxyTarget(p *process.FilledProcess) *proxy {
 	for i := 0; i < len(p.Cmdline)-1; i++ {
 		switch p.Cmdline[i] {
 		case "-container-ip":
-			proxy.target.ip = p.Cmdline[i+1]
+			proxy.target.Ip = p.Cmdline[i+1]
 		case "-container-port":
 			port, err := strconv.Atoi(p.Cmdline[i+1])
 			if err != nil {
 				return nil
 			}
-			proxy.target.port = int32(port)
+			proxy.target.Port = int32(port)
 		case "-proto":
 			name := p.Cmdline[i+1]
 			proto, ok := model.ConnectionType_value[name]
 			if !ok {
 				return nil
 			}
-			proxy.target.proto = model.ConnectionType(proto)
+			proxy.target.Protocol = model.ConnectionType(proto)
 		}
 	}
 
-	if proxy.target.ip == "" || proxy.target.port == 0 {
+	if proxy.target.Ip == "" || proxy.target.Port == 0 {
 		return nil
 	}
 
