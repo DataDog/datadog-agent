@@ -354,10 +354,10 @@ api_key:
 #   - <ARGUMENT_1>
 #   - <ARGUMENT_2>
 
-## @param secret_backend_output_max_size - integer - optional - default: 1024
+## @param secret_backend_output_max_size - integer - optional - default: 1048576
 ## The size in bytes of the buffer used to store the command answer (apply to both stdout and stderr)
 #
-# secret_backend_output_max_size: 1024
+# secret_backend_output_max_size: 1048576
 
 ## @param secret_backend_timeout - integer - optional - default: 5
 ## The timeout to execute the command in second
