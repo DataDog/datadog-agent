@@ -7,8 +7,8 @@ development files to be available in the dev env. The Agent can embed Python2
 and/or Python3, you will need development files for all versions you want to
 support.
 
-If you're on OSX/macOS, installing Python 2.7 and/or 3.8 with [Homebrew](https://brew.sh) will
-bring along all the development files needed:
+If you're on OSX/macOS, installing Python 2.7 and/or 3.8 with [Homebrew](https://brew.sh)
+brings along all the development files needed:
 ```
 brew install python@2
 brew install python@3
