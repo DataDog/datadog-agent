@@ -69,7 +69,6 @@ variables:
   RELEASE_VERSION_7: nightly
   DATADOG_AGENT_BUILDIMAGES: v2052882-c849841
   DATADOG_AGENT_BUILDERS: v2053075-f063f23
-  DATADOG_AGENT_ARMBUILDIMAGES: v1949502-eda0bce
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -335,7 +334,7 @@ build_dogstatsd-deb_x64:
 # build dogstatsd static for deb-arm
 build_dogstatsd_static-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
@@ -353,7 +352,7 @@ build_dogstatsd_static-deb_arm64:
 # build dogstatsd linked for deb-arm
 build_dogstatsd-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
@@ -383,7 +382,7 @@ build_puppy_agent-deb_x64:
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
 build_puppy_agent-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
@@ -419,7 +418,7 @@ cluster_agent-build_amd64:
 
 cluster_agent-build_arm64:
   <<: *cluster_agent-build_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
@@ -476,7 +475,7 @@ run_dogstatsd_size_test:
 run_dogstatsd_arm_size_test:
   stage: integration_test
   needs: ["build_dogstatsd_static-deb_arm64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
@@ -559,7 +558,7 @@ agent_deb-x64-a7:
 agent_deb-arm-a6:
   stage: package_build
   needs: ["run_dep_check_lock"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 6
@@ -577,7 +576,7 @@ agent_deb-arm-a6:
 agent_deb-arm-a7:
   stage: package_build
   needs: ["run_dep_check_lock"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -691,7 +690,7 @@ agent_rpm-x64-a7:
 agent_rpm-arm-a6:
   stage: package_build
   needs: ["run_dep_check_lock"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 6
@@ -707,7 +706,7 @@ agent_rpm-arm-a6:
 agent_rpm-arm-a7:
   stage: package_build
   needs: ["run_dep_check_lock"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
