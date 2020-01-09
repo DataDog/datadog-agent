@@ -128,7 +128,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		s := serializer.NewSerializer(common.Forwarder)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", checkCmdFlushInterval)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, nil, hostname, "agent", checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 		if config.Datadog.GetBool("inventories_enabled") {

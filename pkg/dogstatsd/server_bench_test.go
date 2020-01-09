@@ -6,33 +6,70 @@
 package dogstatsd
 
 import (
+	"strings"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strings"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func BenchmarkParsePacket(b *testing.B) {
-	port, err := getAvailableUDPPort()
-	require.NoError(b, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
+func mockAggregator(pool *metrics.MetricSamplePool) (chan []metrics.MetricSample, chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+	bufferedMetricIn := make(chan []metrics.MetricSample, 100)
+	bufferedServiceCheckIn := make(chan []*metrics.ServiceCheck, 100)
+	bufferedEventIn := make(chan []*metrics.Event, 100)
 
-	s, _ := NewServer(nil, nil, nil)
+	go func() {
+		for {
+			select {
+			case _ = <-bufferedServiceCheckIn:
+				break
+			case _ = <-bufferedEventIn:
+				break
+			case sampleBatch := <-bufferedMetricIn:
+				pool.PutBatch(sampleBatch)
+			}
+		}
+	}()
+
+	return bufferedMetricIn, bufferedEventIn, bufferedServiceCheckIn
+}
+
+func buildPacketConent(numberOfMetrics int) []byte {
+	rawPacket := "daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"
+	for i := 1; i < numberOfMetrics; i++ {
+		rawPacket += "\ndaemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"
+	}
+	return []byte(rawPacket)
+}
+
+func BenchmarkParsePackets(b *testing.B) {
+	// our logger will log dogstatsd packet by default if nothing is setup
+	config.SetupLogger("", "off", "", "", false, true, false)
+
+	pool := metrics.NewMetricSamplePool(16)
+	sampleOut, eventOut, scOut := mockAggregator(pool)
+	s, _ := NewServer(pool, sampleOut, eventOut, scOut)
 	defer s.Stop()
 
-	for n := 0; n < b.N; n++ {
+	b.RunParallel(func(pb *testing.PB) {
+		batcher := newBatcher(pool, sampleOut, eventOut, scOut)
+		// 32 packets of 20 samples
+		rawPacket := buildPacketConent(20 * 32)
 		packet := listeners.Packet{
-			Contents: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+			Contents: rawPacket,
 			Origin:   listeners.NoOrigin,
 		}
-		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
-	}
 
-	b.ReportAllocs()
+		packets := listeners.Packets{&packet}
+		for pb.Next() {
+			packet.Contents = rawPacket
+			s.parsePackets(batcher, packets)
+		}
+	})
 }
 
 func BenchmarkWithMapper(b *testing.B) {
@@ -64,15 +101,23 @@ func BenchmarkMapperControl(b *testing.B) {
 	require.NoError(b, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, _ := NewServer(nil, nil, nil)
+	// our logger will log dogstatsd packet by default if nothing is setup
+	config.SetupLogger("", "off", "", "", false, true, false)
+
+	pool := metrics.NewMetricSamplePool(16)
+	sampleOut, eventOut, scOut := mockAggregator(pool)
+	s, _ := NewServer(pool, sampleOut, eventOut, scOut)
 	defer s.Stop()
+
+	batcher := newBatcher(pool, sampleOut, eventOut, scOut)
 
 	for n := 0; n < b.N; n++ {
 		packet := listeners.Packet{
 			Contents: []byte("airflow.job.duration.my_job_type.my_job_name:666|g"),
 			Origin:   listeners.NoOrigin,
 		}
-		s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
+		packets := listeners.Packets{&packet}
+		s.parsePackets(batcher, packets)
 	}
 
 	b.ReportAllocs()

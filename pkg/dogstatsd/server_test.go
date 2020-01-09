@@ -8,7 +8,6 @@ package dogstatsd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"net"
 	"sort"
 	"strconv"
@@ -48,7 +47,7 @@ func TestNewServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(nil, nil, nil)
+	s, err := NewServer(metrics.NewMetricSamplePool(16), nil, nil, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 	assert.NotNil(t, s)
@@ -60,7 +59,7 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(nil, nil, nil)
+	s, err := NewServer(metrics.NewMetricSamplePool(16), nil, nil, nil)
 	require.NoError(t, err, "cannot start DSD")
 	s.Stop()
 
@@ -84,10 +83,10 @@ func TestUPDReceive(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metricOut, eventOut, serviceOut)
+	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -243,10 +242,10 @@ func TestUDPForward(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metricOut, eventOut, serviceOut)
+	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -280,10 +279,10 @@ func TestHistToDist(t *testing.T) {
 	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
 	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metricOut, eventOut, serviceOut)
+	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -320,10 +319,10 @@ func TestExtraTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metricOut, eventOut, serviceOut)
+	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -349,10 +348,10 @@ func TestExtraTags(t *testing.T) {
 }
 
 func TestDebugStats(t *testing.T) {
-	metricOut := make(chan []*metrics.MetricSample)
+	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metricOut, eventOut, serviceOut)
+	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -405,17 +404,13 @@ func TestNoMappingsConfig(t *testing.T) {
 	err = config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
 	require.NoError(t, err)
 
-	s, err := NewServer(nil, nil, nil)
+	s, err := NewServer(nil, nil, nil, nil)
 	require.NoError(t, err, "cannot start DSD")
 
 	assert.Nil(t, s.mapper)
 
-	packet := listeners.Packet{
-		Contents: []byte("test.metric:666|g"),
-		Origin:   listeners.NoOrigin,
-	}
-	sample, _, _ := s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
-	assert.Equal(t, 1, len(sample))
+	_, err = s.parseMetricMessage([]byte("test.metric:666|g"))
+	assert.NoError(t, err)
 }
 
 type MetricSample struct {
@@ -518,22 +513,16 @@ dogstatsd_mapper_profiles:
 			require.NoError(t, err)
 			config.Datadog.SetDefault("dogstatsd_port", port)
 
-			s, err := NewServer(nil, nil, nil)
+			s, err := NewServer(nil, nil, nil, nil)
 			require.NoError(t, err)
 
 			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				packet := listeners.Packet{
-					Contents: []byte(p),
-					Origin:   listeners.NoOrigin,
-				}
-				rawSamples, _, _ := s.parsePacket(&packet, []*metrics.MetricSample{}, []*metrics.Event{}, []*metrics.ServiceCheck{})
-
-				for _, s := range rawSamples {
-					actualSamples = append(actualSamples, MetricSample{Name: s.Name, Tags: s.Tags, Mtype: s.Mtype, Value: s.Value})
-				}
+				sample, err := s.parseMetricMessage([]byte(p))
+				assert.NoError(t, err)
+				actualSamples = append(actualSamples, MetricSample{Name: sample.Name, Tags: sample.Tags, Mtype: sample.Mtype, Value: sample.Value})
 			}
 			for _, sample := range scenario.expectedSamples {
 				sort.Strings(sample.Tags)
