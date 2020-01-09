@@ -2011,8 +2011,8 @@ twistlock_scan-7:
     - TWISTLOCK_PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.twistlock_password --with-decryption --query "Parameter.Value" --out text)
     - scan () { echo -e "\n==== Scanning $1 ====\n"; docker pull $1 > /dev/null; /twistcli images scan --address="$TWISTLOCK_URL" --user="$TWISTLOCK_USER" --password="$TWISTLOCK_PASS" --vulnerability-threshold=$THRESHOLD --details $1; }
   script:
-    - scan ${SRC_AGENT}:${SRC_TAG}-7-py3-amd64
-    - scan ${SRC_AGENT}:${SRC_TAG}-7-py3-jmx-amd64
+    - scan ${SRC_AGENT}:${SRC_TAG}-7-amd64
+    - scan ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64
 
 .docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
