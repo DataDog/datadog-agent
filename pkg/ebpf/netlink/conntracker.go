@@ -5,7 +5,6 @@ package netlink
 import (
 	"context"
 	"fmt"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -229,8 +228,11 @@ func (ctr *realConntracker) loadInitialState(sessions []ct.Con) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 	for _, c := range sessions {
 		if isNAT(c) {
-			if k, ok := formatKey(c); ok {
-				ctr.state[k] = formatIPTranslation(c, gen)
+			if k, ok := formatKey(c.Origin); ok {
+				ctr.state[k] = formatIPTranslation(c.Reply, gen)
+			}
+			if k, ok := formatKey(c.Reply); ok {
+				ctr.state[k] = formatIPTranslation(c.Origin, gen)
 			}
 		}
 	}
@@ -244,23 +246,26 @@ func (ctr *realConntracker) register(c ct.Con) int {
 		return 0
 	}
 
-	key, ok := formatKey(c)
-	if !ok {
-		return 0
+	now := time.Now().UnixNano()
+	registerTuple := func(keyTuple, transTuple *ct.IPTuple) {
+		key, ok := formatKey(keyTuple)
+		if !ok {
+			return
+		}
+
+		if len(ctr.state) >= ctr.maxStateSize {
+			ctr.logExceededSize()
+			return
+		}
+
+		generation := getNthGeneration(generationLength, now, 3)
+		ctr.state[key] = formatIPTranslation(transTuple, generation)
 	}
 
-	now := time.Now().UnixNano()
 	ctr.Lock()
 	defer ctr.Unlock()
-
-	if len(ctr.state) >= ctr.maxStateSize {
-		ctr.logExceededSize()
-		return 0
-	}
-
-	generation := getNthGeneration(generationLength, now, 3)
-	ctr.state[key] = formatIPTranslation(c, generation)
-
+	registerTuple(c.Origin, c.Reply)
+	registerTuple(c.Reply, c.Origin)
 	then := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.registers, 1)
 	atomic.AddInt64(&ctr.stats.registersTotalTime, then-now)
@@ -281,26 +286,28 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 		return 0
 	}
 
-	key, ok := formatKey(c)
-	if !ok {
-		return 0
+	unregisterTuple := func(keyTuple *ct.IPTuple) {
+		key, ok := formatKey(keyTuple)
+		if !ok {
+			return
+		}
+
+		// move the mapping from the permanent to "short lived" connection
+		translation, ok := ctr.state[key]
+
+		delete(ctr.state, key)
+		if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer && ok {
+			ctr.shortLivedBuffer[key] = translation.IPTranslation
+		} else {
+			log.Warn("exceeded maximum tracked short lived connections")
+		}
 	}
 
 	now := time.Now().UnixNano()
-
 	ctr.Lock()
 	defer ctr.Unlock()
-
-	// move the mapping from the permanent to "short lived" connection
-	translation, ok := ctr.state[key]
-
-	delete(ctr.state, key)
-	if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer && ok {
-		ctr.shortLivedBuffer[key] = translation.IPTranslation
-	} else {
-		log.Warn("exceeded maximum tracked short lived connections")
-	}
-
+	unregisterTuple(c.Origin)
+	unregisterTuple(c.Reply)
 	then := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.unregisters, 1)
 	atomic.AddInt64(&ctr.stats.unregistersTotalTime, then-now)
@@ -350,40 +357,30 @@ func isNAT(c ct.Con) bool {
 		*c.Origin.Proto.DstPort != *c.Reply.Proto.SrcPort
 }
 
-// ReplSrcIP extracts the source IP of the reply tuple from a conntrack entry
-func ReplSrcIP(c ct.Con) net.IP {
-	return *c.Reply.Src
-}
+func formatIPTranslation(tuple *ct.IPTuple, generation uint8) *connValue {
+	srcIP := *tuple.Src
+	dstIP := *tuple.Dst
 
-// ReplDstIP extracts the dest IP of the reply tuple from a conntrack entry
-func ReplDstIP(c ct.Con) net.IP {
-	return *c.Reply.Dst
-}
-
-func formatIPTranslation(c ct.Con, generation uint8) *connValue {
-	replSrcIP := ReplSrcIP(c)
-	replDstIP := ReplDstIP(c)
-
-	replSrcPort := *c.Reply.Proto.SrcPort
-	replDstPort := *c.Reply.Proto.DstPort
+	srcPort := *tuple.Proto.SrcPort
+	dstPort := *tuple.Proto.DstPort
 
 	return &connValue{
 		IPTranslation: &IPTranslation{
-			ReplSrcIP:   util.AddressFromNetIP(replSrcIP),
-			ReplDstIP:   util.AddressFromNetIP(replDstIP),
-			ReplSrcPort: replSrcPort,
-			ReplDstPort: replDstPort,
+			ReplSrcIP:   util.AddressFromNetIP(srcIP),
+			ReplDstIP:   util.AddressFromNetIP(dstIP),
+			ReplSrcPort: srcPort,
+			ReplDstPort: dstPort,
 		},
 		expGeneration: generation,
 	}
 }
 
-func formatKey(c ct.Con) (k connKey, ok bool) {
+func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 	ok = true
-	k.ip = util.AddressFromNetIP(*c.Origin.Src)
-	k.port = *c.Origin.Proto.SrcPort
+	k.ip = util.AddressFromNetIP(*tuple.Src)
+	k.port = *tuple.Proto.SrcPort
 
-	proto := *c.Origin.Proto.Number
+	proto := *tuple.Proto.Number
 	switch proto {
 	case 6:
 		k.transport = process.ConnectionType_tcp
