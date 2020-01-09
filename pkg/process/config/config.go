@@ -321,7 +321,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// activate the pod collection if enabled and we have the cluster name set
-	if canAccessContainers && cfg.OrchestrationCollectionEnabled && cfg.KubeClusterName != "" {
+	if cfg.OrchestrationCollectionEnabled && cfg.KubeClusterName != "" {
 		cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
 	}
 
