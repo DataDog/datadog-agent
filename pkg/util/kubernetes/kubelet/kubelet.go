@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"os"
 )
 
 const (
@@ -331,7 +331,6 @@ func (ku *KubeUtil) GetPodForEntityID(entityID string) (*Pod, error) {
 //  - HTTPS w/ service account token
 //  - HTTP (unauthenticated)
 func (ku *KubeUtil) setupKubeletApiClient() error {
-	// TODO configure the TLS for the APIServer in EKS Fargate mode. Bearer Token config will be needed too.
 	transport := &http.Transport{}
 	err := ku.setupTLS(
 		config.Datadog.GetBool("kubelet_tls_verify"),
