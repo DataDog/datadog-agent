@@ -216,7 +216,8 @@ func GetHostnameData() (HostnameData, error) {
 
 	// FQDN
 	var fqdn string
-	if isOSHostnameUsable() {
+	canUseOSHostname := isOSHostnameUsable()
+	if canUseOSHostname {
 		log.Debug("GetHostname trying FQDN/`hostname -f`...")
 		fqdn, err = getSystemFQDN()
 		if config.Datadog.GetBool("hostname_fqdn") && err == nil {
@@ -244,7 +245,7 @@ func GetHostnameData() (HostnameData, error) {
 		}
 	}
 
-	if isOSHostnameUsable() && hostName == "" {
+	if canUseOSHostname && hostName == "" {
 		// os
 		log.Debug("GetHostname trying os...")
 		systemName, err := os.Hostname()
