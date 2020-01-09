@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -32,6 +33,22 @@ var (
 	transactionsTimeseriesV1  = expvar.Int{}
 	transactionsCheckRunsV1   = expvar.Int{}
 	transactionsIntakeV1      = expvar.Int{}
+
+	tlm = telemetry.NewCounter("forwarder", "transactions",
+		[]string{"endpoint", "route"}, "Forwarder telemetry")
+
+	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
+	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
+	v1IntakeEndpoint       = endpoint{"/intake/", "intake"}
+	v1SketchSeriesEndpoint = endpoint{"/api/v1/sketches", "sketches_v1"}
+	v1ValidateEndpoint     = endpoint{"/api/v1/validate", "validate_v1"}
+
+	seriesEndpoint        = endpoint{"/api/v2/series", "series_v2"}
+	eventsEndpoint        = endpoint{"/api/v2/events", "events_v2"}
+	serviceChecksEndpoint = endpoint{"/api/v2/service_checks", "services_checks_v2"}
+	sketchSeriesEndpoint  = endpoint{"/api/beta/sketches", "sketches_v2"}
+	hostMetadataEndpoint  = endpoint{"/api/v2/host_metadata", "host_metadata_v2"}
+	metadataEndpoint      = endpoint{"/api/v2/metadata", "metadata_v2"}
 )
 
 func init() {
@@ -59,23 +76,21 @@ const (
 )
 
 const (
-	v1SeriesEndpoint       = "/api/v1/series"
-	v1CheckRunsEndpoint    = "/api/v1/check_run"
-	v1IntakeEndpoint       = "/intake/"
-	v1SketchSeriesEndpoint = "/api/v1/sketches"
-	v1ValidateEndpoint     = "/api/v1/validate"
-
-	seriesEndpoint        = "/api/v2/series"
-	eventsEndpoint        = "/api/v2/events"
-	serviceChecksEndpoint = "/api/v2/service_checks"
-	sketchSeriesEndpoint  = "/api/beta/sketches"
-	hostMetadataEndpoint  = "/api/v2/host_metadata"
-	metadataEndpoint      = "/api/v2/metadata"
-
 	apiHTTPHeaderKey       = "DD-Api-Key"
 	versionHTTPHeaderKey   = "DD-Agent-Version"
 	useragentHTTPHeaderKey = "User-Agent"
 )
+
+type endpoint struct {
+	// Route to hit in the HTTP transaction
+	route string
+	// Name of the endpoint for the telemetry metrics
+	name string
+}
+
+func (e endpoint) String() string {
+	return e.route
+}
 
 // Payloads is a slice of pointers to byte arrays, an alias for the slices of
 // payloads we pass into the forwarder
@@ -219,14 +234,14 @@ func (f *DefaultForwarder) State() uint32 {
 	return f.internalState
 }
 
-func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
+func (f *DefaultForwarder) createHTTPTransactions(endpoint endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
 	transactions := []*HTTPTransaction{}
 	for _, payload := range payloads {
 		for domain, apiKeys := range f.keysPerDomains {
 			for _, apiKey := range apiKeys {
-				transactionEndpoint := endpoint
+				transactionEndpoint := endpoint.route
 				if apiKeyInQueryString {
-					transactionEndpoint = fmt.Sprintf("%s?api_key=%s", endpoint, apiKey)
+					transactionEndpoint = fmt.Sprintf("%s?api_key=%s", endpoint.route, apiKey)
 				}
 				t := NewHTTPTransaction()
 				t.Domain = domain
@@ -235,6 +250,8 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payl
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+
+				tlm.Inc(domain, endpoint.name)
 
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))

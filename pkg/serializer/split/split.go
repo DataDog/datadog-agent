@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,11 +29,21 @@ const (
 )
 
 var (
+	// TODO(remy): could probably be removed as not used in the status page
 	splitterExpvars      = expvar.NewMap("splitter")
 	splitterNotTooBig    = expvar.Int{}
 	splitterTooBig       = expvar.Int{}
 	splitterTotalLoops   = expvar.Int{}
 	splitterPayloadDrops = expvar.Int{}
+
+	tlmSplitterNotTooBig = telemetry.NewCounter("splitter", "not_too_big",
+		nil, "Splitter 'not too big' occurrences")
+	tlmSplitterTooBig = telemetry.NewCounter("splitter", "too_big",
+		nil, "Splitter 'too big' occurrences")
+	tlmSplitterTotalLoops = telemetry.NewCounter("splitter", "total_loops",
+		nil, "Splitter total loops run")
+	tlmSplitterPayloadDrops = telemetry.NewCounter("splitter", "payload_drops",
+		nil, "Splitter payload drops")
 )
 
 func init() {
@@ -65,16 +76,19 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 	if nottoobig {
 		log.Debug("The payload was not too big, returning the full payload")
 		splitterNotTooBig.Add(1)
+		tlmSplitterNotTooBig.Inc()
 		smallEnoughPayloads = append(smallEnoughPayloads, &payload)
 		return smallEnoughPayloads, nil
 	}
 	splitterTooBig.Add(1)
+	tlmSplitterTooBig.Inc()
 	toobig := !nottoobig
 	loops := 0
 	// Do not attempt to split payloads forever, if a payload cannot be split then abandon the task
 	// the function will return all the payloads that were able to be split
 	for toobig && loops < 3 {
 		splitterTotalLoops.Add(1)
+		tlmSplitterTotalLoops.Inc()
 		// create a temporary slice, the other array will be reused to keep track of the payloads that have yet to be split
 		tempSlice := make([]marshaler.Marshaler, len(marshallers))
 		copy(tempSlice, marshallers)
@@ -98,6 +112,7 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 			if err != nil {
 				log.Warnf("Some payloads could not be split, dropping them")
 				splitterPayloadDrops.Add(1)
+				tlmSplitterPayloadDrops.Inc()
 				return smallEnoughPayloads, err
 			}
 			// after the payload has been split, loop through the chunks
@@ -130,6 +145,7 @@ func Payloads(m marshaler.Marshaler, compress bool, mType MarshalType) (forwarde
 	if len(marshallers) != 0 {
 		log.Warnf("Some payloads could not be split, dropping them")
 		splitterPayloadDrops.Add(1)
+		tlmSplitterPayloadDrops.Inc()
 	}
 
 	return smallEnoughPayloads, nil

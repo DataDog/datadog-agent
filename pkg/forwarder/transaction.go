@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,30 +36,45 @@ var (
 	transactionsSentRequestErrors  = expvar.Int{}
 	transactionsHTTPErrors         = expvar.Int{}
 	transactionsHTTPErrorsByCode   = expvar.Map{}
+
+	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
+		[]string{"domain"}, "Retry queue size")
+	tlmTxSuccess = telemetry.NewCounter("transactions", "success",
+		[]string{"domain"}, "Count of successful transactions")
+	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
+		[]string{"domain"}, "Count of transactions dropped on input")
+	tlmTxErrors = telemetry.NewCounter("transactions", "errors",
+		[]string{"domain", "type"}, "Count of transactions errored grouped by type of error")
+	tlmTxHTTPErrors = telemetry.NewCounter("transactions", "http_errors",
+		[]string{"domain", "code"}, "Count of transactions http errors per http code")
 )
 
 var trace = &httptrace.ClientTrace{
 	DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
 		if dnsInfo.Err != nil {
 			transactionsDNSErrors.Add(1)
+			tlmTxErrors.Inc("unknown", "dns_lookup_failure")
 			log.Debugf("DNS Lookup failure: %s", dnsInfo.Err)
 		}
 	},
 	WroteRequest: func(wroteInfo httptrace.WroteRequestInfo) {
 		if wroteInfo.Err != nil {
 			transactionsWroteRequestErrors.Add(1)
+			tlmTxErrors.Inc("unknown", "writing_failure")
 			log.Debugf("Request writing failure: %s", wroteInfo.Err)
 		}
 	},
 	ConnectDone: func(network, addr string, err error) {
 		if err != nil {
 			transactionsConnectionErrors.Add(1)
+			tlmTxErrors.Inc("unknown", "connection_failure")
 			log.Debugf("Connection failure: %s", err)
 		}
 	},
 	TLSHandshakeDone: func(tlsState tls.ConnectionState, err error) {
 		if err != nil {
 			transactionsTLSErrors.Add(1)
+			tlmTxErrors.Inc("unknown", "tls_handshake_failure")
 			log.Errorf("TLS Handshake failure: %s", err)
 		}
 	},
@@ -134,6 +150,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsErrors.Add(1)
+		tlmTxErrors.Inc(t.Domain, "invalid_request")
 		transactionsSentRequestErrors.Add(1)
 		return nil
 	}
@@ -148,6 +165,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		}
 		t.ErrorCount++
 		transactionsErrors.Add(1)
+		tlmTxErrors.Inc(t.Domain, "cant_send")
 		return fmt.Errorf("error while sending transaction, rescheduling it: %s", httputils.SanitizeURL(err.Error()))
 	}
 	defer resp.Body.Close()
@@ -169,23 +187,28 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		}
 		codeCount.Add(1)
 		transactionsHTTPErrors.Add(1)
+		tlmTxHTTPErrors.Inc(t.Domain, statusCode)
 	}
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
 		transactionsDropped.Add(1)
+		tlmTxDropped.Inc(t.Domain)
 		return nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
 		transactionsDropped.Add(1)
+		tlmTxDropped.Inc(t.Domain)
 		return nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)
+		tlmTxErrors.Inc(t.Domain, "gt_400")
 		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 
 	transactionsSuccessful.Add(1)
+	tlmTxSuccess.Inc(t.Domain)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 

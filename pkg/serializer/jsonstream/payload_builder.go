@@ -10,7 +10,7 @@ package jsonstream
 import (
 	"bytes"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -43,6 +43,7 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 	var i int
 	itemCount := m.Len()
 	expvarsTotalCalls.Add(1)
+	tlmTotalCalls.Inc()
 
 	// Inner buffers for the compressor
 	input := bytes.NewBuffer(make([]byte, 0, b.inputSizeHint))
@@ -77,12 +78,14 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 			log.Warnf("error marshalling an item, skipping: %s", err)
 			i++
 			expvarsWriteItemErrors.Add(1)
+			tlmWriteItemErrors.Inc()
 			continue
 		}
 
 		switch compressor.addItem(jsonStream.Buffer()) {
 		case errPayloadFull:
 			expvarsPayloadFulls.Add(1)
+			tlmPayloadFull.Inc()
 			// payload is full, we need to create a new one
 			payload, err := compressor.close()
 			if err != nil {
@@ -99,12 +102,14 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 			// All good, continue to next item
 			i++
 			expvarsTotalItems.Add(1)
+			tlmTotalItems.Inc()
 			continue
 		default:
 			// Unexpected error, drop the item
 			i++
 			log.Warnf("Dropping an item, %s: %s", m.DescribeItem(i), err)
 			expvarsItemDrops.Add(1)
+			tlmItemDrops.Inc()
 			continue
 		}
 	}

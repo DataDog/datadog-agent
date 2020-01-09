@@ -13,41 +13,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	ddRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "datadog_requests",
-			Help: "Counter of requests made to Datadog",
-		},
-		[]string{"status"},
-	)
-	metricsEval = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "external_metrics_processed_value",
-		Help: "value processed from querying Datadog",
-	},
-		[]string{"metric"},
-	)
-	metricsDelay = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "external_metrics_delay_seconds",
-		Help: "freshness of the metric evaluated from querying Datadog",
-	},
-		[]string{"metric"},
-	)
+	ddRequests = telemetry.NewCounter("", "datadog_requests",
+		[]string{"status"}, "Counter of requests made to Datadog")
+	metricsEval = telemetry.NewGauge("", "external_metrics_processed_value",
+		[]string{"metric"}, "value processed from querying Datadog")
+	metricsDelay = telemetry.NewGauge("", "external_metrics_delay_seconds",
+		[]string{"metric"}, "freshness of the metric evaluated from querying Datadog")
 )
-
-func init() {
-	prometheus.MustRegister(ddRequests)
-	prometheus.MustRegister(metricsEval)
-	prometheus.MustRegister(metricsDelay)
-}
 
 type Point struct {
 	value     float64
@@ -81,10 +62,10 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 
 	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 	if err != nil {
-		ddRequests.WithLabelValues("error").Inc()
+		ddRequests.Inc("error")
 		return nil, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
-	ddRequests.WithLabelValues("success").Inc()
+	ddRequests.Inc("success")
 
 	processedMetrics := make(map[string]Point)
 	for _, name := range metricNames {
@@ -130,9 +111,9 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			processedMetrics[m] = point
 
 			// Prometheus submissions on the processed external metrics
-			metricsEval.WithLabelValues(m).Set(float64(point.value))
+			metricsEval.Set(float64(point.value), m)
 			precision := time.Now().Unix() - point.timestamp
-			metricsDelay.WithLabelValues(m).Set(float64(precision))
+			metricsDelay.Set(float64(precision), m)
 
 			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
 			break

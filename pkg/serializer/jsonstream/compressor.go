@@ -14,6 +14,7 @@ import (
 	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -23,6 +24,7 @@ const (
 )
 
 var (
+	// TODO(remy): could probably removed as not appearing in the status page
 	expvars                = expvar.NewMap("jsonstream")
 	expvarsTotalCalls      = expvar.Int{}
 	expvarsTotalItems      = expvar.Int{}
@@ -33,6 +35,25 @@ var (
 	expvarsBytesOut        = expvar.Int{}
 	expvarsWriteItemErrors = expvar.Int{}
 	expvarsPayloadFulls    = expvar.Int{}
+
+	tlmTotalCalls = telemetry.NewCounter("jsonstream", "total_calls",
+		nil, "Total calls to the jsontream serializer")
+	tlmTotalItems = telemetry.NewCounter("jsonstream", "total_items",
+		nil, "Total items in the jsonstream serializer")
+	tlmTotalPayloads = telemetry.NewCounter("jsonstream", "total_payloads",
+		nil, "Total payloads in the jsonstream serializer")
+	tlmTotalCycles = telemetry.NewCounter("jsonstream", "total_cycles",
+		nil, "Total cycles in the jsonstream serializer")
+	tlmItemDrops = telemetry.NewCounter("jsonstream", "item_drops",
+		nil, "Items dropped in the jsonstream serializer")
+	tlmBytesIn = telemetry.NewCounter("jsonstream", "bytes_in",
+		nil, "Count of bytes entering the jsonstream serializer")
+	tlmBytesOut = telemetry.NewCounter("jsonstream", "bytes_out",
+		nil, "Count of bytes out the jsonstream serializer")
+	tlmWriteItemErrors = telemetry.NewCounter("jsonstream", "write_item_errors",
+		nil, "Count of 'write item errors' in the jsonstream serializer")
+	tlmPayloadFull = telemetry.NewCounter("jsonstream", "payload_full",
+		nil, "How many times we've hit a 'paylodad is full' in the jsonstream serializer")
 )
 
 func init() {
@@ -118,6 +139,7 @@ func (c *compressor) hasRoomForItem(item []byte) bool {
 // pack flushes the temporary uncompressed buffer input to the compression writer
 func (c *compressor) pack() error {
 	expvarsTotalCycles.Add(1)
+	tlmTotalCycles.Inc()
 	n, err := c.input.WriteTo(c.zipper)
 	if err != nil {
 		return err
@@ -189,8 +211,11 @@ func (c *compressor) close() ([]byte, error) {
 	copy(payload, c.compressed.Bytes())
 
 	expvarsTotalPayloads.Add(1)
+	tlmTotalPayloads.Inc()
 	expvarsBytesIn.Add(int64(c.uncompressedWritten))
+	tlmBytesIn.Add(float64(c.uncompressedWritten))
 	expvarsBytesOut.Add(int64(c.compressed.Len()))
+	tlmBytesOut.Add(float64(c.compressed.Len()))
 
 	return payload, nil
 }
