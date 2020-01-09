@@ -14,15 +14,18 @@ import (
 
 // SetupConfig fires up the configuration system
 func SetupConfig(confFilePath string) error {
-	return setupConfig(confFilePath, false)
+	return setupConfig(confFilePath, "", false)
 }
 
 // SetupConfigWithoutSecrets fires up the configuration system without secrets support
-func SetupConfigWithoutSecrets(confFilePath string) error {
-	return setupConfig(confFilePath, true)
+func SetupConfigWithoutSecrets(confFilePath string, configName string) error {
+	return setupConfig(confFilePath, configName, true)
 }
 
-func setupConfig(confFilePath string, withoutSecrets bool) error {
+func setupConfig(confFilePath string, configName string, withoutSecrets bool) error {
+	if configName != "" {
+		config.Datadog.SetConfigName(configName)
+	}
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,

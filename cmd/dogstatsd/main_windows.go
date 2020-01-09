@@ -18,6 +18,7 @@ import (
 
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -176,7 +177,7 @@ func importRegistryConfig() error {
 	}
 	defer k.Close()
 
-	err = setupConfigWithoutSecrets("")
+	err = common.SetupConfigWithoutSecrets("", "dogstatsd")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
@@ -312,7 +313,7 @@ func importRegistryConfig() error {
 	config.AddOverrides(overrides)
 
 	// build the global agent configuration
-	err = setupConfigWithoutSecrets("")
+	err = common.SetupConfigWithoutSecrets("", "dogstatsd")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
@@ -340,36 +341,5 @@ func importRegistryConfig() error {
 	}
 	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
 
-	return nil
-}
-
-// SetupConfigWithoutSecrets fires up the configuration system without secrets support
-func setupConfigWithoutSecrets(confFilePath string) error {
-	return setupConfig(confFilePath, true)
-}
-
-func setupConfig(confFilePath string, withoutSecrets bool) error {
-	config.Datadog.SetConfigName("dogstatsd")
-	// set the paths where a config file is expected
-	if len(confFilePath) != 0 {
-		// if the configuration file path was supplied on the command line,
-		// add that first so it's first in line
-		config.Datadog.AddConfigPath(confFilePath)
-		// If they set a config file directly, let's try to honor that
-		if strings.HasSuffix(confFilePath, ".yaml") {
-			config.Datadog.SetConfigFile(confFilePath)
-		}
-	}
-	config.Datadog.AddConfigPath(DefaultConfPath)
-	// load the configuration
-	var err error
-	if withoutSecrets {
-		err = config.LoadWithoutSecret()
-	} else {
-		err = config.Load()
-	}
-	if err != nil {
-		return fmt.Errorf("unable to load Datadog config file: %s", err)
-	}
 	return nil
 }

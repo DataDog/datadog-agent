@@ -104,7 +104,6 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-
 func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err error) {
 	// Main context passed to components
 	mainCtx, mainCtxCancel = context.WithCancel(context.Background())
@@ -207,7 +206,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 	metricSamplePool := metrics.NewMetricSamplePool(32)
 	aggregatorInstance := aggregator.InitAggregator(s, metricSamplePool, hname, "agent")
 	sampleC, eventC, serviceCheckC := aggregatorInstance.GetBufferedChannels()
-	statsd, err := dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
+	statsd, err = dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
