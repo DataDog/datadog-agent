@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"net/http"
-	"os"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -15,7 +14,7 @@ var (
 )
 
 func init() {
-	telemetryRegistry.MustRegister(prometheus.NewProcessCollector(os.Getpid(), ""))
+	telemetryRegistry.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 	telemetryRegistry.MustRegister(prometheus.NewGoCollector())
 }
 
