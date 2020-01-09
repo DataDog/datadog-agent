@@ -332,9 +332,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	allConns:= t.state.Connections(clientID, latestTime, latestConns)
+	allConns := t.state.Connections(clientID, latestTime, latestConns)
 	t.setConnectionDirections(allConns)
-	conns := t.removeExpiredConns(allConns)
+	conns := t.removeBlacklistedConnections(allConns)
 	names := t.reverseDNS.Resolve(conns)
 	return &Connections{Conns: conns, DNS: names}, nil
 }
@@ -638,43 +638,75 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 }
 
 func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
-	connRAddrMap := make(map[util.Address][]*ConnectionStats, len(connections))
 
-	for _, conn := range connections{
-		if conn.IPTranslation == nil{
-			connRAddrMap[conn.Dest] = append(connRAddrMap[conn.Dest], &conn)
-		} else {
-			connRAddrMap[conn.IPTranslation.ReplDstIP] = append(connRAddrMap[conn.IPTranslation.ReplDstIP], &conn)
-		}
+	type connKey struct {
+		Address util.Address
+		Port    uint16
+		Type    ConnectionType
 	}
 
-	for i := 0; i < len(connections); i++ {
-		if connections[i].Direction == LOCAL{
-			continue
-		}
-		hit, ok := connRAddrMap[connections[i].Source]
-		if ok {
-			connections[i].Direction = LOCAL
-			for j := 0; j < len (hit); j++ {
-				hit[j].Direction = LOCAL
+	newConnKey := func(connStat *ConnectionStats, RAddr bool) connKey {
+		key := connKey{}
+		key.Type = connStat.Type
+		// RAddr indicates if we're making a key out of the LAddr or RAddr
+		// of a given connection
+		if RAddr {
+			if connStat.IPTranslation == nil {
+				key.Address = connStat.Dest
+				key.Port = connStat.DPort
+			} else {
+				key.Address = connStat.IPTranslation.ReplSrcIP
+				key.Port = connStat.IPTranslation.ReplSrcPort
 			}
 		} else {
-			if connections[i].Type == UDP {
-				connections[i].Direction = NONE
+			if connStat.IPTranslation == nil {
+				key.Address = connStat.Source
+				key.Port = connStat.SPort
+			} else {
+				key.Address = connStat.IPTranslation.ReplDstIP
+				key.Port = connStat.IPTranslation.ReplDstPort
+			}
+		}
+		return key
+	}
+
+	connLAddrMap := make(map[connKey]struct{}, 0)
+	keyWithLAddr := connKey{}
+	for i := 0; i < len(connections); i++ {
+		keyWithLAddr = newConnKey(&connections[i], false)
+		connLAddrMap[keyWithLAddr] = struct{}{}
+	}
+
+	keyWithRAddr := connKey{}
+	for i := 0; i < len(connections); i++ {
+		undirectedConn := &connections[i]
+		keyWithRAddr = newConnKey(undirectedConn, true)
+
+		if undirectedConn.Source == undirectedConn.Dest {
+			undirectedConn.Direction = LOCAL
+			continue
+		}
+
+		_, ok := connLAddrMap[keyWithRAddr]
+		if ok {
+			undirectedConn.Direction = LOCAL
+		} else {
+			if undirectedConn.Type == UDP {
+				undirectedConn.Direction = NONE
 				continue
 			}
-			if t.portMapping.IsListening(connections[i].SPort) {
-				connections[i].Direction = INCOMING
+			if t.portMapping.IsListening(undirectedConn.SPort) {
+				undirectedConn.Direction = INCOMING
 				continue
 			}
-			connections[i].Direction = OUTGOING
+			undirectedConn.Direction = OUTGOING
 		}
 	}
 }
 
-func (t *Tracer) removeExpiredConns(allConns []ConnectionStats) []ConnectionStats {
+func (t *Tracer) removeBlacklistedConnections(allConns []ConnectionStats) []ConnectionStats {
 	active := allConns[:0]
-	for _, conn := range allConns{
+	for _, conn := range allConns {
 		if t.shouldSkipConnection(&conn) {
 			atomic.AddInt64(&t.skippedConns, 1)
 		} else {
