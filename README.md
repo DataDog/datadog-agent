@@ -65,7 +65,7 @@ Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details
 
 ## Run
 
-Running `invoke build` creates an Agent binary, located at `bin/agent/agent`.
+Running `invoke agent.build` build the Agent and writes the binary to `bin/agent/agent`.
 If the Datadog Agent is not installed, or if you do not want to edit your `datadog.yaml`, a configuration file is available at `bin/agent/dist/datadog.yaml`. To run the Agent with this configuration file, use `-c`: `DD_API_KEY=12345678990 bin/agent/agent <command> -c bin/agent/dist/` where `<command>` is an Agent command and `DD_API_KEY=12345678990` is a valid API key.
 
 **Important note**: 
