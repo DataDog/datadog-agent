@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package clustername
 
@@ -30,10 +30,21 @@ func TestGetClusterName(t *testing.T) {
 	freshData := newClusterNameData()
 	assert.Equal(t, newClusterName, getClusterName(freshData))
 
+	var dotClusterName = "aclusternamewitha.dot"
+	mockConfig.Set("cluster_name", dotClusterName)
+	data = newClusterNameData()
+	assert.Equal(t, dotClusterName, getClusterName(data))
+
+	var dotsClusterName = "a.cluster.name.with.dots"
+	mockConfig.Set("cluster_name", dotsClusterName)
+	data = newClusterNameData()
+	assert.Equal(t, dotsClusterName, getClusterName(data))
+
 	// Test invalid cluster names
 	for _, invalidClusterName := range []string{
 		"Capital",
 		"with_underscore",
+		"with_dot._underscore",
 		"toolongtoolongtoolongtoolongtoolongtoolong"} {
 		mockConfig.Set("cluster_name", invalidClusterName)
 		freshData = newClusterNameData()

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -10,10 +10,12 @@ package autoscalers
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
+	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -28,6 +30,14 @@ var (
 		[]string{"metric"}, "value processed from querying Datadog")
 	metricsDelay = telemetry.NewGauge("", "external_metrics_delay_seconds",
 		[]string{"metric"}, "freshness of the metric evaluated from querying Datadog")
+	rateLimitsRemaining = telemetry.NewGauge("", "rate_limit_queries_remaining",
+		[]string{"endpoint"}, "number of queries remaining before next reset")
+	rateLimitsReset = telemetry.NewGauge("", "rate_limit_queries_reset",
+		[]string{"endpoint"}, "number of seconds before next reset")
+	rateLimitsPeriod = telemetry.NewGauge("", "rate_limit_queries_period",
+		[]string{"endpoint"}, "period of rate limiting")
+	rateLimitsLimit = telemetry.NewGauge("", "rate_limit_queries_limit",
+		[]string{"endpoint"}, "maximum number of queries allowed in the period")
 )
 
 type Point struct {
@@ -37,8 +47,9 @@ type Point struct {
 }
 
 const (
-	value     = 1
-	timestamp = 0
+	value         = 1
+	timestamp     = 0
+	queryEndpoint = "/api/v1/query"
 )
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
@@ -122,6 +133,29 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 	return processedMetrics, nil
 }
 
+// setTelemetryMetric is a helper to submit telemetry metrics
+func setTelemetryMetric(val string, metric telemetry.Gauge) error {
+	valFloat, err := strconv.Atoi(val)
+	if err == nil {
+		metric.Set(float64(valFloat), queryEndpoint)
+	}
+	return err
+}
+
+func (p *Processor) updateRateLimitingMetrics() error {
+	updateMap := p.datadogClient.GetRateLimitStats()
+	queryLimits := updateMap[queryEndpoint]
+
+	errors := []error{
+		setTelemetryMetric(queryLimits.Limit, rateLimitsLimit),
+		setTelemetryMetric(queryLimits.Remaining, rateLimitsRemaining),
+		setTelemetryMetric(queryLimits.Period, rateLimitsPeriod),
+		setTelemetryMetric(queryLimits.Reset, rateLimitsReset),
+	}
+
+	return utilserror.NewAggregate(errors)
+}
+
 // NewDatadogClient generates a new client to query metrics from Datadog
 func NewDatadogClient() (*datadog.Client, error) {
 	apiKey := config.Datadog.GetString("api_key")
@@ -135,6 +169,7 @@ func NewDatadogClient() (*datadog.Client, error) {
 
 	client := datadog.NewClient(apiKey, appKey)
 	client.HttpClient.Transport = httputils.CreateHTTPTransport()
+	client.RetryTimeout = 3 * time.Second
 
 	return client, nil
 }

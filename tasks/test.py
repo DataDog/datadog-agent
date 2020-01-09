@@ -44,8 +44,8 @@ DEFAULT_TEST_TARGETS = [
 @task()
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     verbose=False, race=False, profile=False, fail_on_fmt=False,
-    rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0,
-    timeout=120, arch="x64"):
+    rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0, major_version='7',
+    timeout=120, arch="x64", cache=True):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -63,7 +63,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     else:
         tool_targets = test_targets = targets
 
-    build_include = get_default_build_tags() if build_include is None else build_include.split(",")
+    build_include = get_default_build_tags(process=True) if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -87,7 +87,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         f_cov.write("mode: count")
 
     ldflags, gcflags, env = get_build_flags(ctx, rtloader_root=rtloader_root,
-            python_home_2=python_home_2, python_home_3=python_home_3, arch=arch)
+            python_home_2=python_home_2, python_home_3=python_home_3, major_version=major_version, arch=arch)
 
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
@@ -103,7 +103,12 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     if cpus:
         build_cpus_opt = "-p {}".format(cpus)
     if race:
-        race_opt = "-race"
+        # race doesn't appear to be supported on non-x64 platforms
+        if arch == "x86":
+            print("\n -- Warning... disabling race test, not supported on this platform --\n")
+        else:
+            race_opt = "-race"
+
     if coverage:
         if race:
             # atomic is quite expensive but it's the only way to run
@@ -120,9 +125,11 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     if coverage:
         coverprofile = "-coverprofile={}".format(PROFILE_COV)
 
+    nocache = '-count=1' if not cache else ''
+
     build_tags.append("test")
     cmd = 'go test {verbose} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
+    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_build_tags": " ".join(build_tags),
         "gcflags": gcflags,
@@ -134,6 +141,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         "pkg_folder": ' '.join(matches),
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
+        "nocache": nocache,
     }
     ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)
 
@@ -217,7 +225,8 @@ def lint_releasenote(ctx):
         while True:
             res = requests.get(url)
             files = res.json()
-            if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
+            if any([f['filename'].startswith("releasenotes/notes/") or \
+                    f['filename'].startswith("releasenotes-dca/notes/") for f in files]):
                 break
 
             if 'next' in res.links:
@@ -244,7 +253,8 @@ def lint_releasenote(ctx):
                 while True:
                     res = requests.get(url)
                     files = res.json().get("files", {})
-                    if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
+                    if any([f['filename'].startswith("releasenotes/notes/") or \
+                            f['filename'].startswith("releasenotes-dca/notes/") for f in files]):
                         break
 
                     if 'next' in res.links:

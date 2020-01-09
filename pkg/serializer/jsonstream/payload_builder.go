@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2019 Datadog, Inc.
+// Copyright 2019-2020 Datadog, Inc.
 
 //+build zlib
 
@@ -37,8 +37,27 @@ func NewPayloadBuilder() *PayloadBuilder {
 	}
 }
 
+// OnErrItemTooBigPolicy defines the behavior when OnErrItemTooBig occurs.
+type OnErrItemTooBigPolicy int
+
+const (
+	// DropItemOnErrItemTooBig:  when ErrItemTooBig is encountered, skips the error and continue
+	DropItemOnErrItemTooBig OnErrItemTooBigPolicy = iota
+
+	// FailOnErrItemTooBig: when ErrItemTooBig is encountered, returns the error and stop
+	FailOnErrItemTooBig
+)
+
 // Build serializes a metadata payload and sends it to the forwarder
 func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
+	return b.BuildWithOnErrItemTooBigPolicy(m, DropItemOnErrItemTooBig)
+}
+
+// BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
+func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
+	m marshaler.StreamJSONMarshaler,
+	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
+
 	var payloads forwarder.Payloads
 	var i int
 	itemCount := m.Len()
@@ -104,6 +123,11 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 			expvarsTotalItems.Add(1)
 			tlmTotalItems.Inc()
 			continue
+		case ErrItemTooBig:
+			if policy == FailOnErrItemTooBig {
+				return nil, ErrItemTooBig
+			}
+			fallthrough
 		default:
 			// Unexpected error, drop the item
 			i++

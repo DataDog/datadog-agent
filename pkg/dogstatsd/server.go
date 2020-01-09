@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package dogstatsd
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"expvar"
@@ -17,15 +18,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -55,6 +56,10 @@ func init() {
 type Server struct {
 	listeners             []listeners.StatsdListener
 	packetsIn             chan listeners.Packets
+	samplePool            *metrics.MetricSamplePool
+	samplesOut            chan<- []metrics.MetricSample
+	eventsOut             chan<- []*metrics.Event
+	servicesCheckOut      chan<- []*metrics.ServiceCheck
 	Statistics            *util.Stats
 	Started               bool
 	packetPool            *listeners.PacketPool
@@ -69,6 +74,7 @@ type Server struct {
 	debugMetricsStats     bool
 	metricsStats          map[string]metricStat
 	statsLock             sync.Mutex
+	mapper                *mapper.MetricMapper
 }
 
 // metricStat holds how many times a metric has been
@@ -79,7 +85,7 @@ type metricStat struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
+func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics.MetricSample, eventsOut chan<- []*metrics.Event, servicesCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -143,7 +149,11 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 	s := &Server{
 		Started:               true,
 		Statistics:            stats,
+		samplePool:            samplePool,
 		packetsIn:             packetsChannel,
+		samplesOut:            samplesOut,
+		eventsOut:             eventsOut,
+		servicesCheckOut:      servicesCheckOut,
 		listeners:             tmpListeners,
 		packetPool:            packetPool,
 		stopChan:              make(chan bool),
@@ -175,12 +185,25 @@ func NewServer(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metr
 		}
 	}
 
-	s.handleMessages(metricOut, eventOut, serviceCheckOut)
+	s.handleMessages()
 
+	cacheSize := config.Datadog.GetInt("dogstatsd_mapper_cache_size")
+
+	mappings, err := config.GetDogstatsdMappingProfiles()
+	if err != nil {
+		log.Warnf("Could not parse mapping profiles: %v", err)
+	} else if len(mappings) != 0 {
+		mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
+		if err != nil {
+			log.Warnf("Could not create metric mapper: %v", err)
+		} else {
+			s.mapper = mapperInstance
+		}
+	}
 	return s, nil
 }
 
-func (s *Server) handleMessages(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) {
+func (s *Server) handleMessages() {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
@@ -198,7 +221,7 @@ func (s *Server) handleMessages(metricOut chan<- []*metrics.MetricSample, eventO
 	}
 
 	for i := 0; i < workers; i++ {
-		go s.worker(metricOut, eventOut, serviceCheckOut)
+		go s.worker()
 	}
 }
 
@@ -220,112 +243,147 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 	}
 }
 
-func (s *Server) worker(metricOut chan<- []*metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) {
+func (s *Server) worker() {
+	batcher := newBatcher(s.samplePool, s.samplesOut, s.eventsOut, s.servicesCheckOut)
 	for {
 		select {
 		case <-s.stopChan:
 			return
 		case <-s.health.C:
 		case packets := <-s.packetsIn:
-			events := make([]*metrics.Event, 0, len(packets))
-			serviceChecks := make([]*metrics.ServiceCheck, 0, len(packets))
-			metricSamples := make([]*metrics.MetricSample, 0, len(packets))
-
-			for _, packet := range packets {
-				metricSamples, events, serviceChecks = s.parsePacket(packet, metricSamples, events, serviceChecks)
-				s.packetPool.Put(packet)
-			}
-
-			if len(metricSamples) != 0 {
-				metricOut <- metricSamples
-			}
-			if len(events) != 0 {
-				eventOut <- events
-			}
-			if len(serviceChecks) != 0 {
-				serviceCheckOut <- serviceChecks
-			}
+			s.parsePackets(batcher, packets)
 		}
 	}
 }
 
-func (s *Server) parsePacket(packet *listeners.Packet, metricSamples []*metrics.MetricSample, events []*metrics.Event, serviceChecks []*metrics.ServiceCheck) ([]*metrics.MetricSample, []*metrics.Event, []*metrics.ServiceCheck) {
-	extraTags := s.extraTags
+func nextMessage(packet *[]byte) (message []byte) {
+	if len(*packet) == 0 {
+		return nil
+	}
 
-	log.Tracef("Dogstatsd receive: %s", packet.Contents)
-	if packet.Origin != listeners.NoOrigin {
-		originTags, err := tagger.Tag(packet.Origin, tagger.DogstatsdCardinality)
+	advance, message, err := bufio.ScanLines(*packet, true)
+	if err != nil || len(message) == 0 {
+		return nil
+	}
+
+	*packet = (*packet)[advance:]
+	return message
+}
+
+func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
+	for _, packet := range packets {
+		originTags := findOriginTags(packet.Origin)
+		log.Tracef("Dogstatsd receive: %s", packet.Contents)
+		for {
+			message := nextMessage(&packet.Contents)
+			if message == nil {
+				break
+			}
+			if s.Statistics != nil {
+				s.Statistics.StatEvent(1)
+			}
+			messageType := findMessageType(message)
+
+			switch messageType {
+			case serviceCheckType:
+				serviceCheck, err := s.parseServiceCheckMessage(message)
+				if err != nil {
+					log.Errorf("Dogstatsd: error parsing service check: %s", err)
+					continue
+				}
+				serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
+				batcher.appendServiceCheck(serviceCheck)
+			case eventType:
+				event, err := s.parseEventMessage(message)
+				if err != nil {
+					log.Errorf("Dogstatsd: error parsing event: %s", err)
+					continue
+				}
+				event.Tags = append(event.Tags, originTags...)
+				batcher.appendEvent(event)
+			case metricSampleType:
+				sample, err := s.parseMetricMessage(message)
+				if err != nil {
+					log.Errorf("Dogstatsd: error parsing metrics: %s", err)
+					continue
+				}
+				if s.debugMetricsStats {
+					s.storeMetricStats(sample.Name)
+				}
+				sample.Tags = append(sample.Tags, originTags...)
+				batcher.appendSample(sample)
+				if s.histToDist && sample.Mtype == metrics.HistogramType {
+					distSample := sample.Copy()
+					distSample.Name = s.histToDistPrefix + distSample.Name
+					distSample.Mtype = metrics.DistributionType
+					batcher.appendSample(*distSample)
+				}
+			}
+		}
+	}
+	batcher.flush()
+}
+
+func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error) {
+	sample, err := parseMetricSample(message)
+	if err != nil {
+		dogstatsdMetricParseErrors.Add(1)
+		tlmProcessed.Inc("metrics", "error")
+		return metrics.MetricSample{}, err
+	}
+	if s.mapper != nil && len(sample.tags) == 0 {
+		mapResult := s.mapper.Map(sample.name)
+		if mapResult != nil {
+			sample.name = mapResult.Name
+			sample.tags = append(sample.tags, mapResult.Tags...)
+		}
+	}
+	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
+	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
+	dogstatsdMetricPackets.Add(1)
+	tlmProcessed.Inc("metrics", "ok")
+	return metricSample, nil
+}
+
+func (s *Server) parseEventMessage(message []byte) (*metrics.Event, error) {
+	sample, err := parseEvent(message)
+	if err != nil {
+		dogstatsdEventParseErrors.Add(1)
+		tlmProcessed.Inc("events", "error")
+		return nil, err
+	}
+	event := enrichEvent(sample, s.defaultHostname)
+	event.Tags = append(event.Tags, s.extraTags...)
+	tlmProcessed.Inc("events", "ok")
+	dogstatsdEventPackets.Add(1)
+	return event, nil
+}
+
+func (s *Server) parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
+	sample, err := parseServiceCheck(message)
+	if err != nil {
+		dogstatsdServiceCheckParseErrors.Add(1)
+		tlmProcessed.Inc("service_checks", "error")
+		return nil, err
+	}
+	serviceCheck := enrichServiceCheck(sample, s.defaultHostname)
+	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
+	dogstatsdServiceCheckPackets.Add(1)
+	tlmProcessed.Inc("service_checks", "ok")
+	return serviceCheck, nil
+}
+
+func findOriginTags(origin string) []string {
+	var tags []string
+	if origin != listeners.NoOrigin {
+		originTags, err := tagger.Tag(origin, tagger.DogstatsdCardinality)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
-			extraTags = append(extraTags, originTags...)
+			tags = append(tags, originTags...)
 		}
 	}
-
-	for {
-		message := nextMessage(&packet.Contents)
-		if message == nil {
-			break
-		}
-
-		if s.Statistics != nil {
-			s.Statistics.StatEvent(1)
-		}
-
-		if bytes.HasPrefix(message, []byte("_sc")) {
-			serviceCheck, err := parseServiceCheckMessage(message, s.defaultHostname)
-			if err != nil {
-				log.Errorf("Dogstatsd: error parsing service check: %s", err)
-				dogstatsdServiceCheckParseErrors.Add(1)
-				tlmProcessed.Inc("service_checks", "error")
-				continue
-			}
-			if len(extraTags) > 0 {
-				serviceCheck.Tags = append(serviceCheck.Tags, extraTags...)
-			}
-			dogstatsdServiceCheckPackets.Add(1)
-			tlmProcessed.Inc("service_checks", "ok")
-			serviceChecks = append(serviceChecks, serviceCheck)
-		} else if bytes.HasPrefix(message, []byte("_e")) {
-			event, err := parseEventMessage(message, s.defaultHostname)
-			if err != nil {
-				log.Errorf("Dogstatsd: error parsing event: %s", err)
-				dogstatsdEventParseErrors.Add(1)
-				tlmProcessed.Inc("events", "error")
-				continue
-			}
-			if len(extraTags) > 0 {
-				event.Tags = append(event.Tags, extraTags...)
-			}
-			dogstatsdEventPackets.Add(1)
-			tlmProcessed.Inc("events", "ok")
-			events = append(events, event)
-		} else {
-			sample, err := parseMetricMessage(message, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
-			if err != nil {
-				log.Errorf("Dogstatsd: error parsing metrics: %s", err)
-				dogstatsdMetricParseErrors.Add(1)
-				tlmProcessed.Inc("metrics", "error")
-				continue
-			}
-			if s.debugMetricsStats {
-				s.storeMetricStats(sample.Name)
-			}
-			if len(extraTags) > 0 {
-				sample.Tags = append(sample.Tags, extraTags...)
-			}
-			dogstatsdMetricPackets.Add(1)
-			tlmProcessed.Inc("metrics", "ok")
-			metricSamples = append(metricSamples, sample)
-			if s.histToDist && sample.Mtype == metrics.HistogramType {
-				distSample := sample.Copy()
-				distSample.Name = s.histToDistPrefix + distSample.Name
-				distSample.Mtype = metrics.DistributionType
-				metricSamples = append(metricSamples, distSample)
-			}
-		}
-	}
-	return metricSamples, events, serviceChecks
+	return tags
 }
 
 // Stop stops a running Dogstatsd server

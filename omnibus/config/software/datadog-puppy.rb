@@ -25,7 +25,13 @@ build do
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
-  command "invoke agent.build --puppy --rebuild --no-development", env: env
+  if windows?
+    major_version_arg = "%MAJOR_VERSION%"
+  else
+    major_version_arg = "$MAJOR_VERSION"
+  end
+
+  command "invoke agent.build --puppy --rebuild --no-development --major-version #{major_version_arg}", env: env
   copy('bin', install_dir)
 
   mkdir "#{install_dir}/run/"

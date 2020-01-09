@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package host
 
@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
-	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
+	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
 )
 
 const packageCachePrefix = "host"
@@ -115,7 +115,7 @@ func getHostAliases() []string {
 		aliases = append(aliases, cfAliases...)
 	}
 
-	k8sAlias, err := k8s.GetHostAlias()
+	k8sAlias, err := kubelet.GetHostAlias()
 	if err != nil {
 		log.Debugf("no Kubernetes Host Alias (through kubelet API): %s", err)
 	} else if k8sAlias != "" {

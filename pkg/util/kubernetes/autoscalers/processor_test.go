@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -10,19 +10,24 @@ package autoscalers
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+
+	"github.com/prometheus/client_golang/prometheus"
+	promutil "github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 )
 
 type fakeDatadogClient struct {
-	queryMetricsFunc func(from, to int64, query string) ([]datadog.Series, error)
+	queryMetricsFunc  func(from, to int64, query string) ([]datadog.Series, error)
+	getRateLimitsFunc func() map[string]datadog.RateLimit
 }
 
 func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
@@ -30,6 +35,13 @@ func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datado
 		return d.queryMetricsFunc(from, to, query)
 	}
 	return nil, nil
+}
+
+func (d *fakeDatadogClient) GetRateLimitStats() map[string]datadog.RateLimit {
+	if d.getRateLimitsFunc != nil {
+		return d.getRateLimitsFunc()
+	}
+	return nil
 }
 
 var maxAge = time.Duration(30 * time.Second)
@@ -171,6 +183,134 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 		require.False(t, i.Valid)
 	}
 
+}
+
+func TestValidateExternalMetricsBatching(t *testing.T) {
+	metricName := "foo"
+	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
+	tests := []struct {
+		desc       string
+		in         map[string]custommetrics.ExternalMetricValue
+		out        []datadog.Series
+		batchCalls int
+		err        error
+		timeout    bool
+	}{
+		{
+			desc: "one batch",
+			in: lambdaMakeChunks(14, custommetrics.ExternalMetricValue{
+				MetricName: "foo",
+				Labels:     map[string]string{"foo": "bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 1,
+			err:        nil,
+			timeout:    false,
+		},
+		{
+			desc: "several batches",
+			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
+				MetricName: "foo",
+				Labels:     map[string]string{"foo": "bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 4,
+			err:        nil,
+			timeout:    false,
+		},
+		{
+			desc: "several batches, one error",
+			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
+				MetricName: "foo",
+				Labels:     map[string]string{"foo": "bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 4,
+			err:        fmt.Errorf("Networking Error, timeout!!!"),
+			timeout:    true,
+		},
+	}
+	var result struct {
+		bc int
+		m  sync.Mutex
+	}
+	res := &result
+	for i, tt := range tests {
+		res.m.Lock()
+		res.bc = 0
+		res.m.Unlock()
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
+			datadogClient := &fakeDatadogClient{
+				getRateLimitsFunc: func() map[string]datadog.RateLimit {
+					return map[string]datadog.RateLimit{
+						queryEndpoint: {
+							Limit:     "12",
+							Period:    "10",
+							Remaining: "200",
+							Reset:     "10",
+						},
+					}
+				},
+				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
+					res.m.Lock()
+					defer res.m.Unlock()
+					result.bc += 1
+					if tt.timeout == true && res.bc == 1 {
+						// Error will be under the format:
+						// Error: Error while executing metric query avg:foo-56{foo:bar}.rollup(30),avg:foo-93{foo:bar}.rollup(30),[...],avg:foo-64{foo:bar}.rollup(30),avg:foo-81{foo:bar}.rollup(30): Networking Error, timeout!!!
+						// In the logs, we will be able to see which bundle failed, but for the tests, we can't know which routine will finish first (and therefore have `bc == 1`), so we only check the error returned by the Datadog Servers.
+						return nil, fmt.Errorf("Networking Error, timeout!!!")
+					}
+					return tt.out, nil
+				},
+			}
+			p := &Processor{datadogClient: datadogClient}
+
+			_, err := p.queryExternalMetric(tt.in)
+			if err != nil || tt.err != nil {
+				assert.Contains(t, err.Error(), tt.err.Error())
+			}
+			assert.Equal(t, tt.batchCalls, res.bc)
+		})
+	}
+}
+
+func lambdaMakeChunks(numChunks int, chunkToExpand custommetrics.ExternalMetricValue) (expanded map[string]custommetrics.ExternalMetricValue) {
+	expanded = make(map[string]custommetrics.ExternalMetricValue)
+	for i := 0; i <= numChunks; i++ {
+		expanded[fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i)] = custommetrics.ExternalMetricValue{
+			MetricName: fmt.Sprintf("%s-%d", chunkToExpand.MetricName, i),
+			Labels:     chunkToExpand.Labels,
+		}
+	}
+	return expanded
 }
 
 func TestProcessor_ProcessHPAs(t *testing.T) {
@@ -353,4 +493,98 @@ func TestInvalidate(t *testing.T) {
 		require.False(t, e.Valid)
 		require.WithinDuration(t, time.Now(), time.Unix(e.Timestamp, 0), 5*time.Second)
 	}
+}
+
+func TestUpdateRateLimiting(t *testing.T) {
+	type Results struct {
+		Limit     float64
+		Period    float64
+		Remaining float64
+		Reset     float64
+	}
+
+	tests := []struct {
+		desc       string
+		rateLimits map[string]datadog.RateLimit
+		results    Results
+		error      error
+	}{
+		{
+			desc: "Nominal case",
+			rateLimits: map[string]datadog.RateLimit{
+				queryEndpoint: {
+					Limit:     "12",
+					Period:    "3600",
+					Reset:     "11",
+					Remaining: "120",
+				},
+			},
+			results: Results{
+				Limit:     12,
+				Period:    3600,
+				Reset:     11,
+				Remaining: 120,
+			},
+			error: nil,
+		},
+		{
+			desc: "Missing header case",
+			rateLimits: map[string]datadog.RateLimit{
+				queryEndpoint: {
+					Limit:  "12",
+					Period: "3600",
+					Reset:  "11",
+				},
+			},
+			results: Results{
+				Limit:  12,
+				Period: 3600,
+				Reset:  11,
+			},
+			error: fmt.Errorf("strconv.Atoi: parsing \"\": invalid syntax"),
+		},
+		{
+			desc: "Missing headers case",
+			rateLimits: map[string]datadog.RateLimit{
+				queryEndpoint: {
+					Limit:  "12",
+					Period: "3600",
+				},
+			},
+			results: Results{
+				Limit:  12,
+				Period: 3600,
+			},
+			// Although several headers are missing, the Aggregate will only return 1 error as they are the same
+			error: fmt.Errorf("strconv.Atoi: parsing \"\": invalid syntax"),
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
+			datadogClient := &fakeDatadogClient{
+				getRateLimitsFunc: func() map[string]datadog.RateLimit {
+					return tt.rateLimits
+				},
+			}
+			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
+
+			err := hpaCl.updateRateLimitingMetrics()
+			if err != nil {
+				assert.EqualError(t, tt.error, err.Error())
+			}
+			assert.Equal(t, promutil.ToFloat64(*rateLimitsLimit), tt.results.Limit)
+			assert.Equal(t, promutil.ToFloat64(*rateLimitsReset), tt.results.Reset)
+			assert.Equal(t, promutil.ToFloat64(*rateLimitsPeriod), tt.results.Period)
+			assert.Equal(t, promutil.ToFloat64(*rateLimitsRemaining), tt.results.Remaining)
+		})
+		resetCounters(queryEndpoint)
+	}
+}
+
+func resetCounters(endpoint string) {
+	rateLimitsRemaining.With(prometheus.Labels{"endpoint": endpoint}).Set(0)
+	rateLimitsPeriod.With(prometheus.Labels{"endpoint": endpoint}).Set(0)
+	rateLimitsLimit.With(prometheus.Labels{"endpoint": endpoint}).Set(0)
+	rateLimitsReset.With(prometheus.Labels{"endpoint": endpoint}).Set(0)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package processor
 
@@ -86,7 +86,7 @@ func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
 				return false, nil
 			}
 		case config.MaskSequences:
-			content = rule.Regex.ReplaceAllLiteral(content, rule.Placeholder)
+			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
 		}
 	}
 	return true, content

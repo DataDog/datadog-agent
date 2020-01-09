@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -33,7 +33,7 @@ type Launcher struct {
 	sources            *config.LogSources
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
-	kubeutil           *kubelet.KubeUtil
+	kubeutil           kubelet.KubeUtilInterface
 	addedServices      chan *service.Service
 	removedServices    chan *service.Service
 	collectAll         bool

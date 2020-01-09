@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+prelude:
+  |
+  This release introduces major version 7 of the Datadog Agent, which starts at v7.16.0. The only change from Agent v6 is that
+  v7 defaults to Python 3 and only includes support for Python 3. Before upgrading to v7, confirm that any
+  custom checks you have are compatible with Python 3. See this `guide <https://docs.datadoghq.com/agent/guide/python-3/>`_
+  for more information.
+
+  Except for the supported Python versions, v7.16.0 and v6.16.0 have the same features.

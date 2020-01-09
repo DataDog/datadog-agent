@@ -1,7 +1,8 @@
 package metrics
 
 import (
-	"errors"
+	"bytes"
+	"encoding/json"
 
 	"github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -11,26 +12,34 @@ import (
 
 // A SketchSeries is a timeseries of quantile sketches.
 type SketchSeries struct {
-	Name       string
-	Tags       []string
-	Host       string
-	Interval   int64
-	Points     []SketchPoint
-	ContextKey ckey.ContextKey
+	Name       string          `json:"metric"`
+	Tags       []string        `json:"tags"`
+	Host       string          `json:"host"`
+	Interval   int64           `json:"interval"`
+	Points     []SketchPoint   `json:"points"`
+	ContextKey ckey.ContextKey `json:"-"`
 }
 
 // A SketchPoint represents a quantile sketch at a specific time
 type SketchPoint struct {
-	Sketch *quantile.Sketch
-	Ts     int64
+	Sketch *quantile.Sketch `json:"sketch"`
+	Ts     int64            `json:"ts"`
 }
 
 // A SketchSeriesList implements marshaler.Marshaler
 type SketchSeriesList []SketchSeries
 
-// MarshalJSON is not supported for sketches.
-func (SketchSeriesList) MarshalJSON() ([]byte, error) {
-	return nil, errors.New("sketches don't support json encoding")
+// MarshalJSON serializes sketch series to JSON.
+func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
+	// use an alias to avoid infinite recursion while serializing a SketchSeriesList
+	type SketchSeriesAlias SketchSeriesList
+
+	data := map[string][]SketchSeries{
+		"sketches": SketchSeriesAlias(sl),
+	}
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(data)
+	return reqBody.Bytes(), err
 }
 
 // Marshal encodes this series list.

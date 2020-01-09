@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -37,9 +35,8 @@ type Tracer struct {
 
 	config *Config
 
-	state          NetworkState
-	portMapping    *PortMapping
-	localAddresses map[util.Address]struct{}
+	state       NetworkState
+	portMapping *PortMapping
 
 	conntracker netlink.Conntracker
 
@@ -187,7 +184,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		state:          state,
 		portMapping:    portMapping,
 		reverseDNS:     reverseDNS,
-		localAddresses: readLocalAddresses(),
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
@@ -652,54 +648,12 @@ func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionD
 	if conn.Type == UDP {
 		return NONE
 	}
-	sourceLocal := t.isLocalAddress(conn.Source)
-	destLocal := t.isLocalAddress(conn.Dest)
 
-	if sourceLocal && destLocal {
-		return LOCAL
-	}
-
-	if sourceLocal && t.portMapping.IsListening(conn.SPort) {
+	if t.portMapping.IsListening(conn.SPort) {
 		return INCOMING
 	}
 
 	return OUTGOING
-}
-
-func (t *Tracer) isLocalAddress(address util.Address) bool {
-	_, ok := t.localAddresses[address]
-	return ok
-}
-
-func readLocalAddresses() map[util.Address]struct{} {
-	addresses := make(map[util.Address]struct{}, 0)
-
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		_ = log.Errorf("error reading network interfaces: %s", err)
-		return addresses
-	}
-
-	for _, intf := range interfaces {
-		addrs, err := intf.Addrs()
-
-		if err != nil {
-			_ = log.Errorf("error reading interface %s addresses: %s", intf.Name, err)
-			continue
-		}
-
-		for _, addr := range addrs {
-			switch v := addr.(type) {
-			case *net.IPNet:
-				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
-			case *net.IPAddr:
-				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
-			}
-		}
-
-	}
-
-	return addresses
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
