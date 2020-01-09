@@ -97,6 +97,7 @@ func (s *batchStrategy) sendBuffer(outputChan chan *message.Message, send func([
 	}
 
 	metrics.LogsSent.Add(int64(len(messages)))
+	metrics.TlmLogsSent.Add(float64(len(messages)))
 
 	for _, message := range messages {
 		outputChan <- message

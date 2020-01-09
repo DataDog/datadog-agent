@@ -44,6 +44,7 @@ func (c *TestCheck) ConfigSource() string                                       
 func (c *TestCheck) Stop()                                                      {}
 func (c *TestCheck) Configure(integration.Data, integration.Data, string) error { return nil }
 func (c *TestCheck) Interval() time.Duration                                    { return 1 }
+func (c *TestCheck) IsTelemetryEnabled() bool                                   { return false }
 func (c *TestCheck) Run() error {
 	c.Lock()
 	defer c.Unlock()

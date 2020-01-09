@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,6 +38,9 @@ var (
 	dogstatsdMetricParseErrors       = expvar.Int{}
 	dogstatsdMetricPackets           = expvar.Int{}
 	dogstatsdPacketsLastSec          = expvar.Int{}
+
+	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
+		[]string{"type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
 )
 
 func init() {
@@ -324,6 +328,7 @@ func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error
 	sample, err := parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
+		tlmProcessed.Inc("metrics", "error")
 		return metrics.MetricSample{}, err
 	}
 	if s.mapper != nil && len(sample.tags) == 0 {
@@ -336,6 +341,7 @@ func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error
 	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
 	dogstatsdMetricPackets.Add(1)
+	tlmProcessed.Inc("metrics", "ok")
 	return metricSample, nil
 }
 
@@ -343,10 +349,12 @@ func (s *Server) parseEventMessage(message []byte) (*metrics.Event, error) {
 	sample, err := parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
+		tlmProcessed.Inc("events", "error")
 		return nil, err
 	}
 	event := enrichEvent(sample, s.defaultHostname)
 	event.Tags = append(event.Tags, s.extraTags...)
+	tlmProcessed.Inc("events", "ok")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
@@ -355,11 +363,13 @@ func (s *Server) parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck
 	sample, err := parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
+		tlmProcessed.Inc("service_checks", "error")
 		return nil, err
 	}
 	serviceCheck := enrichServiceCheck(sample, s.defaultHostname)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
+	tlmProcessed.Inc("service_checks", "ok")
 	return serviceCheck, nil
 }
 

@@ -499,6 +499,11 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 
+	// Telemetry
+	// Enable telemetry metrics on the internals of the Agent.
+	// This create a lot of billable custom metrics.
+	config.BindEnvAndSetDefault("telemetry.enabled", false)
+
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")

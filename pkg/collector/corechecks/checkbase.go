@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,6 +43,7 @@ type CheckBase struct {
 	latestWarnings []error
 	checkInterval  time.Duration
 	source         string
+	telemetry      bool
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -55,6 +57,7 @@ func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckB
 		checkName:     name,
 		checkID:       check.ID(name),
 		checkInterval: defaultInterval,
+		telemetry:     telemetry.IsCheckEnabled(name),
 	}
 }
 
@@ -159,6 +162,11 @@ func (c *CheckBase) ConfigSource() string {
 // to build their ID.
 func (c *CheckBase) ID() check.ID {
 	return c.checkID
+}
+
+// IsTelemetryEnabled returns if the telemetry is enabled for this check.
+func (c *CheckBase) IsTelemetryEnabled() bool {
+	return c.telemetry
 }
 
 // GetWarnings grabs the latest integration warnings for the check.

@@ -27,6 +27,7 @@ func (c *TestCheck) Run() error                                                 
 func (c *TestCheck) ID() ID                                                     { return ID(c.String()) }
 func (c *TestCheck) GetWarnings() []error                                       { return []error{} }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error)                  { return make(map[string]int64), nil }
+func (c *TestCheck) IsTelemetryEnabled() bool                                   { return false }
 
 func TestIdentify(t *testing.T) {
 	testCheck := &TestCheck{}

@@ -10,14 +10,13 @@ package autoscalers
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 
-	"github.com/prometheus/client_golang/prometheus"
-	promutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -560,6 +559,11 @@ func TestUpdateRateLimiting(t *testing.T) {
 		},
 	}
 
+	rateLimitsRemaining = &mockGauge{values: make(map[string]float64)}
+	rateLimitsPeriod = &mockGauge{values: make(map[string]float64)}
+	rateLimitsLimit = &mockGauge{values: make(map[string]float64)}
+	rateLimitsReset = &mockGauge{values: make(map[string]float64)}
+
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
 			datadogClient := &fakeDatadogClient{
@@ -573,18 +577,52 @@ func TestUpdateRateLimiting(t *testing.T) {
 			if err != nil {
 				assert.EqualError(t, tt.error, err.Error())
 			}
-			assert.Equal(t, promutil.ToFloat64(*rateLimitsLimit), tt.results.Limit)
-			assert.Equal(t, promutil.ToFloat64(*rateLimitsReset), tt.results.Reset)
-			assert.Equal(t, promutil.ToFloat64(*rateLimitsPeriod), tt.results.Period)
-			assert.Equal(t, promutil.ToFloat64(*rateLimitsRemaining), tt.results.Remaining)
+			assert.Equal(t, rateLimitsLimit.(*mockGauge).values[queryEndpoint], tt.results.Limit)
+			assert.Equal(t, rateLimitsReset.(*mockGauge).values[queryEndpoint], tt.results.Reset)
+			assert.Equal(t, rateLimitsPeriod.(*mockGauge).values[queryEndpoint], tt.results.Period)
+			assert.Equal(t, rateLimitsRemaining.(*mockGauge).values[queryEndpoint], tt.results.Remaining)
 		})
 		resetCounters(queryEndpoint)
 	}
 }
 
 func resetCounters(endpoint string) {
-	rateLimitsRemaining.With(prometheus.Labels{"endpoint": endpoint}).Set(0)
-	rateLimitsPeriod.With(prometheus.Labels{"endpoint": endpoint}).Set(0)
-	rateLimitsLimit.With(prometheus.Labels{"endpoint": endpoint}).Set(0)
-	rateLimitsReset.With(prometheus.Labels{"endpoint": endpoint}).Set(0)
+	rateLimitsRemaining.Set(0, endpoint)
+	rateLimitsPeriod.Set(0, endpoint)
+	rateLimitsLimit.Set(0, endpoint)
+	rateLimitsReset.Set(0, endpoint)
+}
+
+type mockGauge struct {
+	values map[string]float64
+}
+
+// Set stores the value for the given tags.
+func (m *mockGauge) Set(value float64, tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] = value
+}
+
+// Inc increments the Gauge value.
+func (m *mockGauge) Inc(tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] += 1.0
+}
+
+// Dec decrements the Gauge value.
+func (m *mockGauge) Dec(tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] -= 1.0
+}
+
+// Add adds the value to the Gauge value.
+func (m *mockGauge) Add(value float64, tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] += value
+}
+
+// Sub subtracts the value to the Gauge value.
+func (m *mockGauge) Sub(value float64, tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] -= value
+}
+
+// Delete deletes the value for the Gauge with the given tags.
+func (m *mockGauge) Delete(tagsValue ...string) {
+	delete(m.values, strings.Join(tagsValue, ","))
 }
