@@ -130,7 +130,7 @@ func (ds *DataScrubber) ScrubProcessCommand(p *process.FilledProcess) []string {
 	pKey := createProcessKey(p)
 	if _, ok := ds.seenProcess[pKey]; !ok {
 		ds.seenProcess[pKey] = struct{}{}
-		if scrubbed, changed := ds.scrubCommand(p.Cmdline); changed {
+		if scrubbed, changed := ds.ScrubCommand(p.Cmdline); changed {
 			ds.scrubbedCmdlines[pKey] = scrubbed
 		}
 	}
@@ -152,9 +152,9 @@ func (ds *DataScrubber) IncrementCacheAge() {
 	}
 }
 
-// scrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
+// ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
 // It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
-func (ds *DataScrubber) scrubCommand(cmdline []string) ([]string, bool) {
+func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
 	newCmdline := cmdline
 	rawCmdline := strings.Join(cmdline, " ")
 	changed := false

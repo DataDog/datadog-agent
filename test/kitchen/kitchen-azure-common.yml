@@ -1,6 +1,7 @@
 ---
 <%
   ENV['AZURE_LOCATION'] ||= "North Central US"
+  location = ENV['AZURE_LOCATION']
 %>
 
 <%
@@ -51,7 +52,7 @@ driver:
 
 driver_config:
   subscription_id: <%= ENV['AZURE_SUBSCRIPTION_ID'] %>
-  location: <%= ENV['AZURE_LOCATION'] %>
+  location: <%= location %>
   <% if ENV['DD_PIPELINE_ID'] %>
   azure_resource_group_suffix: pl<%= ENV['DD_PIPELINE_ID'] %>
   <% else %>
@@ -77,8 +78,6 @@ platforms:
     windows_sizes = [
       "Standard_D2_v2"
     ]
-
-    location = "North Central US"
 
     windows_platforms = []
     sles11_platforms = []

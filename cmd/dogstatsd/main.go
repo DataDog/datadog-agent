@@ -16,6 +16,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -202,8 +204,10 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 		tagger.Init()
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
-	statsd, err = dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
+	metricSamplePool := metrics.NewMetricSamplePool(32)
+	aggregatorInstance := aggregator.InitAggregator(s, metricSamplePool, hname, "agent")
+	sampleC, eventC, serviceCheckC := aggregatorInstance.GetBufferedChannels()
+	statsd, err := dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return

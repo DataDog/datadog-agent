@@ -14,6 +14,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
+// OnErrItemTooBigPolicy defines the behavior when OnErrItemTooBig occurs.
+type OnErrItemTooBigPolicy int
+
+const (
+	// DropItemOnErrItemTooBig when founding an ErrItemTooBig, skips the error and continue
+	DropItemOnErrItemTooBig OnErrItemTooBigPolicy = iota
+
+	// FailOnErrItemTooBig when founding an ErrItemTooBig, returns the error and stop
+	FailOnErrItemTooBig
+)
+
 // PayloadBuilder is not implemented when zlib is not available.
 type PayloadBuilder struct {
 }
@@ -23,7 +34,7 @@ func NewPayloadBuilder() *PayloadBuilder {
 	return nil
 }
 
-// Build is not implemented when zlib is not available.
-func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
+// BuildWithOnErrItemTooBigPolicy is not implemented when zlib is not available.
+func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(marshaler.StreamJSONMarshaler, OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
 	return nil, fmt.Errorf("not implemented")
 }

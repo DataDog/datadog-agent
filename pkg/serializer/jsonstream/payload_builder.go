@@ -10,7 +10,7 @@ package jsonstream
 import (
 	"bytes"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -37,8 +37,27 @@ func NewPayloadBuilder() *PayloadBuilder {
 	}
 }
 
+// OnErrItemTooBigPolicy defines the behavior when OnErrItemTooBig occurs.
+type OnErrItemTooBigPolicy int
+
+const (
+	// DropItemOnErrItemTooBig:  when ErrItemTooBig is encountered, skips the error and continue
+	DropItemOnErrItemTooBig OnErrItemTooBigPolicy = iota
+
+	// FailOnErrItemTooBig: when ErrItemTooBig is encountered, returns the error and stop
+	FailOnErrItemTooBig
+)
+
 // Build serializes a metadata payload and sends it to the forwarder
 func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Payloads, error) {
+	return b.BuildWithOnErrItemTooBigPolicy(m, DropItemOnErrItemTooBig)
+}
+
+// BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
+func (b *PayloadBuilder) BuildWithOnErrItemTooBigPolicy(
+	m marshaler.StreamJSONMarshaler,
+	policy OnErrItemTooBigPolicy) (forwarder.Payloads, error) {
+
 	var payloads forwarder.Payloads
 	var i int
 	itemCount := m.Len()
@@ -100,6 +119,11 @@ func (b *PayloadBuilder) Build(m marshaler.StreamJSONMarshaler) (forwarder.Paylo
 			i++
 			expvarsTotalItems.Add(1)
 			continue
+		case ErrItemTooBig:
+			if policy == FailOnErrItemTooBig {
+				return nil, ErrItemTooBig
+			}
+			fallthrough
 		default:
 			// Unexpected error, drop the item
 			i++
