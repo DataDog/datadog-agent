@@ -24,12 +24,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
+	"net/url"
 )
 
 const (
 	// chunkSize ensures batch queries are limited in size.
-	chunkSize = 45
+	chunkSize = 35
+	// maxCharactersPerChunk is the maximum size of a single chunk to avoid 414 Request-URI Too Large
+	maxCharactersPerChunk = 7000
 )
+
+type ByLen []string
+
+func (a ByLen) Len() int           { return len(a) }
+func (a ByLen) Less(i, j int) bool { return len(a[i]) > len(a[j]) }
+func (a ByLen) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
@@ -146,13 +155,26 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 }
 
 func makeChunks(batch []string) (chunks [][]string) {
-	for i := 0; i < len(batch); i += chunkSize {
-		if i+chunkSize > len(batch) {
-			chunks = append(chunks, batch[i:])
-			break
+	// uriLenght is used to avoid making a query that goes beyond the maximum URI size.
+	var uriLenght int
+	var tempBucket []string
+
+	// sort the batch by length of the element, from longest to shortest
+	sort.Sort(ByLen(batch))
+
+	for _, val := range batch {
+
+		tempSize := len(url.PathEscape(val)) + 16
+		uriLenght = uriLenght + tempSize
+		if uriLenght >= maxCharactersPerChunk || len(tempBucket) >= chunkSize {
+			chunks = append(chunks, tempBucket)
+			uriLenght = tempSize
+			tempBucket = []string{val}
+			continue
 		}
-		chunks = append(chunks, batch[i:i+chunkSize])
+		tempBucket = append(tempBucket, val)
 	}
+	chunks = append(chunks, tempBucket)
 	return chunks
 }
 
@@ -162,6 +184,7 @@ func (p *Processor) queryExternalMetric(emList map[string]custommetrics.External
 	batch := []string{}
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
+		// Lenght of the query plus comma, time and space aggregators that would come later on.
 		batch = append(batch, q)
 	}
 	chunks := makeChunks(batch)

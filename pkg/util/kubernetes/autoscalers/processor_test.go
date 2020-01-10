@@ -22,6 +22,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 type fakeDatadogClient struct {
@@ -184,6 +185,16 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 
 }
 
+var letterRunes = []rune("qwertyuiopasdfghjklzxcvbnm1234567890")
+
+func randStringRune(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
 func TestValidateExternalMetricsBatching(t *testing.T) {
 	metricName := "foo"
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
@@ -231,7 +242,27 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 					Scope: makePtr("foo:bar"),
 				},
 			},
-			batchCalls: 4,
+			batchCalls: 5,
+			err:        nil,
+			timeout:    false,
+		},
+		{
+			desc: "Overspilling queries",
+			in: lambdaMakeChunks(20, custommetrics.ExternalMetricValue{
+				MetricName: randStringRune(4000),
+				Labels:     map[string]string{"foo": "bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 21,
 			err:        nil,
 			timeout:    false,
 		},
@@ -251,7 +282,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 					Scope: makePtr("foo:bar"),
 				},
 			},
-			batchCalls: 4,
+			batchCalls: 5,
 			err:        fmt.Errorf("Networking Error, timeout"),
 			timeout:    true,
 		},
