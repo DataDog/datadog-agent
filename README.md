@@ -55,35 +55,28 @@ To start working on the Agent, you can build the `master` branch:
    - `invoke rtloader.build -p 2` for Python2 only
    - `invoke rtloader.build -p 3` for Python3 only
    - `invoke rtloader.build -p 2,3` for both Python2 and Python3
-5. Build the agent with `invoke agent.build --build-exclude=systemd`. You can
+5. Copy `pkg/config/config_template.yaml` to `dev/dist/datadog.yaml` and add a valid api key.
+6. Build the agent with `invoke agent.build --build-exclude=systemd`. You can
    specify a custom Python location for the agent (useful when using
    virtualenvs): `invoke agent.build
    --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv2
    --python-home-3=$GOPATH/src/github.com/DataDog/datadog-agent/venv3`.
-  Running `invoke agent.build` builds the Agent and writes the binary to `bin/agent/agent`.
+  Running `invoke agent.build`:
+    * Discards any changes done in `bin/agent/dist`.
+    * Builds the Agent and writes the binary to `bin/agent/agent`.
+    * Copies files from `dev/dist` to `bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/master/dev/dist/README.md` for more information.
+
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 
 ## Run
 
-To start the agent type `agent run` from the `bin/agent` folder, it will take
-care of adjusting paths and run the binary in foreground.
-
-You need to provide a valid API key. You can either use the config file or
-overwrite it with the environment variable like:
+You can run the agent with:
 ```
-DD_API_KEY=12345678990 ./bin/agent/agent run -c bin/agent/dist/datadog.yaml
+./bin/agent/agent run -c bin/agent/dist/datadog.yaml
 ```
 
-If the Datadog Agent is not installed, or if you do not want to edit your `datadog.yaml`, 
-a configuration file is available at `bin/agent/dist/datadog.yaml`. To run the Agent with this configuration file,
- use `-c`: `DD_API_KEY=12345678990 bin/agent/agent <command> -c bin/agent/dist/` where `<command>` is an Agent command and `DD_API_KEY=12345678990` is a valid API key.
-
-**Important note**: 
-Running `invoke agent.build`: 
-  * Discards any changes done in `bin/agent/dist` 
-  * Copies files from `dev/dist` to `bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/master/dev/dist/README.md` for more information.
-
+The file `bin/agent/dist/datadog.yaml` is copied from `dev/dist/datadog.yaml` by `invoke agent.build` and must contain a valid api key.
 
 ## Contributing code
 
