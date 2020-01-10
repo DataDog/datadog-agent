@@ -33,6 +33,7 @@ type KubeUtilInterface interface {
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics() ([]byte, error)
 	ListContainers() ([]*containers.Container, error)
+	IsAgentHostNetwork() (bool, error)
 	UpdateContainerMetrics(ctrList []*containers.Container) error
 	GetRawLocalPodList() ([]v1.Pod, error)
 }
