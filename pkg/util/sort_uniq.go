@@ -33,6 +33,8 @@ func insertionSort(elements []string) {
 	}
 }
 
+// uniqSorted remove duplicate elements from the given slice
+// the given slice needs to be sorted
 func uniqSorted(elements []string) []string {
 	j := 0
 	for i := 1; i < len(elements); i++ {
