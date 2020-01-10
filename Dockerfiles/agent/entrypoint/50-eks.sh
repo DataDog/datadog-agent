@@ -14,8 +14,6 @@ fi
 # Remove all default checks & enable kubelet and eks_fargate checks
 if [[ ! -e /etc/datadog-agent/conf.d/kubelet.d/conf.yaml.default ]]; then
     find /etc/datadog-agent/conf.d/ -iname "*.yaml.default" -delete
-    mv /etc/datadog-agent/conf.d/kubelet.d/conf.yaml.example \
-    /etc/datadog-agent/conf.d/kubelet.d/conf.yaml.default
     mv /etc/datadog-agent/conf.d/eks_fargate.d/conf.yaml.example \
      /etc/datadog-agent/conf.d/eks_fargate.d/conf.yaml.default
 fi
