@@ -190,7 +190,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableTCPTracing:            false,
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
-		DisableDNSInspection:         true,
+		DisableDNSInspection:         false,
 		SystemProbeSocketPath:        defaultSystemProbeSocketPath,
 		SystemProbeLogFile:           defaultSystemProbeFilePath,
 		MaxTrackedConnections:        defaultMaxTrackedConnections,
