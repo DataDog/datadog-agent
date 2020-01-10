@@ -55,7 +55,7 @@ To start working on the Agent, you can build the `master` branch:
    - `invoke rtloader.build -p 2` for Python2 only
    - `invoke rtloader.build -p 3` for Python3 only
    - `invoke rtloader.build -p 2,3` for both Python2 and Python3
-5. Copy `pkg/config/config_template.yaml` to `dev/dist/datadog.yaml` and add a valid api key.
+5. Create a development `datadog.yaml` configuration file in `dev/dist/datadog.yaml`, containing a valid API key: `api_key: <API_KEY>`
 6. Build the agent with `invoke agent.build --build-exclude=systemd`. You can
    specify a custom Python location for the agent (useful when using
    virtualenvs): `invoke agent.build
