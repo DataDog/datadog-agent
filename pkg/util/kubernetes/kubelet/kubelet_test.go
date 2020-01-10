@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -401,7 +401,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	require.True(suite.T(), errors.IsNotFound(err))
 
 	// Valid container ID
-	pod, err = kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	pod, err = kubeutil.GetPodForContainerID("container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	// The /pods request is still cached
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)

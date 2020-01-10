@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 //go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
 
@@ -16,6 +16,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/spf13/cobra"
 
@@ -182,8 +184,10 @@ func start(cmd *cobra.Command, args []string) error {
 		tagger.Init()
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
-	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetBufferedChannels())
+	metricSamplePool := metrics.NewMetricSamplePool(32)
+	aggregatorInstance := aggregator.InitAggregator(s, metricSamplePool, hname, "agent")
+	sampleC, eventC, serviceCheckC := aggregatorInstance.GetBufferedChannels()
+	statsd, err := dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return nil

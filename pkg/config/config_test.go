@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package config
 
@@ -692,4 +692,94 @@ external_config:
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
+}
+
+func TestDogstatsdMappingProfilesOk(t *testing.T) {
+	datadogYaml := `
+dogstatsd_mapper_profiles:
+  - name: "airflow"
+    prefix: "airflow."
+    mappings:
+      - match: "airflow.job.duration_sec.*.*"
+        name: "airflow.job.duration"
+        tags:
+          job_type: "$1"
+          job_name: "$2"
+      - match: "airflow.job.size.*.*"
+        name: "airflow.job.size"
+        tags:
+          foo: "$1"
+          bar: "$2"
+  - name: "profile2"
+    prefix: "profile2."
+    mappings:
+      - match: "profile2.hello.*"
+        name: "profile2.hello"
+        tags:
+          foo: "$1"
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+
+	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
+
+	expectedProfiles := []MappingProfile{
+		{
+			Name:   "airflow",
+			Prefix: "airflow.",
+			Mappings: []MetricMapping{
+				{
+					Match: "airflow.job.duration_sec.*.*",
+					Name:  "airflow.job.duration",
+					Tags:  map[string]string{"job_type": "$1", "job_name": "$2"},
+				},
+				{
+					Match: "airflow.job.size.*.*",
+					Name:  "airflow.job.size",
+					Tags:  map[string]string{"foo": "$1", "bar": "$2"},
+				},
+			},
+		},
+		{
+			Name:   "profile2",
+			Prefix: "profile2.",
+			Mappings: []MetricMapping{
+				{
+					Match: "profile2.hello.*",
+					Name:  "profile2.hello",
+					Tags:  map[string]string{"foo": "$1"},
+				},
+			},
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedProfiles, profiles)
+}
+
+func TestDogstatsdMappingProfilesEmpty(t *testing.T) {
+	datadogYaml := `
+dogstatsd_mapper_profiles:
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+
+	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
+
+	var expectedProfiles []MappingProfile
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedProfiles, profiles)
+}
+
+func TestDogstatsdMappingProfilesError(t *testing.T) {
+	datadogYaml := `
+dogstatsd_mapper_profiles:
+  - abc
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
+
+	expectedErrorMsg := "Could not parse dogstatsd_mapper_profiles"
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), expectedErrorMsg)
+	assert.Empty(t, profiles)
 }

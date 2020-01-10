@@ -1131,14 +1131,16 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:d12ab5e83a9c556af857963ca797685012c09bbe35ee12bd4d0745f70af3f35e"
+  digest = "1:c826496cad27bd9a7644a01230a79d472b4093dd33587236e8f8369bb1d8534e"
   name = "github.com/prometheus/client_golang"
   packages = [
     "prometheus",
+    "prometheus/internal",
     "prometheus/promhttp",
   ]
   pruneopts = ""
-  revision = "e7e903064f5e9eb5da98208bae10b475d4db0f8c"
+  revision = "2641b987480bca71fb39738eb8c8b0d577cb1d76"
+  version = "v0.9.4"
 
 [[projects]]
   branch = "master"
@@ -1543,12 +1545,11 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:ba5a30c4cac85cf1d1b15f93803f16dcaa7ca7c0c22723aa3477dcd2b8a1b6d8"
+  digest = "1:301cc98bab3839bb2f984b661a78c04b73402ed88daf4f1ca6a317ef56acfed2"
   name = "gopkg.in/zorkian/go-datadog-api.v2"
   packages = ["."]
   pruneopts = ""
-  revision = "d7b8b10db6a7eb1c1c2424b10a795a1662e80c9a"
-  version = "v2.12.0"
+  revision = "0784a6c6d9a4659263c67e160442f4f5808793ac"
 
 [[projects]]
   branch = "release-1.15"
@@ -2006,7 +2007,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "0:"
+  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
@@ -2152,6 +2153,7 @@
     "github.com/google/gopacket/layers",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
+    "github.com/hashicorp/golang-lru",
     "github.com/hectane/go-acl",
     "github.com/iovisor/gobpf/elf",
     "github.com/json-iterator/go",

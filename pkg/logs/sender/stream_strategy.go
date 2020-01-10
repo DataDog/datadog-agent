@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package sender
 
@@ -29,6 +29,7 @@ func (s *streamStrategy) Send(inputChan chan *message.Message, outputChan chan *
 			log.Warnf("Could not send payload: %v", err)
 		}
 		metrics.LogsSent.Add(1)
+		metrics.TlmLogsSent.Inc()
 		outputChan <- message
 	}
 }

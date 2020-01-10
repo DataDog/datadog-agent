@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package check
 
@@ -23,4 +23,5 @@ type Check interface {
 	GetMetricStats() (map[string]int64, error)                          // get metric stats from the sender
 	Version() string                                                    // return the version of the check if available
 	ConfigSource() string                                               // return the configuration source of the check
+	IsTelemetryEnabled() bool                                           // return if telemetry is enabled for this check
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package api
 
@@ -11,12 +11,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	fmtlog "log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -501,18 +499,6 @@ func TestReceiverRateLimiterCancel(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-}
-
-func TestErrorLogger(t *testing.T) {
-	var got string
-	logger := fmtlog.New(writableFunc(func(v ...interface{}) error {
-		got = v[0].(string)
-		return nil
-	}), "http.Server: ", 0)
-	logger.Print("my-error")
-	if !strings.HasPrefix(got, "http.Server: my-error") {
-		t.Fatal("didn't log error")
-	}
 }
 
 func BenchmarkHandleTracesFromOneApp(b *testing.B) {

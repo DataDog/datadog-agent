@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -227,6 +227,22 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			expectedOrch: []string{},
 			expectedHigh: []string{},
+		},
+		{
+			testName: "extractCustomLabels",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{"PATH=/bin"},
+					Labels: map[string]string{
+						"com.datadoghq.ad.tags": "[\"adTestKey:adTestVal1\", \"adTestKey:adTestVal2\"]",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow:          []string{},
+			expectedOrch:         []string{},
+			expectedHigh:         []string{"adTestKey:adTestVal1", "adTestKey:adTestVal2"},
 		},
 	}
 

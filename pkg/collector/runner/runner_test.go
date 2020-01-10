@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package runner
 
@@ -44,6 +44,7 @@ func (c *TestCheck) ConfigSource() string                                       
 func (c *TestCheck) Stop()                                                      {}
 func (c *TestCheck) Configure(integration.Data, integration.Data, string) error { return nil }
 func (c *TestCheck) Interval() time.Duration                                    { return 1 }
+func (c *TestCheck) IsTelemetryEnabled() bool                                   { return false }
 func (c *TestCheck) Run() error {
 	c.Lock()
 	defer c.Unlock()

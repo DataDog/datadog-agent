@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -33,6 +33,7 @@ const (
 
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
+	GetRateLimitStats() map[string]datadog.RateLimit
 }
 
 // ProcessorInterface is used to easily mock the interface for testing
@@ -69,7 +70,7 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 	maxAge := int64(p.externalMaxAge.Seconds())
 	var err error
 	updated = make(map[string]custommetrics.ExternalMetricValue)
-	metrics, err := p.validateExternalMetric(emList)
+	metrics, err := p.queryExternalMetric(emList)
 	if len(metrics) == 0 && err != nil {
 		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
 		// If no metrics can be retrieved from Datadog in a given list, we need to invalidate them
@@ -155,8 +156,9 @@ func makeChunks(batch []string) (chunks [][]string) {
 	return chunks
 }
 
-// validateExternalMetric queries Datadog to validate the availability and value of one or more external metrics
-func (p *Processor) validateExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
+// queryExternalMetric queries Datadog to validate the availability and value of one or more external metrics
+// Also updates the rate limits statistics as a result of the query.
+func (p *Processor) queryExternalMetric(emList map[string]custommetrics.ExternalMetricValue) (processed map[string]Point, err error) {
 	batch := []string{}
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
@@ -190,6 +192,10 @@ func (p *Processor) validateExternalMetric(emList map[string]custommetrics.Exter
 		}
 	}
 	log.Debugf("Processed %d chunks", len(chunks))
+
+	if err := p.updateRateLimitingMetrics(); err != nil {
+		errors = append(errors, err)
+	}
 	return processed, utilserror.NewAggregate(errors)
 }
 

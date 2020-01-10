@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 package containers
 
@@ -45,6 +45,16 @@ const (
 	NoneNetworkMode           = "none"
 	AwsvpcNetworkMode         = "awsvpc"
 	UnknownNetworkMode        = "unknown"
+)
+
+// UTSMode is container UTS modes
+type UTSMode string
+
+// UTSMode is container UTS modes
+const (
+	DefaultUTSMode UTSMode = ""
+	HostUTSMode            = "host"
+	UnknownUTSMode         = "unknown"
 )
 
 // Container represents a single container on a machine
