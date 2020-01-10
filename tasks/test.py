@@ -63,7 +63,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     else:
         tool_targets = test_targets = targets
 
-    build_include = get_default_build_tags() if build_include is None else build_include.split(",")
+    build_include = get_default_build_tags(process=True) if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -225,7 +225,8 @@ def lint_releasenote(ctx):
         while True:
             res = requests.get(url)
             files = res.json()
-            if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
+            if any([f['filename'].startswith("releasenotes/notes/") or \
+                    f['filename'].startswith("releasenotes-dca/notes/") for f in files]):
                 break
 
             if 'next' in res.links:
@@ -252,7 +253,8 @@ def lint_releasenote(ctx):
                 while True:
                     res = requests.get(url)
                     files = res.json().get("files", {})
-                    if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
+                    if any([f['filename'].startswith("releasenotes/notes/") or \
+                            f['filename'].startswith("releasenotes-dca/notes/") for f in files]):
                         break
 
                     if 'next' in res.links:

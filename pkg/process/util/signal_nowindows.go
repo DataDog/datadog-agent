@@ -29,7 +29,7 @@ func HandleSignals(exit chan bool) {
 			// We never want the agent to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
 			continue
 		default:
-			log.Debugf("Caught signal %s; continuing/ignoring.", sig)
+			log.Tracef("Caught signal %s; continuing/ignoring.", sig)
 		}
 	}
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -66,6 +67,8 @@ type TraceWriter struct {
 	traces       []*pb.APITrace // traces buffered
 	events       []*pb.Span     // events buffered
 	bufferedSize int            // estimated buffer size
+
+	easylog *logutil.ThrottledLogger
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -78,6 +81,7 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 		stats:    &info.TraceWriterInfo{},
 		stop:     make(chan struct{}),
 		tick:     5 * time.Second,
+		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -254,7 +258,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		atomic.AddInt64(&w.stats.Errors, 1)
 
 	case eventTypeDropped:
-		log.Warnf("Trace writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
+		w.easylog.Warn("Trace writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
 		metrics.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
 		metrics.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}

@@ -180,9 +180,15 @@ func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 	l.m.RUnlock()
 
 	if found {
-		if e.Action == "die" {
+		switch e.Action {
+		case "die":
 			l.removeService(cID)
-		} else {
+		case "start":
+			// Container restarted with the same ID within 5 seconds.
+			time.AfterFunc(5*time.Second, func() {
+				l.createService(cID)
+			})
+		default:
 			// FIXME sometimes the agent's container's events are picked up twice at startup
 			log.Debugf("Expected die for container %s got %s: skipping event", cID[:12], e.Action)
 			return
@@ -277,12 +283,11 @@ func (l *DockerListener) removeService(cID string) {
 	l.m.RUnlock()
 
 	if ok {
-		l.m.Lock()
-		delete(l.services, cID)
-		l.m.Unlock()
-
 		// delay service removal for short lived service detection
 		time.AfterFunc(5*time.Second, func() {
+			l.m.Lock()
+			delete(l.services, cID)
+			l.m.Unlock()
 			l.delService <- svc
 		})
 	} else {

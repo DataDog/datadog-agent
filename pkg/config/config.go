@@ -98,6 +98,21 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
+// MappingProfile represent a group of mappings
+type MappingProfile struct {
+	Name     string          `mapstructure:"name"`
+	Prefix   string          `mapstructure:"prefix"`
+	Mappings []MetricMapping `mapstructure:"mappings"`
+}
+
+// MetricMapping represent one mapping rule
+type MetricMapping struct {
+	Match     string            `mapstructure:"match"`
+	MatchType string            `mapstructure:"match_type"`
+	Name      string            `mapstructure:"name"`
+	Tags      map[string]string `mapstructure:"tags"`
+}
+
 func init() {
 	osinit()
 	// Configure Datadog global configuration
@@ -176,7 +191,7 @@ func initConfig(config Config) {
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024)
+	config.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
 	config.BindEnvAndSetDefault("secret_backend_timeout", 5)
 
 	// Use to output logs in JSON format
@@ -222,6 +237,7 @@ func initConfig(config Config) {
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", false)
 
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
@@ -272,6 +288,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
+	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
+	config.SetKnown("dogstatsd_mapper_profiles")
+
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
@@ -393,6 +412,7 @@ func initConfig(config Config) {
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
 	config.BindEnv("process_config.process_dd_url", "")
+	config.BindEnv("process_config.orchestrator_dd_url", "")
 
 	// Logs Agent
 
@@ -479,6 +499,11 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 
+	// Telemetry
+	// Enable telemetry metrics on the internals of the Agent.
+	// This create a lot of billable custom metrics.
+	config.BindEnvAndSetDefault("telemetry.enabled", false)
+
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")
@@ -489,6 +514,9 @@ func initConfig(config Config) {
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
+
+	// Ochestrator explorer
+	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
 
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
@@ -507,6 +535,7 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
 	config.SetKnown("process_config.additional_endpoints.*")
+	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
@@ -1010,4 +1039,20 @@ func setNumWorkers(config Config) {
 
 	// update config with the actual effective number of workers
 	config.Set("check_runners", numWorkers)
+}
+
+// GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
+func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
+	return getDogstatsdMappingProfilesConfig(Datadog)
+}
+
+func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) {
+	var mappings []MappingProfile
+	if config.IsSet("dogstatsd_mapper_profiles") {
+		err := config.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
+		if err != nil {
+			return []MappingProfile{}, log.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
+		}
+	}
+	return mappings, nil
 }

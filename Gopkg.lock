@@ -1137,7 +1137,6 @@
     "prometheus",
     "prometheus/internal",
     "prometheus/promhttp",
-    "prometheus/testutil",
   ]
   pruneopts = ""
   revision = "2641b987480bca71fb39738eb8c8b0d577cb1d76"
@@ -2154,6 +2153,7 @@
     "github.com/google/gopacket/layers",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
+    "github.com/hashicorp/golang-lru",
     "github.com/hectane/go-acl",
     "github.com/iovisor/gobpf/elf",
     "github.com/json-iterator/go",
@@ -2169,7 +2169,6 @@
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
-    "github.com/prometheus/client_golang/prometheus/testutil",
     "github.com/samuel/go-zookeeper/zk",
     "github.com/shirou/gopsutil/cpu",
     "github.com/shirou/gopsutil/disk",

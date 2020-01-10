@@ -7,7 +7,9 @@
 
 package kubelet
 
-import "time"
+import (
+	"time"
+)
 
 // Pod contains fields for unmarshalling a Pod
 type Pod struct {

@@ -45,24 +45,6 @@ var (
 	kubeletExpVar       = expvar.NewInt("kubeletQueries")
 )
 
-// KubeUtilInterface defines the interface for kubelet api
-type KubeUtilInterface interface {
-	GetNodeInfo() (string, string, error)
-	GetNodename() (string, error)
-	GetLocalPodList() ([]*Pod, error)
-	ForceGetLocalPodList() ([]*Pod, error)
-	GetPodForContainerID(containerID string) (*Pod, error)
-	GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error)
-	GetPodFromUID(podUID string) (*Pod, error)
-	GetPodForEntityID(entityID string) (*Pod, error)
-	QueryKubelet(path string) ([]byte, int, error)
-	GetKubeletApiEndpoint() string
-	GetRawConnectionInfo() map[string]string
-	GetRawMetrics() ([]byte, error)
-	ListContainers() ([]*containers.Container, error)
-	UpdateContainerMetrics(ctrList []*containers.Container) error
-}
-
 // KubeUtil is a struct to hold the kubelet api url
 // Instantiate with GetKubeUtil
 type KubeUtil struct {
@@ -278,9 +260,13 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 	if containerID == "" {
 		return nil, fmt.Errorf("containerID is empty")
 	}
+
+	// We will match only on the id itself, without runtime identifier, it should be quite unlikely on a Kube node
+	// to have a container in the runtime used by Kube to match a container in another runtime...
+	strippedContainerID := containers.ContainerIDForEntity(containerID)
 	for _, pod := range podList {
 		for _, container := range pod.Status.GetAllContainers() {
-			if container.ID == containerID {
+			if containers.ContainerIDForEntity(container.ID) == strippedContainerID {
 				return pod, nil
 			}
 		}
@@ -495,6 +481,21 @@ func (ku *KubeUtil) GetRawMetrics() ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
+func (ku *KubeUtil) IsAgentHostNetwork() (bool, error) {
+	cid, err := docker.GetAgentCID()
+	if err != nil {
+		return false, err
+	}
+
+	pod, err := ku.GetPodForContainerID(cid)
+	if err != nil {
+		return false, err
+	}
+
+	return pod.Spec.HostNetwork, nil
 }
 
 func (ku *KubeUtil) setupKubeletApiEndpoint() error {

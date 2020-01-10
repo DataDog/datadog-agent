@@ -88,7 +88,7 @@ func TestExecCommandError(t *testing.T) {
 		secretBackendTimeout = 0
 	}()
 
-	inputPayload := "{\"version\": \"" + payloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
+	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 
 	// empty secretBackendCommand
 	secretBackendCommand = ""
@@ -137,7 +137,7 @@ func TestExecCommandError(t *testing.T) {
 	// test buffer limit
 	secretBackendCommand = "./test/response_too_long/response_too_long" + binExtension
 	setCorrectRight(secretBackendCommand)
-	secretBackendOutputMaxSize = 20
+	SecretBackendOutputMaxSize = 20
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 	assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())
