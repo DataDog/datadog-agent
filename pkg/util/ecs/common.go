@@ -8,110 +8,57 @@
 package ecs
 
 import (
-	"encoding/json"
-	"net/http"
+	"net"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 )
 
-const (
-	metadataURL string = "http://169.254.170.2/v2/metadata"
-	statsURL    string = "http://169.254.170.2/v2/stats"
-	timeout            = 500 * time.Millisecond
-)
-
-// GetTaskMetadata extracts the metadata payload for the task the agent is in.
-func GetTaskMetadata() (metadata.TaskMetadata, error) {
-	return GetTaskMetadataWithURL(metadataURL)
-}
-
-// GetTaskMetadataWithURL extracts the metadata payload for a task given a metadata URL.
-func GetTaskMetadataWithURL(url string) (metadata.TaskMetadata, error) {
-	var meta metadata.TaskMetadata
-	client := http.Client{
-		Timeout: timeout,
-	}
-	resp, err := client.Get(url)
-	if err != nil {
-		return meta, err
-	}
-	defer resp.Body.Close()
-
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&meta)
-	if err != nil {
-		log.Errorf("Decoding task metadata failed - %s", err)
-	}
-	return meta, err
-}
-
-// ListContainers returns all containers exposed by the ECS API and their metrics
-func ListContainers() ([]*containers.Container, error) {
+// ListContainersInCurrentTask returns internal container representations (with
+// their metrics) for the current task by collecting that information from the
+// ECS metadata v2 API.
+func ListContainersInCurrentTask() ([]*containers.Container, error) {
 	var cList []*containers.Container
 
-	ecsContainers, err := getECSContainers()
-	if err != nil {
+	task, err := metadata.V2().GetTask()
+	if err != nil || len(task.Containers) == 0 {
 		log.Error("Unable to get the container list from ecs")
 		return cList, err
 	}
-	for _, c := range ecsContainers {
-		entityID := containers.BuildTaggerEntityName(c.DockerID)
-		ctr := &containers.Container{
-			Type:        "ECS",
-			ID:          c.DockerID,
-			EntityID:    entityID,
-			Name:        c.DockerName,
-			Image:       c.Image,
-			ImageID:     c.ImageID,
-			AddressList: metadata.ParseECSContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName),
-		}
-
-		createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
-		if err != nil {
-			log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
-		} else {
-			ctr.Created = createdAt.Unix()
-		}
-		startedAt, err := time.Parse(time.RFC3339, c.StartedAt)
-		if err != nil {
-			log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
-		} else {
-			ctr.StartedAt = startedAt.Unix()
-		}
-
-		if l, found := c.Limits["cpu"]; found && l > 0 {
-			ctr.CPULimit = float64(l)
-		} else {
-			ctr.CPULimit = 100
-		}
-		if l, found := c.Limits["memory"]; found && l > 0 {
-			ctr.MemLimit = l
-		}
-		cList = append(cList, ctr)
+	for _, c := range task.Containers {
+		cList = append(cList, convertMetaV2Container(c))
 	}
+
 	err = UpdateContainerMetrics(cList)
 	return cList, err
 }
 
-// UpdateContainerMetrics updates performance metrics for a provided list of Container objects
+// UpdateContainerMetrics updates performance metrics for a list of internal
+// container representations based on stats collected from the ECS metadata v2 API
 func UpdateContainerMetrics(cList []*containers.Container) error {
 	for _, ctr := range cList {
-		stats, err := getContainerStats(ctr.ID)
+		stats, err := metadata.V2().GetContainerStats(ctr.ID)
 		if err != nil {
 			log.Debugf("Unable to get stats from ECS for container %s: %s", ctr.ID, err)
 			continue
 		}
+
+		stats.IO.ReadBytes = sumStats(stats.IO.BytesPerDeviceAndKind, "Read")
+		stats.IO.WriteBytes = sumStats(stats.IO.BytesPerDeviceAndKind, "Write")
+
 		// TODO: add metrics - complete for https://github.com/DataDog/datadog-process-agent/blob/970729924e6b2b6fe3a912b62657c297621723cc/checks/container_rt.go#L110-L128
 		// start with a hack (translate ecs stats to docker cgroup stuff)
 		// then support ecs stats natively
-		cpu, mem, io, memLimit := convertECSStats(stats)
+		cpu, mem, io, memLimit := convertMetaV2ContainerStats(stats)
 		ctr.CPU = &cpu
 		ctr.Memory = &mem
 		ctr.IO = &io
+
 		if ctr.MemLimit == 0 {
 			ctr.MemLimit = memLimit
 		}
@@ -119,40 +66,104 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 	return nil
 }
 
-// getECSContainers returns all containers exposed by the ECS API as plain ECSContainers
-func getECSContainers() ([]metadata.ContainerMetadata, error) {
-	meta, err := GetTaskMetadata()
-	if err != nil || len(meta.Containers) == 0 {
-		log.Errorf("Unable to retrieve task metadata")
-		return nil, err
+// convertMetaV2Container returns an internal container representation from an
+// ECS metadata v2 container object.
+func convertMetaV2Container(c v2.Container) *containers.Container {
+	container := &containers.Container{
+		Type:        "ECS",
+		ID:          c.DockerID,
+		EntityID:    containers.BuildTaggerEntityName(c.DockerID),
+		Name:        c.DockerName,
+		Image:       c.Image,
+		ImageID:     c.ImageID,
+		AddressList: parseContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName),
 	}
-	return meta.Containers, nil
+
+	createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
+	if err != nil {
+		log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
+	} else {
+		container.Created = createdAt.Unix()
+	}
+	startedAt, err := time.Parse(time.RFC3339, c.StartedAt)
+	if err != nil {
+		log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
+	} else {
+		container.StartedAt = startedAt.Unix()
+	}
+
+	if l, found := c.Limits["cpu"]; found && l > 0 {
+		container.CPULimit = float64(l)
+	} else {
+		container.CPULimit = 100
+	}
+	if l, found := c.Limits["memory"]; found && l > 0 {
+		container.MemLimit = l
+	}
+
+	return container
 }
 
-// getContainerStats retrives stats about a container from the ECS stats endpoint
-func getContainerStats(id string) (ContainerStats, error) {
-	var stats ContainerStats
-	client := http.Client{
-		Timeout: timeout,
-	}
-	resp, err := client.Get(statsURL + "/" + id)
-	if err != nil {
-		return stats, err
-	}
-	defer resp.Body.Close()
+// convertMetaV2Container returns internal metrics representations from an ECS
+// metadata v2 container stats object.
+func convertMetaV2ContainerStats(s *v2.ContainerStats) (cpu metrics.CgroupTimesStat, mem metrics.CgroupMemStat, io metrics.CgroupIOStat, memLimit uint64) {
+	// CPU
+	cpu.User = s.CPU.Usage.Usermode
+	cpu.System = s.CPU.Usage.Kernelmode
+	cpu.SystemUsage = s.CPU.System
 
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&stats)
-	if err != nil {
-		return stats, err
-	}
-	stats.IO.ReadBytes = computeIOStats(stats.IO.BytesPerDeviceAndKind, "Read")
-	stats.IO.WriteBytes = computeIOStats(stats.IO.BytesPerDeviceAndKind, "Write")
-	return stats, nil
+	// Memory
+	mem.Cache = s.Memory.Details.Cache
+	mem.MemUsageInBytes = s.Memory.Usage
+	mem.Pgfault = s.Memory.Details.PgFault
+	mem.RSS = s.Memory.Details.RSS
+	memLimit = s.Memory.Limit
+
+	// IO
+	io.ReadBytes = s.IO.ReadBytes
+	io.WriteBytes = s.IO.WriteBytes
+
+	return
 }
 
-// computeIOStats sums all values across devices for an operation kind.
-func computeIOStats(ops []OPStat, kind string) uint64 {
+// parseContainerNetworkAddresses converts ECS container ports
+// and networks into a list of NetworkAddress
+func parseContainerNetworkAddresses(ports []v2.Port, networks []v2.Network, container string) []containers.NetworkAddress {
+	addrList := []containers.NetworkAddress{}
+	if networks == nil {
+		log.Debugf("No network settings available in ECS metadata")
+		return addrList
+	}
+	for _, network := range networks {
+		for _, addr := range network.IPv4Addresses { // one-element list
+			IP := net.ParseIP(addr)
+			if IP == nil {
+				log.Warnf("Unable to parse IP: %v for container: %s", addr, container)
+				continue
+			}
+			if len(ports) > 0 {
+				// Ports is not nil, get ports and protocols
+				for _, port := range ports {
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       IP,
+						Port:     int(port.ContainerPort),
+						Protocol: port.Protocol,
+					})
+				}
+			} else {
+				// Ports is nil (omitted by the ecs api if there are no ports exposed).
+				// Keep the container IP anyway.
+				addrList = append(addrList, containers.NetworkAddress{
+					IP: IP,
+				})
+			}
+		}
+	}
+	return addrList
+}
+
+// sumStats adds up values across devices for an operation kind.
+func sumStats(ops []v2.OPStat, kind string) uint64 {
 	var res uint64
 	for _, op := range ops {
 		if op.Kind == kind {
@@ -160,25 +171,4 @@ func computeIOStats(ops []OPStat, kind string) uint64 {
 		}
 	}
 	return res
-}
-
-// convertECSStats is responsible for converting ecs stats structs to docker style stats
-// TODO: get rid of this by supporting ECS stats everywhere we use docker stats only.
-func convertECSStats(stats ContainerStats) (metrics.CgroupTimesStat, metrics.CgroupMemStat, metrics.CgroupIOStat, uint64) {
-	cpu := metrics.CgroupTimesStat{
-		System:      stats.CPU.Usage.Kernelmode,
-		User:        stats.CPU.Usage.Usermode,
-		SystemUsage: stats.CPU.System,
-	}
-	mem := metrics.CgroupMemStat{
-		RSS:             stats.Memory.Details.RSS,
-		Cache:           stats.Memory.Details.Cache,
-		Pgfault:         stats.Memory.Details.PgFault,
-		MemUsageInBytes: stats.Memory.Details.Usage,
-	}
-	io := metrics.CgroupIOStat{
-		ReadBytes:  stats.IO.ReadBytes,
-		WriteBytes: stats.IO.WriteBytes,
-	}
-	return cpu, mem, io, stats.Memory.Details.Limit
 }
