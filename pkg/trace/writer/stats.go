@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -41,6 +42,8 @@ type StatsWriter struct {
 	senders  []*sender
 	stop     chan struct{}
 	stats    *info.StatsWriterInfo
+
+	easylog *logutil.ThrottledLogger
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
@@ -51,6 +54,7 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWri
 		env:      cfg.DefaultEnv,
 		stats:    &info.StatsWriterInfo{},
 		stop:     make(chan struct{}),
+		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -256,7 +260,7 @@ func (w *StatsWriter) recordEvent(t eventType, data *eventData) {
 		atomic.AddInt64(&w.stats.Errors, 1)
 
 	case eventTypeDropped:
-		log.Warnf("Stats writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
+		w.easylog.Warn("Stats writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
 		metrics.Count("datadog.trace_agent.stats_writer.dropped", 1, nil, 1)
 		metrics.Count("datadog.trace_agent.stats_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}

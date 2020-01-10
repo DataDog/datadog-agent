@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
@@ -132,10 +133,11 @@ func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverTimeout > 0 {
 		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
 	}
+	httpLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	r.server = &http.Server{
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
-		ErrorLog:     stdlog.New(writableFunc(log.Error), "http.Server: ", 0),
+		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:      mux,
 	}
 
@@ -611,16 +613,4 @@ func getMediaType(req *http.Request) string {
 		return "application/json"
 	}
 	return mt
-}
-
-// writableFunc implements io.Writer over a function. Anything written will be
-// forwarded to the function as one string argument.
-type writableFunc func(v ...interface{}) error
-
-// Write implements io.Writer.
-func (fn writableFunc) Write(p []byte) (n int, err error) {
-	if err = fn(string(p)); err != nil {
-		return 0, err
-	}
-	return len(p), nil
 }
