@@ -54,23 +54,24 @@ type APIEndpoint struct {
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
-	Enabled            bool
-	HostName           string
-	APIEndpoints       []APIEndpoint
-	LogFile            string
-	LogLevel           string
-	LogToConsole       bool
-	QueueSize          int
-	Blacklist          []*regexp.Regexp
-	Scrubber           *DataScrubber
-	MaxPerMessage      int
-	MaxConnsPerMessage int
-	AllowRealTime      bool
-	Transport          *http.Transport `json:"-"`
-	DDAgentBin         string
-	StatsdHost         string
-	StatsdPort         int
-	ProcessExpVarPort  int
+	Enabled               bool
+	HostName              string
+	APIEndpoints          []APIEndpoint
+	OrchestratorEndpoints []APIEndpoint
+	LogFile               string
+	LogLevel              string
+	LogToConsole          bool
+	QueueSize             int
+	Blacklist             []*regexp.Regexp
+	Scrubber              *DataScrubber
+	MaxPerMessage         int
+	MaxConnsPerMessage    int
+	AllowRealTime         bool
+	Transport             *http.Transport `json:"-"`
+	DDAgentBin            string
+	StatsdHost            string
+	StatsdPort            int
+	ProcessExpVarPort     int
 
 	// System probe collection configuration
 	EnableSystemProbe              bool
@@ -93,6 +94,10 @@ type AgentConfig struct {
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
+
+	// Orchestrator collection configuration
+	OrchestrationCollectionEnabled bool
+	KubeClusterName                string
 
 	// Check config
 	EnabledChecks  []string
@@ -121,7 +126,8 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultEndpoint              = "https://process.datadoghq.com"
+	defaultProcessEndpoint       = "https://process.datadoghq.com"
+	defaultOrchestratorEndpoint  = "https://orchestrator.datadoghq.com"
 	maxMessageBatch              = 100
 	maxConnsMessageBatch         = 1000
 	defaultMaxTrackedConnections = 65536
@@ -144,7 +150,12 @@ func NewDefaultTransport() *http.Transport {
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
-	u, err := url.Parse(defaultEndpoint)
+	processEndpoint, err := url.Parse(defaultProcessEndpoint)
+	if err != nil {
+		// This is a hardcoded URL so parsing it should not fail
+		panic(err)
+	}
+	orchestratorEndpoint, err := url.Parse(defaultOrchestratorEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
 		panic(err)
@@ -156,18 +167,19 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	}
 
 	ac := &AgentConfig{
-		Enabled:            canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints:       []APIEndpoint{{Endpoint: u}},
-		LogFile:            defaultLogFilePath,
-		LogLevel:           "info",
-		LogToConsole:       false,
-		QueueSize:          20,
-		MaxPerMessage:      100,
-		MaxConnsPerMessage: 300,
-		AllowRealTime:      true,
-		HostName:           "",
-		Transport:          NewDefaultTransport(),
-		ProcessExpVarPort:  6062,
+		Enabled:               canAccessContainers, // We'll always run inside of a container.
+		APIEndpoints:          []APIEndpoint{{Endpoint: processEndpoint}},
+		OrchestratorEndpoints: []APIEndpoint{{Endpoint: orchestratorEndpoint}},
+		LogFile:               defaultLogFilePath,
+		LogLevel:              "info",
+		LogToConsole:          false,
+		QueueSize:             20,
+		MaxPerMessage:         100,
+		MaxConnsPerMessage:    300,
+		AllowRealTime:         true,
+		HostName:              "",
+		Transport:             NewDefaultTransport(),
+		ProcessExpVarPort:     6062,
 
 		// Statsd for internal instrumentation
 		StatsdHost: "127.0.0.1",
@@ -195,6 +207,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			"container":   10 * time.Second,
 			"rtcontainer": 2 * time.Second,
 			"connections": 30 * time.Second,
+			"pod":         10 * time.Second,
 		},
 
 		// DataScrubber to hide command line sensitive words
@@ -307,6 +320,11 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.Windows.ArgsRefreshInterval = -1
 	}
 
+	// activate the pod collection if enabled and we have the cluster name set
+	if cfg.OrchestrationCollectionEnabled && cfg.KubeClusterName != "" {
+		cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+	}
+
 	return cfg, nil
 }
 
@@ -344,6 +362,7 @@ func loadEnvVariables() {
 		"DD_SCRUB_ARGS":                     "process_config.scrub_args",
 		"DD_STRIP_PROCESS_ARGS":             "process_config.strip_proc_arguments",
 		"DD_PROCESS_AGENT_URL":              "process_config.process_dd_url",
+		"DD_ORCHESTRATOR_URL":               "process_config.orchestrator_dd_url",
 
 		// System probe specific configuration (Beta)
 		"DD_SYSTEM_PROBE_ENABLED":   "system_probe_config.enabled",

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -10,21 +10,23 @@ package autoscalers
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/stretchr/testify/assert"
 )
 
 type fakeDatadogClient struct {
-	queryMetricsFunc func(from, to int64, query string) ([]datadog.Series, error)
+	queryMetricsFunc  func(from, to int64, query string) ([]datadog.Series, error)
+	getRateLimitsFunc func() map[string]datadog.RateLimit
 }
 
 func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
@@ -32,6 +34,13 @@ func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datado
 		return d.queryMetricsFunc(from, to, query)
 	}
 	return nil, nil
+}
+
+func (d *fakeDatadogClient) GetRateLimitStats() map[string]datadog.RateLimit {
+	if d.getRateLimitsFunc != nil {
+		return d.getRateLimitsFunc()
+	}
+	return nil
 }
 
 var maxAge = time.Duration(30 * time.Second)
@@ -258,6 +267,16 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 		res.m.Unlock()
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
 			datadogClient := &fakeDatadogClient{
+				getRateLimitsFunc: func() map[string]datadog.RateLimit {
+					return map[string]datadog.RateLimit{
+						queryEndpoint: {
+							Limit:     "12",
+							Period:    "10",
+							Remaining: "200",
+							Reset:     "10",
+						},
+					}
+				},
 				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
 					res.m.Lock()
 					defer res.m.Unlock()
@@ -273,7 +292,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			}
 			p := &Processor{datadogClient: datadogClient}
 
-			_, err := p.validateExternalMetric(tt.in)
+			_, err := p.queryExternalMetric(tt.in)
 			if err != nil || tt.err != nil {
 				assert.Contains(t, err.Error(), tt.err.Error())
 			}
@@ -473,4 +492,137 @@ func TestInvalidate(t *testing.T) {
 		require.False(t, e.Valid)
 		require.WithinDuration(t, time.Now(), time.Unix(e.Timestamp, 0), 5*time.Second)
 	}
+}
+
+func TestUpdateRateLimiting(t *testing.T) {
+	type Results struct {
+		Limit     float64
+		Period    float64
+		Remaining float64
+		Reset     float64
+	}
+
+	tests := []struct {
+		desc       string
+		rateLimits map[string]datadog.RateLimit
+		results    Results
+		error      error
+	}{
+		{
+			desc: "Nominal case",
+			rateLimits: map[string]datadog.RateLimit{
+				queryEndpoint: {
+					Limit:     "12",
+					Period:    "3600",
+					Reset:     "11",
+					Remaining: "120",
+				},
+			},
+			results: Results{
+				Limit:     12,
+				Period:    3600,
+				Reset:     11,
+				Remaining: 120,
+			},
+			error: nil,
+		},
+		{
+			desc: "Missing header case",
+			rateLimits: map[string]datadog.RateLimit{
+				queryEndpoint: {
+					Limit:  "12",
+					Period: "3600",
+					Reset:  "11",
+				},
+			},
+			results: Results{
+				Limit:  12,
+				Period: 3600,
+				Reset:  11,
+			},
+			error: fmt.Errorf("strconv.Atoi: parsing \"\": invalid syntax"),
+		},
+		{
+			desc: "Missing headers case",
+			rateLimits: map[string]datadog.RateLimit{
+				queryEndpoint: {
+					Limit:  "12",
+					Period: "3600",
+				},
+			},
+			results: Results{
+				Limit:  12,
+				Period: 3600,
+			},
+			// Although several headers are missing, the Aggregate will only return 1 error as they are the same
+			error: fmt.Errorf("strconv.Atoi: parsing \"\": invalid syntax"),
+		},
+	}
+
+	rateLimitsRemaining = &mockGauge{values: make(map[string]float64)}
+	rateLimitsPeriod = &mockGauge{values: make(map[string]float64)}
+	rateLimitsLimit = &mockGauge{values: make(map[string]float64)}
+	rateLimitsReset = &mockGauge{values: make(map[string]float64)}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
+			datadogClient := &fakeDatadogClient{
+				getRateLimitsFunc: func() map[string]datadog.RateLimit {
+					return tt.rateLimits
+				},
+			}
+			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
+
+			err := hpaCl.updateRateLimitingMetrics()
+			if err != nil {
+				assert.EqualError(t, tt.error, err.Error())
+			}
+			assert.Equal(t, rateLimitsLimit.(*mockGauge).values[queryEndpoint], tt.results.Limit)
+			assert.Equal(t, rateLimitsReset.(*mockGauge).values[queryEndpoint], tt.results.Reset)
+			assert.Equal(t, rateLimitsPeriod.(*mockGauge).values[queryEndpoint], tt.results.Period)
+			assert.Equal(t, rateLimitsRemaining.(*mockGauge).values[queryEndpoint], tt.results.Remaining)
+		})
+		resetCounters(queryEndpoint)
+	}
+}
+
+func resetCounters(endpoint string) {
+	rateLimitsRemaining.Set(0, endpoint)
+	rateLimitsPeriod.Set(0, endpoint)
+	rateLimitsLimit.Set(0, endpoint)
+	rateLimitsReset.Set(0, endpoint)
+}
+
+type mockGauge struct {
+	values map[string]float64
+}
+
+// Set stores the value for the given tags.
+func (m *mockGauge) Set(value float64, tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] = value
+}
+
+// Inc increments the Gauge value.
+func (m *mockGauge) Inc(tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] += 1.0
+}
+
+// Dec decrements the Gauge value.
+func (m *mockGauge) Dec(tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] -= 1.0
+}
+
+// Add adds the value to the Gauge value.
+func (m *mockGauge) Add(value float64, tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] += value
+}
+
+// Sub subtracts the value to the Gauge value.
+func (m *mockGauge) Sub(value float64, tagsValue ...string) {
+	m.values[strings.Join(tagsValue, ",")] -= value
+}
+
+// Delete deletes the value for the Gauge with the given tags.
+func (m *mockGauge) Delete(tagsValue ...string) {
+	delete(m.values, strings.Join(tagsValue, ","))
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -129,8 +129,8 @@ func (d *dispatcher) expireNodes() {
 
 			// Remove metrics linked to this node
 			nodeAgents.Dec()
-			dispatchedConfigs.DeleteLabelValues(name)
-			statsCollectionFails.DeleteLabelValues(name)
+			dispatchedConfigs.Delete(name)
+			statsCollectionFails.Delete(name)
 		}
 		node.RUnlock()
 	}
@@ -163,7 +163,7 @@ func (d *dispatcher) updateRunnersStats() {
 		stats, err := d.clcRunnersClient.GetRunnerStats(ip)
 		if err != nil {
 			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, err)
-			statsCollectionFails.WithLabelValues(name).Inc()
+			statsCollectionFails.Inc(name)
 			continue
 		}
 		node.Lock()

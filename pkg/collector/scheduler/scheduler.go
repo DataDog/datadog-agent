@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package scheduler
 
@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -22,6 +23,11 @@ var (
 	schedulerExpvars       *expvar.Map
 	schedulerQueuesCount   = expvar.Int{}
 	schedulerChecksEntered = expvar.Int{}
+
+	tlmChecksEntered = telemetry.NewGauge("scheduler", "checks_entered",
+		[]string{"check_name"}, "How many checks entered the scheduler")
+	tlmQueuesCount = telemetry.NewCounter("scheduler", "queues_count",
+		[]string{"check_name"}, "How many queues were opened")
 )
 
 func init() {
@@ -83,6 +89,9 @@ func (s *Scheduler) Enter(check check.Check) error {
 	if _, ok := s.jobQueues[check.Interval()]; !ok {
 		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
 		s.startQueue(s.jobQueues[check.Interval()])
+		if check.IsTelemetryEnabled() {
+			tlmQueuesCount.Inc(check.String())
+		}
 		schedulerQueuesCount.Add(1)
 	}
 	s.jobQueues[check.Interval()].addJob(check)
@@ -90,6 +99,9 @@ func (s *Scheduler) Enter(check check.Check) error {
 	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
 
 	schedulerChecksEntered.Add(1)
+	if check.IsTelemetryEnabled() {
+		tlmChecksEntered.Inc(check.String())
+	}
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
 	return nil
 }

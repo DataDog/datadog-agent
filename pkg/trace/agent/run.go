@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package agent
 
@@ -14,6 +14,7 @@ import (
 	"runtime/pprof"
 	"time"
 
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -53,7 +54,15 @@ func Run(ctx context.Context) {
 		return
 	}
 
-	if err := setupLogger(cfg); err != nil {
+	if err := coreconfig.SetupLogger(
+		coreconfig.LoggerName("TRACE"),
+		cfg.LogLevel,
+		cfg.LogFilePath,
+		coreconfig.GetSyslogURI(),
+		coreconfig.Datadog.GetBool("syslog_rfc"),
+		coreconfig.Datadog.GetBool("log_to_console"),
+		coreconfig.Datadog.GetBool("log_format_json"),
+	); err != nil {
 		osutil.Exitf("cannot create logger: %v", err)
 	}
 	defer log.Flush()

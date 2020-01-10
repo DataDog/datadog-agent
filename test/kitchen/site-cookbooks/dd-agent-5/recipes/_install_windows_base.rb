@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-agent-5
 # Recipe:: _install_windows_base
 #
-# Copyright (C) 2019 Datadog
+# Copyright (C) 2019-2020 Datadog
 #
 # All rights reserved - Do Not Redistribute
 #
@@ -52,7 +52,7 @@ remote_file temp_file do
   # As a workaround uninstall the package first if a new MSI is downloaded
   notifies :remove, 'package[Datadog Agent removal]', :immediately
 end
-  
+
 execute "install-agent" do
   command "start /wait msiexec /log install.log /q /i #{temp_file} #{install_options}"
   status_out = `sc interrogate datadogagent 2>&1`

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -103,7 +103,7 @@ func newNodeStore(name, clientIP string) *nodeStore {
 func (s *nodeStore) addConfig(config integration.Config) {
 	s.lastConfigChange = timestampNow()
 	s.digestToConfig[config.Digest()] = config
-	dispatchedConfigs.WithLabelValues(s.name).Inc()
+	dispatchedConfigs.Inc(s.name)
 }
 
 func (s *nodeStore) removeConfig(digest string) {
@@ -114,7 +114,7 @@ func (s *nodeStore) removeConfig(digest string) {
 	}
 	s.lastConfigChange = timestampNow()
 	delete(s.digestToConfig, digest)
-	dispatchedConfigs.WithLabelValues(s.name).Dec()
+	dispatchedConfigs.Dec(s.name)
 }
 
 // AddRunnerStats stores runner stats for a check

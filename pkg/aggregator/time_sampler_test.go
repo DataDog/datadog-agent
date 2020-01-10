@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package aggregator
 
@@ -474,4 +474,19 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 		},
 		ContextKey: generateContextKey(&dSample1),
 	}, sketches[0])
+}
+
+func BenchmarkTimeSampler(b *testing.B) {
+	sampler := NewTimeSampler(10)
+	sample := metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	for n := 0; n < b.N; n++ {
+		sampler.addSample(&sample, 12345.0)
+	}
 }

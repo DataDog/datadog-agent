@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build python
 
@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,6 +45,7 @@ type PythonCheck struct {
 	interval     time.Duration
 	lastWarnings []error
 	source       string
+	telemetry    bool // whether or not the telemetry is enabled for this check
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -56,6 +58,7 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) *PythonCheck {
 		class:        class,
 		interval:     defaults.DefaultCheckInterval,
 		lastWarnings: []error{},
+		telemetry:    telemetry.IsCheckEnabled(name),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 	return pyCheck
@@ -116,6 +119,11 @@ func (c *PythonCheck) String() string {
 // Version returns the version of the check if load from a python wheel
 func (c *PythonCheck) Version() string {
 	return c.version
+}
+
+// IsTelemetryEnabled returns if the telemetry is enabled for this check
+func (c *PythonCheck) IsTelemetryEnabled() bool {
+	return c.telemetry
 }
 
 // ConfigSource returns the source of the configuration for this check

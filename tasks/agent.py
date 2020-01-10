@@ -81,7 +81,7 @@ PUPPY_CORECHECKS = [
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
           embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
-          with_both_python=False, arch='x64'):
+          with_both_python=False, major_version='7', arch='x64'):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -95,7 +95,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
             rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3,
-            with_both_python=with_both_python, arch=arch)
+            with_both_python=with_both_python, major_version=major_version, arch=arch)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -129,7 +129,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx, env)
+        ver = get_version_numeric_only(ctx, env, major_version=major_version)
         build_maj, build_min, build_patch = ver.split(".")
 
         command = "windmc --target {target_arch} -r cmd/agent cmd/agent/agentmsg.mc ".format(target_arch=windres_target)
@@ -329,7 +329,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 @task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, skip_sign=False, release_version="nightly", omnibus_s3_cache=False):
+                  skip_deps=False, skip_sign=False, release_version="nightly", major_version='7', omnibus_s3_cache=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -397,8 +397,8 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             if skip_sign:
                 env['SKIP_SIGN_MAC'] = 'true'
 
-            env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, env=env)
-
+            env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version, env=env)
+            env['MAJOR_VERSION'] = major_version
             omnibus_start = datetime.datetime.now()
             ctx.run(cmd.format(**args), env=env)
             omnibus_done = datetime.datetime.now()
@@ -434,7 +434,7 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, git_sha_length=7):
+def version(ctx, url_safe=False, git_sha_length=7, major_version='7'):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
@@ -442,4 +442,4 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
-    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))
+    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, major_version=major_version))

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package stats
 
@@ -68,9 +68,7 @@ func ExtractTopLevelSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 
 	// We do a DFS on the trace to record the toplevel ancesters of each span
 	for current := next.Pop(); current != nil; current = next.Pop() {
-		// We do not extract subtraces for toplevel spans that have no children
-		// since these are not interresting
-		if traceutil.HasTopLevel(current.Span) && len(childrenMap[current.Span.SpanID]) > 0 {
+		if traceutil.HasTopLevel(current.Span) {
 			current.Ancestors = append(current.Ancestors, current.Span)
 		}
 		visited[current.Span] = true

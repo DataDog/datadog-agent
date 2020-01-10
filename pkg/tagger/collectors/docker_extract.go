@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
 package collectors
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -71,6 +72,8 @@ func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve res
 
 // dockerExtractLabels contain hard-coded labels from:
 // - Docker swarm
+// - Rancher
+// - Custom
 func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string, labelsAsTags map[string]string) {
 	for labelName, labelValue := range containerLabels {
 		switch labelName {
@@ -87,6 +90,23 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 			tags.AddLow("rancher_stack", labelValue)
 		case "io.rancher.stack_service.name":
 			tags.AddLow("rancher_service", labelValue)
+
+		// Custom labels as tags
+		case "com.datadoghq.ad.tags":
+			tagNames := []string{}
+			err := json.Unmarshal([]byte(labelValue), &tagNames)
+			if err != nil {
+				log.Debugf("Cannot unmarshal AD tags: %s", err)
+			}
+			for _, tag := range tagNames {
+				tagParts := strings.Split(tag, ":")
+				// skip if tag is not in expected k:v format
+				if len(tagParts) != 2 {
+					log.Debugf("Tag '%s' is not in k:v format", tag)
+					continue
+				}
+				tags.AddHigh(tagParts[0], tagParts[1])
+			}
 
 		default:
 			if tagName, found := labelsAsTags[strings.ToLower(labelName)]; found {

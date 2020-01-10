@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package file
 
@@ -112,7 +112,6 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.path)
 
-	t.tagProvider.Start()
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
@@ -193,7 +192,6 @@ func (t *Tailer) StartFromBeginning() error {
 func (t *Tailer) Stop() {
 	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
-	t.tagProvider.Stop()
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
 	<-t.done
