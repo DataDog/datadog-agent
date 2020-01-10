@@ -33,7 +33,7 @@ func init() {
 
 func stop(*cobra.Command, []string) error {
 	// Global Agent configuration
-	err := common.SetupConfigWithoutSecrets(confFilePath)
+	err := common.SetupConfigWithoutSecrets(confFilePath, "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}

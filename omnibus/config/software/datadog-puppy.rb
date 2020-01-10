@@ -31,12 +31,13 @@ build do
     major_version_arg = "$MAJOR_VERSION"
   end
 
-  command "invoke agent.build --puppy --rebuild --no-development --major-version #{major_version_arg}", env: env
-  copy('bin', install_dir)
-
-  mkdir "#{install_dir}/run/"
-
   if linux?
+    command "invoke agent.build --puppy --rebuild --no-development --major-version #{major_version_arg}", env: env
+    copy('bin', install_dir)
+
+    mkdir "#{install_dir}/run/"
+
+  
     # Config
     mkdir '/etc/datadog-agent'
     mkdir "/var/log/datadog"
@@ -54,6 +55,41 @@ build do
           dest: "/lib/systemd/system/datadog-agent.service",
           mode: 0644,
           vars: { install_dir: install_dir }
+    end
+  end
+  if windows?
+    platform = windows_arch_i386? ? "x86" : "x64"
+
+    conf_dir = "#{install_dir}/etc/datadog-agent"
+    mkdir conf_dir
+    mkdir "#{install_dir}/bin/agent"
+
+    command "inv agent.build --puppy --rebuild --no-development --arch #{platform} --major-version #{major_version_arg}", env: env
+
+      # move around bin and config files
+    move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
+    #move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+    move 'bin/agent/dist/conf.d', "#{conf_dir}/"
+    copy 'bin/agent', "#{install_dir}/bin/"
+
+    command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
+
+    # Build the process-agent with the correct go version for windows
+    command "invoke -e process-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
+
+    copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin/agent"
+  
+
+  end
+  block do
+    if windows?
+      # defer compilation step in a block to allow getting the project's build version, which is populated
+      # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
+      env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
+      platform = windows_arch_i386? ? "x86" : "x64"
+      command "invoke trace-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
+
+      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin/agent"
     end
   end
 

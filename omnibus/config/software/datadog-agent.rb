@@ -86,6 +86,9 @@ build do
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
     command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
+    unless windows_arch_i386?
+      command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
+    end
   end
 
   # move around bin and config files

@@ -10,3 +10,8 @@ package winutil
 func GetProgramDataDir() (path string, err error) {
 	return "", nil
 }
+
+// GetProgramDataDirForProduct dummy function because the real one doesn't vet
+func GetProgramDataDirForProduct(product string) (path string, err error) {
+	return "", nil
+}

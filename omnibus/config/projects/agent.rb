@@ -82,6 +82,28 @@ compress :dmg do
 end
 
 # Windows .msi specific flags
+package :zip do
+  if windows_arch_i386?
+    skip_packager true
+  else
+    extra_package_dirs [
+      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
+      "#{Omnibus::Config.source_dir()}\\cf-root",
+    ]
+  
+    additional_sign_files [
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe"
+      ]
+    if ENV['SIGN_PFX']
+      signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
+    end
+  end
+end
+
 package :msi do
 
   # For a consistent package management, please NEVER change this code
@@ -169,6 +191,7 @@ dependency 'version-manifest'
 # the `extra_package_file` directive.
 # This must be the last dependency in the project.
 dependency 'datadog-agent-finalize'
+dependency 'datadog-cf-finalize'
 
 if linux?
   extra_package_file '/etc/init/datadog-agent.conf'

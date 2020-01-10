@@ -37,7 +37,12 @@ build do
   end
 
   # move around bin and config files
-  copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
+  if windows?
+    mkdir "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+    copy 'bin/dogstatsd/dogstatsd.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  else
+    copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
+  end
   move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
 
   if linux?
