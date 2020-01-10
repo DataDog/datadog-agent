@@ -69,7 +69,7 @@ func V3(containerID string) (*v3.Client, error) {
 	return newClientV3ForContainer(containerID)
 }
 
-// V3FromCurrentTask returns a client for the ECS metadata API v3 by detedting
+// V3FromCurrentTask returns a client for the ECS metadata API v3 by detecting
 // the endpoint address from the task the executable is running in. Returns an
 // error if it was not possible to detect the endpoint address.
 func V3FromCurrentTask() (*v3.Client, error) {

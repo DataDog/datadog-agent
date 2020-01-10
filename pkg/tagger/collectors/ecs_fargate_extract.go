@@ -51,9 +51,6 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 				tags.AddLow("region", region)
 			}
 
-			// aws resource tags
-			addResourceTags(tags, meta.TaskTags)
-
 			// task
 			tags.AddLow("task_family", meta.Family)
 			tags.AddLow("task_version", meta.Version)

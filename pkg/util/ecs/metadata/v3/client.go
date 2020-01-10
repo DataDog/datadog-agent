@@ -11,8 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 	"reflect"
-	"strings"
 	"time"
 )
 
@@ -36,9 +37,6 @@ type Client struct {
 
 // NewClient creates a new client for the specified metadata v3 API endpoint.
 func NewClient(agentURL string) *Client {
-	if strings.HasSuffix(agentURL, "/") {
-		agentURL = strings.TrimSuffix(agentURL, "/")
-	}
 	return &Client{
 		agentURL: agentURL,
 	}
@@ -93,6 +91,10 @@ func (c *Client) getTaskMetadataAtPath(path string) (*Task, error) {
 	return &t, nil
 }
 
-func (c *Client) makeURL(path string) string {
-	return fmt.Sprintf("%s%s", c.agentURL, path)
+func (c *Client) makeURL(requestPath string) string {
+	u, _ := url.Parse(c.agentURL)
+	// Unlike v1 and v2 the agent URL will contain a subpath that looks like
+	// "/v3/<id>" so we must make sure not to dismiss the current URL path.
+	u.Path = path.Join(u.Path, requestPath)
+	return u.String()
 }

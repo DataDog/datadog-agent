@@ -11,14 +11,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path"
 	"reflect"
-	"strings"
 	"time"
 )
 
 const (
 	// ECS agent defaults
-	defaultAgentURL = "http://169.254.170.2/"
+	defaultAgentURL = "http://169.254.170.2"
 
 	// Metadata v2 API paths
 	taskMetadataPath         = "/metadata"
@@ -36,9 +37,6 @@ type Client struct {
 
 // NewClient creates a new client for the specified metadata v2 API endpoint.
 func NewClient(agentURL string) *Client {
-	if !strings.HasSuffix(agentURL, "/") {
-		agentURL += "/"
-	}
 	return &Client{
 		agentURL: agentURL,
 	}
@@ -98,6 +96,8 @@ func (c *Client) getTaskMetadataAtPath(path string) (*Task, error) {
 	return &t, nil
 }
 
-func (c *Client) makeURL(path string) string {
-	return fmt.Sprintf("%sv2%s", c.agentURL, path)
+func (c *Client) makeURL(requestPath string) string {
+	u, _ := url.Parse(c.agentURL)
+	u.Path = path.Join("/v2", requestPath)
+	return u.String()
 }
