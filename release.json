@@ -20,7 +20,7 @@
 		"JMXFETCH_VERSION": "0.33.1",
 		"JMXFETCH_HASH": "140dd8568b78f5a616da8664f34bb37397c3d3ed87af106d632714f7218e8e88"
 	},
-	"7.17.0-rc.1-staging-preview": {
+	"7.17.0-rc.2-staging-preview": {
 		"INTEGRATIONS_CORE_VERSION": "7.16.1",
 		"OMNIBUS_SOFTWARE_VERSION": "master",
 		"OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
