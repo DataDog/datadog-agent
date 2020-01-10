@@ -274,9 +274,12 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
 				cs := decodeRawTCPConn(conn)
-				cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
-				// Store all connections, we will determine if we should skip/if it is closed in GetConnections
-				t.state.StoreClosedConnection(cs)
+				if t.shouldSkipConnection(&conn) {
+					atomic.AddInt64(&t.skippedConns, 1)
+				} else {
+					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
+					t.state.StoreClosedConnection(cs)
+				}
 			case lostCount, ok := <-lostChannel:
 				if !ok {
 					return
@@ -332,9 +335,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	allConns := t.state.Connections(clientID, latestTime, latestConns)
-	t.setConnectionDirections(allConns)
-	conns := t.removeBlacklistedConnections(allConns)
+	conns := t.state.Connections(clientID, latestTime, latestConns)
+	t.setConnectionDirections(conns)
 	names := t.reverseDNS.Resolve(conns)
 	return &Connections{Conns: conns, DNS: names}, nil
 }
@@ -386,9 +388,13 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 			}
 		} else {
 			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey, seen))
-			// lookup conntrack in for active
-			conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort, process.ConnectionType(conn.Type))
-			active = append(active, conn)
+			if t.shouldSkipConnection(&conn) {
+				atomic.AddInt64(&t.skippedConns, 1)
+			} else {
+				// lookup conntrack in for active
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort, process.ConnectionType(conn.Type))
+				active = append(active, conn)
+			}
 		}
 		key = nextKey
 	}
@@ -645,12 +651,9 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 		Type    ConnectionType
 	}
 
-	newConnKey := func(connStat *ConnectionStats, RAddr bool) connKey {
-		key := connKey{}
-		key.Type = connStat.Type
-		// RAddr indicates if we're making a key out of the LAddr or RAddr
-		// of a given connection
-		if RAddr {
+	newConnKey := func(connStat *ConnectionStats, useRAddrAsKey bool) connKey {
+		key := connKey{Type: connStat.Type}
+		if useRAddrAsKey {
 			if connStat.IPTranslation == nil {
 				key.Address = connStat.Dest
 				key.Port = connStat.DPort
@@ -670,15 +673,13 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 		return key
 	}
 
-	connLAddrMap := make(map[connKey]struct{}, 0)
-	keyWithLAddr := connKey{}
-	for i := 0; i < len(connections); i++ {
-		keyWithLAddr = newConnKey(&connections[i], false)
-		connLAddrMap[keyWithLAddr] = struct{}{}
+	lAddrs := make(map[connKey]struct{}, 0)
+	for _, conn := range connections {
+		lAddrs[newConnKey(&conn, false)] = struct{}{}
 	}
 
 	keyWithRAddr := connKey{}
-	for i := 0; i < len(connections); i++ {
+	for i := range connections {
 		undirectedConn := &connections[i]
 		keyWithRAddr = newConnKey(undirectedConn, true)
 
@@ -687,33 +688,19 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 			continue
 		}
 
-		_, ok := connLAddrMap[keyWithRAddr]
+		_, ok := lAddrs[keyWithRAddr]
 		if ok {
 			undirectedConn.Direction = LOCAL
 		} else {
 			if undirectedConn.Type == UDP {
 				undirectedConn.Direction = NONE
-				continue
-			}
-			if t.portMapping.IsListening(undirectedConn.SPort) {
+			} else if t.portMapping.IsListening(undirectedConn.SPort) {
 				undirectedConn.Direction = INCOMING
-				continue
+			} else {
+				undirectedConn.Direction = OUTGOING
 			}
-			undirectedConn.Direction = OUTGOING
 		}
 	}
-}
-
-func (t *Tracer) removeBlacklistedConnections(allConns []ConnectionStats) []ConnectionStats {
-	active := allConns[:0]
-	for _, conn := range allConns {
-		if t.shouldSkipConnection(&conn) {
-			atomic.AddInt64(&t.skippedConns, 1)
-		} else {
-			active = append(active, conn)
-		}
-	}
-	return active
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
