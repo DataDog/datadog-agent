@@ -60,13 +60,24 @@ To start working on the Agent, you can build the `master` branch:
    virtualenvs): `invoke agent.build
    --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv2
    --python-home-3=$GOPATH/src/github.com/DataDog/datadog-agent/venv3`.
+  Running `invoke agent.build` build the Agent and writes the binary to `bin/agent/agent`.
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 
 ## Run
 
-Running `invoke agent.build` build the Agent and writes the binary to `bin/agent/agent`.
-If the Datadog Agent is not installed, or if you do not want to edit your `datadog.yaml`, a configuration file is available at `bin/agent/dist/datadog.yaml`. To run the Agent with this configuration file, use `-c`: `DD_API_KEY=12345678990 bin/agent/agent <command> -c bin/agent/dist/` where `<command>` is an Agent command and `DD_API_KEY=12345678990` is a valid API key.
+To start the agent type `agent run` from the `bin/agent` folder, it will take
+care of adjusting paths and run the binary in foreground.
+
+You need to provide a valid API key. You can either use the config file or
+overwrite it with the environment variable like:
+```
+DD_API_KEY=12345678990 ./bin/agent/agent run -c bin/agent/dist/datadog.yaml
+```
+
+If the Datadog Agent is not installed, or if you do not want to edit your `datadog.yaml`, 
+a configuration file is available at `bin/agent/dist/datadog.yaml`. To run the Agent with this configuration file,
+ use `-c`: `DD_API_KEY=12345678990 bin/agent/agent <command> -c bin/agent/dist/` where `<command>` is an Agent command and `DD_API_KEY=12345678990` is a valid API key.
 
 **Important note**: 
 Running `invoke agent.build`: 
