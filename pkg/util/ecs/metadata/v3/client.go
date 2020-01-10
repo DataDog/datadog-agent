@@ -63,7 +63,10 @@ func (c *Client) GetTaskWithTags() (*Task, error) {
 
 func (c *Client) get(path string, v interface{}) error {
 	client := http.Client{Timeout: endpointTimeout}
-	url := c.makeURL(path)
+	url, err := c.makeURL(path)
+	if err != nil {
+		return fmt.Errorf("Error constructing metadata request URL: %s", err)
+	}
 
 	resp, err := client.Get(url)
 	if err != nil {
@@ -91,10 +94,13 @@ func (c *Client) getTaskMetadataAtPath(path string) (*Task, error) {
 	return &t, nil
 }
 
-func (c *Client) makeURL(requestPath string) string {
-	u, _ := url.Parse(c.agentURL)
+func (c *Client) makeURL(requestPath string) (string, error) {
+	u, err := url.Parse(c.agentURL)
+	if err != nil {
+		return "", err
+	}
 	// Unlike v1 and v2 the agent URL will contain a subpath that looks like
 	// "/v3/<id>" so we must make sure not to dismiss the current URL path.
 	u.Path = path.Join(u.Path, requestPath)
-	return u.String()
+	return u.String(), nil
 }

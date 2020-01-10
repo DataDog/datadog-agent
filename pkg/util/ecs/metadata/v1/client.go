@@ -60,15 +60,21 @@ func (c *Client) GetTasks() ([]Task, error) {
 	return t.Tasks, nil
 }
 
-func (c *Client) makeURL(requestPath string) string {
-	u, _ := url.Parse(c.agentURL)
+func (c *Client) makeURL(requestPath string) (string, error) {
+	u, err := url.Parse(c.agentURL)
+	if err != nil {
+		return "", err
+	}
 	u.Path = path.Join("/v1", requestPath)
-	return u.String()
+	return u.String(), nil
 }
 
 func (c *Client) get(path string, v interface{}) error {
 	client := http.Client{Timeout: endpointTimeout}
-	url := c.makeURL(path)
+	url, err := c.makeURL(path)
+	if err != nil {
+		return fmt.Errorf("Error constructing metadata request URL: %s", err)
+	}
 
 	resp, err := client.Get(url)
 	if err != nil {
