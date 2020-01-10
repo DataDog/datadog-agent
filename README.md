@@ -60,7 +60,7 @@ To start working on the Agent, you can build the `master` branch:
    virtualenvs): `invoke agent.build
    --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv2
    --python-home-3=$GOPATH/src/github.com/DataDog/datadog-agent/venv3`.
-  Running `invoke agent.build` build the Agent and writes the binary to `bin/agent/agent`.
+  Running `invoke agent.build` builds the Agent and writes the binary to `bin/agent/agent`.
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 
