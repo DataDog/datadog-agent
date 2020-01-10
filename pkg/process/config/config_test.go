@@ -148,6 +148,31 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	}
 }
 
+func TestDisablingDNSInspection(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNS.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.DisableDNSInspection)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		os.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
+		defer os.Unsetenv("DD_DISABLE_DNS_INSPECTION")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.DisableDNSInspection)
+	})
+}
+
 func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
@@ -200,7 +225,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal(5065, agentConfig.ProcessExpVarPort)
-	assert.True(agentConfig.DisableDNSInspection)
+	assert.False(agentConfig.DisableDNSInspection)
 
 	agentConfig, err = NewAgentConfig(
 		"test",
@@ -228,7 +253,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.False(agentConfig.DisableTCPTracing)
 	assert.False(agentConfig.DisableUDPTracing)
 	assert.False(agentConfig.DisableIPv6Tracing)
-	assert.True(agentConfig.DisableDNSInspection)
+	assert.False(agentConfig.DisableDNSInspection)
 
 	agentConfig, err = NewAgentConfig(
 		"test",
