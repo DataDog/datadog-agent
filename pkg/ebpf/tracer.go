@@ -274,7 +274,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
 				cs := decodeRawTCPConn(conn)
-				if t.shouldSkipConnection(&conn) {
+				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
 					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
