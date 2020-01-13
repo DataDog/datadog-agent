@@ -35,7 +35,7 @@ var (
 // HostnameProviderConfiguration is the key for the hostname provider associated to datadog.yaml
 const HostnameProviderConfiguration = "configuration"
 
-// HostnameMap foo
+// HostnameMap type providing a map mapping sources to hostname.
 type HostnameMap map[string]string
 
 type sourceResolver = func(live, state HostnameMap) (HostnameMap, bool)
@@ -157,10 +157,15 @@ func saveHostnameData(cacheHostnameKey string, hostname string, provider string)
 	return hostnameData
 }
 
-// ResolveSourcesWithState foo
+// ResolveSourcesWithState will merge two HostnameMap sources, providing the expected
+// resolved output.
 func ResolveSourcesWithState(newSources, stateSources HostnameMap) (HostnameMap, bool) {
 	resolvedSources := HostnameMap{}
 	stateChange := false
+
+	if stateSources == nil {
+		return newSources, true
+	}
 
 	for _, stage := range resolutionPipeline {
 		log.Debug("Getting hostname collected by: %s", stage.provider)
@@ -210,6 +215,7 @@ func ResolveSourcesWithState(newSources, stateSources HostnameMap) (HostnameMap,
 
 // GetHostnameData retrieves the host name for the Agent and hostname provider, trying to query these
 // environments/api, in order:
+// * Fargate
 // * GCE
 // * Docker
 // * kubernetes
@@ -227,18 +233,23 @@ func GetHostnameData() (HostnameData, error) {
 	var provider string
 	var err error
 
-	// TODO: address errors
 	live, err := liveSourcer()
+	if err != nil {
+		return HostnameData{}, err
+	}
+
 	state, err := stateSourcer()
+	if err != nil {
+		log.Warn("stateful hostname unavailable, will rely on live sources")
+	}
 
 	sources, stateChange := configSourceResolver(live, state)
-
 	for _, stage := range resolutionPipeline {
 		log.Debug("Getting hostname collected by: %s", stage.provider)
 
 		if h, ok := sources[stage.provider]; ok {
 
-			if h != "" { // this condition won't play well with fargate
+			if h != "" || stage.provider == "fargate" {
 				if stage.provider == "fqdn" {
 					fqdn = h
 				}
@@ -291,7 +302,8 @@ func GetHostnameData() (HostnameData, error) {
 	return hostnameData, err
 }
 
-// GetLiveHostnameSources foo
+// GetLiveHostnameSources helper that resolves the hostname as currently reported by
+// the multiple supported sources.
 func GetLiveHostnameSources() (HostnameMap, error) {
 
 	var hostName string
@@ -421,7 +433,7 @@ func GetLiveHostnameSources() (HostnameMap, error) {
 	return hostnames, err
 }
 
-// GetPersistedHostnameSources foo
+// GetPersistedHostnameSources collects the persisted state for hostname sources.
 func GetPersistedHostnameSources() (HostnameMap, error) {
 	var err error
 	var cacheHostnameData string
@@ -437,7 +449,7 @@ func GetPersistedHostnameSources() (HostnameMap, error) {
 	return sources, err
 }
 
-// PersistHostnameSources foo
+// PersistHostnameSources saves the hostname sources to disk.
 func PersistHostnameSources(sources HostnameMap) error {
 	cacheHostnameKey := cache.BuildAgentKey("hostname-sources")
 
