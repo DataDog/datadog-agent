@@ -1272,7 +1272,7 @@ deploy_windows_testing-a7:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - export TEST_PLATFORMS="win2008r2,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/images/2008-R2-SP1"
+    - export TEST_PLATFORMS="win2008r2,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/Windows2008-R2-SP1/versions/1.0.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
@@ -1287,7 +1287,7 @@ deploy_windows_testing-a7:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
-    - export TEST_PLATFORMS="win2008r2,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/images/2008-R2-SP1"
+    - export TEST_PLATFORMS="win2008r2,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/Windows2008-R2-SP1/versions/1.0.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
@@ -1322,7 +1322,7 @@ deploy_windows_testing-a7:
   needs: ["deploy_suse_rpm_testing-a6", "deploy_suse_rpm_testing-a7"]
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-11,urn,SUSE:SLES-BYOS:11-SP4:2019.07.01"
+    - export TEST_PLATFORMS="sles-11,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/SLES-11-SP4/versions/1.0.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-12,urn,SUSE:SLES:12-SP4:2019.06.17"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:SLES-BYOS:15:2019.11.15"
     - cd $DD_AGENT_TESTING_DIR
