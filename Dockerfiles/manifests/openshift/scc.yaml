@@ -42,18 +42,18 @@ defaultAddCapabilities: []
 fsGroup:
   type: MustRunAs
 readOnlyRootFilesystem: false
-runAsUser: 
+runAsUser:
   type: MustRunAsRange
 supplementalGroups:
   type: RunAsAny
-# If your environment restricts user access to the Docker socket, 
-# you can add a group under `supplementalGroups` that has access
-# by uncommenting the following lines (and removing the previous line `type: RunAsAny`):
+# If your environment restricts user access to the Docker socket,
+# create or use an existing group that has access by uncommenting
+# the following lines (and removing the previous line `type: RunAsAny`)
 #
-#   type: MustRunAs 
-#   ranges: 
-#   - min: <docker group ID>
-#   - max: <max>
+#   type: MustRunAs
+#   ranges:
+#   - min: <min-group-ID>
+#   - max: <max-group-ID>
 seccompProfiles: []
 requiredDropCapabilities: []
 allowedCapabilities: []
