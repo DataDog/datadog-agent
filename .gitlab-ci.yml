@@ -260,6 +260,7 @@ run_tests_ebpf:
   # through an argument to the system-probe.build invoke task.
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
+    - source /root/.bashrc && conda activate ddpy3
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
   tags: [ "runner:main", "size:large" ]
