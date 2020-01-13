@@ -10,6 +10,7 @@ package autoscalers
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
-	"net/url"
 )
 
 const (
@@ -154,10 +154,12 @@ func makeChunks(batch []string) (chunks [][]string) {
 	var tempBucket []string
 
 	for _, val := range batch {
-
+		// Lenght of the query plus comma, time and space aggregators that come later on.
 		tempSize := len(url.PathEscape(val)) + 16
 		uriLenght = uriLenght + tempSize
 		if uriLenght >= maxCharactersPerChunk || len(tempBucket) >= chunkSize {
+			// The metric name can be at maximum 200 characters. Kubernetes limits the labels to 63 characters.
+			// Autoscalers with enough labels to form single a query of more than 7k characters are not supported.
 			chunks = append(chunks, tempBucket)
 			uriLenght = tempSize
 			tempBucket = []string{val}
@@ -175,7 +177,6 @@ func (p *Processor) queryExternalMetric(emList map[string]custommetrics.External
 	batch := []string{}
 	for _, e := range emList {
 		q := getKey(e.MetricName, e.Labels)
-		// Lenght of the query plus comma, time and space aggregators that would come later on.
 		batch = append(batch, q)
 	}
 	chunks := makeChunks(batch)
