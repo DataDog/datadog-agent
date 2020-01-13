@@ -35,9 +35,12 @@ var (
 // HostnameProviderConfiguration is the key for the hostname provider associated to datadog.yaml
 const HostnameProviderConfiguration = "configuration"
 
-type hostnameMap map[string]string
+// HostnameMap foo
+type HostnameMap map[string]string
 
-type hostnameSourcer func() (hostnameMap, error)
+type sourceResolver = func(live, state HostnameMap) (HostnameMap, bool)
+
+type hostnameSourcer func() (HostnameMap, error)
 
 type resolutionItem struct {
 	provider string // source for the hostname
@@ -50,13 +53,20 @@ type resolutionItem struct {
 // TODO: review reliability definitions
 var resolutionPipeline = []resolutionItem{
 	resolutionItem{provider: HostnameProviderConfiguration, reliable: true, fallback: false, final: true},
-	resolutionItem{provider: "fargate", reliable: true, fallback: false, final: true},
+	resolutionItem{provider: "fargate", reliable: false, fallback: false, final: true},
 	resolutionItem{provider: "gce", reliable: false, fallback: false, final: true},
 	resolutionItem{provider: "fqdn", reliable: true, fallback: false, final: false},
 	resolutionItem{provider: "container", reliable: true, fallback: false, final: false},
 	resolutionItem{provider: "os", reliable: true, fallback: true, final: false},
-	resolutionItem{provider: "aws", reliable: false, fallback: true, final: false},
+	resolutionItem{provider: "aws", reliable: false, fallback: false, final: false},
 }
+
+// for testing
+var (
+	configSourceResolver sourceResolver  = ResolveSourcesWithState
+	liveSourcer          hostnameSourcer = GetLiveHostnameSources
+	stateSourcer         hostnameSourcer = GetPersistedHostnameSources
+)
 
 func init() {
 	hostnameErrors.Init()
@@ -147,8 +157,9 @@ func saveHostnameData(cacheHostnameKey string, hostname string, provider string)
 	return hostnameData
 }
 
-func ResolveSourcesWithState(newSources, stateSources hostnameMap) (hostnameMap, bool) {
-	resolvedSources := hostnameMap{}
+// ResolveSourcesWithState foo
+func ResolveSourcesWithState(newSources, stateSources HostnameMap) (HostnameMap, bool) {
+	resolvedSources := HostnameMap{}
 	stateChange := false
 
 	for _, stage := range resolutionPipeline {
@@ -169,9 +180,11 @@ func ResolveSourcesWithState(newSources, stateSources hostnameMap) (hostnameMap,
 					stateChange = true
 				}
 			} else {
-				// unexpected - should we discard state as well?
-				log.Warn("a reliable source %s did not resolve a hostname as expected", stage.provider)
-				h = stateH
+				if stateOk {
+					stateChange = true
+					log.Warnf("Reliable source %s no longer configured", stage.provider)
+				}
+				continue
 			}
 		} else {
 			if newOk {
@@ -179,9 +192,13 @@ func ResolveSourcesWithState(newSources, stateSources hostnameMap) (hostnameMap,
 					stateChange = true
 				}
 			} else {
-				// here we should always use state - an unreliable source failed
-				log.Info("an unreliable source %s did not resolve a hostname as expected, using state: %s", stage.provider, stateH)
-				h = stateH
+				if stateOk {
+					// here we should always use state - an unreliable source failed
+					h = stateH
+					log.Info("an unreliable source %s did not resolve a hostname as expected, using state: %s", stage.provider, stateH)
+				} else {
+					continue
+				}
 			}
 		}
 
@@ -210,12 +227,11 @@ func GetHostnameData() (HostnameData, error) {
 	var provider string
 	var err error
 
-	live, err := GetLiveHostnameSources()
-	persisted, err := GetPersistedHostnameSources()
-
 	// TODO: address errors
+	live, err := liveSourcer()
+	state, err := stateSourcer()
 
-	sources, stateChange := ResolveSourcesWithState(live, persisted)
+	sources, stateChange := configSourceResolver(live, state)
 
 	for _, stage := range resolutionPipeline {
 		log.Debug("Getting hostname collected by: %s", stage.provider)
@@ -233,7 +249,7 @@ func GetHostnameData() (HostnameData, error) {
 				}
 			}
 			if ok && stage.final {
-				hostNameData := saveHostnameData(cacheHostnameKey, hostName, HostnameProviderConfiguration)
+				hostNameData := saveHostnameData(cacheHostnameKey, hostName, stage.provider)
 				if stage.provider == HostnameProviderConfiguration && !isHostnameCanonicalForIntake(hostName) &&
 					!config.Datadog.GetBool("hostname_force_config_as_canonical") {
 					_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-force-config-as-canonical", hostName)
@@ -275,12 +291,13 @@ func GetHostnameData() (HostnameData, error) {
 	return hostnameData, err
 }
 
-func GetLiveHostnameSources() (hostnameMap, error) {
+// GetLiveHostnameSources foo
+func GetLiveHostnameSources() (HostnameMap, error) {
 
 	var hostName string
 	var err error
 
-	hostnames := hostnameMap{}
+	hostnames := HostnameMap{}
 
 	// try the name provided in the configuration file
 	configName := config.Datadog.GetString("hostname")
@@ -404,11 +421,12 @@ func GetLiveHostnameSources() (hostnameMap, error) {
 	return hostnames, err
 }
 
-func GetPersistedHostnameSources() (hostnameMap, error) {
+// GetPersistedHostnameSources foo
+func GetPersistedHostnameSources() (HostnameMap, error) {
 	var err error
 	var cacheHostnameData string
 
-	sources := hostnameMap{}
+	sources := HostnameMap{}
 	cacheHostnameKey := cache.BuildAgentKey("hostname-sources")
 
 	if cacheHostnameData, err = persistentcache.Read(cacheHostnameKey); err != nil {
@@ -419,7 +437,8 @@ func GetPersistedHostnameSources() (hostnameMap, error) {
 	return sources, err
 }
 
-func PersistHostnameSources(sources hostnameMap) error {
+// PersistHostnameSources foo
+func PersistHostnameSources(sources HostnameMap) error {
 	cacheHostnameKey := cache.BuildAgentKey("hostname-sources")
 
 	j, err := json.Marshal(sources)
