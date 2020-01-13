@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package stats
 
@@ -44,7 +44,7 @@ func TestExtractTopLevelSubtracesWithSimpleTrace(t *testing.T) {
 	}
 }
 
-func TestExtractTopLevelSubtracesShouldIgnoreLeafTopLevel(t *testing.T) {
+func TestExtractTopLevelSubtracesShouldNotIgnoreLeafTopLevel(t *testing.T) {
 	assert := assert.New(t)
 
 	trace := pb.Trace{
@@ -57,6 +57,7 @@ func TestExtractTopLevelSubtracesShouldIgnoreLeafTopLevel(t *testing.T) {
 	expected := []Subtrace{
 		{trace[0], trace},
 		{trace[1], []*pb.Span{trace[1], trace[2]}},
+		{trace[2], []*pb.Span{}},
 	}
 
 	traceutil.ComputeTopLevel(trace)

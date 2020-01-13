@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package info
 
@@ -152,8 +152,10 @@ func TestInfo(t *testing.T) {
 	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := ioutil.ReadFile("./testdata/okay.info")
+	re := regexp.MustCompile(`\r\n`)
+	expectedInfoString := re.ReplaceAllString(string(expectedInfo), "\n")
 	assert.NoError(err)
-	assert.Equal(string(expectedInfo), info)
+	assert.Equal(expectedInfoString, info)
 }
 
 func TestHideAPIKeys(t *testing.T) {
@@ -194,8 +196,10 @@ func TestWarning(t *testing.T) {
 	info := buf.String()
 
 	expectedWarning, err := ioutil.ReadFile("./testdata/warning.info")
+	re := regexp.MustCompile(`\r\n`)
+	expectedWarningString := re.ReplaceAllString(string(expectedWarning), "\n")
 	assert.NoError(err)
-	assert.Equal(string(expectedWarning), info)
+	assert.Equal(expectedWarningString, info)
 
 	t.Logf("Info:\n%s\n", info)
 }

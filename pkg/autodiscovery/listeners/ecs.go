@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build docker
 
@@ -15,16 +15,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 )
 
 // ECSListener implements the ServiceListener interface for fargate-backed ECS cluster.
 // It pulls its tasks container list periodically and checks for
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
-	task       metadata.TaskMetadata
+	task       *v2.Task
 	filter     *containers.Filter
 	services   map[string]Service // maps container IDs to services
 	newService chan<- Service
@@ -101,7 +102,7 @@ func (l *ECSListener) Stop() {
 // compares the container list to the local cache and sends new/dead services
 // over newService and delService accordingly
 func (l *ECSListener) refreshServices(firstRun bool) {
-	meta, err := ecs.GetTaskMetadata()
+	meta, err := ecsmeta.V2().GetTask()
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
 		return
@@ -153,7 +154,7 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 	}
 }
 
-func (l *ECSListener) createService(c metadata.ContainerMetadata, firstRun bool) (ECSService, error) {
+func (l *ECSListener) createService(c v2.Container, firstRun bool) (ECSService, error) {
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before

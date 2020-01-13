@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package sender
 
@@ -97,6 +97,7 @@ func (s *batchStrategy) sendBuffer(outputChan chan *message.Message, send func([
 	}
 
 	metrics.LogsSent.Add(int64(len(messages)))
+	metrics.TlmLogsSent.Add(float64(len(messages)))
 
 	for _, message := range messages {
 		outputChan <- message

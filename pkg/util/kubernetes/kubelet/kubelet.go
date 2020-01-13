@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -41,8 +41,9 @@ const (
 )
 
 var (
-	globalKubeUtil *KubeUtil
-	kubeletExpVar  = expvar.NewInt("kubeletQueries")
+	globalKubeUtil      *KubeUtil
+	globalKubeUtilMutex sync.Mutex
+	kubeletExpVar       = expvar.NewInt("kubeletQueries")
 )
 
 // KubeUtil is a struct to hold the kubelet api url
@@ -54,6 +55,7 @@ type KubeUtil struct {
 
 	kubeletHost              string // resolved hostname or IPAddress
 	kubeletApiEndpoint       string // ${SCHEME}://${kubeletHost}:${PORT}
+	kubeletProxyEnabled      bool
 	kubeletApiClient         *http.Client
 	kubeletApiRequestHeaders *http.Header
 	rawConnectionInfo        map[string]string // kept to pass to the python kubelet check
@@ -66,6 +68,8 @@ type KubeUtil struct {
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
 // It is ONLY to be used for tests
 func ResetGlobalKubeUtil() {
+	globalKubeUtilMutex.Lock()
+	defer globalKubeUtilMutex.Unlock()
 	globalKubeUtil = nil
 }
 
@@ -92,7 +96,9 @@ func newKubeUtil() *KubeUtil {
 }
 
 // GetKubeUtil returns an instance of KubeUtil.
-func GetKubeUtil() (*KubeUtil, error) {
+func GetKubeUtil() (KubeUtilInterface, error) {
+	globalKubeUtilMutex.Lock()
+	defer globalKubeUtilMutex.Unlock()
 	if globalKubeUtil == nil {
 		globalKubeUtil = newKubeUtil()
 		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{
@@ -111,15 +117,6 @@ func GetKubeUtil() (*KubeUtil, error) {
 	return globalKubeUtil, nil
 }
 
-// HostnameProvider kubelet implementation for the hostname provider
-func HostnameProvider() (string, error) {
-	ku, err := GetKubeUtil()
-	if err != nil {
-		return "", err
-	}
-	return ku.GetHostname()
-}
-
 // GetNodeInfo returns the IP address and the hostname of the first valid pod in the PodList
 func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	pods, err := ku.GetLocalPodList()
@@ -135,22 +132,6 @@ func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	}
 
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
-}
-
-// GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
-func (ku *KubeUtil) GetHostname() (string, error) {
-	nodeName, err := ku.GetNodename()
-	if err != nil {
-		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
-	}
-
-	clusterName := clustername.GetClusterName()
-	if clusterName == "" {
-		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
-		return nodeName, nil
-	} else {
-		return (nodeName + "-" + clusterName), nil
-	}
 }
 
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
@@ -281,9 +262,13 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 	if containerID == "" {
 		return nil, fmt.Errorf("containerID is empty")
 	}
+
+	// We will match only on the id itself, without runtime identifier, it should be quite unlikely on a Kube node
+	// to have a container in the runtime used by Kube to match a container in another runtime...
+	strippedContainerID := containers.ContainerIDForEntity(containerID)
 	for _, pod := range podList {
 		for _, container := range pod.Status.GetAllContainers() {
-			if container.ID == containerID {
+			if containers.ContainerIDForEntity(container.ID) == strippedContainerID {
 				return pod, nil
 			}
 		}
@@ -500,7 +485,37 @@ func (ku *KubeUtil) GetRawMetrics() ([]byte, error) {
 	return data, nil
 }
 
+// IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
+func (ku *KubeUtil) IsAgentHostNetwork() (bool, error) {
+	cid, err := docker.GetAgentCID()
+	if err != nil {
+		return false, err
+	}
+
+	pod, err := ku.GetPodForContainerID(cid)
+	if err != nil {
+		return false, err
+	}
+
+	return pod.Spec.HostNetwork, nil
+}
+
 func (ku *KubeUtil) setupKubeletApiEndpoint() error {
+	// Proxied
+	if ku.kubeletProxyEnabled {
+		_, code, httpsUrlErr := ku.QueryKubelet(kubeletPodPath)
+		if httpsUrlErr == nil {
+			if code == http.StatusOK {
+				log.Debugf("Kubelet endpoint is: %s", ku.kubeletApiEndpoint)
+				return nil
+			}
+			if code >= 500 {
+				return fmt.Errorf("unexpected status code %d on endpoint %s%s", code, ku.kubeletApiEndpoint, kubeletPodPath)
+			}
+			log.Warnf("Failed to securely reach the kubelet over HTTPS, received a status %d. Trying a non secure connection over HTTP. We highly recommend configuring TLS to access the kubelet", code)
+		}
+		log.Debugf("Cannot query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, httpsUrlErr)
+	}
 	// HTTPS
 	ku.kubeletApiEndpoint = fmt.Sprintf("https://%s:%d", ku.kubeletHost, config.Datadog.GetInt("kubernetes_https_kubelet_port"))
 	_, code, httpsUrlErr := ku.QueryKubelet(kubeletPodPath)
@@ -543,11 +558,13 @@ type connectionInfo struct {
 func (ku *KubeUtil) init() error {
 	var err error
 
+	// Kubelet is unavailable, proxying calls through the APIServer - EKS on Fargate.
+	ku.kubeletProxyEnabled = config.Datadog.GetBool("eks_fargate")
+
 	// setting the kubeletHost
 	kubeletHost := config.Datadog.GetString("kubernetes_kubelet_host")
 	kubeletHttpsPort := config.Datadog.GetInt("kubernetes_https_kubelet_port")
 	kubeletHttpPort := config.Datadog.GetInt("kubernetes_http_kubelet_port")
-
 	potentialHosts := getPotentialKubeletHosts(kubeletHost)
 
 	dedupeConnectionInfo(potentialHosts)
@@ -681,6 +698,11 @@ func dedupeConnectionInfo(hosts *connectionInfo) {
 func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort int) error {
 	var connectionErrors []error
 	log.Debugf("Trying several connection methods to locate the kubelet...")
+	if ku.kubeletProxyEnabled && config.Datadog.Get("kubernetes_kubelet_nodename") != "" {
+		ku.kubeletApiEndpoint = fmt.Sprintf("https://%s:%s/api/v1/nodes/%s/proxy/", os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT"), config.Datadog.Get("kubernetes_kubelet_nodename"))
+		log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s", ku.kubeletApiEndpoint)
+		return nil
+	}
 	kubeletHost, errors := selectFromPotentialHostsHTTPS(ku, hosts.ips, httpsPort)
 	if kubeletHost != "" && errors == nil {
 		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package app
 
@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"runtime"
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"net/http"
@@ -35,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -180,6 +183,9 @@ func StartAgent() error {
 
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
+	if config.Datadog.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
 	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
 
 	// Setup healthcheck port
@@ -248,13 +254,15 @@ func StartAgent() error {
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(s, hostname, "agent")
+	metricSamplePool := metrics.NewMetricSamplePool(32)
+	agg := aggregator.InitAggregator(s, metricSamplePool, hostname, "agent")
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(agg.GetBufferedChannels())
+		sampleC, eventC, serviceCheckC := agg.GetBufferedChannels()
+		common.DSD, err = dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}

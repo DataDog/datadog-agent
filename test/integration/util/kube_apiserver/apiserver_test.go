@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build docker
 // +build kubeapiserver
@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	hostname_apiserver "github.com/DataDog/datadog-agent/pkg/util/hostname/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
@@ -44,6 +45,7 @@ func TestSuiteKube(t *testing.T) {
 	require.Nil(t, err)
 	output, err := compose.Start()
 	defer compose.Stop()
+	t.Logf("error: %v", err)
 	require.Nil(t, err, string(output))
 
 	// Init apiclient
@@ -180,7 +182,7 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer core.Pods("default").Delete(myHostname, nil)
 
 	// Hostname provider should return the expected value
-	foundHost, err := apiserver.HostnameProvider()
+	foundHost, err := hostname_apiserver.HostnameProvider()
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
@@ -190,6 +192,6 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
-	foundHost, err = apiserver.HostnameProvider()
+	foundHost, err = hostname_apiserver.HostnameProvider()
 	assert.Equal(suite.T(), "target.host-laika", foundHost)
 }

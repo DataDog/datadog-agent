@@ -70,6 +70,47 @@ if linux?
   extra_package_file '/var/log/datadog/'
 end
 
+# Windows .msi specific flags
+package :zip do
+  skip_packager true
+end
+
+package :msi do
+
+  # For a consistent package management, please NEVER change this code
+  arch = "x64"
+  if windows_arch_i386?
+    full_agent_upgrade_code = '2497f989-f07e-4e8c-9e05-841ad3d4405f'
+    upgrade_code '6f7ac237-334c-44c8-9fec-ec8f3459db37'
+    arch = "x86"
+  else
+    full_agent_upgrade_code = '0c50421b-aefb-4f15-a809-7af256d608a5'
+    upgrade_code '1b3d4067-fd27-4de4-bfc9-605695ad514c'
+  end
+  wix_candle_extension 'WixUtilExtension'
+  wix_light_extension 'WixUtilExtension'
+  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
+
+  additional_sign_files [
+      "#{Omnibus::Config.source_dir()}\\datadog-puppy\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\datadog-puppy\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\datadog-puppy\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+    ]
+  #if ENV['SIGN_WINDOWS']
+  #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
+  #end
+  if ENV['SIGN_PFX']
+    signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
+  end
+  parameters({
+    'InstallDir' => install_dir,
+    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
+    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin/agent",
+    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
+    'Platform' => "#{arch}",
+  })
+end
+
 # ------------------------------------
 # Dependencies
 # ------------------------------------
@@ -80,6 +121,9 @@ dependency 'preparation'
 # Datadog agent
 dependency 'datadog-puppy'
 
+if windows?
+  dependency 'datadog-agent-finalize'
+end
 # version manifest file
 dependency 'version-manifest'
 

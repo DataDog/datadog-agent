@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build docker
 
@@ -15,13 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // parseMetadata parses the task metadata and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
-func (c *ECSFargateCollector) parseMetadata(meta metadata.TaskMetadata, parseAll bool) ([]*TagInfo, error) {
+func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 

@@ -9,10 +9,12 @@ import (
 )
 
 // A Sketch for tracking quantiles
+// The serialized JSON of Sketch contains the summary only
+// Bins are not included.
 type Sketch struct {
 	sparseStore
 
-	Basic summary.Summary
+	Basic summary.Summary `json:"summary"`
 }
 
 func (s *Sketch) String() string {

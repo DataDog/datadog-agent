@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -97,9 +96,9 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 					continue
 				}
 
-				addresses, err := metadata.GetContainerNetworkAddresses(ecsContainerMetadataUrl)
+				addresses, err := GetContainerNetworkAddresses(ecsContainerMetadataUrl)
 				if err != nil {
-					log.Errorf("Failed to get container network addresses: %s", err)
+					log.Errorf("Failed to get network addresses for container: %s. Network info will be missing. Error: %s", container.ID, err)
 					continue
 				}
 				container.AddressList = crossIPsWithPorts(addresses, exposedPorts)

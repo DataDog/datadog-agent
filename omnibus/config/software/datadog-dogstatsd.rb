@@ -21,8 +21,14 @@ build do
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
 
+  if windows?
+    major_version_arg = "%MAJOR_VERSION%"
+  else
+    major_version_arg = "$MAJOR_VERSION"
+  end
+
   # we assume the go deps are already installed before running omnibus
-  command "invoke dogstatsd.build --rebuild", env: env
+  command "invoke dogstatsd.build --rebuild --major-version #{major_version_arg}", env: env
 
   mkdir "#{install_dir}/etc/datadog-dogstatsd"
   unless windows?
@@ -31,7 +37,12 @@ build do
   end
 
   # move around bin and config files
-  copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
+  if windows?
+    mkdir "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+    copy 'bin/dogstatsd/dogstatsd.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  else
+    copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
+  end
   move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
 
   if linux?

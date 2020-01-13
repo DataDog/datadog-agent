@@ -9,7 +9,9 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -17,6 +19,9 @@ import (
 var (
 	// Connections is a singleton ConnectionsCheck.
 	Connections = &ConnectionsCheck{}
+
+	// LocalResolver is a singleton LocalResolver
+	LocalResolver = &resolver.LocalResolver{}
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
@@ -29,13 +34,13 @@ type ConnectionsCheck struct {
 }
 
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemInfo) {
+func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
 	net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
-	net.GetRemoteSystemProbeUtil()
+	_, _ = net.GetRemoteSystemProbeUtil()
 
 	networkID, err := util.GetNetworkID()
 	if err != nil {
@@ -44,7 +49,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemIn
 	c.networkID = networkID
 
 	// Run the check one time on init to register the client on the system probe
-	c.Run(cfg, 0)
+	_, _ = c.Run(cfg, 0)
 }
 
 // Name returns the name of the ConnectionsCheck.
@@ -72,6 +77,11 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		}
 		return nil, err
 	}
+
+	// Filter out (in-place) connection data associated with docker-proxy
+	dockerproxy.NewFilter().Filter(conns)
+	// Resolve the Raddr side of connections for local containers
+	LocalResolver.Resolve(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID), nil
@@ -113,6 +123,8 @@ func batchConnections(
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
+	dnsEncoder := model.NewV1DNSEncoder()
+
 	for len(cxs) > 0 {
 		batchSize := min(cfg.MaxConnsPerMessage, len(cxs))
 		batchConns := cxs[:batchSize] // Connections for this particular batch
@@ -134,7 +146,7 @@ func batchConnections(
 			GroupId:         groupID,
 			GroupSize:       groupSize,
 			ContainerForPid: ctrIDForPID,
-			Dns:             batchDNS,
+			EncodedDNS:      dnsEncoder.Encode(batchDNS),
 		})
 		cxs = cxs[batchSize:]
 	}

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // Package obfuscate implements quantizing and obfuscating of tags and resources for
 // a set of spans matching a certain criteria.
@@ -62,7 +62,7 @@ func (o *Obfuscator) SetSQLLiteralEscapes(ok bool) {
 	}
 }
 
-// SQLLiteralEscapes returns whether or not escape characters should be treated literally by the SQL obfuscator.
+// SQLLiteralEscapes reports whether escape characters should be treated literally by the SQL obfuscator.
 func (o *Obfuscator) SQLLiteralEscapes() bool {
 	return atomic.LoadInt32(&o.opts.sqlLiteralEscapes) == 1
 }

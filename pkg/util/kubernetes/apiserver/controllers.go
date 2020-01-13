@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
 )
 
 type controllerFuncs struct {
@@ -42,6 +43,7 @@ type ControllerContext struct {
 	WPAInformerFactory externalversions.SharedInformerFactory
 	Client             kubernetes.Interface
 	LeaderElector      LeaderElectorInterface
+	EventRecorder      record.EventRecorder
 	StopCh             chan struct{}
 }
 
@@ -87,6 +89,7 @@ func startAutoscalersController(ctx ControllerContext) error {
 	}
 	autoscalersController, err := NewAutoscalersController(
 		ctx.Client,
+		ctx.EventRecorder,
 		ctx.LeaderElector,
 		dogCl,
 	)

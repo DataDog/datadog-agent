@@ -84,6 +84,9 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	}
 	ctrList, _ := util.GetContainers()
 
+	// Keep track of containers addresses
+	LocalResolver.LoadAddrs(ctrList)
+
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
 		p.lastProcs = procs

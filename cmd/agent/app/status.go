@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package app
 
@@ -46,7 +46,7 @@ var statusCmd = &cobra.Command{
 			color.NoColor = true
 		}
 
-		err := common.SetupConfigWithoutSecrets(confFilePath)
+		err := common.SetupConfigWithoutSecrets(confFilePath, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
@@ -66,7 +66,7 @@ var componentCmd = &cobra.Command{
 	Short: "Print the component status",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfigWithoutSecrets(confFilePath)
+		err := common.SetupConfigWithoutSecrets(confFilePath, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
