@@ -254,6 +254,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
 
 	// Forwarder
+	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 30)
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -515,7 +516,6 @@ func initConfig(config Config) {
 	config.SetKnown("config_providers")
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
-	config.SetKnown("additional_endpoints.*")
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
@@ -934,12 +934,7 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 		},
 	}
 
-	var additionalEndpoints map[string][]string
-	err = config.UnmarshalKey("additional_endpoints", &additionalEndpoints)
-	if err != nil {
-		return keysPerDomain, err
-	}
-
+	additionalEndpoints := config.GetStringMapStringSlice("additional_endpoints")
 	// merge additional endpoints into keysPerDomain
 	for domain, apiKeys := range additionalEndpoints {
 
