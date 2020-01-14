@@ -267,6 +267,26 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			timeout:    false,
 		},
 		{
+			desc: "Overspilling single query",
+			in: lambdaMakeChunks(0, custommetrics.ExternalMetricValue{
+				MetricName: randStringRune(7000),
+				Labels:     map[string]string{"foo": "bar"}}),
+			out: []datadog.Series{
+				{
+					Metric: &metricName,
+					Points: []datadog.DataPoint{
+						makePoints(1531492452000, 12),
+						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
+						makePoints(0, 27),
+					},
+					Scope: makePtr("foo:bar"),
+				},
+			},
+			batchCalls: 0,
+			err:        nil,
+			timeout:    false,
+		},
+		{
 			desc: "several batches, one error",
 			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
 				MetricName: "foo",
