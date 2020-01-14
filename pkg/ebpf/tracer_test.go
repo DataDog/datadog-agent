@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -24,7 +23,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -240,89 +238,53 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func TestIncomingTCPConnectionDirection(t *testing.T) {
+func TestNATConnectionDirection(t *testing.T) {
+	cmd := exec.Command("netlink/testdata/setup_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("setup command output: %s", string(out))
+	}
+
 	tr, err := NewTracer(NewDefaultConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer tr.Stop()
 
-	tr.portMapping.AddMapping(8000)
-	connStats := ConnectionStats{}
-	connStats.Source = util.AddressFromString("10.0.2.25")
-	connStats.SPort = 8000
-	connStats.Dest = util.AddressFromString("38.122.226.210")
-	connStats.DPort = 5893
-	connStats.Type = TCP
+	server := &TCPServer{
+		address:   "1.1.1.1:5432",
+		onMessage: func(c net.Conn){
+			r:= bufio.NewReader(c)
+			for {
+				_, err := r.ReadBytes(byte('\n'))
+				c.Write(genPayload(serverMessageSize))
+				if err != nil {
+					break
+				}
+			}
+			c.Close()
+		},
+	}
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
 
-	conn := []ConnectionStats{connStats}
-	tr.setConnectionDirections(conn)
-	assert.Equal(t, INCOMING, conn[0].Direction)
-}
-
-func TestOutgoingTCPConnectionDirection(t *testing.T) {
-	tr, err := NewTracer(NewDefaultConfig())
+	c, err:= net.Dial("tcp", "2.2.2.2:5432")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tr.Stop()
-	connStats := ConnectionStats{}
-	connStats.Source = util.AddressFromString("10.0.2.25")
-	connStats.SPort = 5323
-	connStats.Dest = util.AddressFromString("38.122.226.210")
-	connStats.DPort = 80
-	connStats.Type = TCP
-	conn := []ConnectionStats{connStats}
-	tr.setConnectionDirections(conn)
-	assert.Equal(t, OUTGOING, conn[0].Direction)
-}
+	defer c.Close()
 
-func TestRemoteUDPConnectionDirection(t *testing.T) {
-	tr, err := NewTracer(NewDefaultConfig())
-	if err != nil {
+	if _, err := c.Write(genPayload(clientMessageSize)); err!= nil {
 		t.Fatal(err)
 	}
-	defer tr.Stop()
-	connStats := ConnectionStats{}
-	connStats.Source = util.AddressFromString("10.0.2.25")
-	connStats.SPort = 5323
-	connStats.Dest = util.AddressFromString("38.122.226.210")
-	connStats.DPort = 8125
-	connStats.Type = UDP
-	conn := []ConnectionStats{connStats}
-	tr.setConnectionDirections(conn)
-	assert.Equal(t, NONE, conn[0].Direction)
-}
 
-func TestLocalNATConnectionDirection(t *testing.T) {
-	tr, err := NewTracer(NewDefaultConfig())
-	if err != nil {
-		t.Fatal(err)
+	r := bufio.NewReader(c)
+	r.ReadBytes(byte('\n'))
+
+	for _, c := range getConnections(t, tr).Conns {
+		assert.Equal(t, LOCAL, c.Direction)
 	}
-	defer tr.Stop()
-	connStatNAT := ConnectionStats{}
-	connStatNAT.Source = util.AddressFromString("10.0.2.15")
-	connStatNAT.SPort = 59782
-	connStatNAT.Dest = util.AddressFromString("2.2.2.2")
-	connStatNAT.DPort = 8000
-	connStatNAT.Type = TCP
-	natTranslation := netlink.IPTranslation{}
-	natTranslation.ReplSrcIP = util.AddressFromString("1.1.1.1")
-	natTranslation.ReplSrcPort = 8000
-	natTranslation.ReplDstIP = util.AddressFromString("10.0.2.15")
-	natTranslation.ReplDstPort = 59782
-	connStatNAT.IPTranslation = &natTranslation
 
-	connStat := ConnectionStats{}
-	connStat.Source = util.AddressFromString("1.1.1.1")
-	connStat.SPort = 8000
-	connStat.Dest = util.AddressFromString("10.0.2.15")
-	connStat.DPort = 59782
-
-	conns := []ConnectionStats{connStatNAT, connStat}
-	tr.setConnectionDirections(conns)
-	assert.Equal(t, LOCAL, conns[0].Direction)
-	assert.Equal(t, LOCAL, conns[1].Direction)
+	defer teardown(t)
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
@@ -1414,4 +1376,12 @@ func getConnections(t *testing.T, tr *Tracer) *Connections {
 	}
 
 	return connections
+}
+
+func teardown(t *testing.T) {
+	cmd := exec.Command("netlink/testdata/teardown_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		fmt.Printf("teardown command output: %s", string(out))
+		t.Errorf("error tearing down: %s", err)
+	}
 }
