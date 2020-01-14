@@ -32,6 +32,8 @@ const (
 	chunkSize = 35
 	// maxCharactersPerChunk is the maximum size of a single chunk to avoid 414 Request-URI Too Large
 	maxCharactersPerChunk = 7000
+	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
+	extraQueryCharacters = 16
 )
 
 type DatadogClient interface {
@@ -149,19 +151,19 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 }
 
 func makeChunks(batch []string) (chunks [][]string) {
-	// uriLenght is used to avoid making a query that goes beyond the maximum URI size.
-	var uriLenght int
+	// uriLength is used to avoid making a query that goes beyond the maximum URI size.
+	var uriLength int
 	var tempBucket []string
 
 	for _, val := range batch {
-		// Lenght of the query plus comma, time and space aggregators that come later on.
-		tempSize := len(url.PathEscape(val)) + 16
-		uriLenght = uriLenght + tempSize
-		if uriLenght >= maxCharactersPerChunk || len(tempBucket) >= chunkSize {
+		// Length of the query plus comma, time and space aggregators that come later on.
+		tempSize := len(url.PathEscape(val)) + extraQueryCharacters
+		uriLength = uriLength + tempSize
+		if uriLength >= maxCharactersPerChunk || len(tempBucket) >= chunkSize {
 			// The metric name can be at maximum 200 characters. Kubernetes limits the labels to 63 characters.
 			// Autoscalers with enough labels to form single a query of more than 7k characters are not supported.
 			chunks = append(chunks, tempBucket)
-			uriLenght = tempSize
+			uriLength = tempSize
 			tempBucket = []string{val}
 			continue
 		}

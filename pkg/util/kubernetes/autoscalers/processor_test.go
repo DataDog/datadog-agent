@@ -185,12 +185,12 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 
 }
 
-var letterRunes = []rune("qwertyuiopasdfghjklzxcvbnm1234567890")
+var ASCIIRunes = []rune("qwertyuiopasdfghjklzxcvbnm1234567890")
 
 func randStringRune(n int) string {
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = ASCIIRunes[rand.Intn(len(ASCIIRunes))]
 	}
 	return string(b)
 }
