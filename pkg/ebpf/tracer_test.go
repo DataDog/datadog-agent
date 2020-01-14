@@ -245,15 +245,13 @@ func TestNATConnectionDirection(t *testing.T) {
 	}
 
 	tr, err := NewTracer(NewDefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoErr(t, err)
 	defer tr.Stop()
 
 	server := &TCPServer{
-		address:   "1.1.1.1:5432",
-		onMessage: func(c net.Conn){
-			r:= bufio.NewReader(c)
+		address: "1.1.1.1:5432",
+		onMessage: func(c net.Conn) {
+			r := bufio.NewReader(c)
 			for {
 				_, err := r.ReadBytes(byte('\n'))
 				c.Write(genPayload(serverMessageSize))
@@ -267,19 +265,16 @@ func TestNATConnectionDirection(t *testing.T) {
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
 
-	c, err:= net.Dial("tcp", "2.2.2.2:5432")
-	if err != nil {
-		t.Fatal(err)
-	}
+	c, err := net.Dial("tcp", "2.2.2.2:5432")
+	require.NoErr(t, err)
 	defer c.Close()
 
-	if _, err := c.Write(genPayload(clientMessageSize)); err!= nil {
+	if _, err := c.Write(genPayload(clientMessageSize)); err != nil {
 		t.Fatal(err)
 	}
 
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
-
 	for _, c := range getConnections(t, tr).Conns {
 		assert.Equal(t, LOCAL, c.Direction)
 	}
