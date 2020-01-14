@@ -849,7 +849,7 @@
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "442de23c29afb26ff5be97eac31eabb44ee4f398"
+  revision = "c5ab477f310f9349107c9fbea0add1c7a2ade77b"
   source = "github.com/L3n41c/gobpf"
 
 [[projects]]
