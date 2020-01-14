@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
@@ -89,6 +90,25 @@ func StartServer() error {
 		s := grpc.NewServer()
 		pb.RegisterAgentServer(s, &server{})
 		if err := s.Serve(lis); err != nil {
+			panic(err)
+		}
+	}()
+
+	go func() {
+		// starting gateway
+		ctx := context.Background()
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		mux := runtime.NewServeMux()
+		opts := []grpc.DialOption{grpc.WithInsecure()}
+		// pb.RegisterAgentServer(s, &server{})
+		err := pb.RegisterAgentHandlerFromEndpoint(ctx, mux, "localhost:50051", opts)
+		if err != nil {
+			panic(err)
+		}
+
+		if err := http.ListenAndServe(":8081", mux); err != nil {
 			panic(err)
 		}
 	}()
