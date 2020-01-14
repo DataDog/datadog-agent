@@ -2,11 +2,22 @@ syntax = "proto3";
 
 package pb;
 
+import "google/api/annotations.proto";
+
 // The greeting service definition.
 service Agent {
   // get the hostname
-  rpc GetHostname (HostnameRequest) returns (HostnameReply) {}
-  rpc GetTags (TagRequest) returns (TagReply) {}
+  rpc GetHostname (HostnameRequest) returns (HostnameReply) {
+    option (google.api.http) = {
+      get: "/v1/grpc/host"
+    };
+  }
+  rpc GetTags (TagRequest) returns (TagReply) {
+    option (google.api.http) = {
+      post: "/v1/grpc/tags"
+      body: "*"
+    };
+  }
 }
 
 message HostnameRequest {}
