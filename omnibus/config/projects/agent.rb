@@ -23,6 +23,13 @@ else
   else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
+
+  if osx?
+    unless ENV['SKIP_SIGN_MAC'] == 'true'
+      code_signing_identity 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'
+    end
+  end
+
   install_dir '/opt/datadog-agent'
 end
 
