@@ -1545,11 +1545,11 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:301cc98bab3839bb2f984b661a78c04b73402ed88daf4f1ca6a317ef56acfed2"
+  digest = "1:d07cbf77cfe1273309ac253d40812f3256280fa2d6589b195098c1622047bd8e"
   name = "gopkg.in/zorkian/go-datadog-api.v2"
   packages = ["."]
   pruneopts = ""
-  revision = "0784a6c6d9a4659263c67e160442f4f5808793ac"
+  revision = "9e2c892691035a7685a16d5839910cfc54e42fb6"
 
 [[projects]]
   branch = "release-1.15"
