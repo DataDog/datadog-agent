@@ -951,42 +951,55 @@ func TestSkipConnectionDNS(t *testing.T) {
 		assert.True(t, tr.shouldSkipConnection(&ConnectionStats{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  53,
+			SPort:  1000, DPort: 53,
 		}))
 
 		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  8080,
+			SPort:  1000, DPort: 8080,
 		}))
 
 		assert.True(t, tr.shouldSkipConnection(&ConnectionStats{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
-			DPort:  53,
+			SPort:  53, DPort: 1000,
 		}))
 
+		assert.True(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("::3f::45"),
+			Dest:   util.AddressFromString("::1"),
+			SPort:  53, DPort: 1000,
+		}))
 	})
 
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
 		tr := &Tracer{config: &Config{CollectLocalDNS: true}}
+
 		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  53,
+			SPort:  1000, DPort: 53,
 		}))
 
 		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  8080,
+			SPort:  1000, DPort: 8080,
 		}))
 
 		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
-			DPort:  53,
+			SPort:  53, DPort: 1000,
 		}))
+
+		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("::3f::45"),
+			Dest:   util.AddressFromString("::1"),
+			SPort:  53, DPort: 1000,
+		}))
+
 	})
 }
 
