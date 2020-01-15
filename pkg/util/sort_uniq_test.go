@@ -34,6 +34,7 @@ func benchmarkDeduplicateTags(b *testing.B, numberOfTags int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
+		copy(tempTags, tags)
 		SortUniqInPlace(tempTags)
 	}
 }
