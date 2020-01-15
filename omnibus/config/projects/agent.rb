@@ -165,6 +165,10 @@ else
   dependency 'cacerts'
 end
 
+if osx?
+  dependency 'datadog-agent-mac-app'
+end
+
 if with_python_runtime? "2"
   dependency 'pylint2'
   dependency 'datadog-agent-integrations-py2'
@@ -172,10 +176,6 @@ end
 
 if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
-end
-
-if osx?
-  dependency 'datadog-agent-mac-app'
 end
 
 # External agents
