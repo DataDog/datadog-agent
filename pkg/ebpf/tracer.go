@@ -304,7 +304,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 //  • Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
-	if !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL {
+	if !t.config.CollectLocalDNS && isDNSConnection && conn.Dest.IsLoopback() {
 		return true
 	} else if IsBlacklistedConnection(t.sourceExcludes, t.destExcludes, conn) {
 		return true
