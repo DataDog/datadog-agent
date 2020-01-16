@@ -26,19 +26,18 @@ type Counter interface {
 func NewCounter(subsystem, name string, tags []string, help string) Counter {
 	// subsystem is optional
 	if subsystem != "" {
-		subsystem = fmt.Sprintf("_%s", subsystem)
+		// Prefix metrics with a _, prometheus will add a second _
+		// It will create metrics with a custom separator and
+		// will let us replace it to a dot later in the process.
+		name = fmt.Sprintf("_%s", name)
 	}
 
 	c := &promCounter{
 		pc: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Namespace: namespace,
 				Subsystem: subsystem,
-				// Prefix metrics with a _, prometheus will add a second _
-				// It will create metrics with a custom separator and
-				// will let us replace it to a dot later in the process.
-				Name: fmt.Sprintf("_%s", name),
-				Help: help,
+				Name:      name,
+				Help:      help,
 			},
 			tags,
 		),
