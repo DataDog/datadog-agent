@@ -438,27 +438,6 @@ cluster_agent-build_arm64:
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
 
-# cloudfoundry puppy build/windows
-cf_buildpack_windows:
-  stage: binary_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["run_dep_check_lock"]
-  variables:
-    ARCH: "x64"
-    AGENT_MAJOR_VERSION: 7
-    OMNIBUS_TARGET: cf_buildpack
-  before_script:
-    - set RELEASE_VERSION $RELEASE_VERSION_7
-  script:
-    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
-    - if (Test-Path build-out) { remove-item -recurse -force build-out }
-    - mkdir .omnibus\pkg
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=${OMNIBUS_TARGET} -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\buildwin.bat $RELEASE_VERSION $AGENT_MAJOR_VERSION
-    - copy build-out\*.zip .omnibus\pkg
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - .omnibus/pkg
 
 
 #
@@ -815,7 +794,27 @@ agent_suse-x64-a7:
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_suse_rpm
 
-
+# cloudfoundry puppy build/windows
+cf_buildpack_windows:
+  stage: package_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: ["run_dep_check_lock"]
+  variables:
+    ARCH: "x64"
+    AGENT_MAJOR_VERSION: 7
+    OMNIBUS_TARGET: cf_buildpack
+  before_script:
+    - set RELEASE_VERSION $RELEASE_VERSION_7
+  script:
+    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - mkdir .omnibus\pkg
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=${OMNIBUS_TARGET} -e WINDOWS_BUILDER=true -e PYTHON_RUNTIMES=${PYTHON_RUNTIMES} -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\buildwin.bat $RELEASE_VERSION $AGENT_MAJOR_VERSION
+    - copy build-out\*.zip .omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg
 
 ##
 ## windows dockerized builds
