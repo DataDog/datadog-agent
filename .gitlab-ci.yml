@@ -781,6 +781,7 @@ agent_suse-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: [ "run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
@@ -796,6 +797,7 @@ agent_suse-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: [ "run_tests_rpm-x64-py3" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
