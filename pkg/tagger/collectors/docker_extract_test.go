@@ -228,22 +228,6 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedOrch: []string{},
 			expectedHigh: []string{},
 		},
-		{
-			testName: "extractCustomLabels",
-			co: &types.ContainerJSON{
-				Config: &container.Config{
-					Env: []string{"PATH=/bin"},
-					Labels: map[string]string{
-						"com.datadoghq.ad.tags": "[\"adTestKey:adTestVal1\", \"adTestKey:adTestVal2\"]",
-					},
-				},
-			},
-			toRecordEnvAsTags:    map[string]string{},
-			toRecordLabelsAsTags: map[string]string{},
-			expectedLow:          []string{},
-			expectedOrch:         []string{},
-			expectedHigh:         []string{"adTestKey:adTestVal1", "adTestKey:adTestVal2"},
-		},
 	}
 
 	dc := &DockerCollector{}
