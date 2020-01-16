@@ -1309,7 +1309,6 @@ deploy_windows_testing-a7:
 
 .kitchen_centos_common: &kitchen_centos_common
   <<: *kitchen_common
-  needs: ["deploy_rpm_testing-a6", "deploy_rpm_testing-a7"]
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="centos-69,urn,OpenLogic:CentOS:6.9:6.9.20180530"
@@ -1320,7 +1319,6 @@ deploy_windows_testing-a7:
 
 .kitchen_ubuntu_common: &kitchen_ubuntu_common
   <<: *kitchen_common
-  needs: ["deploy_deb_testing-a6", "deploy_deb_testing-a7"]
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="ubuntu-14-04,urn,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
@@ -1331,7 +1329,6 @@ deploy_windows_testing-a7:
 
 .kitchen_suse_common: &kitchen_suse_common
   <<: *kitchen_common
-  needs: ["deploy_suse_rpm_testing-a6", "deploy_suse_rpm_testing-a7"]
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="sles-11,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/SLES-11-SP4/versions/1.0.0"
@@ -1342,7 +1339,6 @@ deploy_windows_testing-a7:
 
 .kitchen_debian_common: &kitchen_debian_common
   <<: *kitchen_common
-  needs: ["deploy_deb_testing-a6", "deploy_deb_testing-a7"]
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="debian-8,urn,credativ:Debian:8:8.20190313.0"
@@ -1412,6 +1408,7 @@ kitchen_windows_upgrade6-a7:
 # run dd-agent-testing on centos
 kitchen_centos_chef-a6:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_centos_common
   <<: *kitchen_a6_common
@@ -1419,6 +1416,7 @@ kitchen_centos_chef-a6:
 
 kitchen_centos_chef-a7:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_centos_common
   <<: *kitchen_a7_common
@@ -1426,6 +1424,7 @@ kitchen_centos_chef-a7:
 
 kitchen_centos_install_script-a6:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_centos_common
   <<: *kitchen_a6_common
@@ -1433,6 +1432,7 @@ kitchen_centos_install_script-a6:
 
 kitchen_centos_install_script-a7:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_centos_common
   <<: *kitchen_a7_common
@@ -1440,6 +1440,7 @@ kitchen_centos_install_script-a7:
 
 kitchen_centos_step_by_step-a6:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_centos_common
   <<: *kitchen_a6_common
@@ -1447,6 +1448,7 @@ kitchen_centos_step_by_step-a6:
 
 kitchen_centos_step_by_step-a7:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_centos_common
   <<: *kitchen_a7_common
@@ -1454,6 +1456,7 @@ kitchen_centos_step_by_step-a7:
 
 kitchen_centos_upgrade5-a6:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_centos_common
   <<: *kitchen_a6_common
@@ -1461,6 +1464,7 @@ kitchen_centos_upgrade5-a6:
 
 kitchen_centos_upgrade5-a7:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_centos_common
   <<: *kitchen_a7_common
@@ -1468,6 +1472,7 @@ kitchen_centos_upgrade5-a7:
 
 kitchen_centos_upgrade6-a6:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_centos_common
   <<: *kitchen_a6_common
@@ -1475,6 +1480,7 @@ kitchen_centos_upgrade6-a6:
 
 kitchen_centos_upgrade6-a7:
   allow_failure: false
+  needs: ["deploy_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_centos_common
   <<: *kitchen_a7_common
@@ -1484,6 +1490,7 @@ kitchen_centos_upgrade6-a7:
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_ubuntu_chef-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a6_common
@@ -1491,6 +1498,7 @@ kitchen_ubuntu_chef-a6:
 
 kitchen_ubuntu_chef-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a7_common
@@ -1498,6 +1506,7 @@ kitchen_ubuntu_chef-a7:
 
 kitchen_ubuntu_install_script-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a6_common
@@ -1505,6 +1514,7 @@ kitchen_ubuntu_install_script-a6:
 
 kitchen_ubuntu_install_script-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a7_common
@@ -1512,6 +1522,7 @@ kitchen_ubuntu_install_script-a7:
 
 kitchen_ubuntu_step_by_step-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a6_common
@@ -1519,6 +1530,7 @@ kitchen_ubuntu_step_by_step-a6:
 
 kitchen_ubuntu_step_by_step-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a7_common
@@ -1526,6 +1538,7 @@ kitchen_ubuntu_step_by_step-a7:
 
 kitchen_ubuntu_upgrade5-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a6_common
@@ -1533,6 +1546,7 @@ kitchen_ubuntu_upgrade5-a6:
 
 kitchen_ubuntu_upgrade5-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a7_common
@@ -1540,6 +1554,7 @@ kitchen_ubuntu_upgrade5-a7:
 
 kitchen_ubuntu_upgrade6-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a6_common
@@ -1547,6 +1562,7 @@ kitchen_ubuntu_upgrade6-a6:
 
 kitchen_ubuntu_upgrade6-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_ubuntu_common
   <<: *kitchen_a7_common
@@ -1555,6 +1571,7 @@ kitchen_ubuntu_upgrade6-a7:
 # run dd-agent-testing on suse
 kitchen_suse_chef-a6:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_suse_common
   <<: *kitchen_a6_common
@@ -1562,6 +1579,7 @@ kitchen_suse_chef-a6:
 
 kitchen_suse_chef-a7:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_suse_common
   <<: *kitchen_a7_common
@@ -1569,6 +1587,7 @@ kitchen_suse_chef-a7:
 
 kitchen_suse_install_script-a6:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_suse_common
   <<: *kitchen_a6_common
@@ -1576,6 +1595,7 @@ kitchen_suse_install_script-a6:
 
 kitchen_suse_install_script-a7:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_suse_common
   <<: *kitchen_a7_common
@@ -1583,6 +1603,7 @@ kitchen_suse_install_script-a7:
 
 kitchen_suse_step_by_step-a6:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_suse_common
   <<: *kitchen_a6_common
@@ -1590,6 +1611,7 @@ kitchen_suse_step_by_step-a6:
 
 kitchen_suse_step_by_step-a7:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_suse_common
   <<: *kitchen_a7_common
@@ -1597,6 +1619,7 @@ kitchen_suse_step_by_step-a7:
 
 kitchen_suse_upgrade5-a6:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_suse_common
   <<: *kitchen_a6_common
@@ -1604,6 +1627,7 @@ kitchen_suse_upgrade5-a6:
 
 kitchen_suse_upgrade5-a7:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_suse_common
   <<: *kitchen_a7_common
@@ -1611,6 +1635,7 @@ kitchen_suse_upgrade5-a7:
 
 kitchen_suse_upgrade6-a6:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_suse_common
   <<: *kitchen_a6_common
@@ -1618,6 +1643,7 @@ kitchen_suse_upgrade6-a6:
 
 kitchen_suse_upgrade6-a7:
   allow_failure: false
+  needs: ["deploy_suse_rpm_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_suse_common
   <<: *kitchen_a7_common
@@ -1627,6 +1653,7 @@ kitchen_suse_upgrade6-a7:
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_debian_chef-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_debian_common
   <<: *kitchen_a6_common
@@ -1634,6 +1661,7 @@ kitchen_debian_chef-a6:
 
 kitchen_debian_chef-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_debian_common
   <<: *kitchen_a7_common
@@ -1641,6 +1669,7 @@ kitchen_debian_chef-a7:
 
 kitchen_debian_install_script-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_debian_common
   <<: *kitchen_a6_common
@@ -1648,6 +1677,7 @@ kitchen_debian_install_script-a6:
 
 kitchen_debian_install_script-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_debian_common
   <<: *kitchen_a7_common
@@ -1655,6 +1685,7 @@ kitchen_debian_install_script-a7:
 
 kitchen_debian_step_by_step-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_debian_common
   <<: *kitchen_a6_common
@@ -1662,6 +1693,7 @@ kitchen_debian_step_by_step-a6:
 
 kitchen_debian_step_by_step-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_debian_common
   <<: *kitchen_a7_common
@@ -1669,6 +1701,7 @@ kitchen_debian_step_by_step-a7:
 
 kitchen_debian_upgrade5-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_debian_common
   <<: *kitchen_a6_common
@@ -1676,6 +1709,7 @@ kitchen_debian_upgrade5-a6:
 
 kitchen_debian_upgrade5-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_debian_common
   <<: *kitchen_a7_common
@@ -1683,6 +1717,7 @@ kitchen_debian_upgrade5-a7:
 
 kitchen_debian_upgrade6-a6:
   allow_failure: false
+  needs: ["deploy_deb_testing-a6"]
   <<: *skip_when_unwanted_on_6
   <<: *kitchen_debian_common
   <<: *kitchen_a6_common
@@ -1690,6 +1725,7 @@ kitchen_debian_upgrade6-a6:
 
 kitchen_debian_upgrade6-a7:
   allow_failure: false
+  needs: ["deploy_deb_testing-a7"]
   <<: *skip_when_unwanted_on_7
   <<: *kitchen_debian_common
   <<: *kitchen_a7_common
