@@ -1,3 +1,5 @@
+// +build !clusterchecks
+
 package telemetry
 
 const (
