@@ -682,9 +682,11 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 	fmt.Printf("In setDirectionLoop\n\n")
 	for i := range connections {
 		undirectedConn := &connections[i]
-		keyWithRAddr = newConnKey(undirectedConn, true)
+		keyWithRAddr := newConnKey(undirectedConn, true)
 
-		fmt.Printf("%+v\n\n", undirectedConn)
+		fmt.Printf("%+v\n", undirectedConn)
+		fmt.Printf("%+v\n", keyWithRAddr)
+
 		if undirectedConn.Source == undirectedConn.Dest || undirectedConn.Source.IsLoopback() && undirectedConn.Dest.IsLoopback() {
 			undirectedConn.Direction = LOCAL
 			continue

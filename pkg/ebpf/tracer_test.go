@@ -23,7 +23,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -250,54 +249,39 @@ func TestNATConnectionDirection(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	fmt.Printf("1\n")
 	server := &TCPServer{
 		address: "1.1.1.1:5432",
 		onMessage: func(c net.Conn) {
 			r := bufio.NewReader(c)
 			_, _ = r.ReadBytes(byte('\n'))
-			_, _ = c.Write(genPayload(serverMessageSize))
+			_, _ = c.Write([]byte("Ping back"))
 			time.Sleep(time.Second)
 			_ = c.Close()
-			/**r := bufio.NewReader(c)
-			for {
-				_, err := r.ReadBytes(byte('\n'))
-				c.Write(genPayload(serverMessageSize))
-				require.NoError(t, err)
-			}
-			c.Close()**/
 		},
 	}
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
-//	conn, err := net.Dial("tcp", "2.2.2.2:5432")
-	conn, err := net.DialTimeout("tcp", "2.2.2.2:5432", 50*time.Millisecond)
+
+	conn, err := net.Dial("tcp", "2.2.2.2:5432")
+	defer conn.Close()
+	_, err = conn.Write([]byte("ping"))
 	require.NoError(t, err)
 	time.Sleep(time.Second)
-
-	localAddr := conn.LocalAddr().(*net.TCPAddr)
-	trans := tr.conntracker.GetTranslationForConn(util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port), process.ConnectionType_tcp)
-	require.NotNil(t, trans)
-
-	_, err = conn.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-	time.Sleep(time.Second)
+	// bs := make([]byte, 10)
+	// _, err = conn.Read(bs)
+	// require.NoError(t, err)
 
 	c, err := net.Dial("tcp", "2.2.2.2:5432")
-	time.Sleep(time.Second)
-	require.NoError(t, err)
 	defer c.Close()
-
+	require.NoError(t, err)
 	_, err = c.Write(genPayload(clientMessageSize))
 	require.NoError(t, err)
+	time.Sleep(5 * time.Second)
 
-	time.Sleep(time.Second)
-
-//	r := bufio.NewReader(c)
-//	r.ReadBytes(byte('\n'))
 	for _, c := range getConnections(t, tr).Conns {
-		fmt.Printf("In loop, printing conn: \n\n")
+		fmt.Printf("In loop, printing conn and IPTranslation: \n\n")
 		fmt.Printf("%+v\n", c)
+		fmt.Printf("%+v\n", c.IPTranslation)
 		// Running in a VM, the tracer can pick up SSH connections, so we prevent that
 		if c.SPort == 22{
 			fmt.Printf("Skipping ssh \n\n")
