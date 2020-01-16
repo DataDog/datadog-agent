@@ -678,12 +678,14 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 		lAddrs[newConnKey(&conn, false)] = struct{}{}
 	}
 
-	keyWithRAddr := connKey{}
+	fmt.Println(lAddrs)
+	fmt.Printf("In setDirectionLoop\n\n")
 	for i := range connections {
 		undirectedConn := &connections[i]
 		keyWithRAddr = newConnKey(undirectedConn, true)
 
-		if undirectedConn.Source == undirectedConn.Dest {
+		fmt.Printf("%+v\n\n", undirectedConn)
+		if undirectedConn.Source == undirectedConn.Dest || undirectedConn.Source.IsLoopback() && undirectedConn.Dest.IsLoopback() {
 			undirectedConn.Direction = LOCAL
 			continue
 		}
@@ -701,6 +703,7 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 			}
 		}
 	}
+	fmt.Printf("end setDirectionLoop\n\n")
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
