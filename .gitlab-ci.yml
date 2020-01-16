@@ -955,6 +955,7 @@ dogstatsd_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  needs: [ "build_dogstatsd-deb_x64" ]
   <<: *skip_when_unwanted_on_7
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
@@ -987,6 +988,7 @@ dogstatsd_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  needs: [ "build_dogstatsd-deb_x64" ]
   <<: *skip_when_unwanted_on_7
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
@@ -1025,6 +1027,7 @@ dogstatsd_suse-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
+  needs: [ "build_dogstatsd-deb_x64" ]
   <<: *skip_when_unwanted_on_7
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
