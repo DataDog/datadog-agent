@@ -101,9 +101,9 @@ func parseECSClusterName(value string) string {
 	if strings.Contains(value, "/") {
 		parts := strings.Split(value, "/")
 		return parts[len(parts)-1]
-	} else {
-		return value
 	}
+
+	return value
 }
 
 func parseFargateRegion(arn string) string {

@@ -183,9 +183,8 @@ func GetContainerNetworkMode(cid string) (string, error) {
 		// In awsvpc mode, the attached container is an amazon ecs pause container
 		if co.Config != nil && strings.HasPrefix(co.Config.Image, ecsPauseContainerImage) {
 			return containers.AwsvpcNetworkMode, nil
-		} else {
-			return containers.UnknownNetworkMode, fmt.Errorf("unknown network mode: %s", mode)
 		}
+		return containers.UnknownNetworkMode, fmt.Errorf("unknown network mode: %s", mode)
 	}
 	return mode, nil
 }

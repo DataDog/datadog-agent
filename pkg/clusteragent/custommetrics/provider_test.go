@@ -18,18 +18,6 @@ import (
 	"k8s.io/metrics/pkg/apis/external_metrics"
 )
 
-type mockStore struct {
-	mockListAllExternalMetricValues func() (*MetricsBundle, error)
-	metrics                         []ExternalMetricValue
-}
-
-func (m *mockStore) ListAllExternalMetricValues() (*MetricsBundle, error) {
-	return m.mockListAllExternalMetricValues()
-}
-func (m *mockStore) SetExternalMetricValues([]ExternalMetricValue) error { return nil }
-func (m *mockStore) DeleteExternalMetricValues(*MetricsBundle) error     { return nil }
-func (m *mockStore) GetMetrics() (*MetricsBundle, error)                 { return nil, nil }
-
 type metricCompare struct {
 	name      provider.ExternalMetricInfo
 	namespace string

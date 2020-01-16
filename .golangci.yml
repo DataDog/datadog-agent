@@ -15,16 +15,6 @@ run:
     - pkg/procmatch
     - cmd/process-agent
     - cmd/system-probe
-    # TODO containers-integrations
-    - pkg/util/kubernetes
-    - pkg/clusteragent
-    - pkg/util/docker
-    - pkg/autodiscovery/listeners
-    - pkg/collector/corechecks/containers
-    - pkg/tagger
-    - pkg/util/containerd
-    - pkg/collector/corechecks/systemd
-    - pkg/util/containers
 
 issues:
   exclude:

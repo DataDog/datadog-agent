@@ -44,10 +44,6 @@ func (f *tempFolder) add(fileName string, contents string) error {
 	return err
 }
 
-func (f *tempFolder) delete(fileName string) error {
-	return os.Remove(filepath.Join(f.RootPath, fileName))
-}
-
 type dummyCgroupStat map[string]uint64
 
 func (c dummyCgroupStat) String() string {
