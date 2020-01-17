@@ -45,7 +45,8 @@ func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}, err error
 		}
 		addrs, err := iface.Addrs()
 		if err != nil {
-			return nil
+			// skip this interface but try the next
+			continue
 		}
 		for _, addr := range addrs {
 			ip, network, _ := net.ParseCIDR(addr.String())
