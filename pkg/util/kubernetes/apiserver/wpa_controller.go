@@ -11,9 +11,13 @@ import (
 	"time"
 
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
+	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1"
 
+	"github.com/cenkalti/backoff"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -24,8 +28,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	crdCheckInitialInterval = time.Second * 5
+	crdCheckMaxInterval     = 5 * time.Minute
+	crdCheckMultiplier      = 2.0
+	crdCheckMaxElapsedTime  = 0
+)
+
 // RunWPA starts the controller to process events about Watermark Pod Autoscalers
-func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
+func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient wpa_client.Interface, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) {
+	waitForWPACRD(wpaClient)
+
+	// mutate the Autoscaler controller to embed an informer against the WPAs
+	h.enableWPA(wpaInformer)
+
 	defer h.WPAqueue.ShutDown()
 
 	log.Infof("Starting WPA Controller ... ")
@@ -38,8 +54,62 @@ func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-// ExtendToWPAController adds the handlers to the AutoscalersController to support WPAs
-func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) {
+type checkAPI func() error
+
+func checkWPACRDAttempt(attempt *int, check checkAPI) error {
+	*attempt++
+	if err := check(); err != nil {
+		// Check if this is a known problem of missing CRD registration
+		if isWPACRDNotFoundError(err) {
+			log.Warnf("WPA CRD missing (attempt=%d): will retry", *attempt)
+			return err
+		}
+		// In all other cases return a permanent error to prevent from retrying
+		log.Errorf("WPA CRD check failed (attempt=%d): not retryable: %s", *attempt, err)
+		return backoff.Permanent(err)
+	}
+	log.Info("WPA CRD check successful")
+	return nil
+}
+
+func isWPACRDNotFoundError(err error) bool {
+	status, ok := err.(*apierrors.StatusError)
+	if !ok {
+		return false
+	}
+	reason := status.Status().Reason
+	details := status.Status().Details
+	return reason == v1.StatusReasonNotFound &&
+		details.Group == apis_v1alpha1.SchemeGroupVersion.Group &&
+		details.Kind == "watermarkpodautoscalers"
+}
+
+func checkWPACRD(wpaClient wpa_client.Interface) backoff.Operation {
+	attempt := 0
+	check := func() error {
+		_, err := wpaClient.DatadoghqV1alpha1().WatermarkPodAutoscalers(v1.NamespaceAll).List(v1.ListOptions{})
+		return err
+	}
+	return func() error {
+		return checkWPACRDAttempt(&attempt, check)
+	}
+}
+
+func waitForWPACRD(wpaClient wpa_client.Interface) {
+	exp := &backoff.ExponentialBackOff{
+		InitialInterval:     crdCheckInitialInterval,
+		RandomizationFactor: backoff.DefaultRandomizationFactor,
+		Multiplier:          crdCheckMultiplier,
+		MaxInterval:         crdCheckMaxInterval,
+		MaxElapsedTime:      0,
+		Clock:               backoff.SystemClock,
+	}
+	exp.Reset()
+	_ = backoff.Retry(checkWPACRD(wpaClient), exp)
+}
+
+// enableWPA adds the handlers to the AutoscalersController to support WPAs
+func (h *AutoscalersController) enableWPA(wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) {
 	wpaInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addWPAutoscaler,
@@ -50,6 +120,15 @@ func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.Waterm
 	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
 	h.wpaLister = wpaInformer.Lister()
 	h.wpaListerSynced = wpaInformer.Informer().HasSynced
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.wpaEnabled = true
+}
+
+func (h *AutoscalersController) isWPAEnabled() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.wpaEnabled
 }
 
 func (h *AutoscalersController) workerWPA() {

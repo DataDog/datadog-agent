@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -40,6 +41,7 @@ var controllerCatalog = map[string]controllerFuncs{
 
 type ControllerContext struct {
 	InformerFactory    informers.SharedInformerFactory
+	WPAClient          wpa_client.Interface
 	WPAInformerFactory externalversions.SharedInformerFactory
 	Client             kubernetes.Interface
 	LeaderElector      LeaderElectorInterface
@@ -97,16 +99,11 @@ func startAutoscalersController(ctx ControllerContext) error {
 		return err
 	}
 	if ctx.WPAInformerFactory != nil {
-		autoscalersController.wpaEnabled = true
-		// mutate the Autoscaler controller to embed an informer against the WPAs
-		ExtendToWPAController(autoscalersController, ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
-		if err != nil {
-			return err
-		}
-		go autoscalersController.RunWPA(ctx.StopCh)
+		wpaInformer := ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers()
+		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, wpaInformer)
 	}
 	// mutate the Autoscaler controller to embed an informer against the HPAs
-	ExtendToHPAController(autoscalersController, ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+	autoscalersController.EnableHPA(ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
 	go autoscalersController.RunHPA(ctx.StopCh)
 
 	autoscalersController.RunControllerLoop(ctx.StopCh)

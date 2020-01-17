@@ -76,7 +76,7 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, itf 
 		itf,
 		dcl,
 	)
-	ExtendToHPAController(autoscalerController, informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+	autoscalerController.EnableHPA(informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
 
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
