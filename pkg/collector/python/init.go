@@ -228,9 +228,21 @@ func sendTelemetry(pythonVersion string) {
 func detectPythonLocation(pythonVersion string) {
 	// Since the install location can be set by the user on Windows we use relative import
 	if runtime.GOOS == "windows" {
-		_here, _ := executable.Folder()
+		_here, err := executable.Folder()
+		if err != nil {
+			log.Warnf("Error getting executable folder: %v", err)
+			log.Warnf("Trying again without symlinks")
+			_here, err = executable.FolderNoSymlinks()
+			if err != nil {
+				log.Warnf("Error getting executable folder w/o symlinks: %v", err)
+			}
+		}
+		log.Warnf("Executable folder is %v", _here)
+
 		agentpythonHome2 := filepath.Join(_here, "..", "embedded2")
 		agentpythonHome3 := filepath.Join(_here, "..", "embedded3")
+
+		log.Warnf("Computed embedded3 to be %v", agentpythonHome3)
 		/*
 		 * want to use the path relative embedded2/3 directories above by default;
 		 * they'll be correct for normal installation (on windows).

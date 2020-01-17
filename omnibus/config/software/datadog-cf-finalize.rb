@@ -36,11 +36,12 @@ build do
 
             ## for now, do a side directory.  If we put into embedded3, it will get
             ## pulled into the MSI, which we don't want
-            script_root = "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/tools/windows/decompress_merge_module.ps1"
             cf_crt_root = "#{cf_bin_root}/embedded3"
-            cf_crt_file = "#{Omnibus::Config.source_dir()}/vc_redist_140/Microsoft_VC141_CRT_x64.msm"
+            cf_crt_expanded = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
 
-            command "powershell -C \"#{windows_safe_path(script_root)} -file #{windows_safe_path(cf_crt_file)} -targetDir #{windows_safe_path(cf_crt_root)}\""
+            ## we only seem to need to get the c-runtilme DLL
+            mkdir cf_crt_root
+            copy "#{cf_crt_expanded}/vcruntime140.dll", cf_crt_root
         end
     end
 end

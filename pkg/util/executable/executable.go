@@ -14,13 +14,19 @@ import (
 	"github.com/kardianos/osext"
 )
 
-func path() (string, error) {
+func path(skipSymlinks bool) (string, error) {
 	here, err := osext.Executable()
 	if err != nil {
 		return "", err
 	}
-
-	return filepath.EvalSymlinks(here)
+	retstring, err := filepath.EvalSymlinks(here)
+	if err != nil {
+		if skipSymlinks {
+			return here, nil
+		}
+	}
+	return retstring, err
+	
 }
 
 // Folder returns the folder under which the executable is located,
@@ -28,7 +34,18 @@ func path() (string, error) {
 // Unlike os.Executable and osext.ExecutableFolder, Folder will
 // resolve the symlinks across all platforms.
 func Folder() (string, error) {
-	p, err := path()
+	p, err := path(false)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Dir(p), nil
+}
+
+// FolderNoSymlinks returns the folder under which the executable
+// is located, without resolving symbolic links
+func FolderNoSymlinks() (string, error) {
+	p, err := path(true)
 	if err != nil {
 		return "", err
 	}
