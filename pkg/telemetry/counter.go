@@ -22,7 +22,7 @@ type Counter interface {
 }
 
 // NewCounter creates a Counter with default options for telemetry purpose.
-// Current implementation used: Prometheus Ounter
+// Current implementation used: Prometheus Counter
 func NewCounter(subsystem, name string, tags []string, help string) Counter {
 	return NewCounterWithOpts(subsystem, name, tags, help, DefaultOptions)
 }
