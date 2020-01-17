@@ -15,7 +15,8 @@ func (self *Network) Name() string {
 
 func (self *Network) Collect() (result interface{}, err error) {
 	result, err = getNetworkInfo()
-	interfaces := getMultiNetworkInfo()
+	interfaces, err2 := getMultiNetworkInfo()
+
 	if len(interfaces) > 0 {
 		interfaceMap, ok := result.(map[string]interface{})
 		if !ok {
@@ -23,14 +24,18 @@ func (self *Network) Collect() (result interface{}, err error) {
 		}
 		interfaceMap["interfaces"] = interfaces
 	}
+
+	if err == nil && err2 != nil {
+		err = err2
+	}
 	return
 }
 
-func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}) {
+func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}, err error) {
 	ifaces, err := net.Interfaces()
 
 	if err != nil {
-		return nil
+		return multiNetworkInfo, err
 	}
 	for _, iface := range ifaces {
 		_iface := make(map[string]interface{})
@@ -63,7 +68,7 @@ func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}) {
 			multiNetworkInfo = append(multiNetworkInfo, _iface)
 		}
 	}
-	return multiNetworkInfo
+	return multiNetworkInfo, err
 }
 
 type Ipv6Address struct{}
