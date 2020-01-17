@@ -31,8 +31,9 @@ const (
 )
 
 var (
-	externalTotal = telemetry.NewGauge("external_metrics", "",
-		[]string{"valid"}, "Number of external metrics tagged.")
+	externalTotal = telemetry.NewGaugeWithOpts("", "external_metrics",
+		[]string{"valid"}, "Number of external metrics tagged.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	errNotInitialized = fmt.Errorf("configmap not initialized")
 )
