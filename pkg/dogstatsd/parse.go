@@ -26,6 +26,8 @@ var (
 	commaSeparatorString = ","
 )
 
+// parser parses dogstatsd messages
+// not safe for concurent use
 type parser struct {
 	interner *stringInterner
 }
