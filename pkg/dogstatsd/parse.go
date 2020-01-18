@@ -26,6 +26,16 @@ var (
 	commaSeparatorString = ","
 )
 
+type parser struct {
+	interner *stringInterner
+}
+
+func newParser() *parser {
+	return &parser{
+		interner: newStringInterner(4096),
+	}
+}
+
 func findMessageType(message []byte) messageType {
 	if bytes.HasPrefix(message, eventPrefix) {
 		return eventType
@@ -48,7 +58,7 @@ func nextField(message []byte) ([]byte, []byte) {
 	return message[:sepIndex], message[sepIndex+1:]
 }
 
-func parseTags(rawTags []byte) []string {
+func (p *parser) parseTags(rawTags []byte) []string {
 	if len(rawTags) == 0 {
 		return nil
 	}
