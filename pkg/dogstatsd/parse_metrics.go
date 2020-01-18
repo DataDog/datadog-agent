@@ -131,7 +131,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	}
 
 	return dogstatsdMetricSample{
-		name:       string(name),
+		name:       p.interner.LoadOrStore(name),
 		value:      value,
 		setValue:   string(setValue),
 		metricType: metricType,
