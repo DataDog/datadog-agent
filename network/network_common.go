@@ -15,18 +15,17 @@ func (self *Network) Name() string {
 
 func (self *Network) Collect() (result interface{}, err error) {
 	result, err = getNetworkInfo()
-	interfaces, err2 := getMultiNetworkInfo()
+	if err != nil {
+		return
+	}
 
-	if len(interfaces) > 0 {
+	interfaces, err := getMultiNetworkInfo()
+	if err == nil && len(interfaces) > 0 {
 		interfaceMap, ok := result.(map[string]interface{})
 		if !ok {
 			return
 		}
 		interfaceMap["interfaces"] = interfaces
-	}
-
-	if err == nil && err2 != nil {
-		err = err2
 	}
 	return
 }
