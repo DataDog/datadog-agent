@@ -320,6 +320,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 				}
 			}
 		}
+		s.packetPool.Put(packet)
 	}
 	batcher.flush()
 }
