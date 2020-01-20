@@ -44,7 +44,7 @@ func TestExtractTopLevelSubtracesWithSimpleTrace(t *testing.T) {
 	}
 }
 
-func TestExtractTopLevelSubtracesShouldNotIgnoreLeafTopLevel(t *testing.T) {
+func TestExtractTopLevelSubtracesShouldIgnoreLeafTopLevel(t *testing.T) {
 	assert := assert.New(t)
 
 	trace := pb.Trace{
@@ -57,7 +57,6 @@ func TestExtractTopLevelSubtracesShouldNotIgnoreLeafTopLevel(t *testing.T) {
 	expected := []Subtrace{
 		{trace[0], trace},
 		{trace[1], []*pb.Span{trace[1], trace[2]}},
-		{trace[2], []*pb.Span{}},
 	}
 
 	traceutil.ComputeTopLevel(trace)
