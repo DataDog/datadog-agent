@@ -1354,7 +1354,7 @@ deploy_windows_testing-a7:
 # Kitchen: scenarios (os * agent)
 # -------------------------------
 
-.kitchen_scenarios_windows_a6: &kitchen_scenario_windows_a6
+.kitchen_scenario_windows_a6: &kitchen_scenario_windows_a6
   <<: *kitchen_os_windows
   <<: *kitchen_agent_a6
   needs: ["deploy_windows_testing-a6"]
