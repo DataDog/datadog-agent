@@ -40,7 +40,7 @@ var (
 	dogstatsdPacketsLastSec          = expvar.Int{}
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
-		[]string{"type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
+		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
 )
 
 func init() {

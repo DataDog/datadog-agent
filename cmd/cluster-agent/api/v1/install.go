@@ -12,29 +12,21 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	apiRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "api_requests",
-			Help: "Counter of requests made to the cluster agent API.",
-		},
-		[]string{"handler", "status"},
-	)
+	apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
+		[]string{"handler", "status"}, "Counter of requests made to the cluster agent API.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
-func init() {
-	prometheus.MustRegister(apiRequests)
-}
-
 func incrementRequestMetric(handler string, status int) {
-	apiRequests.WithLabelValues(handler, strconv.Itoa(status)).Inc()
+	apiRequests.Inc(handler, strconv.Itoa(status))
 }
 
 // Install registers v1 API endpoints
@@ -73,36 +65,36 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getNodeMetadata",
 			strconv.Itoa(http.StatusInternalServerError),
-		).Inc()
+		)
 		return
 	}
 	labelBytes, err = json.Marshal(nodeLabels)
 	if err != nil {
 		log.Errorf("Could not process the labels of the node %s from the informer's cache: %v", nodeName, err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getNodeMetadata",
 			strconv.Itoa(http.StatusInternalServerError),
-		).Inc()
+		)
 		return
 	}
 	if len(labelBytes) > 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(labelBytes)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getNodeMetadata",
 			strconv.Itoa(http.StatusOK),
-		).Inc()
+		)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	apiRequests.WithLabelValues(
+	apiRequests.Inc(
 		"getNodeMetadata",
 		strconv.Itoa(http.StatusNotFound),
-	).Inc()
+	)
 	w.Write([]byte(fmt.Sprintf("Could not find labels on the node: %s", nodeName)))
 }
 
@@ -135,10 +127,10 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if errMetaList != nil {
 		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName)
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getPodMetadata",
 			strconv.Itoa(http.StatusInternalServerError),
-		).Inc()
+		)
 		return
 	}
 
@@ -146,26 +138,26 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not process the list of services for: %s", podName)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getPodMetadata",
 			strconv.Itoa(http.StatusInternalServerError),
-		).Inc()
+		)
 		return
 	}
 	if len(metaBytes) != 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(metaBytes)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getPodMetadata",
 			strconv.Itoa(http.StatusOK),
-		).Inc()
+		)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	apiRequests.WithLabelValues(
+	apiRequests.Inc(
 		"getPodMetadata",
 		strconv.Itoa(http.StatusNotFound),
-	).Inc()
+	)
 	w.Write([]byte(fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)))
 }
 
@@ -181,27 +173,27 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	slcB, err := json.Marshal(metaList)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getPodMetadataForNode",
 			strconv.Itoa(http.StatusInternalServerError),
-		).Inc()
+		)
 		return
 	}
 
 	if len(slcB) != 0 {
 		w.WriteHeader(http.StatusOK)
 		w.Write(slcB)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getPodMetadataForNode",
 			strconv.Itoa(http.StatusOK),
-		).Inc()
+		)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	apiRequests.WithLabelValues(
+	apiRequests.Inc(
 		"getPodMetadata",
 		strconv.Itoa(http.StatusNotFound),
-	).Inc()
+	)
 	return
 }
 
@@ -228,10 +220,10 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getAllMetadata",
 			strconv.Itoa(http.StatusInternalServerError),
-		).Inc()
+		)
 		return
 	}
 	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes(cl)
@@ -245,24 +237,24 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	metaListBytes, err := json.Marshal(metaList)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getAllMetadata",
 			strconv.Itoa(http.StatusInternalServerError),
-		).Inc()
+		)
 		return
 	}
 	if len(metaListBytes) != 0 {
 		w.Write(metaListBytes)
-		apiRequests.WithLabelValues(
+		apiRequests.Inc(
 			"getAllMetadata",
 			strconv.Itoa(http.StatusOK),
-		).Inc()
+		)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	apiRequests.WithLabelValues(
+	apiRequests.Inc(
 		"getAllMetadata",
 		strconv.Itoa(http.StatusNotFound),
-	).Inc()
+	)
 	return
 }
