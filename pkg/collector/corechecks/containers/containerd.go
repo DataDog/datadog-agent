@@ -211,6 +211,8 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 
+		currentTime := time.Now()
+		computeUptime(sender, info, currentTime, tags)
 		computeMem(sender, metrics.Memory, tags)
 
 		if metrics.CPU.Throttling != nil && metrics.CPU.Usage != nil {
@@ -293,6 +295,13 @@ func computeHugetlb(sender aggregator.Sender, huge []*cgroups.HugetlbStat, tags 
 		sender.Gauge("containerd.hugetlb.max", float64(h.Max), "", tags)
 		sender.Gauge("containerd.hugetlb.failcount", float64(h.Failcnt), "", tags)
 		sender.Gauge("containerd.hugetlb.usage", float64(h.Usage), "", tags)
+	}
+}
+
+func computeUptime(sender aggregator.Sender, ctn containers.Container, currentTime time.Time, tags []string) {
+	uptime := currentTime.Sub(ctn.CreatedAt).Seconds()
+	if uptime > 0 {
+		sender.Gauge("containerd.uptime", uptime, "", tags)
 	}
 }
 
