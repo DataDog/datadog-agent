@@ -543,7 +543,7 @@ agent_deb-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_deb-x64-py2", "run_tests_deb-x64-py3"]
+  needs: ["run_tests_deb-x64-py2"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -679,6 +679,7 @@ puppy_deb-x64:
 # build Agent package for rpm-x64
 agent_rpm-x64-a6:
   stage: package_build
+  needs: ["run_tests_rpm-x64-py2"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
@@ -696,6 +697,7 @@ agent_rpm-x64-a6:
 # build Agent package for rpm-x64
 agent_rpm-x64-a7:
   stage: package_build
+  needs: ["run_tests_rpm-x64-py2"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
