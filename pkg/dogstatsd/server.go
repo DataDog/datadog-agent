@@ -75,6 +75,7 @@ type Server struct {
 	metricsStats          map[string]metricStat
 	statsLock             sync.Mutex
 	mapper                *mapper.MetricMapper
+	telemetryEnabled      bool
 }
 
 // metricStat holds how many times a metric has been
@@ -166,6 +167,7 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 		extraTags:             extraTags,
 		debugMetricsStats:     metricsStats,
 		metricsStats:          make(map[string]metricStat),
+		telemetryEnabled:      telemetry.IsEnabled(),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -342,7 +344,11 @@ func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error
 	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
 	dogstatsdMetricPackets.Add(1)
-	tlmProcessed.Inc("metrics", "ok")
+	// FIXME (arthur): remove this check and s.telemetryEnabled once we don't
+	// escape the tags slice to the heap
+	if s.telemetryEnabled {
+		tlmProcessed.Inc("metrics", "ok")
+	}
 	return metricSample, nil
 }
 
