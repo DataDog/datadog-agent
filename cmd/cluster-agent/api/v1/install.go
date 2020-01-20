@@ -20,8 +20,9 @@ import (
 )
 
 var (
-	apiRequests = telemetry.NewCounter("", "api_requests",
-		[]string{"handler", "status"}, "Counter of requests made to the cluster agent API.")
+	apiRequests = telemetry.NewCounterWithOpts("", "api_requests",
+		[]string{"handler", "status"}, "Counter of requests made to the cluster agent API.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
 func incrementRequestMetric(handler string, status int) {
