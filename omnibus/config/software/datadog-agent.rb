@@ -10,6 +10,7 @@ name 'datadog-agent'
 
 dependency "python2" if with_python_runtime? "2"
 dependency "python3" if with_python_runtime? "3"
+dependency "libbcc"
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -37,6 +38,8 @@ build do
         "Python2_ROOT_DIR" => "#{install_dir}/embedded",
         "Python3_ROOT_DIR" => "#{install_dir}/embedded",
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+        "CGO_CFLAGS" => "-I#{install_dir}/embedded/include",
+        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     }
     major_version_arg = "$MAJOR_VERSION"
   end

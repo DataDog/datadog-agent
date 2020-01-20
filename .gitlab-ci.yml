@@ -67,10 +67,10 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly
-  DATADOG_AGENT_BUILDIMAGES: v2068490-abae1ea
+  DATADOG_AGENT_BUILDIMAGES: v2103055-16e77bf
   DATADOG_AGENT_BUILDERS:  v2028983-aee8904
   DATADOG_AGENT_WINBUILDIMAGES: v2021523-34e07eb
-  DATADOG_AGENT_ARMBUILDIMAGES: v2028839-bd64f94
+  DATADOG_AGENT_ARMBUILDIMAGES: v2097098-09b219b
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -258,9 +258,8 @@ run_tests_ebpf:
   # Currently this is using the ebpf image so system-probe tests run in the same  Go version used to build it (1.10).
   # Note that this image isn't used to build the system-probe: when building it, we specify Go version to use
   # through an argument to the system-probe.build invoke task.
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
   tags: [ "runner:main", "size:large" ]
@@ -680,6 +679,7 @@ agent_rpm-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: ["run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
@@ -697,6 +697,7 @@ agent_rpm-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
+  needs: ["run_tests_rpm-x64-py3"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
