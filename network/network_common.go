@@ -15,7 +15,60 @@ func (self *Network) Name() string {
 
 func (self *Network) Collect() (result interface{}, err error) {
 	result, err = getNetworkInfo()
+	if err != nil {
+		return
+	}
+
+	interfaces, err := getMultiNetworkInfo()
+	if err == nil && len(interfaces) > 0 {
+		interfaceMap, ok := result.(map[string]interface{})
+		if !ok {
+			return
+		}
+		interfaceMap["interfaces"] = interfaces
+	}
 	return
+}
+
+func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}, err error) {
+	ifaces, err := net.Interfaces()
+
+	if err != nil {
+		return multiNetworkInfo, err
+	}
+	for _, iface := range ifaces {
+		_iface := make(map[string]interface{})
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			// interface down or loopback interface
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			// skip this interface but try the next
+			continue
+		}
+		for _, addr := range addrs {
+			ip, network, _ := net.ParseCIDR(addr.String())
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			if ip.To4() == nil {
+				_iface["ipv6"] = ip.String()
+				_iface["ipv6-network"] = network.String()
+			} else {
+				_iface["ipv4"] = ip.String()
+				_iface["ipv4-network"] = network.String()
+			}
+			if len(iface.HardwareAddr.String()) > 0 {
+				_iface["macaddress"] = iface.HardwareAddr.String()
+			}
+		}
+		if len(_iface) > 0 {
+			_iface["name"] = iface.Name
+			multiNetworkInfo = append(multiNetworkInfo, _iface)
+		}
+	}
+	return multiNetworkInfo, err
 }
 
 type Ipv6Address struct{}
