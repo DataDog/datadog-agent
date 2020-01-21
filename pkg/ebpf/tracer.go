@@ -274,6 +274,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
 				cs := decodeRawTCPConn(conn)
+				cs.Direction = t.determineConnectionDirection(&cs)
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
@@ -336,7 +337,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 	}
 
 	conns := t.state.Connections(clientID, latestTime, latestConns)
-	t.setConnectionDirections(conns)
+	t.determineConnectionIntraHost(conns)
 	names := t.reverseDNS.Resolve(conns)
 	return &Connections{Conns: conns, DNS: names}, nil
 }
@@ -388,6 +389,8 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 			}
 		} else {
 			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey, seen))
+			conn.Direction = t.determineConnectionDirection(&conn)
+
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
@@ -643,7 +646,19 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 	return closedPortBindings, nil
 }
 
-func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
+func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionDirection {
+	if conn.Type == UDP {
+		return NONE
+	}
+
+	if t.portMapping.IsListening(conn.SPort) {
+		return INCOMING
+	}
+
+	return OUTGOING
+}
+
+func (t *Tracer) determineConnectionIntraHost(connections []ConnectionStats) {
 
 	type connKey struct {
 		Address util.Address
@@ -670,39 +685,23 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 
 	lAddrs := make(map[connKey]struct{}, 0)
 	for _, conn := range connections {
-		ck := newConnKey(&conn, false)
-		fmt.Printf("got laddr: %v for %v\n", ck, conn)
-		lAddrs[ck] = struct{}{}
+		lAddrs[newConnKey(&conn, false)] = struct{}{}
 	}
 
-	fmt.Println(lAddrs)
-	fmt.Printf("In setDirectionLoop\n\n")
 	for i := range connections {
-		undirectedConn := &connections[i]
-		keyWithRAddr := newConnKey(undirectedConn, true)
+		conn := &connections[i]
+		keyWithRAddr := newConnKey(conn, true)
 
-		fmt.Printf("checking %#v\n", keyWithRAddr)
-
-		if undirectedConn.Source == undirectedConn.Dest || undirectedConn.Source.IsLoopback() && undirectedConn.Dest.IsLoopback() {
-			undirectedConn.Direction = LOCAL
+		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
+			conn.IntraHost = true
 			continue
 		}
 
 		_, ok := lAddrs[keyWithRAddr]
 		if ok {
-			fmt.Printf("here! %v:%v %v:%v\n", undirectedConn.Source, undirectedConn.SPort, undirectedConn.Dest, undirectedConn.DPort)
-			undirectedConn.Direction = LOCAL
-		} else {
-			if undirectedConn.Type == UDP {
-				connections[i].Direction = NONE
-			} else if t.portMapping.IsListening(undirectedConn.SPort) {
-				undirectedConn.Direction = INCOMING
-			} else {
-				undirectedConn.Direction = OUTGOING
-			}
+			conn.IntraHost = true
 		}
 	}
-	fmt.Printf("end setDirectionLoop\n\n")
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)

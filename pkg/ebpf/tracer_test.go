@@ -187,7 +187,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 }
@@ -234,12 +235,13 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 }
 
-func TestNATConnectionDirection(t *testing.T) {
+func TestDNATIntraHostIntegration(t *testing.T) {
 	cmd := exec.Command("netlink/testdata/setup_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("setup command output: %s", string(out))
@@ -284,7 +286,7 @@ func TestNATConnectionDirection(t *testing.T) {
 	assert.Condition(t, func() bool {
 		for _, c := range conns {
 			if c.Source == util.AddressFromString("1.1.1.1") {
-				return c.Direction == LOCAL
+				return c.IntraHost == true
 			}
 		}
 
@@ -294,8 +296,7 @@ func TestNATConnectionDirection(t *testing.T) {
 	assert.Condition(t, func() bool {
 		for _, c := range conns {
 			if c.Dest == util.AddressFromString("2.2.2.2") {
-				fmt.Printf("found conn %#v (%#v)\n", c, c.IPTranslation)
-				return c.Direction == LOCAL
+				return c.IntraHost == true
 			}
 		}
 		return true
@@ -589,7 +590,7 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
 
 	// Confirm that the connection has been cleaned up since the last get
 	connections = getConnections(t, tr)
@@ -653,7 +654,8 @@ func TestTCPOverIPv6(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, ln.Addr().(*net.TCPAddr).Port, int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 
@@ -741,7 +743,8 @@ func TestUDPSendAndReceive(t *testing.T) {
 	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, NONE, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 }
