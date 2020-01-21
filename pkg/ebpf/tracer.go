@@ -684,8 +684,7 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 		undirectedConn := &connections[i]
 		keyWithRAddr := newConnKey(undirectedConn, true)
 
-		fmt.Printf("%+v\n", undirectedConn)
-		fmt.Printf("%+v\n", keyWithRAddr)
+		fmt.Printf("checking %#v\n", keyWithRAddr)
 
 		if undirectedConn.Source == undirectedConn.Dest || undirectedConn.Source.IsLoopback() && undirectedConn.Dest.IsLoopback() {
 			undirectedConn.Direction = LOCAL
@@ -694,10 +693,11 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 
 		_, ok := lAddrs[keyWithRAddr]
 		if ok {
+			fmt.Printf("here! %v:%v %v:%v\n", undirectedConn.Source, undirectedConn.SPort, undirectedConn.Dest, undirectedConn.DPort)
 			undirectedConn.Direction = LOCAL
 		} else {
 			if undirectedConn.Type == UDP {
-				undirectedConn.Direction = NONE
+				connections[i].Direction = NONE
 			} else if t.portMapping.IsListening(undirectedConn.SPort) {
 				undirectedConn.Direction = INCOMING
 			} else {

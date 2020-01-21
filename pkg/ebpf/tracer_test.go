@@ -244,18 +244,23 @@ func TestNATConnectionDirection(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("setup command output: %s", string(out))
 	}
+	defer teardown(t)
 
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
 	defer tr.Stop()
 
+	conns := getConnections(t, tr).Conns
+
 	server := &TCPServer{
 		address: "1.1.1.1:5432",
 		onMessage: func(c net.Conn) {
-			r := bufio.NewReader(c)
-			_, _ = r.ReadBytes(byte('\n'))
-			_, _ = c.Write([]byte("Ping back"))
-			time.Sleep(time.Second)
+			bs := make([]byte, 1)
+			_, err := c.Read(bs)
+			require.NoError(t, err, "error reading in server")
+
+			_, err = c.Write([]byte("Ping back"))
+			require.NoError(t, err, "error writing back in server")
 			_ = c.Close()
 		},
 	}
@@ -263,35 +268,42 @@ func TestNATConnectionDirection(t *testing.T) {
 	server.Run(doneChan)
 
 	conn, err := net.Dial("tcp", "2.2.2.2:5432")
-	defer conn.Close()
 	_, err = conn.Write([]byte("ping"))
-	require.NoError(t, err)
-	time.Sleep(time.Second)
-	// bs := make([]byte, 10)
-	// _, err = conn.Read(bs)
-	// require.NoError(t, err)
+	require.NoError(t, err, "error writing in client")
 
-	c, err := net.Dial("tcp", "2.2.2.2:5432")
-	defer c.Close()
+	bs := make([]byte, 1)
+	_, err = conn.Read(bs)
 	require.NoError(t, err)
-	_, err = c.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-	time.Sleep(5 * time.Second)
+	require.NoError(t, conn.Close(), "error closing client connection")
 
-	for _, c := range getConnections(t, tr).Conns {
-		fmt.Printf("In loop, printing conn and IPTranslation: \n\n")
-		fmt.Printf("%+v\n", c)
-		fmt.Printf("%+v\n", c.IPTranslation)
-		// Running in a VM, the tracer can pick up SSH connections, so we prevent that
-		if c.SPort == 22{
-			fmt.Printf("Skipping ssh \n\n")
-			continue
+	doneChan <- struct{}{}
+
+	time.Sleep(time.Second * 1)
+
+	conns = getConnections(t, tr).Conns
+	assert.Condition(t, func() bool {
+		for _, c := range conns {
+			if c.Source == util.AddressFromString("1.1.1.1") {
+				fmt.Printf("found conn %#v", c)
+				return c.Direction == LOCAL
+			}
 		}
-		fmt.Printf("\n\n")
-		assert.Equal(t, LOCAL, c.Direction)
-	}
 
-	defer teardown(t)
+		return false
+	})
+
+	// for _, c := range getConnections(t, tr).Conns {
+	// 	fmt.Printf("In loop, printing conn and IPTranslation: \n\n")
+	// 	fmt.Printf("%+v\n", c)
+	// 	fmt.Printf("%+v\n", c.IPTranslation)
+	// 	// Running in a VM, the tracer can pick up SSH connections, so we prevent that
+	// 	if c.SPort == 22 {
+	// 		fmt.Printf("Skipping ssh \n\n")
+	// 		continue
+	// 	}
+	// 	fmt.Printf("\n\n")
+	// 	assert.Equal(t, LOCAL, c.Direction)
+	// }
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
