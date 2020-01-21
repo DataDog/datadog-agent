@@ -8,6 +8,7 @@
 package apiserver
 
 import (
+	"math"
 	"time"
 
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
@@ -74,7 +75,9 @@ func notifyCheckWPACRD() backoff.Notify {
 	attempt := 0
 	return func(err error, delay time.Duration) {
 		attempt++
-		log.Warnf("WPA CRD missing (attempt=%d): will retry in %s", attempt, delay.String())
+		mins := int(delay.Minutes())
+		secs := int(math.Mod(delay.Seconds(), 60))
+		log.Warnf("WPA CRD missing (attempt=%d): will retry in %dm%ds", attempt, mins, secs)
 	}
 }
 
@@ -103,7 +106,7 @@ func checkWPACRD(wpaClient wpa_client.Interface) backoff.Operation {
 func waitForWPACRD(wpaClient wpa_client.Interface) {
 	exp := &backoff.ExponentialBackOff{
 		InitialInterval:     crdCheckInitialInterval,
-		RandomizationFactor: backoff.DefaultRandomizationFactor,
+		RandomizationFactor: 0,
 		Multiplier:          crdCheckMultiplier,
 		MaxInterval:         crdCheckMaxInterval,
 		MaxElapsedTime:      0,
