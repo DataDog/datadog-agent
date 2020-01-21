@@ -1872,7 +1872,7 @@ build_agent6:
   needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -6
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
@@ -1884,7 +1884,7 @@ build_agent6_arm64:
   needs: ["agent_deb-arm-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -6
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
@@ -1897,7 +1897,7 @@ build_agent6_jmx:
   needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     BUILD_ARTIFACT_GLOB: datadog-agent_6*_amd64.deb
     TAG_SUFFIX: -6-jmx
@@ -1911,7 +1911,7 @@ build_agent6_jmx_arm64:
   needs: ["agent_deb-arm-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     BUILD_ARTIFACT_GLOB: datadog-agent_6*arm64.deb
     TAG_SUFFIX: -6-jmx
@@ -1926,7 +1926,7 @@ build_agent6_py2py3_jmx:
   needs: ["agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -6-py2py3-jmx
     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
@@ -1939,7 +1939,7 @@ build_agent7:
   needs: ["agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
@@ -1951,7 +1951,7 @@ build_agent7_arm64:
   needs: ["agent_deb-arm-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
@@ -1964,7 +1964,7 @@ build_agent7_jmx:
   needs: ["agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
@@ -1976,7 +1976,7 @@ build_agent7_jmx_arm64:
   needs: ["agent_deb-arm-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
@@ -1988,7 +1988,7 @@ build_cluster_agent_amd64:
   extends: .docker_build_job_definition_amd64
   needs: ["cluster_agent-build_amd64"]
   variables:
-    IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
 
 build_cluster_agent_arm64:
@@ -1996,7 +1996,7 @@ build_cluster_agent_arm64:
   extends: .docker_build_job_definition_arm64
   needs: ["cluster_agent-build_arm64"]
   variables:
-    IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
 
 # build the dogstatsd image
@@ -2005,7 +2005,7 @@ build_dogstatsd_amd64:
   extends: .docker_build_job_definition_amd64
   needs: ["build_dogstatsd_static-deb_x64"]
   variables:
-    IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
 
 #
@@ -2020,9 +2020,9 @@ twistlock_scan-6:
   dependencies: [] # Don't download Gitlab artefacts
   allow_failure: true # Don't block the pipeline
   variables:
-    SRC_AGENT: *agent_ecr
-    SRC_DSD: *dogstatsd_ecr
-    SRC_DCA: *cluster-agent_ecr
+    SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+    SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
@@ -2042,9 +2042,9 @@ twistlock_scan-7:
   dependencies: [] # Don't download Gitlab artefacts
   allow_failure: true # Don't block the pipeline
   variables:
-    SRC_AGENT: *agent_ecr
-    SRC_DSD: *dogstatsd_ecr
-    SRC_DCA: *cluster-agent_ecr
+    SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+    SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
@@ -2078,9 +2078,9 @@ twistlock_scan-7:
   DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
   DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
   DOCKER_REGISTRY_URL: docker.io
-  SRC_AGENT: *agent_ecr
-  SRC_DSD: *dogstatsd_ecr
-  SRC_DCA: *cluster-agent_ecr
+  SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+  SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+  SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
 
 .quay_variables: &quay_variables
   <<: *docker_hub_variables
