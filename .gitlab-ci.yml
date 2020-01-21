@@ -162,6 +162,26 @@ before_script:
 #
 #
 
+#.kitchen_agent_a6: &kitchen_agent_a6
+<<: *kitchen_common
+<<: *skip_when_unwanted_on_6
+variables:
+  AGENT_MAJOR_VERSION: 6
+  DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A6
+  WINDOWS_TESTING_S3_BUCKET_2: "$WINDOWS_TESTING_S3_BUCKET_A6"
+  WINDOWS_TESTING_S3_BUCKET_3: '$WINDOWS_TESTING_S3_BUCKET_A6'
+
+
+.le_test:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  script:
+    - echo $WINDOWS_TESTING_S3_BUCKET
+    - echo $WINDOWS_TESTING_S3_BUCKET_2
+    - echo $WINDOWS_TESTING_S3_BUCKET_3
+
 # run tests for windows-64
 .run_tests_windows_base:
   stage: source_test
@@ -1232,7 +1252,6 @@ deploy_windows_testing-a7:
 #
 
 .kitchen_common: &kitchen_common
-  <<: *run_when_testkitchen_triggered
   stage: testkitchen_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   artifacts:
@@ -1247,13 +1266,6 @@ deploy_windows_testing-a7:
 # Kitchen: agents
 # ---------------
 
-.kitchen_agent_a6: &kitchen_agent_a6
-  <<: *kitchen_common
-  <<: *skip_when_unwanted_on_6
-  variables:
-    AGENT_MAJOR_VERSION: 6
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A6
 
 .kitchen_agent_a7: &kitchen_agent_a7
   <<: *kitchen_common
