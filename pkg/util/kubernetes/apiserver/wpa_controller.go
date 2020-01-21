@@ -56,20 +56,26 @@ func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient wpa_cli
 
 type checkAPI func() error
 
-func checkWPACRDAttempt(attempt *int, check checkAPI) error {
-	*attempt++
+func tryCheckWPACRD(check checkAPI) error {
 	if err := check(); err != nil {
 		// Check if this is a known problem of missing CRD registration
 		if isWPACRDNotFoundError(err) {
-			log.Warnf("WPA CRD missing (attempt=%d): will retry", *attempt)
 			return err
 		}
 		// In all other cases return a permanent error to prevent from retrying
-		log.Errorf("WPA CRD check failed (attempt=%d): not retryable: %s", *attempt, err)
+		log.Errorf("WPA CRD check failed: not retryable: %s", err)
 		return backoff.Permanent(err)
 	}
 	log.Info("WPA CRD check successful")
 	return nil
+}
+
+func notifyCheckWPACRD() backoff.Notify {
+	attempt := 0
+	return func(err error, delay time.Duration) {
+		attempt++
+		log.Warnf("WPA CRD missing (attempt=%d): will retry in %s", attempt, delay.String())
+	}
 }
 
 func isWPACRDNotFoundError(err error) bool {
@@ -85,13 +91,12 @@ func isWPACRDNotFoundError(err error) bool {
 }
 
 func checkWPACRD(wpaClient wpa_client.Interface) backoff.Operation {
-	attempt := 0
 	check := func() error {
 		_, err := wpaClient.DatadoghqV1alpha1().WatermarkPodAutoscalers(v1.NamespaceAll).List(v1.ListOptions{})
 		return err
 	}
 	return func() error {
-		return checkWPACRDAttempt(&attempt, check)
+		return tryCheckWPACRD(check)
 	}
 }
 
@@ -105,7 +110,7 @@ func waitForWPACRD(wpaClient wpa_client.Interface) {
 		Clock:               backoff.SystemClock,
 	}
 	exp.Reset()
-	_ = backoff.Retry(checkWPACRD(wpaClient), exp)
+	_ = backoff.RetryNotify(checkWPACRD(wpaClient), exp, notifyCheckWPACRD())
 }
 
 // enableWPA adds the handlers to the AutoscalersController to support WPAs

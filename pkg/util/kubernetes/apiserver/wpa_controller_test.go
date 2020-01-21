@@ -552,9 +552,7 @@ func TestWPACRDCheck(t *testing.T) {
 	}
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
-
-			attempt := 0
-			actualError := checkWPACRDAttempt(&attempt, func() error { return testCase.checkError })
+			actualError := tryCheckWPACRD(func() error { return testCase.checkError })
 			require.Equal(t, testCase.expectedError, actualError)
 		})
 	}
