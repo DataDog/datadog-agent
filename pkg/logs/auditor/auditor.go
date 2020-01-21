@@ -156,7 +156,11 @@ func (a *Auditor) run() {
 func (a *Auditor) recoverRegistry() map[string]*RegistryEntry {
 	mr, err := ioutil.ReadFile(a.registryPath)
 	if err != nil {
-		log.Error(err)
+		if os.IsNotExist(err) {
+			log.Debugf("Could not find state file at %q, will start with default offsets", a.registryPath)
+		} else {
+			log.Error(err)
+		}
 		return make(map[string]*RegistryEntry)
 	}
 	r, err := a.unmarshalRegistry(mr)
