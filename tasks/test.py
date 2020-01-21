@@ -388,4 +388,4 @@ def make_kitchen_gitlab_yml(ctx):
             v['needs'] = new_needed
 
     with open('.gitlab-ci.yml', 'w') as f:
-        documents = yaml.dump(data, f)
+        documents = yaml.dump(data, f, default_style='"')
