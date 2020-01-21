@@ -107,7 +107,7 @@ def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_bui
 
 
 @task
-def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, specific_test=''):
+def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     """
     Run tests on eBPF parts
     If skip_object_files is set to True, this won't rebuild object files
@@ -129,9 +129,6 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False, specific_test
 
     if only_check_bpf_bytes:
         cmd += " -run=TestEbpfBytesCorrect"
-
-    if specific_test:
-       cmd += " -run={}".format(specific_test)
 
     ctx.run(cmd.format(path=path, bpf_tag=BPF_TAG, pkg=pkg))
 
