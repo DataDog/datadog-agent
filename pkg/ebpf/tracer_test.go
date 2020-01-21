@@ -284,26 +284,22 @@ func TestNATConnectionDirection(t *testing.T) {
 	assert.Condition(t, func() bool {
 		for _, c := range conns {
 			if c.Source == util.AddressFromString("1.1.1.1") {
-				fmt.Printf("found conn %#v", c)
 				return c.Direction == LOCAL
 			}
 		}
 
 		return false
-	})
+	}, "did not find 1.1.1.1 connection classified as local")
 
-	// for _, c := range getConnections(t, tr).Conns {
-	// 	fmt.Printf("In loop, printing conn and IPTranslation: \n\n")
-	// 	fmt.Printf("%+v\n", c)
-	// 	fmt.Printf("%+v\n", c.IPTranslation)
-	// 	// Running in a VM, the tracer can pick up SSH connections, so we prevent that
-	// 	if c.SPort == 22 {
-	// 		fmt.Printf("Skipping ssh \n\n")
-	// 		continue
-	// 	}
-	// 	fmt.Printf("\n\n")
-	// 	assert.Equal(t, LOCAL, c.Direction)
-	// }
+	assert.Condition(t, func() bool {
+		for _, c := range conns {
+			if c.Dest == util.AddressFromString("2.2.2.2") {
+				fmt.Printf("found conn %#v (%#v)\n", c, c.IPTranslation)
+				return c.Direction == LOCAL
+			}
+		}
+		return true
+	})
 }
 
 func TestTCPRemoveEntries(t *testing.T) {

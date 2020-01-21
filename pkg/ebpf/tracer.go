@@ -662,20 +662,17 @@ func (t *Tracer) setConnectionDirections(connections []ConnectionStats) {
 				key.Port = connStat.IPTranslation.ReplSrcPort
 			}
 		} else {
-			if connStat.IPTranslation == nil {
-				key.Address = connStat.Source
-				key.Port = connStat.SPort
-			} else {
-				key.Address = connStat.IPTranslation.ReplDstIP
-				key.Port = connStat.IPTranslation.ReplDstPort
-			}
+			key.Address = connStat.Source
+			key.Port = connStat.SPort
 		}
 		return key
 	}
 
 	lAddrs := make(map[connKey]struct{}, 0)
 	for _, conn := range connections {
-		lAddrs[newConnKey(&conn, false)] = struct{}{}
+		ck := newConnKey(&conn, false)
+		fmt.Printf("got laddr: %v for %v\n", ck, conn)
+		lAddrs[ck] = struct{}{}
 	}
 
 	fmt.Println(lAddrs)
