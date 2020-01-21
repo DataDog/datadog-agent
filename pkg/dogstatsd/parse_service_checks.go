@@ -99,7 +99,7 @@ func applyServiceCheckOptionalField(serviceCheck dogstatsdServiceCheck, optional
 
 func parseServiceCheck(message []byte) (dogstatsdServiceCheck, error) {
 	if !hasServiceCheckFormat(message) {
-		return dogstatsdServiceCheck{}, fmt.Errorf("invalid dogstatsd service check format: %q", message)
+		return dogstatsdServiceCheck{}, fmt.Errorf("invalid dogstatsd service check format")
 	}
 	// pop the _sc| header
 	message = message[4:]

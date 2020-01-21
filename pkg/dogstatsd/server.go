@@ -290,7 +290,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 			case serviceCheckType:
 				serviceCheck, err := s.parseServiceCheckMessage(message)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing service check: %s", err)
+					log.Errorf("Dogstatsd: error parsing service check %q: %s", message, err)
 					continue
 				}
 				serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
@@ -298,7 +298,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 			case eventType:
 				event, err := s.parseEventMessage(message)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing event: %s", err)
+					log.Errorf("Dogstatsd: error parsing event %q: %s", message, err)
 					continue
 				}
 				event.Tags = append(event.Tags, originTags...)
@@ -306,7 +306,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 			case metricSampleType:
 				sample, err := s.parseMetricMessage(message)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing metrics: %s", err)
+					log.Errorf("Dogstatsd: error parsing metric message %q: %s", message, err)
 					continue
 				}
 				if s.debugMetricsStats {
