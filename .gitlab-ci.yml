@@ -1253,7 +1253,6 @@ deploy_windows_testing-a7:
   variables:
     AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A6
 
 .kitchen_agent_a7: &kitchen_agent_a7
   <<: *kitchen_common
@@ -1261,8 +1260,6 @@ deploy_windows_testing-a7:
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-    WINDOWS_TESTING_S3_BUCKET: $WINDOWS_TESTING_S3_BUCKET_A7
-
 
 
 # Kitchen: OSes
@@ -1270,6 +1267,7 @@ deploy_windows_testing-a7:
 
 .kitchen_os_windows: &kitchen_os_windows
   before_script:
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="win2008r2,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/Windows2008-R2-SP1/versions/1.0.0"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
