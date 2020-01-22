@@ -169,7 +169,7 @@ func TestGetUpdatesGen(t *testing.T) {
 	entry := rt.state[connKey{
 		util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp,
 	}]
-	assert.NotEqual(t, entry.expGeneration, last)
+	assert.NotEqual(t, entry.expGeneration, last, "expected %v to equal %v", entry.expGeneration, last)
 }
 
 func TestTooManyEntries(t *testing.T) {
