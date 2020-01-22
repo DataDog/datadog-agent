@@ -56,9 +56,9 @@ messages, the delete eventually wins.
 
 **TagInfo** accepts and store tags that have different cardinality. **TagCardinality** can be:
 
-* **LowCardinality**: in the host count order of magnitude
-* **OrchestratorCardinality**: tags that change value for each pod or task
-* **HighCardinality**: typically tags that change value for each web request, user agent, container, etc.
+* ***LowCardinality**: in the host count order of magnitude
+* ***OrchestratorCardinality**:tags that change value for each pod or task
+* ***HighCardinality**: typically tags that change value for each web request, user agent, container, etc.
 
 ## Tagger
 

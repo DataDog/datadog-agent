@@ -8,6 +8,7 @@ import fnmatch
 import re
 import operator
 import sys
+import yaml
 
 import invoke
 from invoke import task
@@ -353,3 +354,38 @@ class TestProfiler:
                 sorted_times = sorted_times[:limit]
             for pkg, time in sorted_times:
                 print("{}s\t{}".format(time, pkg))
+
+@task
+def make_kitchen_gitlab_yml(ctx):
+    """
+    Replaces .gitlab-ci.yml with one containing only the steps needed to run kitchen-tests
+    """
+    with open('.gitlab-ci.yml') as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+
+    data['stages'] = ['package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']
+    for k,v in data.items():
+        if isinstance(v, dict) and v.get('stage', None) not in [None, 'package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']:
+            del data[k]
+        if 'except' in v:
+            del v['except']
+        if 'only' in v:
+            del v['only']
+        if len(v) == 0:
+            del data[k]
+
+    for k,v in data.items():
+        if 'extends' in v:
+            extended = v['extends']
+            if extended not in data:
+                del data[k]
+        if 'needs' in v:
+            needed = v['needs']
+            new_needed = []
+            for n in needed:
+                if n in data:
+                   new_needed.append(n)
+            v['needs'] = new_needed
+
+    with open('.gitlab-ci.yml', 'w') as f:
+        documents = yaml.dump(data, f, default_style='"')

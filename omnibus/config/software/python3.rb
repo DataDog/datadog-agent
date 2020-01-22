@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.7.4"
+default_version "3.7.6"
 
 if ohai["platform"] != "windows"
   dependency "libffi"
@@ -13,7 +13,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "d63e63e14e6d29e17490abbe6f7d17afb3db182dbd801229f14e55f4157c4ba3"
+         :sha256 => "aeee681c235ad336af116f08ab6563361a0c81c537072c1b309d6e4050aa2114"
 
   relative_path "Python-#{version}"
 
@@ -65,12 +65,12 @@ else
     dependency "vc_ucrt_redist"
 
     source :url => "http://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
-            :sha256 => "c9ccf9cd81c06e49cb3186bef1e769a6b9da58d00dbb780f0185fbb2e8efba91"
+            :sha256 => "946335d0f15e0c4c2820b5ce1ecd4b6470b8f6f28b774d4572279f2d0478c8ab"
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
     source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "ce1782db64be81aa81e8a38102b4850ee03a0b30bf152a7d2b4b36a7a6e0c381"
+         :sha256 => "618325664cadaa80766a3c89f480904bbf23fcbb61467ec36c5d87be026c00cf"
 
   end
   build do

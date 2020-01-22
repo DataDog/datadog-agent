@@ -40,7 +40,7 @@ var (
 	dogstatsdPacketsLastSec          = expvar.Int{}
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
-		[]string{"type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
+		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
 )
 
 func init() {
@@ -75,6 +75,7 @@ type Server struct {
 	metricsStats          map[string]metricStat
 	statsLock             sync.Mutex
 	mapper                *mapper.MetricMapper
+	telemetryEnabled      bool
 }
 
 // metricStat holds how many times a metric has been
@@ -166,6 +167,7 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 		extraTags:             extraTags,
 		debugMetricsStats:     metricsStats,
 		metricsStats:          make(map[string]metricStat),
+		telemetryEnabled:      telemetry.IsEnabled(),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -288,7 +290,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 			case serviceCheckType:
 				serviceCheck, err := s.parseServiceCheckMessage(message)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing service check: %s", err)
+					log.Errorf("Dogstatsd: error parsing service check %q: %s", message, err)
 					continue
 				}
 				serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
@@ -296,7 +298,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 			case eventType:
 				event, err := s.parseEventMessage(message)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing event: %s", err)
+					log.Errorf("Dogstatsd: error parsing event %q: %s", message, err)
 					continue
 				}
 				event.Tags = append(event.Tags, originTags...)
@@ -304,7 +306,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 			case metricSampleType:
 				sample, err := s.parseMetricMessage(message)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing metrics: %s", err)
+					log.Errorf("Dogstatsd: error parsing metric message %q: %s", message, err)
 					continue
 				}
 				if s.debugMetricsStats {
@@ -320,6 +322,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 				}
 			}
 		}
+		s.packetPool.Put(packet)
 	}
 	batcher.flush()
 }
@@ -341,7 +344,11 @@ func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error
 	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
 	dogstatsdMetricPackets.Add(1)
-	tlmProcessed.Inc("metrics", "ok")
+	// FIXME (arthur): remove this check and s.telemetryEnabled once we don't
+	// escape the tags slice to the heap
+	if s.telemetryEnabled {
+		tlmProcessed.Inc("metrics", "ok")
+	}
 	return metricSample, nil
 }
 

@@ -27,11 +27,17 @@ type Gauge interface {
 	Delete(tagsValue ...string)
 }
 
-// NewGauge creates a Gauge for telemetry purpose.
+// NewGauge creates a Gauge with default options for telemetry purpose.
 // Current implementation used: Prometheus Gauge
 func NewGauge(subsystem, name string, tags []string, help string) Gauge {
+	return NewGaugeWithOpts(subsystem, name, tags, help, DefaultOptions)
+}
+
+// NewGaugeWithOpts creates a Gauge with the given options for telemetry purpose.
+// See NewGauge()
+func NewGaugeWithOpts(subsystem, name string, tags []string, help string, opts Options) Gauge {
 	// subsystem is optional
-	if subsystem != "" {
+	if subsystem != "" && !opts.NoDoubleUnderscoreSep {
 		// Prefix metrics with a _, prometheus will add a second _
 		// It will create metrics with a custom separator and
 		// will let us replace it to a dot later in the process.

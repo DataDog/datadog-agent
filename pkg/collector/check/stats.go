@@ -45,6 +45,7 @@ type Stats struct {
 	ExecutionTimes       [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
 	AverageExecutionTime int64     // average run duration
 	LastExecutionTime    int64     // most recent run duration, provided for convenience
+	LastSuccessDate      int64     // most recent successful execution date, unix timestamp in seconds
 	LastError            string    // error that occurred in the last run, if any
 	LastWarnings         []string  // warnings that occurred in the last run, if any
 	UpdateTimestamp      int64     // latest update to this instance, unix timestamp in seconds
@@ -96,6 +97,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 			tlmRuns.Inc(cs.CheckName, "ok")
 		}
 		cs.LastError = ""
+		cs.LastSuccessDate = time.Now().Unix()
 	}
 	cs.LastWarnings = []string{}
 	if len(warnings) != 0 {

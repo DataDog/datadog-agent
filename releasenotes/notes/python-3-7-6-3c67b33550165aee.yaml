@@ -6,8 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+other:
   - |
-    APM: Stopped ignoring sublayer metrics for childless subtraces, since this
-    was throwing the metric count off in cases where subtraces for a service
-    sometimes did have children and sometimes not.
+    Bump embedded Python 3 to 3.7.6
