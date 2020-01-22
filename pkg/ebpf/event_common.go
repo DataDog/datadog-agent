@@ -106,7 +106,7 @@ type ConnectionStats struct {
 	Family        ConnectionFamily
 	Direction     ConnectionDirection
 	IPTranslation *netlink.IPTranslation
-	IntraHost bool
+	IntraHost     bool
 }
 
 func (c ConnectionStats) String() string {
