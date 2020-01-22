@@ -683,7 +683,7 @@ func (t *Tracer) determineConnectionIntraHost(connections []ConnectionStats) {
 		return key
 	}
 
-	lAddrs := make(map[connKey]struct{}, 0)
+	lAddrs := make(map[connKey]struct{})
 	for _, conn := range connections {
 		lAddrs[newConnKey(&conn, false)] = struct{}{}
 	}
