@@ -889,9 +889,11 @@ api_key:
 ###########################
 
 ## @param log_level - string - optional - default: info
-## Minum log level of the Datadog Agent.
+## Minimum log level of the Datadog Agent.
+## Valid log levels are: trace, debug, info, warn, error, critical, and off.
+## Note: When using the 'off' log level, quotes are mandatory.
 #
-# log_level: info
+# log_level: 'info'
 
 ## @param log_file - string - optional
 ## Path of the log file for the Datadog Agent.
