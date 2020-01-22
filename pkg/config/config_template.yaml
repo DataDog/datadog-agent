@@ -1225,6 +1225,12 @@ api_key:
 #
 # ecs_agent_url: http://localhost:51678
 
+## @param ecs_collect_resource_tags_ec2 - boolean - optional - default: false
+## The Agent can collect resource tags from the metadata API exposed by the
+## ECS Agent for tasks scheduled with the EC2 launch type.
+#
+# ecs_collect_resource_tags_ec2: false
+
 {{ end -}}
 {{- if .CRI }}
 

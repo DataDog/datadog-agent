@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -97,9 +96,9 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 					continue
 				}
 
-				addresses, err := metadata.GetContainerNetworkAddresses(ecsContainerMetadataUrl)
+				addresses, err := GetContainerNetworkAddresses(ecsContainerMetadataUrl)
 				if err != nil {
-					log.Errorf("Failed to get container network addresses: %s", err)
+					log.Errorf("Failed to get network addresses for container: %s. Network info will be missing. Error: %s", container.ID, err)
 					continue
 				}
 				container.AddressList = crossIPsWithPorts(addresses, exposedPorts)

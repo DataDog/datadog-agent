@@ -47,6 +47,8 @@ const (
 var (
 	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
 		config.Datadog.GetString("expvar_port"))
+	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/telemetry",
+		config.Datadog.GetString("expvar_port"))
 
 	// Match .yaml and .yml to ship configuration files in the flare.
 	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
@@ -192,6 +194,13 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	err = zipHealth(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip health check: %s", err)
+	}
+
+	if config.Datadog.GetBool("telemetry.enabled") {
+		err = zipTelemetry(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not collect telemetry metrics: %s", err)
+		}
 	}
 
 	err = zipStackTraces(tempDir, hostname)
@@ -511,12 +520,23 @@ func zipHealth(tempDir, hostname string) error {
 	return err
 }
 
+func zipTelemetry(tempDir, hostname string) error {
+	return zipHTTPCallContent(tempDir, hostname, "telemetry.log", telemetryURL)
+}
+
 func zipStackTraces(tempDir, hostname string) error {
+	return zipHTTPCallContent(tempDir, hostname, routineDumpFilename, pprofURL)
+}
+
+// zipHTTPCallContent does a GET HTTP call to the given url and
+// writes the content of the HTTP response in the given file, ready
+// to be shipped in a flare.
+func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
 	client := http.Client{}
-	req, err := http.NewRequest(http.MethodGet, pprofURL, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
@@ -527,7 +547,7 @@ func zipStackTraces(tempDir, hostname string) error {
 	}
 	defer resp.Body.Close()
 
-	f := filepath.Join(tempDir, hostname, routineDumpFilename)
+	f := filepath.Join(tempDir, hostname, filename)
 	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err

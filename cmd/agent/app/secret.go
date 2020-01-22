@@ -33,7 +33,7 @@ var secretInfoCommand = &cobra.Command{
 			color.NoColor = true
 		}
 
-		err := common.SetupConfigWithoutSecrets(confFilePath)
+		err := common.SetupConfigWithoutSecrets(confFilePath, "")
 		if err != nil {
 			fmt.Printf("unable to set up global agent configuration: %v\n", err)
 			return nil

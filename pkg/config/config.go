@@ -237,7 +237,7 @@ func initConfig(config Config) {
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", false)
+	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
 
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
@@ -324,6 +324,8 @@ func initConfig(config Config) {
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
+	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
+	config.BindEnvAndSetDefault("eks_fargate", false)
 	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
@@ -371,6 +373,7 @@ func initConfig(config Config) {
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
+	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 
 	// GCE
@@ -498,6 +501,11 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
+
+	// Telemetry
+	// Enable telemetry metrics on the internals of the Agent.
+	// This create a lot of billable custom metrics.
+	config.BindEnvAndSetDefault("telemetry.enabled", false)
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.

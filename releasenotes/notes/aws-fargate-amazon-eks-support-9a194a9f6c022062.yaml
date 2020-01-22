@@ -1,0 +1,3 @@
+features:
+  - |
+    Add logic to support querying the kubelet through the APIServer to monitor AWS Fargate on Amazon EKS.

@@ -37,7 +37,7 @@ end
 generate_test_and_parallel_test(
   :"dd-agent",
   'Run test for all of the Agent installation method on every platform',
-  "kitchen test",
+  "bundle exec kitchen test",
   "azure",
   "always"
 )

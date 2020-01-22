@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -54,6 +55,7 @@ type KubeUtil struct {
 
 	kubeletHost              string // resolved hostname or IPAddress
 	kubeletApiEndpoint       string // ${SCHEME}://${kubeletHost}:${PORT}
+	kubeletProxyEnabled      bool
 	kubeletApiClient         *http.Client
 	kubeletApiRequestHeaders *http.Header
 	rawConnectionInfo        map[string]string // kept to pass to the python kubelet check
@@ -483,7 +485,37 @@ func (ku *KubeUtil) GetRawMetrics() ([]byte, error) {
 	return data, nil
 }
 
+// IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
+func (ku *KubeUtil) IsAgentHostNetwork() (bool, error) {
+	cid, err := docker.GetAgentCID()
+	if err != nil {
+		return false, err
+	}
+
+	pod, err := ku.GetPodForContainerID(cid)
+	if err != nil {
+		return false, err
+	}
+
+	return pod.Spec.HostNetwork, nil
+}
+
 func (ku *KubeUtil) setupKubeletApiEndpoint() error {
+	// Proxied
+	if ku.kubeletProxyEnabled {
+		_, code, httpsUrlErr := ku.QueryKubelet(kubeletPodPath)
+		if httpsUrlErr == nil {
+			if code == http.StatusOK {
+				log.Debugf("Kubelet endpoint is: %s", ku.kubeletApiEndpoint)
+				return nil
+			}
+			if code >= 500 {
+				return fmt.Errorf("unexpected status code %d on endpoint %s%s", code, ku.kubeletApiEndpoint, kubeletPodPath)
+			}
+			log.Warnf("Failed to securely reach the kubelet over HTTPS, received a status %d. Trying a non secure connection over HTTP. We highly recommend configuring TLS to access the kubelet", code)
+		}
+		log.Debugf("Cannot query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, httpsUrlErr)
+	}
 	// HTTPS
 	ku.kubeletApiEndpoint = fmt.Sprintf("https://%s:%d", ku.kubeletHost, config.Datadog.GetInt("kubernetes_https_kubelet_port"))
 	_, code, httpsUrlErr := ku.QueryKubelet(kubeletPodPath)
@@ -526,11 +558,13 @@ type connectionInfo struct {
 func (ku *KubeUtil) init() error {
 	var err error
 
+	// Kubelet is unavailable, proxying calls through the APIServer - EKS on Fargate.
+	ku.kubeletProxyEnabled = config.Datadog.GetBool("eks_fargate")
+
 	// setting the kubeletHost
 	kubeletHost := config.Datadog.GetString("kubernetes_kubelet_host")
 	kubeletHttpsPort := config.Datadog.GetInt("kubernetes_https_kubelet_port")
 	kubeletHttpPort := config.Datadog.GetInt("kubernetes_http_kubelet_port")
-
 	potentialHosts := getPotentialKubeletHosts(kubeletHost)
 
 	dedupeConnectionInfo(potentialHosts)
@@ -664,6 +698,11 @@ func dedupeConnectionInfo(hosts *connectionInfo) {
 func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort int) error {
 	var connectionErrors []error
 	log.Debugf("Trying several connection methods to locate the kubelet...")
+	if ku.kubeletProxyEnabled && config.Datadog.Get("kubernetes_kubelet_nodename") != "" {
+		ku.kubeletApiEndpoint = fmt.Sprintf("https://%s:%s/api/v1/nodes/%s/proxy/", os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT"), config.Datadog.Get("kubernetes_kubelet_nodename"))
+		log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s", ku.kubeletApiEndpoint)
+		return nil
+	}
 	kubeletHost, errors := selectFromPotentialHostsHTTPS(ku, hosts.ips, httpsPort)
 	if kubeletHost != "" && errors == nil {
 		log.Infof("Connection to the kubelet succeeded! %s is set as kubelet host", kubeletHost)

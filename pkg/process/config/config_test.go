@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -147,6 +148,31 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	}
 }
 
+func TestDisablingDNSInspection(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNS.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.DisableDNSInspection)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		os.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
+		defer os.Unsetenv("DD_DISABLE_DNS_INSPECTION")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.DisableDNSInspection)
+	})
+}
+
 func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
@@ -199,7 +225,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal(5065, agentConfig.ProcessExpVarPort)
-	assert.True(agentConfig.DisableDNSInspection)
+	assert.False(agentConfig.DisableDNSInspection)
 
 	agentConfig, err = NewAgentConfig(
 		"test",
@@ -227,7 +253,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.False(agentConfig.DisableTCPTracing)
 	assert.False(agentConfig.DisableUDPTracing)
 	assert.False(agentConfig.DisableIPv6Tracing)
-	assert.True(agentConfig.DisableDNSInspection)
+	assert.False(agentConfig.DisableDNSInspection)
 
 	agentConfig, err = NewAgentConfig(
 		"test",
@@ -360,4 +386,53 @@ func TestIsAffirmative(t *testing.T) {
 	value, err = isAffirmative("ok")
 	assert.Nil(t, err)
 	assert.False(t, value)
+}
+
+func TestGetCheckURL(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("endpoint doesn't contain path", func(t *testing.T) {
+		url, err := url.Parse("https://process.datadoghq.com")
+		assert.Nil(err)
+		endpoint := APIEndpoint{Endpoint: url}
+
+		assert.Equal(
+			"https://process.datadoghq.com/api/v1/collector",
+			endpoint.GetCheckURL("api/v1/collector"),
+		)
+		assert.Equal(
+			"https://process.datadoghq.com/api/v1/container",
+			endpoint.GetCheckURL("api/v1/container"),
+		)
+	})
+
+	t.Run("endpoint contain default collector path", func(t *testing.T) {
+		url, err := url.Parse("https://process.datadoghq.com/api/v1/collector")
+		assert.Nil(err)
+		endpoint := APIEndpoint{Endpoint: url}
+
+		assert.Equal(
+			"https://process.datadoghq.com/api/v1/collector",
+			endpoint.GetCheckURL("api/v1/collector"),
+		)
+		assert.Equal(
+			"https://process.datadoghq.com/api/v1/container",
+			endpoint.GetCheckURL("api/v1/container"),
+		)
+	})
+
+	t.Run("endpoint has an arbitrary path set", func(t *testing.T) {
+		url, err := url.Parse("https://nginx-server/proxy-path")
+		assert.Nil(err)
+		endpoint := APIEndpoint{Endpoint: url}
+
+		assert.Equal(
+			"https://nginx-server/proxy-path/api/v1/collector",
+			endpoint.GetCheckURL("api/v1/collector"),
+		)
+		assert.Equal(
+			"https://nginx-server/proxy-path/api/v1/container",
+			endpoint.GetCheckURL("api/v1/container"),
+		)
+	})
 }

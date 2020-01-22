@@ -35,7 +35,7 @@ func onConfigure() {
 }
 func doConfigure() error {
 
-	err := common.SetupConfigWithoutSecrets("")
+	err := common.SetupConfigWithoutSecrets("", "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}

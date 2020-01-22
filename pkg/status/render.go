@@ -57,7 +57,7 @@ func FormatStatus(data []byte) (string, error) {
 	renderLogsStatus(b, logsStats)
 	renderAggregatorStatus(b, aggregatorStats)
 	renderDogstatsdStatus(b, dogstatsdStats)
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
 		renderDatadogClusterAgentStatus(b, dcaStats)
 	}
 

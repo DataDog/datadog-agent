@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -31,20 +31,12 @@ const (
 )
 
 var (
-	externalTotal = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "external_metrics",
-			Help: "Number of external metrics tagged.",
-		},
-		[]string{"valid"},
-	)
+	externalTotal = telemetry.NewGaugeWithOpts("", "external_metrics",
+		[]string{"valid"}, "Number of external metrics tagged.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	errNotInitialized = fmt.Errorf("configmap not initialized")
 )
-
-func init() {
-	prometheus.MustRegister(externalTotal)
-}
 
 // Store is an interface for persistent storage of custom and external metrics.
 type Store interface {
@@ -282,6 +274,7 @@ func setStoreStats(store *configMapStore) {
 			invalid += 1
 		}
 	}
-	externalTotal.With(prometheus.Labels{"valid": "true"}).Set(valid)
-	externalTotal.With(prometheus.Labels{"valid": "false"}).Set(invalid)
+
+	externalTotal.Set(valid, "true")
+	externalTotal.Set(invalid, "false")
 }

@@ -33,6 +33,7 @@ const EOFChar = unicode.MaxRune + 1
 // need a full-fledged tokenizer to implement a Lexer
 const (
 	LexError = TokenKind(57346) + iota
+
 	ID
 	Limit
 	Null
@@ -52,6 +53,11 @@ const (
 	GE
 	NE
 	As
+	From
+	Update
+	Insert
+	Into
+	Join
 
 	// FilteredGroupable specifies that the given token has been discarded by one of the
 	// token filters and that it is groupable together with consecutive FilteredGroupable
@@ -82,7 +88,8 @@ type SQLTokenizer struct {
 	seenEscape     bool // indicates whether this tokenizer has seen an escape character within a string
 }
 
-// NewSQLTokenizer creates a new SQLTokenizer for the given SQL string.
+// NewSQLTokenizer creates a new SQLTokenizer for the given SQL string. The literalEscapes argument specifies
+// whether escape characters should be treated literally or as such.
 func NewSQLTokenizer(sql string, literalEscapes bool) *SQLTokenizer {
 	return &SQLTokenizer{
 		rd:             strings.NewReader(sql),
@@ -106,6 +113,11 @@ var keywords = map[string]TokenKind{
 	"SAVEPOINT": Savepoint,
 	"LIMIT":     Limit,
 	"AS":        As,
+	"FROM":      From,
+	"UPDATE":    Update,
+	"INSERT":    Insert,
+	"INTO":      Into,
+	"JOIN":      Join,
 }
 
 // Err returns the last error that the tokenizer encountered, or nil.
@@ -242,7 +254,7 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	}
 	upper := bytes.ToUpper(buffer.Bytes())
 	if keywordID, found := keywords[string(upper)]; found {
-		return keywordID, upper
+		return keywordID, buffer.Bytes()
 	}
 	return ID, buffer.Bytes()
 }

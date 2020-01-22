@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,6 +38,9 @@ var (
 	dogstatsdMetricParseErrors       = expvar.Int{}
 	dogstatsdMetricPackets           = expvar.Int{}
 	dogstatsdPacketsLastSec          = expvar.Int{}
+
+	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
+		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
 )
 
 func init() {
@@ -71,6 +75,7 @@ type Server struct {
 	metricsStats          map[string]metricStat
 	statsLock             sync.Mutex
 	mapper                *mapper.MetricMapper
+	telemetryEnabled      bool
 }
 
 // metricStat holds how many times a metric has been
@@ -162,6 +167,7 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 		extraTags:             extraTags,
 		debugMetricsStats:     metricsStats,
 		metricsStats:          make(map[string]metricStat),
+		telemetryEnabled:      telemetry.IsEnabled(),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -284,7 +290,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 			case serviceCheckType:
 				serviceCheck, err := s.parseServiceCheckMessage(message)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing service check: %s", err)
+					log.Errorf("Dogstatsd: error parsing service check %q: %s", message, err)
 					continue
 				}
 				serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
@@ -292,7 +298,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 			case eventType:
 				event, err := s.parseEventMessage(message)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing event: %s", err)
+					log.Errorf("Dogstatsd: error parsing event %q: %s", message, err)
 					continue
 				}
 				event.Tags = append(event.Tags, originTags...)
@@ -300,7 +306,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 			case metricSampleType:
 				sample, err := s.parseMetricMessage(message)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing metrics: %s", err)
+					log.Errorf("Dogstatsd: error parsing metric message %q: %s", message, err)
 					continue
 				}
 				if s.debugMetricsStats {
@@ -316,6 +322,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 				}
 			}
 		}
+		s.packetPool.Put(packet)
 	}
 	batcher.flush()
 }
@@ -324,6 +331,7 @@ func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error
 	sample, err := parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
+		tlmProcessed.Inc("metrics", "error")
 		return metrics.MetricSample{}, err
 	}
 	if s.mapper != nil && len(sample.tags) == 0 {
@@ -336,6 +344,11 @@ func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error
 	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
 	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
 	dogstatsdMetricPackets.Add(1)
+	// FIXME (arthur): remove this check and s.telemetryEnabled once we don't
+	// escape the tags slice to the heap
+	if s.telemetryEnabled {
+		tlmProcessed.Inc("metrics", "ok")
+	}
 	return metricSample, nil
 }
 
@@ -343,10 +356,12 @@ func (s *Server) parseEventMessage(message []byte) (*metrics.Event, error) {
 	sample, err := parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
+		tlmProcessed.Inc("events", "error")
 		return nil, err
 	}
 	event := enrichEvent(sample, s.defaultHostname)
 	event.Tags = append(event.Tags, s.extraTags...)
+	tlmProcessed.Inc("events", "ok")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
@@ -355,11 +370,13 @@ func (s *Server) parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck
 	sample, err := parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
+		tlmProcessed.Inc("service_checks", "error")
 		return nil, err
 	}
 	serviceCheck := enrichServiceCheck(sample, s.defaultHostname)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
+	tlmProcessed.Inc("service_checks", "ok")
 	return serviceCheck, nil
 }
 

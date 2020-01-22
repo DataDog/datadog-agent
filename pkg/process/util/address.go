@@ -9,6 +9,7 @@ import (
 type Address interface {
 	Bytes() []byte
 	String() string
+	IsLoopback() bool
 }
 
 // AddressFromNetIP returns an Address from a provided net.IP
@@ -63,6 +64,11 @@ func (a v4Address) String() string {
 	return net.IPv4(a[0], a[1], a[2], a[3]).String()
 }
 
+// IsLoopback returns true if this address is the loopback address
+func (a v4Address) IsLoopback() bool {
+	return net.IP(a[:]).IsLoopback()
+}
+
 type v6Address [16]byte
 
 // V6Address creates an Address using the uint128 representation of an v6 IP
@@ -88,4 +94,9 @@ func (a v6Address) Bytes() []byte {
 // String returns the human readable string representation of an IP
 func (a v6Address) String() string {
 	return net.IP(a[:]).String()
+}
+
+// IsLoopback returns true if this address is the loopback address
+func (a v6Address) IsLoopback() bool {
+	return net.IP(a[:]).IsLoopback()
 }

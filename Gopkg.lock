@@ -1137,7 +1137,6 @@
     "prometheus",
     "prometheus/internal",
     "prometheus/promhttp",
-    "prometheus/testutil",
   ]
   pruneopts = ""
   revision = "2641b987480bca71fb39738eb8c8b0d577cb1d76"
@@ -2008,7 +2007,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "0:"
+  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
@@ -2170,7 +2169,6 @@
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
-    "github.com/prometheus/client_golang/prometheus/testutil",
     "github.com/samuel/go-zookeeper/zk",
     "github.com/shirou/gopsutil/cpu",
     "github.com/shirou/gopsutil/disk",

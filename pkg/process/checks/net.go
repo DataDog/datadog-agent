@@ -9,7 +9,9 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -17,6 +19,9 @@ import (
 var (
 	// Connections is a singleton ConnectionsCheck.
 	Connections = &ConnectionsCheck{}
+
+	// LocalResolver is a singleton LocalResolver
+	LocalResolver = &resolver.LocalResolver{}
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
@@ -72,6 +77,11 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		}
 		return nil, err
 	}
+
+	// Filter out (in-place) connection data associated with docker-proxy
+	dockerproxy.NewFilter().Filter(conns)
+	// Resolve the Raddr side of connections for local containers
+	LocalResolver.Resolve(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID), nil
