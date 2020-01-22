@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -337,7 +336,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 	}
 
 	conns := t.state.Connections(clientID, latestTime, latestConns)
-	t.determineConnectionIntraHost(conns)
 	names := t.reverseDNS.Resolve(conns)
 	return &Connections{Conns: conns, DNS: names}, nil
 }
@@ -656,52 +654,6 @@ func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionD
 	}
 
 	return OUTGOING
-}
-
-func (t *Tracer) determineConnectionIntraHost(connections []ConnectionStats) {
-
-	type connKey struct {
-		Address util.Address
-		Port    uint16
-		Type    ConnectionType
-	}
-
-	newConnKey := func(connStat *ConnectionStats, useRAddrAsKey bool) connKey {
-		key := connKey{Type: connStat.Type}
-		if useRAddrAsKey {
-			if connStat.IPTranslation == nil {
-				key.Address = connStat.Dest
-				key.Port = connStat.DPort
-			} else {
-				key.Address = connStat.IPTranslation.ReplSrcIP
-				key.Port = connStat.IPTranslation.ReplSrcPort
-			}
-		} else {
-			key.Address = connStat.Source
-			key.Port = connStat.SPort
-		}
-		return key
-	}
-
-	lAddrs := make(map[connKey]struct{})
-	for _, conn := range connections {
-		lAddrs[newConnKey(&conn, false)] = struct{}{}
-	}
-
-	for i := range connections {
-		conn := &connections[i]
-		keyWithRAddr := newConnKey(conn, true)
-
-		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
-			conn.IntraHost = true
-			continue
-		}
-
-		_, ok := lAddrs[keyWithRAddr]
-		if ok {
-			conn.IntraHost = true
-		}
-	}
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
