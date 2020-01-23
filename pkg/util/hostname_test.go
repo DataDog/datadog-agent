@@ -1,6 +1,7 @@
 package util
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -147,7 +148,12 @@ func TestResolveSourcesWithStateFargate(t *testing.T) {
 
 func TestGetHostnameData(t *testing.T) {
 
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
 	defer clearHostnameCache()
+
+	// TODO: make this windows friendly
+	config.Datadog.Set("run_path", "/tmp")
 
 	liveSourcer = func() (HostnameMap, error) {
 		return HostnameMap{
@@ -194,7 +200,12 @@ func TestGetHostnameData(t *testing.T) {
 
 func TestGetHostnameDataFQDN(t *testing.T) {
 
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
 	defer clearHostnameCache()
+
+	// TODO: make this windows friendly
+	config.Datadog.Set("run_path", "/tmp")
 
 	liveSourcer = func() (HostnameMap, error) {
 		return HostnameMap{
@@ -264,7 +275,12 @@ func TestGetHostnameDataFargate(t *testing.T) {
 
 func TestGetHostnameDataContainerized(t *testing.T) {
 
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
 	defer clearHostnameCache()
+
+	// TODO: make this windows friendly
+	config.Datadog.Set("run_path", "/tmp")
 
 	liveSourcer = func() (HostnameMap, error) {
 		return HostnameMap{
@@ -310,7 +326,12 @@ func TestGetHostnameDataContainerized(t *testing.T) {
 
 func TestGetHostnameDataAWS(t *testing.T) {
 
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
 	defer clearHostnameCache()
+
+	// TODO: make this windows friendly
+	config.Datadog.Set("run_path", "/tmp")
 
 	liveSourcer = func() (HostnameMap, error) {
 		return HostnameMap{
@@ -334,6 +355,12 @@ func TestGetHostnameDataAWS(t *testing.T) {
 }
 
 func TestPersistence(t *testing.T) {
+
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	// TODO: make this windows friendly
+	config.Datadog.Set("run_path", "/tmp")
 
 	state := HostnameMap{
 		"fqdn":      "foo.domain.com",
