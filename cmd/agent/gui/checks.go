@@ -324,7 +324,7 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 
 	res, _ := json.Marshal(integrations)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(res))
+	w.Write(res)
 }
 
 // collects the configs in the specified path
@@ -381,7 +381,7 @@ func listConfigs(w http.ResponseWriter, r *http.Request) {
 
 	res, _ := json.Marshal(filenames)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(res))
+	w.Write(res)
 }
 
 // Helper function which returns all the filenames in a check config directory

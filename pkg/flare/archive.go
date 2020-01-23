@@ -101,7 +101,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		return "", err
 	}
 
-	dirName := hex.EncodeToString([]byte(b))
+	dirName := hex.EncodeToString(b)
 	tempDir, err := ioutil.TempDir("", dirName)
 	if err != nil {
 		return "", err

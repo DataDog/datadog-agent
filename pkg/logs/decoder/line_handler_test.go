@@ -34,21 +34,6 @@ func (u *MockParser) Parse(msg []byte) ([]byte, string, string, error) {
 	return bytes.Replace(msg, u.header, []byte(""), 1), "", "", nil
 }
 
-// MockTSParser mocks the logic of Timestamps
-type MockTSParser struct {
-	header []byte
-}
-
-func NewMockTSParser(header string) parser.Parser {
-	return &MockTSParser{header: []byte(header)}
-}
-
-// Parse does nothing for MockUnwrapper
-func (u *MockTSParser) Parse(msg []byte) ([]byte, string, string, error) {
-	components := bytes.SplitN(msg, []byte{' '}, 2)
-	return components[1], "", string(components[0]), nil
-}
-
 type MockFailingParser struct {
 	header []byte
 }

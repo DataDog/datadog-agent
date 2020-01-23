@@ -40,7 +40,7 @@ var (
 	v1SeriesEndpoint       = endpoint{"/api/v1/series", "series_v1"}
 	v1CheckRunsEndpoint    = endpoint{"/api/v1/check_run", "check_run_v1"}
 	v1IntakeEndpoint       = endpoint{"/intake/", "intake"}
-	v1SketchSeriesEndpoint = endpoint{"/api/v1/sketches", "sketches_v1"}
+	v1SketchSeriesEndpoint = endpoint{"/api/v1/sketches", "sketches_v1"} // nolint unused for now
 	v1ValidateEndpoint     = endpoint{"/api/v1/validate", "validate_v1"}
 
 	seriesEndpoint        = endpoint{"/api/v2/series", "series_v2"}

@@ -12,9 +12,9 @@ set PKG_OUTDIR=c:\mnt\build-out\%CI_JOB_ID%
 set OMNIBUS_BUILD="agent.omnibus-build"
 set OMNIBUS_ARGS=
 
-if "%OMNIBUS_TARGET" == "puppy" set OMNIBUS_ARGS="--puppy"
-if "%OMNIBUS_TARGET" == "dogstatsd" set OMNIBUS_BUILD="dogstatsd.omnibus-build"
-if "%OMNIBUS_TARGET" == "cf_buildpack" set OMNIBUS_ARGS="--cf-windows"
+if "%OMNIBUS_TARGET%" == "puppy" set OMNIBUS_ARGS="--puppy"
+if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_BUILD="dogstatsd.omnibus-build"
+if "%OMNIBUS_TARGET%" == "cf_buildpack" set OMNIBUS_ARGS="--cf-windows"
 
 mkdir \dev\go\src\github.com\DataDog\datadog-agent 
 if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 1

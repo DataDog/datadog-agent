@@ -53,13 +53,6 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	http.Error(w, msg, status)
 }
 
-// httpEndpointNotSupported is for payloads getting sent to a wrong endpoint
-func httpEndpointNotSupported(tags []string, w http.ResponseWriter) {
-	tags = append(tags, "error:unsupported-endpoint")
-	metrics.Count(receiverErrorKey, 1, tags, 1)
-	http.Error(w, "unsupported-endpoint", http.StatusInternalServerError)
-}
-
 // httpOK is a dumb response for when things are a OK
 func httpOK(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)

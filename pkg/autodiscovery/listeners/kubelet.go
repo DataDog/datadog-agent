@@ -368,7 +368,7 @@ func (s *KubeContainerService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *KubeContainerService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.GetTaggerEntity()), tagger.ChecksCardinality)
+	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -427,7 +427,7 @@ func (s *KubePodService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *KubePodService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.GetTaggerEntity()), tagger.ChecksCardinality)
+	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

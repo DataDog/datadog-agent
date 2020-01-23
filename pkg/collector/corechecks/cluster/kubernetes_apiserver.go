@@ -267,7 +267,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 		}
 		tagComp := []string{fmt.Sprintf("component:%s", component.Name)}
 		for _, condition := range component.Conditions {
-			status_check := metrics.ServiceCheckUnknown
+			statusCheck := metrics.ServiceCheckUnknown
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
 			if condition.Type != "Healthy" {
@@ -277,12 +277,12 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			// We only expect True, False and Unknown (default).
 			switch condition.Status {
 			case "True":
-				status_check = metrics.ServiceCheckOK
+				statusCheck = metrics.ServiceCheckOK
 
 			case "False":
-				status_check = metrics.ServiceCheckCritical
+				statusCheck = metrics.ServiceCheckCritical
 			}
-			sender.ServiceCheck(KubeControlPaneCheck, status_check, k.KubeAPIServerHostname, tagComp, "")
+			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, k.KubeAPIServerHostname, tagComp, "")
 		}
 	}
 	return nil

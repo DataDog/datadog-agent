@@ -100,7 +100,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 
 	content = []byte("a")
 
-	message := message.NewMessage([]byte(content), nil, "")
+	message := message.NewMessage(content, nil, "")
 	input <- message
 
 	start := time.Now()
@@ -122,7 +122,7 @@ func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 		return context.Canceled
 	}
 
-	message := message.NewMessage([]byte(content), nil, "")
+	message := message.NewMessage(content, nil, "")
 	go func() {
 		input <- message
 		close(input)
@@ -140,7 +140,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		return nil
 	}
 
-	message := message.NewMessage([]byte(content), nil, "")
+	message := message.NewMessage(content, nil, "")
 	go func() {
 		input <- message
 		close(input)

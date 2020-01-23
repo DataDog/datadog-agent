@@ -204,7 +204,7 @@ func RunJmxListWithMetrics() error {
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJson, out)
+	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJSON, out)
 }
 
 func loadConfigs(runner *jmxfetch.JMXFetch) {
