@@ -1,6 +1,7 @@
 include: 'https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml'
 
 stages:
+  - fail_on_tag
   - source_test
   - binary_build
   - integration_test
@@ -156,6 +157,19 @@ before_script:
   except:
     variables:
       - $RELEASE_VERSION_7 == ""
+
+# Fail if we're running a pipeline on a non-triggered tag build
+fail_on_non_triggered_tag:
+  stage: fail_on_tag
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:2xlarge" ]
+  only:
+    - tags
+  before_script:
+    - "# noop"
+  script:
+    - echo CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE
+    - '[ $CI_PIPELINE_SOURCE != "push" ]'
 
 #
 # source_test
