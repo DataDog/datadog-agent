@@ -63,6 +63,12 @@ if suse?
   blacklist_packages.push(/^aerospike==/)  # Temporarily blacklist Aerospike until builder supports new dependency
 end
 
+if osx?
+  blacklist_folders.push('ibm_mq')
+  blacklist_folders.push('ibm_was')
+  blacklist_packages.push(/^lxml==/)
+end
+
 if arm?
   # These two checks don't build on ARM
   blacklist_folders.push('aerospike')

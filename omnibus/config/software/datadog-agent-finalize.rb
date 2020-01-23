@@ -172,9 +172,9 @@ build do
             delete "#{install_dir}/etc/conf.d/winproc.d"
 
             # Codesign everything
-            command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs codesign --force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
-            command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
-            command "find #{install_dir}/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+            command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs codesign -o runtime --force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+            command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs codesign -o runtime --force --timestamp  --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+            command "find #{install_dir}/bin -perm +111 -type f | xargs codesign -o runtime --force --timestamp  --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
             command "codesign --force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)' '#{install_dir}/Datadog Agent.app'"
         end
     end

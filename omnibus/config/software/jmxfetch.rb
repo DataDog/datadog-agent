@@ -26,6 +26,15 @@ relative_path "jmxfetch"
 build do
   ship_license "https://raw.githubusercontent.com/DataDog/jmxfetch/master/LICENSE"
   mkdir jar_dir
+
+  if osx?
+    # Also sign binaries and libraries inside the .jar, because they're detected by the Apple notarization service.
+    command "unzip jmxfetch.jar -d ."
+    delete "jmxfetch.jar"
+    command "find . -type f | grep -E '(\\.so|\\.dylib|\\.jnilib)' | xargs codesign -o runtime --force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+    command "zip jmxfetch.jar -r ."
+  end
+
   copy "jmxfetch.jar", "#{jar_dir}/jmxfetch.jar"
   block { File.chmod(0644, "#{jar_dir}/jmxfetch.jar") }
 end
