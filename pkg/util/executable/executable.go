@@ -26,7 +26,7 @@ func path(skipSymlinks bool) (string, error) {
 		}
 	}
 	return retstring, err
-	
+
 }
 
 // Folder returns the folder under which the executable is located,
