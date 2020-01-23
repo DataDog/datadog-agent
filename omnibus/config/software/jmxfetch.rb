@@ -31,7 +31,14 @@ build do
     # Also sign binaries and libraries inside the .jar, because they're detected by the Apple notarization service.
     command "unzip jmxfetch.jar -d ."
     delete "jmxfetch.jar"
-    command "find . -type f | grep -E '(\\.so|\\.dylib|\\.jnilib)' | xargs codesign -o runtime --force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+
+    if ENV['HARDENED_RUNTIME_MAC'] == 'true'
+      hardened_runtime = '-o runtime '
+    else
+      hardened_runtime = ''
+    end
+
+    command "find . -type f | grep -E '(\\.so|\\.dylib|\\.jnilib)' | xargs codesign #{hardened_runtime}--force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
     command "zip jmxfetch.jar -r ."
   end
 
