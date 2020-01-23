@@ -26,7 +26,7 @@ var (
 	tlmUDPPackets = telemetry.NewCounter("dogstatsd", "udp_packets",
 		[]string{"state"}, "Dogstatsd UDP packets count")
 	tlmUDPPacketsBytes = telemetry.NewCounter("dogstatsd", "udp_packets_bytes",
-		[]string{}, "Dogstatsd UDP packets bytes count")
+		nil, "Dogstatsd UDP packets bytes count")
 )
 
 func init() {
