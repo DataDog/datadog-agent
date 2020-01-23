@@ -2101,7 +2101,6 @@
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned/fake",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions",
-    "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1",
     "github.com/DataDog/zstd.v1.3",
     "github.com/Microsoft/go-winio",
