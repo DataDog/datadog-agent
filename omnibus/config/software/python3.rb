@@ -43,6 +43,8 @@ if ohai["platform"] != "windows"
             {
               "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe",
               "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+              "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
+              "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
             }
           end
     command python_configure.join(" "), :env => env
