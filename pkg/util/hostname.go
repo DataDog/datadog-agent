@@ -189,6 +189,8 @@ func ResolveSourcesWithState(newSources, stateSources HostnameMap) (HostnameMap,
 					stateChange = true
 					log.Warnf("Reliable source %s no longer configured", stage.provider)
 				}
+
+				// reliable source did not resolve thus it does not apply
 				continue
 			}
 		} else {
@@ -198,10 +200,12 @@ func ResolveSourcesWithState(newSources, stateSources HostnameMap) (HostnameMap,
 				}
 			} else {
 				if stateOk {
-					// here we should always use state - an unreliable source failed
+					// here we should always use stored state - an unreliable source failed
 					h = stateH
-					log.Info("an unreliable source %s did not resolve a hostname as expected, using state: %s", stage.provider, stateH)
+					log.Info("an unreliable source %s did not resolve a hostname as expected, using stored state: %s",
+						stage.provider, stateH)
 				} else {
+					// resolution stage did not resolve as expected
 					continue
 				}
 			}
