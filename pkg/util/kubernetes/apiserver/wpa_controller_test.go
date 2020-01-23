@@ -164,7 +164,7 @@ func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client 
 		dcl,
 	)
 
-	autoscalerController.enableWPA(inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+	autoscalerController.enableWPA(inf)
 
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
@@ -235,7 +235,7 @@ func TestWPAController(t *testing.T) {
 	defer close(stop)
 	inf.Start(stop)
 
-	go hctrl.RunWPA(stop, wpaClient, inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+	go hctrl.RunWPA(stop, wpaClient, inf)
 
 	hctrl.RunControllerLoop(stop)
 
@@ -503,7 +503,7 @@ func TestWPAGC(t *testing.T) {
 			hctrl, _ := newFakeAutoscalerController(t, client, i, d)
 			hctrl.wpaEnabled = true
 			inf := wpa_informers.NewSharedInformerFactory(wpaCl, 0)
-			hctrl.enableWPA(inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+			hctrl.enableWPA(inf)
 
 			hctrl.store = store
 

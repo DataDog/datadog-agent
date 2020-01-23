@@ -100,7 +100,7 @@ func (h *AutoscalersController) gc() {
 	wpaEnabled := h.isWPAEnabled()
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	log.Infof("Starting garbage collection process on the Autoscalers")
+	log.Infof("Starting garbage collection process on the Autoscalers: wpa=%v", wpaEnabled)
 	wpaList := []*v1alpha1.WatermarkPodAutoscaler{}
 	var err error
 

@@ -66,10 +66,11 @@ func StartControllers(ctx ControllerContext) error {
 	// we must start the informer factory after starting the controllers because the informer
 	// factory uses lazy initialization (delays the creation of an informer until the first
 	// time it's needed).
+	// TODO: If any of the controllers here are initialized asynchronously, relying on the
+	// informer factory to run informers for these controllers will not initialize them properly.
+	// FIXME: We may want to initialize each of these controllers separately via their respective
+	// `<informer>.Run()`
 	ctx.InformerFactory.Start(ctx.StopCh)
-	if ctx.WPAInformerFactory != nil {
-		ctx.WPAInformerFactory.Start(ctx.StopCh)
-	}
 
 	return nil
 }
@@ -99,8 +100,7 @@ func startAutoscalersController(ctx ControllerContext) error {
 		return err
 	}
 	if ctx.WPAInformerFactory != nil {
-		wpaInformer := ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers()
-		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, wpaInformer)
+		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, ctx.WPAInformerFactory)
 	}
 	// mutate the Autoscaler controller to embed an informer against the HPAs
 	autoscalersController.EnableHPA(ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())

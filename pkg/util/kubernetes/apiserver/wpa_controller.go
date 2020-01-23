@@ -13,9 +13,10 @@ import (
 
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 
 	"github.com/cenkalti/backoff"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,16 +38,18 @@ const (
 )
 
 // RunWPA starts the controller to process events about Watermark Pod Autoscalers
-func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient wpa_client.Interface, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) {
+func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient wpa_client.Interface, wpaInformerFactory externalversions.SharedInformerFactory) {
 	waitForWPACRD(wpaClient)
 
 	// mutate the Autoscaler controller to embed an informer against the WPAs
-	h.enableWPA(wpaInformer)
-
+	h.enableWPA(wpaInformerFactory)
 	defer h.WPAqueue.ShutDown()
 
 	log.Infof("Starting WPA Controller ... ")
 	defer log.Infof("Stopping WPA Controller")
+
+	wpaInformerFactory.Start(stopCh)
+
 	if !cache.WaitForCacheSync(stopCh, h.wpaListerSynced) {
 		return
 	}
@@ -117,7 +120,12 @@ func waitForWPACRD(wpaClient wpa_client.Interface) {
 }
 
 // enableWPA adds the handlers to the AutoscalersController to support WPAs
-func (h *AutoscalersController) enableWPA(wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) {
+func (h *AutoscalersController) enableWPA(wpaInformerFactory externalversions.SharedInformerFactory) {
+	log.Info("Enabling WPA controller")
+	wpaInformer := wpaInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers()
+	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
+	h.wpaLister = wpaInformer.Lister()
+	h.wpaListerSynced = wpaInformer.Informer().HasSynced
 	wpaInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addWPAutoscaler,
@@ -125,9 +133,6 @@ func (h *AutoscalersController) enableWPA(wpaInformer v1alpha1.WatermarkPodAutos
 			DeleteFunc: h.deleteWPAutoscaler,
 		},
 	)
-	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
-	h.wpaLister = wpaInformer.Lister()
-	h.wpaListerSynced = wpaInformer.Informer().HasSynced
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.wpaEnabled = true

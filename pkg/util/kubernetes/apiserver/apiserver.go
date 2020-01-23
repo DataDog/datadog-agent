@@ -163,13 +163,11 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
-		c.WPAInformerFactory, err = getWPAInformerFactory()
-		if err != nil {
+		if c.WPAInformerFactory, err = getWPAInformerFactory(); err != nil {
 			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
 			return err
 		}
-		c.WPAClient, err = getWPAClient(time.Duration(c.timeoutSeconds) * time.Second)
-		if err != nil {
+		if c.WPAClient, err = getWPAClient(time.Duration(c.timeoutSeconds) * time.Second); err != nil {
 			log.Errorf("Error getting WPA Client: %s", err.Error())
 			return err
 		}
