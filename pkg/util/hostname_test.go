@@ -33,8 +33,6 @@ func TestResolveSourcesWithoutState(t *testing.T) {
 	assert.Equal(t, resolved, liveSources, "resolved state should be equal to live state")
 	assert.True(t, change, "no change to persisted state expected")
 
-	stateSources = nil
-
 	assert.Equal(t, resolved, liveSources, "resolved state should be equal to persisted state")
 	assert.True(t, change, "change to persisted state expected")
 }
