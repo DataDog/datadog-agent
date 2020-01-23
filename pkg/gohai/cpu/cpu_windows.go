@@ -37,7 +37,57 @@ type SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct {
 	dataunion [16]byte
 }
 
-//const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE = 32
+//.const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE = 32
+
+type GROUP_AFFINITY struct {
+	Mask     uintptr
+	Group    uint16
+	Reserved [3]uint16
+}
+type NUMA_NODE_RELATIONSHIP struct {
+	NodeNumber uint32
+	Reserved   [20]uint8
+	GroupMask  GROUP_AFFINITY
+}
+type CACHE_RELATIONSHIP struct {
+	Level         uint8
+	Associativity uint8
+	LineSize      uint16
+	CacheSize     uint32
+	CacheType     int // enum in C
+	Reserved      [20]uint8
+	GroupMask     GROUP_AFFINITY
+}
+
+type PROCESSOR_GROUP_INFO struct {
+	MaximumProcessorCount uint8
+	ActiveProcessorCount  uint8
+	Reserved              [38]uint8
+	ActiveProcessorMask   uintptr
+}
+type GROUP_RELATIONSHIP struct {
+	MaximumGroupCount uint16
+	ActiveGroupCount  uint16
+	Reserved          [20]uint8
+	// variable size array of PROCESSOR_GROUP_INFO
+}
+type PROCESSOR_RELATIONSHIP struct {
+	Flags           uint8
+	EfficiencyClass uint8
+	wReserved       [20]uint8
+	GroupCount      uint16
+	// what follows is an array of zero or more GROUP_AFFINITY structures
+}
+
+type SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX struct {
+	Relationship int
+	Size         uint32
+	// what follows is a C union of
+	// PROCESSOR_RELATIONSHIP,
+	// NUMA_NODE_RELATIONSHIP,
+	// CACHE_RELATIONSHIP,
+	// GROUP_RELATIONSHIP
+}
 
 const RelationProcessorCore = 0
 const RelationNumaNode = 1
@@ -59,6 +109,20 @@ type SYSTEM_INFO struct {
 	wProcessorRevision      uint16
 }
 
+type CPU_INFO struct {
+	numaNodeCount       int    // number of NUMA nodes
+	pkgcount            int    // number of packages (physical CPUS)
+	corecount           int    // total number of cores
+	logicalcount        int    // number of logical CPUS
+	l1CacheSize         uint32 // layer 1 cache size
+	l2CacheSize         uint32 // layer 2 cache size
+	l3CacheSize         uint32 // layer 3 cache size
+	relationGroups      int    // number of cpu relation groups
+	maxProcsInGroups    int    // max number of processors
+	activeProcsInGroups int    // active processors
+
+}
+
 func countBits(num uint64) (count int) {
 	count = 0
 	for num > 0 {
@@ -78,58 +142,12 @@ func getSystemInfo() (si SYSTEM_INFO) {
 	return
 }
 
-func computeCoresAndProcessors() (phys int, cores int, processors int, err error) {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
-	var getProcInfo = mod.NewProc("GetLogicalProcessorInformation")
-	var buflen uint32 = 0
-	err = syscall.Errno(0)
-	// first, figure out how much we need
-	status, _, err := getProcInfo.Call(uintptr(0),
-		uintptr(unsafe.Pointer(&buflen)))
-	if status == 0 {
-		if err != ERROR_INSUFFICIENT_BUFFER {
-			// only error we're expecing here is insufficient buffer
-			// anything else is a failure
-			return
-		}
-	} else {
-		// this shouldn't happen. Errno won't be set (because the fuction)
-		// succeeded.  So just return something to indicate we've failed
-		return 0, 0, 0, syscall.Errno(1)
-	}
-	buf := make([]byte, buflen)
-	status, _, err = getProcInfo.Call(uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(unsafe.Pointer(&buflen)))
-	if status == 0 {
-		return
-	}
-	// walk through each of the buffers
-	var numaNodeCount int32
-
-	for i := 0; uint32(i) < buflen; i += getSystemLogicalProcessorInformationSize() {
-		info := byteArrayToProcessorStruct(buf[i : i+getSystemLogicalProcessorInformationSize()])
-
-		switch info.Relationship {
-		case RelationNumaNode:
-			numaNodeCount++
-
-		case RelationProcessorCore:
-			cores++
-			processors += countBits(uint64(info.ProcessorMask))
-
-		case RelationProcessorPackage:
-			phys++
-		}
-	}
-	return
-}
-
 // GetCpuInfo returns map of interesting bits of information about the CPU
 func GetCpuInfo() (cpuInfo map[string]string, err error) {
 
 	cpuInfo = make(map[string]string)
 
-	_, cores, lprocs, _ := computeCoresAndProcessors()
+	cpus, _ := computeCoresAndProcessors()
 	si := getSystemInfo()
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
@@ -142,8 +160,8 @@ func GetCpuInfo() (cpuInfo map[string]string, err error) {
 	s, _, err := k.GetStringValue("ProcessorNameString")
 	cpuInfo["model_name"] = s
 
-	cpuInfo["cpu_cores"] = strconv.Itoa(cores)
-	cpuInfo["cpu_logical_processors"] = strconv.Itoa(lprocs)
+	cpuInfo["cpu_cores"] = strconv.Itoa(cpus.corecount)
+	cpuInfo["cpu_logical_processors"] = strconv.Itoa(cpus.logicalcount)
 
 	s, _, err = k.GetStringValue("VendorIdentifier")
 	cpuInfo["vendor_id"] = s
