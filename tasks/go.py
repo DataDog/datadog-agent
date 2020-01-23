@@ -167,11 +167,12 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    args = ["{}/...".format(t) for t in targets]
     tags = build_tags or get_default_build_tags()
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
-
-    ctx.run("golangci-lint run -c .golangci.yml --build-tags '{}' {}".format(" ".join(tags), " ".join(args)), env=env)
+    # we split targets to avoid going over the memory limit from circleCI
+    for target in targets:
+        print("running golangci on {}".format(target))
+        ctx.run("golangci-lint run -c .golangci.yml --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)), env=env)
 
     # golangci exits with status 1 when it finds an issue, if we're here
     # everything went smooth
