@@ -116,3 +116,6 @@ rtloader/doxygen/errors.log
 
 # integrations-core when checked out for unit tests
 integrations-core/
+
+# file generated for templates
+pkg/status/templates.go
