@@ -52,18 +52,18 @@ type resolutionItem struct {
 // order matters!
 // TODO: review reliability definitions
 var resolutionPipeline = []resolutionItem{
-	resolutionItem{provider: HostnameProviderConfiguration, reliable: true, fallback: false, final: true},
-	resolutionItem{provider: "fargate", reliable: false, fallback: false, final: true},
-	resolutionItem{provider: "gce", reliable: false, fallback: false, final: true},
-	resolutionItem{provider: "fqdn", reliable: true, fallback: false, final: false},
-	resolutionItem{provider: "container", reliable: true, fallback: false, final: false},
-	resolutionItem{provider: "os", reliable: true, fallback: true, final: false},
-	resolutionItem{provider: "aws", reliable: false, fallback: false, final: false},
+	{provider: HostnameProviderConfiguration, reliable: true, fallback: false, final: true},
+	{provider: "fargate", reliable: false, fallback: false, final: true},
+	{provider: "gce", reliable: false, fallback: false, final: true},
+	{provider: "fqdn", reliable: true, fallback: false, final: false},
+	{provider: "container", reliable: true, fallback: false, final: false},
+	{provider: "os", reliable: true, fallback: true, final: false},
+	{provider: "aws", reliable: false, fallback: false, final: false},
 }
 
 // for testing
 var (
-	configSourceResolver sourceResolver  = ResolveSourcesWithState
+	configSourceResolver                 = ResolveSourcesWithState
 	liveSourcer          hostnameSourcer = GetLiveHostnameSources
 	stateSourcer         hostnameSourcer = GetPersistedHostnameSources
 )
