@@ -9,7 +9,8 @@
             "golang.org/x/mobile/cmd/gomobile",
             "golang.org/x/tools/go/ast/astutil",
             "golang.org/x/tools/go/internal",
-            "golang.org/x/tools/go/gcexportdata"
+            "golang.org/x/tools/go/gcexportdata",
+            "github.com/golangci/golangci-lint"
         ],
         "golang.org/x/tools/go/ast/astutil": {
             "version": "release-branch.go1.10",
@@ -47,6 +48,11 @@
         "golang.org/x/mobile/cmd/gomobile": {
             "version": "8b05ea26b5669e5f52084ab001b8e49ec8877955",
             "type": "go"
+        },
+        "github.com/golangci/golangci-lint": {
+            "version": "v1.23.1",
+            "cmd": "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $BOOTSTRAPPED_VERSION",
+            "type": "shell"
         }
     }
 }
