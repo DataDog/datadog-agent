@@ -235,7 +235,18 @@ def _save_release_json(release_json, list_major_versions, highest_version, integ
 
 
 @task
-def create_new_version(ctx, major_versions = "6,7", omnibus_ruby_version = "datadog-5.5.0"):
+def create_new_version(
+    ctx,
+    major_versions = "6,7",
+    integration_version = None,
+    omnibus_software_version = None,
+    jmxfetch_version = None,
+    omnibus_ruby_version = "datadog-5.5.0"):
+
+    """
+    Creates new entry in the release.json file for a new version.
+    """
+
     list_major_versions = major_versions.split(",")
     if list_major_versions.count < 1:
         print("Specify at least one major version to release")
@@ -283,25 +294,31 @@ def create_new_version(ctx, major_versions = "6,7", omnibus_ruby_version = "data
     # We don't want to fetch RC tags
     highest_version["rc"] = 0
 
-    integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
-    if integration_version["rc"] is not 0:
-        print("ERROR: Integration-Core tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
+    if not integration_version:
+        integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
+        if integration_version["rc"] is not 0:
+            print("ERROR: Integration-Core tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
+            #return Exit(code=1)
+        integration_version = _stringify_version(integration_version)
+    print("Integration-Core's tag is {}".format(integration_version))
+
+    if not omnibus_software_version:
+        omnibus_software_version = _get_highest_repo_version(auth, "omnibus-software", highest_version, version_re)
+        if omnibus_software_version["rc"] is not 0:
+            print("ERROR: Omnibus-Software tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
+            #return Exit(code=1)
+        omnibus_software_version = _stringify_version(omnibus_software_version)
+    print("Omnibus-Software's tag is {}".format(omnibus_software_version))
+
+    if not jmxfetch_version:
+        jmxfetch_version = _get_highest_repo_version(auth, "jmxfetch", highest_jmxfetch_version, version_re)
+        jmxfetch_version = _stringify_version(jmxfetch_version)
+    print("Jmxfetch's tag is {}".format(jmxfetch_version))
+
+    if not omnibus_ruby_version:
+        print("ERROR: No omnibus_ruby_version found")
         return Exit(code=1)
 
-    integration_version = _stringify_version(integration_version)
-    print("Integration-Core's highest tag is {}".format(integration_version))
-
-    omnibus_software_version = _get_highest_repo_version(auth, "omnibus-software", highest_version, version_re)
-    if omnibus_software_version["rc"] is not 0:
-        print("ERROR: Omnibus-Software tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
-        return Exit(code=1)
-        
-    omnibus_software_version = _stringify_version(omnibus_software_version)
-    print("Omnibus-Software's highest tag is {}".format(omnibus_software_version))
-
-    jmxfetch_version = _get_highest_repo_version(auth, "jmxfetch", highest_jmxfetch_version, version_re)
-    jmxfetch_version = _stringify_version(jmxfetch_version)
-    print("Jmxfetch's highest tag is {}".format(jmxfetch_version))
 
     _save_release_json(
         release_json, 
@@ -314,7 +331,13 @@ def create_new_version(ctx, major_versions = "6,7", omnibus_ruby_version = "data
 
 
 @task
-def create_rc(ctx, major_versions = "6,7", omnibus_ruby_version = "datadog-5.5.0"):
+def create_rc(
+    ctx,
+    major_versions = "6,7",
+    integration_version = None,
+    omnibus_software_version = None,
+    jmxfetch_version = None,
+    omnibus_ruby_version = "datadog-5.5.0"):
 
     """
     Creates new entry in the release.json file for a new RC.
@@ -354,17 +377,24 @@ def create_rc(ctx, major_versions = "6,7", omnibus_ruby_version = "datadog-5.5.0
     new_rc = _stringify_version(highest_version)
     print("Creating {}".format(new_rc))
 
-    integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
-    integration_version = _stringify_version(integration_version)
-    print("Integration-Core's highest tag is {}".format(integration_version))
+    if not integration_version:
+        integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
+        integration_version = _stringify_version(integration_version)
+    print("Integration-Core's tag is {}".format(integration_version))
 
-    omnibus_software_version = _get_highest_repo_version(auth, "omnibus-software", highest_version, version_re)
-    omnibus_software_version = _stringify_version(omnibus_software_version)
-    print("Omnibus-Software's highest tag is {}".format(omnibus_software_version))
+    if not omnibus_software_version:
+        omnibus_software_version = _get_highest_repo_version(auth, "omnibus-software", highest_version, version_re)
+        omnibus_software_version = _stringify_version(omnibus_software_version)
+    print("Omnibus-Software's tag is {}".format(omnibus_software_version))
 
-    jmxfetch_version = _get_highest_repo_version(auth, "jmxfetch", highest_jmxfetch_version, version_re)
-    jmxfetch_version = _stringify_version(jmxfetch_version)
-    print("Jmxfetch's highest tag is {}".format(jmxfetch_version))
+    if not jmxfetch_version:
+        jmxfetch_version = _get_highest_repo_version(auth, "jmxfetch", highest_jmxfetch_version, version_re)
+        jmxfetch_version = _stringify_version(jmxfetch_version)
+    print("Jmxfetch's tag is {}".format(jmxfetch_version))
+
+    if not omnibus_ruby_version:
+        print("ERROR: No omnibus_ruby_version found")
+        return Exit(code=1)
 
     _save_release_json(
         release_json, 
