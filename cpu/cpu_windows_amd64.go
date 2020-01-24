@@ -18,7 +18,7 @@ func byteArrayToProcessorStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFO
 	return
 }
 
-func byteArrayToGroupAffinity(data []byte) (affinity GROUP_AFFINITY, consumed int, err error) {
+func byteArrayToGroupAffinity(data []byte) (affinity GROUP_AFFINITY, consumed uint32, err error) {
 	err = nil
 	affinity.Mask = uintptr(binary.LittleEndian.Uint64(data))
 	affinity.Group = uint16(binary.LittleEndian.Uint16(data[8:]))
@@ -27,7 +27,7 @@ func byteArrayToGroupAffinity(data []byte) (affinity GROUP_AFFINITY, consumed in
 	return
 
 }
-func byteArrayToProcessorInformationExStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX, consumed int, err error) {
+func byteArrayToProcessorInformationExStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX, consumed uint32, err error) {
 	err = nil
 	info.Relationship = int(binary.LittleEndian.Uint32(data))
 	info.Size = uint32(binary.LittleEndian.Uint32(data[4:]))
@@ -36,7 +36,7 @@ func byteArrayToProcessorInformationExStruct(data []byte) (info SYSTEM_LOGICAL_P
 	return
 }
 
-func byteArrayToProcessorRelationshipStruct(data []byte) (proc PROCESSOR_RELATIONSHIP, groupMask []GROUP_AFFINITY, consumed int, err error) {
+func byteArrayToProcessorRelationshipStruct(data []byte) (proc PROCESSOR_RELATIONSHIP, groupMask []GROUP_AFFINITY, consumed uint32, err error) {
 	err = nil
 	proc.Flags = uint8(data[0])
 	proc.EfficiencyClass = uint8(data[1])
@@ -46,7 +46,7 @@ func byteArrayToProcessorRelationshipStruct(data []byte) (proc PROCESSOR_RELATIO
 		gm := make([]GROUP_AFFINITY, proc.GroupCount)
 
 		for i := uint16(0); i < proc.GroupCount; i++ {
-			var used int
+			var used uint32
 			var ga GROUP_AFFINITY
 			ga, used, err = byteArrayToGroupAffinity(data[consumed:])
 			if err != nil {
@@ -60,7 +60,7 @@ func byteArrayToProcessorRelationshipStruct(data []byte) (proc PROCESSOR_RELATIO
 	return
 }
 
-func byteArrayToNumaNode(data []byte) (numa NUMA_NODE_RELATIONSHIP, consumed int, err error) {
+func byteArrayToNumaNode(data []byte) (numa NUMA_NODE_RELATIONSHIP, consumed uint32, err error) {
 	err = nil
 	numa.NodeNumber = uint32(binary.LittleEndian.Uint32(data))
 	// skip 20 bytes of reserved
@@ -71,7 +71,7 @@ func byteArrayToNumaNode(data []byte) (numa NUMA_NODE_RELATIONSHIP, consumed int
 	return
 }
 
-func byteArrayToRelationCache(data []byte) (cache CACHE_RELATIONSHIP, consumed int, err error) {
+func byteArrayToRelationCache(data []byte) (cache CACHE_RELATIONSHIP, consumed uint32, err error) {
 	cache.Level = uint8(data[0])
 	cache.Associativity = uint8(data[1])
 	cache.LineSize = uint16(binary.LittleEndian.Uint16(data[2:]))
@@ -86,7 +86,7 @@ func byteArrayToRelationCache(data []byte) (cache CACHE_RELATIONSHIP, consumed i
 
 }
 
-func byteArrayToRelationGroup(data []byte) (group GROUP_RELATIONSHIP, gi []PROCESSOR_GROUP_INFO, consumed int, err error) {
+func byteArrayToRelationGroup(data []byte) (group GROUP_RELATIONSHIP, gi []PROCESSOR_GROUP_INFO, consumed uint32, err error) {
 	group.MaximumGroupCount = uint16(binary.LittleEndian.Uint16(data))
 	group.ActiveGroupCount = uint16(binary.LittleEndian.Uint16(data[4:]))
 	consumed = 24
@@ -144,7 +144,7 @@ func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 			err = decodeerr
 			return
 		}
-		bufused += uint32(used)
+		bufused += used
 		if info.Size == 0 {
 			break
 		}
@@ -155,7 +155,7 @@ func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 				err = decodeerr
 				return
 			}
-			bufused += uint32(used)
+			bufused += used
 			cpuInfo.corecount++
 			for j := uint16(0); j < core.GroupCount; j++ {
 				cpuInfo.logicalcount += countBits(uint64(groupMask[j].Mask))
@@ -167,7 +167,7 @@ func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 				return
 			}
 			cpuInfo.numaNodeCount++
-			bufused += uint32(used)
+			bufused += used
 
 		case RelationCache:
 			cache, used, decodeerr := byteArrayToRelationCache(buf[bufused:])
@@ -175,7 +175,7 @@ func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 				err = decodeerr
 				return
 			}
-			bufused += uint32(used)
+			bufused += used
 			switch cache.Level {
 			case 1:
 				cpuInfo.l1CacheSize = cache.CacheSize
@@ -190,7 +190,7 @@ func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 				err = decodeerr
 				return
 			}
-			bufused += uint32(used)
+			bufused += used
 			cpuInfo.pkgcount++
 
 		case RelationGroup:
@@ -199,7 +199,7 @@ func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 				err = decodeerr
 				return
 			}
-			bufused += uint32(used)
+			bufused += used
 			cpuInfo.relationGroups += int(group.MaximumGroupCount)
 			for _, info := range groupInfo {
 				cpuInfo.maxProcsInGroups += int(info.MaximumProcessorCount)
