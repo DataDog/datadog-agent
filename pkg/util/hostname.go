@@ -38,8 +38,6 @@ const HostnameProviderConfiguration = "configuration"
 // HostnameMap type providing a map mapping sources to hostname.
 type HostnameMap map[string]string
 
-type sourceResolver = func(live, state HostnameMap) (HostnameMap, bool)
-
 type hostnameSourcer func() (HostnameMap, error)
 
 type resolutionItem struct {
@@ -348,14 +346,12 @@ func GetLiveHostnameSources() (HostnameMap, error) {
 	}
 
 	// FQDN
-	var fqdn string
 	canUseOSHostname := isOSHostnameUsable()
 	if canUseOSHostname {
 		log.Debug("GetHostname trying FQDN/`hostname -f`...")
 		fqdn, err := getSystemFQDN()
 		if config.Datadog.GetBool("hostname_fqdn") && err == nil {
 			hostName = fqdn
-			provider = "fqdn"
 			hostnames["fqdn"] = hostName
 		} else {
 			if err != nil {
