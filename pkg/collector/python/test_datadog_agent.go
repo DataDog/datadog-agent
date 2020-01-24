@@ -36,7 +36,8 @@ func testGetHostname(t *testing.T) {
 	GetHostname(&h)
 	require.NotNil(t, h)
 
-	hostname, _ := util.GetHostname()
+	hostname, err := util.GetHostname()
+	require.Nil(t, err)
 	assert.Equal(t, hostname, C.GoString(h))
 }
 

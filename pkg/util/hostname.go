@@ -332,9 +332,10 @@ func GetLiveHostnameSources() (HostnameMap, error) {
 	}
 
 	// GCE metadata
+	var gceName string
 	log.Debug("GetHostname trying GCE metadata...")
 	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
-		gceName, err := getGCEHostname()
+		gceName, err = getGCEHostname()
 		if err == nil {
 			hostnames["gce"] = gceName
 			return hostnames, nil
@@ -346,10 +347,11 @@ func GetLiveHostnameSources() (HostnameMap, error) {
 	}
 
 	// FQDN
+	var fqdn string
 	canUseOSHostname := isOSHostnameUsable()
 	if canUseOSHostname {
 		log.Debug("GetHostname trying FQDN/`hostname -f`...")
-		fqdn, err := getSystemFQDN()
+		fqdn, err = getSystemFQDN()
 		if config.Datadog.GetBool("hostname_fqdn") && err == nil {
 			hostName = fqdn
 			hostnames["fqdn"] = hostName
@@ -374,10 +376,11 @@ func GetLiveHostnameSources() (HostnameMap, error) {
 		}
 	}
 
+	var systemName string
 	if canUseOSHostname && hostName == "" {
 		// os
 		log.Debug("GetHostname trying os...")
-		systemName, err := os.Hostname()
+		systemName, err = os.Hostname()
 		if err == nil {
 			hostName = systemName
 			hostnames["os"] = systemName
@@ -429,7 +432,9 @@ func GetLiveHostnameSources() (HostnameMap, error) {
 		}
 	}
 
-	// TODO: make sure this err is meaningful
+	if len(hostnames) == 0 {
+		err = fmt.Errorf("No valid hostname sources were found")
+	}
 	return hostnames, err
 }
 
