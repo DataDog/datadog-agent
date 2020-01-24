@@ -8,12 +8,14 @@
 package python
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -21,6 +23,12 @@ import (
 )
 
 import "C"
+
+var originalConfig = config.Datadog
+
+func restoreGlobalConfig() {
+	config.Datadog = originalConfig
+}
 
 func testGetVersion(t *testing.T) {
 	var v *C.char
@@ -32,6 +40,12 @@ func testGetVersion(t *testing.T) {
 }
 
 func testGetHostname(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	// TODO: make this windows friendly
+	config.Datadog.Set("run_path", "/tmp")
+
 	var h *C.char
 	GetHostname(&h)
 	require.NotNil(t, h)
