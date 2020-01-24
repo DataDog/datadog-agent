@@ -8,6 +8,7 @@ import sys
 import json
 import urllib
 import hashlib
+from collections import OrderedDict
 from datetime import date
 
 from invoke import task, Failure
@@ -160,7 +161,7 @@ def _stringify_version(version_dict):
     return version
 
 
-def _get_repo_rc_version(auth, repo, new_rc_version, version_re):
+def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
     response = urllib.urlopen("{}api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}.{}.{}"
                               .format(auth,
                                       repo,
@@ -175,25 +176,78 @@ def _get_repo_rc_version(auth, repo, new_rc_version, version_re):
             this_version = _create_version_dict_from_match(match)
             if _is_version_higher(this_version, highest_version):
                 highest_version = this_version
+    return highest_version
 
 
+def _get_highest_version_from_release_json(release_json, highest_major, version_re):
+    highest_version = None
+    highest_jmxfetch_version = None
+    for key, value in release_json.items():
+        match = version_re.match(key)
+        if match:
+            this_version = _create_version_dict_from_match(match)
+            if _is_version_higher(this_version, highest_version) and this_version["major"] <= highest_major:
+                match = version_re.match(value["JMXFETCH_VERSION"])
+                if match:
+                    highest_jmxfetch_version = _create_version_dict_from_match(match)
+                    highest_version = this_version
+                else:
+                    print("{} does not have a valid JMXFETCH_VERSION ({}), ignoring".format(_stringify_version(this_version), value["JMXFETCH_VERSION"]))
+    return highest_version, highest_jmxfetch_version
 
-    version = "{}.{}.{}" \
-        .format(highest_version["major"],
-                highest_version["minor"],
-                highest_version["patch"])
-    if highest_version["rc"] is not 0:
-        version = "{}-rc.{}".format(version, highest_version["rc"])
-    return version
+
+def _save_release_json(release_json, list_major_versions, highest_version, integration_version, omnibus_software_version, omnibus_ruby_version, jmxfetch_version):
+
+    jmxfetch = urllib.urlopen("https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar")
+    jmxfetch_sha256 = hashlib.sha256(jmxfetch.read()).hexdigest()
+
+    print("Jmxfetch's SHA256 is {}".format(jmxfetch_sha256))
+
+    new_version_config = OrderedDict()
+    new_version_config["INTEGRATIONS_CORE_VERSION"] = integration_version
+    new_version_config["OMNIBUS_SOFTWARE_VERSION"] = omnibus_software_version
+    new_version_config["OMNIBUS_RUBY_VERSION"] = omnibus_ruby_version
+    new_version_config["JMXFETCH_VERSION"] = jmxfetch_version
+    new_version_config["JMXFETCH_HASH"] = jmxfetch_sha256
+
+    # Necessary if we want to maintain the JSON order, so that humans don't get confused
+    new_release_json = OrderedDict()
+
+    # The nightlies should be at the top of the file
+    nightly_version_re = re.compile('nightly(-a[0-9])?')
+    for key, value in release_json.items():
+        if nightly_version_re.match(key):
+            new_release_json[key] = value
+
+    # Then the new versions
+    for version in list_major_versions:
+        highest_version["major"] = version
+        new_version = _stringify_version(highest_version)
+        new_release_json[new_version] = new_version_config
+
+    # Then the rest of the versions
+    for key, value in release_json.items():
+        if key not in new_release_json:
+            new_release_json[key] = value
+
+    with open("release.json", "w") as release_json_stream:
+        json.dump(new_release_json, release_json_stream, indent=4, sort_keys=False)
 
 
 @task
-def create_rc(ctx, omnibus_ruby_version = "datadog-5.5.0"):
+def create_new_version(ctx, major_versions = "6,7", omnibus_ruby_version = "datadog-5.5.0"):
+    list_major_versions = major_versions.split(",")
+    if list_major_versions.count < 1:
+        print("Specify at least one major version to release")
+        return Exit(code=1)
 
-    """
-    Creates new entry in the release.json file for a new RC.
-    Looks at the current release.json to find the highest version released and create a new RC based on that.
-    """
+    list_major_versions = map(lambda x: int(x), list_major_versions)
+    highest_major = 0
+    for version in list_major_versions:
+        if int(version) > highest_major:
+            highest_major = version
+
+    print("Creating new agent version(s) {}".format(list_major_versions))
 
     github_token = os.environ.get('GITHUB_TOKEN')
     if github_token is None:
@@ -207,53 +261,116 @@ def create_rc(ctx, omnibus_ruby_version = "datadog-5.5.0"):
     auth = "https://{}:x-oauth-basic@".format(github_token)
 
     with open("release.json", "r") as release_json_stream:
-        release_json = json.load(release_json_stream)
+        release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
-    highest_version = None
-    highest_jmxfetch_version = None
+    highest_version, highest_jmxfetch_version = _get_highest_version_from_release_json(release_json, highest_major, version_re)
 
-    for key, value in release_json.items():
-        match = version_re.match(key)
-        if match:
-            this_version = _create_version_dict_from_match(match)
-            if _is_version_higher(this_version, highest_version):
-                highest_version = this_version
-                match = version_re.match(value["JMXFETCH_VERSION"])
-                if match:
-                    highest_jmxfetch_version = _create_version_dict_from_match(match)
+    # Erase RCs
+    for major_version in list_major_versions:
+        highest_version["major"] = major_version
+        rc = highest_version["rc"]
+        while highest_version["rc"] > 0:
+            # In case we have skipped an RC in the file...
+            try:
+                release_json.pop(_stringify_version(highest_version))
+            finally:
+                highest_version["rc"] = highest_version["rc"] - 1
+        highest_version["rc"] = rc
+
+    # Tags in other repos are based on the highest major (e.g. for releasing version 6.X.Y and 7.X.Y they will tag only 7.X.Y)
+    highest_version["major"] = highest_major
+
+    # We don't want to fetch RC tags
+    highest_version["rc"] = 0
+
+    integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
+    if integration_version["rc"] is not 0:
+        print("ERROR: Integration-Core tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
+        return Exit(code=1)
+
+    integration_version = _stringify_version(integration_version)
+    print("Integration-Core's highest tag is {}".format(integration_version))
+
+    omnibus_software_version = _get_highest_repo_version(auth, "omnibus-software", highest_version, version_re)
+    if omnibus_software_version["rc"] is not 0:
+        print("ERROR: Omnibus-Software tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
+        return Exit(code=1)
+        
+    omnibus_software_version = _stringify_version(omnibus_software_version)
+    print("Omnibus-Software's highest tag is {}".format(omnibus_software_version))
+
+    jmxfetch_version = _get_highest_repo_version(auth, "jmxfetch", highest_jmxfetch_version, version_re)
+    jmxfetch_version = _stringify_version(jmxfetch_version)
+    print("Jmxfetch's highest tag is {}".format(jmxfetch_version))
+
+    _save_release_json(
+        release_json, 
+        list_major_versions,
+        highest_version,
+        integration_version,
+        omnibus_software_version,
+        omnibus_ruby_version,
+        jmxfetch_version)
+
+
+@task
+def create_rc(ctx, major_versions = "6,7", omnibus_ruby_version = "datadog-5.5.0"):
+
+    """
+    Creates new entry in the release.json file for a new RC.
+    Looks at the current release.json to find the highest version released and create a new RC based on that.
+    """
+
+    list_major_versions = major_versions.split(",")
+    if list_major_versions.count < 1:
+        print("Specify at least one major version to release")
+        return Exit(code=1)
+
+    list_major_versions = map(lambda x: int(x), list_major_versions)
+    highest_major = 0
+    for version in list_major_versions:
+        if int(version) > highest_major:
+            highest_major = version
+
+    print("Creating RC for agent version(s) {}".format(list_major_versions))
+
+    github_token = os.environ.get('GITHUB_TOKEN')
+    if github_token is None:
+        print(
+            "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
+            " https://github.com/settings/tokens. It should have at least the 'repo' permissions.")
+        return Exit(code=1)
+
+    version_re = re.compile('(\\d+)[.](\\d+)[.](\\d+)(-rc\\.(\\d+))?')
+
+    auth = "https://{}:x-oauth-basic@".format(github_token)
+
+    with open("release.json", "r") as release_json_stream:
+        release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
+
+    highest_version, highest_jmxfetch_version = _get_highest_version_from_release_json(release_json, highest_major, version_re)
 
     highest_version["rc"] = highest_version["rc"] + 1
     new_rc = _stringify_version(highest_version)
     print("Creating {}".format(new_rc))
 
-    integration_rc = _get_repo_rc_version(auth, "integrations-core", highest_version, version_re)
-    print("Integration-Core's highest tag is {}".format(integration_rc))
+    integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
+    integration_version = _stringify_version(integration_version)
+    print("Integration-Core's highest tag is {}".format(integration_version))
 
-    omnibus_software_rc = _get_repo_rc_version(auth, "omnibus-software", highest_version, version_re)
-    print("Omnibus-Software's highest tag is {}".format(omnibus_software_rc))
+    omnibus_software_version = _get_highest_repo_version(auth, "omnibus-software", highest_version, version_re)
+    omnibus_software_version = _stringify_version(omnibus_software_version)
+    print("Omnibus-Software's highest tag is {}".format(omnibus_software_version))
 
-    jmxfetch_rc = _get_repo_rc_version(auth, "jmxfetch", highest_jmxfetch_version, version_re)
-    print("Jmxfetch's highest tag is {}".format(jmxfetch_rc))
+    jmxfetch_version = _get_highest_repo_version(auth, "jmxfetch", highest_jmxfetch_version, version_re)
+    jmxfetch_version = _stringify_version(jmxfetch_version)
+    print("Jmxfetch's highest tag is {}".format(jmxfetch_version))
 
-    jmxfetch = urllib.urlopen("https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar")
-    jmxfetch_sha256 = hashlib.sha256(jmxfetch.read()).hexdigest()
-
-    print("Jmxfetch's SHA256 is {}".format(jmxfetch_sha256))
-
-    new_rc_config = {
-        "INTEGRATIONS_CORE_VERSION": integration_rc,
-        "OMNIBUS_SOFTWARE_VERSION": omnibus_software_rc,
-        "OMNIBUS_RUBY_VERSION": omnibus_ruby_version,
-        "JMXFETCH_VERSION": jmxfetch_rc,
-        "JMXFETCH_HASH": jmxfetch_sha256
-    }
-
-    release_json[new_rc] = new_rc_config
-
-    # We need to release Agent 6 as well
-    highest_version["major"] = 6
-    new_rc = _stringify_version(highest_version)
-    release_json[new_rc] = new_rc_config
-
-    with open("release.json", "w") as release_json_stream:
-        json.dump(release_json, release_json_stream, indent=4, sort_keys=True)
+    _save_release_json(
+        release_json, 
+        list_major_versions,
+        highest_version,
+        integration_version,
+        omnibus_software_version,
+        omnibus_ruby_version,
+        jmxfetch_version)
