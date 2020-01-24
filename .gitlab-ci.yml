@@ -164,13 +164,11 @@ fail_on_non_triggered_tag:
   stage: fail_on_tag
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  only:
-    - tags
   before_script:
     - "# noop"
   script:
-    - echo CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE
-    - '[ $CI_PIPELINE_SOURCE != "push" ]'
+    - echo CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE CI_COMMIT_TAG=$CI_COMMIT_TAG
+    - '[ "$CI_COMMIT_TAG" == "" -o "$CI_PIPELINE_SOURCE" != "push" ]'
 
 #
 # source_test
