@@ -35,7 +35,8 @@ func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 	} else {
 		// this shouldn't happen. Errno won't be set (because the function)
 		// succeeded.  So just return something to indicate we've failed
-		return 0, 0, 0, syscall.Errno(1)
+		err = syscall.Errno(2)
+		return
 	}
 	buf := make([]byte, buflen)
 	status, _, err = getProcInfo.Call(uintptr(unsafe.Pointer(&buf[0])),
@@ -44,7 +45,6 @@ func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 		return
 	}
 	// walk through each of the buffers
-	var numaNodeCount int32
 
 	for i := 0; uint32(i) < buflen; i += getSystemLogicalProcessorInformationSize() {
 		info := byteArrayToProcessorStruct(buf[i : i+getSystemLogicalProcessorInformationSize()])
