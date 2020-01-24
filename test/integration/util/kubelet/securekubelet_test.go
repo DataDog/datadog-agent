@@ -47,7 +47,7 @@ func (suite *SecureTestSuite) TestWithTLSCA() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
+	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet("/healthz")
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 200, code)
@@ -112,7 +112,7 @@ func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 
 	ku, err := kubelet.GetKubeUtil()
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
+	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletAPIEndpoint())
 	b, code, err := ku.QueryKubelet("/healthz")
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 200, code)
