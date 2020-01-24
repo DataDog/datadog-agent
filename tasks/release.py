@@ -143,7 +143,7 @@ def _create_version_dict_from_match(match):
         "major": int(groups[0]),
         "minor": int(groups[1]),
         "patch": int(groups[2]),
-        "rc": 0
+        "rc": int(groups[4]) if groups[4] else 0
     }
     if groups[4]:
         version["rc"] = int(groups[4])
