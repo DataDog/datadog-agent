@@ -26,6 +26,7 @@ func (c *TestCheck) Interval() time.Duration                   { return 1 }
 func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
 func (c *TestCheck) GetWarnings() []error                      { return []error{} }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) IsTelemetryEnabled() bool                  { return false }
 func (c *TestCheck) Configure(data integration.Data, initData integration.Data, source string) error {
 	if string(data) == "err" {
 		return fmt.Errorf("testError")

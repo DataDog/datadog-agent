@@ -269,7 +269,7 @@ func TestConvertTaskToMetrics(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		typeUrl  string
+		typeURL  string
 		values   cgroups.Metrics
 		error    string
 		expected *cgroups.Metrics
@@ -302,11 +302,11 @@ func TestConvertTaskToMetrics(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			typeUrl := test.typeUrl
+			typeURL := test.typeURL
 			jsonValue, _ := json.Marshal(test.values)
 			metric := &types.Metric{
 				Data: &prototypes.Any{
-					TypeUrl: typeUrl,
+					TypeUrl: typeURL,
 					Value:   jsonValue,
 				},
 			}

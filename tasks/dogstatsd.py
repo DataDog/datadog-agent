@@ -12,8 +12,8 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags, get_default_build_tags
-from .utils import get_build_flags, bin_name, get_root, load_release_versions, get_version
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
+from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version
 from .utils import REPO_PATH
 
 from .go import deps
@@ -33,7 +33,7 @@ DEFAULT_BUILD_TAGS = [
 
 @task
 def build(ctx, rebuild=False, race=False, static=False, build_include=None,
-          build_exclude=None, major_version='7'):
+          build_exclude=None, major_version='7', arch="x64"):
     """
     Build Dogstatsd
     """
@@ -43,11 +43,35 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)
     bin_path = DOGSTATSD_BIN_PATH
 
+    # generate windows resources
+    if sys.platform == 'win32':
+        windres_target = "pe-x86-64"
+        if arch == "x86":
+            env["GOARCH"] = "386"
+            windres_target = "pe-i386"
+
+        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        maj_ver, min_ver, patch_ver = ver.split(".")
+
+        ctx.run("windmc --target {target_arch}  -r cmd/dogstatsd/windows_resources cmd/dogstatsd/windows_resources/dogstatsd-msg.mc".format(target_arch=windres_target))
+        ctx.run("windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/dogstatsd/windows_resources/dogstatsd.rc --target {target_arch} -O coff -o cmd/dogstatsd/rsrc.syso".format(
+            maj_ver=maj_ver,
+            min_ver=min_ver,
+            patch_ver=patch_ver,
+            target_arch=windres_target
+        ))
+
+    if not sys.platform.startswith('linux'):
+        for ex in LINUX_ONLY_TAGS:
+            if ex not in build_exclude:
+                build_exclude.append(ex)
+    build_tags = get_build_tags(build_include, build_exclude)
+
     if static:
         bin_path = STATIC_BIN_PATH
 
     # NOTE: consider stripping symbols to reduce binary size
-    cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
+    cmd = "go build {race_opt} {build_type} -tags \"{build_tags}\" -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd"
     args = {
         "race_opt": "-race" if race else "",

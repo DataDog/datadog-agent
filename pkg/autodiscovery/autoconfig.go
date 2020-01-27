@@ -58,7 +58,6 @@ type AutoConfig struct {
 	listenerCandidates map[string]listeners.ServiceListenerFactory
 	listenerRetryStop  chan struct{}
 	scheduler          *scheduler.MetaScheduler
-	healthPolling      *health.Handle
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
 	newService         chan listeners.Service

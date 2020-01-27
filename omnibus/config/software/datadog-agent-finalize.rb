@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
 # This software definition doesn"t build anything, it"s the place where we create
 # files outside the omnibus installation directory, so that we can add them to
@@ -171,7 +171,11 @@ build do
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
 
-            # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
+            # Codesign everything
+            command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs codesign --force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+            command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+            command "find #{install_dir}/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+            command "codesign --force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)' '#{install_dir}/Datadog Agent.app'"
         end
     end
 end

@@ -43,7 +43,7 @@ var dogstatsdStatsCmd = &cobra.Command{
 			color.NoColor = true
 		}
 
-		err := common.SetupConfigWithoutSecrets(confFilePath)
+		err := common.SetupConfigWithoutSecrets(confFilePath, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}

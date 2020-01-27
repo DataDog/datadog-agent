@@ -46,7 +46,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	valid := 0
 	for _, metric := range bundle.External {
 		if metric.Valid {
-			valid += 1
+			valid++
 		}
 	}
 	externalStatus["Valid"] = valid

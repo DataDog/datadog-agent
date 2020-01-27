@@ -47,6 +47,16 @@ const (
 	UnknownNetworkMode        = "unknown"
 )
 
+// UTSMode is container UTS modes
+type UTSMode string
+
+// UTSMode is container UTS modes
+const (
+	DefaultUTSMode UTSMode = ""
+	HostUTSMode            = "host"
+	UnknownUTSMode         = "unknown"
+)
+
 // Container represents a single container on a machine
 // and includes Cgroup-level statistics about the container.
 type Container struct {

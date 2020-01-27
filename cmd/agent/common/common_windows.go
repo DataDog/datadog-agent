@@ -153,7 +153,7 @@ func ImportRegistryConfig() error {
 	}
 	defer k.Close()
 
-	err = SetupConfigWithoutSecrets("")
+	err = SetupConfigWithoutSecrets("", "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
@@ -289,7 +289,7 @@ func ImportRegistryConfig() error {
 	config.AddOverrides(overrides)
 
 	// build the global agent configuration
-	err = SetupConfigWithoutSecrets("")
+	err = SetupConfigWithoutSecrets("", "")
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}

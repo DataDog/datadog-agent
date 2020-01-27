@@ -20,6 +20,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -166,7 +167,7 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
+	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname, "cluster_agent")
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
@@ -182,6 +183,8 @@ func start(cmd *cobra.Command, args []string) error {
 
 		// Create event recorder
 		eventBroadcaster := record.NewBroadcaster()
+		eventBroadcaster.StartLogging(log.Infof)
+		eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
 		stopCh := make(chan struct{})
@@ -259,6 +262,7 @@ func start(cmd *cobra.Command, args []string) error {
 	if stopCh != nil {
 		close(stopCh)
 	}
+
 	log.Info("See ya!")
 	log.Flush()
 	return nil

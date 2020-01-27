@@ -14,70 +14,38 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	ddRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "datadog_requests",
-			Help: "Counter of requests made to Datadog",
-		},
-		[]string{"status"},
-	)
-	metricsEval = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "external_metrics_processed_value",
-		Help: "value processed from querying Datadog",
-	},
-		[]string{"metric"},
-	)
-	metricsDelay = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "external_metrics_delay_seconds",
-		Help: "freshness of the metric evaluated from querying Datadog",
-	},
-		[]string{"metric"},
-	)
-	rateLimitsRemaining = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "rate_limit_queries_remaining",
-		Help: "number of queries remaining before next reset",
-	},
-		[]string{"endpoint"},
-	)
-	rateLimitsReset = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "rate_limit_queries_reset",
-		Help: "number of seconds before next reset",
-	},
-		[]string{"endpoint"},
-	)
-	rateLimitsPeriod = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "rate_limit_queries_period",
-		Help: "period of rate limiting",
-	},
-		[]string{"endpoint"},
-	)
-	rateLimitsLimit = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "rate_limit_queries_limit",
-		Help: "maximum number of queries allowed in the period",
-	},
-		[]string{"endpoint"},
-	)
+	ddRequests = telemetry.NewCounterWithOpts("", "datadog_requests",
+		[]string{"status"}, "Counter of requests made to Datadog",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	metricsEval = telemetry.NewGaugeWithOpts("", "external_metrics_processed_value",
+		[]string{"metric"}, "value processed from querying Datadog",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	metricsDelay = telemetry.NewGaugeWithOpts("", "external_metrics_delay_seconds",
+		[]string{"metric"}, "freshness of the metric evaluated from querying Datadog",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	rateLimitsRemaining = telemetry.NewGaugeWithOpts("", "rate_limit_queries_remaining",
+		[]string{"endpoint"}, "number of queries remaining before next reset",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	rateLimitsReset = telemetry.NewGaugeWithOpts("", "rate_limit_queries_reset",
+		[]string{"endpoint"}, "number of seconds before next reset",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	rateLimitsPeriod = telemetry.NewGaugeWithOpts("", "rate_limit_queries_period",
+		[]string{"endpoint"}, "period of rate limiting",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	rateLimitsLimit = telemetry.NewGaugeWithOpts("", "rate_limit_queries_limit",
+		[]string{"endpoint"}, "maximum number of queries allowed in the period",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
-
-func init() {
-	prometheus.MustRegister(ddRequests)
-	prometheus.MustRegister(metricsEval)
-	prometheus.MustRegister(metricsDelay)
-	prometheus.MustRegister(rateLimitsRemaining)
-	prometheus.MustRegister(rateLimitsReset)
-	prometheus.MustRegister(rateLimitsPeriod)
-	prometheus.MustRegister(rateLimitsLimit)
-}
 
 type Point struct {
 	value     float64
@@ -112,10 +80,10 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 
 	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 	if err != nil {
-		ddRequests.WithLabelValues("error").Inc()
+		ddRequests.Inc("error")
 		return nil, log.Errorf("Error while executing metric query %s: %s", query, err)
 	}
-	ddRequests.WithLabelValues("success").Inc()
+	ddRequests.Inc("success")
 
 	processedMetrics := make(map[string]Point)
 	for _, name := range metricNames {
@@ -161,9 +129,9 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			processedMetrics[m] = point
 
 			// Prometheus submissions on the processed external metrics
-			metricsEval.WithLabelValues(m).Set(float64(point.value))
+			metricsEval.Set(point.value, m)
 			precision := time.Now().Unix() - point.timestamp
-			metricsDelay.WithLabelValues(m).Set(float64(precision))
+			metricsDelay.Set(float64(precision), m)
 
 			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
 			break
@@ -172,11 +140,11 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 	return processedMetrics, nil
 }
 
-// setPrometheusMetric is a helper to submit prometheus metrics
-func setPrometheusMetric(val string, metric *prometheus.GaugeVec) error {
+// setTelemetryMetric is a helper to submit telemetry metrics
+func setTelemetryMetric(val string, metric telemetry.Gauge) error {
 	valFloat, err := strconv.Atoi(val)
 	if err == nil {
-		metric.With(prometheus.Labels{"endpoint": queryEndpoint}).Set(float64(valFloat))
+		metric.Set(float64(valFloat), queryEndpoint)
 	}
 	return err
 }
@@ -186,10 +154,10 @@ func (p *Processor) updateRateLimitingMetrics() error {
 	queryLimits := updateMap[queryEndpoint]
 
 	errors := []error{
-		setPrometheusMetric(queryLimits.Limit, rateLimitsLimit),
-		setPrometheusMetric(queryLimits.Remaining, rateLimitsRemaining),
-		setPrometheusMetric(queryLimits.Period, rateLimitsPeriod),
-		setPrometheusMetric(queryLimits.Reset, rateLimitsReset),
+		setTelemetryMetric(queryLimits.Limit, rateLimitsLimit),
+		setTelemetryMetric(queryLimits.Remaining, rateLimitsRemaining),
+		setTelemetryMetric(queryLimits.Period, rateLimitsPeriod),
+		setTelemetryMetric(queryLimits.Reset, rateLimitsReset),
 	}
 
 	return utilserror.NewAggregate(errors)

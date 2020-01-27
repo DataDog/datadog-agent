@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,6 +31,9 @@ var (
 	ntpExpVar = expvar.NewFloat("ntpOffset")
 	// for testing purpose
 	ntpQuery = ntp.QueryWithOptions
+
+	tlmNtpOffset = telemetry.NewGauge("check", "ntp_offset",
+		nil, "Ntp offset")
 )
 
 // NTPCheck only has sender and config
@@ -167,6 +171,7 @@ func (c *NTPCheck) Run() error {
 
 		sender.Gauge("ntp.offset", clockOffset, "", nil)
 		ntpExpVar.Set(clockOffset)
+		tlmNtpOffset.Set(clockOffset)
 	}
 
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)

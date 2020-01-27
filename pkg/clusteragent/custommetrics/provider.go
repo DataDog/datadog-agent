@@ -28,8 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const EXTERNAL_METRICS_MAX_BACKOFF = 32 * time.Second
-const EXTERNAL_METRICS_BASE_BACKOFF = 1 * time.Second
+const externalMetricsMaxBackoff = 32 * time.Second
+const externalMetricsBaseBackoff = 1 * time.Second
 
 type externalMetric struct {
 	info  provider.ExternalMetricInfo
@@ -41,7 +41,6 @@ type datadogProvider struct {
 	mapper apimeta.RESTMapper
 
 	externalMetrics []externalMetric
-	resVersion      string
 	store           Store
 	isServing       bool
 	timestamp       int64
@@ -61,26 +60,12 @@ func NewDatadogProvider(ctx context.Context, client dynamic.Interface, mapper ap
 	return d
 }
 
-type timer struct {
-	period time.Duration
-	timer  time.Timer
-}
-
-func (t *timer) resetTimer() {
-	t.timer.Stop()
-	t.timer = *time.NewTimer(t.period)
-}
-
-func createTimer(period time.Duration) *timer {
-	return &timer{period, *time.NewTimer(period)}
-}
-
 func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 	log.Infof("Starting async loop to collect External Metrics")
 	ctxCancel, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	currentBackoff := EXTERNAL_METRICS_BASE_BACKOFF
+	currentBackoff := externalMetricsBaseBackoff
 	for {
 		var externalMetricsList []externalMetric
 		// TODO as we implement a more resilient logic to access a potentially deleted CM, we should pass in ctxCancel in case of permafail.
@@ -125,11 +110,11 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			return
 		default:
 			if p.isServing == true {
-				currentBackoff = EXTERNAL_METRICS_BASE_BACKOFF
+				currentBackoff = externalMetricsBaseBackoff
 			} else {
 				currentBackoff = currentBackoff * 2
-				if currentBackoff > EXTERNAL_METRICS_MAX_BACKOFF {
-					currentBackoff = EXTERNAL_METRICS_MAX_BACKOFF
+				if currentBackoff > externalMetricsMaxBackoff {
+					currentBackoff = externalMetricsMaxBackoff
 				}
 				log.Infof("Retrying externalMetricsSetter with backoff %.0f seconds", currentBackoff.Seconds())
 			}

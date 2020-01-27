@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// +build systemd
+
 package journald
 
 import (
@@ -17,7 +19,6 @@ import (
 const (
 	tagSeparator            = ":"
 	imageTagKey             = "short_image" + tagSeparator
-	defaultShortNameValue   = "docker"
 	baseCacheExpiration     = 20 * time.Minute
 	expirationSpreadSeconds = 120
 )

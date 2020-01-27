@@ -53,8 +53,10 @@ func (p *Processor) run() {
 	}()
 	for msg := range p.inputChan {
 		metrics.LogsDecoded.Add(1)
+		metrics.TlmLogsDecoded.Inc()
 		if shouldProcess, redactedMsg := p.applyRedactingRules(msg); shouldProcess {
 			metrics.LogsProcessed.Add(1)
+			metrics.TlmLogsProcessed.Inc()
 
 			// Encode the message to its final format
 			content, err := p.encoder.Encode(msg, redactedMsg)

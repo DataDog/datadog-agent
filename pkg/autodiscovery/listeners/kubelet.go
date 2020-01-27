@@ -163,8 +163,8 @@ func (l *KubeletListener) createPodService(pod *kubelet.Pod, firstRun bool) {
 	entity := kubelet.PodUIDToEntityName(pod.Metadata.UID)
 
 	// Hosts
-	podIp := pod.Status.PodIP
-	if podIp == "" {
+	podIP := pod.Status.PodIP
+	if podIP == "" {
 		log.Errorf("Unable to get pod %s IP", pod.Metadata.Name)
 	}
 
@@ -187,7 +187,7 @@ func (l *KubeletListener) createPodService(pod *kubelet.Pod, firstRun bool) {
 	svc := KubePodService{
 		entity:        entity,
 		adIdentifiers: []string{entity},
-		hosts:         map[string]string{"pod": podIp},
+		hosts:         map[string]string{"pod": podIP},
 		ports:         ports,
 		creationTime:  crTime,
 	}
@@ -249,11 +249,11 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	}
 
 	// Hosts
-	podIp := pod.Status.PodIP
-	if podIp == "" {
+	podIP := pod.Status.PodIP
+	if podIP == "" {
 		log.Errorf("Unable to get pod %s IP", podName)
 	}
-	svc.hosts = map[string]string{"pod": podIp}
+	svc.hosts = map[string]string{"pod": podIP}
 
 	// Ports
 	var ports []ContainerPort
@@ -368,7 +368,7 @@ func (s *KubeContainerService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *KubeContainerService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.GetTaggerEntity()), tagger.ChecksCardinality)
+	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
@@ -427,7 +427,7 @@ func (s *KubePodService) GetPorts() ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *KubePodService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.GetTaggerEntity()), tagger.ChecksCardinality)
+	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet

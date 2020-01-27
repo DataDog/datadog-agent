@@ -3,13 +3,14 @@ Boostrapping related logic goes here
 """
 import os
 import json
+import sys
 
 from .utils import get_gopath
 
 # Bootstrap dependencies description
 BOOTSTRAP_DEPS = "bootstrap.json"
 BOOTSTRAP_ORDER_KEY = "order"
-BOOTSTRAP_SUPPORTED_KINDS = ["go", "python"]
+BOOTSTRAP_SUPPORTED_KINDS = ["go", "python", "shell"]
 BOOTSTRAP_SUPPORTED_STEPS = ["checkout", "install"]
 
 
@@ -23,7 +24,7 @@ def get_deps(key):
 
     return deps.get(key, {})
 
-def process_deps(ctx, target, version, kind, step, verbose=False):
+def process_deps(ctx, target, version, kind, step, cmd=None, verbose=False):
     """
     Process a dependency target.
 
@@ -58,3 +59,9 @@ def process_deps(ctx, target, version, kind, step, verbose=False):
         # no checkout needed for python deps
         if step == "install":
             ctx.run("pip install{} {}=={}".format(verbosity, target, version))
+    elif kind == "shell":
+        if step == "install":
+            if sys.platform == 'win32':
+                print("shell dependencies currently unsupported on windows please install manually")
+            else:
+                ctx.run("{}".format(cmd), env={'BOOTSTRAPPED_VERSION': version})

@@ -32,10 +32,14 @@ func TestNetIPToAddress(t *testing.T) {
 	a = AddressFromNetIP(net.ParseIP("127.0.0.1"))
 	b = AddressFromNetIP(net.ParseIP("127.0.0.2"))
 	assert.NotEqual(t, a, b)
+	assert.True(t, a.IsLoopback())
+	assert.True(t, b.IsLoopback())
 
 	a = AddressFromNetIP(net.ParseIP("::7f00:35:0:1"))
 	b = AddressFromNetIP(net.ParseIP("::7f00:35:0:0"))
 	assert.NotEqual(t, a, b)
+	assert.False(t, a.IsLoopback())
+	assert.False(t, b.IsLoopback())
 }
 
 func TestNetIPFromAddress(t *testing.T) {
@@ -108,6 +112,7 @@ func TestAddressV6(t *testing.T) {
 	// Should be able to recreate addr from IP string
 	assert.Equal(t, addr, AddressFromString("::7f00:35:0:0"))
 	assert.Equal(t, "::7f00:35:0:0", addr.String())
+	assert.False(t, addr.IsLoopback())
 
 	addr = V6Address(0, 0)
 	// Should be able to recreate addr from bytes alone
@@ -122,6 +127,7 @@ func TestAddressV6(t *testing.T) {
 	// Should be able to recreate addr from IP string
 	assert.Equal(t, addr, AddressFromString("::1"))
 	assert.Equal(t, "::1", addr.String())
+	assert.True(t, addr.IsLoopback())
 
 	addr = V6Address(72059793061183488, 3087860000)
 	// Should be able to recreate addr from bytes alone
@@ -129,4 +135,5 @@ func TestAddressV6(t *testing.T) {
 	// Should be able to recreate addr from IP string
 	assert.Equal(t, addr, AddressFromString("2001:db8::2:1"))
 	assert.Equal(t, "2001:db8::2:1", addr.String())
+	assert.False(t, addr.IsLoopback())
 }

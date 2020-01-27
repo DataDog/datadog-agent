@@ -8,13 +8,20 @@
 package collectors
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
+	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
 const (
@@ -29,17 +36,22 @@ type ECSCollector struct {
 	expire      *taggerutil.Expire
 	lastExpire  time.Time
 	expireFreq  time.Duration
-	ecsUtil     *ecs.Util
+	metaV1      *v1.Client
 	clusterName string
 }
 
 // Detect tries to connect to the ECS agent
 func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	ecsUtil, err := ecs.GetUtil()
+	if ecsutil.IsFargateInstance() {
+		return NoCollection, fmt.Errorf("ECS collector is disabled on Fargate")
+	}
+
+	metaV1, err := ecsmeta.V1()
 	if err != nil {
 		return NoCollection, err
 	}
-	c.ecsUtil = ecsUtil
+
+	c.metaV1 = metaV1
 	c.infoOut = out
 	c.lastExpire = time.Now()
 	c.expireFreq = ecsExpireFreq
@@ -49,10 +61,13 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 		return NoCollection, err
 	}
 
-	c.clusterName, err = ecsUtil.GetClusterName()
+	instance, err := c.metaV1.GetInstance()
 	if err != nil {
 		log.Warnf("Cannot determine ECS cluster name: %s", err)
 	}
+
+	c.clusterName = instance.Cluster
+
 	return FetchOnlyCollection, nil
 }
 
@@ -63,14 +78,22 @@ func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error
 		return nil, nil, nil, nil
 	}
 
-	tasks_list, err := c.ecsUtil.GetTasks()
+	tasks, err := c.metaV1.GetTasks()
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}
-	updates, err := c.parseTasks(tasks_list, cID)
+
+	var updates []*TagInfo
+
+	if config.Datadog.GetBool("ecs_collect_resource_tags_ec2") && ecsutil.HasEC2ResourceTags() {
+		updates, err = c.parseTasks(tasks, cID, addTagsForContainer)
+	} else {
+		updates, err = c.parseTasks(tasks, cID)
+	}
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}
+
 	c.infoOut <- updates
 
 	// Only run the expire process with the most up to date tasks parsed.
@@ -88,6 +111,28 @@ func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error
 	}
 	// container not found in updates
 	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
+}
+
+func addTagsForContainer(containerID string, tags *utils.TagList) {
+	task, err := fetchContainerTaskWithTagsV3(containerID)
+	if err != nil {
+		log.Warnf("Unable to get resource tags for container %s: %s", containerID, err)
+		return
+	}
+	addResourceTags(tags, task.ContainerInstanceTags)
+	addResourceTags(tags, task.TaskTags)
+}
+
+func fetchContainerTaskWithTagsV3(containerID string) (*v3.Task, error) {
+	metaV3, err := ecsmeta.V3(containerID)
+	if err != nil {
+		return nil, fmt.Errorf("unable to initialize client for metadata v3 API: %s", err)
+	}
+	task, err := metaV3.GetTaskWithTags()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task with tags from metadata v3 API: %s", err)
+	}
+	return task, nil
 }
 
 func ecsFactory() Collector {

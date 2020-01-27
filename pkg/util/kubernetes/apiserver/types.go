@@ -14,6 +14,4 @@ type LeaderElectorInterface interface {
 
 const (
 	autoscalerNowHandleMsgEvent = "Autoscaler is now handle by the Cluster-Agent"
-	autoscalerIgnoreMsgEvent    = "Autoscaler is ignored, to many metrics already handled by the Cluster-Agent"
-	autoscalerUnIgnoreMsgEvent  = "Autoscaler will now be processed by the Cluster-Agent"
 )

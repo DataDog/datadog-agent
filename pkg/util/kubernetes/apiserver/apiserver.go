@@ -339,8 +339,8 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 }
 
 // GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on
-func (c *APIClient) GetNodeForPod(namespace, pod_name string) (string, error) {
-	pod, err := c.Cl.CoreV1().Pods(namespace).Get(pod_name, metav1.GetOptions{})
+func (c *APIClient) GetNodeForPod(namespace, podName string) (string, error) {
+	pod, err := c.Cl.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -405,7 +405,7 @@ func getNodeList(cl *APIClient) ([]v1.Node, error) {
 	return nodes.Items, nil
 }
 
-// GetRESTObject allows to retrive a custom resource from the APIserver
+// GetRESTObject allows to retrieve a custom resource from the APIserver
 func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	result := c.Cl.CoreV1().RESTClient().Get().AbsPath(path).Do()
 	if result.Error() != nil {

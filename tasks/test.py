@@ -8,13 +8,14 @@ import fnmatch
 import re
 import operator
 import sys
+import yaml
 
 import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
 from .utils import get_build_flags, get_version
-from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses
+from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
@@ -63,7 +64,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     else:
         tool_targets = test_targets = targets
 
-    build_include = get_default_build_tags() if build_include is None else build_include.split(",")
+    build_include = get_default_build_tags(process=True) if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -71,17 +72,25 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
-    print("--- Linting:")
+    print("--- Linting filenames:")
     lint_filenames(ctx)
+    print("--- Linting licenses:")
+    lint_licenses(ctx)
+
+    # Until all packages whitelisted in .golangci.yml are fixed and remove
+    # from the 'skip-dirs' list we need to keep using the old functions that
+    # lint without build flags (linting some file is better than no linting).
+    print("--- Vetting and linting (legacy):")
+    vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
     fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
     lint(ctx, targets=tool_targets)
-    lint_licenses(ctx)
-    print("--- Vetting:")
-    vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
-    print("--- Misspelling:")
     misspell(ctx, targets=tool_targets)
-    print("--- ineffassigning:")
     ineffassign(ctx, targets=tool_targets)
+
+    # for now we only run golangci_lint on Unix as the Windows env need more work
+    if sys.platform != 'win32':
+        print("--- golangci_lint:")
+        golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
@@ -225,7 +234,8 @@ def lint_releasenote(ctx):
         while True:
             res = requests.get(url)
             files = res.json()
-            if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
+            if any([f['filename'].startswith("releasenotes/notes/") or \
+                    f['filename'].startswith("releasenotes-dca/notes/") for f in files]):
                 break
 
             if 'next' in res.links:
@@ -252,7 +262,8 @@ def lint_releasenote(ctx):
                 while True:
                     res = requests.get(url)
                     files = res.json().get("files", {})
-                    if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
+                    if any([f['filename'].startswith("releasenotes/notes/") or \
+                            f['filename'].startswith("releasenotes-dca/notes/") for f in files]):
                         break
 
                     if 'next' in res.links:
@@ -351,3 +362,38 @@ class TestProfiler:
                 sorted_times = sorted_times[:limit]
             for pkg, time in sorted_times:
                 print("{}s\t{}".format(time, pkg))
+
+@task
+def make_kitchen_gitlab_yml(ctx):
+    """
+    Replaces .gitlab-ci.yml with one containing only the steps needed to run kitchen-tests
+    """
+    with open('.gitlab-ci.yml') as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+
+    data['stages'] = ['package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']
+    for k,v in data.items():
+        if isinstance(v, dict) and v.get('stage', None) not in [None, 'package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']:
+            del data[k]
+        if 'except' in v:
+            del v['except']
+        if 'only' in v:
+            del v['only']
+        if len(v) == 0:
+            del data[k]
+
+    for k,v in data.items():
+        if 'extends' in v:
+            extended = v['extends']
+            if extended not in data:
+                del data[k]
+        if 'needs' in v:
+            needed = v['needs']
+            new_needed = []
+            for n in needed:
+                if n in data:
+                   new_needed.append(n)
+            v['needs'] = new_needed
+
+    with open('.gitlab-ci.yml', 'w') as f:
+        documents = yaml.dump(data, f, default_style='"')

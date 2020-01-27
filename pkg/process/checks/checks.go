@@ -24,4 +24,5 @@ var All = []Check{
 	Container,
 	RTContainer,
 	Connections,
+	Pod,
 }

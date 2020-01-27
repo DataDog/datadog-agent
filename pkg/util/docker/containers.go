@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -91,15 +90,15 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 			// in awsvpc networking mode so we try getting IP address from the
 			// ECS container metadata endpoint and port from inspect.Config.ExposedPorts
 			if networkMode == containers.AwsvpcNetworkMode {
-				ecsContainerMetadataUrl, err := d.getECSMetadataURL(container.ID)
+				ecsContainerMetadataURL, err := d.getECSMetadataURL(container.ID)
 				if err != nil {
 					log.Debugf("Failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", container.ID, err)
 					continue
 				}
 
-				addresses, err := metadata.GetContainerNetworkAddresses(ecsContainerMetadataUrl)
+				addresses, err := GetContainerNetworkAddresses(ecsContainerMetadataURL)
 				if err != nil {
-					log.Errorf("Failed to get container network addresses: %s", err)
+					log.Errorf("Failed to get network addresses for container: %s. Network info will be missing. Error: %s", container.ID, err)
 					continue
 				}
 				container.AddressList = crossIPsWithPorts(addresses, exposedPorts)
@@ -292,7 +291,7 @@ func (d *DockerUtil) parseContainerNetworkAddresses(cID string, ports []types.Po
 			// Add IP to the cached and not exposed ports
 			addrList = append(addrList, containers.NetworkAddress{
 				IP:       IP,
-				Port:     int(addr.Port),
+				Port:     addr.Port,
 				Protocol: addr.Protocol,
 			})
 		}

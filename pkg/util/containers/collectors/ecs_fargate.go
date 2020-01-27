@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
 const (
@@ -23,7 +23,7 @@ type ECSFargateCollector struct{}
 
 // Detect tries to connect to the ECS metadata API
 func (c *ECSFargateCollector) Detect() error {
-	if ecs.IsFargateInstance() {
+	if ecsutil.IsFargateInstance() {
 		return nil
 	}
 	return fmt.Errorf("failed to connect to task metadata API")
@@ -31,12 +31,12 @@ func (c *ECSFargateCollector) Detect() error {
 
 // List gets all running containers
 func (c *ECSFargateCollector) List() ([]*containers.Container, error) {
-	return ecs.ListContainers()
+	return ecsutil.ListContainersInCurrentTask()
 }
 
 // UpdateMetrics updates metrics on an existing list of containers
 func (c *ECSFargateCollector) UpdateMetrics(cList []*containers.Container) error {
-	return ecs.UpdateContainerMetrics(cList)
+	return ecsutil.UpdateContainerMetrics(cList)
 }
 
 func ecsFargateFactory() Collector {

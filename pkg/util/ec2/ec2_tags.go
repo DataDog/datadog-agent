@@ -18,6 +18,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
+// declare these as vars not const to ease testing
+var (
+	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
+)
+
 // GetTags grabs the host tags from the EC2 api
 func GetTags() ([]string, error) {
 	tags := []string{}
@@ -32,7 +37,7 @@ func GetTags() ([]string, error) {
 		return tags, err
 	}
 
-	awsCreds := credentials.NewStaticCredentials(iamParams.AccessKeyId,
+	awsCreds := credentials.NewStaticCredentials(iamParams.AccessKeyID,
 		iamParams.SecretAccessKey,
 		iamParams.Token)
 
@@ -49,7 +54,7 @@ func GetTags() ([]string, error) {
 		Filters: []*ec2.Filter{{
 			Name: aws.String("resource-id"),
 			Values: []*string{
-				aws.String(instanceIdentity.InstanceId),
+				aws.String(instanceIdentity.InstanceID),
 			},
 		}},
 	})
@@ -66,7 +71,7 @@ func GetTags() ([]string, error) {
 
 type ec2Identity struct {
 	Region     string
-	InstanceId string
+	InstanceID string
 }
 
 func getInstanceIdentity() (*ec2Identity, error) {
@@ -92,7 +97,7 @@ func getInstanceIdentity() (*ec2Identity, error) {
 }
 
 type ec2SecurityCred struct {
-	AccessKeyId     string
+	AccessKeyID     string
 	SecretAccessKey string
 	Token           string
 }

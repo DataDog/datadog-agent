@@ -10,9 +10,8 @@ ALL_TAGS = set([
     "apm",
     "clusterchecks",
     "consul",
-    "python",
-    "cri",
     "containerd",
+    "cri",
     "docker",
     "ec2",
     "etcd",
@@ -21,11 +20,13 @@ ALL_TAGS = set([
     "kubeapiserver",
     "kubelet",
     "netcgo", # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
+    "orchestrator",
     "process",
+    "python",
+    "secrets",
     "systemd",
     "zk",
     "zlib",
-    "secrets",
 ])
 
 # PUPPY_TAGS lists the tags needed when building the Puppy Agent
@@ -33,13 +34,18 @@ PUPPY_TAGS = set([
     "zlib",
 ])
 
+PROCESS_ONLY_TAGS = [
+    "orchestrator",
+]
+
 LINUX_ONLY_TAGS = [
-    "docker",
-    "kubelet",
-    "kubeapiserver",
-    "cri",
     "containerd",
+    "cri",
+    "docker",
+    "kubeapiserver",
+    "kubelet",
     "netcgo",
+    "orchestrator",
 ]
 
 REDHAT_AND_DEBIAN_ONLY_TAGS = [
@@ -47,14 +53,14 @@ REDHAT_AND_DEBIAN_ONLY_TAGS = [
 ]
 
 REDHAT_AND_DEBIAN_DIST = [
-    'debian',
-    'ubuntu',
     'centos',
-    'redhat'
+    'debian',
+    'redhat',
+    'ubuntu',
 ]
 
 
-def get_default_build_tags(puppy=False):
+def get_default_build_tags(puppy=False, process=False):
     """
     Build the default list of tags based on the current platform.
 
@@ -66,6 +72,9 @@ def get_default_build_tags(puppy=False):
 
     include = ["all"]
     exclude = [] if sys.platform.startswith('linux') else LINUX_ONLY_TAGS
+    # if not process agent, ignore process only tags
+    if not process:
+        exclude = exclude + PROCESS_ONLY_TAGS
 
     # remove all tags that are only available on debian distributions
     distname = distro.id().lower()

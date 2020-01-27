@@ -512,9 +512,9 @@ func TestParseDockerPort(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	cId := "12345678901234567890123456789012"
+	cID := "12345678901234567890123456789012"
 	cBase := types.ContainerJSONBase{
-		ID:    cId,
+		ID:    cID,
 		Image: "test",
 	}
 
@@ -560,11 +560,11 @@ func TestGetHostname(t *testing.T) {
 				},
 			}
 			// add cj to the cache so svc.GetPorts finds it
-			cacheKey := docker.GetInspectCacheKey(cId, false)
+			cacheKey := docker.GetInspectCacheKey(cID, false)
 			cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 			svc := DockerService{
-				cID: cId,
+				cID: cID,
 			}
 
 			name, err := svc.GetHostname()

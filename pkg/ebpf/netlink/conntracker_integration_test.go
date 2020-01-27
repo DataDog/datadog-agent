@@ -29,8 +29,7 @@ func TestConntracker(t *testing.T) {
 	<-startServerTCP(t, "1.1.1.1:9876")
 	<-startServerUDP(t, net.ParseIP("1.1.1.1"), 5432)
 
-	localAddr := pingTCP(t, "2.2.2.2:5432").(*net.TCPAddr)
-	la := *localAddr
+	localAddr := pingTCP(t, "2.2.2.2:5432")
 
 	trans := ct.GetTranslationForConn(util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port), process.ConnectionType_tcp)
 	require.NotNil(t, trans)
@@ -43,15 +42,7 @@ func TestConntracker(t *testing.T) {
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
 
 	// now dial TCP directly
-	conn, err := net.DialTCP("tcp", &la, &net.TCPAddr{
-		IP:   net.ParseIP("1.1.1.1"),
-		Port: 9876,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, conn)
-	_, err = conn.Write([]byte("hello2"))
-	require.NoError(t, err)
-
+	localAddr = pingTCP(t, "1.1.1.1:9876")
 	time.Sleep(time.Second)
 
 	trans = ct.GetTranslationForConn(util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port), process.ConnectionType_tcp)
@@ -106,7 +97,7 @@ func startServerUDP(t *testing.T, ip net.IP, port int) <-chan struct{} {
 	return ch
 }
 
-func pingTCP(t *testing.T, addr string) net.Addr {
+func pingTCP(t *testing.T, addr string) *net.TCPAddr {
 	conn, err := net.Dial("tcp", addr)
 	require.NoError(t, err)
 
@@ -116,7 +107,7 @@ func pingTCP(t *testing.T, addr string) net.Addr {
 	_, err = conn.Read(bs)
 	require.NoError(t, err)
 
-	return conn.LocalAddr()
+	return conn.LocalAddr().(*net.TCPAddr)
 }
 
 func pingUDP(t *testing.T, ip net.IP, port int) net.Addr {

@@ -99,7 +99,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 		if p == nil {
 			continue
 		}
-		compressedSize += len([]byte(*p))
+		compressedSize += len(*p)
 	}
 	if compressedSize > 3600000 {
 		panic(fmt.Sprintf("expecting no more than 3.6 MB, got %d", compressedSize))

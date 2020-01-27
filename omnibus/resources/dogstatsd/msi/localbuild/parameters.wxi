@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Include>
+  <?define VersionNumber="6.12.0.1" ?>
+  <?define DisplayVersionNumber="6.12.0" ?>
+  <?define UpgradeCode="dd60e9df-487b-415c-ba2f-dba19ddc7ebd" ?>
+  <?define InstallDir="C:/opt/datadog-dogstatsd" ?>
+  <?define InstallFiles="C:/omnibus-ruby/src/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files" ?>
+  <?define BinFiles="c:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin\agent" ?>
+  <?define EtcFiles="C:/omnibus-ruby/src\etc\datadog-dogstatsd" ?>
+  <?define ResourcesDir="c:\dev\go\src\github.com\datadog\datadog-agent\omnibus\resources\dogstatsd\msi"?>
+  <?define IncludePython2= "false" ?>
+  <?define IncludePython3= "true" ?>
+  <?define Platform= "x64" ?>
+</Include>

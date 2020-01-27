@@ -22,10 +22,12 @@ var (
 	// list of handles and where they were found
 	secretOrigin map[string]common.StringSet
 
-	secretBackendCommand       string
-	secretBackendArguments     []string
-	secretBackendTimeout       = 5
-	secretBackendOutputMaxSize = 1024
+	secretBackendCommand   string
+	secretBackendArguments []string
+	secretBackendTimeout   = 5
+
+	// SecretBackendOutputMaxSize defines max size of the JSON output from a secrets reader backend
+	SecretBackendOutputMaxSize = 1024 * 1024
 )
 
 func init() {
@@ -40,7 +42,7 @@ func Init(command string, arguments []string, timeout int, maxSize int) {
 	secretBackendCommand = command
 	secretBackendArguments = arguments
 	secretBackendTimeout = timeout
-	secretBackendOutputMaxSize = maxSize
+	SecretBackendOutputMaxSize = maxSize
 }
 
 type walkerCallback func(string) (string, error)

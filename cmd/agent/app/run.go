@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
@@ -35,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -64,8 +67,7 @@ var (
 
 var (
 	// flags variables
-	runForeground bool
-	pidfilePath   string
+	pidfilePath string
 )
 
 func init() {
@@ -179,6 +181,9 @@ func StartAgent() error {
 
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
+	if config.Datadog.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
 	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
 
 	// Setup healthcheck port
@@ -247,13 +252,15 @@ func StartAgent() error {
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(s, hostname, "agent")
+	metricSamplePool := metrics.NewMetricSamplePool(32)
+	agg := aggregator.InitAggregator(s, metricSamplePool, hostname, "agent")
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		common.DSD, err = dogstatsd.NewServer(agg.GetBufferedChannels())
+		sampleC, eventC, serviceCheckC := agg.GetBufferedChannels()
+		common.DSD, err = dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}

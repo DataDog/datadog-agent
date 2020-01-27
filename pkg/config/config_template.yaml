@@ -354,10 +354,10 @@ api_key:
 #   - <ARGUMENT_1>
 #   - <ARGUMENT_2>
 
-## @param secret_backend_output_max_size - integer - optional - default: 1024
+## @param secret_backend_output_max_size - integer - optional - default: 1048576
 ## The size in bytes of the buffer used to store the command answer (apply to both stdout and stderr)
 #
-# secret_backend_output_max_size: 1024
+# secret_backend_output_max_size: 1048576
 
 ## @param secret_backend_timeout - integer - optional - default: 5
 ## The timeout to execute the command in second
@@ -889,9 +889,11 @@ api_key:
 ###########################
 
 ## @param log_level - string - optional - default: info
-## Minum log level of the Datadog Agent.
+## Minimum log level of the Datadog Agent.
+## Valid log levels are: trace, debug, info, warn, error, critical, and off.
+## Note: When using the 'off' log level, quotes are mandatory.
 #
-# log_level: info
+# log_level: 'info'
 
 ## @param log_file - string - optional
 ## Path of the log file for the Datadog Agent.
@@ -1224,6 +1226,12 @@ api_key:
 ## Agent should look for with ecs_agent_container_name, or force a fixed url here:
 #
 # ecs_agent_url: http://localhost:51678
+
+## @param ecs_collect_resource_tags_ec2 - boolean - optional - default: false
+## The Agent can collect resource tags from the metadata API exposed by the
+## ECS Agent for tasks scheduled with the EC2 launch type.
+#
+# ecs_collect_resource_tags_ec2: false
 
 {{ end -}}
 {{- if .CRI }}

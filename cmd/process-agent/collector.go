@@ -25,6 +25,7 @@ import (
 type checkPayload struct {
 	messages []model.MessageBody
 	endpoint string
+	name     string
 }
 
 // Collector will collect metrics from the local system and ship to the backend.
@@ -89,9 +90,9 @@ func (l *Collector) runCheck(c checks.Check) {
 	updateLastCollectTime(time.Now())
 	messages, err := c.Run(l.cfg, atomic.AddInt32(&l.groupID, 1))
 	if err != nil {
-		log.Criticalf("Unable to run check '%s': %s", c.Name(), err)
+		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 	} else {
-		l.send <- checkPayload{messages, c.Endpoint()}
+		l.send <- checkPayload{messages, c.Endpoint(), c.Name()}
 		// update proc and container count for info
 		updateProcContainerCount(messages)
 		if !c.RealTime() {
@@ -113,7 +114,11 @@ func (l *Collector) run(exit chan bool) {
 	for _, e := range l.cfg.APIEndpoints {
 		eps = append(eps, e.Endpoint.String())
 	}
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, l.cfg.EnabledChecks)
+	orchestratorEps := make([]string, 0, len(l.cfg.OrchestratorEndpoints))
+	for _, e := range l.cfg.OrchestratorEndpoints {
+		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
+	}
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
 
 	go util.HandleSignals(exit)
 	heartbeat := time.NewTicker(15 * time.Second)
@@ -132,7 +137,7 @@ func (l *Collector) run(exit chan bool) {
 					<-l.send
 				}
 				for _, m := range payload.messages {
-					l.postMessage(payload.endpoint, m)
+					l.postMessage(payload.endpoint, payload.name, m)
 				}
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
@@ -176,7 +181,7 @@ func (l *Collector) run(exit chan bool) {
 	<-exit
 }
 
-func (l *Collector) postMessage(checkPath string, m model.MessageBody) {
+func (l *Collector) postMessage(checkPath string, checkName string, m model.MessageBody) {
 	msgType, err := model.DetectMessageType(m)
 	if err != nil {
 		log.Errorf("Unable to detect message type: %s", err)
@@ -196,14 +201,15 @@ func (l *Collector) postMessage(checkPath string, m model.MessageBody) {
 	containerCount := getContainerCount(m)
 
 	responses := make(chan postResponse)
-	for _, ep := range l.cfg.APIEndpoints {
+	endpoints := l.endpointsForCheck(checkName)
+	for _, ep := range endpoints {
 		go l.postToAPI(ep, checkPath, body, responses, containerCount)
 	}
 
 	// Wait for all responses to come back before moving on.
-	statuses := make([]*model.CollectorStatus, 0, len(l.cfg.APIEndpoints))
-	for i := 0; i < len(l.cfg.APIEndpoints); i++ {
-		url := l.cfg.APIEndpoints[i].Endpoint.String()
+	statuses := make([]*model.CollectorStatus, 0, len(endpoints))
+	for i := 0; i < len(endpoints); i++ {
+		url := endpoints[i].Endpoint.String()
 		res := <-responses
 		if res.err != nil {
 			log.Error(res.err)
@@ -277,8 +283,7 @@ func errResponse(format string, a ...interface{}) postResponse {
 }
 
 func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, containerCount int) {
-	endpoint.Endpoint.Path = checkPath
-	url := endpoint.Endpoint.String()
+	url := endpoint.GetCheckURL(checkPath)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
 		responses <- errResponse("could not create request to %s: %s", url, err)
@@ -322,6 +327,13 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 		responses <- errResponse("could not decode message from %s: %s", url, err)
 	}
 	responses <- postResponse{r, err}
+}
+
+func (l *Collector) endpointsForCheck(checkName string) []config.APIEndpoint {
+	if checkName == checks.Pod.Name() {
+		return l.cfg.OrchestratorEndpoints
+	}
+	return l.cfg.APIEndpoints
 }
 
 const (

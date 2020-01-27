@@ -27,22 +27,9 @@ func (c *TestCheck) Stop()                                                      
 func (c *TestCheck) ID() check.ID                                               { return check.ID(c.String()) }
 func (c *TestCheck) GetWarnings() []error                                       { return []error{} }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error)                  { return make(map[string]int64), nil }
+func (c *TestCheck) IsTelemetryEnabled() bool                                   { return false }
 
 var initialMinAllowedInterval = minAllowedInterval
-
-// wait 1s for a predicate function to return true, use polling
-// instead of a giant sleep.
-// predicate f must return true if the desired condition is met
-func consistently(f func() bool) bool {
-	for i := 0; i < 100; i++ {
-		if f() {
-			return true
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	// condition was not met during the wait period
-	return false
-}
 
 func consume(c chan check.Check, stop chan bool) {
 	for {

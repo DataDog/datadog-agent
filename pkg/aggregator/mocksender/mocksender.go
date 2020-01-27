@@ -19,7 +19,7 @@ import (
 func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
 	// The MockSender will be injected in the corecheck via the aggregator
-	aggregator.InitAggregatorWithFlushInterval(nil, "", "", 1*time.Hour)
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", "", 1*time.Hour)
 	aggregator.SetSender(mockSender, id)
 
 	return mockSender
