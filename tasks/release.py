@@ -156,7 +156,7 @@ def _stringify_version(version_dict):
         .format(version_dict["major"],
                 version_dict["minor"],
                 version_dict["patch"])
-    if version_dict["rc"] is not 0:
+    if version_dict["rc"] != 0:
         version = "{}-rc.{}".format(version, version_dict["rc"])
     return version
 
@@ -296,7 +296,7 @@ def create_new_version(
 
     if not integration_version:
         integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
-        if integration_version["rc"] is not 0:
+        if integration_version["rc"] != 0:
             print("ERROR: Integration-Core tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
             #return Exit(code=1)
         integration_version = _stringify_version(integration_version)
@@ -304,7 +304,7 @@ def create_new_version(
 
     if not omnibus_software_version:
         omnibus_software_version = _get_highest_repo_version(auth, "omnibus-software", highest_version, version_re)
-        if omnibus_software_version["rc"] is not 0:
+        if omnibus_software_version["rc"] != 0:
             print("ERROR: Omnibus-Software tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
             #return Exit(code=1)
         omnibus_software_version = _stringify_version(omnibus_software_version)
