@@ -33,7 +33,7 @@ var (
 		nil, "Dogstatsd UDS origin detection error count")
 
 	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
-		[]string{"state"}, "Dogstatsd UDS packets count")
+		nil, "Dogstatsd UDS packets bytes")
 )
 
 func init() {
@@ -167,7 +167,7 @@ func (l *UDSListener) Listen() {
 		tlmUDSPackets.Inc("ok")
 
 		udsBytes.Add(int64(n))
-		tlmUDPPacketsBytes.Add(float64(n))
+		tlmUDSPacketsBytes.Add(float64(n))
 		packet.Contents = packet.buffer[:n]
 
 		// packetsBuffer handles the forwarding of the packets to the dogstatsd server intake channel
