@@ -23,7 +23,7 @@ To build the Agent you need:
  * Python 2.7 or 3.x along with development libraries.
  * Python dependencies. You may install these with `pip install -r requirements.txt`
    This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
- * CMake version 3.12 or later
+ * CMake version 3.12 or later and a C++ compiler
 
 **Note:** you may want to use a python virtual environment to avoid polluting your
       system-wide python environment with the agent build/dev dependencies. You can
@@ -46,19 +46,16 @@ To start working on the Agent, you can build the `master` branch:
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
 3. Install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-4. Build the `rtloader` dependency with `invoke rtloader.build && invoke
-   rtloader.install`. You will need CMake installed and a C++ compiler for this
-   to work.
-   `rtloader` is in charge of loading and running Python. By default `rtloader`
-   will be built for Python2, but you can choose which versions of Python you want
+4. Create a development `datadog.yaml` configuration file in `dev/dist/datadog.yaml`, containing a valid API key: `api_key: <API_KEY>`
+5. Build the agent with `invoke agent.build --build-exclude=systemd`. 
+   By default the agent will be built for Python3, but you can choose which versions of Python you want
    to support:
-   - `invoke rtloader.build -p 2` for Python2 only
-   - `invoke rtloader.build -p 3` for Python3 only
-   - `invoke rtloader.build -p 2,3` for both Python2 and Python3
-5. Create a development `datadog.yaml` configuration file in `dev/dist/datadog.yaml`, containing a valid API key: `api_key: <API_KEY>`
-6. Build the agent with `invoke agent.build --build-exclude=systemd`. You can
-   specify a custom Python location for the agent (useful when using
+   - `invoke agent.build --python-runtimes 2` for Python2 only
+   - `invoke agent.build --python-runtimes 3` for Python3 only
+   - `invoke agent.build --python-runtimes 2,3` for both Python2 and Python3
+  You can specify a custom Python location for the agent (useful when using
    virtualenvs): `invoke agent.build
+   --python-runtimes 2,3
    --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv2
    --python-home-3=$GOPATH/src/github.com/DataDog/datadog-agent/venv3`.
   Running `invoke agent.build`:
