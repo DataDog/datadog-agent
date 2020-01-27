@@ -22,6 +22,7 @@ from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
 from .rtloader import build as rtloader_build
 from .rtloader import install as rtloader_install
+from .rtloader import clean as rtloader_clean
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -442,6 +443,8 @@ def clean(ctx):
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/agent")
 
+    print("Cleaning rtloader")
+    rtloader_clean(ctx)
 
 @task
 def version(ctx, url_safe=False, git_sha_length=7, major_version='7'):
