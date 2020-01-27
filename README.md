@@ -62,6 +62,9 @@ To start working on the Agent, you can build the `master` branch:
     * Discards any changes done in `bin/agent/dist`.
     * Builds the Agent and writes the binary to `bin/agent/agent`.
     * Copies files from `dev/dist` to `bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/master/dev/dist/README.md` for more information.
+  If you built an older version of the agent, you may have the error `make: *** No targets specified and no makefile found.  Stop.`.
+  To solve the issue, you should clean the folder `rtloader` with the command `cd rtloader && git clean -fxd`. This command remove all git untracked files in `rtloader` folder! 
+  
 
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
