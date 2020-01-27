@@ -14,7 +14,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
@@ -81,7 +81,7 @@ PUPPY_CORECHECKS = [
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
           embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
-          with_both_python=False, major_version='7', python_runtimes='3', arch='x64'):
+          major_version='7', python_runtimes='3', arch='x64'):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -95,8 +95,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
             rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3,
-            with_both_python=with_both_python, major_version=major_version,
-            python_runtimes=python_runtimes, arch=arch)
+            major_version=major_version, python_runtimes=python_runtimes, arch=arch)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -111,11 +110,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
                 build_exclude.append(ex)
 
     if sys.platform == 'win32':
-        python_runtimes = python_runtimes.split(',')
-
-        py_runtime_var = "PY3_RUNTIME"
-        if '2' in python_runtimes:
-            py_runtime_var = "PY2_RUNTIME"
+        py_runtime_var = get_win_py_runtime_var(python_runtimes)
 
         windres_target = "pe-x86-64"
 
@@ -177,7 +172,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     args = {
         "go_file": "./pkg/config/render_config.go",
-        "build_type": "agent-py2py3" if with_both_python else "agent-py3",
+        "build_type": "agent-py2py3" if has_both_python(python_runtimes) else "agent-py3",
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": "./cmd/agent/dist/datadog.yaml",
     }

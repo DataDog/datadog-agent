@@ -50,9 +50,18 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
+def has_both_python(python_runtimes):
+    python_runtimes = python_runtimes.split(',')
+    return '2' in python_runtimes and '3' in python_runtimes
+
+def get_win_py_runtime_var(python_runtimes):
+    python_runtimes = python_runtimes.split(',')
+
+    return "PY2_RUNTIME" if '2' in python_runtimes else "PY3_RUNTIME"
+
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
                     rtloader_root=None, python_home_2=None, python_home_3=None,
-                    with_both_python=False, major_version='7', python_runtimes='3', arch="x64"):
+                    major_version='7', python_runtimes='3', arch="x64"):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -80,7 +89,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
 
     # If we're not building with both Python, we want to force the use of DefaultPython
-    if not with_both_python:
+    if not has_both_python(python_runtimes):
         ldflags += "-X {}/pkg/config.ForceDefaultPython=true ".format(REPO_PATH)
 
     ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python(python_runtimes))
