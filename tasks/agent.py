@@ -20,6 +20,8 @@ from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS,
 from .go import deps
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
+from .rtloader import build as rtloader_build
+from .rtloader import install as rtloader_install
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -81,7 +83,7 @@ PUPPY_CORECHECKS = [
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
           embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
-          with_both_python=False, major_version='7', arch='x64'):
+          with_both_python=False, major_version='7', arch='x64', exclude_rtloader=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -90,6 +92,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         inv agent.build --build-exclude=systemd
     """
 
+    if not exclude_rtloader:
+        rtloader_build(ctx)
+        rtloader_install(ctx)
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
