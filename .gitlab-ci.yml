@@ -43,6 +43,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
   WIN_S3_BUCKET: dd-agent-mstesting
@@ -67,10 +68,10 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly
-  DATADOG_AGENT_BUILDIMAGES: v2103055-16e77bf
+  DATADOG_AGENT_BUILDIMAGES: v2115378-0233ba1
   DATADOG_AGENT_BUILDERS:  v2028983-aee8904
   DATADOG_AGENT_WINBUILDIMAGES: v2021523-34e07eb
-  DATADOG_AGENT_ARMBUILDIMAGES: v2097098-09b219b
+  DATADOG_AGENT_ARMBUILDIMAGES: v2115378-0233ba1
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -258,7 +259,7 @@ run_tests_ebpf:
   # Currently this is using the ebpf image so system-probe tests run in the same  Go version used to build it (1.10).
   # Note that this image isn't used to build the system-probe: when building it, we specify Go version to use
   # through an argument to the system-probe.build invoke task.
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
@@ -509,6 +510,32 @@ run_dogstatsd_arm_size_test:
   script:
     - inv -e dogstatsd.size-test --skip-build
 
+.system-probe_build_common:
+  before_script:
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only
+  script:
+    - inv -e system-probe.build
+    - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
+
+build_system-probe-x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
+  needs: ["run_tests_deb-x64-py3"]
+  tags: [ "runner:main", "size:large" ]
+  extends: .system-probe_build_common
+  variables:
+    ARCH: amd64
+
+build_system-probe-arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  needs: ["run_dep_check_lock"]
+  tags: ["runner:docker-arm", "platform:arm64"]
+  extends: .system-probe_build_common
+  variables:
+    ARCH: arm64
+
 #
 # package_build
 #
@@ -518,6 +545,8 @@ run_dogstatsd_arm_size_test:
     - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Retrieve the system-probe from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.$PACKAGE_ARCH $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
@@ -541,7 +570,7 @@ agent_deb-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_deb-x64-py2", "run_tests_deb-x64-py3"]
+  needs: ["run_tests_deb-x64-py2", "run_tests_deb-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -561,7 +590,7 @@ agent_deb-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_deb-x64-py3"]
+  needs: ["run_tests_deb-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -579,7 +608,7 @@ agent_deb-x64-a7:
 
 agent_deb-arm-a6:
   stage: package_build
-  needs: ["run_dep_check_lock"]
+  needs: ["run_dep_check_lock", "build_system-probe-arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
@@ -597,7 +626,7 @@ agent_deb-arm-a6:
 
 agent_deb-arm-a7:
   stage: package_build
-  needs: ["run_dep_check_lock"]
+  needs: ["run_dep_check_lock", "build_system-probe-arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
@@ -618,7 +647,7 @@ puppy_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["build_puppy_agent-deb_x64"]
+  needs: ["build_puppy_agent-deb_x64", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
@@ -628,6 +657,8 @@ puppy_deb-x64:
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Retrieve the system-probe from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.amd64 $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
@@ -658,6 +689,8 @@ puppy_deb-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
+    # Retrieve the system-probe from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.$PACKAGE_ARCH $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
@@ -679,11 +712,12 @@ agent_rpm-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3"]
+  needs: ["run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
+    PACKAGE_ARCH: amd64
     CONDA_ENV: ddpy3
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
@@ -697,11 +731,12 @@ agent_rpm-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["run_tests_rpm-x64-py3"]
+  needs: ["run_tests_rpm-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
+    PACKAGE_ARCH: amd64
     CONDA_ENV: ddpy3
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
@@ -710,15 +745,16 @@ agent_rpm-x64-a7:
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_rpm
 
-  # build Agent package for rpm-x64
+  # build Agent package for rpm-arm64
 agent_rpm-arm-a6:
   stage: package_build
-  needs: ["run_dep_check_lock"]
+  needs: ["run_dep_check_lock", "build_system-probe-arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
+    PACKAGE_ARCH: arm64
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
@@ -726,15 +762,16 @@ agent_rpm-arm-a6:
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_rpm
 
-# build Agent package for rpm-x64
+# build Agent package for rpm-arm64
 agent_rpm-arm-a7:
   stage: package_build
-  needs: ["run_dep_check_lock"]
+  needs: ["run_dep_check_lock", "build_system-probe-arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
+    PACKAGE_ARCH: arm64
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
@@ -755,6 +792,8 @@ agent_rpm-arm-a7:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
+    # Retrieve the system-probe from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.$PACKAGE_ARCH $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
@@ -777,12 +816,14 @@ agent_rpm-arm-a7:
 # build Agent package for suse-x64
 agent_suse-x64-a6:
   stage: package_build
+  needs: ["run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
+    PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
     - inv -e deps --verbose --dep-vendor-only
@@ -792,12 +833,14 @@ agent_suse-x64-a6:
 # build Agent package for suse-x64
 agent_suse-x64-a7:
   stage: package_build
+  needs: ["run_tests_rpm-x64-py3", "build_system-probe-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
+    PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
     - inv -e deps --verbose --dep-vendor-only
