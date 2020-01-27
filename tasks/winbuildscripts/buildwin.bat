@@ -13,12 +13,12 @@ if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~3
 REM don't use `OUTDIR` as an environment variable. It will confuse the VC build
 set PKG_OUTDIR=c:\mnt\build-out\%CI_JOB_ID%
 
-set OMNIBUS_BUILD="agent.omnibus-build"
-set OMNIBUS_ARGS="--python-runtimes %PY_RUNTIMES%"
+set OMNIBUS_BUILD=agent.omnibus-build
+set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
 
-if "%OMNIBUS_TARGET%" == "puppy" set OMNIBUS_ARGS="%OMNIBUS_ARGS% --puppy"
-if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_BUILD="dogstatsd.omnibus-build" && set OMNIBUS_ARGS=""
-if "%OMNIBUS_TARGET%" == "cf_buildpack" set OMNIBUS_ARGS="%OMNIBUS_ARGS% --cf-windows"
+if "%OMNIBUS_TARGET%" == "puppy" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --puppy
+if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_BUILD=dogstatsd.omnibus-build && set OMNIBUS_ARGS=
+if "%OMNIBUS_TARGET%" == "cf_buildpack" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --cf-windows
 
 mkdir \dev\go\src\github.com\DataDog\datadog-agent 
 if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 1
@@ -26,6 +26,7 @@ cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 2
 xcopy /e/s/h/q c:\mnt\*.* || exit /b 3
 inv -e deps --verbose --dep-vendor-only --no-checks || exit /b 4
 
+@echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 5
 
 dir \omnibus\pkg
