@@ -111,7 +111,7 @@ def install(ctx):
 
 @task
 def test(ctx):
-    ctx.run("make -C {}/test run".format(get_rtloader_path()))
+    ctx.run("make -C {}/test run".format(get_rtloader_build_path()))
 
 @task
 def format(ctx, raise_if_changed=False):
