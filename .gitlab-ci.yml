@@ -633,7 +633,7 @@ puppy_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --python-runtimes 3 --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-puppy*_amd64.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb $S3_ARTIFACTS_URI/datadog-puppy_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -909,7 +909,6 @@ windows_puppy_msi_x64-a7:
   extends: .windows_puppy_agent_base
   variables:
     ARCH: "x64"
-    PYTHON_RUNTIMES: '3'
     AGENT_MAJOR_VERSION: '7'
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
@@ -919,7 +918,6 @@ windows_puppy_msi_x86-a7:
   extends: .windows_puppy_agent_base
   variables:
     ARCH: "x86"
-    PYTHON_RUNTIMES: '3'
     AGENT_MAJOR_VERSION: '7'
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7

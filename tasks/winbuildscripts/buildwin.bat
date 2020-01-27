@@ -16,7 +16,7 @@ set PKG_OUTDIR=c:\mnt\build-out\%CI_JOB_ID%
 set OMNIBUS_BUILD=agent.omnibus-build
 set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
 
-if "%OMNIBUS_TARGET%" == "puppy" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --puppy
+if "%OMNIBUS_TARGET%" == "puppy" set OMNIBUS_ARGS=--puppy
 if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_BUILD=dogstatsd.omnibus-build && set OMNIBUS_ARGS=
 if "%OMNIBUS_TARGET%" == "cf_buildpack" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --cf-windows
 
