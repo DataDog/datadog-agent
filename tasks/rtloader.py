@@ -10,6 +10,9 @@ def get_rtloader_path():
     here = os.path.abspath(os.path.dirname(__file__))
     return os.path.abspath(os.path.join(here, '..', 'rtloader'))
 
+def run_make_command(ctx, command=""):
+    ctx.run("make -C {} {}".format(get_rtloader_path(), command))
+
 def get_cmake_cache_path(rtloader_path):
     return os.path.join(rtloader_path, "CMakeCache.txt")
 
@@ -67,7 +70,7 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch
         cmake_args += " -DARCH_I386=ON"
 
     ctx.run("cd {} && cmake {} .".format(rtloader_path, cmake_args))
-    ctx.run("make -C {}".format(rtloader_path))
+    run_make_command(ctx)
 
 @task
 def clean(ctx):
@@ -85,7 +88,7 @@ def clean(ctx):
 
 @task
 def install(ctx):
-    ctx.run("make -C {} install".format(get_rtloader_path()))
+    run_make_command(ctx, "install")
 
 @task
 def test(ctx):
@@ -93,7 +96,7 @@ def test(ctx):
 
 @task
 def format(ctx, raise_if_changed=False):
-    ctx.run("make -C {} clang-format".format(get_rtloader_path()))
+    run_make_command(ctx, "clang-format")
 
     if raise_if_changed:
         changed_files = [line for line in ctx.run("git ls-files -m rtloader").stdout.strip().split("\n") if line]
