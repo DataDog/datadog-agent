@@ -2,6 +2,7 @@
 RtLoader namespaced tasks
 """
 import os
+import shutil
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -10,8 +11,16 @@ def get_rtloader_path():
     here = os.path.abspath(os.path.dirname(__file__))
     return os.path.abspath(os.path.join(here, '..', 'rtloader'))
 
+def get_rtloader_build_path():
+    return os.path.join(get_rtloader_path(), 'build')
+
+def get_dev_path():
+    here = os.path.abspath(os.path.dirname(__file__))
+    return os.path.abspath(os.path.join(here, '..', 'dev'))
+
 def run_make_command(ctx, command=""):
-    ctx.run("make -C {} {}".format(get_rtloader_path(), command))
+    ctx.run("make -C {} {}".format(get_rtloader_build_path(), command))
+
 
 def get_cmake_cache_path(rtloader_path):
     return os.path.join(rtloader_path, "CMakeCache.txt")
@@ -38,10 +47,7 @@ def clear_cmake_cache(rtloader_path, settings):
 
 @task
 def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch="x64"):
-    rtloader_path = get_rtloader_path()
-
-    here = os.path.abspath(os.path.dirname(__file__))
-    dev_path = os.path.join(here, '..', 'dev')
+    dev_path = get_dev_path()
 
     if cmake_options.find("-G") == -1:
         cmake_options += " -G \"Unix Makefiles\""
@@ -60,8 +66,10 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch
     if '3' not in python_runtimes:
         settings["DISABLE_PYTHON3:BOOL"] = "ON"
 
+    rtloader_build_path = get_rtloader_build_path()
+
     # clear cmake cache if settings have changed since the last build
-    clear_cmake_cache(rtloader_path, settings)
+    clear_cmake_cache(rtloader_build_path, settings)
 
     for option, value in settings.items():
         cmake_args += " -D{}={} ".format(option, value)
@@ -69,7 +77,13 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch
     if arch == "x86":
         cmake_args += " -DARCH_I386=ON"
 
-    ctx.run("cd {} && cmake {} .".format(rtloader_path, cmake_args))
+    # Perform "out of the source build" in `rtloader_build_path` folder. 
+    try:
+        os.makedirs(rtloader_build_path)
+    except FileExistsError:
+        pass
+
+    ctx.run("cd {} && cmake {} {}".format(rtloader_build_path, cmake_args, get_rtloader_path()))
     run_make_command(ctx)
 
 @task
@@ -78,13 +92,18 @@ def clean(ctx):
     Clean up CMake's cache.
     Necessary when the paths to some libraries found by CMake (for example Python) have changed on the system.
     This command does not clean all the temporary artifacts created by CMake.
-    """
-    cmake_cache_path = get_cmake_cache_path(get_rtloader_path())
-    if os.path.exists(cmake_cache_path):
-        os.remove(cmake_cache_path)
-        print("Successfully cleaned '{}'".format(cmake_cache_path))
-    else:
-        print("Nothing to clean up")
+    """    
+    dev_path = get_dev_path()
+    include_path = os.path.join(dev_path, "include")
+    lib_path = os.path.join(dev_path, "lib")
+    rtloader_build_path = get_rtloader_build_path()
+
+    for p in [include_path, lib_path, rtloader_build_path]:
+        try:
+            shutil.rmtree(p)
+            print("Successfully cleaned '{}'".format(p))
+        except FileNotFoundError:
+            print("Nothing to clean up '{}'".format(p))
 
 @task
 def install(ctx):
