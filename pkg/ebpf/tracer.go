@@ -163,7 +163,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 
 		if !util.IsRootNS(config.ProcRoot) {
-			log.Warn("system-probe is not running on the root network namespace which might cause partial DNS results.")
+			log.Warn("system-probe is not running on the root network namespace, which is usually caused by running the " +
+				"system-probe in a container without using the host network. in this mode, you may see partial DNS resolution.")
 		}
 	}
 
