@@ -117,11 +117,11 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
-	criEntityId := "container_id://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
+	criEntityID := "container_id://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
 	criContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
-				ID:    criEntityId,
+				ID:    criEntityID,
 				Image: "sha256:0f006d265944c984e05200fab1c14ac54163cbcd4e8ae0ba3b35eb46fc559823",
 				Name:  "redis-master",
 			},
@@ -504,7 +504,7 @@ func TestParsePods(t *testing.T) {
 			labelsAsTags: map[string]string{},
 			expectedInfo: []*TagInfo{{
 				Source: "kubelet",
-				Entity: criEntityId,
+				Entity: criEntityID,
 				LowCardTags: []string{
 					"kube_container_name:redis-master",
 					"kube_deployment:redis-master",

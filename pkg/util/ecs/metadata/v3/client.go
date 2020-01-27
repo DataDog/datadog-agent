@@ -24,7 +24,6 @@ const (
 	// Metadata v3 API paths
 	taskMetadataPath         = "/task"
 	taskMetadataWithTagsPath = "/taskWithTags"
-	containerStatsPath       = "/stats/"
 
 	// Default client configuration
 	endpointTimeout = 500 * time.Millisecond

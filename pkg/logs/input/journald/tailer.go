@@ -118,9 +118,8 @@ func (t *Tailer) seek(cursor string) error {
 		// must skip one entry since the cursor points to the last committed one.
 		_, err = t.journal.NextSkip(1)
 		return err
-	} else {
-		return t.journal.SeekTail()
 	}
+	return t.journal.SeekTail()
 }
 
 // tail tails the journal until a message stop is received.

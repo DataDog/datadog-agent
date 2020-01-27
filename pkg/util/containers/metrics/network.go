@@ -33,7 +33,7 @@ func (ns ContainerNetStats) SumInterfaces() *InterfaceNetStats {
 func CollectNetworkStats(pid int, networks map[string]string) (ContainerNetStats, error) {
 	netStats := ContainerNetStats{}
 
-	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "dev")
+	procNetFile := hostProc(strconv.Itoa(pid), "net", "dev")
 	if !pathExists(procNetFile) {
 		log.Debugf("Unable to read %s for pid %d", procNetFile, pid)
 		return netStats, nil
@@ -88,7 +88,7 @@ func CollectNetworkStats(pid int, networks map[string]string) (ContainerNetStats
 // DetectNetworkDestinations lists all the networks available
 // to a given PID and parses them in NetworkInterface objects
 func DetectNetworkDestinations(pid int) ([]NetworkDestination, error) {
-	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "route")
+	procNetFile := hostProc(strconv.Itoa(pid), "net", "route")
 	if !pathExists(procNetFile) {
 		return nil, fmt.Errorf("%s not found", procNetFile)
 	}

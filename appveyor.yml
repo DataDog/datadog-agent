@@ -10,6 +10,7 @@ environment:
   GOPATH: C:\gopath
   GOVERSION: '1.12.9'
   GOROOT: C:\go_1.12.9
+  GOLANGCI_LINT_VERSION: "1.21.0"
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64
   Python3_ROOT_DIR: C:\Python37-x64
@@ -33,6 +34,11 @@ install:
   - ps: '& 7z -o"c:\tmp\go_$ENV:GOVERSION" x c:\tmp\godl.zip'
   - move "c:\tmp\go_%GOVERSION%\go" %GOROOT%
   - set PATH=%GOROOT%\bin;%PATH%
+
+  # installing golangci-lint
+  - ps: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://github.com/golangci/golangci-lint/releases/download/v1.21.0/golangci-lint-$ENV:GOLANGCI_LINT_VERSION-windows-amd64.zip", "c:\tmp\golangci-lint.zip")
+  - ps: '& 7z -o"c:\tmp\golangci-lint\" x c:\tmp\golangci-lint.zip'
+  - move "c:\tmp\golangci-lint\golangci-lint-%GOLANGCI_LINT_VERSION%-windows-amd64\golangci-lint.exe" %GOROOT%\bin
 cache:
   - '%GOPATH%\bin'
   - '%LOCALAPPDATA%\pip\Cache'

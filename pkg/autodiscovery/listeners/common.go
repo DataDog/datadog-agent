@@ -16,7 +16,6 @@ import (
 const (
 	newIdentifierLabel         = "com.datadoghq.ad.check.id"
 	legacyIdentifierLabel      = "com.datadoghq.sd.check.id"
-	dockerADTemplateLabelName  = "com.datadoghq.ad.instances"
 	dockerADTemplateChechNames = "com.datadoghq.ad.check_names"
 )
 
