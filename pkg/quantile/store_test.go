@@ -1,7 +1,9 @@
 package quantile
 
 import (
+	"log"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 )
@@ -25,17 +27,34 @@ func buildStore(t *testing.T, dsl string) *sparseStore {
 	return s
 }
 
+func memSliceRep() int {
+	var ptr uintptr
+	ptrSize := int(unsafe.Sizeof(ptr))
+	switch ptrSize {
+	case 8: // 64 bit
+		return 8
+	case 4: // 32 bit
+		return 4
+	default:
+		log.Panicf("This architecture is not supported: %d", ptrSize)
+		return 0
+	}
+}
+
 func TestStore(t *testing.T) {
 	t.Run("MemSize", func(t *testing.T) {
-		// empty store
-		const (
+		var emptySize int
+		if memSliceRep() == 4 {
+			emptySize = 16
+		} else {
 			emptySize = 32
-			binSize   = 4
-		)
+		}
+		const binSize = 4
+
 		s := buildStore(t, "")
 		s.bins = nil
-
 		used, allocated := s.MemSize()
+
 		require.Equal(t, emptySize, used)
 		require.Equal(t, emptySize, allocated)
 
