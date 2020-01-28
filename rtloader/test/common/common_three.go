@@ -2,9 +2,6 @@
 
 package testcommon
 
-// #cgo CFLAGS: -I../../include
-// #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-// #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
 // #include <datadog_agent_rtloader.h>
 //
 import "C"
