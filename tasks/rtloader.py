@@ -3,6 +3,8 @@ RtLoader namespaced tasks
 """
 import os
 import shutil
+import os
+import errno
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -80,8 +82,11 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch
     # Perform "out of the source build" in `rtloader_build_path` folder. 
     try:
         os.makedirs(rtloader_build_path)
-    except FileExistsError:
-        pass
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            pass
+        else:
+            raise
 
     ctx.run("cd {} && cmake {} {}".format(rtloader_build_path, cmake_args, get_rtloader_path()))
     run_make_command(ctx)
