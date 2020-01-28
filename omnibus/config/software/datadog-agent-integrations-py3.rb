@@ -100,7 +100,7 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} install wheel==0.30.0"
+    command "#{pip} install wheel==0.34.1"
     command "#{pip} install pip-tools==4.2.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
