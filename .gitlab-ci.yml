@@ -182,7 +182,7 @@ empty:
     - mkdir /tmp/bcc/build
     - cd /tmp/bcc/build
     - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc
-    - make #-j "$(nproc)"
+    - make -j 4 #"$(nproc)"
     - make install
     - cd /opt/libbcc
     - tar cvaf /tmp/libbcc.tar.xz .
@@ -601,10 +601,6 @@ build_system-probe-arm64:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Retrieve the system-probe from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.$PACKAGE_ARCH $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
-    # Retrieve libbcc from S3
-    - mkdir -p /opt/datadog-agent/embedded
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$PACKAGE_ARCH.tar.xz /tmp/libbcc.tar.xz
-    - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
@@ -749,10 +745,6 @@ puppy_deb-x64:
     - set -x
     # Retrieve the system-probe from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.$PACKAGE_ARCH $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
-    # Retrieve libbcc from S3
-    - mkdir -p /opt/datadog-agent/embedded
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$PACKAGE_ARCH.tar.xz /tmp/libbcc.tar.xz
-    - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
@@ -856,10 +848,6 @@ agent_rpm-arm-a7:
     - set -x
     # Retrieve the system-probe from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.$PACKAGE_ARCH $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
-    # Retrieve libbcc from S3
-    - mkdir -p /opt/datadog-agent/embedded
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$PACKAGE_ARCH.tar.xz /tmp/libbcc.tar.xz
-    - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'

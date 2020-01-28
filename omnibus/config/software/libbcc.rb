@@ -14,8 +14,8 @@ name 'bcc'
 # relative_path 'bcc'
 
 build do
-  command "cp -R /opt/libbcc/* #{install_dir}/embedded"
-  command "cp $(ldd /opt/libbcc/lib/libbcc.so | awk '$1 ~ /^libelf\.so/ {system(\"dirname \" $3)}')/libelf* #{install_dir}/embedded/lib"
+  command "#{ENV['S3_CP_CMD']} #{ENV['S3_ARTIFACTS_URI']}/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz"
+  command 'tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded'
   # command "cmake . -DCMAKE_INSTALL_PREFIX=#{install_dir}/embedded -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -ltinfo' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -ltinfo'"
   # make "-j #{workers}"
   # make 'install'
