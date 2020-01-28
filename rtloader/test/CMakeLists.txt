@@ -18,12 +18,13 @@ set(LIBS_PATH "${PROJECT_BINARY_DIR}/rtloader/:${PROJECT_BINARY_DIR}/two/:${PROJ
 set (CGO_CFLAGS \"-I${CMAKE_SOURCE_DIR}/include -I${CMAKE_SOURCE_DIR}/common -Wno-deprecated-declarations\")
 
 if (WIN32)
-    set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/rtloader -L${PROJECT_BINARY_DIR}/three/ -ldatadog-agent-rtloader -lstdc++ -static\")
+    set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -lstdc++ -static)
 else()
-    set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/rtloader -L${PROJECT_BINARY_DIR}/three/ -ldatadog-agent-rtloader -ldl\")
+    set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl)
 endif()
 
 if (NOT DISABLE_PYTHON2)
+    set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/two/ ${CGO_LDFLAGS}\")
     add_custom_command(
         OUTPUT testPy2
         COMMAND ${CMAKE_COMMAND} -E env CGO_CFLAGS=${CGO_CFLAGS} CGO_LDFLAGS=${CGO_LDFLAGS} DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -tags "two" -count=1 -p=1 ${PKGS}
@@ -32,6 +33,7 @@ if (NOT DISABLE_PYTHON2)
 endif()
 
 if (NOT DISABLE_PYTHON3)
+    set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/three/ ${CGO_LDFLAGS}\")
     add_custom_command(
         OUTPUT testPy3
         COMMAND ${CMAKE_COMMAND} -E env CGO_CFLAGS=${CGO_CFLAGS} CGO_LDFLAGS=${CGO_LDFLAGS} DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -tags "three" -count=1 -p=1 ${PKGS}
