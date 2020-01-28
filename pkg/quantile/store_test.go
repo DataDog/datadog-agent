@@ -26,26 +26,6 @@ func buildStore(t *testing.T, dsl string) *sparseStore {
 }
 
 func TestStore(t *testing.T) {
-	t.Run("MemSize", func(t *testing.T) {
-		// empty store
-		const (
-			emptySize = 32
-			binSize   = 4
-		)
-		s := buildStore(t, "")
-		s.bins = nil
-
-		used, allocated := s.MemSize()
-		require.Equal(t, emptySize, used)
-		require.Equal(t, emptySize, allocated)
-
-		s.bins = make([]bin, 1, 2)
-		used, allocated = s.MemSize()
-
-		require.Equal(t, emptySize+binSize, used)
-		require.Equal(t, emptySize+2*binSize, allocated)
-	})
-
 	t.Run("merge", func(t *testing.T) {
 		type mt struct {
 			s, o, exp string
