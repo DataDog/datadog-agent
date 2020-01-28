@@ -1402,7 +1402,7 @@ deploy_windows_testing-a7:
 
 .kitchen_scenario_suse_a7: &kitchen_scenario_suse_a7
   <<: *kitchen_os_suse
-  <<: *kitchen_agent_a6
+  <<: *kitchen_agent_a7
   needs: [ "fail_on_non_triggered_tag", "deploy_suse_rpm_testing-a7"]
 
 .kitchen_scenario_debian_a6: &kitchen_scenario_debian_a6
