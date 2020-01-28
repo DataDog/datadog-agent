@@ -270,6 +270,7 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 	server.Run(doneChan)
 
 	conn, err := net.Dial("tcp", "2.2.2.2:5432")
+	require.NoError(t, err, "error connecting to client")
 	_, err = conn.Write([]byte("ping"))
 	require.NoError(t, err, "error writing in client")
 
