@@ -4,26 +4,26 @@ Invoke entrypoint, import here all the tasks we want to make available
 import os
 from invoke import Collection
 
-from . import (agent, 
-    android, 
-    bench, 
+from . import (agent,
+    android,
+    bench,
     cluster_agent,
-    customaction, 
-    docker, 
-    dogstatsd, 
-    installcmd, 
+    customaction,
+    docker,
+    dogstatsd,
+    installcmd,
     process_agent,
-    pylauncher, 
-    release, 
-    rtloader, 
-    system_probe, 
-    systray, 
+    pylauncher,
+    release,
+    rtloader,
+    system_probe,
+    systray,
     trace_agent
 )
 
 
 from .go import fmt, lint, vet, cyclo, ineffassign, misspell, deps, lint_licenses, reset
-from .test import test, integration_tests, lint_teamassignment, lint_releasenote, lint_milestone, lint_filenames, e2e_tests
+from .test import test, integration_tests, lint_teamassignment, lint_releasenote, lint_milestone, lint_filenames, e2e_tests, make_kitchen_gitlab_yml
 from .build_tags import audit_tag_impact
 
 # the root namespace
@@ -47,6 +47,7 @@ ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(audit_tag_impact)
 ns.add_task(e2e_tests)
+ns.add_task(make_kitchen_gitlab_yml)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
