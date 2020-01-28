@@ -14,6 +14,20 @@ end
 relative_path "elfutils-#{version}"
 
 build do
+  command %q(patch -p 1 <<<$'
+--- elfutils-0.178/src/elfclassify.c	2019-11-26 22:48:42.000000000 +0000
++++ elfutils-0.178.patched/src/elfclassify.c	2020-01-28 09:22:28.066520000 +0000
+@@ -827,7 +827,10 @@
+       break;
+     case do_print0:
+       if (checks_passed == flag_print_matching)
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wunused-result"
+         fwrite (current_path, strlen (current_path) + 1, 1, stdout);
++#pragma GCC diagnostic pop
+       break;
+     case no_print:
+       if (!checks_passed)')
   command "./configure --prefix=#{install_dir}/embedded --disable-debuginfod --disable-dependency-tracking"
   make "-j #{workers}"
   make 'install'
