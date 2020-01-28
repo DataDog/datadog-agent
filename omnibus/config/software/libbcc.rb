@@ -4,17 +4,19 @@
 # Copyright 2016-2019 Datadog, Inc.
 
 name 'bcc'
-default_version 'v0.12.0'
+# default_version 'v0.12.0'
 
-dependency 'libelf'
-#dependency 'libc++'
+# dependency 'libelf'
+# # dependency 'libc++'
 
-source git: 'https://github.com/iovisor/bcc.git'
+# source git: 'https://github.com/iovisor/bcc.git'
 
-relative_path 'bcc'
+# relative_path 'bcc'
 
 build do
-  command "cmake . -DCMAKE_INSTALL_PREFIX=#{install_dir}/embedded -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -ltinfo' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -ltinfo'"
-  make "-j #{workers}"
-  make 'install'
+  command "cp -R /opt/libbcc/* #{install_dir}/embedded"
+  command "cp $(ldd /opt/libbcc/lib/libbcc.so | awk '$1 ~ /^libelf\.so/ {system(\"dirname \" $3)}')/libelf* #{install_dir}/embedded/lib"
+  # command "cmake . -DCMAKE_INSTALL_PREFIX=#{install_dir}/embedded -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -ltinfo' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -ltinfo'"
+  # make "-j #{workers}"
+  # make 'install'
 end

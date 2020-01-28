@@ -68,10 +68,10 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly
-  DATADOG_AGENT_BUILDIMAGES: v2115571-40e6d58
+  DATADOG_AGENT_BUILDIMAGES: v2115742-3c4243e
   DATADOG_AGENT_BUILDERS:  v2028983-aee8904
   DATADOG_AGENT_WINBUILDIMAGES: v2021523-34e07eb
-  DATADOG_AGENT_ARMBUILDIMAGES: v2115571-40e6d58
+  DATADOG_AGENT_ARMBUILDIMAGES: v2115742-3c4243e
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -254,15 +254,11 @@ run_tests_rpm-x64-py3:
 # run tests for eBPF code
 run_tests_ebpf:
   stage: source_test
-  # TODO(processes): change this to use the generic builder image when we use the same version of Go in the
-  # system-probe and the agent, or when `system-probe.test` can receive which Go version to use as an argument.
-  # Currently this is using the ebpf image so system-probe tests run in the same  Go version used to build it (1.10).
-  # Note that this image isn't used to build the system-probe: when building it, we specify Go version to use
-  # through an argument to the system-probe.build invoke task.
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
+    - cp -R /opt/libbcc/* /usr
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
@@ -512,6 +508,9 @@ run_dogstatsd_arm_size_test:
 
 .system-probe_build_common:
   before_script:
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
   script:
