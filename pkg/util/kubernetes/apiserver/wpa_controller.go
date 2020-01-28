@@ -112,7 +112,7 @@ func waitForWPACRD(wpaClient wpa_client.Interface) {
 		RandomizationFactor: 0,
 		Multiplier:          crdCheckMultiplier,
 		MaxInterval:         crdCheckMaxInterval,
-		MaxElapsedTime:      0,
+		MaxElapsedTime:      crdCheckMaxElapsedTime,
 		Clock:               backoff.SystemClock,
 	}
 	exp.Reset()
