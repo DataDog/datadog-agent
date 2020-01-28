@@ -63,18 +63,18 @@ func TestResolveSourcesWithStateAWS(t *testing.T) {
 	assert.Equal(t, resolved, livesources, "resolved state should be equal to persisted state")
 	assert.True(t, change, "change to persisted state expected")
 
-	// configuration removed from config file (in state but not live)
+	// configuration hostname removed from config file (present in state but not live)
 	statesources[HostnameProviderConfiguration] = "custom-foo"
 	resolved, change = ResolveSourcesWithState(livesources, statesources)
 
-	assert.Equal(t, resolved, livesources, "resolved state should be equal to persisted state")
+	assert.Equal(t, resolved, livesources, "resolved state should be equal to live state")
 	assert.True(t, change, "change to persisted state expected")
 
 	// configuration change in config file
 	livesources[HostnameProviderConfiguration] = "custom-bar"
 	resolved, change = ResolveSourcesWithState(livesources, statesources)
 
-	assert.Equal(t, resolved, livesources, "resolved state should be equal to persisted state")
+	assert.Equal(t, resolved, livesources, "resolved state should be equal to live state")
 	assert.True(t, change, "change to persisted state expected")
 
 }
@@ -194,6 +194,60 @@ func TestGetHostnameData(t *testing.T) {
 
 	assert.Equal(t, "i-0987654321", data.Hostname, "Hostname resolved should be AWS instance name")
 	assert.Equal(t, "aws", data.Provider, "Hostname resolved should be AWS instance name")
+	assert.Nil(t, err, "No error expected")
+
+}
+
+func TestGetHostnameDataConfig(t *testing.T) {
+
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+	defer clearHostnameCache()
+
+	// TODO: make this windows friendly
+	config.Datadog.Set("run_path", "/tmp")
+
+	liveSourcer = func() (HostnameMap, error) {
+		return HostnameMap{
+			HostnameProviderConfiguration: "bar",
+			"fqdn":                        "foo.domain.com",
+			"container":                   "some-container",
+			"aws":                         "i-0987654321",
+		}, nil
+	}
+	stateSourcer = func() (HostnameMap, error) {
+		return HostnameMap{
+			"fqdn": "foo.domain.com",
+		}, nil
+	}
+
+	data, err := GetHostnameData()
+
+	assert.Equal(t, "bar", data.Hostname, "Hostname resolved should be the config file hostname")
+	assert.Equal(t, HostnameProviderConfiguration, data.Provider, "Hostname provider should be AWS")
+	assert.Nil(t, err, "No error expected")
+
+	// hostname removed from config file - should be discarded
+	clearHostnameCache()
+	liveSourcer = func() (HostnameMap, error) {
+		return HostnameMap{
+			"fqdn":      "foo.domain.com",
+			"container": "some-container",
+			"aws":       "i-0987654321",
+		}, nil
+	}
+	stateSourcer = func() (HostnameMap, error) {
+		return HostnameMap{
+			HostnameProviderConfiguration: "bar",
+			"fqdn":                        "foo.domain.com",
+		}, nil
+
+	}
+
+	data, err = GetHostnameData()
+
+	assert.Equal(t, "i-0987654321", data.Hostname, "Hostname resolved should be the AWS instance name")
+	assert.Equal(t, "aws", data.Provider, "Hostname provider should be AWS")
 	assert.Nil(t, err, "No error expected")
 
 }
