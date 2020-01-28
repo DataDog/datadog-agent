@@ -182,7 +182,7 @@ empty:
     - mkdir /tmp/bcc/build
     - cd /tmp/bcc/build
     - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc
-    - make -j "$(nproc)"
+    - make #-j "$(nproc)"
     - make install
     - cd /opt/libbcc
     - tar cvaf /tmp/libbcc.tar.xz .
