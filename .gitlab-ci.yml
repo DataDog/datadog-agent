@@ -1,6 +1,7 @@
 include: 'https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml'
 
 stages:
+  - deps_build
   - source_test
   - binary_build
   - integration_test
@@ -68,10 +69,11 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging/linux
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly
-  DATADOG_AGENT_BUILDIMAGES: v2115742-3c4243e
+  DATADOG_AGENT_BUILDIMAGES: v2116229-80d66e5
   DATADOG_AGENT_BUILDERS:  v2028983-aee8904
   DATADOG_AGENT_WINBUILDIMAGES: v2021523-34e07eb
-  DATADOG_AGENT_ARMBUILDIMAGES: v2115742-3c4243e
+  DATADOG_AGENT_ARMBUILDIMAGES: v2116229-80d66e5
+  BCC_VERSION: v0.12.0
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -159,6 +161,49 @@ before_script:
       - $RELEASE_VERSION_7 == ""
 
 #
+# deps_build
+#
+#
+
+empty:
+  stage: deps_build
+  tags: [ "runner:main", "size:large" ]
+  before_script: []
+  script:
+    - echo "This is an empty step that can be used as a dependency for jobs that depend on nothing"
+    - echo "This can be removed once https://gitlab.com/gitlab-org/gitlab/issues/30631 is implemented"
+
+# build libbcc
+.build_libbcc_common:
+  stage: deps_build
+  before_script: []
+  script:
+    - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
+    - mkdir /tmp/bcc/build
+    - cd /tmp/bcc/build
+    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc
+    - make -j "$(nproc)"
+    - make install
+    - cd /opt/libbcc
+    - tar cvaf /tmp/libbcc.tar.xz .
+    - $S3_CP_CMD /tmp/libbcc.tar.xz $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz
+
+build_libbcc_x64:
+  extends: .build_libbcc_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    ARCH: amd64
+
+build_libbcc_arm64:
+  extends: .build_libbcc_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+
+
+#
 # source_test
 #
 #
@@ -166,6 +211,7 @@ before_script:
 # run tests for windows-64
 .run_tests_windows_base:
   stage: source_test
+  needs: ["empty"]
   before_script:
     - echo "Running windows source tests"
   tags: ["runner:windows-docker", "windowsversion:1809"]
@@ -187,6 +233,7 @@ run_tests_windows-x86:
     ARCH: "x86"
 
 .run_tests_preparation: &run_tests_preparation
+  needs: ["empty"]
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
     - pip install wheel
@@ -254,11 +301,14 @@ run_tests_rpm-x64-py3:
 # run tests for eBPF code
 run_tests_ebpf:
   stage: source_test
+  needs: ["build_libbcc_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
-    - cp -R /opt/libbcc/* /usr
+    # Retrieve libbcc from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
+    - tar -xvf /tmp/libbcc.tar.xz -C /usr
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
@@ -267,6 +317,7 @@ run_tests_ebpf:
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
   stage: source_test
+  needs: ["empty"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:latest
   tags: ["runner:main", "size:large"]
   only:
@@ -290,6 +341,7 @@ run_security_scan_test:
 # check consistency of Gopkg.lock
 run_dep_check_lock:
   stage: source_test
+  needs: ["empty"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   before_script:
@@ -513,6 +565,9 @@ run_dogstatsd_arm_size_test:
     - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
+    # Retrieve libbcc from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
+    - tar -xvf /tmp/libbcc.tar.xz -C /usr
   script:
     - inv -e system-probe.build
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
@@ -520,7 +575,7 @@ run_dogstatsd_arm_size_test:
 build_system-probe-x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
-  needs: ["run_tests_deb-x64-py3"]
+  needs: ["build_libbcc_x64", "run_tests_deb-x64-py3"]
   tags: [ "runner:main", "size:large" ]
   extends: .system-probe_build_common
   variables:
@@ -529,7 +584,7 @@ build_system-probe-x64:
 build_system-probe-arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
-  needs: ["run_dep_check_lock"]
+  needs: ["build_libbcc_arm64", "run_dep_check_lock"]
   tags: ["runner:docker-arm", "platform:arm64"]
   extends: .system-probe_build_common
   variables:
@@ -546,6 +601,10 @@ build_system-probe-arm64:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Retrieve the system-probe from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.$PACKAGE_ARCH $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    # Retrieve libbcc from S3
+    - mkdir -p /opt/datadog-agent/embedded
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$PACKAGE_ARCH.tar.xz /tmp/libbcc.tar.xz
+    - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
@@ -690,6 +749,10 @@ puppy_deb-x64:
     - set -x
     # Retrieve the system-probe from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.$PACKAGE_ARCH $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    # Retrieve libbcc from S3
+    - mkdir -p /opt/datadog-agent/embedded
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$PACKAGE_ARCH.tar.xz /tmp/libbcc.tar.xz
+    - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
@@ -793,6 +856,10 @@ agent_rpm-arm-a7:
     - set -x
     # Retrieve the system-probe from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.$PACKAGE_ARCH $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe
+    # Retrieve libbcc from S3
+    - mkdir -p /opt/datadog-agent/embedded
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$PACKAGE_ARCH.tar.xz /tmp/libbcc.tar.xz
+    - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
     # use --skip-deps since the deps are installed by `before_script`
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
