@@ -16,7 +16,7 @@ dependency 'libelf'
 # relative_path 'bcc'
 
 build do
-  command "#{ENV['S3_CP_CMD']} #{ENV['S3_ARTIFACTS_URI']}/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz"
+  command "#{ENV['S3_CP_CMD']} #{ENV['S3_ARTIFACTS_URI']}/libbcc-#{ENV['PACKAGE_ARCH']}.tar.xz /tmp/libbcc.tar.xz"
   command 'tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded'
   # command "cmake . -DCMAKE_INSTALL_PREFIX=#{install_dir}/embedded -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -ltinfo' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -ltinfo'"
   # make "-j #{workers}"
