@@ -1303,7 +1303,7 @@ deploy_windows_testing-a7:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="sles-11,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/SLES-11-SP4/versions/1.0.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-12,urn,SUSE:SLES:12-SP4:2019.06.17"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-12,urn,SUSE:SLES:12-SP4:2019.11.13"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:SLES-BYOS:15:2019.11.15"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
@@ -1402,7 +1402,7 @@ deploy_windows_testing-a7:
 
 .kitchen_scenario_suse_a7: &kitchen_scenario_suse_a7
   <<: *kitchen_os_suse
-  <<: *kitchen_agent_a6
+  <<: *kitchen_agent_a7
   needs: [ "fail_on_non_triggered_tag", "deploy_suse_rpm_testing-a7"]
 
 .kitchen_scenario_debian_a6: &kitchen_scenario_debian_a6
