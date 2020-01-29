@@ -14,7 +14,7 @@ end
 relative_path "elfutils-#{version}"
 
 build do
-  command %q(patch -p 1 <<<$'
+  command %q(patch -p 1 <<"EOF"
 --- elfutils-0.178/src/elfclassify.c	2019-11-26 22:48:42.000000000 +0000
 +++ elfutils-0.178.patched/src/elfclassify.c	2020-01-28 09:22:28.066520000 +0000
 @@ -827,7 +827,10 @@
@@ -27,7 +27,9 @@ build do
 +#pragma GCC diagnostic pop
        break;
      case no_print:
-       if (!checks_passed)')
+       if (!checks_passed)
+EOF
+)
   env = {
     "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -pipe",
     "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
