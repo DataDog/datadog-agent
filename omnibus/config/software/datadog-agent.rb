@@ -62,12 +62,12 @@ build do
     platform = windows_arch_i386? ? "x86" : "x64"
     command "inv -e rtloader.build --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
     command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
-    command "inv -e agent.build --major-version #{major_version_arg} --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded #{with_both_python} --arch #{platform}", env: env
+    command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded #{with_both_python} --arch #{platform}", env: env
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild --no-development --arch #{platform}", env: env
   else
     command "inv -e rtloader.build --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
-    command "inv -e agent.build --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded #{with_both_python}", env: env
+    command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded #{with_both_python}", env: env
   end
 
   if osx?
