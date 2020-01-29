@@ -18,11 +18,11 @@ type reverseDNSCache struct {
 	size int
 
 	// Telemetry
-	length   int32
-	lookups  int32
-	resolved int32
-	added    int32
-	expired  int32
+	length   int64
+	lookups  int64
+	resolved int64
+	added    int64
+	expired  int64
 }
 
 func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
@@ -67,12 +67,12 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 			continue
 		}
 
-		atomic.AddInt32(&c.added, 1)
+		atomic.AddInt64(&c.added, 1)
 		c.data[addr] = &dnsCacheVal{names: []string{translation.dns}, expiration: exp}
 	}
 
 	// Update cache length for telemetry purposes
-	atomic.StoreInt32(&c.length, int32(len(c.data)))
+	atomic.StoreInt64(&c.length, int64(len(c.data)))
 
 	return true
 }
@@ -113,31 +113,31 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 	c.mux.Unlock()
 
 	// Update stats for telemetry
-	atomic.AddInt32(&c.lookups, int32(len(resolved)+len(unresolved)))
-	atomic.AddInt32(&c.resolved, int32(len(resolved)))
+	atomic.AddInt64(&c.lookups, int64(len(resolved)+len(unresolved)))
+	atomic.AddInt64(&c.resolved, int64(len(resolved)))
 
 	return resolved
 }
 
 func (c *reverseDNSCache) Len() int {
-	return int(atomic.LoadInt32(&c.length))
+	return int(atomic.LoadInt64(&c.length))
 }
 
 func (c *reverseDNSCache) Stats() map[string]int64 {
 	var (
-		lookups  = atomic.SwapInt32(&c.lookups, 0)
-		resolved = atomic.SwapInt32(&c.resolved, 0)
-		added    = atomic.SwapInt32(&c.added, 0)
-		expired  = atomic.SwapInt32(&c.expired, 0)
+		lookups  = atomic.SwapInt64(&c.lookups, 0)
+		resolved = atomic.SwapInt64(&c.resolved, 0)
+		added    = atomic.SwapInt64(&c.added, 0)
+		expired  = atomic.SwapInt64(&c.expired, 0)
 		ips      = int64(c.Len())
 	)
 
 	return map[string]int64{
-		"lookups":  int64(lookups),
-		"resolved": int64(resolved),
-		"added":    int64(added),
-		"expired":  int64(expired),
-		"ips":      int64(ips),
+		"lookups":  lookups,
+		"resolved": resolved,
+		"added":    added,
+		"expired":  expired,
+		"ips":      ips,
 	}
 }
 
@@ -160,8 +160,8 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	total := len(c.data)
 	c.mux.Unlock()
 
-	atomic.StoreInt32(&c.expired, int32(expired))
-	atomic.StoreInt32(&c.length, int32(total))
+	atomic.StoreInt64(&c.expired, int64(expired))
+	atomic.StoreInt64(&c.length, int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
 		time.Now().Sub(now), total, expired,
