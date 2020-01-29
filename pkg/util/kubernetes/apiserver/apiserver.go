@@ -54,6 +54,9 @@ type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
 
+	// WPAClient gives access to WPA API
+	WPAClient wpa_client.Interface
+
 	// WPAInformerFactory gives access to informers for Watermark Pod Autoscalers.
 	WPAInformerFactory wpa_informers.SharedInformerFactory
 	// used to setup the APIClient
@@ -160,9 +163,12 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
-		c.WPAInformerFactory, err = getWPAInformerFactory()
-		if err != nil {
+		if c.WPAInformerFactory, err = getWPAInformerFactory(); err != nil {
 			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
+			return err
+		}
+		if c.WPAClient, err = getWPAClient(time.Duration(c.timeoutSeconds) * time.Second); err != nil {
+			log.Errorf("Error getting WPA Client: %s", err.Error())
 			return err
 		}
 	}
