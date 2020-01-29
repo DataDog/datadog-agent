@@ -128,14 +128,6 @@ build do
   end
 
 
-  # Build the system-probe
-  if linux?
-    command "invoke -e system-probe.build --major-version #{major_version_arg} --go-version=1.10.1", :env => env
-    copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
-    block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
-  end
-
-
   if linux?
     if debian?
       erb source: "upstart_debian.conf.erb",
