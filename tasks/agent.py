@@ -94,7 +94,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         inv agent.build --build-exclude=systemd
     """
 
-    if not exclude_rtloader:
+    if not exclude_rtloader and not puppy:
         rtloader_build(ctx, python_runtimes=python_runtimes)
         rtloader_install(ctx)
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
