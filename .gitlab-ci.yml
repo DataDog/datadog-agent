@@ -181,10 +181,14 @@ empty:
     - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
     - mkdir /tmp/bcc/build
     - cd /tmp/bcc/build
-    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc
+    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib'
     - make -j 4 #"$(nproc)"
     - make install
     - cd /opt/libbcc
+    - rm share/bcc/introspection/bps
+    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libelf/ {system("dirname " $3)}')/libelf* lib
+    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo* lib
+    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libz/ {system("dirname " $3)}')/libz* lib
     - tar cvaf /tmp/libbcc.tar.xz .
     - $S3_CP_CMD /tmp/libbcc.tar.xz $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz
 
