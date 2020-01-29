@@ -188,7 +188,6 @@ empty:
     - rm share/bcc/introspection/bps
     - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libelf/ {system("dirname " $3)}')/libelf* lib
     - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo* lib
-    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libz/ {system("dirname " $3)}')/libz* lib
     - tar cvaf /tmp/libbcc.tar.xz .
     - $S3_CP_CMD /tmp/libbcc.tar.xz $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz
 
