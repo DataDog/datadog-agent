@@ -298,7 +298,9 @@ func GetHostnameData() (HostnameData, error) {
 
 	hostnameData := saveHostnameData(cacheHostnameKey, hostName, provider)
 	if stateChange {
-		err = PersistHostnameSources(sources)
+		if err := PersistHostnameSources(sources); err != nil {
+			log.Errorf("There was an issue persisting the hostname state to disk: %v", err)
+		}
 	}
 
 	return hostnameData, err
