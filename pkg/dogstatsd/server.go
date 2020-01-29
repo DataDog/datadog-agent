@@ -264,7 +264,7 @@ func nextMessage(packet *[]byte) (message []byte) {
 	}
 
 	advance, message, err := bufio.ScanLines(*packet, true)
-	if err != nil || len(message) == 0 {
+	if err != nil {
 		return nil
 	}
 
@@ -275,11 +275,14 @@ func nextMessage(packet *[]byte) (message []byte) {
 func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 	for _, packet := range packets {
 		originTags := findOriginTags(packet.Origin)
-		log.Tracef("Dogstatsd receive: %s", packet.Contents)
+		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
 			message := nextMessage(&packet.Contents)
 			if message == nil {
 				break
+			}
+			if len(message) == 0 {
+				continue
 			}
 			if s.Statistics != nil {
 				s.Statistics.StatEvent(1)
