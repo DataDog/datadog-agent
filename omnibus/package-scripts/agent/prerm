@@ -117,18 +117,19 @@ remove_downloader_data()
 
 uninstall_integrations()
 {
-    # Uninstall every datadog integration
-    # Starting with 6.10, integrations are uninstalled on package removal
-    # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
-    PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
-    PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
-    if [ -x $PIP2_PATH ]; then
-        echo "Uninstalling Python 2 integrations..."
-        $PIP2_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP2_PATH uninstall -y -q --no-cache-dir || true
-    fi
-    if [ -x $PIP3_PATH ]; then
-        echo "Uninstalling Python 3 integrations..."
-        $PIP3_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP3_PATH uninstall -y -q --no-cache-dir || true
+    # Since 6.18.0, a file containing all integrations files which have been installed by
+    # the package is available. We use it to remove only the datadog-related check files which
+    # have *NOT* been installed by the package (eg: installed using the `integration` command).
+
+    if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
+        # List all files in the embedded dir of the datadog-agent install dir
+        find $INSTALL_DIR/embedded/lib/python*/site-packages/datadog_* > $INSTALL_DIR/embedded/.all-integrations.txt
+
+        # List all files in the embedded dir of the datadog-agent install dir
+        # which were not installed by the package and rm them.
+        grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs rm -rf
+
+        rm $INSTALL_DIR/embedded/.all-integrations.txt
     fi
 }
 
