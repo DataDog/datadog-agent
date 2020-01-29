@@ -178,7 +178,7 @@ def get_default_python(python_runtimes):
     """
     Get the default python for the current build:
     - default to 2 if python_runtimes includes 2 (so that builds with 2 and 3 default to 2)
-    - default to 3 if python_runtimes includes only 3
+    - default to 3 otherwise.
     """
     return "2" if '2' in python_runtimes.split(',') else "3"
 
