@@ -28,8 +28,12 @@ build do
        break;
      case no_print:
        if (!checks_passed)')
-  command "./configure --prefix=#{install_dir}/embedded --disable-debuginfod --disable-dependency-tracking"
-  make "-j #{workers}"
-  make 'install'
+  env = {
+    "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -pipe",
+    "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+  }
+  command "./configure --prefix=#{install_dir}/embedded --disable-debuginfod --disable-dependency-tracking", :env => env
+  make "-j #{workers}", :env => env
+  make 'install', :env => env
   delete "#{install_dir}/embedded/bin/eu-*"
 end
