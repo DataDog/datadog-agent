@@ -144,6 +144,9 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		if err := copyFile(src, dst, force); err != nil {
 			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 		}
+		if err := relocateMinCollectionIntervalInFile(dst); err != nil {
+			return fmt.Errorf("error %v", err)
+		}
 
 		fmt.Fprintln(
 			color.Output,
@@ -299,4 +302,47 @@ func configTraceAgent(datadogConfPath, traceAgentConfPath string, overwrite bool
 	}
 
 	return legacy.ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath)
+}
+
+func relocateMinCollectionIntervalInFile(file string) error {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	output, err := relocateMinCollectionInterval(data)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(file, output, 0640)
+}
+
+func relocateMinCollectionInterval(rawData []byte) ([]byte, error) {
+	data := make(map[interface{}]interface{})
+	if err := yaml.Unmarshal(rawData, &data); err != nil {
+		return nil, fmt.Errorf("error while unmarshalling Yaml : %v", err)
+	}
+
+	if _, ok := data["init_config"]; ok {
+		if initConfig, ok := data["init_config"].(map[interface{}]interface{}); ok {
+			if _, ok := initConfig["min_collection_interval"]; ok {
+				if minCollectionInterval, ok := initConfig["min_collection_interval"].(int); ok {
+					delete(initConfig, "min_collection_interval")
+					insertMinCollectionInterval(data, minCollectionInterval)
+				}
+			}
+		}
+	}
+	return yaml.Marshal(data)
+}
+
+func insertMinCollectionInterval(rawData map[interface{}]interface{}, interval int) {
+	if _, ok := rawData["instances"]; ok {
+		if instances, ok := rawData["instances"].([]interface{}); ok {
+			for _, rawInstance := range instances {
+				if instance, ok := rawInstance.(map[interface{}]interface{}); ok {
+					instance["min_collection_interval"] = interval
+				}
+			}
+		}
+	}
 }
