@@ -149,7 +149,6 @@ if linux?
   dependency 'procps-ng'
   dependency 'sysstat'
   dependency 'curl'
-  dependency 'libbcc'
 end
 
 # creates required build directories
@@ -157,6 +156,11 @@ dependency 'datadog-agent-prepare'
 
 # Datadog agent
 dependency 'datadog-agent'
+
+# System-probe
+if linux?
+  dependency 'system-probe'
+end
 
 # Additional software
 if windows?

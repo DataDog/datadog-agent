@@ -115,11 +115,6 @@ end
 # Dependencies
 # ------------------------------------
 
-# Linux-specific dependencies
-if linux?
-  dependency 'libbcc'
-end
-
 # creates required build directories
 dependency 'preparation'
 
@@ -129,6 +124,12 @@ dependency 'datadog-puppy'
 if windows?
   dependency 'datadog-agent-finalize'
 end
+
+# System probe
+if linux?
+  dependency 'system-probe'
+end
+
 # version manifest file
 dependency 'version-manifest'
 

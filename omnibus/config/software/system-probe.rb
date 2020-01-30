@@ -3,12 +3,10 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-2020 Datadog, Inc.
 
-name 'bcc'
+name 'system-probe'
 
-dependency 'libelf'
+dependency 'libbcc'
 
 build do
-  command "#{ENV['S3_CP_CMD']} #{ENV['S3_ARTIFACTS_URI']}/libbcc-#{ENV['PACKAGE_ARCH']}.tar.xz /tmp/libbcc.tar.xz"
-  command "tar -xvf /tmp/libbcc.tar.xz -C #{install_dir}/embedded"
-  delete '/tmp/libbcc.tar.xz'
+  command "#{ENV['S3_CP_CMD']} #{ENV['S3_ARTIFACTS_URI']}/system-probe.#{ENV['PACKAGE_ARCH']} #{install_dir}/embedded/bin"
 end
