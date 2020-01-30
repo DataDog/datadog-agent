@@ -115,6 +115,11 @@ end
 # Dependencies
 # ------------------------------------
 
+# Linux-specific dependencies
+if linux?
+  dependency 'libbcc'
+end
+
 # creates required build directories
 dependency 'preparation'
 

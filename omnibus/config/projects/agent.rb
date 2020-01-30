@@ -90,7 +90,7 @@ package :zip do
       "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root",
     ]
-  
+
     additional_sign_files [
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
@@ -149,6 +149,7 @@ if linux?
   dependency 'procps-ng'
   dependency 'sysstat'
   dependency 'curl'
+  dependency 'libbcc'
 end
 
 # creates required build directories
