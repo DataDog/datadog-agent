@@ -100,21 +100,6 @@ remove_py_compiled_files()
     fi
 }
 
-remove_downloader_data()
-{
-    # Remove all the data that was downloaded using the integration command
-    # This is purely for cleaning up after ourselves
-    DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
-    if [ -d $DOWNLOADER_DATA ]; then
-        rm -rf $DOWNLOADER_DATA
-    fi
-
-    DOWNLOADER_DATA3="$INSTALL_DIR/embedded/lib/python3.7/site-packages/datadog_checks/downloader/data"
-    if [ -d $DOWNLOADER_DATA3 ]; then
-        rm -rf $DOWNLOADER_DATA3
-    fi
-}
-
 uninstall_integrations()
 {
     # Since 6.18.0, a file containing all integrations files which have been installed by
@@ -138,7 +123,6 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
     deregister_agent
     uninstall_integrations
     remove_py_compiled_files
-    remove_downloader_data
 elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
     stop_agent
     deregister_agent
@@ -148,7 +132,6 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
             # We're uninstalling.
             uninstall_integrations
             remove_py_compiled_files
-            remove_downloader_data
         ;;
         1)
             # We're upgrading.
