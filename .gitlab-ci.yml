@@ -574,7 +574,7 @@ run_dogstatsd_arm_size_test:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
     - tar -xvf /tmp/libbcc.tar.xz -C /usr
   script:
-    - CGO_LDFLAGS="-Wl,-rpath,#{install_dir}/embedded/lib" inv -e system-probe.build
+    - CGO_LDFLAGS="-Wl,-rpath,/opt/datadog-agent/embedded/lib" inv -e system-probe.build
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
 
 build_system-probe-x64:
