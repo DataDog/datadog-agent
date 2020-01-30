@@ -1,6 +1,6 @@
 suites:
 
-# Installs the latest release Agent 6, then updates it to the latest release
+# Installs the latest release Agent 7, then updates it to the latest release
 # candidate
 - name: dd-agent-upgrade-agent7
   run_list:
