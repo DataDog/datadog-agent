@@ -66,11 +66,6 @@ func NewDummyFetcher() collectors.Collector {
 	return c
 }
 
-func NewDummyCollector() collectors.Collector {
-	c := new(DummyCollector)
-	return c
-}
-
 func TestInit(t *testing.T) {
 	catalog := collectors.Catalog{
 		"stream":  NewDummyStreamer,

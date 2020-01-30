@@ -76,7 +76,7 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, itf 
 		itf,
 		dcl,
 	)
-	ExtendToHPAController(autoscalerController, informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+	autoscalerController.EnableHPA(informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
 
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
@@ -128,15 +128,14 @@ func (d *fakeDatadogClient) GetRateLimitStats() map[string]datadog.RateLimit {
 	return nil
 }
 
-var maxAge = time.Duration(30 * time.Second)
+var maxAge = 30 * time.Second
 
 func makePoints(ts int, val float64) datadog.DataPoint {
 	if ts == 0 {
 		ts = (int(metav1.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000 // use ms
 	}
 	tsPtr := float64(ts)
-	valPtr := float64(val)
-	return datadog.DataPoint{&tsPtr, &valPtr}
+	return datadog.DataPoint{&tsPtr, &val}
 }
 
 func makePtr(val string) *string {

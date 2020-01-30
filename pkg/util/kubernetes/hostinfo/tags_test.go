@@ -22,6 +22,14 @@ func TestExtractTags(t *testing.T) {
 		"kubernetes.io/hostname":        "gke-dummy-18-default-pool-6888842e-hcv0",
 	}
 
+	roleLabels := map[string]string{
+		"kubernetes.io/role":                   "compute-node2",
+		"node-role.kubernetes.io":              "foo",
+		"node-role.kubernetes.io/9090-090-9":   "bar",
+		"node-role.kubernetes.io/compute-node": "",
+		"node-role.kubernetes.io/foo":          "bar",
+	}
+
 	for _, tc := range []struct {
 		nodeLabels   map[string]string
 		labelsToTags map[string]string
@@ -66,6 +74,16 @@ func TestExtractTags(t *testing.T) {
 			nodeLabels:   gkeLabels,
 			labelsToTags: map[string]string{},
 			expectedTags: nil,
+		},
+		{
+			nodeLabels:   roleLabels,
+			labelsToTags: getDefaultLabelsToTags(),
+			expectedTags: []string{
+				"kube_node_role:compute-node2",
+				"kube_node_role:9090-090-9",
+				"kube_node_role:compute-node",
+				"kube_node_role:foo",
+			},
 		},
 	} {
 		t.Run("", func(t *testing.T) {

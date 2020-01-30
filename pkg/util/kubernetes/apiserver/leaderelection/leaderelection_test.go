@@ -146,7 +146,7 @@ func TestGetLeaderIPFollower(t *testing.T) {
 			},
 		},
 	}
-	stored_endpoints, err := client.CoreV1().Endpoints("default").Create(endpoints)
+	storedEndpoints, err := client.CoreV1().Endpoints("default").Create(endpoints)
 	require.NoError(t, err)
 
 	// Run leader election
@@ -164,8 +164,8 @@ func TestGetLeaderIPFollower(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Remove bar from endpoints
-	stored_endpoints.Subsets[0].Addresses = stored_endpoints.Subsets[0].Addresses[0:1]
-	_, err = client.CoreV1().Endpoints("default").Update(stored_endpoints)
+	storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
+	_, err = client.CoreV1().Endpoints("default").Update(storedEndpoints)
 	require.NoError(t, err)
 
 	// GetLeaderIP will "gracefully" error out

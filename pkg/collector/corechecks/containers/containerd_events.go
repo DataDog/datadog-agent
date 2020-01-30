@@ -220,7 +220,7 @@ func (s *subscriber) run(ctx context.Context, ev containerd.EventService) error 
 				return nil
 			}
 			log.Errorf("Error while streaming logs from containerd: %s", e.Error())
-			return fmt.Errorf("stopping Containerd event listener routine...")
+			return fmt.Errorf("stopping Containerd event listener routine")
 		}
 	}
 }

@@ -24,10 +24,6 @@ func isTokenPathConfigured() bool {
 	return config.Datadog.GetString("kubelet_auth_token_path") != ""
 }
 
-func isConfiguredTLSVerify() bool {
-	return config.Datadog.GetBool("kubelet_tls_verify")
-}
-
 func buildTLSConfig(verifyTLS bool, caPath string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{}
 	if verifyTLS == false {

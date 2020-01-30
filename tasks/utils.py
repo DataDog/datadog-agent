@@ -50,9 +50,18 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
+def has_both_python(python_runtimes):
+    python_runtimes = python_runtimes.split(',')
+    return '2' in python_runtimes and '3' in python_runtimes
+
+def get_win_py_runtime_var(python_runtimes):
+    python_runtimes = python_runtimes.split(',')
+
+    return "PY2_RUNTIME" if '2' in python_runtimes else "PY3_RUNTIME"
+
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
                     rtloader_root=None, python_home_2=None, python_home_3=None,
-                    with_both_python=False, major_version='7', arch="x64"):
+                    major_version='7', python_runtimes='3', arch="x64"):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -62,9 +71,6 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     gcflags = ""
     ldflags = get_version_ldflags(ctx, prefix, major_version=major_version)
     env = {}
-
-    # lets pass the build runtimes around with the env
-    env['PYTHON_RUNTIMES'] = os.environ.get('PYTHON_RUNTIMES', '')
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
@@ -83,10 +89,10 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
 
     # If we're not building with both Python, we want to force the use of DefaultPython
-    if not with_both_python:
+    if not has_both_python(python_runtimes):
         ldflags += "-X {}/pkg/config.ForceDefaultPython=true ".format(REPO_PATH)
 
-    ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python())
+    ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python(python_runtimes))
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -168,14 +174,13 @@ def get_git_commit():
     """
     return check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('utf-8').strip()
 
-def get_default_python():
+def get_default_python(python_runtimes):
     """
     Get the default python for the current build:
-    - default to 3 if PYTHON_RUNTIMES is not specified (so that dev builds default to 3)
-    - default to 2 if PYTHON_RUNTIMES includes both versions (so that builds with 2 and 3 default to 2)
+    - default to 2 if python_runtimes includes 2 (so that builds with 2 and 3 default to 2)
+    - default to 3 otherwise.
     """
-    py_runtimes = os.environ.get("PYTHON_RUNTIMES", "3")
-    return "2" if ',' in py_runtimes else py_runtimes
+    return "2" if '2' in python_runtimes.split(',') else "3"
 
 
 def get_go_version():
@@ -268,15 +273,9 @@ def get_version_numeric_only(ctx, env=os.environ, major_version='7'):
     return version
 
 def load_release_versions(ctx, target_version):
-    # allow overriding python runtimes with env var
-    py_runtimes = os.environ.get("PYTHON_RUNTIMES")
-
     with open("release.json", "r") as f:
         versions = json.load(f)
         if target_version in versions:
-            if py_runtimes:
-                versions[target_version]["PYTHON_RUNTIMES"] = py_runtimes
-
             # windows runners don't accepts anything else than strings in the
             # environment when running a subprocess.
             return {str(k):str(v) for k, v in versions[target_version].items()}

@@ -159,10 +159,10 @@ func parseEvent(message []byte) (dogstatsdEvent, error) {
 		return dogstatsdEvent{}, err
 	}
 	if len(rawEvent) < header.textLength+header.titleLength+1 {
-		return dogstatsdEvent{}, fmt.Errorf("invalid event: %q", message)
+		return dogstatsdEvent{}, fmt.Errorf("invalid event")
 	}
 	if header.titleLength == 0 || header.textLength == 0 {
-		return dogstatsdEvent{}, fmt.Errorf("invalid event, empty title or text: %q", message)
+		return dogstatsdEvent{}, fmt.Errorf("invalid event: empty title or text")
 	}
 	title := cleanEventText(rawEvent[:header.titleLength])
 	text := cleanEventText(rawEvent[header.titleLength+1 : header.titleLength+1+header.textLength])

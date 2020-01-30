@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -160,6 +161,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 		} else {
 			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 		}
+
+		if !util.IsRootNS(config.ProcRoot) {
+			log.Warn("system-probe is not running on the root network namespace, which is usually caused by running the " +
+				"system-probe in a container without using the host network. in this mode, you may see partial DNS resolution.")
+		}
 	}
 
 	portMapping := NewPortMapping(config.ProcRoot, config)
@@ -304,7 +310,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 //  • Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
-	if !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL {
+	if !t.config.CollectLocalDNS && isDNSConnection && conn.Dest.IsLoopback() {
 		return true
 	} else if IsBlacklistedConnection(t.sourceExcludes, t.destExcludes, conn) {
 		return true

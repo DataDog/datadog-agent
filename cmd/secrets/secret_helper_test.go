@@ -66,7 +66,7 @@ func TestReadSecrets(t *testing.T) {
 			out: `
 			{
 				"secret1": {
-					"value": "secret1-value\n"
+					"value": "secret1-value"
 				},
 				"secret2": {
 					"error": "secret does not exist"
@@ -93,7 +93,7 @@ func TestReadSecrets(t *testing.T) {
 			out: `
 			{
 				"secret4": {
-					"value": "secret1-value\n"
+					"value": "secret1-value"
 				},
 				"secret5": {
 					"error": "not following symlink \"/etc/passwd\" outside of \"testdata/read-secrets\""

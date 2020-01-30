@@ -57,7 +57,7 @@ func TestGetSecurityCreds(t *testing.T) {
 
 	cred, err := getSecurityCreds()
 	require.Nil(t, err)
-	assert.Equal(t, "123456", cred.AccessKeyId)
+	assert.Equal(t, "123456", cred.AccessKeyID)
 	assert.Equal(t, "secret access key", cred.SecretAccessKey)
 	assert.Equal(t, "secret token", cred.Token)
 }
@@ -75,5 +75,5 @@ func TestGetInstanceIdentity(t *testing.T) {
 	val, err := getInstanceIdentity()
 	require.Nil(t, err)
 	assert.Equal(t, "us-east-1", val.Region)
-	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceId)
+	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
 }

@@ -187,7 +187,7 @@ func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 		} else {
 			end = len(events)
 		}
-		newEvents := Events(events[n:end])
+		newEvents := events[n:end]
 		splitPayloads[i] = newEvents
 		n += batchSize
 	}
@@ -276,7 +276,7 @@ func writeEvent(event *Event, writer *utiljson.RawObjectWriter) error {
 
 	if len(event.Tags) != 0 {
 		if err := writer.StartArrayField("tags"); err != nil {
-			return nil
+			return err
 		}
 		for _, tag := range event.Tags {
 			writer.AddStringValue(tag)

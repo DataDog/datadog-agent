@@ -102,9 +102,9 @@ var (
 	aggregatorHostnameUpdate                   = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
-		[]string{"type", "state"}, "Count of flush")
+		[]string{"data_type", "state"}, "Count of flush")
 	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
-		[]string{"type"}, "Amount of metrics/services_checks/events processed by the aggregator")
+		[]string{"data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
 	tlmHostnameUpdate = telemetry.NewCounter("aggregator", "hostname_update",
 		nil, "Count of hostname update")
 

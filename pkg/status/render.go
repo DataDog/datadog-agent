@@ -15,11 +15,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 var (
-	here, _        = executable.Folder()
 	fmap           = Fmap()
 	templateFolder string
 )
@@ -57,7 +55,7 @@ func FormatStatus(data []byte) (string, error) {
 	renderLogsStatus(b, logsStats)
 	renderAggregatorStatus(b, aggregatorStats)
 	renderDogstatsdStatus(b, dogstatsdStats)
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
 		renderDatadogClusterAgentStatus(b, dcaStats)
 	}
 

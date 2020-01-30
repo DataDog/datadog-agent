@@ -192,7 +192,7 @@ func TestContainerCollectAll(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
 	source, err = launcherCollectAllDisabled.getSource(podBar, containerBar)
-	assert.Equal(t, collectAllDisabledError, err)
+	assert.Equal(t, errCollectAllDisabled, err)
 	assert.Nil(t, source)
 
 	source, err = launcherCollectAll.getSource(podBaz, containerBaz)

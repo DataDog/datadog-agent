@@ -104,7 +104,7 @@ func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) {
 	if err != nil {
 		log.Debugf("Error extracting binary data: %s", err)
 	} else {
-		_, err = mv.UpdateValuesForPath("Binary:"+string(binaryData), binaryPath)
+		_, err = mv.UpdateValuesForPath("Binary:"+binaryData, binaryPath)
 		if err != nil {
 			log.Debugf("Error formatting %s: %s", binaryPath, err)
 		}

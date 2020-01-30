@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 require "./lib/ostools.rb"
 
 name 'agent'
@@ -165,6 +165,10 @@ else
   dependency 'cacerts'
 end
 
+if osx?
+  dependency 'datadog-agent-mac-app'
+end
+
 if with_python_runtime? "2"
   dependency 'pylint2'
   dependency 'datadog-agent-integrations-py2'
@@ -172,10 +176,6 @@ end
 
 if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
-end
-
-if osx?
-  dependency 'datadog-agent-mac-app'
 end
 
 # External agents
