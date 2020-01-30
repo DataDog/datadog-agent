@@ -25,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // NewAutoscalersController returns a new AutoscalersController
@@ -97,13 +95,14 @@ func (h *AutoscalersController) RunControllerLoop(stopCh <-chan struct{}) {
 // gc checks if any hpas or wpas have been deleted (possibly while the Datadog Cluster Agent was
 // not running) to clean the store.
 func (h *AutoscalersController) gc() {
+	wpaEnabled := h.isWPAEnabled()
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	log.Infof("Starting garbage collection process on the Autoscalers")
+	log.Infof("Starting garbage collection process on the Autoscalers: wpa=%v", wpaEnabled)
 	wpaList := []*v1alpha1.WatermarkPodAutoscaler{}
 	var err error
 
-	if h.wpaEnabled {
+	if wpaEnabled {
 		wpaList, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 		if err != nil {
 			log.Errorf("Error listing the WatermarkPodAutoscalers %v", err)
@@ -130,21 +129,6 @@ func (h *AutoscalersController) gc() {
 	}
 	h.deleteFromLocalStore(toDelete.External)
 	log.Debugf("Done GC run. Deleted %d metrics", len(toDelete.External))
-}
-
-// removeIgnoredAutoscaler is used in the gc to avoid considering the ignored Autoscalers
-func removeIgnoredAutoscaler(ignored map[types.UID]int, listCached []*autoscalingv2.HorizontalPodAutoscaler, listCachedWPA []*v1alpha1.WatermarkPodAutoscaler) (HPAToProcess []*autoscalingv2.HorizontalPodAutoscaler, WPAToProcess []*v1alpha1.WatermarkPodAutoscaler) {
-	for _, hpa := range listCached {
-		if _, ok := ignored[hpa.UID]; !ok {
-			HPAToProcess = append(HPAToProcess, hpa)
-		}
-	}
-	for _, wpa := range listCachedWPA {
-		if _, ok := ignored[wpa.UID]; !ok {
-			WPAToProcess = append(WPAToProcess, wpa)
-		}
-	}
-	return
 }
 
 func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {

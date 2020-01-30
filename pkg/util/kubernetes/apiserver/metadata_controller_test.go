@@ -463,16 +463,6 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 	return metaController, informerFactory
 }
 
-func requireReceive(t *testing.T, ch chan struct{}, msgAndArgs ...interface{}) {
-	timeout := time.NewTimer(2 * time.Second)
-
-	select {
-	case <-ch:
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting to receive from channel", msgAndArgs...)
-	}
-}
-
 func newFakePod(namespace, name, uid, ip string) v1.Pod {
 	return v1.Pod{
 		TypeMeta: metav1.TypeMeta{Kind: "Pod"},

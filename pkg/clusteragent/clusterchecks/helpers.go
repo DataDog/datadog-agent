@@ -9,17 +9,13 @@ package clusterchecks
 
 import (
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 const (
-	kubeServiceIDPrefix      = "kube_service_uid://"
-	kubeEndpointIDPrefix     = "kube_endpoint_uid://"
 	checkExecutionTimeWeight = 0.8
 	checkMetricSamplesWeight = 0.2
 )
@@ -38,51 +34,6 @@ func makeConfigArray(configMap map[string]integration.Config) []integration.Conf
 // timestampNow provides a consistent way to keep a seconds timestamp
 func timestampNow() int64 {
 	return time.Now().Unix()
-}
-
-// isKubeServiceCheck checks if a config template represents a service check
-func isKubeServiceCheck(config integration.Config) bool {
-	return strings.HasPrefix(config.Entity, kubeServiceIDPrefix)
-}
-
-// getServiceUID retrieves service UID from service config
-func getServiceUID(config integration.Config) string {
-	return strings.TrimLeft(config.Entity, kubeServiceIDPrefix)
-}
-
-// getPodEntity returns pod entity
-func getPodEntity(podUID string) string {
-	return kubelet.KubePodPrefix + podUID
-}
-
-// getNameAndNamespaceFromADIDs extracts namespace
-// and name from endpoints configs AD identifiers.
-func getNameAndNamespaceFromADIDs(configs []integration.Config) (string, string) {
-	for _, config := range configs {
-		for _, adID := range config.ADIdentifiers {
-			namespace, name := getNameAndNamespaceFromEntity(adID)
-			if namespace != "" && name != "" {
-				// All configs in the slice share the same namespace and name
-				// and contain the same kube_endpoint AD identifier.
-				// Return the first valid namespace and name found.
-				return namespace, name
-			}
-		}
-	}
-	return "", ""
-}
-
-// getNameAndNamespaceFromEntity parses endpoints entity
-// string to extract namespace and name.
-func getNameAndNamespaceFromEntity(s string) (string, string) {
-	if !strings.HasPrefix(s, kubeEndpointIDPrefix) {
-		return "", ""
-	}
-	split := strings.Split(s, "/") // Format: kube_endpoint_uid://namespace/name
-	if len(split) == 4 {
-		return split[2], split[3]
-	}
-	return "", ""
 }
 
 // calculateBusyness returns the busyness value of a node

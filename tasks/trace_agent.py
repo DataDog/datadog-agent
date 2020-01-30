@@ -22,13 +22,13 @@ DEFAULT_BUILD_TAGS = [
 
 @task
 def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=None,
-          build_exclude=None, major_version='7', arch="x64"):
+          build_exclude=None, major_version='7', python_runtimes='3', arch="x64"):
     """
     Build the trace agent.
     """
 
     # get env prior to windows sources so we only have to set the target architecture once
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
     if sys.platform == 'win32':

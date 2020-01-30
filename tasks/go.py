@@ -243,7 +243,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
         tool = deps.get(dependency)
         if tool.get('install', True):
             print("processing get tool {}".format(dependency))
-            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', verbose=verbose)
+            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', cmd=tool.get('cmd'), verbose=verbose)
 
     if android:
         ndkhome = os.environ.get('ANDROID_NDK_HOME')

@@ -129,7 +129,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			processedMetrics[m] = point
 
 			// Prometheus submissions on the processed external metrics
-			metricsEval.Set(float64(point.value), m)
+			metricsEval.Set(point.value, m)
 			precision := time.Now().Unix() - point.timestamp
 			metricsDelay.Set(float64(precision), m)
 

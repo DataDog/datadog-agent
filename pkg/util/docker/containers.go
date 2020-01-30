@@ -90,13 +90,13 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 			// in awsvpc networking mode so we try getting IP address from the
 			// ECS container metadata endpoint and port from inspect.Config.ExposedPorts
 			if networkMode == containers.AwsvpcNetworkMode {
-				ecsContainerMetadataUrl, err := d.getECSMetadataURL(container.ID)
+				ecsContainerMetadataURL, err := d.getECSMetadataURL(container.ID)
 				if err != nil {
 					log.Debugf("Failed to get the ECS container metadata URI for container %s. Network info will be missing. Error: %s", container.ID, err)
 					continue
 				}
 
-				addresses, err := GetContainerNetworkAddresses(ecsContainerMetadataUrl)
+				addresses, err := GetContainerNetworkAddresses(ecsContainerMetadataURL)
 				if err != nil {
 					log.Errorf("Failed to get network addresses for container: %s. Network info will be missing. Error: %s", container.ID, err)
 					continue

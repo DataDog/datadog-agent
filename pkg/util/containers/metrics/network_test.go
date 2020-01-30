@@ -162,7 +162,7 @@ func TestCollectNetworkStats(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			err = dummyProcDir.add(filepath.Join(strconv.Itoa(int(tc.pid)), "net", "dev"), tc.dev)
+			err = dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "dev"), tc.dev)
 			assert.NoError(t, err)
 
 			stat, err := CollectNetworkStats(tc.pid, tc.networks)
@@ -235,7 +235,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			// Create temporary files on disk with the routes and stats.
-			err = dummyProcDir.add(filepath.Join(strconv.Itoa(int(tc.pid)), "net", "route"), tc.routes)
+			err = dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "route"), tc.routes)
 			assert.NoError(t, err)
 
 			dest, err := DetectNetworkDestinations(tc.pid)

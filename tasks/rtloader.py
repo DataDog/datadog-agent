@@ -34,7 +34,7 @@ def clear_cmake_cache(rtloader_path, settings):
         os.remove(cmake_cache)
 
 @task
-def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch="x64"):
+def build(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="x64"):
     rtloader_path = get_rtloader_path()
 
     here = os.path.abspath(os.path.dirname(__file__))
@@ -45,7 +45,6 @@ def build(ctx, install_prefix=None, python_runtimes=None, cmake_options='', arch
 
     cmake_args = cmake_options + " -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={}".format(install_prefix or dev_path)
 
-    python_runtimes = python_runtimes or os.environ.get("PYTHON_RUNTIMES") or "3"
     python_runtimes = python_runtimes.split(',')
 
     settings = {

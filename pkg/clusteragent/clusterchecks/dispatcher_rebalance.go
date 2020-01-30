@@ -40,14 +40,14 @@ func (d *dispatcher) calculateAvg() (int, error) {
 
 	for _, node := range d.store.nodes {
 		busyness = node.GetBusyness(busynessFunc)
-		length += 1
+		length++
 	}
 
 	if length == 0 {
 		return -1, fmt.Errorf("zero nodes reporting")
 	}
 
-	return int(busyness) / length, nil
+	return busyness / length, nil
 }
 
 // getDiffAndWeights creates a map that contains the difference between
