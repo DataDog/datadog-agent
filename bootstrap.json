@@ -56,7 +56,7 @@
             "type": "shell"
         },
         "github.com/shuLhan/go-bindata/cmd/go-bindata" : {
-            "version": "master",
+            "version": "v3.4.0",
             "type": "go"
         }
     }
