@@ -276,7 +276,7 @@ run_tests_ebpf:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
   before_script:
     - cd $SRC_PATH
-    - pip3 install distro==1.4.0 # needed for some for our invoke tasks until the builders image contain it
+    - pip3 install distro -c requirements.txt # needed for some of our invoke tasks until the builders image contain it
     - inv -e deps --verbose --dep-vendor-only
   tags: [ "runner:main", "size:large" ]
   script:
