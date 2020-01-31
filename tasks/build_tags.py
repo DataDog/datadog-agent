@@ -55,7 +55,7 @@ REDHAT_AND_DEBIAN_ONLY_TAGS = [
 REDHAT_AND_DEBIAN_DIST = [
     'centos',
     'debian',
-    'redhat',
+    'rhel',
     'ubuntu',
 ]
 
