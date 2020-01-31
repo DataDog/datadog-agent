@@ -151,7 +151,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         ;;
         1)
             # We're upgrading.
-            remove_downloader_data
+            # The preinst script has taken care of removing the .pyc/.pyo files
         ;;
         *)
         ;;
