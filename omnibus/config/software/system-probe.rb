@@ -9,4 +9,5 @@ dependency 'libbcc'
 
 build do
   command "#{ENV['S3_CP_CMD']} #{ENV['S3_ARTIFACTS_URI']}/system-probe.#{ENV['PACKAGE_ARCH']} #{install_dir}/embedded/bin/system-probe"
+  command "chmod 755 #{install_dir}/embedded/bin/system-probe"
 end
