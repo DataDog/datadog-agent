@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -159,6 +160,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 			reverseDNS = snooper
 		} else {
 			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
+		}
+
+		if !util.IsRootNS(config.ProcRoot) {
+			log.Warn("system-probe is not running on the root network namespace, which is usually caused by running the " +
+				"system-probe in a container without using the host network. in this mode, you may see partial DNS resolution.")
 		}
 	}
 

@@ -2,15 +2,15 @@
 
 
 [[projects]]
-  digest = "1:e2fc614bdd3a92702f18c139dc28bf99c96296d89d3c7076ec8f7b3562c094a9"
+  digest = "1:9ab7542bc72ee9005bbd3f991c3c428979455ba790ab856bbc36017a69183d55"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "a50316bb3ffc06088cdfa8c2a7eda3fd19d2d0cc"
-  version = "4.19.0"
+  revision = "05b7bb250766177fb3d3bb9bdfd2b62f7d849e0b"
+  version = "4.24.0"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -22,7 +22,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:0d8c10d184a4d0b4aff969012854fe7975f7e5c274f1bff3eb5f892bbaf0d911"
+  digest = "1:a59f3622f110cd6dbb8675a21aa4882dd4163445985b6f0c1abf18a22bc7e837"
   name = "github.com/DataDog/gohai"
   packages = [
     "cpu",
@@ -34,7 +34,7 @@
     "processes/gops",
   ]
   pruneopts = ""
-  revision = "107ebc5d16adf023a132bd93174fec57d482c3c2"
+  revision = "8cbe900337f170d59939592f4f2f7bddf8d1c5b5"
 
 [[projects]]
   digest = "1:75f64877bf77b16c450dc23028abfa6d8b38e76ba70b6950cdd888e4f18e7032"
@@ -2101,7 +2101,6 @@
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned/fake",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions",
-    "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1",
     "github.com/DataDog/zstd.v1.3",
     "github.com/Microsoft/go-winio",
@@ -2112,6 +2111,7 @@
     "github.com/aws/aws-sdk-go/service/ec2",
     "github.com/beevik/ntp",
     "github.com/benesch/cgosymbolizer",
+    "github.com/cenkalti/backoff",
     "github.com/cihub/seelog",
     "github.com/clbanning/mxj",
     "github.com/containerd/cgroups",

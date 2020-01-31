@@ -88,8 +88,8 @@ func (h *AutoscalersController) RunHPA(stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-// ExtendToHPAController adds the handlers to the AutoscalersController to support HPAs
-func ExtendToHPAController(h *AutoscalersController, autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) {
+// EnableHPA adds the handlers to the AutoscalersController to support HPAs
+func (h *AutoscalersController) EnableHPA(autoscalingInformer autoscalersinformer.HorizontalPodAutoscalerInformer) {
 	autoscalingInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addAutoscaler,

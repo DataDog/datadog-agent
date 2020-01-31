@@ -2,6 +2,7 @@ package ebpf
 
 import (
 	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"sync"
 	"time"
 
@@ -133,6 +134,8 @@ func (ns *networkState) Connections(id string, latestTime uint64, latestConns []
 			c.LastRecvBytes = 0
 			c.LastRetransmits = 0
 		}
+
+		ns.determineConnectionIntraHost(latestConns)
 		return latestConns
 	}
 
@@ -152,6 +155,7 @@ func (ns *networkState) Connections(id string, latestTime uint64, latestConns []
 
 	// Flush closed connection map and stats
 	ns.clients[id].closedConnections = map[string]ConnectionStats{}
+	ns.determineConnectionIntraHost(conns)
 
 	return conns
 }
@@ -435,4 +439,50 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 		}
 	}
 	return data
+}
+
+func (ns *networkState) determineConnectionIntraHost(connections []ConnectionStats) {
+
+	type connKey struct {
+		Address util.Address
+		Port    uint16
+		Type    ConnectionType
+	}
+
+	newConnKey := func(connStat *ConnectionStats, useRAddrAsKey bool) connKey {
+		key := connKey{Type: connStat.Type}
+		if useRAddrAsKey {
+			if connStat.IPTranslation == nil {
+				key.Address = connStat.Dest
+				key.Port = connStat.DPort
+			} else {
+				key.Address = connStat.IPTranslation.ReplSrcIP
+				key.Port = connStat.IPTranslation.ReplSrcPort
+			}
+		} else {
+			key.Address = connStat.Source
+			key.Port = connStat.SPort
+		}
+		return key
+	}
+
+	lAddrs := make(map[connKey]struct{})
+	for _, conn := range connections {
+		lAddrs[newConnKey(&conn, false)] = struct{}{}
+	}
+
+	for i := range connections {
+		conn := &connections[i]
+		keyWithRAddr := newConnKey(conn, true)
+
+		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
+			conn.IntraHost = true
+			continue
+		}
+
+		_, ok := lAddrs[keyWithRAddr]
+		if ok {
+			conn.IntraHost = true
+		}
+	}
 }
