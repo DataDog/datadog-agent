@@ -152,7 +152,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     else:
         build_tags = get_build_tags(build_include, build_exclude)
  
-    # Generate go source from template
+    # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "

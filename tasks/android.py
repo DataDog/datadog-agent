@@ -61,7 +61,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
-    # Running go:generate before compilation 
+    # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
     # remove all tags that are only available on debian distributions

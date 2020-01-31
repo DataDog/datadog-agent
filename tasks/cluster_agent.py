@@ -41,7 +41,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
     # We rely on the go libs embedded in the debian stretch image to build dynamically
     ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca')
 
-    # Generate go source from template
+    # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "

@@ -48,7 +48,7 @@ MISSPELL_IGNORED_TARGETS = [
 ]
 
 # Packages that need go:generate
-GO_GENERAGE_TARGETS = [
+GO_GENERATE_TARGETS = [
     "./pkg/status"
 ]
 
@@ -377,5 +377,5 @@ def generate(ctx):
     """
     Run go generate required package
     """
-    ctx.run("go generate " + " ".join(GO_GENERAGE_TARGETS))
+    ctx.run("go generate " + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")
