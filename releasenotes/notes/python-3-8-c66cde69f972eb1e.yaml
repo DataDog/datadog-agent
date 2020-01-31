@@ -6,6 +6,9 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+enhancements:
   - |
     Upgrade embedded Python 3 to 3.8.1
+    Link to Python 3.8 changelog: https://docs.python.org/3/whatsnew/3.8.html
+    Agent v6 will continue to ship both Python 2 & 3, respectively version 2.7.17 (unchanged) and 3.8.1
+    Agent v7 will ship Python 3.8.1
