@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Allow Kustomize usage of RBAC Kubernetes manifests.
