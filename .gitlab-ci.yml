@@ -2596,7 +2596,7 @@ deploy_cloudfoundry_bosh_agent_zip:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.zip" $OMNIBUS_PACKAGE_DIR s3://$S3_DSD6_BASE/agent7/bosh/windows/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.zip" $OMNIBUS_PACKAGE_DIR s3://$S3_DSD6_BASE/windows/agent7/bosh/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy cloudfoundry builpack zip to the staging bucket
 deploy_cloudfoundry_buildpack_zip:
@@ -2608,7 +2608,7 @@ deploy_cloudfoundry_buildpack_zip:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "cf-windows-7.*.zip" $OMNIBUS_PACKAGE_DIR s3://$S3_DSD6_BASE/agent7/buildpack/windows/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "cf-windows-7.*.zip" $OMNIBUS_PACKAGE_DIR s3://$S3_DSD6_BASE/windows/agent7/buildpack/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy process agent and system-probe to staging bucket
 deploy_process_and_sysprobe:
