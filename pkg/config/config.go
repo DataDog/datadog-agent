@@ -871,6 +871,7 @@ func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (r
 	} else {
 		resolvedDDURL = prefix + DefaultSite
 	}
+	resolvedDDURL = strings.TrimSuffix(resolvedDDURL, "/")
 	return
 }
 
