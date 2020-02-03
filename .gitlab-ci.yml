@@ -1444,6 +1444,10 @@ deploy_windows_testing-a7:
   script:
     - AZURE_LOCATION='South Central US' bash -l tasks/run-test-kitchen.sh upgrade6-test $AGENT_MAJOR_VERSION
 
+.kitchen_test_upgrade7: &kitchen_test_upgrade7
+  script:
+    - AZURE_LOCATION='North Central US' bash -l tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
+
 .kitchen_test_windows_installer: &kitchen_test_windows_installer
   before_script: [ "# noop" ] # Override kitchen_os_windows default
   script:
@@ -1557,6 +1561,11 @@ kitchen_windows_upgrade6-a7:
   <<: *kitchen_scenario_windows_a7
   <<: *kitchen_test_upgrade6
 
+kitchen_windows_upgrade7-a7:
+  allow_failure: false
+  <<: *kitchen_scenario_windows_a7
+  <<: *kitchen_test_upgrade7
+
 # run dd-agent-testing on centos
 kitchen_centos_chef-a6:
   allow_failure: false
@@ -1607,6 +1616,11 @@ kitchen_centos_upgrade6-a7:
   allow_failure: false
   <<: *kitchen_scenario_centos_a7
   <<: *kitchen_test_upgrade6
+
+kitchen_centos_upgrade7-a7:
+  allow_failure: false
+  <<: *kitchen_scenario_centos_a7
+  <<: *kitchen_test_upgrade7
 
 # run dd-agent-testing on ubuntu
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
@@ -1660,6 +1674,11 @@ kitchen_ubuntu_upgrade6-a7:
   <<: *kitchen_scenario_ubuntu_a7
   <<: *kitchen_test_upgrade6
 
+kitchen_ubuntu_upgrade7-a7:
+  allow_failure: false
+  <<: *kitchen_scenario_ubuntu_a7
+  <<: *kitchen_test_upgrade7
+
 # run dd-agent-testing on suse
 kitchen_suse_chef-a6:
   allow_failure: false
@@ -1710,6 +1729,11 @@ kitchen_suse_upgrade6-a7:
   allow_failure: false
   <<: *kitchen_scenario_suse_a7
   <<: *kitchen_test_upgrade6
+
+kitchen_suse_upgrade7-a7:
+  allow_failure: false
+  <<: *kitchen_scenario_suse_a7
+  <<: *kitchen_test_upgrade7
 
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
@@ -1763,6 +1787,10 @@ kitchen_debian_upgrade6-a7:
   <<: *kitchen_scenario_debian_a7
   <<: *kitchen_test_upgrade6
 
+kitchen_debian_upgrade7-a7:
+  allow_failure: false
+  <<: *kitchen_scenario_debian_a7
+  <<: *kitchen_test_upgrade7
 
 
 #
