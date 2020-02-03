@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.7.6"
+default_version "3.8.1"
 
 if ohai["platform"] != "windows"
   dependency "libffi"
@@ -13,7 +13,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "aeee681c235ad336af116f08ab6563361a0c81c537072c1b309d6e4050aa2114"
+         :sha256 => "c7cfa39a43b994621b245e029769e9126caa2a93571cee2e743b213cceac35fb"
 
   relative_path "Python-#{version}"
 
@@ -48,7 +48,7 @@ if ohai["platform"] != "windows"
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
     command "make install", :env => env
-    delete "#{install_dir}/embedded/lib/python3.7/test"
+    delete "#{install_dir}/embedded/lib/python3.8/test"
 
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
@@ -65,12 +65,12 @@ else
     dependency "vc_ucrt_redist"
 
     source :url => "http://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
-            :sha256 => "946335d0f15e0c4c2820b5ce1ecd4b6470b8f6f28b774d4572279f2d0478c8ab"
+            :sha256 => "44f4a665392912fe172223c42c62dd193670392fee5010bc9f89c5cd2722964c"
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
     source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "618325664cadaa80766a3c89f480904bbf23fcbb61467ec36c5d87be026c00cf"
+         :sha256 => "58563ca60891025923572107e02b8f07439928eb5222dd10466cc92089072c2a"
 
   end
   build do
