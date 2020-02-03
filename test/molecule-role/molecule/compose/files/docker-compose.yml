@@ -54,7 +54,7 @@ services:
       ZOOKEEPER_QUORUM: kafka
     mem_limit: 1G
   db:
-    image: "quay.io/stackstate/stackstate-trace-java-demo:db-master"
+    image: "quay.io/stackstate/trace-java-demo:db-master"
     environment:
       POSTGRES_USER: 'app'
       POSTGRES_PASSWORD: 'app'
@@ -70,7 +70,7 @@ services:
       - "traefik.frontend.rule=Host:stackstate-demo-db.docker.localhost"
       - "traefik.backend=stackstate-demo-db"
   stackstate-books-app:
-    image: "quay.io/stackstate/stackstate-trace-java-demo:books-app-master"
+    image: "quay.io/stackstate/trace-java-demo:books-app-master"
     ports:
       - '8081-8091:8081'
     depends_on:
@@ -85,7 +85,7 @@ services:
       MAVEN_OPTS: "-Dsts.service.name=stackstate-books-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
     mem_limit: 1G
   stackstate-authors-app:
-    image: "quay.io/stackstate/stackstate-trace-java-demo:authors-app-master"
+    image: "quay.io/stackstate/trace-java-demo:authors-app-master"
     ports:
       - '8092-8099:8081'
     depends_on:

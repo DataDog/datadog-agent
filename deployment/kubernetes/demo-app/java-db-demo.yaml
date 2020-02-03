@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: db
-          image: quay.io/stackstate/stackstate-trace-java-demo:db-master
+          image: quay.io/stackstate/trace-java-demo:db-master
           env:
           - name: POSTGRES_USER
             value: 'app'
@@ -64,7 +64,7 @@ spec:
     spec:
       containers:
         - name: books-app
-          image: quay.io/stackstate/stackstate-trace-java-demo:books-app-master
+          image: quay.io/stackstate/trace-java-demo:books-app-master
           imagePullPolicy: Always
           ports:
             - containerPort: 8081
@@ -108,7 +108,7 @@ spec:
     spec:
       containers:
         - name: authors-app
-          image: quay.io/stackstate/stackstate-trace-java-demo:authors-app-master
+          image: quay.io/stackstate/trace-java-demo:authors-app-master
           imagePullPolicy: Always
           ports:
             - containerPort: 8081
