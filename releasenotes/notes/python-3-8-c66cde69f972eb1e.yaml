@@ -10,4 +10,4 @@ enhancements:
   - |
     Upgrade embedded Python 3 to 3.8.1. Link to Python 3.8 changelog: https://docs.python.org/3/whatsnew/3.8.html
 
-    Note that the Python 2 version shipped in Agent v6 continues to be version 2.7.17 (unchanged). Agent v7 will ship Python 3.8.1
+    Note that the Python 2 version shipped in Agent v6 continues to be version 2.7.17 (unchanged).
