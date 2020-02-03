@@ -21,10 +21,12 @@ import (
 
 func makeContainer(id string) *containers.Container {
 	return &containers.Container{
-		ID:     id,
-		CPU:    &metrics.CgroupTimesStat{},
-		Memory: &metrics.CgroupMemStat{},
-		IO:     &metrics.CgroupIOStat{},
+		ID: id,
+		ContainerMetrics: metrics.ContainerMetrics{
+			CPU:    &metrics.ContainerCPUStats{},
+			Memory: &metrics.ContainerMemStats{},
+			IO:     &metrics.ContainerIOStats{},
+		},
 	}
 }
 

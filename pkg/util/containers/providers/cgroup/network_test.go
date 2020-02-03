@@ -5,7 +5,7 @@
 
 // +build linux
 
-package metrics
+package cgroup
 
 import (
 	"path/filepath"
@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 )
 
 func TestCollectNetworkStats(t *testing.T) {
@@ -29,8 +31,8 @@ func TestCollectNetworkStats(t *testing.T) {
 		name       string
 		dev        string
 		networks   map[string]string
-		stat       ContainerNetStats
-		summedStat *InterfaceNetStats
+		stat       metrics.ContainerNetStats
+		summedStat *metrics.InterfaceNetStats
 	}{
 		{
 			pid:  1245,
@@ -44,8 +46,8 @@ func TestCollectNetworkStats(t *testing.T) {
 			networks: map[string]string{
 				"eth0": "bridge",
 			},
-			stat: ContainerNetStats{
-				&InterfaceNetStats{
+			stat: metrics.ContainerNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "bridge",
 					BytesRcvd:   1345,
 					PacketsRcvd: 10,
@@ -53,7 +55,7 @@ func TestCollectNetworkStats(t *testing.T) {
 					PacketsSent: 0,
 				},
 			},
-			summedStat: &InterfaceNetStats{
+			summedStat: &metrics.InterfaceNetStats{
 				BytesRcvd:   1345,
 				PacketsRcvd: 10,
 				BytesSent:   0,
@@ -74,15 +76,15 @@ func TestCollectNetworkStats(t *testing.T) {
 				"eth0": "bridge",
 				"eth1": "test",
 			},
-			stat: ContainerNetStats{
-				&InterfaceNetStats{
+			stat: metrics.ContainerNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "bridge",
 					BytesRcvd:   648,
 					PacketsRcvd: 8,
 					BytesSent:   0,
 					PacketsSent: 0,
 				},
-				&InterfaceNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "test",
 					BytesRcvd:   1478,
 					PacketsRcvd: 19,
@@ -90,7 +92,7 @@ func TestCollectNetworkStats(t *testing.T) {
 					PacketsSent: 3,
 				},
 			},
-			summedStat: &InterfaceNetStats{
+			summedStat: &metrics.InterfaceNetStats{
 				BytesRcvd:   2126,
 				PacketsRcvd: 27,
 				BytesSent:   182,
@@ -110,15 +112,15 @@ func TestCollectNetworkStats(t *testing.T) {
 			networks: map[string]string{
 				"eth1": "test",
 			},
-			stat: ContainerNetStats{
-				&InterfaceNetStats{
+			stat: metrics.ContainerNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "eth0",
 					BytesRcvd:   648,
 					PacketsRcvd: 8,
 					BytesSent:   0,
 					PacketsSent: 0,
 				},
-				&InterfaceNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "test",
 					BytesRcvd:   1478,
 					PacketsRcvd: 19,
@@ -126,7 +128,7 @@ func TestCollectNetworkStats(t *testing.T) {
 					PacketsSent: 3,
 				},
 			},
-			summedStat: &InterfaceNetStats{
+			summedStat: &metrics.InterfaceNetStats{
 				BytesRcvd:   2126,
 				PacketsRcvd: 27,
 				BytesSent:   182,
@@ -144,8 +146,8 @@ func TestCollectNetworkStats(t *testing.T) {
                     lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
             `),
 			networks: nil,
-			stat: ContainerNetStats{
-				&InterfaceNetStats{
+			stat: metrics.ContainerNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "eth0",
 					BytesRcvd:   1111,
 					PacketsRcvd: 2,
@@ -153,7 +155,7 @@ func TestCollectNetworkStats(t *testing.T) {
 					PacketsSent: 80,
 				},
 			},
-			summedStat: &InterfaceNetStats{
+			summedStat: &metrics.InterfaceNetStats{
 				BytesRcvd:   1111,
 				PacketsRcvd: 2,
 				BytesSent:   1024,
@@ -165,7 +167,7 @@ func TestCollectNetworkStats(t *testing.T) {
 			err = dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "dev"), tc.dev)
 			assert.NoError(t, err)
 
-			stat, err := CollectNetworkStats(tc.pid, tc.networks)
+			stat, err := collectNetworkStats(tc.pid, tc.networks)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.stat, stat)
 			assert.Equal(t, tc.summedStat, stat.SumInterfaces())
@@ -182,7 +184,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
 	for _, tc := range []struct {
 		pid          int
 		routes       string
-		destinations []NetworkDestination
+		destinations []containers.NetworkDestination
 	}{
 		// One interface
 		{
@@ -192,7 +194,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
                 eth0    00000000    010011AC    0003    0   0   0   00000000    0   0   0
                 eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
             `),
-			destinations: []NetworkDestination{{
+			destinations: []containers.NetworkDestination{{
 				Interface: "eth0",
 				Subnet:    0x000011AC,
 				Mask:      0x0000FFFF,
@@ -207,7 +209,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
                 eth0    00000000    FEFEA8C0    0003    0   0   0   00000000    0   0   0
                 eth0    00FEA8C0    00000000    0001    0   0   0   00FFFFFF    0   0   0
 			`),
-			destinations: []NetworkDestination{{
+			destinations: []containers.NetworkDestination{{
 				Interface: "eth0",
 				Subnet:    0x00FEA8C0,
 				Mask:      0x00FFFFFF,
@@ -222,7 +224,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
                 eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
                 eth1    000012AC    00000000    0001    0   0   0   0000FFFF    0   0   0
             `),
-			destinations: []NetworkDestination{{
+			destinations: []containers.NetworkDestination{{
 				Interface: "eth0",
 				Subnet:    0x000011AC,
 				Mask:      0x0000FFFF,
@@ -238,7 +240,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
 			err = dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "route"), tc.routes)
 			assert.NoError(t, err)
 
-			dest, err := DetectNetworkDestinations(tc.pid)
+			dest, err := detectNetworkDestinations(tc.pid)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.destinations, dest)
 		})

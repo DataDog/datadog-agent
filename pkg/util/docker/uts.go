@@ -13,13 +13,14 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/docker/docker/api/types/container"
 )
 
 // GetAgentContainerUTSMode provides the UTS mode of the Agent container
 // To get this info in an optimal way, consider calling util.GetAgentUTSMode instead to benefit from the cache
 func GetAgentContainerUTSMode() (containers.UTSMode, error) {
-	agentCID, _ := GetAgentCID()
+	agentCID, _ := providers.ContainerImpl.GetAgentCID()
 	return GetContainerUTSMode(agentCID)
 }
 

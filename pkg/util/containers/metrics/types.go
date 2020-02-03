@@ -17,9 +17,8 @@ type InterfaceNetStats struct {
 // ContainerNetStats stores network statistics about a Docker container per interface
 type ContainerNetStats []*InterfaceNetStats
 
-// CgroupMemStat stores memory statistics about a cgroup.
-type CgroupMemStat struct {
-	ContainerID             string
+// ContainerMemStats stores memory statistics about a cgroup.
+type ContainerMemStats struct {
 	Cache                   uint64
 	Swap                    uint64 // See SwapPresent to make sure it's a real zero
 	SwapPresent             bool
@@ -51,42 +50,50 @@ type CgroupMemStat struct {
 	TotalActiveFile         uint64
 	TotalUnevictable        uint64
 	MemUsageInBytes         uint64
+	SoftMemLimit            uint64
+	KernMemUsage            uint64
+	MemFailCnt              uint64
 }
 
-// CgroupTimesStat stores CPU times for a cgroup.
+// ContainerCPUStats stores CPU times for a cgroup.
 // Unit is userspace scheduling unit (USER_HZ, usually 1/100)
-type CgroupTimesStat struct {
-	ContainerID string
+type ContainerCPUStats struct {
 	System      uint64
 	User        uint64
 	UsageTotal  float64
 	SystemUsage uint64
 	Shares      uint64
+	NrThrottled uint64
+	ThreadCount uint64
 }
 
-// CgroupIOStat store I/O statistics about a cgroup.
+// ContainerIOStats store I/O statistics about a cgroup.
 // Sums are stored in ReadBytes and WriteBytes
-type CgroupIOStat struct {
-	ContainerID      string
+type ContainerIOStats struct {
 	ReadBytes        uint64
 	WriteBytes       uint64
 	DeviceReadBytes  map[string]uint64
 	DeviceWriteBytes map[string]uint64
+	OpenFiles        uint64
 }
 
-// ContainerCgroup is a structure that stores paths and mounts for a cgroup.
-// It provides several methods for collecting stats about the cgroup using the
-// paths and mounts metadata.
-type ContainerCgroup struct {
-	ContainerID string
-	Pids        []int32
-	Paths       map[string]string
-	Mounts      map[string]string
+// ContainerMetrics wraps all container metrics
+type ContainerMetrics struct {
+	CPU    *ContainerCPUStats
+	Memory *ContainerMemStats
+	IO     *ContainerIOStats
 }
 
-// NetworkDestination holds one network destination subnet and it's linked interface name
-type NetworkDestination struct {
-	Interface string
-	Subnet    uint64
-	Mask      uint64
+// ContainerLimits represents the (normally static) resources limits set when a container is created
+type ContainerLimits struct {
+	CPULimit    float64
+	MemLimit    uint64
+	ThreadLimit uint64
+}
+
+// ContainerMetricsProvider defines the API for any implementation that could provide container metrics
+type ContainerMetricsProvider interface {
+	GetContainerMetrics(containerID string) (*ContainerMetrics, error)
+	GetContainerLimits(containerID string) (*ContainerLimits, error)
+	GetNetworkMetrics(containerID string, networks map[string]string) (ContainerNetStats, error)
 }

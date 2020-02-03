@@ -19,7 +19,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
@@ -101,7 +101,7 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 		interfaces[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))
 	}
 
-	destinations, err := metrics.DetectNetworkDestinations(pid)
+	destinations, err := providers.ContainerImpl.DetectNetworkDestinations(pid)
 	if err != nil {
 		log.Warnf("Cannot list interfaces for container id %s: %s, skipping", containerID, err)
 		return nil
@@ -144,7 +144,7 @@ func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
 // To get this info in an optimal way, consider calling util.GetAgentNetworkMode	func GetContainerNetworkMode(cid string) (string, error) {
 // instead to benefit from the cache
 func GetAgentContainerNetworkMode() (string, error) {
-	agentCID, _ := GetAgentCID()
+	agentCID, _ := providers.ContainerImpl.GetAgentCID()
 	return GetContainerNetworkMode(agentCID)
 }
 

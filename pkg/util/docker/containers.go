@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,9 +36,9 @@ type ContainerListConfig struct {
 // Containers gets a list of all containers on the current node using a mix of
 // the Docker APIs and cgroups stats. We attempt to limit syscalls where possible.
 func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Container, error) {
-	cgByContainer, err := metrics.ScrapeAllCgroups()
+	err := providers.ContainerImpl.Prefetch()
 	if err != nil {
-		return nil, fmt.Errorf("could not get cgroups: %s", err)
+		return nil, fmt.Errorf("could not fetch container metrics: %s", err)
 	}
 
 	cList, err := d.dockerContainers(cfg)
@@ -46,20 +47,12 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 	}
 
 	for _, container := range cList {
-		if container.State != containers.ContainerRunningState || container.Excluded {
+		if container.State != containers.ContainerRunningState || container.Excluded || !providers.ContainerImpl.ContainerExists(container.ID) {
 			continue
 		}
-		cgroup, ok := cgByContainer[container.ID]
-		if !ok {
-			log.Debugf("No matching cgroups for container %s, skipping", container.ID[:12])
-			continue
-		}
-		container.SetCgroups(cgroup)
-		err = container.FillCgroupLimits()
-		if err != nil {
-			log.Debugf("Cannot get limits for container %s: %s, skipping", container.ID[:12], err)
-			continue
-		}
+
+		d.getContainerDetails(container)
+		d.getContainerMetrics(container)
 
 		if isMissingIP(container.AddressList) {
 			hostIPs := GetDockerHostIPs()
@@ -120,42 +113,72 @@ func (d *DockerUtil) ListContainers(cfg *ContainerListConfig) ([]*containers.Con
 		}
 	}
 
-	err = d.UpdateContainerMetrics(cList)
 	return cList, err
 }
 
 // UpdateContainerMetrics updates cgroup / network performance metrics for
 // a provided list of Container objects
 func (d *DockerUtil) UpdateContainerMetrics(cList []*containers.Container) error {
-	for _, container := range cList {
-		if container.State != containers.ContainerRunningState || container.Excluded {
-			continue
-		}
-
-		err := container.FillCgroupMetrics()
-		if err != nil {
-			log.Debugf("Cannot get metrics for container %s: %s", container.ID[:12], err)
-			continue
-		}
-
-		if d.cfg.CollectNetwork {
-			d.Lock()
-			networks := d.networkMappings[container.ID]
-			d.Unlock()
-
-			nwByIface := make(map[string]string)
-			for _, nw := range networks {
-				nwByIface[nw.iface] = nw.dockerName
-			}
-
-			err = container.FillNetworkMetrics(nwByIface)
-			if err != nil {
-				log.Debugf("Cannot get network stats for container %s: %s", container.ID, err)
-				continue
-			}
-		}
+	err := providers.ContainerImpl.Prefetch()
+	if err != nil {
+		return fmt.Errorf("could not fetch container metrics: %s", err)
 	}
+
+	for _, ctn := range cList {
+		if ctn == nil || ctn.State != containers.ContainerRunningState || ctn.Excluded || !providers.ContainerImpl.ContainerExists(ctn.ID) {
+			continue
+		}
+
+		d.getContainerMetrics(ctn)
+	}
+
 	return nil
+}
+
+// getContainerMetrics calls a ContainerImplementation, caller should always call Prefetch() before
+func (d *DockerUtil) getContainerDetails(ctn *containers.Container) {
+	var err error
+	ctn.StartedAt, err = providers.ContainerImpl.GetContainerStartTime(ctn.ID)
+	if err != nil {
+		log.Debugf("ContainerImplementation cannot get StartTime for container %s, err: %s", ctn.ID[:12], err)
+		return
+	}
+
+	var limits *metrics.ContainerLimits
+	limits, err = providers.ContainerImpl.GetContainerLimits(ctn.ID)
+	if err != nil {
+		log.Debugf("ContainerImplementation cannot get limits for container %s, err: %s", ctn.ID[:12], err)
+		return
+	}
+	ctn.SetLimits(limits)
+}
+
+// getContainerMetrics calls a ContainerImplementation, caller should always call Prefetch() before
+func (d *DockerUtil) getContainerMetrics(ctn *containers.Container) {
+	metrics, err := providers.ContainerImpl.GetContainerMetrics(ctn.ID)
+	if err != nil {
+		log.Debugf("ContainerImplementation cannot get metrics for container %s, err: %s", ctn.ID[:12], err)
+		return
+	}
+	ctn.SetMetrics(metrics)
+
+	if d.cfg.CollectNetwork {
+		d.Lock()
+		networks := d.networkMappings[ctn.ID]
+		d.Unlock()
+
+		nwByIface := make(map[string]string)
+		for _, nw := range networks {
+			nwByIface[nw.iface] = nw.dockerName
+		}
+
+		networkMetrics, err := providers.ContainerImpl.GetNetworkMetrics(ctn.ID, nwByIface)
+		if err != nil {
+			log.Debugf("Cannot get network stats for container %s: %s", ctn.ID, err)
+			return
+		}
+		ctn.Network = networkMetrics
+	}
 }
 
 // dockerContainers returns the running container list from the docker API

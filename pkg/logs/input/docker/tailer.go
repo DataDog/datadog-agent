@@ -198,6 +198,11 @@ func (t *Tailer) readForever() {
 				case isClosedConnError(err):
 					// This error is raised when the agent is stopping
 					return
+				case isFileAlreadyClosed(err):
+					// This error seems to be returned by Docker for Windows
+					// See: https://github.com/microsoft/go-winio/blob/master/file.go
+					// We can probably just wait to get more data
+					break
 				case err == io.EOF:
 					// This error is raised when:
 					// * the container is stopping.
@@ -292,4 +297,9 @@ func isContextCanceled(err error) bool {
 // isReaderClosed returns true if a reader has been closed.
 func isReaderClosed(err error) bool {
 	return strings.Contains(err.Error(), "http: read on closed response body")
+}
+
+// isFileAlreadyClosed returns true if file is already closing
+func isFileAlreadyClosed(err error) bool {
+	return strings.Contains(err.Error(), "file has already been closed")
 }

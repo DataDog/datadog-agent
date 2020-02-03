@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -487,7 +488,7 @@ func (ku *KubeUtil) GetRawMetrics() ([]byte, error) {
 
 // IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
 func (ku *KubeUtil) IsAgentHostNetwork() (bool, error) {
-	cid, err := docker.GetAgentCID()
+	cid, err := providers.ContainerImpl.GetAgentCID()
 	if err != nil {
 		return false, err
 	}

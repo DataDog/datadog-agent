@@ -298,6 +298,9 @@ func (l *Launcher) restartTailer(containerID string) {
 		}
 		oldTailer.Stop()
 		l.removeTailer(containerID)
+	} else {
+		log.Warnf("Unable to restart tailer, old source not found, keeping previous one, container: %s", containerID)
+		return
 	}
 
 	cli, err := l.getCli()

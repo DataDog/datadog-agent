@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,9 +25,9 @@ func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 		return nil, fmt.Errorf("could not get pod list: %s", err)
 	}
 
-	cgByContainer, err := metrics.ScrapeAllCgroups()
+	err = providers.ContainerImpl.Prefetch()
 	if err != nil {
-		return nil, fmt.Errorf("could not get cgroups: %s", err)
+		return nil, fmt.Errorf("could not fetch container metrics: %s", err)
 	}
 
 	var ctrList []*containers.Container
@@ -45,22 +46,17 @@ func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 				// Skip nil containers
 				continue
 			}
-			cgroup, ok := cgByContainer[container.ID]
-			if !ok {
-				log.Debugf("No cgroup found for container %s in pod %s, skipping", container.ID, pod.Metadata.Name)
+			if !providers.ContainerImpl.ContainerExists(container.ID) {
+				log.Debugf("No ContainerImplementation found for container %s in pod %s, skipping", container.ID, pod.Metadata.Name)
 				continue
 			}
-			container.SetCgroups(cgroup)
 			ctrList = append(ctrList, container)
 
-			err = container.FillCgroupLimits()
-			if err != nil {
-				log.Debugf("Cannot get limits for container %s: %s, skipping", container.ID, err)
-				continue
-			}
+			ku.getContainerDetails(container)
+			ku.getContainerMetrics(container)
 		}
 	}
-	err = ku.UpdateContainerMetrics(ctrList)
+
 	return ctrList, err
 }
 
@@ -68,18 +64,44 @@ func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 // a provided list of Container objects
 func (ku *KubeUtil) UpdateContainerMetrics(ctrList []*containers.Container) error {
 	for _, container := range ctrList {
-		err := container.FillCgroupMetrics()
-		if err != nil {
-			log.Debugf("Cannot get metrics for container %s: %s", container.ID, err)
-			continue
-		}
-		err = container.FillNetworkMetrics(nil)
-		if err != nil {
-			log.Debugf("Cannot get network stats for container %s: %s", container.ID, err)
-			continue
-		}
+		ku.getContainerMetrics(container)
 	}
 	return nil
+}
+
+// getContainerMetrics calls a ContainerImplementation, caller should always call Prefetch() before
+func (ku *KubeUtil) getContainerDetails(ctn *containers.Container) {
+	var err error
+	ctn.StartedAt, err = providers.ContainerImpl.GetContainerStartTime(ctn.ID)
+	if err != nil {
+		log.Debugf("ContainerImplementation cannot get StartTime for container %s, err: %s", ctn.ID[:12], err)
+		return
+	}
+
+	var limits *metrics.ContainerLimits
+	limits, err = providers.ContainerImpl.GetContainerLimits(ctn.ID)
+	if err != nil {
+		log.Debugf("ContainerImplementation cannot get limits for container %s, err: %s", ctn.ID[:12], err)
+		return
+	}
+	ctn.SetLimits(limits)
+}
+
+// getContainerMetrics calls a ContainerImplementation, calling function should always call Prefetch() before
+func (ku *KubeUtil) getContainerMetrics(ctn *containers.Container) {
+	metrics, err := providers.ContainerImpl.GetContainerMetrics(ctn.ID)
+	if err != nil {
+		log.Debugf("MetricsProvider cannot get metrics for container %s, err: %s", ctn.ID[:12], err)
+		return
+	}
+	ctn.SetMetrics(metrics)
+
+	networkMetrics, err := providers.ContainerImpl.GetNetworkMetrics(ctn.ID, nil)
+	if err != nil {
+		log.Debugf("Cannot get network stats for container %s: %s", ctn.ID, err)
+		return
+	}
+	ctn.Network = networkMetrics
 }
 
 func parseContainerInPod(status ContainerStatus, pod *Pod) (*containers.Container, error) {
