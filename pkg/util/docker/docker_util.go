@@ -23,7 +23,7 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -248,22 +248,12 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 
 // InspectSelf returns the inspect content of the container the current agent is running in
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	cID, err := GetAgentCID()
+	cID, err := providers.ContainerImpl.GetAgentCID()
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}
 
 	return d.Inspect(cID, false)
-}
-
-// GetAgentCID returns the container ID where the current agent is running
-func GetAgentCID() (string, error) {
-	prefix := config.Datadog.GetString("container_cgroup_prefix")
-	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup", prefix)
-	if err != nil {
-		return "", err
-	}
-	return cID, err
 }
 
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns

@@ -193,7 +193,10 @@ func (d *DockerCheck) Run() error {
 			sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
 			sender.Rate("docker.cpu.usage", c.CPU.UsageTotal, "", tags)
 			sender.Gauge("docker.cpu.shares", float64(c.CPU.Shares), "", tags)
-			sender.Rate("docker.cpu.throttled", float64(c.CPUNrThrottled), "", tags)
+			sender.Rate("docker.cpu.throttled", float64(c.CPU.NrThrottled), "", tags)
+			if c.CPU.ThreadCount != 0 {
+				sender.Gauge("docker.thread.count", float64(c.CPU.ThreadCount), "", tags)
+			}
 		} else {
 			log.Debugf("Empty CPU metrics for container %s", c.ID[:12])
 		}
@@ -211,7 +214,7 @@ func (d *DockerCheck) Run() error {
 				}
 			}
 
-			sender.Gauge("docker.mem.failed_count", float64(c.MemFailCnt), "", tags)
+			sender.Gauge("docker.mem.failed_count", float64(c.Memory.MemFailCnt), "", tags)
 			if c.Memory.HierarchicalMemSWLimit > 0 && c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
 				if c.Memory.HierarchicalMemSWLimit != 0 {
@@ -220,9 +223,9 @@ func (d *DockerCheck) Run() error {
 				}
 			}
 
-			sender.Gauge("docker.kmem.usage", float64(c.KernMemUsage), "", tags)
-			if c.SoftMemLimit > 0 && c.SoftMemLimit < uint64(math.Pow(2, 60)) {
-				sender.Gauge("docker.mem.soft_limit", float64(c.SoftMemLimit), "", tags)
+			sender.Gauge("docker.kmem.usage", float64(c.Memory.KernMemUsage), "", tags)
+			if c.Memory.SoftMemLimit > 0 && c.Memory.SoftMemLimit < uint64(math.Pow(2, 60)) {
+				sender.Gauge("docker.mem.soft_limit", float64(c.Memory.SoftMemLimit), "", tags)
 			}
 		} else {
 			log.Debugf("Empty memory metrics for container %s", c.ID[:12])
@@ -234,9 +237,6 @@ func (d *DockerCheck) Run() error {
 			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
 
-		if c.ThreadCount != 0 {
-			sender.Gauge("docker.thread.count", float64(c.ThreadCount), "", tags)
-		}
 		if c.ThreadLimit != 0 {
 			sender.Gauge("docker.thread.limit", float64(c.ThreadLimit), "", tags)
 		}
@@ -268,16 +268,7 @@ func (d *DockerCheck) Run() error {
 		}
 
 		// Collect open file descriptor counts
-		fileDescCount := 0
-		for _, pid := range c.Pids {
-			fdCount, err := cmetrics.GetFileDescriptorLen(int(pid))
-			if err != nil {
-				log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, c.ID[:12], err)
-				continue
-			}
-			fileDescCount += fdCount
-		}
-		sender.Gauge("docker.container.open_fds", float64(fileDescCount), "", tags)
+		sender.Gauge("docker.container.open_fds", float64(c.IO.OpenFiles), "", tags)
 	}
 
 	if d.instance.CollectContainerSize {
@@ -371,7 +362,7 @@ func (d *DockerCheck) reportUptime(startTime int64, currentUnixTime int64, tags 
 	}
 }
 
-func (d *DockerCheck) reportIOMetrics(io *cmetrics.CgroupIOStat, tags []string, sender aggregator.Sender) {
+func (d *DockerCheck) reportIOMetrics(io *cmetrics.ContainerIOStats, tags []string, sender aggregator.Sender) {
 	if io == nil {
 		return
 	}

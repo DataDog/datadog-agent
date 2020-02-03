@@ -44,6 +44,7 @@ func getDockerHostIPsUncached() []string {
 	providers := []hostIPProvider{
 		{"config", getHostIPsFromConfig},
 		{"ec2 metadata endpoint", ec2.GetLocalIPv4},
+		//FIXME: Do we need a specific implementation for windows container?
 		{"/proc/net/route", containers.DefaultHostIPs},
 	}
 

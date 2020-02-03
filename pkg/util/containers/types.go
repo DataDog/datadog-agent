@@ -58,37 +58,25 @@ const (
 )
 
 // Container represents a single container on a machine
-// and includes Cgroup-level statistics about the container.
+// and includes system-level statistics about the container.
 type Container struct {
-	Type     string
-	ID       string
-	EntityID string
-	Name     string
-	Image    string
-	ImageID  string
-	Created  int64
-	State    string
-	Health   string
-	Pids     []int32
-	Excluded bool
+	Type        string
+	ID          string
+	EntityID    string
+	Name        string
+	Image       string
+	ImageID     string
+	Created     int64
+	State       string
+	Health      string
+	Pids        []int32
+	Excluded    bool
+	AddressList []NetworkAddress
+	StartedAt   int64
 
-	CPULimit       float64
-	SoftMemLimit   uint64
-	KernMemUsage   uint64
-	MemLimit       uint64
-	MemFailCnt     uint64
-	CPUNrThrottled uint64
-	CPU            *metrics.CgroupTimesStat
-	Memory         *metrics.CgroupMemStat
-	IO             *metrics.CgroupIOStat
-	Network        metrics.ContainerNetStats
-	AddressList    []NetworkAddress
-	StartedAt      int64
-	ThreadCount    uint64
-	ThreadLimit    uint64
-
-	// For internal use only
-	cgroup *metrics.ContainerCgroup
+	metrics.ContainerLimits
+	metrics.ContainerMetrics
+	Network metrics.ContainerNetStats
 }
 
 // NetworkAddress represents a tuple IP/Port/Protocol
@@ -96,4 +84,27 @@ type NetworkAddress struct {
 	IP       net.IP
 	Port     int
 	Protocol string
+}
+
+// NetworkDestination holds one network destination subnet and it's linked interface name
+type NetworkDestination struct {
+	Interface string
+	Subnet    uint64
+	Mask      uint64
+}
+
+// ContainerImplementation is a generic interface that defines a common interface across
+// different container implementation (Linux cgroup, windows containers, etc.)
+type ContainerImplementation interface {
+	// Asks provider to fetch data from system APIs in bulk
+	// It's be required to call it before any other function
+	Prefetch() error
+
+	ContainerExists(containerID string) bool
+	GetContainerStartTime(containerID string) (int64, error)
+	DetectNetworkDestinations(pid int) ([]NetworkDestination, error)
+	GetAgentCID() (string, error)
+	ContainerIDForPID(pid int) (string, error)
+
+	metrics.ContainerMetricsProvider
 }

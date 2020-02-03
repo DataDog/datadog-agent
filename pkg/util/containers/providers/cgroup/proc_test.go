@@ -5,7 +5,7 @@
 
 // +build linux
 
-package metrics
+package cgroup
 
 import (
 	"io/ioutil"

@@ -5,33 +5,23 @@
 
 // +build linux
 
-package metrics
+package cgroup
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// SumInterfaces sums stats from all interfaces into a single InterfaceNetStats
-func (ns ContainerNetStats) SumInterfaces() *InterfaceNetStats {
-	sum := &InterfaceNetStats{}
-	for _, stat := range ns {
-		sum.BytesSent += stat.BytesSent
-		sum.BytesRcvd += stat.BytesRcvd
-		sum.PacketsSent += stat.PacketsSent
-		sum.PacketsRcvd += stat.PacketsRcvd
-	}
-	return sum
-}
-
-// CollectNetworkStats retrieves the network statistics for a given pid.
+// collectNetworkStats retrieves the network statistics for a given pid.
 // The networks map allows to optionnaly map interface name to user-friendly
 // network names. If not found in the map, the interface name is used.
-func CollectNetworkStats(pid int, networks map[string]string) (ContainerNetStats, error) {
-	netStats := ContainerNetStats{}
+func collectNetworkStats(pid int, networks map[string]string) (metrics.ContainerNetStats, error) {
+	netStats := metrics.ContainerNetStats{}
 
 	procNetFile := hostProc(strconv.Itoa(pid), "net", "dev")
 	if !pathExists(procNetFile) {
@@ -61,14 +51,14 @@ func CollectNetworkStats(pid int, networks map[string]string) (ContainerNetStats
 		}
 		iface := fields[0][:len(fields[0])-1]
 
-		var stat *InterfaceNetStats
+		var stat *metrics.InterfaceNetStats
 
 		if nw, ok := networks[iface]; ok {
-			stat = &InterfaceNetStats{NetworkName: nw}
+			stat = &metrics.InterfaceNetStats{NetworkName: nw}
 		} else if iface == "lo" {
 			continue // Ignore loopback
 		} else {
-			stat = &InterfaceNetStats{NetworkName: iface}
+			stat = &metrics.InterfaceNetStats{NetworkName: iface}
 		}
 
 		rcvd, _ := strconv.Atoi(fields[1])
@@ -87,7 +77,7 @@ func CollectNetworkStats(pid int, networks map[string]string) (ContainerNetStats
 
 // DetectNetworkDestinations lists all the networks available
 // to a given PID and parses them in NetworkInterface objects
-func DetectNetworkDestinations(pid int) ([]NetworkDestination, error) {
+func detectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
 	procNetFile := hostProc(strconv.Itoa(pid), "net", "route")
 	if !pathExists(procNetFile) {
 		return nil, fmt.Errorf("%s not found", procNetFile)
@@ -100,7 +90,7 @@ func DetectNetworkDestinations(pid int) ([]NetworkDestination, error) {
 		return nil, fmt.Errorf("empty network file %s", procNetFile)
 	}
 
-	destinations := make([]NetworkDestination, 0)
+	destinations := make([]containers.NetworkDestination, 0)
 	for _, line := range lines[1:] {
 		fields := strings.Fields(line)
 		if len(fields) < 8 {
@@ -119,7 +109,7 @@ func DetectNetworkDestinations(pid int) ([]NetworkDestination, error) {
 			log.Debugf("Cannot parse mask %q: %v", fields[7], err)
 			continue
 		}
-		d := NetworkDestination{
+		d := containers.NetworkDestination{
 			Interface: fields[0],
 			Subnet:    dest,
 			Mask:      mask,
