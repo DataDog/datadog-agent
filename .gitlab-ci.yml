@@ -71,8 +71,8 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly
   DATADOG_AGENT_BUILDIMAGES: v2128338-489d423
-  DATADOG_AGENT_BUILDERS: v2093589-8bb07dc
-  DATADOG_AGENT_WINBUILDIMAGES: v2068298-dc0e899
+  DATADOG_AGENT_BUILDERS: v2123666-a884483
+  DATADOG_AGENT_WINBUILDIMAGES: v2123666-a884483
   DATADOG_AGENT_ARMBUILDIMAGES: v2128338-489d423
   BCC_VERSION: v0.12.0
 
@@ -323,6 +323,7 @@ run_tests_ebpf:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
     - cd $SRC_PATH
+    - pip3 install distro -c requirements.txt # needed for some of our invoke tasks until the builders image contain it
     - inv -e deps --verbose --dep-vendor-only
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
@@ -404,7 +405,7 @@ build_dogstatsd-deb_x64:
 # build dogstatsd static for deb-arm
 build_dogstatsd_static-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3" ]
   variables:
@@ -423,7 +424,7 @@ build_dogstatsd_static-deb_arm64:
 # build dogstatsd linked for deb-arm
 build_dogstatsd-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3" ]
   variables:
@@ -455,7 +456,7 @@ build_puppy_agent-deb_x64:
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
 build_puppy_agent-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3" ]
   variables:
@@ -492,7 +493,7 @@ cluster_agent-build_amd64:
 
 cluster_agent-build_arm64:
   <<: *cluster_agent-build_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64

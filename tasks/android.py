@@ -7,7 +7,7 @@ import yaml
 import os
 import shutil
 import sys
-import platform
+import distro
 from distutils.dir_util import copy_tree
 
 import invoke
@@ -63,7 +63,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
                 build_exclude.append(ex)
 
     # remove all tags that are only available on debian distributions
-    distname = platform.linux_distribution()[0].lower()
+    distname = distro.id().lower()
     if distname not in REDHAT_AND_DEBIAN_DIST:
         for ex in REDHAT_AND_DEBIAN_ONLY_TAGS:
             if ex not in build_exclude:

@@ -96,9 +96,14 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             rm -rf $DOWNLOADER_DATA
         fi
 
-        DOWNLOADER_DATA3="$INSTALL_DIR/embedded/lib/python3.7/site-packages/datadog_checks/downloader/data"
-        if [ -d $DOWNLOADER_DATA3 ]; then
-            rm -rf $DOWNLOADER_DATA3
+        DOWNLOADER_DATA37="$INSTALL_DIR/embedded/lib/python3.7/site-packages/datadog_checks/downloader/data"
+        if [ -d $DOWNLOADER_DATA37 ]; then
+            rm -rf $DOWNLOADER_DATA37
+        fi
+
+        DOWNLOADER_DATA38="$INSTALL_DIR/embedded/lib/python3.8/site-packages/datadog_checks/downloader/data"
+        if [ -d $DOWNLOADER_DATA38 ]; then
+            rm -rf $DOWNLOADER_DATA38
         fi
     else
         echo "[ FAILED ]\tYour system is currently not supported by this script.";
