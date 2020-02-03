@@ -130,5 +130,5 @@ bundle exec kitchen diagnose --no-instances --loader
 
 rm -rf cookbooks
 rm -f Berksfile.lock
-
-bundle exec rake dd-agent-azure-parallel
+berks vendor ./cookbooks
+bundle exec kitchen test '^dd*.*-azure$' -c -d always
