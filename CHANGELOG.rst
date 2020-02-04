@@ -55,7 +55,7 @@ New Features
 Enhancement Notes
 -----------------
 
-- Add kube_node_role tag in host metadata for the node role based on the `kubernetes.io/role` label.
+- Add kube_node_role tag in host metadata for the node role based on the ``kubernetes.io/role`` label.
 
 - Add cluster_name tag in host metadata tags. Cluster name used is read from
   config if set by user or autodiscovered from cloud provider or Kubernetes
@@ -70,7 +70,7 @@ Enhancement Notes
 - Users can now use references to capture groups
   in mask sequence replacement_placeholder strings
 
-- Do not apply the metric namespace configured under `statsd_metric_namespace` to dogstatsd metrics prefixed with `datadog.tracer`. Tracer metrics are published with this prefix.
+- Do not apply the metric namespace configured under ``statsd_metric_namespace`` to dogstatsd metrics prefixed with ``datadog.tracer``. Tracer metrics are published with this prefix.
 
 
 .. _Release Notes_7.17.0_Bug Fixes:
@@ -78,7 +78,7 @@ Enhancement Notes
 Bug Fixes
 ---------
 
-- APM: The trace-agent now correctly applies `log_to_console`, `log_to_syslog`
+- APM: The trace-agent now correctly applies ``log_to_console``, ``log_to_syslog``
   and all other syslog settings.
 
 - Make the log agent continuously retry to connect to docker rather than giving up when docker is not running when the agent is started.
