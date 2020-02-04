@@ -61,7 +61,7 @@ def update_changelog(ctx, new_version):
 
     # removing releasenotes from bugfix on the old minor.
     branching_point = "{}.{}.0-devel".format(new_version_int[0], new_version_int[1])
-    previous_minor = "%s.%s" % (new_version_int[0], new_version_int[1] - 1)
+    previous_minor = "{}.{}".format(new_version_int[0], new_version_int[1] - 1)
     if previous_minor == "7.15":
         previous_minor = "6.15" # 7.15 is the first release in the 7.x series
     log_result = ctx.run("git log {}...remotes/origin/{}.x --name-only --oneline | \
