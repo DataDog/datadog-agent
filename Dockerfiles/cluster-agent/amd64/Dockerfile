@@ -44,7 +44,7 @@ COPY --from=builder /output /
 # by the `COPY --from=builder`.
 RUN apt-get update \
     && apt-get install -y libcap2-bin \
-    && setcap cap_net_bind_service+ep /opt/datadog-agent/bin/datadog-cluster-agent \
+    && setcap cap_net_bind_service=+ep /opt/datadog-agent/bin/datadog-cluster-agent \
     && apt-get remove -y libcap2-bin \
     && apt-get autoremove -y \
     && apt-get clean
