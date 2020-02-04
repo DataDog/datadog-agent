@@ -231,8 +231,8 @@ func detectPythonLocation(pythonVersion string) {
 		_here, err := executable.Folder()
 		if err != nil {
 			log.Warnf("Error getting executable folder: %v", err)
-			log.Warnf("Trying again without resolving symlinks")
-			_here, err = executable.FolderNoSymlinks()
+			log.Warnf("Trying again allowing symlink resolution to fail")
+			_here, err = executable.FolderAllowSymlinkFailure()
 			if err != nil {
 				log.Warnf("Error getting executable folder w/o symlinks: %v", err)
 			}
