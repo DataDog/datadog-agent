@@ -43,9 +43,12 @@ COPY --from=builder /output /
 # And we need to do it here because capabilities set in `builder` stage are not kept
 # by the `COPY --from=builder`.
 RUN apt-get update \
-    && apt-get install -y libcap2-bin \
-    && setcap cap_net_bind_service+ep /opt/datadog-agent/bin/datadog-cluster-agent \
-    && apt-get remove -y libcap2-bin \
+    && apt-get install -y attr \
+# Our CI is running in a way that pushes extra information about uid/user namespace in the "security.capability" when running setcap.
+# The hardcoded value 0s... is the equivalent of `setcap cap_net_bind_service+ep` without extra information.
+# It allows to run the binary on Kernel <4.14.
+    && setfattr --name="security.capability" --value="0sAQAAAgAEAAAAAAAAAAAAAAAAAAA=" /opt/datadog-agent/bin/datadog-cluster-agent \
+    && apt-get remove -y attr \
     && apt-get autoremove -y \
     && apt-get clean
 
