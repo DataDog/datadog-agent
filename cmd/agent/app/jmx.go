@@ -173,6 +173,7 @@ func RunJmxCommand(command string, reporter jmxfetch.JMXReporter, output func(..
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
 	runner.Output = log.Info
+	runner.LogLevel = jmxLogLevel
 	if output != nil {
 		runner.Output = output
 	}
