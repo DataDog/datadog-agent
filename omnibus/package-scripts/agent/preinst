@@ -79,13 +79,15 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
 
         if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
             # List all files in the embedded dir of the datadog-agent install dir
-            find $INSTALL_DIR/embedded/lib/python*/site-packages/datadog_* > $INSTALL_DIR/embedded/.all-integrations.txt
+            pushd $INSTALL_DIR
+            find ./embedded/lib/python*/site-packages/datadog_* > $INSTALL_DIR/embedded/.all-integrations.txt
 
             # List all files in the embedded dir of the datadog-agent install dir
             # which were not installed by the package and rm them.
-            grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs rm -rf
+            grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs --no-run-if-empty -I '{}' rm -r $INSTALL_DIR/{}
 
             rm $INSTALL_DIR/embedded/.all-integrations.txt
+            popd
         else
             PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
             PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
