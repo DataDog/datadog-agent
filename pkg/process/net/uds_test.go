@@ -15,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
-var cfg = config.AgentConfig{}
-
 func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
 	// Pre-create a socket
 	addr, err := net.ResolveUnixAddr("unix", socketPath)

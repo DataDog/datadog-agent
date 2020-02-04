@@ -824,18 +824,18 @@ func freeze(cmd *cobra.Command, args []string) error {
 		"freeze",
 	}
 
-	pip_stdo := bytes.NewBuffer(nil)
-	err := pip(pipArgs, io.Writer(pip_stdo), os.Stderr)
+	pipStdo := bytes.NewBuffer(nil)
+	err := pip(pipArgs, io.Writer(pipStdo), os.Stderr)
 	if err != nil {
 		return err
 	}
 
-	python_libs := strings.Split(pip_stdo.String(), "\n")
+	pythonLibs := strings.Split(pipStdo.String(), "\n")
 
 	// The agent integration freeze command should only show datadog packages and nothing else
-	for i := range python_libs {
-		if strings.HasPrefix(python_libs[i], "datadog-") {
-			fmt.Println(python_libs[i])
+	for i := range pythonLibs {
+		if strings.HasPrefix(pythonLibs[i], "datadog-") {
+			fmt.Println(pythonLibs[i])
 		}
 	}
 	return nil

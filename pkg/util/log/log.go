@@ -556,11 +556,3 @@ func GetLogLevel() (seelog.LogLevel, error) {
 	// need to return something, just set to Info (expected default)
 	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 }
-
-func changeLogLevel(level string) error {
-	if logger == nil {
-		return errors.New("cannot set log-level: logger not initialized")
-	}
-
-	return logger.changeLogLevel(level)
-}

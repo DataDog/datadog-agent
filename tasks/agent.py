@@ -7,14 +7,14 @@ import glob
 import os
 import shutil
 import sys
-import platform
+import distro
 from distutils.dir_util import copy_tree
 
 import invoke
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
 from .go import deps
@@ -81,7 +81,7 @@ PUPPY_CORECHECKS = [
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
           embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
-          with_both_python=False, major_version='7', arch='x64'):
+          major_version='7', python_runtimes='3', arch='x64'):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -95,7 +95,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
             rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3,
-            with_both_python=with_both_python, major_version=major_version, arch=arch)
+            major_version=major_version, python_runtimes=python_runtimes, arch=arch)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -103,19 +103,14 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
                 build_exclude.append(ex)
 
     # remove all tags that are only available on debian distributions
-    distname = platform.linux_distribution()[0].lower()
+    distname = distro.id().lower()
     if distname not in REDHAT_AND_DEBIAN_DIST:
         for ex in REDHAT_AND_DEBIAN_ONLY_TAGS:
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
     if sys.platform == 'win32':
-        python_runtimes = os.environ.get("PYTHON_RUNTIMES") or "3"
-        python_runtimes = python_runtimes.split(',')
-
-        py_runtime_var = "PY3_RUNTIME"
-        if '2' in python_runtimes:
-            py_runtime_var = "PY2_RUNTIME"
+        py_runtime_var = get_win_py_runtime_var(python_runtimes)
 
         windres_target = "pe-x86-64"
 
@@ -177,7 +172,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     args = {
         "go_file": "./pkg/config/render_config.go",
-        "build_type": "agent-py2py3" if with_both_python else "agent-py3",
+        "build_type": "agent-py2py3" if has_both_python(python_runtimes) else "agent-py3",
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": "./cmd/agent/dist/datadog.yaml",
     }
@@ -329,7 +324,8 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 @task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, puppy=False, cf_windows=False, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, skip_sign=False, release_version="nightly", major_version='7', omnibus_s3_cache=False):
+                  skip_deps=False, skip_sign=False, release_version="nightly", major_version='7',
+                  python_runtimes='3', omnibus_s3_cache=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -404,6 +400,7 @@ def omnibus_build(ctx, puppy=False, cf_windows=False, log_level="info", base_dir
 
             env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version, env=env)
             env['MAJOR_VERSION'] = major_version
+            env['PY_RUNTIMES'] = python_runtimes
             omnibus_start = datetime.datetime.now()
             ctx.run(cmd.format(**args), env=env)
             omnibus_done = datetime.datetime.now()

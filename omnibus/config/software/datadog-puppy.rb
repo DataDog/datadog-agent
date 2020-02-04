@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'pathname'
@@ -27,12 +27,14 @@ build do
 
   if windows?
     major_version_arg = "%MAJOR_VERSION%"
+    py_runtimes_arg = "%PY_RUNTIMES%"
   else
     major_version_arg = "$MAJOR_VERSION"
+    py_runtimes_arg = "$PY_RUNTIMES"
   end
 
   if linux?
-    command "invoke agent.build --puppy --rebuild --no-development --major-version #{major_version_arg}", env: env
+    command "invoke agent.build --puppy --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
     copy('bin', install_dir)
 
     mkdir "#{install_dir}/run/"
@@ -64,7 +66,7 @@ build do
     mkdir conf_dir
     mkdir "#{install_dir}/bin/agent"
 
-    command "inv agent.build --puppy --rebuild --no-development --arch #{platform} --major-version #{major_version_arg}", env: env
+    command "inv agent.build --puppy --rebuild --no-development --arch #{platform} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
 
       # move around bin and config files
     move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"

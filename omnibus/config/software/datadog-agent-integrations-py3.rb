@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'json'
@@ -31,8 +31,8 @@ if linux?
 end
 
 relative_path 'integrations-core'
-whitelist_file "embedded/lib/python3.7/site-packages/psycopg2"
-whitelist_file "embedded/lib/python3.7/site-packages/pymqi"
+whitelist_file "embedded/lib/python3.8/site-packages/psycopg2"
+whitelist_file "embedded/lib/python3.8/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
@@ -100,8 +100,8 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} install wheel==0.30.0"
-    command "#{pip} install pip-tools==2.0.2"
+    command "#{pip} install wheel==0.34.1"
+    command "#{pip} install pip-tools==4.2.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -259,7 +259,7 @@ build do
     if windows?
       patch :source => "jpype_0_7.patch", :target => "#{python_3_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
     else
-      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python3.7/site-packages/jaydebeapi/__init__.py"
+      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/jaydebeapi/__init__.py"
     end
 
   end

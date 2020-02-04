@@ -15,12 +15,13 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
-def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7', arch="x64"):
+def build(ctx, race=False, go_version=None, incremental_build=False,
+          major_version='7', python_runtimes='3', arch="x64"):
     """
     Build the process agent
     """
 
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
     if sys.platform == 'win32':

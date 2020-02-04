@@ -31,8 +31,9 @@ const (
 )
 
 var (
-	externalTotal = telemetry.NewGauge("external_metrics", "",
-		[]string{"valid"}, "Number of external metrics tagged.")
+	externalTotal = telemetry.NewGaugeWithOpts("", "external_metrics",
+		[]string{"valid"}, "Number of external metrics tagged.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	errNotInitialized = fmt.Errorf("configmap not initialized")
 )
@@ -268,9 +269,9 @@ func setStoreStats(store *configMapStore) {
 	var valid, invalid float64
 	for _, metric := range bundle.External {
 		if metric.Valid {
-			valid += 1
+			valid++
 		} else {
-			invalid += 1
+			invalid++
 		}
 	}
 

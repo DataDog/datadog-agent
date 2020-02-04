@@ -73,7 +73,7 @@ func launchGui(cmd *cobra.Command, args []string) error {
 	}
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
-	err = open("http://127.0.0.1:" + guiPort + "/authenticate?authToken=" + string(authToken) + ";csrf=" + string(csrfToken))
+	err = open("http://127.0.0.1:" + guiPort + "/authenticate?authToken=" + authToken + ";csrf=" + string(csrfToken))
 	if err != nil {
 		return fmt.Errorf("error opening GUI: " + err.Error())
 	}

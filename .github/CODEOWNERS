@@ -21,8 +21,8 @@
 /cmd/agent/install*.sh                  @DataDog/agent-platform
 /cmd/agent/version.h                    @DataDog/agent-platform
 /cmd/cluster-agent/                     @DataDog/container-integrations
-/cmd/process-agent/                     @DataDog/burrito
-/cmd/system-probe/                      @DataDog/burrito
+/cmd/process-agent/                     @DataDog/processes
+/cmd/system-probe/                      @DataDog/networks
 
 /Dockerfiles/                           @DataDog/container-integrations
 
@@ -61,7 +61,7 @@
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/apm-agent
-/pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/burrito
+/pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
@@ -69,16 +69,16 @@
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
-/pkg/util/docker/                       @DataDog/container-integrations @DataDog/burrito
-/pkg/util/ecs/                          @DataDog/container-integrations @DataDog/burrito
-/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/burrito
+/pkg/util/docker/                       @DataDog/container-integrations @DataDog/processes
+/pkg/util/ecs/                          @DataDog/container-integrations @DataDog/processes
+/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/processes
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/logs-intake @DataDog/agent-core
-/pkg/metadata/ecs/                      @DataDog/burrito
-/pkg/metadata/kubernetes/               @DataDog/burrito
-/pkg/process/                           @DataDog/burrito
-/pkg/ebpf/                              @DataDog/burrito
-/pkg/procmatch/                         @DataDog/burrito
+/pkg/metadata/ecs/                      @DataDog/networks
+/pkg/metadata/kubernetes/               @DataDog/networks
+/pkg/process/                           @DataDog/processes
+/pkg/ebpf/                              @DataDog/networks
+/pkg/procmatch/                         @DataDog/processes
 /pkg/quantile                           @DataDog/metrics-aggregation
 
 /releasenotes/                          @DataDog/agent-all
@@ -88,8 +88,8 @@
 
 /tasks/                                 @DataDog/agent-platform
 /tasks/agent.py                         @DataDog/agent-core
-/tasks/process-agent.py                 @DataDog/burrito
-/tasks/system-probe.py                  @DataDog/burrito
+/tasks/process-agent.py                 @DataDog/processes
+/tasks/system-probe.py                  @DataDog/networks
 /tasks/trace.py                         @DataDog/apm-agent
 
 /test/benchmarks                        @DataDog/agent-core
@@ -99,4 +99,4 @@
 /test/system                            @DataDog/agent-core
 /test/util                              @DataDog/agent-all
 
-/tools/ebpf/                            @DataDog/burrito
+/tools/ebpf/                            @DataDog/networks

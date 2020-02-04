@@ -12,7 +12,7 @@ import (
 	"io"
 )
 
-var readerNotInitializedError = errors.New("reader not initialized")
+var errReaderNotInitialized = errors.New("reader not initialized")
 
 type safeReader struct {
 	reader io.ReadCloser
@@ -28,7 +28,7 @@ func (s *safeReader) setUnsafeReader(reader io.ReadCloser) {
 
 func (s *safeReader) Read(p []byte) (int, error) {
 	if s.reader == nil {
-		err := readerNotInitializedError
+		err := errReaderNotInitialized
 		return 0, err
 	}
 
@@ -37,7 +37,7 @@ func (s *safeReader) Read(p []byte) (int, error) {
 
 func (s *safeReader) Close() error {
 	if s.reader == nil {
-		return readerNotInitializedError
+		return errReaderNotInitialized
 	}
 
 	return s.reader.Close()

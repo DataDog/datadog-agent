@@ -31,20 +31,6 @@ func (c *TestCheck) IsTelemetryEnabled() bool                                   
 
 var initialMinAllowedInterval = minAllowedInterval
 
-// wait 1s for a predicate function to return true, use polling
-// instead of a giant sleep.
-// predicate f must return true if the desired condition is met
-func consistently(f func() bool) bool {
-	for i := 0; i < 100; i++ {
-		if f() {
-			return true
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	// condition was not met during the wait period
-	return false
-}
-
 func consume(c chan check.Check, stop chan bool) {
 	for {
 		select {

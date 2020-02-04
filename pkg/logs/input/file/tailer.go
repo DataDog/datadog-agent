@@ -37,7 +37,6 @@ type Tailer struct {
 	decodedOffset int64
 
 	path           string
-	fullpath       string
 	file           *os.File
 	isWildcardPath bool
 	tags           []string

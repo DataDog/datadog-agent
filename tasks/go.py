@@ -155,6 +155,30 @@ def cyclo(ctx, targets, limit=15):
 
 
 @task
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
+    """
+    Run golangci-lint on targets using .golangci.yml configuration.
+
+    Example invocation:
+        inv golangci_lint --targets=./pkg/collector/check,./pkg/aggregator
+    """
+    if isinstance(targets, basestring):
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
+        targets = targets.split(',')
+
+    tags = build_tags or get_default_build_tags()
+    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
+    # we split targets to avoid going over the memory limit from circleCI
+    for target in targets:
+        print("running golangci on {}".format(target))
+        ctx.run("golangci-lint run -c .golangci.yml --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)), env=env)
+
+    # golangci exits with status 1 when it finds an issue, if we're here
+    # everything went smooth
+    print("golangci-lint found no issues")
+
+@task
 def ineffassign(ctx, targets):
     """
     Run ineffassign on targets.
@@ -219,7 +243,7 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
         tool = deps.get(dependency)
         if tool.get('install', True):
             print("processing get tool {}".format(dependency))
-            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', verbose=verbose)
+            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'install', cmd=tool.get('cmd'), verbose=verbose)
 
     if android:
         ndkhome = os.environ.get('ANDROID_NDK_HOME')

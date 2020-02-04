@@ -6,18 +6,19 @@
 package tcp
 
 import (
+	"net"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"net"
 )
 
 // AddrToHostPort converts a net.Addr to a (string, int).
 func AddrToHostPort(remoteAddr net.Addr) (string, int) {
 	switch addr := remoteAddr.(type) {
 	case *net.UDPAddr:
-		return addr.IP.String(), int(addr.Port)
+		return addr.IP.String(), addr.Port
 	case *net.TCPAddr:
-		return addr.IP.String(), int(addr.Port)
+		return addr.IP.String(), addr.Port
 	}
 	return "", 0
 }

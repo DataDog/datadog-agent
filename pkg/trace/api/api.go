@@ -46,7 +46,6 @@ import (
 const (
 	maxRequestBodyLength = 10 * 1024 * 1024
 	tagTraceHandler      = "handler:traces"
-	tagServiceHandler    = "handler:services"
 )
 
 // Version is a dumb way to version our collector handlers
@@ -383,7 +382,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	r.replyOK(v, w)
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
-	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
+	atomic.AddInt64(&ts.TracesBytes, req.Body.(*LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
 	r.wg.Add(1)

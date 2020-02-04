@@ -267,11 +267,11 @@ func TestIsBlockTiming(t *testing.T) {
 	e := newBlockedEndpoints()
 
 	// setting an old close
-	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(-time.Duration(30 * time.Second))}
+	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(-30 * time.Second)}
 	assert.False(t, e.isBlock("test"))
 
 	// setting an new close
-	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(time.Duration(30 * time.Second))}
+	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(30 * time.Second)}
 	assert.True(t, e.isBlock("test"))
 }
 

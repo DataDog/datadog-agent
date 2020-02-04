@@ -93,11 +93,11 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context) (provider
 }
 
 // Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService
-func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
-	o.SecureServing.ServerCert.CertDirectory = "/etc/datadog-agent/certificates"
-	o.SecureServing.BindPort = config.Datadog.GetInt("external_metrics_provider.port")
+func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
+	a.SecureServing.ServerCert.CertDirectory = "/etc/datadog-agent/certificates"
+	a.SecureServing.BindPort = config.Datadog.GetInt("external_metrics_provider.port")
 
-	if err := o.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
+	if err := a.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
 		log.Errorf("Failed to create self signed AuthN/Z configuration %#v", err)
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
@@ -120,19 +120,19 @@ func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	)
 	serverConfig := genericapiserver.NewConfig(codecs)
 
-	err := o.SecureServing.ApplyTo(&serverConfig.SecureServing, &serverConfig.LoopbackClientConfig)
+	err := a.SecureServing.ApplyTo(&serverConfig.SecureServing, &serverConfig.LoopbackClientConfig)
 	if err != nil {
 		log.Errorf("Error while converting SecureServing type %v", err)
 		return nil, err
 	}
 
 	// Get the certificates from the extension-apiserver-authentication ConfigMap
-	if err := o.Authentication.ApplyTo(&serverConfig.Authentication, serverConfig.SecureServing, nil); err != nil {
+	if err := a.Authentication.ApplyTo(&serverConfig.Authentication, serverConfig.SecureServing, nil); err != nil {
 		log.Errorf("Could not create Authentication configuration: %v", err)
 		return nil, err
 	}
 
-	if err := o.Authorization.ApplyTo(&serverConfig.Authorization); err != nil {
+	if err := a.Authorization.ApplyTo(&serverConfig.Authorization); err != nil {
 		log.Infof("Could not create Authorization configuration: %v", err)
 		return nil, err
 	}

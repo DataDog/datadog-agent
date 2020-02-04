@@ -35,10 +35,14 @@ Collector
       Events: Last Run: {{humanize .Events}}, Total: {{humanize .TotalEvents}}
       Service Checks: Last Run: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
       Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
+      Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
+      Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
+      {{- if $.CheckMetadata }}
       {{- if index $.CheckMetadata .CheckID }}
       metadata:
       {{- range $k, $v := index $.CheckMetadata .CheckID }}
         {{ $k }}: {{ $v }}
+      {{- end }}
       {{- end }}
       {{- end }}
       {{if .LastError -}}

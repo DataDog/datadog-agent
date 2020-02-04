@@ -19,7 +19,7 @@ def test(ctx):
     """
     Run docker tests
     """
-    ctx.run("python ./Dockerfiles/agent/secrets-helper/test_readsecret.py")
+    ctx.run("python3 ./Dockerfiles/agent/secrets-helper/test_readsecret.py")
 
 
 @task

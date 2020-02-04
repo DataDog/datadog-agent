@@ -2,7 +2,7 @@
 Utilities to manage build tags
 """
 import sys
-import platform
+import distro
 from invoke import task
 
 # ALL_TAGS lists any available build tag
@@ -55,7 +55,7 @@ REDHAT_AND_DEBIAN_ONLY_TAGS = [
 REDHAT_AND_DEBIAN_DIST = [
     'centos',
     'debian',
-    'redhat',
+    'rhel',
     'ubuntu',
 ]
 
@@ -77,7 +77,7 @@ def get_default_build_tags(puppy=False, process=False):
         exclude = exclude + PROCESS_ONLY_TAGS
 
     # remove all tags that are only available on debian distributions
-    distname = platform.linux_distribution()[0].lower()
+    distname = distro.id().lower()
     if distname not in REDHAT_AND_DEBIAN_DIST:
         exclude = exclude + REDHAT_AND_DEBIAN_ONLY_TAGS
 

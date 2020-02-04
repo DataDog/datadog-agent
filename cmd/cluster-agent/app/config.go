@@ -18,10 +18,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	configJSON bool
-)
-
 func init() {
 	ClusterAgentCmd.AddCommand(configCommand)
 }

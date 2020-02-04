@@ -24,20 +24,27 @@ import (
 )
 
 var (
-	ddRequests = telemetry.NewCounter("", "datadog_requests",
-		[]string{"status"}, "Counter of requests made to Datadog")
-	metricsEval = telemetry.NewGauge("", "external_metrics_processed_value",
-		[]string{"metric"}, "value processed from querying Datadog")
-	metricsDelay = telemetry.NewGauge("", "external_metrics_delay_seconds",
-		[]string{"metric"}, "freshness of the metric evaluated from querying Datadog")
-	rateLimitsRemaining = telemetry.NewGauge("", "rate_limit_queries_remaining",
-		[]string{"endpoint"}, "number of queries remaining before next reset")
-	rateLimitsReset = telemetry.NewGauge("", "rate_limit_queries_reset",
-		[]string{"endpoint"}, "number of seconds before next reset")
-	rateLimitsPeriod = telemetry.NewGauge("", "rate_limit_queries_period",
-		[]string{"endpoint"}, "period of rate limiting")
-	rateLimitsLimit = telemetry.NewGauge("", "rate_limit_queries_limit",
-		[]string{"endpoint"}, "maximum number of queries allowed in the period")
+	ddRequests = telemetry.NewCounterWithOpts("", "datadog_requests",
+		[]string{"status"}, "Counter of requests made to Datadog",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	metricsEval = telemetry.NewGaugeWithOpts("", "external_metrics_processed_value",
+		[]string{"metric"}, "value processed from querying Datadog",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	metricsDelay = telemetry.NewGaugeWithOpts("", "external_metrics_delay_seconds",
+		[]string{"metric"}, "freshness of the metric evaluated from querying Datadog",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	rateLimitsRemaining = telemetry.NewGaugeWithOpts("", "rate_limit_queries_remaining",
+		[]string{"endpoint"}, "number of queries remaining before next reset",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	rateLimitsReset = telemetry.NewGaugeWithOpts("", "rate_limit_queries_reset",
+		[]string{"endpoint"}, "number of seconds before next reset",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	rateLimitsPeriod = telemetry.NewGaugeWithOpts("", "rate_limit_queries_period",
+		[]string{"endpoint"}, "period of rate limiting",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	rateLimitsLimit = telemetry.NewGaugeWithOpts("", "rate_limit_queries_limit",
+		[]string{"endpoint"}, "maximum number of queries allowed in the period",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
 type Point struct {
@@ -122,7 +129,7 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 			processedMetrics[m] = point
 
 			// Prometheus submissions on the processed external metrics
-			metricsEval.Set(float64(point.value), m)
+			metricsEval.Set(point.value, m)
 			precision := time.Now().Unix() - point.timestamp
 			metricsDelay.Set(float64(precision), m)
 

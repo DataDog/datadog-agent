@@ -34,7 +34,7 @@ func getRelChecksPath() (string, error) {
 
 func validateUser(allowRoot bool) error {
 	if os.Geteuid() == 0 && !allowRoot {
-		return fmt.Errorf("Operation is disabled for root user. Please run this tool with the agent-running user or add '--allow-root/-r' to force.")
+		return fmt.Errorf("operation is disabled for root user. Please run this tool with the agent-running user or add '--allow-root/-r' to force")
 	}
 	return nil
 }

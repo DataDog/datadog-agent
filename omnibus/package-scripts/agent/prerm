@@ -109,9 +109,9 @@ remove_downloader_data()
         rm -rf $DOWNLOADER_DATA
     fi
 
-    DOWNLOADER_DATA3="$INSTALL_DIR/embedded/lib/python3.7/site-packages/datadog_checks/downloader/data"
-    if [ -d $DOWNLOADER_DATA3 ]; then
-        rm -rf $DOWNLOADER_DATA3
+    DOWNLOADER_DATA38="$INSTALL_DIR/embedded/lib/python3.8/site-packages/datadog_checks/downloader/data"
+    if [ -d $DOWNLOADER_DATA38 ]; then
+        rm -rf $DOWNLOADER_DATA38
     fi
 }
 
@@ -161,8 +161,8 @@ else
 fi
 
 # Delete all .pyc files in the `agent/` and the `bin/agent/dist` dirs
-find $INSTALL_DIR/agent -name '*.py[co]' -type f -delete || echo "Unable to delete .pyc files in $INSTALL_DIR/agent"
-find $INSTALL_DIR/bin/agent/dist -name '*.py[co]' -type f -delete || echo "Unable to delete .pyc files in $INSTALL_DIR/bin/agent/dist"
-find $INSTALL_DIR/bin/agent/dist -name '__pycache__' -type d -delete || echo "Unable to delete __pycache__ directories in $INSTALL_DIR/bin/agent/dist"
+find $INSTALL_DIR/embedded/lib/python* -name '*.py[co]' -type f -delete || true
+find $INSTALL_DIR/bin/agent/dist -name '*.py[co]' -type f -delete || true
+find $INSTALL_DIR/bin/agent/dist -name '__pycache__' -type d -delete || true
 
 exit 0

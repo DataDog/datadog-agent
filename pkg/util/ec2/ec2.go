@@ -20,11 +20,10 @@ import (
 
 // declare these as vars not const to ease testing
 var (
-	metadataURL         = "http://169.254.169.254/latest/meta-data"
-	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
-	timeout             = 100 * time.Millisecond
-	oldDefaultPrefixes  = []string{"ip-", "domu"}
-	defaultPrefixes     = []string{"ip-", "domu", "ec2amaz-"}
+	metadataURL        = "http://169.254.169.254/latest/meta-data"
+	timeout            = 100 * time.Millisecond
+	oldDefaultPrefixes = []string{"ip-", "domu"}
+	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "AWS"

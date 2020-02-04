@@ -84,7 +84,7 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 			low, orch, high := tags.Compute()
 			info := &TagInfo{
 				Source:               ecsFargateCollectorName,
-				Entity:               containers.BuildTaggerEntityName(string(ctr.DockerID)),
+				Entity:               containers.BuildTaggerEntityName(ctr.DockerID),
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
@@ -101,9 +101,9 @@ func parseECSClusterName(value string) string {
 	if strings.Contains(value, "/") {
 		parts := strings.Split(value, "/")
 		return parts[len(parts)-1]
-	} else {
-		return value
 	}
+
+	return value
 }
 
 func parseFargateRegion(arn string) string {

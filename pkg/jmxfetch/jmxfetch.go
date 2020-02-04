@@ -70,7 +70,6 @@ type JMXFetch struct {
 	IPCPort            int
 	IPCHost            string
 	Output             func(...interface{})
-	defaultJmxCommand  string
 	cmd                *exec.Cmd
 	managed            bool
 	shutdown           chan struct{}
@@ -85,8 +84,8 @@ var (
 	ReporterStatsd JMXReporter = "statsd" // default one
 	// ReporterConsole reports the output into the console as plain text
 	ReporterConsole JMXReporter = "console"
-	// ReporterJson reports the output into the console as json
-	ReporterJson JMXReporter = "json"
+	// ReporterJSON reports the output into the console as json
+	ReporterJSON JMXReporter = "json"
 )
 
 // checkInstanceCfg lists the config options on the instance against which we make some sanity checks
@@ -152,7 +151,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	switch j.Reporter {
 	case ReporterConsole:
 		reporter = "console"
-	case ReporterJson:
+	case ReporterJSON:
 		reporter = "json"
 	default:
 		reporter = fmt.Sprintf("statsd:%s:%s", bindHost, config.Datadog.GetString("dogstatsd_port"))
@@ -308,7 +307,7 @@ func (j *JMXFetch) Up() (bool, error) {
 	// TODO: write windows implementation
 	process, err := os.FindProcess(j.cmd.Process.Pid)
 	if err != nil {
-		return false, fmt.Errorf("Failed to find process: %s\n", err)
+		return false, fmt.Errorf("failed to find process: %s", err)
 	}
 
 	// from man kill(2):
