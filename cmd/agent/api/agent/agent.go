@@ -11,6 +11,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"sort"
 
@@ -50,6 +51,8 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
+	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 }
@@ -285,6 +288,40 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(scrubbed)
+}
+
+func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	setting := vars["setting"]
+	log.Info("Got a request to change a setting: %s", setting)
+	r.ParseForm()
+	value := html.UnescapeString(r.Form.Get("value"))
+
+	if _, ok := config.RuntimeSettings[setting]; !ok {
+		body, _ := json.Marshal(map[string]string{"error": "unknown setting"})
+		http.Error(w, string(body), 500)
+		return
+	}
+	if err := config.RuntimeSettings[setting].Set(value); err != nil {
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+}
+
+func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
+	configurableSettings := make(map[string]string)
+	for name, setting := range config.RuntimeSettings {
+		configurableSettings[name] = setting.Description()
+	}
+	body, err := json.Marshal(configurableSettings)
+	if err != nil {
+		log.Errorf("Unable to marshal response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(body)
 }
 
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
