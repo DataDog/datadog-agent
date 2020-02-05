@@ -21,8 +21,8 @@ func getMetadata() (map[string]string, error) {
 	if err != nil {
 		return metadata, err
 	}
-	metadata["cri_name"] = cu.Runtime
-	metadata["cri_version"] = cu.RuntimeVersion
+	metadata["cri_name"] = cu.GetRuntime()
+	metadata["cri_version"] = cu.GetRuntimeVersion()
 
 	return metadata, nil
 }

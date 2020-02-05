@@ -26,7 +26,14 @@ var (
 	once          sync.Once
 )
 
-// CRIUtil wraps interactions with the CRI
+type CRIClient interface {
+	ListContainerStats() (map[string]*pb.ContainerStats, error)
+	GetContainerStatus(containerID string) (*pb.ContainerStatus, error)
+	GetRuntime() string
+	GetRuntimeVersion() string
+}
+
+// CRIUtil wraps interactions with the CRI and implements CRIClient
 // see https://github.com/kubernetes/kubernetes/blob/release-1.12/pkg/kubelet/apis/cri/runtime/v1alpha2/api.proto
 type CRIUtil struct {
 	// used to setup the CRIUtil
@@ -34,8 +41,8 @@ type CRIUtil struct {
 
 	sync.Mutex
 	client            pb.RuntimeServiceClient
-	Runtime           string
-	RuntimeVersion    string
+	runtime           string
+	runtimeVersion    string
 	queryTimeout      time.Duration
 	connectionTimeout time.Duration
 	socketPath        string
@@ -66,9 +73,9 @@ func (c *CRIUtil) init() error {
 	if err != nil {
 		return err
 	}
-	c.Runtime = r.RuntimeName
-	c.RuntimeVersion = r.RuntimeVersion
-	log.Debugf("Successfully connected to CRI %s %s", c.Runtime, c.RuntimeVersion)
+	c.runtime = r.RuntimeName
+	c.runtimeVersion = r.RuntimeVersion
+	log.Debugf("Successfully connected to CRI %s %s", c.runtime, c.runtimeVersion)
 
 	return nil
 }
@@ -113,4 +120,25 @@ func (c *CRIUtil) ListContainerStats() (map[string]*pb.ContainerStats, error) {
 		stats[s.Attributes.Id] = s
 	}
 	return stats, nil
+}
+
+// ListContainer sends a ListContainerRequest to the server, and parses the returned response
+func (c *CRIUtil) GetContainerStatus(containerID string) (*pb.ContainerStatus, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	request := &pb.ContainerStatusRequest{ContainerId: containerID}
+	r, err := c.client.ContainerStatus(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.Status, nil
+}
+
+func (c *CRIUtil) GetRuntime() string {
+	return c.runtime
+}
+
+func (c *CRIUtil) GetRuntimeVersion() string {
+	return c.runtimeVersion
 }
