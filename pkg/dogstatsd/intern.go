@@ -13,11 +13,11 @@ func newStringInterner(maxSize int) *stringInterner {
 }
 
 func (i *stringInterner) LoadOrStore(key []byte) string {
-	if len(i.strings) >= i.maxSize {
-		i.strings = make(map[string]string)
-	}
 	if s, found := i.strings[string(key)]; found {
 		return s
+	}
+	if len(i.strings) >= i.maxSize {
+		i.strings = make(map[string]string)
 	}
 	s := string(key)
 	i.strings[s] = s
