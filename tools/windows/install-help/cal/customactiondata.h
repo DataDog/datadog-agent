@@ -31,6 +31,9 @@ class CustomActionData
         const std::wstring& Domain() const {
             return this->domain;
         }
+        void Domain(const std::wstring &domain) {
+            this->domain = domain;
+        }
     private:
         MSIHANDLE hInstall;
         bool domainUser;
