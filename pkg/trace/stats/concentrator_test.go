@@ -44,7 +44,7 @@ func testSpan(spanID uint64, parentID uint64, duration, offset int64, service, r
 		Name:     "query",
 		Resource: resource,
 		Error:    err,
-		Type:     "db",
+		Type:     "custom",
 	}
 }
 
@@ -390,11 +390,11 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 		"query|_sublayers.duration.by_service|env:none,resource:resource2,service:A2,sublayer_service:A3": 370,
 		"query|_sublayers.duration.by_service|env:none,resource:resource3,service:A2,sublayer_service:A2": 1000,
 		"query|_sublayers.duration.by_service|env:none,resource:resource6,service:A3,sublayer_service:A3": 30,
-		"query|_sublayers.duration.by_type|env:none,resource:resource1,service:A1,sublayer_type:db":       4370,
-		"query|_sublayers.duration.by_type|env:none,resource:resource2,service:A2,sublayer_type:db":       1370,
-		"query|_sublayers.duration.by_type|env:none,resource:resource4,service:A3,sublayer_type:db":       340,
-		"query|_sublayers.duration.by_type|env:none,resource:resource3,service:A2,sublayer_type:db":       1000,
-		"query|_sublayers.duration.by_type|env:none,resource:resource6,service:A3,sublayer_type:db":       30,
+		"query|_sublayers.duration.by_type|env:none,resource:resource1,service:A1,sublayer_type:custom":   4370,
+		"query|_sublayers.duration.by_type|env:none,resource:resource2,service:A2,sublayer_type:custom":   1370,
+		"query|_sublayers.duration.by_type|env:none,resource:resource4,service:A3,sublayer_type:custom":   340,
+		"query|_sublayers.duration.by_type|env:none,resource:resource3,service:A2,sublayer_type:custom":   1000,
+		"query|_sublayers.duration.by_type|env:none,resource:resource6,service:A3,sublayer_type:custom":   30,
 		"query|_sublayers.span_count|env:none,resource:resource1,service:A1,:":                            6,
 		"query|_sublayers.span_count|env:none,resource:resource2,service:A2,:":                            4,
 		"query|_sublayers.span_count|env:none,resource:resource4,service:A3,:":                            2,
