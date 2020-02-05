@@ -68,7 +68,7 @@ func ExtractTopLevelSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 
 	// We do a DFS on the trace to record the toplevel ancesters of each span
 	for current := next.Pop(); current != nil; current = next.Pop() {
-		if traceutil.HasTopLevel(current.Span) && !spanTypeIsDB(current.Span.Type) {
+		if traceutil.HasTopLevel(current.Span) && !traceutil.SpanTypeIsDB(current.Span.Type) {
 			current.Ancestors = append(current.Ancestors, current.Span)
 		}
 		visited[current.Span] = true
