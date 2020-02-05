@@ -31,7 +31,7 @@ const (
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
-	initRetry          retry.Retrier
+	setupRetrier       retry.Retrier
 	pipelineProvider   pipeline.Provider
 	addedSources       chan *config.LogSource
 	removedSources     chan *config.LogSource
@@ -46,7 +46,6 @@ type Launcher struct {
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
-	dockerRetrierStop  chan struct{}
 }
 
 // NewLauncher returns a new launcher
@@ -59,10 +58,9 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		stop:               make(chan struct{}),
 		erroredContainerID: make(chan string),
 		lock:               &sync.Mutex{},
-		dockerRetrierStop:  make(chan struct{}, 1),
 	}
 
-	if err := launcher.retrySetupInBackground(shouldRetry); err != nil {
+	if err := launcher.retrySetup(shouldRetry); err != nil {
 		return nil, err
 	}
 
@@ -73,6 +71,15 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
 	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
 	return launcher, nil
+}
+
+func (l *Launcher) getCli() (*client.Client, error) {
+	if err := l.setupRetrier.TriggerRetry(); err != nil {
+		log.Debugf("docker setup error: %s", err)
+		return nil, err
+	}
+
+	return l.cli, nil
 }
 
 // setup initializes the docker client and the tagger,
@@ -89,14 +96,14 @@ func (l *Launcher) setup() error {
 	return nil
 }
 
-func (l *Launcher) retrySetupInBackground(shouldRetry bool) error {
+func (l *Launcher) retrySetup(shouldRetry bool) error {
 	var retryStrategy retry.Strategy
 	if shouldRetry {
 		retryStrategy = retry.RetryCount
 	} else {
 		retryStrategy = retry.OneTry
 	}
-	l.initRetry.SetupRetrier(&retry.Config{
+	l.setupRetrier.SetupRetrier(&retry.Config{
 		Name:          "docker Launcher setup",
 		AttemptMethod: func() error { return l.setup() },
 		Strategy:      retryStrategy,
@@ -104,20 +111,9 @@ func (l *Launcher) retrySetupInBackground(shouldRetry bool) error {
 		RetryDelay:    30 * time.Second,
 	})
 
-	if err := l.initRetry.TriggerRetry(); err != nil && err.RetryStatus == retry.PermaFail {
+	if err := l.setupRetrier.TriggerRetry(); err != nil && err.RetryStatus == retry.PermaFail {
 		return err
 	}
-
-	go func() {
-		for l.initRetry.RetryStatus() == retry.FailWillRetry {
-			select {
-			case <-time.After(time.Until(l.initRetry.NextRetry())):
-				l.initRetry.TriggerRetry()
-			case <-l.dockerRetrierStop:
-				return
-			}
-		}
-	}()
 
 	return nil
 }
@@ -130,7 +126,6 @@ func (l *Launcher) Start() {
 // Stop stops the Launcher and its tailers in parallel,
 // this call returns only when all the tailers are stopped.
 func (l *Launcher) Stop() {
-	l.dockerRetrierStop <- struct{}{}
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range l.tailers {
@@ -147,7 +142,12 @@ func (l *Launcher) run() {
 		select {
 		case service := <-l.addedServices:
 			// detected a new container running on the host,
-			dockerContainer, err := GetContainer(l.cli, service.Identifier)
+			cli, err := l.getCli()
+			if err != nil {
+				log.Warnf("Could not create a docker client: %v", err)
+				continue
+			}
+			dockerContainer, err := GetContainer(cli, service.Identifier)
 			if err != nil {
 				log.Warnf("Could not find container with id: %v", err)
 				continue
@@ -239,7 +239,12 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 
 	// overridenSource == source if the containerCollectAll option is not activated or the container has AD labels
 	overridenSource := l.overrideSource(container, source)
-	tailer := NewTailer(l.cli, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+	cli, err := l.getCli()
+	if err != nil {
+		log.Warnf("Could not create a docker client: %v", err)
+		return
+	}
+	tailer := NewTailer(cli, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
