@@ -55,3 +55,11 @@ func SetMeta(s *pb.Span, key, val string) {
 	}
 	s.Meta[key] = val
 }
+
+func spanTypeIsDB(spanType string) bool {
+	switch spanType {
+	case "sql", "postgres", "mysql", "cassandra", "redis", "memcached", "mongodb", "elasticsearch", "db", "dynamodb":
+		return true
+	}
+	return false
+}

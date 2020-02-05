@@ -92,11 +92,3 @@ func ExtractTopLevelSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 
 	return subtraces
 }
-
-func spanTypeIsDB(spanType string) bool {
-	switch spanType {
-	case "sql", "postgres", "mysql", "cassandra", "redis", "memcached", "mongodb", "elasticsearch", "db", "dynamodb":
-		return true
-	}
-	return false
-}
