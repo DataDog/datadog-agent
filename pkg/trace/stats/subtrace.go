@@ -68,6 +68,9 @@ func ExtractTopLevelSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 
 	// We do a DFS on the trace to record the toplevel ancesters of each span
 	for current := next.Pop(); current != nil; current = next.Pop() {
+		// not computing sublayer metrics for db spans for now because they usually don't have children
+		// and they increase the number of metrics computed by much more
+		// TODO[jahanzebk]: stop ignoring DB spans
 		if traceutil.HasTopLevel(current.Span) && !traceutil.SpanTypeIsDB(current.Span.Type) {
 			current.Ancestors = append(current.Ancestors, current.Span)
 		}
