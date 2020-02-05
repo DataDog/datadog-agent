@@ -12,11 +12,22 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var (
+	initialTimeout     = timeout
+	initialMetadataURL = metadataURL
+)
+
+func resetPackageVars() {
+	timeout = initialTimeout
+	metadataURL = initialMetadataURL
+}
 
 func TestIsDefaultHostname(t *testing.T) {
 	const key = "ec2_use_windows_prefix_detection"
@@ -55,6 +66,8 @@ func TestGetInstanceID(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	val, err := GetInstanceID()
 	assert.Nil(t, err)
@@ -72,6 +85,8 @@ func TestGetHostname(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	val, err := GetHostname()
 	assert.Nil(t, err)
@@ -148,6 +163,8 @@ func TestGetNetworkID(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	val, err := GetNetworkID()
 	assert.NoError(t, err)
@@ -161,6 +178,8 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	_, err := GetNetworkID()
 	require.Error(t, err)
@@ -189,6 +208,8 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	_, err := GetNetworkID()
 	require.Error(t, err)
@@ -209,6 +230,8 @@ func TestGetLocalIPv4(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	ips, err := GetLocalIPv4()
 	require.NoError(t, err)
