@@ -544,20 +544,6 @@ func constructProxy(host, scheme string, port int, user, password string) (proxy
 	return http.ProxyURL(u), nil
 }
 
-// SetupInitialLogger will set up a default logger before parsing config so we log errors nicely.
-// The default will be stdout since we can't assume any file is writable.
-func SetupInitialLogger(loggerName config.LoggerName) error {
-	return config.SetupLogger(
-		loggerName,
-		"info",
-		"",
-		"",
-		false,
-		true, // logToConsole
-		false,
-	)
-}
-
 func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig) error {
 	return config.SetupLogger(
 		loggerName,
