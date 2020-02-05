@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019 Datadog, Inc.
+// Copyright 2019-2020 Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_THREE_AGGREGATOR_H
 #define DATADOG_AGENT_RTLOADER_THREE_AGGREGATOR_H
 

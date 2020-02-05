@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package azure
 
@@ -50,7 +50,7 @@ func GetClusterName() (string, error) {
 		return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
 	}
 
-	splitAll := strings.Split(string(all), "_")
+	splitAll := strings.Split(all, "_")
 	if len(splitAll) < 4 || splitAll[0] != "MC" {
 		return "", errors.New("cannot parse the clustername from metadata")
 	}

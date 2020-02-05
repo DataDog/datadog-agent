@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package log
 
@@ -555,12 +555,4 @@ func GetLogLevel() (seelog.LogLevel, error) {
 
 	// need to return something, just set to Info (expected default)
 	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
-}
-
-func changeLogLevel(level string) error {
-	if logger == nil {
-		return errors.New("cannot set log-level: logger not initialized")
-	}
-
-	return logger.changeLogLevel(level)
 }

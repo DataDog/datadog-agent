@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build kubeapiserver
 
 package cluster
@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	obj "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -115,8 +115,8 @@ func TestParseComponentStatus(t *testing.T) {
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 3)
 	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
 
-	empty_resp := kubeASCheck.parseComponentStatus(mocked, empty)
-	assert.Nil(t, empty_resp, "metadata structure has changed. Not collecting API Server's Components status")
+	emptyResp := kubeASCheck.parseComponentStatus(mocked, empty)
+	assert.Nil(t, emptyResp, "metadata structure has changed. Not collecting API Server's Components status")
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
 	mocked.AssertExpectations(t)

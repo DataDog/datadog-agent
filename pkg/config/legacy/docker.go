@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -134,12 +134,12 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 	}
 
 	// filter include/exclude list
-	if ac_exclude := handleFilterList(instance.Exclude, "exclude"); len(ac_exclude) != 0 {
-		configConverter.Set("ac_exclude", ac_exclude)
+	if acExclude := handleFilterList(instance.Exclude, "exclude"); len(acExclude) != 0 {
+		configConverter.Set("ac_exclude", acExclude)
 	}
 
-	if ac_include := handleFilterList(instance.Include, "include"); len(ac_include) != 0 {
-		configConverter.Set("ac_include", ac_include)
+	if acInclude := handleFilterList(instance.Include, "include"); len(acInclude) != 0 {
+		configConverter.Set("ac_include", acInclude)
 	}
 
 	// move 'collect_labels_as_tags' to 'docker_labels_as_tags'

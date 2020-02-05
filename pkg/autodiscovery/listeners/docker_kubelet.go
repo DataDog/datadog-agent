@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker,kubelet
 
@@ -23,7 +23,7 @@ import (
 // running in kubernetes
 type DockerKubeletService struct {
 	DockerService
-	kubeUtil *kubelet.KubeUtil
+	kubeUtil kubelet.KubeUtilInterface
 	Hosts    map[string]string
 	Ports    []ContainerPort
 	sync.RWMutex
@@ -41,8 +41,8 @@ func (s *DockerKubeletService) getPod() (*kubelet.Pod, error) {
 			return nil, err
 		}
 	}
-	searchedId := s.GetEntity()
-	return s.kubeUtil.GetPodForContainerID(searchedId)
+	searchedID := s.GetEntity()
+	return s.kubeUtil.GetPodForContainerID(searchedID)
 }
 
 // GetHosts returns the container's hosts
@@ -73,15 +73,15 @@ func (s *DockerKubeletService) GetPorts() ([]ContainerPort, error) {
 	if err != nil {
 		return nil, err
 	}
-	searchedId := s.GetEntity()
+	searchedID := s.GetEntity()
 	var searchedContainerName string
 	for _, container := range pod.Status.Containers {
-		if container.ID == searchedId {
+		if container.ID == searchedID {
 			searchedContainerName = container.Name
 		}
 	}
 	if searchedContainerName == "" {
-		return nil, fmt.Errorf("can't find container %s in pod %s", searchedId, pod.Metadata.Name)
+		return nil, fmt.Errorf("can't find container %s in pod %s", searchedID, pod.Metadata.Name)
 	}
 	ports := []ContainerPort{}
 	for _, container := range pod.Spec.Containers {

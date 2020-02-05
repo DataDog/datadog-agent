@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package api
 
@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
@@ -45,7 +46,6 @@ import (
 const (
 	maxRequestBodyLength = 10 * 1024 * 1024
 	tagTraceHandler      = "handler:traces"
-	tagServiceHandler    = "handler:services"
 )
 
 // Version is a dumb way to version our collector handlers
@@ -132,10 +132,11 @@ func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverTimeout > 0 {
 		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
 	}
+	httpLogger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	r.server = &http.Server{
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
-		ErrorLog:     stdlog.New(writableFunc(log.Error), "http.Server: ", 0),
+		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:      mux,
 	}
 
@@ -381,7 +382,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	r.replyOK(v, w)
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
-	atomic.AddInt64(&ts.TracesBytes, int64(req.Body.(*LimitedReader).Count))
+	atomic.AddInt64(&ts.TracesBytes, req.Body.(*LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
 	r.wg.Add(1)
@@ -611,16 +612,4 @@ func getMediaType(req *http.Request) string {
 		return "application/json"
 	}
 	return mt
-}
-
-// writableFunc implements io.Writer over a function. Anything written will be
-// forwarded to the function as one string argument.
-type writableFunc func(v ...interface{}) error
-
-// Write implements io.Writer.
-func (fn writableFunc) Write(p []byte) (n int, err error) {
-	if err = fn(string(p)); err != nil {
-		return 0, err
-	}
-	return len(p), nil
 }

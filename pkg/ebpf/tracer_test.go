@@ -23,6 +23,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -186,7 +187,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 }
@@ -233,9 +235,73 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
+}
+
+func TestDNATIntraHostIntegration(t *testing.T) {
+	cmd := exec.Command("netlink/testdata/setup_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("setup command output: %s", string(out))
+	}
+	defer teardown(t)
+
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	conns := getConnections(t, tr).Conns
+
+	server := &TCPServer{
+		address: "1.1.1.1:5432",
+		onMessage: func(c net.Conn) {
+			bs := make([]byte, 1)
+			_, err := c.Read(bs)
+			require.NoError(t, err, "error reading in server")
+
+			_, err = c.Write([]byte("Ping back"))
+			require.NoError(t, err, "error writing back in server")
+			_ = c.Close()
+		},
+	}
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	conn, err := net.Dial("tcp", "2.2.2.2:5432")
+	require.NoError(t, err, "error connecting to client")
+	_, err = conn.Write([]byte("ping"))
+	require.NoError(t, err, "error writing in client")
+
+	bs := make([]byte, 1)
+	_, err = conn.Read(bs)
+	require.NoError(t, err)
+	require.NoError(t, conn.Close(), "error closing client connection")
+
+	doneChan <- struct{}{}
+
+	time.Sleep(time.Second * 1)
+
+	conns = getConnections(t, tr).Conns
+	assert.Condition(t, func() bool {
+		for _, c := range conns {
+			if c.Source == util.AddressFromString("1.1.1.1") {
+				return c.IntraHost == true
+			}
+		}
+
+		return false
+	}, "did not find 1.1.1.1 connection classified as local")
+
+	assert.Condition(t, func() bool {
+		for _, c := range conns {
+			if c.Dest == util.AddressFromString("2.2.2.2") {
+				return c.IntraHost == true
+			}
+		}
+		return true
+	})
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
@@ -525,7 +591,8 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	// Confirm that the connection has been cleaned up since the last get
 	connections = getConnections(t, tr)
@@ -589,7 +656,8 @@ func TestTCPOverIPv6(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, ln.Addr().(*net.TCPAddr).Port, int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 
@@ -678,6 +746,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, NONE, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 }
@@ -941,6 +1010,65 @@ func TestTCPMiscount(t *testing.T) {
 
 	tel := tr.getEbpfTelemetry()
 	assert.NotZero(t, tel["tcp_sent_miscounts"])
+}
+
+func TestSkipConnectionDNS(t *testing.T) {
+
+	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
+		tr := &Tracer{config: &Config{CollectLocalDNS: false}}
+		assert.True(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("10.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  1000, DPort: 53,
+		}))
+
+		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("10.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  1000, DPort: 8080,
+		}))
+
+		assert.True(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("::3f::45"),
+			Dest:   util.AddressFromString("::1"),
+			SPort:  53, DPort: 1000,
+		}))
+
+		assert.True(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("::3f::45"),
+			Dest:   util.AddressFromString("::1"),
+			SPort:  53, DPort: 1000,
+		}))
+	})
+
+	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
+		tr := &Tracer{config: &Config{CollectLocalDNS: true}}
+
+		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("10.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  1000, DPort: 53,
+		}))
+
+		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("10.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  1000, DPort: 8080,
+		}))
+
+		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("::3f::45"),
+			Dest:   util.AddressFromString("::1"),
+			SPort:  53, DPort: 1000,
+		}))
+
+		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+			Source: util.AddressFromString("::3f::45"),
+			Dest:   util.AddressFromString("::1"),
+			SPort:  53, DPort: 1000,
+		}))
+
+	})
 }
 
 func byAddress(l, r net.Addr) func(c ConnectionStats) bool {
@@ -1268,4 +1396,12 @@ func getConnections(t *testing.T, tr *Tracer) *Connections {
 	}
 
 	return connections
+}
+
+func teardown(t *testing.T) {
+	cmd := exec.Command("netlink/testdata/teardown_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		fmt.Printf("teardown command output: %s", string(out))
+		t.Errorf("error tearing down: %s", err)
+	}
 }

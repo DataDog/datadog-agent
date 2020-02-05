@@ -2,15 +2,15 @@
 
 
 [[projects]]
-  digest = "1:c4e071eb2f960b14286f0fe2057d4f87dfd83c840c059377f01c37b5112595ed"
+  digest = "1:9ab7542bc72ee9005bbd3f991c3c428979455ba790ab856bbc36017a69183d55"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "8cebd5a06a08dc27a4d822940f5275b0fa41aa34"
-  version = "4.15.0"
+  revision = "05b7bb250766177fb3d3bb9bdfd2b62f7d849e0b"
+  version = "4.24.0"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -22,7 +22,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:0d8c10d184a4d0b4aff969012854fe7975f7e5c274f1bff3eb5f892bbaf0d911"
+  digest = "1:a59f3622f110cd6dbb8675a21aa4882dd4163445985b6f0c1abf18a22bc7e837"
   name = "github.com/DataDog/gohai"
   packages = [
     "cpu",
@@ -34,7 +34,7 @@
     "processes/gops",
   ]
   pruneopts = ""
-  revision = "107ebc5d16adf023a132bd93174fec57d482c3c2"
+  revision = "8cbe900337f170d59939592f4f2f7bddf8d1c5b5"
 
 [[projects]]
   digest = "1:75f64877bf77b16c450dc23028abfa6d8b38e76ba70b6950cdd888e4f18e7032"
@@ -51,7 +51,6 @@
   revision = "833e93ecbcfd25e491eceea5e42c49c22dac7ed1"
 
 [[projects]]
-  branch = "master"
   digest = "1:eb704e209bd926f5f44c97c0646cd20906c1cd714ba7a5ad4dc70f37ca98c7c0"
   name = "github.com/DataDog/mmh3"
   packages = ["."]
@@ -1132,14 +1131,16 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:d12ab5e83a9c556af857963ca797685012c09bbe35ee12bd4d0745f70af3f35e"
+  digest = "1:c826496cad27bd9a7644a01230a79d472b4093dd33587236e8f8369bb1d8534e"
   name = "github.com/prometheus/client_golang"
   packages = [
     "prometheus",
+    "prometheus/internal",
     "prometheus/promhttp",
   ]
   pruneopts = ""
-  revision = "e7e903064f5e9eb5da98208bae10b475d4db0f8c"
+  revision = "2641b987480bca71fb39738eb8c8b0d577cb1d76"
+  version = "v0.9.4"
 
 [[projects]]
   branch = "master"
@@ -1293,6 +1294,14 @@
   pruneopts = ""
   revision = "af6442a0fcf6e2a1b824f70dd0c734f01e817751"
   version = "v1.1.0"
+
+[[projects]]
+  digest = "1:1127282cb88e5c41a212d0c56cb892be494ae315822eb7d1f32ba9e47163a277"
+  name = "github.com/twmb/murmur3"
+  packages = ["."]
+  pruneopts = ""
+  revision = "b0c3ada27de84fabb1f036561c0c8c03b1115b77"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:444c05e2a216066b0def62df62e3cef74d51f5ea0ecd6547a100daa2281547ff"
@@ -1536,12 +1545,11 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:ba5a30c4cac85cf1d1b15f93803f16dcaa7ca7c0c22723aa3477dcd2b8a1b6d8"
+  digest = "1:d07cbf77cfe1273309ac253d40812f3256280fa2d6589b195098c1622047bd8e"
   name = "gopkg.in/zorkian/go-datadog-api.v2"
   packages = ["."]
   pruneopts = ""
-  revision = "d7b8b10db6a7eb1c1c2424b10a795a1662e80c9a"
-  version = "v2.12.0"
+  revision = "9e2c892691035a7685a16d5839910cfc54e42fb6"
 
 [[projects]]
   branch = "release-1.15"
@@ -1999,7 +2007,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "0:"
+  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
@@ -2088,13 +2096,11 @@
     "github.com/DataDog/gopsutil/host",
     "github.com/DataDog/gopsutil/mem",
     "github.com/DataDog/gopsutil/process",
-    "github.com/DataDog/mmh3",
     "github.com/DataDog/viper",
     "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned/fake",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions",
-    "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1",
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1",
     "github.com/DataDog/zstd.v1.3",
     "github.com/Microsoft/go-winio",
@@ -2105,6 +2111,7 @@
     "github.com/aws/aws-sdk-go/service/ec2",
     "github.com/beevik/ntp",
     "github.com/benesch/cgosymbolizer",
+    "github.com/cenkalti/backoff",
     "github.com/cihub/seelog",
     "github.com/clbanning/mxj",
     "github.com/containerd/cgroups",
@@ -2146,6 +2153,7 @@
     "github.com/google/gopacket/layers",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
+    "github.com/hashicorp/golang-lru",
     "github.com/hectane/go-acl",
     "github.com/iovisor/gobpf/elf",
     "github.com/json-iterator/go",
@@ -2178,6 +2186,7 @@
     "github.com/stretchr/testify/require",
     "github.com/stretchr/testify/suite",
     "github.com/tinylib/msgp/msgp",
+    "github.com/twmb/murmur3",
     "github.com/urfave/negroni",
     "golang.org/x/mobile/asset",
     "golang.org/x/net/context",
@@ -2205,6 +2214,7 @@
     "k8s.io/apimachinery/pkg/runtime/schema",
     "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
+    "k8s.io/apimachinery/pkg/util/errors",
     "k8s.io/apimachinery/pkg/util/sets",
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/apimachinery/pkg/watch",
@@ -2215,6 +2225,7 @@
     "k8s.io/client-go/informers/core/v1",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/fake",
+    "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/kubernetes/typed/core/v1",
     "k8s.io/client-go/listers/autoscaling/v2beta1",
     "k8s.io/client-go/listers/core/v1",

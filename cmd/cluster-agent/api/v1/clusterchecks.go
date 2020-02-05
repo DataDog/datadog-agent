@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -19,11 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	dcautil "github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// realIPHeader refers to the cluster level check runner ip passed in the request headers
-const realIPHeader = "X-Real-Ip"
 
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
@@ -55,7 +53,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		clientIP, err := validateClientIP(r.Header.Get(realIPHeader))
+		clientIP, err := validateClientIP(r.Header.Get(dcautil.RealIPHeader))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			incrementRequestMetric("postCheckStatus", http.StatusInternalServerError)
@@ -174,7 +172,7 @@ func validateClientIP(addr string) (string, error) {
 	}
 
 	if addr == "" && config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled") {
-		log.Warn("Cluster check dispatching error: cannot get runner IP from http headers. advanced_dispatching_enabled requires agent 6.16 or above.")
+		log.Warn("Cluster check dispatching error: cannot get runner IP from http headers. advanced_dispatching_enabled requires agent 6.17 or above.")
 	}
 
 	return addr, nil

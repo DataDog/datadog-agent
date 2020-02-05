@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package auditor
 
@@ -156,7 +156,11 @@ func (a *Auditor) run() {
 func (a *Auditor) recoverRegistry() map[string]*RegistryEntry {
 	mr, err := ioutil.ReadFile(a.registryPath)
 	if err != nil {
-		log.Error(err)
+		if os.IsNotExist(err) {
+			log.Debugf("Could not find state file at %q, will start with default offsets", a.registryPath)
+		} else {
+			log.Error(err)
+		}
 		return make(map[string]*RegistryEntry)
 	}
 	r, err := a.unmarshalRegistry(mr)

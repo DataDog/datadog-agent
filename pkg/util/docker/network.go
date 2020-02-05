@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
 type dockerNetwork struct {
@@ -142,12 +144,18 @@ func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
 // To get this info in an optimal way, consider calling util.GetAgentNetworkMode	func GetContainerNetworkMode(cid string) (string, error) {
 // instead to benefit from the cache
 func GetAgentContainerNetworkMode() (string, error) {
-	du, err := GetDockerUtil()
-	if err != nil {
-		return "", err
-	}
-	agentCID, _ := du.GetAgentCID()
+	agentCID, _ := GetAgentCID()
 	return GetContainerNetworkMode(agentCID)
+}
+
+// GetContainerNetworkAddresses returns internal container network address
+// representations from the container metadata retrieved at the given URL.
+func GetContainerNetworkAddresses(agentURL string) ([]containers.NetworkAddress, error) {
+	container, err := v3.NewClient(agentURL).GetContainer()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task from metadata v3 API: %s", err)
+	}
+	return parseContainerNetworkAddresses(container.Ports, container.Networks, container.DockerName), nil
 }
 
 // GetContainerNetworkMode returns the network mode of a container
@@ -175,11 +183,46 @@ func GetContainerNetworkMode(cid string) (string, error) {
 		// In awsvpc mode, the attached container is an amazon ecs pause container
 		if co.Config != nil && strings.HasPrefix(co.Config.Image, ecsPauseContainerImage) {
 			return containers.AwsvpcNetworkMode, nil
-		} else {
-			return containers.UnknownNetworkMode, fmt.Errorf("unknown network mode: %s", mode)
 		}
+		return containers.UnknownNetworkMode, fmt.Errorf("unknown network mode: %s", mode)
 	}
 	return mode, nil
+}
+
+// parseContainerNetworkAddresses converts ECS container ports
+// and networks into a list of NetworkAddress
+func parseContainerNetworkAddresses(ports []v3.Port, networks []v3.Network, container string) []containers.NetworkAddress {
+	addrList := []containers.NetworkAddress{}
+	if networks == nil {
+		log.Debugf("No network settings available in ECS metadata")
+		return addrList
+	}
+	for _, network := range networks {
+		for _, addr := range network.IPv4Addresses { // one-element list
+			IP := net.ParseIP(addr)
+			if IP == nil {
+				log.Warnf("Unable to parse IP: %v for container: %s", addr, container)
+				continue
+			}
+			if len(ports) > 0 {
+				// Ports is not nil, get ports and protocols
+				for _, port := range ports {
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       IP,
+						Port:     int(port.ContainerPort),
+						Protocol: port.Protocol,
+					})
+				}
+			} else {
+				// Ports is nil (omitted by the ecs api if there are no ports exposed).
+				// Keep the container IP anyway.
+				addrList = append(addrList, containers.NetworkAddress{
+					IP: IP,
+				})
+			}
+		}
+	}
+	return addrList
 }
 
 // parseContainerNetworkMode returns the network mode of a container

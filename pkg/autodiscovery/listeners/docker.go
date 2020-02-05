@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -180,9 +180,15 @@ func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 	l.m.RUnlock()
 
 	if found {
-		if e.Action == "die" {
+		switch e.Action {
+		case "die":
 			l.removeService(cID)
-		} else {
+		case "start":
+			// Container restarted with the same ID within 5 seconds.
+			time.AfterFunc(5*time.Second, func() {
+				l.createService(cID)
+			})
+		default:
 			// FIXME sometimes the agent's container's events are picked up twice at startup
 			log.Debugf("Expected die for container %s got %s: skipping event", cID[:12], e.Action)
 			return
@@ -277,12 +283,11 @@ func (l *DockerListener) removeService(cID string) {
 	l.m.RUnlock()
 
 	if ok {
-		l.m.Lock()
-		delete(l.services, cID)
-		l.m.Unlock()
-
 		// delay service removal for short lived service detection
 		time.AfterFunc(5*time.Second, func() {
+			l.m.Lock()
+			delete(l.services, cID)
+			l.m.Unlock()
 			l.delService <- svc
 		})
 	} else {

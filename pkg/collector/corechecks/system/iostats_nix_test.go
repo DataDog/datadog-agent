@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build !windows
 
@@ -37,16 +37,16 @@ var currentStats = map[string]disk.IOCountersStat{
 
 var lastStats = map[string]disk.IOCountersStat{
 	"sda": {
-		ReadCount:        uint64(maxULong),
-		MergedReadCount:  uint64(maxULong),
-		WriteCount:       uint64(maxULong),
-		MergedWriteCount: uint64(maxULong),
-		ReadBytes:        uint64(maxULong),
-		WriteBytes:       uint64(maxULong),
+		ReadCount:        maxULong,
+		MergedReadCount:  maxULong,
+		WriteCount:       maxULong,
+		MergedWriteCount: maxULong,
+		ReadBytes:        maxULong,
+		WriteBytes:       maxULong,
 		ReadTime:         uint64(math.MaxUint32),
 		WriteTime:        uint64(math.MaxUint32),
 		IopsInProgress:   0,
-		IoTime:           uint64(maxULong),
+		IoTime:           maxULong,
 		WeightedIO:       uint64(math.MaxUint32),
 		Name:             "sda",
 		SerialNumber:     "123456789WD",

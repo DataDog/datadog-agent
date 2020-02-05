@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build python
 
@@ -10,7 +10,6 @@ package python
 import (
 	"fmt"
 	"runtime"
-	"strings"
 	"sync/atomic"
 	"unsafe"
 
@@ -102,27 +101,6 @@ func (sl *stickyLock) unlock() {
 	runtime.UnlockOSThread()
 }
 
-// getPythonError returns string-formatted info about a Python interpreter error
-// that occurred and clears the error flag in the Python interpreter.
-//
-// For many C python functions, a `NULL` return value indicates an error (always
-// refer to the python C API docs to check the meaning of return values).
-// If an error did occur, use this function to handle it properly.
-//
-// WARNING: make sure the same stickyLock was already locked when the error flag
-// was set on the python interpreter
-func (sl *stickyLock) getPythonError() (string, error) {
-	if atomic.LoadUint32(&sl.locked) != 1 {
-		return "", fmt.Errorf("the stickyLock is unlocked, can't interact with python interpreter")
-	}
-
-	if C.has_error(rtloader) == 0 {
-		return "", fmt.Errorf("no error found")
-	}
-
-	return C.GoString(C.get_error(rtloader)), nil
-}
-
 // cStringArrayToSlice returns a slice with the contents of the char **tags (the function will not free 'array').
 func cStringArrayToSlice(array **C.char) []string {
 	if array != nil {
@@ -138,13 +116,6 @@ func cStringArrayToSlice(array **C.char) []string {
 		}
 	}
 	return nil
-}
-
-// Get the rightmost component of a module path like foo.bar.baz
-func getModuleName(modulePath string) string {
-	toks := strings.Split(modulePath, ".")
-	// no need to check toks length, worst case it contains only an empty string
-	return toks[len(toks)-1]
 }
 
 // GetPythonIntegrationList collects python datadog installed integrations list

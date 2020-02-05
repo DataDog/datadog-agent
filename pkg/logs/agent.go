@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package logs
 
@@ -122,11 +122,11 @@ func (a *Agent) Stop() {
 		select {
 		case <-c:
 		case <-timeout.C:
-			log.Debug("Force close of the Logs Agent, dumping the Go routines.")
+			log.Warn("Force close of the Logs Agent, dumping the Go routines.")
 			if stack, err := util.GetGoRoutinesDump(); err != nil {
-				log.Debugf("can't get the Go routines dump: %s\n", err)
+				log.Warnf("can't get the Go routines dump: %s\n", err)
 			} else {
-				log.Debug(stack)
+				log.Warn(stack)
 			}
 		}
 	}

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -170,7 +170,7 @@ func TestFindDockerNetworks(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			// Create temporary files on disk with the routes and stats.
-			err = dummyProcDir.Add(filepath.Join(strconv.Itoa(int(tc.pid)), "net", "route"), tc.routes)
+			err = dummyProcDir.Add(filepath.Join(strconv.Itoa(tc.pid), "net", "route"), tc.routes)
 			assert.NoError(t, err)
 
 			// Use the routes file and settings to get our networks.

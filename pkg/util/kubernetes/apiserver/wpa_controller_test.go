@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -16,18 +16,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
+	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 
 	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	k8s_fake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned/fake"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -49,7 +55,7 @@ func TestUpdateWPA(t *testing.T) {
 		},
 	}
 
-	hctrl, _ := newFakeAutoscalerController(client, alwaysLeader, autoscalers.DatadogClient(d))
+	hctrl, _ := newFakeAutoscalerController(t, client, alwaysLeader, autoscalers.DatadogClient(d))
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
 	hctrl.autoscalers = make(chan interface{}, 1)
@@ -144,16 +150,21 @@ func TestUpdateWPA(t *testing.T) {
 
 }
 
-func newFakeWPAController(kubeClient kubernetes.Interface, client wpa_client.Interface, itf LeaderElectorInterface, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.SharedInformerFactory) {
+func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client wpa_client.Interface, itf LeaderElectorInterface, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.SharedInformerFactory) {
+
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(t.Logf)
+
 	// need to fake wpa_client.
 	inf := wpa_informers.NewSharedInformerFactory(client, 0)
 	autoscalerController, _ := NewAutoscalersController(
 		kubeClient,
+		eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "FakeWPAController"}),
 		itf,
 		dcl,
 	)
 
-	ExtendToWPAController(autoscalerController, inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+	autoscalerController.enableWPA(inf)
 
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
@@ -215,7 +226,7 @@ func TestWPAController(t *testing.T) {
 		},
 	}
 	wpaClient := fake.NewSimpleClientset()
-	hctrl, inf := newFakeWPAController(client, wpaClient, alwaysLeader, autoscalers.DatadogClient(d))
+	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, autoscalers.DatadogClient(d))
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
 	hctrl.autoscalers = make(chan interface{}, 1)
@@ -224,7 +235,7 @@ func TestWPAController(t *testing.T) {
 	defer close(stop)
 	inf.Start(stop)
 
-	go hctrl.RunWPA(stop)
+	go hctrl.RunWPA(stop, wpaClient, inf)
 
 	hctrl.RunControllerLoop(stop)
 
@@ -359,7 +370,7 @@ func TestWPASync(t *testing.T) {
 	client := k8s_fake.NewSimpleClientset()
 	wpaClient := fake.NewSimpleClientset()
 	d := &fakeDatadogClient{}
-	hctrl, inf := newFakeWPAController(client, wpaClient, alwaysLeader, d)
+	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, d)
 
 	obj := newFakeWatermarkPodAutoscaler(
 		"wpa_1",
@@ -381,37 +392,12 @@ func TestWPASync(t *testing.T) {
 
 }
 
-func TestRemoveIgnoredWPAs(t *testing.T) {
-	listToIgnore := map[types.UID]int{
-		"aaa": 1,
-		"bbb": 2,
-	}
-	cachedWPAs := []*v1alpha1.WatermarkPodAutoscaler{
-		{
-			ObjectMeta: v1.ObjectMeta{
-				UID: "aaa",
-			},
-		},
-		{
-			ObjectMeta: v1.ObjectMeta{
-				UID: "ccc",
-			},
-		},
-	}
-
-	_, e := removeIgnoredAutoscaler(listToIgnore, nil, cachedWPAs)
-	require.Equal(t, len(e), 1)
-	require.Equal(t, e[0].UID, types.UID("ccc"))
-
-}
-
 // TestAutoscalerControllerGC tests the GC process of of the controller
 func TestWPAGC(t *testing.T) {
 	testCases := []struct {
 		caseName string
 		metrics  map[string]custommetrics.ExternalMetricValue
 		wpa      *v1alpha1.WatermarkPodAutoscaler
-		ignored  map[types.UID]int
 		expected []custommetrics.ExternalMetricValue
 	}{
 		{
@@ -503,9 +489,6 @@ func TestWPAGC(t *testing.T) {
 					},
 				},
 			},
-			ignored: map[types.UID]int{
-				"1111": 1,
-			},
 			expected: []custommetrics.ExternalMetricValue{},
 		},
 	}
@@ -517,13 +500,12 @@ func TestWPAGC(t *testing.T) {
 			d := &fakeDatadogClient{}
 			wpaCl := fake.NewSimpleClientset()
 
-			hctrl, _ := newFakeAutoscalerController(client, i, d)
+			hctrl, _ := newFakeAutoscalerController(t, client, i, d)
 			hctrl.wpaEnabled = true
 			inf := wpa_informers.NewSharedInformerFactory(wpaCl, 0)
-			ExtendToWPAController(hctrl, inf.Datadoghq().V1alpha1().WatermarkPodAutoscalers())
+			hctrl.enableWPA(inf)
 
 			hctrl.store = store
-			hctrl.overFlowingAutoscalers = testCase.ignored
 
 			if testCase.wpa != nil {
 				err := inf.Datadoghq().
@@ -538,6 +520,40 @@ func TestWPAGC(t *testing.T) {
 			allMetrics, err := store.ListAllExternalMetricValues()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, testCase.expected, allMetrics.External)
+		})
+	}
+}
+
+func TestWPACRDCheck(t *testing.T) {
+	retryableError := apierrors.NewNotFound(schema.GroupResource{
+		Group:    "datadoghq.com",
+		Resource: "watermarkpodautoscalers",
+	}, "")
+	nonRetryableError := fmt.Errorf("unexpectedError")
+	testCases := []struct {
+		caseName      string
+		checkError    error
+		expectedError error
+	}{
+		{
+			caseName:   "wpa crd exists",
+			checkError: nil,
+		},
+		{
+			caseName:      "wpa crd not found",
+			checkError:    retryableError,
+			expectedError: retryableError,
+		},
+		{
+			caseName:      "wpa list non-retryable",
+			checkError:    nonRetryableError,
+			expectedError: backoff.Permanent(nonRetryableError),
+		},
+	}
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
+			actualError := tryCheckWPACRD(func() error { return testCase.checkError })
+			require.Equal(t, testCase.expectedError, actualError)
 		})
 	}
 }

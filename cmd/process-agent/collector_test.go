@@ -93,3 +93,12 @@ func TestHasContainers(t *testing.T) {
 	assert.Equal(2, getContainerCount(&collectorRealTime))
 	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
 }
+
+func TestEndpointsForCheck(t *testing.T) {
+	assert := assert.New(t)
+	cfg := config.NewDefaultAgentConfig(false)
+	c, err := NewCollector(cfg)
+	assert.NoError(err)
+	assert.Equal(cfg.OrchestratorEndpoints, c.endpointsForCheck("pod"))
+	assert.Equal(cfg.APIEndpoints, c.endpointsForCheck("process"))
+}

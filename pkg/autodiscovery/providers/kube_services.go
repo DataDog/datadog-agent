@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -148,15 +148,15 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 			log.Debug("Ignoring a nil service")
 			continue
 		}
-		service_id := apiserver.EntityForService(svc)
-		svcConf, errors := extractTemplatesFromMap(service_id, svc.Annotations, kubeServiceAnnotationPrefix)
+		serviceID := apiserver.EntityForService(svc)
+		svcConf, errors := extractTemplatesFromMap(serviceID, svc.Annotations, kubeServiceAnnotationPrefix)
 		for _, err := range errors {
 			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
 		// All configurations are cluster checks
 		for i := range svcConf {
 			svcConf[i].ClusterCheck = true
-			svcConf[i].Source = "kube_services:" + service_id
+			svcConf[i].Source = "kube_services:" + serviceID
 		}
 		configs = append(configs, svcConf...)
 	}

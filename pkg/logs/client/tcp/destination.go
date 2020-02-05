@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package tcp
 
@@ -29,7 +29,6 @@ type Destination struct {
 	conn                net.Conn
 	inputChan           chan []byte
 	once                sync.Once
-	warningCounter      int
 }
 
 // NewDestination returns a new destination.
@@ -59,7 +58,9 @@ func (d *Destination) Send(payload []byte) error {
 	}
 
 	metrics.BytesSent.Add(int64(len(payload)))
+	metrics.TlmBytesSent.Add(float64(len(payload)))
 	metrics.EncodedBytesSent.Add(int64(len(payload)))
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload)))
 
 	content := d.prefixer.apply(payload)
 	frame, err := d.delimiter.delimit(content)
@@ -97,6 +98,7 @@ func (d *Destination) SendAsync(payload []byte) {
 			log.Warnf("Some logs sent to additional destination %v were dropped", host)
 		}
 		metrics.DestinationLogsDropped.Add(host, 1)
+		metrics.TlmLogsDropped.Inc(host)
 	}
 }
 

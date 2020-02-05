@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 package listeners
 
@@ -16,8 +16,7 @@ import (
 const (
 	newIdentifierLabel         = "com.datadoghq.ad.check.id"
 	legacyIdentifierLabel      = "com.datadoghq.sd.check.id"
-	dockerADTemplateLabelName  = "com.datadoghq.ad.instances"
-	dockerADTemplateChechNames = "com.datadoghq.ad.check_names"
+	dockerADTemplateCheckNames = "com.datadoghq.ad.check_names"
 )
 
 // ComputeContainerServiceIDs takes an entity name, an image (resolved to an actual name) and labels
@@ -52,10 +51,13 @@ func ComputeContainerServiceIDs(entity string, image string, labels map[string]s
 // getCheckNamesFromLabels unmarshals the json string of check names
 // defined in docker labels and returns a slice of check names
 func getCheckNamesFromLabels(labels map[string]string) ([]string, error) {
-	checkNames := []string{}
-	err := json.Unmarshal([]byte(labels[dockerADTemplateChechNames]), &checkNames)
-	if err != nil {
-		return nil, fmt.Errorf("Cannot parse check names: %v", err)
+	if checkLabels, found := labels[dockerADTemplateCheckNames]; found {
+		checkNames := []string{}
+		err := json.Unmarshal([]byte(checkLabels), &checkNames)
+		if err != nil {
+			return nil, fmt.Errorf("Cannot parse check names: %v", err)
+		}
+		return checkNames, nil
 	}
-	return checkNames, nil
+	return nil, nil
 }

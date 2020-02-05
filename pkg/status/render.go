@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package status
 
@@ -15,11 +15,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 var (
-	here, _        = executable.Folder()
 	fmap           = Fmap()
 	templateFolder string
 )
@@ -57,7 +55,7 @@ func FormatStatus(data []byte) (string, error) {
 	renderLogsStatus(b, logsStats)
 	renderAggregatorStatus(b, aggregatorStats)
 	renderDogstatsdStatus(b, dogstatsdStats)
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
 		renderDatadogClusterAgentStatus(b, dcaStats)
 	}
 

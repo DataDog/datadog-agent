@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
@@ -115,9 +115,9 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	return tagInfo
 }
 
-func (c *KubeMetadataCollector) getMetadaNames(getPodMetaDataFromApiServerFunc func(string, string, string) ([]string, error), metadataByNsPods apiv1.NamespacesPodsStringsSet, po *kubelet.Pod) ([]string, error) {
+func (c *KubeMetadataCollector) getMetadaNames(getPodMetaDataFromAPIServerFunc func(string, string, string) ([]string, error), metadataByNsPods apiv1.NamespacesPodsStringsSet, po *kubelet.Pod) ([]string, error) {
 	if !c.isClusterAgentEnabled() {
-		metadataNames, err := getPodMetaDataFromApiServerFunc(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
+		metadataNames, err := getPodMetaDataFromAPIServerFunc(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
 		if err != nil {
 			err = fmt.Errorf("Could not fetch cluster level tags of pod: %s, %v", po.Metadata.Name, err)
 		}

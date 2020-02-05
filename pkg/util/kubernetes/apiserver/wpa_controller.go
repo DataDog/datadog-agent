@@ -1,17 +1,25 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
 package apiserver
 
 import (
+	"math"
 	"time"
 
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions/datadoghq/v1alpha1"
+	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
+	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+
+	"github.com/cenkalti/backoff"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -22,12 +30,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	crdCheckInitialInterval = time.Second * 5
+	crdCheckMaxInterval     = 5 * time.Minute
+	crdCheckMultiplier      = 2.0
+	crdCheckMaxElapsedTime  = 0
+)
+
 // RunWPA starts the controller to process events about Watermark Pod Autoscalers
-func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
+func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient wpa_client.Interface, wpaInformerFactory externalversions.SharedInformerFactory) {
+	waitForWPACRD(wpaClient)
+
+	// mutate the Autoscaler controller to embed an informer against the WPAs
+	h.enableWPA(wpaInformerFactory)
 	defer h.WPAqueue.ShutDown()
 
 	log.Infof("Starting WPA Controller ... ")
 	defer log.Infof("Stopping WPA Controller")
+
+	wpaInformerFactory.Start(stopCh)
+
 	if !cache.WaitForCacheSync(stopCh, h.wpaListerSynced) {
 		return
 	}
@@ -36,8 +58,74 @@ func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-// ExtendToWPAController adds the handlers to the AutoscalersController to support WPAs
-func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.WatermarkPodAutoscalerInformer) {
+type checkAPI func() error
+
+func tryCheckWPACRD(check checkAPI) error {
+	if err := check(); err != nil {
+		// Check if this is a known problem of missing CRD registration
+		if isWPACRDNotFoundError(err) {
+			return err
+		}
+		// In all other cases return a permanent error to prevent from retrying
+		log.Errorf("WPA CRD check failed: not retryable: %s", err)
+		return backoff.Permanent(err)
+	}
+	log.Info("WPA CRD check successful")
+	return nil
+}
+
+func notifyCheckWPACRD() backoff.Notify {
+	attempt := 0
+	return func(err error, delay time.Duration) {
+		attempt++
+		mins := int(delay.Minutes())
+		secs := int(math.Mod(delay.Seconds(), 60))
+		log.Warnf("WPA CRD missing (attempt=%d): will retry in %dm%ds", attempt, mins, secs)
+	}
+}
+
+func isWPACRDNotFoundError(err error) bool {
+	status, ok := err.(*apierrors.StatusError)
+	if !ok {
+		return false
+	}
+	reason := status.Status().Reason
+	details := status.Status().Details
+	return reason == v1.StatusReasonNotFound &&
+		details.Group == apis_v1alpha1.SchemeGroupVersion.Group &&
+		details.Kind == "watermarkpodautoscalers"
+}
+
+func checkWPACRD(wpaClient wpa_client.Interface) backoff.Operation {
+	check := func() error {
+		_, err := wpaClient.DatadoghqV1alpha1().WatermarkPodAutoscalers(v1.NamespaceAll).List(v1.ListOptions{})
+		return err
+	}
+	return func() error {
+		return tryCheckWPACRD(check)
+	}
+}
+
+func waitForWPACRD(wpaClient wpa_client.Interface) {
+	exp := &backoff.ExponentialBackOff{
+		InitialInterval:     crdCheckInitialInterval,
+		RandomizationFactor: 0,
+		Multiplier:          crdCheckMultiplier,
+		MaxInterval:         crdCheckMaxInterval,
+		MaxElapsedTime:      crdCheckMaxElapsedTime,
+		Clock:               backoff.SystemClock,
+	}
+	exp.Reset()
+	_ = backoff.RetryNotify(checkWPACRD(wpaClient), exp, notifyCheckWPACRD())
+}
+
+// enableWPA adds the handlers to the AutoscalersController to support WPAs
+func (h *AutoscalersController) enableWPA(wpaInformerFactory externalversions.SharedInformerFactory) {
+	log.Info("Enabling WPA controller")
+	wpaInformer := wpaInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers()
+	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
+	h.wpaLister = wpaInformer.Lister()
+	h.wpaListerSynced = wpaInformer.Informer().HasSynced
 	wpaInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addWPAutoscaler,
@@ -45,9 +133,15 @@ func ExtendToWPAController(h *AutoscalersController, wpaInformer v1alpha1.Waterm
 			DeleteFunc: h.deleteWPAutoscaler,
 		},
 	)
-	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
-	h.wpaLister = wpaInformer.Lister()
-	h.wpaListerSynced = wpaInformer.Informer().HasSynced
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.wpaEnabled = true
+}
+
+func (h *AutoscalersController) isWPAEnabled() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.wpaEnabled
 }
 
 func (h *AutoscalersController) workerWPA() {
@@ -100,18 +194,6 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 			return nil
 		}
 		newMetrics := h.hpaProc.ProcessEMList(emList)
-		// The syncWPA can also interact with the overflowing store.
-		if len(newMetrics)+h.metricsProcessedCount > maxMetricsCount {
-			log.Warnf("Currently processing %d metrics, skipping %s/%s as we can't process more than %d metrics",
-				h.metricsProcessedCount, wpaCached.Namespace, wpaCached.Name, maxMetricsCount)
-			h.overFlowingAutoscalers[wpaCached.UID] = len(newMetrics)
-			return nil
-		}
-		if _, ok := h.overFlowingAutoscalers[wpaCached.UID]; ok {
-			log.Debugf("Previously ignored HPA %s/%s will now be processed", wpaCached.Namespace, wpaCached.Name)
-			delete(h.overFlowingAutoscalers, wpaCached.UID)
-		}
-
 		h.toStore.m.Lock()
 		for metric, value := range newMetrics {
 			// We should only insert placeholders in the local cache.
@@ -132,6 +214,7 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 		return
 	}
 	log.Debugf("Adding WPA %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
+	h.EventRecorder.Event(newAutoscaler, corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
 	h.enqueueWPA(newAutoscaler)
 }
 
@@ -155,13 +238,6 @@ func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	// Need to delete the old object from the local cache. If the labels have changed, the syncAutoscaler would not override the old key.
 	toDelete := autoscalers.InspectWPA(oldAutoscaler)
 	h.deleteFromLocalStore(toDelete)
-	// We re-evaluate if the WPA can be processed in syncWPA, subsequently to the enqueue.
-	h.mu.Lock()
-	if _, ok := h.overFlowingAutoscalers[oldAutoscaler.UID]; !ok {
-		h.metricsProcessedCount -= len(toDelete)
-	}
-	delete(h.overFlowingAutoscalers, oldAutoscaler.UID)
-	h.mu.Unlock()
 	log.Tracef("Processing update event for wpa %s/%s with configuration: %s", newAutoscaler.Namespace, newAutoscaler.Name, newAutoscaler.Annotations)
 	h.enqueueWPA(newAutoscaler)
 }
@@ -187,14 +263,6 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 			h.enqueueWPA(deletedWPA)
 			return
 		}
-		// Only decrease the count of processed metrics if we are able to successfully remove them from the global store.
-		// TODO pop WPAs from h.overFlowingAutoscalers and start processing the one(s) we have been ignoring up to the maxMetricsCount
-		// Current behavior: HPA will be evaluated next resync and processed if it does not have too many metrics.
-		if _, ok := h.overFlowingAutoscalers[deletedWPA.UID]; !ok {
-			h.metricsProcessedCount -= len(toDelete.External)
-		}
-		delete(h.overFlowingAutoscalers, deletedWPA.UID)
-		return
 	}
 
 	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -217,10 +285,4 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 		h.enqueueWPA(deletedWPA)
 		return
 	}
-	// Only decrease the count of processed metrics if the HPA was not ignored and if we are able to successfully remove them from the global store.
-	// TODO pop WPAs from h.overFlowingAutoscalers and start processing the one(s) we have been ignoring, up to the maxMetricsCount
-	if _, ok := h.overFlowingAutoscalers[deletedWPA.UID]; !ok {
-		h.metricsProcessedCount -= len(toDelete.External)
-	}
-	delete(h.overFlowingAutoscalers, deletedWPA.UID)
 }

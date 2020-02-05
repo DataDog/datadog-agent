@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -185,6 +185,9 @@ func (d *DockerCheck) Run() error {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
 		}
 
+		currentUnixTime := time.Now().Unix()
+		d.reportUptime(c.StartedAt, currentUnixTime, tags, sender)
+
 		if c.CPU != nil {
 			sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
 			sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
@@ -360,6 +363,12 @@ func (d *DockerCheck) Run() error {
 
 	sender.Commit()
 	return nil
+}
+
+func (d *DockerCheck) reportUptime(startTime int64, currentUnixTime int64, tags []string, sender aggregator.Sender) {
+	if startTime != 0 && currentUnixTime-startTime > 0 {
+		sender.Gauge("docker.uptime", float64(currentUnixTime-startTime), "", tags)
+	}
 }
 
 func (d *DockerCheck) reportIOMetrics(io *cmetrics.CgroupIOStat, tags []string, sender aggregator.Sender) {

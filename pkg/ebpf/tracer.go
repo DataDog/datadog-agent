@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -37,9 +36,8 @@ type Tracer struct {
 
 	config *Config
 
-	state          NetworkState
-	portMapping    *PortMapping
-	localAddresses map[util.Address]struct{}
+	state       NetworkState
+	portMapping *PortMapping
 
 	conntracker netlink.Conntracker
 
@@ -163,6 +161,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 		} else {
 			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 		}
+
+		if !util.IsRootNS(config.ProcRoot) {
+			log.Warn("system-probe is not running on the root network namespace, which is usually caused by running the " +
+				"system-probe in a container without using the host network. in this mode, you may see partial DNS resolution.")
+		}
 	}
 
 	portMapping := NewPortMapping(config.ProcRoot, config)
@@ -187,7 +190,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		state:          state,
 		portMapping:    portMapping,
 		reverseDNS:     reverseDNS,
-		localAddresses: readLocalAddresses(),
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
@@ -308,7 +310,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 //  • Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
-	if !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL {
+	if !t.config.CollectLocalDNS && isDNSConnection && conn.Dest.IsLoopback() {
 		return true
 	} else if IsBlacklistedConnection(t.sourceExcludes, t.destExcludes, conn) {
 		return true
@@ -652,54 +654,12 @@ func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionD
 	if conn.Type == UDP {
 		return NONE
 	}
-	sourceLocal := t.isLocalAddress(conn.Source)
-	destLocal := t.isLocalAddress(conn.Dest)
 
-	if sourceLocal && destLocal {
-		return LOCAL
-	}
-
-	if sourceLocal && t.portMapping.IsListening(conn.SPort) {
+	if t.portMapping.IsListening(conn.SPort) {
 		return INCOMING
 	}
 
 	return OUTGOING
-}
-
-func (t *Tracer) isLocalAddress(address util.Address) bool {
-	_, ok := t.localAddresses[address]
-	return ok
-}
-
-func readLocalAddresses() map[util.Address]struct{} {
-	addresses := make(map[util.Address]struct{}, 0)
-
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		_ = log.Errorf("error reading network interfaces: %s", err)
-		return addresses
-	}
-
-	for _, intf := range interfaces {
-		addrs, err := intf.Addrs()
-
-		if err != nil {
-			_ = log.Errorf("error reading interface %s addresses: %s", intf.Name, err)
-			continue
-		}
-
-		for _, addr := range addrs {
-			switch v := addr.(type) {
-			case *net.IPNet:
-				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
-			case *net.IPAddr:
-				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
-			}
-		}
-
-	}
-
-	return addresses
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)

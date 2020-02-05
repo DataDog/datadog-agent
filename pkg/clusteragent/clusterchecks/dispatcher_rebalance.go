@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -40,14 +40,14 @@ func (d *dispatcher) calculateAvg() (int, error) {
 
 	for _, node := range d.store.nodes {
 		busyness = node.GetBusyness(busynessFunc)
-		length += 1
+		length++
 	}
 
 	if length == 0 {
 		return -1, fmt.Errorf("zero nodes reporting")
 	}
 
-	return int(busyness) / length, nil
+	return busyness / length, nil
 }
 
 // getDiffAndWeights creates a map that contains the difference between
@@ -101,7 +101,7 @@ func (d *dispatcher) pickCheckToMove(nodeName string) (string, int, error) {
 		return "", -1, fmt.Errorf("node %s not found in store", nodeName)
 	}
 
-	return node.GetMostWeightedCheck(busynessFunc)
+	return node.GetMostWeightedClusterCheck(busynessFunc)
 }
 
 // pickNode select the most appropriate node to receive a specific check.
@@ -182,8 +182,8 @@ func (d *dispatcher) rebalance() {
 			sourceNodeName := nodeWeight.nodeName
 			checkID, checkWeight, err := d.pickCheckToMove(sourceNodeName)
 			if err != nil {
-				log.Debugf("Cannot pick a destination node to receive check: %v", err)
-				continue
+				log.Debugf("Cannot pick a check to move from node %s: %v", sourceNodeName, err)
+				break
 			}
 
 			pickedNodeName := pickNode(diffMap, sourceNodeName)

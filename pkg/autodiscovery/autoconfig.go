@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package autodiscovery
 
@@ -58,7 +58,6 @@ type AutoConfig struct {
 	listenerCandidates map[string]listeners.ServiceListenerFactory
 	listenerRetryStop  chan struct{}
 	scheduler          *scheduler.MetaScheduler
-	healthPolling      *health.Handle
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
 	newService         chan listeners.Service

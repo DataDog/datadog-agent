@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package ec2
 
@@ -20,11 +20,10 @@ import (
 
 // declare these as vars not const to ease testing
 var (
-	metadataURL         = "http://169.254.169.254/latest/meta-data"
-	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
-	timeout             = 100 * time.Millisecond
-	oldDefaultPrefixes  = []string{"ip-", "domu"}
-	defaultPrefixes     = []string{"ip-", "domu", "ec2amaz-"}
+	metadataURL        = "http://169.254.169.254/latest/meta-data"
+	timeout            = 100 * time.Millisecond
+	oldDefaultPrefixes = []string{"ip-", "domu"}
+	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "AWS"

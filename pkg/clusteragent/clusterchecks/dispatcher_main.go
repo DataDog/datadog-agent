@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -157,9 +157,6 @@ func (d *dispatcher) run(ctx context.Context) {
 
 	healthProbe := health.Register("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe)
-
-	registerMetrics()
-	defer unregisterMetrics()
 
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()

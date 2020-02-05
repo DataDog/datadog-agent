@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -512,9 +512,9 @@ func TestParseDockerPort(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	cId := "12345678901234567890123456789012"
+	cID := "12345678901234567890123456789012"
 	cBase := types.ContainerJSONBase{
-		ID:    cId,
+		ID:    cID,
 		Image: "test",
 	}
 
@@ -560,11 +560,11 @@ func TestGetHostname(t *testing.T) {
 				},
 			}
 			// add cj to the cache so svc.GetPorts finds it
-			cacheKey := docker.GetInspectCacheKey(cId, false)
+			cacheKey := docker.GetInspectCacheKey(cID, false)
 			cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 			svc := DockerService{
-				cID: cId,
+				cID: cID,
 			}
 
 			name, err := svc.GetHostname()

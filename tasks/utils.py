@@ -50,9 +50,18 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
 
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
+def has_both_python(python_runtimes):
+    python_runtimes = python_runtimes.split(',')
+    return '2' in python_runtimes and '3' in python_runtimes
+
+def get_win_py_runtime_var(python_runtimes):
+    python_runtimes = python_runtimes.split(',')
+
+    return "PY2_RUNTIME" if '2' in python_runtimes else "PY3_RUNTIME"
+
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
                     rtloader_root=None, python_home_2=None, python_home_3=None,
-                    with_both_python=False, arch="x64"):
+                    major_version='7', python_runtimes='3', arch="x64"):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 
@@ -60,11 +69,8 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     Context object.
     """
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, prefix)
+    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version)
     env = {}
-
-    # lets pass the build runtimes around with the env
-    env['PYTHON_RUNTIMES'] = os.environ.get('PYTHON_RUNTIMES', '')
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
@@ -83,10 +89,10 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
         ldflags += "-X {}/pkg/collector/python.pythonHome3={} ".format(REPO_PATH, python_home_3)
 
     # If we're not building with both Python, we want to force the use of DefaultPython
-    if not with_both_python:
+    if not has_both_python(python_runtimes):
         ldflags += "-X {}/pkg/config.ForceDefaultPython=true ".format(REPO_PATH)
 
-    ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python())
+    ldflags += "-X {}/pkg/config.DefaultPython={} ".format(REPO_PATH, get_default_python(python_runtimes))
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -148,7 +154,7 @@ def get_payload_version():
 
     return ""
 
-def get_version_ldflags(ctx, prefix=None):
+def get_version_ldflags(ctx, prefix=None, major_version='7'):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -157,7 +163,7 @@ def get_version_ldflags(ctx, prefix=None):
     commit = get_git_commit()
 
     ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
-    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix))
+    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True, prefix=prefix, major_version=major_version))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
 
     return ldflags
@@ -168,14 +174,13 @@ def get_git_commit():
     """
     return check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('utf-8').strip()
 
-def get_default_python():
+def get_default_python(python_runtimes):
     """
     Get the default python for the current build:
-    - default to 3 if PYTHON_RUNTIMES is not specified (so that dev builds default to 3)
-    - default to 2 if PYTHON_RUNTIMES includes both versions (so that builds with 2 and 3 default to 2)
+    - default to 2 if python_runtimes includes 2 (so that builds with 2 and 3 default to 2)
+    - default to 3 otherwise.
     """
-    py_runtimes = os.environ.get("PYTHON_RUNTIMES", "3")
-    return "2" if ',' in py_runtimes else py_runtimes
+    return "2" if '2' in python_runtimes.split(',') else "3"
 
 
 def get_go_version():
@@ -198,15 +203,15 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('utf-8').strip()
 
 
-def query_version(ctx, git_sha_length=7, prefix=None, hint=None):
+def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     cmd = "git describe --tags --candidates=50"
     if prefix and type(prefix) == str:
         cmd += " --match \"{}-*\"".format(prefix)
     else:
-        if hint:
-            cmd += " --match \"{}\.*\"".format(hint)
+        if major_version_hint:
+            cmd += " --match \"{}\.*\"".format(major_version_hint)
         else:
             cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
@@ -245,12 +250,11 @@ def query_version(ctx, git_sha_length=7, prefix=None, hint=None):
     return version, pre, commit_number, git_sha
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
-    version_hint = '7' if env.get('AGENT_MAJOR_VERSION', '') == '7' or env.get('PYTHON_RUNTIMES', '') == '3' else '6'
 
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix, hint=version_hint)
+    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length, prefix, major_version_hint=major_version)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:
@@ -262,23 +266,16 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
     # version could be unicode as it comes from `query_version`
     return str(version)
 
-def get_version_numeric_only(ctx, env=os.environ):
+def get_version_numeric_only(ctx, env=os.environ, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
-    version_hint = '7' if env.get('PYTHON_RUNTIMES', '') == '3' else '6'
 
-    version, _, _, _ = query_version(ctx, hint=version_hint)
+    version, _, _, _ = query_version(ctx, major_version_hint=major_version)
     return version
 
 def load_release_versions(ctx, target_version):
-    # allow overriding python runtimes with env var
-    py_runtimes = os.environ.get("PYTHON_RUNTIMES")
-
     with open("release.json", "r") as f:
         versions = json.load(f)
         if target_version in versions:
-            if py_runtimes:
-                versions[target_version]["PYTHON_RUNTIMES"] = py_runtimes
-
             # windows runners don't accepts anything else than strings in the
             # environment when running a subprocess.
             return {str(k):str(v) for k, v in versions[target_version].items()}

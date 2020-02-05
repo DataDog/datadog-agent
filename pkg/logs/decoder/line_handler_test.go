@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 package decoder
 
@@ -32,21 +32,6 @@ func NewMockParser(header string) parser.Parser {
 // Parse removes header from line and returns a message
 func (u *MockParser) Parse(msg []byte) ([]byte, string, string, error) {
 	return bytes.Replace(msg, u.header, []byte(""), 1), "", "", nil
-}
-
-// MockTSParser mocks the logic of Timestamps
-type MockTSParser struct {
-	header []byte
-}
-
-func NewMockTSParser(header string) parser.Parser {
-	return &MockTSParser{header: []byte(header)}
-}
-
-// Parse does nothing for MockUnwrapper
-func (u *MockTSParser) Parse(msg []byte) ([]byte, string, string, error) {
-	components := bytes.SplitN(msg, []byte{' '}, 2)
-	return components[1], "", string(components[0]), nil
 }
 
 type MockFailingParser struct {

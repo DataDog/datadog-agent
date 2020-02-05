@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -69,11 +69,11 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		tags.AddLow("pod_phase", strings.ToLower(pod.Status.Phase))
 
 		// OpenShift pod annotations
-		if dc_name, found := pod.Metadata.Annotations["openshift.io/deployment-config.name"]; found {
-			tags.AddLow("oshift_deployment_config", dc_name)
+		if dcName, found := pod.Metadata.Annotations["openshift.io/deployment-config.name"]; found {
+			tags.AddLow("oshift_deployment_config", dcName)
 		}
-		if deploy_name, found := pod.Metadata.Annotations["openshift.io/deployment.name"]; found {
-			tags.AddOrchestrator("oshift_deployment", deploy_name)
+		if deployName, found := pod.Metadata.Annotations["openshift.io/deployment.name"]; found {
+			tags.AddOrchestrator("oshift_deployment", deployName)
 		}
 
 		// Creator
@@ -171,7 +171,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			cLow, cOrch, cHigh := cTags.Compute()
 			entityID, err := kubelet.KubeContainerIDToTaggerEntityID(container.ID)
 			if err != nil {
-				log.Warnf("Unable to parse container: %s", err)
+				log.Warnf("Unable to parse container pName: %s / cName: %s / cId: %s / err: %s", pod.Metadata.Name, container.Name, container.ID, err)
 				continue
 			}
 			info := &TagInfo{

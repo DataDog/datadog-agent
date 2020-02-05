@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -24,18 +25,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // NewAutoscalersController returns a new AutoscalersController
-func NewAutoscalersController(client kubernetes.Interface, le LeaderElectorInterface, dogCl autoscalers.DatadogClient) (*AutoscalersController, error) {
+func NewAutoscalersController(client kubernetes.Interface, eventRecorder record.EventRecorder, le LeaderElectorInterface, dogCl autoscalers.DatadogClient) (*AutoscalersController, error) {
 	var err error
 
 	h := &AutoscalersController{
-		clientSet: client,
-		le:        le, // only trigger GC and updateExternalMetrics by the Leader.
-		HPAqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		clientSet:     client,
+		le:            le, // only trigger GC and updateExternalMetrics by the Leader.
+		HPAqueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		EventRecorder: eventRecorder,
 	}
 
 	h.toStore.data = make(map[string]custommetrics.ExternalMetricValue)
@@ -95,27 +95,27 @@ func (h *AutoscalersController) RunControllerLoop(stopCh <-chan struct{}) {
 // gc checks if any hpas or wpas have been deleted (possibly while the Datadog Cluster Agent was
 // not running) to clean the store.
 func (h *AutoscalersController) gc() {
+	wpaEnabled := h.isWPAEnabled()
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	log.Infof("Starting garbage collection process on the Autoscalers")
-	rawListWPA := []*v1alpha1.WatermarkPodAutoscaler{}
+	log.Infof("Starting garbage collection process on the Autoscalers: wpa=%v", wpaEnabled)
+	wpaList := []*v1alpha1.WatermarkPodAutoscaler{}
 	var err error
 
-	if h.wpaEnabled {
-		rawListWPA, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+	if wpaEnabled {
+		wpaList, err = h.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 		if err != nil {
 			log.Errorf("Error listing the WatermarkPodAutoscalers %v", err)
 			return
 		}
 	}
 
-	rawListHPA, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+	hpaList, err := h.autoscalersLister.HorizontalPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
 		log.Errorf("Could not list hpas: %v", err)
 		return
 	}
 
-	hpaList, wpaList := removeIgnoredAutoscaler(h.overFlowingAutoscalers, rawListHPA, rawListWPA)
 	emList, err := h.store.ListAllExternalMetricValues()
 	if err != nil {
 		log.Errorf("Could not list external metrics from store: %v", err)
@@ -129,21 +129,6 @@ func (h *AutoscalersController) gc() {
 	}
 	h.deleteFromLocalStore(toDelete.External)
 	log.Debugf("Done GC run. Deleted %d metrics", len(toDelete.External))
-}
-
-// removeIgnoredAutoscaler is used in the gc to avoid considering the ignored Autoscalers
-func removeIgnoredAutoscaler(ignored map[types.UID]int, listCached []*autoscalingv2.HorizontalPodAutoscaler, listCachedWPA []*v1alpha1.WatermarkPodAutoscaler) (HPAToProcess []*autoscalingv2.HorizontalPodAutoscaler, WPAToProcess []*v1alpha1.WatermarkPodAutoscaler) {
-	for _, hpa := range listCached {
-		if _, ok := ignored[hpa.UID]; !ok {
-			HPAToProcess = append(HPAToProcess, hpa)
-		}
-	}
-	for _, wpa := range listCachedWPA {
-		if _, ok := ignored[wpa.UID]; !ok {
-			WPAToProcess = append(WPAToProcess, wpa)
-		}
-	}
-	return
 }
 
 func (h *AutoscalersController) deleteFromLocalStore(toDelete []custommetrics.ExternalMetricValue) {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -45,11 +45,11 @@ func TestDatadogExternalQuery(t *testing.T) {
 		{
 			"metricName yields rate limiting error response from Datadog",
 			func(int64, int64, string) ([]datadog.Series, error) {
-				return nil, fmt.Errorf("Rate limit of 300 requests in 3600 seconds.")
+				return nil, fmt.Errorf("Rate limit of 300 requests in 3600 seconds")
 			},
 			[]string{"mymetric{foo:bar}"},
 			nil,
-			fmt.Errorf("Error while executing metric query avg:mymetric{foo:bar}.rollup(30): Rate limit of 300 requests in 3600 seconds."),
+			fmt.Errorf("Error while executing metric query avg:mymetric{foo:bar}.rollup(30): Rate limit of 300 requests in 3600 seconds"),
 		},
 		{
 			"metrics with different granularities Datadog",

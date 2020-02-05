@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build gce
 
@@ -14,6 +14,25 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
+
+type gceMetadata struct {
+	Instance gceInstanceMetadata
+	Project  gceProjectMetadata
+}
+
+type gceInstanceMetadata struct {
+	ID          int64
+	Tags        []string
+	Zone        string
+	MachineType string
+	Hostname    string
+	Attributes  map[string]string
+}
+
+type gceProjectMetadata struct {
+	ProjectID        string
+	NumericProjectID int64
+}
 
 // GetTags gets the tags from the GCE api
 func GetTags() ([]string, error) {

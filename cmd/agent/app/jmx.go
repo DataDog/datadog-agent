@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build jmx
 
@@ -173,6 +173,7 @@ func RunJmxCommand(command string, reporter jmxfetch.JMXReporter, output func(..
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
 	runner.Output = log.Info
+	runner.LogLevel = jmxLogLevel
 	if output != nil {
 		runner.Output = output
 	}
@@ -204,7 +205,7 @@ func RunJmxListWithMetrics() error {
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJson, out)
+	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJSON, out)
 }
 
 func loadConfigs(runner *jmxfetch.JMXFetch) {

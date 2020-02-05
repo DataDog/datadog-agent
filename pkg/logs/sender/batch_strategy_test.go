@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package sender
 
@@ -100,7 +100,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 
 	content = []byte("a")
 
-	message := message.NewMessage([]byte(content), nil, "")
+	message := message.NewMessage(content, nil, "")
 	input <- message
 
 	start := time.Now()
@@ -122,7 +122,7 @@ func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 		return context.Canceled
 	}
 
-	message := message.NewMessage([]byte(content), nil, "")
+	message := message.NewMessage(content, nil, "")
 	go func() {
 		input <- message
 		close(input)
@@ -140,7 +140,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		return nil
 	}
 
-	message := message.NewMessage([]byte(content), nil, "")
+	message := message.NewMessage(content, nil, "")
 	go func() {
 		input <- message
 		close(input)

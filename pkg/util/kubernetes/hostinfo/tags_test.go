@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet,kubeapiserver
 
@@ -10,6 +10,7 @@ package hostinfo
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,6 +20,14 @@ func TestExtractTags(t *testing.T) {
 		"beta.kubernetes.io/os":         "linux",
 		"cloud.google.com/gke-nodepool": "default-pool",
 		"kubernetes.io/hostname":        "gke-dummy-18-default-pool-6888842e-hcv0",
+	}
+
+	roleLabels := map[string]string{
+		"kubernetes.io/role":                   "compute-node2",
+		"node-role.kubernetes.io":              "foo",
+		"node-role.kubernetes.io/9090-090-9":   "bar",
+		"node-role.kubernetes.io/compute-node": "",
+		"node-role.kubernetes.io/foo":          "bar",
 	}
 
 	for _, tc := range []struct {
@@ -66,10 +75,64 @@ func TestExtractTags(t *testing.T) {
 			labelsToTags: map[string]string{},
 			expectedTags: nil,
 		},
+		{
+			nodeLabels:   roleLabels,
+			labelsToTags: getDefaultLabelsToTags(),
+			expectedTags: []string{
+				"kube_node_role:compute-node2",
+				"kube_node_role:9090-090-9",
+				"kube_node_role:compute-node",
+				"kube_node_role:foo",
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			tags := extractTags(tc.nodeLabels, tc.labelsToTags)
 			assert.ElementsMatch(t, tc.expectedTags, tags)
+		})
+	}
+}
+
+func TestGetLabelsToTags(t *testing.T) {
+	tests := []struct {
+		name               string
+		configLabelsAsTags map[string]string
+		expectLabelsAsTags map[string]string
+	}{
+		{
+			name: "no labels in config",
+			expectLabelsAsTags: map[string]string{
+				"kubernetes.io/role": "kube_node_role",
+			},
+		},
+		{
+			name: "override node role label",
+			configLabelsAsTags: map[string]string{
+				"kubernetes.io/role": "role",
+			},
+			expectLabelsAsTags: map[string]string{
+				"kubernetes.io/role": "role",
+			},
+		},
+		{
+			name: "lower case all labels",
+			configLabelsAsTags: map[string]string{
+				"A": "a",
+			},
+			expectLabelsAsTags: map[string]string{
+				"kubernetes.io/role": "kube_node_role",
+				"a":                  "a",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := config.Mock()
+			config.Set("kubernetes_node_labels_as_tags", test.configLabelsAsTags)
+
+			actuaLabelsAsTags := getLabelsToTags()
+			assert.Equal(t, test.expectLabelsAsTags, actuaLabelsAsTags)
 		})
 	}
 }

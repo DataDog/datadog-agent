@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -103,15 +102,6 @@ func (d *dummyKubelet) parsePort(ts *httptest.Server) (*httptest.Server, int, er
 	}
 	log.Debugf("Starting on port %d", kubeletPort)
 	return ts, kubeletPort, nil
-}
-
-func (d *dummyKubelet) getRequest(timeout time.Duration) *http.Request {
-	select {
-	case r := <-d.Requests:
-		return r
-	case <-time.After(timeout):
-		return nil
-	}
 }
 
 func (d *dummyKubelet) dropRequests() {
@@ -298,7 +288,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	}
 }
 
-func (suite *KubeletTestSuite) TestGetHostname() {
+func (suite *KubeletTestSuite) TestGetNodename() {
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -317,22 +307,9 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	require.NotNil(suite.T(), kubeutil)
 	kubelet.dropRequests() // Throwing away first GETs
 
-	hostname, err := kubeutil.GetHostname()
+	hostname, err := kubeutil.GetNodename()
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "my-node-name", hostname)
-
-	// Testing hostname when a cluster name is set
-	var testClusterName = "laika"
-	mockConfig.Set("cluster_name", testClusterName)
-	clustername.ResetClusterName() // reset state as clustername was already read
-
-	// defer a reset of the state so that future hostname fetches are not impacted
-	defer mockConfig.Set("cluster_name", "")
-	defer clustername.ResetClusterName()
-
-	hostname, err = kubeutil.GetHostname()
-	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "my-node-name-"+testClusterName, hostname)
 
 	select {
 	case r := <-kubelet.Requests:
@@ -341,25 +318,6 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 	case <-time.After(2 * time.Second):
 		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
-}
-
-func (suite *KubeletTestSuite) TestHostnameProvider() {
-	mockConfig := config.Mock()
-
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
-	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	defer ts.Close()
-	require.Nil(suite.T(), err)
-
-	mockConfig.Set("kubernetes_kubelet_host", "localhost")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubelet_tls_verify", false)
-	mockConfig.Set("kubelet_auth_token_path", "")
-
-	hostname, err := HostnameProvider()
-	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "my-node-name", hostname)
 }
 
 func (suite *KubeletTestSuite) TestPodlistCache() {
@@ -434,7 +392,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	require.True(suite.T(), errors.IsNotFound(err))
 
 	// Valid container ID
-	pod, err = kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	pod, err = kubeutil.GetPodForContainerID("container_id://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
 	// The /pods request is still cached
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)
@@ -467,7 +425,7 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 				continue
 			}
 			requestsMutex.Lock()
-			requests += 1
+			requests++
 			requestsMutex.Unlock()
 			if requests == 4 { // Initial + cache invalidation + 2 timed retries
 				err := kubelet.loadPodList("./testdata/podlist_1.8-2.json")
@@ -510,7 +468,7 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 		for r := range kubelet.Requests {
 			if r.URL.Path == "/pods" {
 				requestsMutex.Lock()
-				requests += 1
+				requests++
 				requestsMutex.Unlock()
 			}
 		}
@@ -546,7 +504,7 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 	err = ku.init()
 	expectedErr := fmt.Errorf("could not read token from %s: open %s: no such file or directory", fakePath, fakePath)
 	assert.Contains(suite.T(), err.Error(), expectedErr.Error())
-	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+	assert.Equal(suite.T(), 0, len(ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
@@ -572,16 +530,16 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	require.Nil(suite.T(), err)
 	<-k.Requests // Throwing away first GET
 
-	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletApiEndpoint)
-	assert.Equal(suite.T(), "bearer fakeBearerToken", ku.kubeletApiRequestHeaders.Get("Authorization"))
-	assert.True(suite.T(), ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletAPIEndpoint)
+	assert.Equal(suite.T(), "bearer fakeBearerToken", ku.kubeletAPIRequestHeaders.Get("Authorization"))
+	assert.True(suite.T(), ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, code, err := ku.QueryKubelet("/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
 	r := <-k.Requests
 	assert.Equal(suite.T(), "bearer fakeBearerToken", r.Header.Get(authorizationHeaderKey))
-	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+	assert.Equal(suite.T(), 0, len(ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
 
 	require.EqualValues(suite.T(),
 		map[string]string{
@@ -617,15 +575,15 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	require.Nil(suite.T(), err)
 	<-k.Requests // Throwing away first GET
 
-	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletApiEndpoint)
-	assert.False(suite.T(), ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletAPIEndpoint)
+	assert.False(suite.T(), ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, code, err := ku.QueryKubelet("/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
 	r := <-k.Requests
 	assert.Equal(suite.T(), "", r.Header.Get(authorizationHeaderKey))
-	clientCerts := ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates
+	clientCerts := ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig.Certificates
 	require.Equal(suite.T(), 1, len(clientCerts))
 	assert.Equal(suite.T(), clientCerts, s.TLS.Certificates)
 
@@ -658,14 +616,14 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	ku := newKubeUtil()
 	err = ku.init()
 	require.Nil(suite.T(), err)
-	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletApiEndpoint)
-	assert.Equal(suite.T(), "", ku.kubeletApiRequestHeaders.Get(authorizationHeaderKey))
-	assert.True(suite.T(), ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletAPIEndpoint)
+	assert.Equal(suite.T(), "", ku.kubeletAPIRequestHeaders.Get(authorizationHeaderKey))
+	assert.True(suite.T(), ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, code, err := ku.QueryKubelet("/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
-	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+	assert.Equal(suite.T(), 0, len(ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
 
 	require.EqualValues(suite.T(),
 		map[string]string{
@@ -693,14 +651,14 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	ku := newKubeUtil()
 	err = ku.init()
 	require.Nil(suite.T(), err)
-	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletApiEndpoint)
-	assert.Equal(suite.T(), "", ku.kubeletApiRequestHeaders.Get("Authorization"))
-	assert.True(suite.T(), ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletAPIEndpoint)
+	assert.Equal(suite.T(), "", ku.kubeletAPIRequestHeaders.Get("Authorization"))
+	assert.True(suite.T(), ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, code, err := ku.QueryKubelet("/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
-	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+	assert.Equal(suite.T(), 0, len(ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
 
 	require.EqualValues(suite.T(),
 		map[string]string{
@@ -782,15 +740,15 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	ips, hostnames := getKubeletHostFromConfig(mockConfig.GetString("kubernetes_kubelet_host"), ctx)
+	ips, hostnames := getKubeletHostFromConfig(ctx, mockConfig.GetString("kubernetes_kubelet_host"))
 	assert.Equal(suite.T(), ips, []string{"127.0.0.1"})
 	assert.Equal(suite.T(), hostnames, []string{"localhost"})
 
 	// when kubernetes_kubelet_host is not set
 	mockConfig.Set("kubernetes_kubelet_host", "")
-	ips, hostnames = getKubeletHostFromConfig(mockConfig.GetString("kubernetes_kubelet_host"), ctx)
-	assert.Equal(suite.T(), ips, []string([]string(nil)))
-	assert.Equal(suite.T(), hostnames, []string([]string(nil)))
+	ips, hostnames = getKubeletHostFromConfig(ctx, mockConfig.GetString("kubernetes_kubelet_host"))
+	assert.Equal(suite.T(), ips, []string(nil))
+	assert.Equal(suite.T(), hostnames, []string(nil))
 }
 
 func (suite *KubeletTestSuite) TestPodListNoExpire() {
@@ -846,7 +804,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	kubelet.dropRequests() // Throwing away first GETs
 
 	// Mock time.Now call
-	kubeutil.podUnmarshaller.timeNowFunction = func() time.Time {
+	kubeutil.(*KubeUtil).podUnmarshaller.timeNowFunction = func() time.Time {
 		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 		return t
 	}

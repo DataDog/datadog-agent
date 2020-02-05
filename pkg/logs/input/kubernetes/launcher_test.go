@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -192,7 +192,7 @@ func TestContainerCollectAll(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "container_id://fooID", source.Config.Identifier)
 	source, err = launcherCollectAllDisabled.getSource(podBar, containerBar)
-	assert.Equal(t, collectAllDisabledError, err)
+	assert.Equal(t, errCollectAllDisabled, err)
 	assert.Nil(t, source)
 
 	source, err = launcherCollectAll.getSource(podBaz, containerBaz)

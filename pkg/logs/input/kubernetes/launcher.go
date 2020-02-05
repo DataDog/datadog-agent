@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -26,14 +26,14 @@ const (
 	anyLogFile = "*.log"
 )
 
-var collectAllDisabledError = fmt.Errorf("%s disabled", config.ContainerCollectAll)
+var errCollectAllDisabled = fmt.Errorf("%s disabled", config.ContainerCollectAll)
 
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
 	sources            *config.LogSources
 	sourcesByContainer map[string]*config.LogSource
 	stopped            chan struct{}
-	kubeutil           *kubelet.KubeUtil
+	kubeutil           kubelet.KubeUtilInterface
 	addedServices      chan *service.Service
 	removedServices    chan *service.Service
 	collectAll         bool
@@ -129,7 +129,7 @@ func (l *Launcher) addSource(svc *service.Service) {
 	}
 	source, err := l.getSource(pod, container)
 	if err != nil {
-		if err != collectAllDisabledError {
+		if err != errCollectAllDisabled {
 			log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
 		}
 		return
@@ -169,7 +169,7 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		cfg = configs[0]
 	} else {
 		if !l.collectAll {
-			return nil, collectAllDisabledError
+			return nil, errCollectAllDisabled
 		}
 		shortImageName, err := l.getShortImageName(container)
 		if err != nil {

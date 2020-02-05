@@ -7,7 +7,7 @@ import yaml
 import os
 import shutil
 import sys
-import platform
+import distro
 from distutils.dir_util import copy_tree
 
 import invoke
@@ -36,7 +36,8 @@ ANDROID_CORECHECKS = [
 CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-        development=True, precompile_only=False, skip_assets=False):
+        development=True, precompile_only=False, skip_assets=False, major_version='7',
+        python_runtimes='3'):
     """
     Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -54,7 +55,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    ldflags, gcflags, env = get_build_flags(ctx)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -62,7 +63,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
                 build_exclude.append(ex)
 
     # remove all tags that are only available on debian distributions
-    distname = platform.linux_distribution()[0].lower()
+    distname = distro.id().lower()
     if distname not in REDHAT_AND_DEBIAN_DIST:
         for ex in REDHAT_AND_DEBIAN_ONLY_TAGS:
             if ex not in build_exclude:
@@ -93,7 +94,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         cmd = "./gradlew --no-daemon build"
     ctx.run(cmd)
     os.chdir(pwd)
-    ver = get_version(ctx, include_git=True, git_sha_length=7)
+    ver = get_version(ctx, include_git=True, git_sha_length=7, major_version=major_version)
     outfile = "bin/agent/ddagent-{}-unsigned.apk".format(ver)
     shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", outfile)
 

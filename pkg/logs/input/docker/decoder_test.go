@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -27,7 +27,7 @@ func TestDecoderWithHeaderSingleline(t *testing.T) {
 	d.Start()
 	defer d.Stop()
 
-	line = []byte(append([]byte{2, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852911Z message\n")...))
+	line = append([]byte{2, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852911Z message\n")...)
 	lineLen = len(line)
 	d.InputChan <- decoder.NewInput(line)
 
@@ -79,15 +79,15 @@ func TestDecoderWithHeaderMultiline(t *testing.T) {
 	d.Start()
 	defer d.Stop()
 
-	line = []byte(append([]byte{1, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852911Z 1234 hello\n")...))
+	line = append([]byte{1, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852911Z 1234 hello\n")...)
 	lineLen = len(line)
 	d.InputChan <- decoder.NewInput(line)
 
-	line = []byte(append([]byte{1, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852912Z world\n")...))
+	line = append([]byte{1, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852912Z world\n")...)
 	lineLen += len(line)
 	d.InputChan <- decoder.NewInput(line)
 
-	line = []byte(append([]byte{2, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852913Z 1234 bye\n")...))
+	line = append([]byte{2, 0, 0, 0, 0, 0, 0, 0}, []byte("2019-06-06T16:35:55.930852913Z 1234 bye\n")...)
 	d.InputChan <- decoder.NewInput(line)
 
 	output = <-d.OutputChan

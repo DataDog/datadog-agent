@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package aggregator
 
@@ -23,23 +23,25 @@ type Context struct {
 type ContextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
 	lastSeenByKey map[ckey.ContextKey]float64
+	keyGenerator  *ckey.KeyGenerator
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return ckey.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), metricSampleContext.GetTags())
+func (cr *ContextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), metricSampleContext.GetTags())
 }
 
 func newContextResolver() *ContextResolver {
 	return &ContextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
+		keyGenerator:  ckey.NewKeyGenerator(),
 	}
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *ContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) ckey.ContextKey {
-	contextKey := generateContextKey(metricSampleContext)
+	contextKey := cr.generateContextKey(metricSampleContext)
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
