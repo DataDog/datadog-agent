@@ -5,6 +5,7 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1069,6 +1070,81 @@ func TestSkipConnectionDNS(t *testing.T) {
 		}))
 
 	})
+}
+
+func TestConnectionExpirationRegression(t *testing.T) {
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Create TCP Server that simply "drains" connection until receiving an EOF
+	connClosed := make(chan struct{})
+	server := NewTCPServer(func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
+		connClosed <- struct{}{}
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+	defer func() { doneChan <- struct{}{} }()
+
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	require.NoError(t, err)
+
+	// Warm up state
+	_ = getConnections(t, tr)
+
+	// Write 5 bytes to TCP socket
+	payload := []byte("12345")
+	_, err = c.Write(payload)
+	require.NoError(t, err)
+
+	// Fetch connection matching source and target address
+	// This will make sure to populate the state for this particular client
+	allConnections := getConnections(t, tr)
+	connectionStats, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
+	require.True(t, ok)
+	assert.Equal(t, uint64(len(payload)), connectionStats.LastSentBytes)
+
+	// This emulates the race condition, a `tcp_close` followed by a call to `Tracer.removeConnections()`
+	// It's unfortunate we're relying here on private methods, but there isn't much we can do to avoid that.
+	c.Close()
+	<-connClosed
+	time.Sleep(100 * time.Millisecond)
+	removeConnection(t, tr, connectionStats)
+
+	// Since no bytes were send or received after we obtained the connectionStats, we should have 0 LastBytesSent
+	allConnections = getConnections(t, tr)
+	connectionStats, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
+	require.True(t, ok)
+	assert.Equal(t, uint64(0), connectionStats.LastSentBytes)
+
+	// Finally, this connection should have been expired from the state
+	allConnections = getConnections(t, tr)
+	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
+	require.False(t, ok)
+}
+
+func removeConnection(t *testing.T, tr *Tracer, c *ConnectionStats) {
+	mp, err := tr.getMap(connMap)
+	require.NoError(t, err)
+
+	tcpMp, err := tr.getMap(tcpStatsMap)
+	require.NoError(t, err)
+
+	tuple := []*ConnTuple{
+		&ConnTuple{
+			pid:      _Ctype_uint(c.Pid),
+			saddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Source.Bytes())),
+			daddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Dest.Bytes())),
+			sport:    _Ctype_ushort(c.SPort),
+			dport:    _Ctype_ushort(c.DPort),
+			netns:    _Ctype_uint(c.NetNS),
+			metadata: 1, // TCP/IPv4
+		},
+	}
+
+	tr.removeEntries(mp, tcpMp, tuple)
 }
 
 func byAddress(l, r net.Addr) func(c ConnectionStats) bool {
