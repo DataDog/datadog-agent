@@ -379,36 +379,36 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 }
 
 func loadEnvVariables() {
-	for envKey, cfgKey := range map[string]string{
-		"DD_PROCESS_AGENT_CONTAINER_SOURCE": "process_config.container_source",
-		"DD_SCRUB_ARGS":                     "process_config.scrub_args",
-		"DD_STRIP_PROCESS_ARGS":             "process_config.strip_proc_arguments",
-		"DD_PROCESS_AGENT_URL":              "process_config.process_dd_url",
-		"DD_ORCHESTRATOR_URL":               "process_config.orchestrator_dd_url",
+	for _, variable := range []struct{ env, cfg string }{
+		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"},
+		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
+		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
+		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
+		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
 
 		// System probe specific configuration (Beta)
-		"DD_SYSTEM_PROBE_ENABLED":   "system_probe_config.enabled",
-		"DD_SYSPROBE_SOCKET":        "system_probe_config.sysprobe_socket",
-		"DD_DISABLE_TCP_TRACING":    "system_probe_config.disable_tcp",
-		"DD_DISABLE_UDP_TRACING":    "system_probe_config.disable_udp",
-		"DD_DISABLE_IPV6_TRACING":   "system_probe_config.disable_ipv6",
-		"DD_DISABLE_DNS_INSPECTION": "system_probe_config.disable_dns_inspection",
-		"DD_COLLECT_LOCAL_DNS":      "system_probe_config.collect_local_dns",
+		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
+		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
+		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
+		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
+		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
+		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
+		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
 
-		"DD_HOSTNAME":       "hostname",
-		"DD_DOGSTATSD_PORT": "dogstatsd_port",
-		"DD_BIND_HOST":      "bind_host",
-		"HTTPS_PROXY":       "proxy.https",
-		"DD_PROXY_HTTPS":    "proxy.https",
+		{"DD_HOSTNAME", "hostname"},
+		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
+		{"DD_BIND_HOST", "bind_host"},
+		{"HTTPS_PROXY", "proxy.https"},
+		{"DD_PROXY_HTTPS", "proxy.https"},
 
-		"DD_LOGS_STDOUT":    "log_to_console",
-		"LOG_TO_CONSOLE":    "log_to_console",
-		"DD_LOG_TO_CONSOLE": "log_to_console",
-		"LOG_LEVEL":         "log_level", // Support LOG_LEVEL and DD_LOG_LEVEL but prefer DD_LOG_LEVEL
-		"DD_LOG_LEVEL":      "log_level",
+		{"DD_LOGS_STDOUT", "log_to_console"},
+		{"LOG_TO_CONSOLE", "log_to_console"},
+		{"DD_LOG_TO_CONSOLE", "log_to_console"},
+		{"LOG_LEVEL", "log_level"}, // Support LOG_LEVEL and DD_LOG_LEVEL but prefer DD_LOG_LEVEL
+		{"DD_LOG_LEVEL", "log_level"},
 	} {
-		if v, ok := os.LookupEnv(envKey); ok {
-			config.Datadog.Set(cfgKey, v)
+		if v, ok := os.LookupEnv(variable.env); ok {
+			config.Datadog.Set(variable.cfg, v)
 		}
 	}
 
