@@ -56,6 +56,8 @@ func SetMeta(s *pb.Span, key, val string) {
 	s.Meta[key] = val
 }
 
+// SpanTypeIsDB returns true if the span type given is a database,
+// this does not need to be an exhaustive list of all databases
 func SpanTypeIsDB(spanType string) bool {
 	switch spanType {
 	case "sql", "postgres", "mysql", "cassandra", "redis", "memcached", "mongodb", "elasticsearch", "db", "dynamodb":
