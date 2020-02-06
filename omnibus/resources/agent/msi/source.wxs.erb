@@ -75,7 +75,7 @@
     <Property Id="DDAGENTUSER_NAME" />
     <Property Id="DDAGENTUSER_PASSWORD" Hidden="yes" />
     <Property Id="APIKEY" Hidden="yes" />
-    <Property Id="SITE" />
+    <Property Id="SITE" Value="datadoghq.com" />
     <Property Id="FinalizeInstall" Hidden="yes" />
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
@@ -586,7 +586,7 @@
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">NOT APIKEY</Publish>
-      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="SiteDlg">NOT SITE</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">APIKEY AND (NOT SITE)</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY AND SITE</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
