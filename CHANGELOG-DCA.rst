@@ -2,6 +2,28 @@
 Release Notes
 =============
 
+.. _Release Notes_1.5.1:
+
+1.5.1
+=====
+
+.. _Release Notes_1.5.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-02-06
+
+Minor release on 1.5 branch
+
+Bug Fixed
+------------
+
+- [DCA] fix cluster-agent flare panic (#4838)
+- Remove setcap NET_BIND_SERVICE as we cannot make it work with user namespaces used in the CI (#4846)
+- Add service listener in endpoints to watch for newly annotated services (#4816)
+- Fix typo (#4831)
+
 .. _Release Notes_1.5.0:
 
 1.5.0
