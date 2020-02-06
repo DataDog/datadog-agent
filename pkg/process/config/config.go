@@ -379,6 +379,8 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 }
 
 func loadEnvVariables() {
+	// The following environment variables will be loaded in the order listed, meaning variables
+	// further down the list may override prior variables.
 	for _, variable := range []struct{ env, cfg string }{
 		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"},
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
