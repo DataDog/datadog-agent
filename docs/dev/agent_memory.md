@@ -1,60 +1,54 @@
 # Troubleshooting Agent Memory Usage
 
-The agent process presents unusual challenges when it comes to memory profiling
-and investigation. Multiple memory spaces, with various heaps coming from the
-different runtimes involved can make identifying memory issues tricky.
+The Agent process presents unusual challenges when it comes to memory profiling
+and investigation. Multiple memory spaces, with various heaps coming from multiple
+different runtimes, can make identifying memory issues tricky.
 
-The agent has what we have called three distinct memory spaces each handled
-independently and very differently:
+The Agent has three distinct memory spaces, each handled independently:
 - Go
 - C/C++
 - Python
 
-There is tooling to dive deeper into each of these environments independently,
+There is tooling to dive deeper into each of these environments,
 but having logic flow through the boundaries defined by these runtimes and
-their memory management often confuses those tools, or yields inaccurate
-results. A good example of a wonderful tool that becomes extremely difficult
-to use in this environment is valgrind. One would hope that running the agent
-through valgrind would help us keep track of the C/C++ allocations at least.
-The problem is valgrind will also account for allocations in the go and C-python
-spaces, and these being garbage collected can make the reports a little
-hard to understand. You can also try to use a supression file to supress some
-of the allocations in python or go-land, but good luck with getting a solid
-supression file ;)
+their memory management often confuses this tooling, or yields inaccurate
+results. A good example of a tool that becomes difficult to use in this
+environment is Valgrind. The problem is Valgrind will account for all
+allocations in the Go and CPython spaces, and these being garbage collected
+can make the reports a little hard to understand. You can also try to use a
+supression file to supress some of the allocations in Python or Go, but it is
+difficult to find a supression file.
 
-Fortunately Go and Python have great facilities for tracking and troubleshooting
-memory. C/C++ is a little trickier but we've built in some facilities to help
-you track allocation as well.
+This guide covers Go and Python have facilities for tracking and troubleshooting.
+Datadog also offers some C/C++ facilities to help you track allocations.
 
-## Go-land
+## Go tracking and troubleshooting
 
-To investigate the go-land portion of the process memory you can use the usual
-and expected tooling available to any go binary. Now, of course, you may have
-a leak in the agent process, you see it in the process RSS, you pull up the go
-memory profile, and everything looks good: the leak might be elsewhere. Please
-keep that in mind.
+To investigate the Go portion of the process memory, you can use the usual
+and expected tooling available to any Go binary. If you encounter a leak in
+the Agent process as seen in the process RSS, review the Go memory profile.
+If everything is okay, the leak may be elsewhere.
 
 The usual way to profile go binary memory usage is via the `pprof` facilities:
 
-- Run `go tool pprof  http://localhost:5000/debug/pprof/heap` to jump into the 
-pprof interpreter and load the heap profile.
+- Run `go tool pprof  http://localhost:5000/debug/pprof/heap` to jump into the
+`pprof` interpreter and load the heap profile.
 - Run `curl localhost:5000/debug/pprof/heap > myheap.profile` to save a heap
-profile to disk. You'd typically have to do this on a box without the go toolchain. 
-- Use go tool pprof to analyze said profile.
+profile to disk. **Note**: You may have to do this on a box without the `Go` toolchain.
+- Use `go tool pprof` to analyze the profile.
 
-Note: You actually have multiple other profiles, on other parts of the go runtime 
+**Note**: You have multiple other profiles on other parts of the Go runtime
 you can dump: `goroutine`, `heap`, `threadcreate`, `block`, `mutex`, `profile`
-and `trace`. We will only look at `heap` profiling in this document, but be
-sure to read more about the other profiles available.
+and `trace`. This doc only covers `heap` profiling.
 
-You can normally jump into pprof in interactive mode easily and load the profile: 
+You can normally jump into `pprof` in interactive mode easily and load the profile:
 ```
 go tool pprof myheap.profile
-``` 
+```
 
 There are several tools available to explore the heap profile, most notably
-the `top` tool will list the top memory hungry elements, including cumulative
-and sum statistics. It will produce output such as:
+the `top` tool. Use the `top` tool to list the top memory hungry elements,
+including cumulative and sum statistics to produce an input similar to below:
 
 ```
 (pprof) top
@@ -103,76 +97,70 @@ Showing nodes accounting for 4848.62kB, 100% of 4848.62kB total
 ...
 ```
 
-Keep in mind that you have several facets to inspect your
-profiles:
+There are several facets to inspect your profiles:
 - `inuse_space`:      Display in-use memory size
 - `inuse_objects`:    Display in-use object counts
 - `alloc_space`:      Display allocated memory size
 - `alloc_objects`:    Display allocated object counts
 
-in interactive mode you can change between the modes, by simply entering the
-mode and hitting the enter key.
+In interactive mode, select and change modes by entering the moce
+and hitting `enter`.
 
-Another very useful feature is the allocation graph, essentially what the 
-`top` and `tree` commands will show in text mode, but graphically. You can
-open the graph directly in your browser using the `web` command, or if you'd
-like to export it to a file, you can use `svg`, or some of the other graph
-exporting commands.
+Another useful feature is the allocation graph, or what the
+`top` and `tree` commands show in text mode graphically. Open the graph
+directly in your browser using the `web` command, or if you'd like to export
+it to a file, use the `svg` command or another graph exporting
+commands.
 
-Another useful profile you can use if RSS is growing and you cannot quite 
-understand why is the `goroutines` profile. It will be useful identifying
-go routine leaks, which is another common issue in go-development:
+Another useful profile you can use if RSS is growing and you cannot resolve
+the issue is the `goroutines` profile. It is useful for identifying
+Go routine leaks, which is another common issue in Go development:
 
 ```
 go tool pprof  http://localhost:5000/debug/pprof/goroutine
 ```
 
-And then load into `pprof` and explore in the same way.
+Load into `pprof` and explore in the same way as noted above.
 
-There's a lot more information available, you may find some useful links
-below, but the above should help you get started and provide a 101 crash
-course.
+This section will help you get started, but there is more information
+available in the links below.
 
 ### Further Reading
 
-- [Julia Evans: go profiling](julia-evans-go-profiling)
-- [Detectify: memory leak investigation](detectify-memory-leak)
+- [Julia Evans: go profiling][1]
+- [Detectify: memory leak investigation][2]
 
 
-## Python-land
+## Python tracking and troubleshooting
 
-Python, another runtime in our process, and like go, also garbage collected. 
-Unfortunately, the tools available for go are of no use for us to investigate
-python-based memory issues. Similarly, our facilities in RTLoader cannot help
-us debug memory issues in python either. Luckily we do ship two tools with
-the agent that can help you identify memory issues:
+Python, another runtime in the Agent process, is also garbage collected.
+Datadog offers two tools with the Agent that can help you identify memory issues:
 
-- tracemalloc
-- pympler
+- Trracemalloc
+- Pympler
 
-Tracemalloc is part of the C-python interpreter, and tracks allocations and 
-frees. It's implemented efficiently and can therefore run with relatively low
-overhead. It also allows the user to compare memory in different points in time
-helping identify issues. 
+Tracemalloc is part of the CPython interpreter, and tracks allocations and
+frees. It's implemented efficiently and runs with relatively low overhead.
+It also allows the user to compare memory in different points in time to
+help identify issues.
 
-Enabling tracemalloc is easy, the feature is disabled by default, and only
-requires the user to enable a flag in the agent config:
+Tracemalloc is disabled by default, and only requires the user to enable a flag
+in the agent config:
 ```
 tracemalloc_debug: true
 ```
 
-One important caveat with regard to enabling the tracemalloc feature is that
-it will reduce the number of check runners to 1. This is enfoced by the agent
-because otherwise the allocations of multiple checks (bits of python code) 
-begin to overlap in time making debugging the tracemalloc output extremely
-difficult. By imposing a single runner, we can ensure python checks are 
-executed sequentially producing a more sensible output for debugging purposes.
+**Note**:One important caveat with regard to enabling the Tracemalloc feature is that
+it will reduce the number of check runners to 1. This is enforced by the Agent
+because otherwise the allocations of multiple checks begin to overlap in time
+making debugging the Tracemalloc output difficult. Imposing a single
+runner ensures Python checks are executed sequentially producing a more
+sensible output for debugging purposes.
 
-Once the feature is enabled you will immediately start populating the metric
-`datadog.agent.profile.memory.check_run_alloc` that will get pushed to Datadog. 
-The metric is very basic and just reflects the memory allocated by a check
-over time, in each check run, but is still helpful to identify regressions
-and leaks. The metric itself has two tags associated with it:
+Once this feature is enabled, the metric`datadog.agent.profile.memory.check_run_alloc`
+will begin populating in Datadog. The metric is basic and only reflects the memory
+allocated by a check over time, in each check run, but it is still helpful for identifying
+regressions and leaks. The metric itself has two tags associated with it:
 
 - `check_name`
 - `check_version`
@@ -192,8 +180,8 @@ understanding of how your agent is behaving. Default: 100.
 - `gc`: whether or not to run the garbage collector before each snapshot to remove noise.
 Garbage collections will not run by default (?) while tracemalloc is in action. That is
 to allow us to more easily identify sources of allocations without the interference of
-the GC. Note that the GC is not permanently disabled, this is only enforced during the 
-check run while tracemalloc is tracking allocations. Default: disabled. 
+the GC. Note that the GC is not permanently disabled, this is only enforced during the
+check run while tracemalloc is tracking allocations. Default: disabled.
 - `combine`: whether or not to aggregate over all traceback frames. useful only to tell
 which particular usage of a function triggered areas of interest.
 - `sort`: what to group results by between: `lineno` | `filename` | `traceback`. Default:
@@ -213,7 +201,7 @@ metrics. To do this you can resort to the check command and its optional
 `-m` flag. Running a check as follows will produce detailed memory allocation
 output for the check:
 ```
-sudo -u dd-agent -- datadog-agent check <foo_check> -m 
+sudo -u dd-agent -- datadog-agent check <foo_check> -m
 ```
 
 That will print out some memory information to screen, for instance:
@@ -263,26 +251,25 @@ find the memory profile files created in the corresponding directory for
 your delight and careful inspection :)
 
 
-## C/C++-land
+## C/C++ tracking and troubleshooting
 
-Allocations in our cgo and RTLoader code have been wrapped by a set of helper
-functions that help us keep accounting with regard to the number of allocations
+Allocations in the Datadog cgo and [RTLoader][3] code have been wrapped by a set of helper
+functions that help keep accounting with regard to the number of allocations
 made and freed, as well as their respective addresses and bytes reserved.
-Fortunately the RTLoader is not particularly intensive, and thus the overhead
-for the accounting is fairly negligible, allowing us to keep the feature on
+The RTLoader is not particularly intensive, and thus the overhead for the
+accounting is fairly negligible, allowing us to keep the feature on
 at all times on production machines. That said, there is a configuration flag
-in datadog.yaml you may use to enable/disable the feature:
+in datadog.yaml you can use to enable/disable the feature:
 
 ```yaml
 memtrack_enabled: true
 ```
 
-Raw malloc and free calls are deprecated in the RTLoader project, and as such
-we should see compiler warnings if anyone attempts to reserve memory without
-using our accounting wrappers.
+Raw malloc and free calls are deprecated in the RTLoader project. Compiler warnings
+will occur if anyone attempts to reserve memory without using the accounting wrappers.
 
-The way these wrappers work is by registering a go-callback via cgo, by which
-we can then call back into go-land and track the allocations as well as update
+The way these wrappers work is by registering a Go-callback via cgo, by which
+we can then call back into Go territory and track the allocations as well as update
 the relevant go expvars. These expvars can be queried at any point in time and
 paint a snapshot of the memory usage within the RTLoader.
 
@@ -322,12 +309,11 @@ This will show timeseries in the `datadog.agent` namespace:
 - datadog.agent.rtloader.inusebytes
 - datadog.agent.rtloader.untrackedfrees
 
-Most of the metrics above are self-explanatory, however I would like to talk
-about `UntrackedFrees`. This metrics is increased when somewhere in the RTLoader
-or cgo code, we try to free up code that we were perhaps not accounting for.
-It's goal is to help identify developer issues with the RTLoader accounting.
-In any case, the metrics provided should help identify leaks and other memory
-issues in the C/C++ memory space.
+**Note**:`UntrackedFrees` is increased when trying to free up code that was not accounted
+for somewhere in the RTLoader or cgo code. It helps identify developer issues with the RTLoader
+accounting.
+
+The metrics provided can be used to help identify leaks and other memory issues in the C/C++ memory space.
 
 Should you want to avoid configuring the expvar check, or if its not viable
 for you, you can still easily query the expvars with curl. For instance:
@@ -341,7 +327,6 @@ the [provided wrappers]() to reserve memory:
 - `void *_malloc(size_t sz);`
 - `void _free(void *ptr);`
 
-
-[rtloader-wrappers]: https://github.com/DataDog/datadog-agent/blob/master/rtloader/common/rtloader_mem.h
-[julia-evans-go-profiling]: https://jvns.ca/blog/2017/09/24/profiling-go-with-pprof/
-[detectify-memory-leak]: https://blog.detectify.com/2019/09/05/how-we-tracked-down-a-memory-leak-in-one-of-our-go-microservices/
+[1] https://jvns.ca/blog/2017/09/24/profiling-go-with-pprof/
+[2] https://blog.detectify.com/2019/09/05/how-we-tracked-down-a-memory-leak-in-one-of-our-go-microservices/
+[3] https://github.com/DataDog/datadog-agent/blob/master/rtloader/common/rtloader_mem.h
