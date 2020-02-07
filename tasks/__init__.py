@@ -16,6 +16,7 @@ from . import (agent,
     pylauncher,
     release,
     rtloader,
+    selinux,
     system_probe,
     systray,
     trace_agent
@@ -59,6 +60,7 @@ ns.add_collection(trace_agent)
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
 ns.add_collection(pylauncher)
+ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(rtloader)
