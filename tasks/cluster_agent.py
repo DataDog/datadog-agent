@@ -13,7 +13,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_build_tags
 from .utils import get_build_flags, bin_name, get_version
 from .utils import REPO_PATH
-from .go import deps
+from .go import deps, generate
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -40,6 +40,9 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
     ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca')
+
+    # Generating go source from templates by running go generate on ./pkg/status
+    generate(ctx)
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent"
@@ -85,7 +88,6 @@ def refresh_assets(ctx, development=True):
     for dist_folder in dist_folders:
         if os.path.exists(dist_folder):
             shutil.rmtree(dist_folder)
-        copy_tree("./pkg/status/dist/", dist_folder)
         if development:
             copy_tree("./dev/dist/", dist_folder)
 
