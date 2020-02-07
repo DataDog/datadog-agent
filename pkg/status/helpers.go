@@ -110,10 +110,7 @@ func toUnsortedList(s map[string]interface{}) string {
 
 // mkHuman adds commas to large numbers to assist readability in status outputs
 func mkHuman(f float64) string {
-	var str string
-	str = humanize.Commaf(f)
-
-	return str
+	return humanize.Commaf(f)
 }
 
 // mkHumanDuration makes time values more readable
