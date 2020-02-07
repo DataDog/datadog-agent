@@ -154,6 +154,7 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	expired := 0
 	c.mux.Lock()
 	for addr, val := range c.data {
+		log.Debugf("address=%s value=%s", addr, val.names)
 		if val.expiration > deadline {
 			continue
 		}

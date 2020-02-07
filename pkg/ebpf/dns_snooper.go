@@ -106,8 +106,10 @@ func (s *SocketFilterSnooper) Close() {
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 func (s *SocketFilterSnooper) processPacket(data []byte) {
 	t := s.getCachedTranslation()
+	log.Debug("In processPacket")
 	if err := s.parser.ParseInto(data, t); err != nil {
 		atomic.AddInt64(&s.decodingErrors, 1)
+		log.Errorf("error happened in processPacket %s", err)
 		return
 	}
 
