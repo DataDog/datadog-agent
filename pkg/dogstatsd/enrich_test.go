@@ -16,7 +16,7 @@ func parseAndEnrichMetricMessage(message []byte, namespace string, namespaceBlac
 	if err != nil {
 		return metrics.MetricSample{}, err
 	}
-	return enrichMetricSample(parsed, namespace, namespaceBlacklist, defaultHostname), nil
+	return enrichMetricSample(parsed, namespace, namespaceBlacklist, defaultHostname, ""), nil
 }
 
 func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
@@ -25,7 +25,7 @@ func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (
 	if err != nil {
 		return nil, err
 	}
-	return enrichServiceCheck(parsed, defaultHostname), nil
+	return enrichServiceCheck(parsed, defaultHostname, ""), nil
 }
 
 func parseAndEnrichEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
@@ -34,7 +34,7 @@ func parseAndEnrichEventMessage(message []byte, defaultHostname string) (*metric
 	if err != nil {
 		return nil, err
 	}
-	return enrichEvent(parsed, defaultHostname), nil
+	return enrichEvent(parsed, defaultHostname, ""), nil
 }
 
 func TestConvertParseGauge(t *testing.T) {

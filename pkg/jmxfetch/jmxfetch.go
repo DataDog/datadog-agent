@@ -272,7 +272,7 @@ func (j *JMXFetch) Start(manage bool) error {
 
 	err = j.cmd.Start()
 
-	// start syncrhonization channels
+	// start synchronization channels
 	if err == nil && manage {
 		j.managed = true
 		j.shutdown = make(chan struct{})
