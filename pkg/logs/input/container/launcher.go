@@ -62,7 +62,7 @@ func NewLauncher(collectAll bool, collectFromFiles bool, sources *config.LogSour
 	launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, true)
 	if err != nil {
 		log.Warnf("Could not setup the docker launcher: %v. Will not be able to collect container logs", err)
-		return nil
+		return NewNoopLauncher()
 	}
 
 	log.Infof("Container logs won't be collected unless a docker daemon is eventually started")
