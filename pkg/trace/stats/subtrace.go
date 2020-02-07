@@ -71,7 +71,7 @@ func ExtractTopLevelSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 		// not computing sublayer metrics for db spans for now because they usually don't have children
 		// and they increase the number of metrics computed by much more
 		// TODO[jahanzebk]: stop ignoring DB spans
-		if traceutil.HasTopLevel(current.Span) && !traceutil.SpanTypeIsDB(current.Span.Type) {
+		if traceutil.HasTopLevel(current.Span) {
 			current.Ancestors = append(current.Ancestors, current.Span)
 		}
 		visited[current.Span] = true
