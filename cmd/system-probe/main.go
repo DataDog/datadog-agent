@@ -54,7 +54,5 @@ func runCheck (cfg *config.AgentConfig) {
 		}
 
 		os.Exit(0)
+	}
 }
-
-
-

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -42,9 +43,11 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
-	// make sure debugfs is mounted
-	if mounted, msg := util.IsDebugfsMounted(); !mounted {
-		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
+	if runtime.GOOS != "windows" {
+		// make sure debugfs is mounted
+		if mounted, msg := util.IsDebugfsMounted(); !mounted {
+			return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
+		}
 	}
 
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
@@ -54,8 +57,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
-	// Setting up the unix socket
-	uds, err := net.NewUDSListener(cfg)
+	conn, err := net.NewUDSListener(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +65,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	return &SystemProbe{
 		tracer: t,
 		cfg:    cfg,
-		conn:   uds,
+		conn:   conn,
 	}, nil
 }
 

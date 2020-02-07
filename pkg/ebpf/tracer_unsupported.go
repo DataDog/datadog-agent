@@ -1,22 +1,15 @@
-// +build !linux_bpf
+// +build !linux_bpf !windows
 
 package ebpf
 
-import "runtime"
-
 // CurrentKernelVersion is not implemented on non-linux systems
 func CurrentKernelVersion() (uint32, error) {
-	if runtime.GOOS == "windows" {
-		return 1, nil
-	} else {
-		return 0, ErrNotImplemented
-	}
+	return 0, ErrNotImplemented
 }
 
-// Tracer is not implemented on non-linux systems
 type Tracer struct{}
 
-// NewTracer is not implemented on non-linux systems
+// Tracer is not implemented on non-linux/Windows systems
 func NewTracer(_ *Config) (*Tracer, error) {
 	return nil, ErrNotImplemented
 }

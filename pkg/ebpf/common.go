@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 	"unsafe"
 
@@ -94,20 +95,23 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		}
 	}
 
-	missing, err := verifyKernelFuncs(path.Join(util.GetProcRoot(), "kallsyms"))
-	if err != nil {
-		log.Warnf("error reading /proc/kallsyms file: %s (check your kernel version, current is: %s)", err, kernelCodeToString(kernelCode))
-		// If we can't read the /proc/kallsyms file let's just return true to avoid blocking the tracer from running
+	if runtime.GOOS == "windows"{
 		return true, ""
-	}
 
-	if len(missing) == 0 {
-		return true, ""
+	} else {
+		missing, err := verifyKernelFuncs(path.Join(util.GetProcRoot(), "kallsyms"))
+		if err != nil {
+			log.Warnf("error reading /proc/kallsyms file: %s (check your kernel version, current is: %s)", err, kernelCodeToString(kernelCode))
+			// If we can't read the /proc/kallsyms file let's just return true to avoid blocking the tracer from running
+			return true, ""
+		}
+		if len(missing) == 0 {
+			return true, ""
+		}
+		errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCodeToString(kernelCode))
+		errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missing, ", "))
+		return false, errMsg
 	}
-
-	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCodeToString(kernelCode))
-	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missing, ", "))
-	return false, errMsg
 }
 
 func verifyKernelFuncs(path string) ([]string, error) {
