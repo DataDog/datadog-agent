@@ -21,6 +21,7 @@ import (
 // declare these as vars not const to ease testing
 var (
 	metadataURL        = "http://169.254.169.254/latest/meta-data"
+	tokenURL           = "http://169.254.169.254/latest/api/token"
 	timeout            = 100 * time.Millisecond
 	oldDefaultPrefixes = []string{"ip-", "domu"}
 	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
@@ -103,7 +104,7 @@ func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error
 }
 
 func getMetadataItem(endpoint string) (string, error) {
-	res, err := getResponse(metadataURL + endpoint)
+	res, err := getResponse(metadataURL+endpoint, http.MethodGet, map[string]string{})
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -144,12 +145,15 @@ func extractClusterName(tags []string) (string, error) {
 	return clusterName, nil
 }
 
-func getResponse(url string) (*http.Response, error) {
+func getResponse(url string, method string, headers map[string]string) (*http.Response, error) {
 	client := http.Client{
 		Timeout: timeout,
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(method, url, nil)
+	for header, value := range headers {
+		req.Header.Add(header, value)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -158,12 +162,51 @@ func getResponse(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if res.StatusCode != 200 {
+	_, tokenAlreadySet := headers["X-aws-ec2-metadata-token"]
+	if res.StatusCode == 401 && !tokenAlreadySet {
+		// Retry with a token
+		token, err := getToken()
+		if err != nil {
+			fmt.Println("3")
+			return nil, err
+		}
+		headers["X-aws-ec2-metadata-token"] = token
+		return getResponse(url, method, headers)
+	} else if res.StatusCode != 200 {
 		return nil, fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, url)
 	}
 
 	return res, nil
+}
+
+func getToken() (string, error) {
+	client := http.Client{
+		Timeout: timeout,
+	}
+
+	req, err := http.NewRequest(http.MethodPut, tokenURL, nil)
+	req.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", "60")
+
+	if err != nil {
+		return "", err
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	if res.StatusCode != 200 {
+		return "", fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, tokenURL)
+	}
+
+	defer res.Body.Close()
+	all, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "", fmt.Errorf("unable to read response body, %s", err)
+	}
+
+	return string(all), nil
 }
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2
