@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package telemetry
 
@@ -27,24 +27,29 @@ type Gauge interface {
 	Delete(tagsValue ...string)
 }
 
-// NewGauge creates a Gauge for telemetry purpose.
+// NewGauge creates a Gauge with default options for telemetry purpose.
 // Current implementation used: Prometheus Gauge
 func NewGauge(subsystem, name string, tags []string, help string) Gauge {
+	return NewGaugeWithOpts(subsystem, name, tags, help, DefaultOptions)
+}
+
+// NewGaugeWithOpts creates a Gauge with the given options for telemetry purpose.
+// See NewGauge()
+func NewGaugeWithOpts(subsystem, name string, tags []string, help string, opts Options) Gauge {
 	// subsystem is optional
-	if subsystem != "" {
-		subsystem = fmt.Sprintf("_%s", subsystem)
+	if subsystem != "" && !opts.NoDoubleUnderscoreSep {
+		// Prefix metrics with a _, prometheus will add a second _
+		// It will create metrics with a custom separator and
+		// will let us replace it to a dot later in the process.
+		name = fmt.Sprintf("_%s", name)
 	}
 
 	g := &promGauge{
 		pg: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Namespace: namespace,
 				Subsystem: subsystem,
-				// Prefix metrics with a _, prometheus will add a second _
-				// It will create metrics with a custom separator and
-				// will let us replace it to a dot later in the process.
-				Name: fmt.Sprintf("_%s", name),
-				Help: help,
+				Name:      name,
+				Help:      help,
 			},
 			tags,
 		),

@@ -26,7 +26,6 @@ type AuditorTestSuite struct {
 	suite.Suite
 	testDir  string
 	testPath string
-	testFile *os.File
 
 	a      *Auditor
 	source *config.LogSource

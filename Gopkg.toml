@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "4.19.0"
+  version = "4.24.0"
 
 [[constraint]]
   name = "github.com/google/gopacket"
@@ -161,7 +161,7 @@
 
 [[constraint]]
   name = "gopkg.in/zorkian/go-datadog-api.v2"
-  revision = "0784a6c6d9a4659263c67e160442f4f5808793ac"
+  revision = "9e2c892691035a7685a16d5839910cfc54e42fb6"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
@@ -259,3 +259,7 @@
 [[constraint]]
   name = "github.com/twmb/murmur3"
   version = "1.0.0"
+
+[[constraint]]
+  name = "github.com/cenkalti/backoff"
+  version = "v3.0.0"

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,6 +33,8 @@ func TestGetIAMRole(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	val, err := getIAMRole()
 	require.Nil(t, err)
@@ -54,10 +57,12 @@ func TestGetSecurityCreds(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	cred, err := getSecurityCreds()
 	require.Nil(t, err)
-	assert.Equal(t, "123456", cred.AccessKeyId)
+	assert.Equal(t, "123456", cred.AccessKeyID)
 	assert.Equal(t, "secret access key", cred.SecretAccessKey)
 	assert.Equal(t, "secret token", cred.Token)
 }
@@ -71,9 +76,11 @@ func TestGetInstanceIdentity(t *testing.T) {
 	}))
 	defer ts.Close()
 	instanceIdentityURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	val, err := getInstanceIdentity()
 	require.Nil(t, err)
 	assert.Equal(t, "us-east-1", val.Region)
-	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceId)
+	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
 }

@@ -124,7 +124,7 @@ func trimCommand(command string) string {
 	if cutoff > 0 {
 		// Add a trailing space between cmd and … to
 		// differentiate removed args vs max length
-		cutoff += 1
+		cutoff++
 	} else {
 		cutoff = len(command)
 	}

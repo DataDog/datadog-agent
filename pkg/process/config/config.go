@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -16,8 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const processCheckEndpoint = "/api/v1/collector"
 
 var (
 	// defaultProxyPort is the default port used for proxies.
@@ -49,6 +53,24 @@ type WindowsConfig struct {
 type APIEndpoint struct {
 	APIKey   string
 	Endpoint *url.URL
+}
+
+// GetCheckURL returns the URL string for a given agent check
+func (e *APIEndpoint) GetCheckURL(checkPath string) string {
+	// Make a copy of the URL
+	checkURL := *e.Endpoint
+
+	// This is to maintain backward compatibility with agents configured with the default collector endpoint:
+	// process_dd_url: https://process.datadoghq.com/api/v1/collector
+	if checkURL.Path == processCheckEndpoint {
+		checkURL.Path = ""
+	}
+
+	// Finally, add the checkPath to the existing APIEndpoint path.
+	// This is done like so to support certain use-cases in which `process_dd_url` points to something
+	// like a NGINX server proxying requests under a certain path (eg. https://proxy-host/process-agent)
+	checkURL.Path = path.Join(checkURL.Path, checkPath)
+	return checkURL.String()
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -190,7 +212,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableTCPTracing:            false,
 		DisableUDPTracing:            false,
 		DisableIPv6Tracing:           false,
-		DisableDNSInspection:         true,
+		DisableDNSInspection:         false,
 		SystemProbeSocketPath:        defaultSystemProbeSocketPath,
 		SystemProbeLogFile:           defaultSystemProbeFilePath,
 		MaxTrackedConnections:        defaultMaxTrackedConnections,
@@ -299,7 +321,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	if cfg.HostName == "" {
 		if ecsutil.IsFargateInstance() {
 			// Fargate tasks should have no concept of host names, so we're using the task ARN.
-			if taskMeta, err := ecsutil.GetTaskMetadata(); err == nil {
+			if taskMeta, err := ecsmeta.V2().GetTask(); err == nil {
 				cfg.HostName = fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN)
 			} else {
 				log.Errorf("Failed to retrieve Fargate task metadata: %s", err)

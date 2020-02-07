@@ -31,8 +31,8 @@ func TestCRIUtilInit(t *testing.T) {
 	}
 	err = util.init()
 	require.NoError(t, err)
-	assert.Equal(t, "fakeRuntime", util.Runtime)
-	assert.Equal(t, "0.1.0", util.RuntimeVersion)
+	assert.Equal(t, "fakeRuntime", util.GetRuntime())
+	assert.Equal(t, "0.1.0", util.GetRuntimeVersion())
 }
 
 func TestCRIUtilListContainerStats(t *testing.T) {

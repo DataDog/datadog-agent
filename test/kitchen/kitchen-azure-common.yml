@@ -127,7 +127,11 @@ platforms:
   <% else %>
   driver_config:
     machine_size: <%= size %>
-    image_urn: <%= platform[1] %>
+    <% if platform[1] == "urn" %>
+    image_urn: <%= platform[2] %>
+    <% else %>
+    image_id: <%= platform[2] %>
+    <% end %>
     location: <%= location %>
     <% if windows %>
     vm_name: ddat<%= platform[0] %>

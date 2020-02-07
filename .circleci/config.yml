@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1129-doxygen
+      - image: datadog/datadog-agent-runner-circle:go1129-doxygen-golangci
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -97,12 +97,13 @@ jobs:
 
   unit_tests:
     <<: *job_template
+    resource_class: large
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 3
+          command: inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload

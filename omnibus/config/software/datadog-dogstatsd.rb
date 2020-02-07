@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 require 'pathname'
 
 name 'datadog-dogstatsd'
@@ -37,7 +37,12 @@ build do
   end
 
   # move around bin and config files
-  copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
+  if windows?
+    mkdir "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+    copy 'bin/dogstatsd/dogstatsd.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  else
+    copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
+  end
   move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
 
   if linux?

@@ -36,10 +36,10 @@ func (m serviceMapper) Set(namespace, podName string, svcs ...string) {
 	m[namespace][podName].Insert(svcs...)
 }
 
-// MapOnIp matches pods to services via IP. It supports Kubernetes 1.4+
-func (m serviceMapper) MapOnIp(nodeName string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
+// MapOnIP matches pods to services via IP. It supports Kubernetes 1.4+
+func (m serviceMapper) MapOnIP(nodeName string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
 	ipToEndpoints := make(map[string][]string)    // maps the IP address from an endpoint (pod) to associated services ex: "10.10.1.1" : ["service1","service2"]
-	podToIp := make(map[string]map[string]string) // maps pod names to its IP address keyed by the namespace a pod belongs to
+	podToIP := make(map[string]map[string]string) // maps pod names to its IP address keyed by the namespace a pod belongs to
 
 	if len(pods) == 0 {
 		return fmt.Errorf("empty podlist received for nodeName %q", nodeName)
@@ -53,10 +53,10 @@ func (m serviceMapper) MapOnIp(nodeName string, pods []*kubelet.Pod, endpointLis
 			log.Debugf("PodIP is empty, ignoring pod %s in namespace %s", pod.Metadata.Name, pod.Metadata.Namespace)
 			continue
 		}
-		if _, ok := podToIp[pod.Metadata.Namespace]; !ok {
-			podToIp[pod.Metadata.Namespace] = make(map[string]string)
+		if _, ok := podToIP[pod.Metadata.Namespace]; !ok {
+			podToIP[pod.Metadata.Namespace] = make(map[string]string)
 		}
-		podToIp[pod.Metadata.Namespace][pod.Metadata.Name] = pod.Status.PodIP
+		podToIP[pod.Metadata.Namespace][pod.Metadata.Name] = pod.Status.PodIP
 	}
 	for _, svc := range endpointList.Items {
 		for _, endpointsSubsets := range svc.Subsets {
@@ -71,7 +71,7 @@ func (m serviceMapper) MapOnIp(nodeName string, pods []*kubelet.Pod, endpointLis
 			}
 		}
 	}
-	for ns, pods := range podToIp {
+	for ns, pods := range podToIP {
 		for name, ip := range pods {
 			if svcs, found := ipToEndpoints[ip]; found {
 				m.Set(ns, name, svcs...)
@@ -133,7 +133,7 @@ func (metaBundle *metadataMapperBundle) mapServices(nodeName string, pods []*kub
 	var err error
 	serviceMapper := ConvertToServiceMapper(metaBundle.Services)
 	if metaBundle.mapOnIP {
-		err = serviceMapper.MapOnIp(nodeName, pods, endpointList)
+		err = serviceMapper.MapOnIP(nodeName, pods, endpointList)
 	} else { // Default behaviour
 		err = serviceMapper.MapOnRef(nodeName, pods, endpointList)
 	}

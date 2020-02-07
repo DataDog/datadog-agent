@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet,!orchestrator
 
@@ -23,7 +23,7 @@ type KubeUtilInterface interface {
 	GetPodFromUID(podUID string) (*Pod, error)
 	GetPodForEntityID(entityID string) (*Pod, error)
 	QueryKubelet(path string) ([]byte, int, error)
-	GetKubeletApiEndpoint() string
+	GetKubeletAPIEndpoint() string
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics() ([]byte, error)
 	IsAgentHostNetwork() (bool, error)

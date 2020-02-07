@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 )
 
 func TestParseECSClusterName(t *testing.T) {
@@ -47,7 +47,7 @@ func TestParseFargateRegion(t *testing.T) {
 func TestParseMetadata(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/fargate_meta.json")
 	require.NoError(t, err)
-	var meta metadata.TaskMetadata
+	var meta v2.Task
 	err = json.Unmarshal(raw, &meta)
 	require.NoError(t, err)
 	require.Len(t, meta.Containers, 3)
@@ -196,7 +196,7 @@ func TestParseMetadata(t *testing.T) {
 	}
 
 	// Diff parsing should show 2 containers
-	updates, err := collector.parseMetadata(meta, false)
+	updates, err := collector.parseMetadata(&meta, false)
 	assert.NoError(t, err)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
 
@@ -206,7 +206,7 @@ func TestParseMetadata(t *testing.T) {
 	assert.Equal(t, []string{"unknownID"}, expires)
 
 	// Diff parsing should show 0 containers
-	updates, err = collector.parseMetadata(meta, false)
+	updates, err = collector.parseMetadata(&meta, false)
 	assert.NoError(t, err)
 	assert.Len(t, updates, 0)
 
@@ -216,7 +216,7 @@ func TestParseMetadata(t *testing.T) {
 	defer mockConfig.Set("tags", nil)
 
 	// Full parsing should show 3 containers
-	updates, err = collector.parseMetadata(meta, true)
+	updates, err = collector.parseMetadata(&meta, true)
 	assert.NoError(t, err)
 	assert.Len(t, updates, 3)
 	assertTagInfoListEqual(t, expectedUpdatesParseAll, updates)
@@ -225,7 +225,7 @@ func TestParseMetadata(t *testing.T) {
 func TestParseMetadataV10(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/fargate_meta_v1.0.json")
 	require.NoError(t, err)
-	var meta metadata.TaskMetadata
+	var meta v2.Task
 	err = json.Unmarshal(raw, &meta)
 	require.NoError(t, err)
 	require.Len(t, meta.Containers, 3)
@@ -303,7 +303,7 @@ func TestParseMetadataV10(t *testing.T) {
 		},
 	}
 
-	updates, err := collector.parseMetadata(meta, false)
+	updates, err := collector.parseMetadata(&meta, false)
 	assert.NoError(t, err)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
 }

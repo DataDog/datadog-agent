@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Ignore missing docker label com.datadoghq.ad.check_names instead of showing error logs.

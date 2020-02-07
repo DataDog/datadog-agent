@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 require "./lib/ostools.rb"
 
 name 'agent'
@@ -82,6 +82,28 @@ compress :dmg do
 end
 
 # Windows .msi specific flags
+package :zip do
+  if windows_arch_i386?
+    skip_packager true
+  else
+    extra_package_dirs [
+      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
+      "#{Omnibus::Config.source_dir()}\\cf-root",
+    ]
+  
+    additional_sign_files [
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll",
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\install-cmd.exe"
+      ]
+    if ENV['SIGN_PFX']
+      signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
+    end
+  end
+end
+
 package :msi do
 
   # For a consistent package management, please NEVER change this code
@@ -143,6 +165,10 @@ else
   dependency 'cacerts'
 end
 
+if osx?
+  dependency 'datadog-agent-mac-app'
+end
+
 if with_python_runtime? "2"
   dependency 'pylint2'
   dependency 'datadog-agent-integrations-py2'
@@ -150,10 +176,6 @@ end
 
 if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
-end
-
-if osx?
-  dependency 'datadog-agent-mac-app'
 end
 
 # External agents
@@ -169,6 +191,7 @@ dependency 'version-manifest'
 # the `extra_package_file` directive.
 # This must be the last dependency in the project.
 dependency 'datadog-agent-finalize'
+dependency 'datadog-cf-finalize'
 
 if linux?
   extra_package_file '/etc/init/datadog-agent.conf'

@@ -20,6 +20,9 @@ RUN chmod +x /bin/gimme
 RUN gimme $GIMME_GO_VERSION
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 
+# Download and install golangci-lint
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $GOPATH/bin v1.21.0
+
 # CMake
 ENV CMAKE_NAME cmake-3.13.3-Linux-x86_64
 ENV CMAKE_ARCHIVE $CMAKE_NAME.tar.gz

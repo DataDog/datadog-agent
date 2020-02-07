@@ -54,6 +54,9 @@ type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
 
+	// WPAClient gives access to WPA API
+	WPAClient wpa_client.Interface
+
 	// WPAInformerFactory gives access to informers for Watermark Pod Autoscalers.
 	WPAInformerFactory wpa_informers.SharedInformerFactory
 	// used to setup the APIClient
@@ -160,9 +163,12 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
-		c.WPAInformerFactory, err = getWPAInformerFactory()
-		if err != nil {
+		if c.WPAInformerFactory, err = getWPAInformerFactory(); err != nil {
 			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
+			return err
+		}
+		if c.WPAClient, err = getWPAClient(time.Duration(c.timeoutSeconds) * time.Second); err != nil {
+			log.Errorf("Error getting WPA Client: %s", err.Error())
 			return err
 		}
 	}
@@ -339,8 +345,8 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 }
 
 // GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on
-func (c *APIClient) GetNodeForPod(namespace, pod_name string) (string, error) {
-	pod, err := c.Cl.CoreV1().Pods(namespace).Get(pod_name, metav1.GetOptions{})
+func (c *APIClient) GetNodeForPod(namespace, podName string) (string, error) {
+	pod, err := c.Cl.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -368,6 +374,7 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 		if err != nil {
 			warn := fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
 			stats.Warnings = append(stats.Warnings, warn)
+			continue
 		}
 		stats.Nodes[node.Name] = convertmetadataMapperBundleToAPI(bundle)
 	}
@@ -405,7 +412,7 @@ func getNodeList(cl *APIClient) ([]v1.Node, error) {
 	return nodes.Items, nil
 }
 
-// GetRESTObject allows to retrive a custom resource from the APIserver
+// GetRESTObject allows to retrieve a custom resource from the APIserver
 func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	result := c.Cl.CoreV1().RESTClient().Get().AbsPath(path).Do()
 	if result.Error() != nil {
@@ -417,6 +424,9 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 
 func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
 	output := apiv1.NewMetadataResponseBundle()
+	if input == nil {
+		return output
+	}
 	for key, val := range input.Services {
 		output.Services[key] = val
 	}

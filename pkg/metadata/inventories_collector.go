@@ -19,10 +19,6 @@ type inventoriesCollector struct {
 	sc   *Scheduler
 }
 
-var (
-	expvarPayload func() interface{}
-)
-
 func createPayload(ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) (*inventories.Payload, error) {
 	hostname, err := util.GetHostname()
 	if err != nil {

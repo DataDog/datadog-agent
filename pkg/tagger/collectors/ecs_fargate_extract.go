@@ -15,13 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // parseMetadata parses the task metadata and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
-func (c *ECSFargateCollector) parseMetadata(meta metadata.TaskMetadata, parseAll bool) ([]*TagInfo, error) {
+func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 
@@ -84,7 +84,7 @@ func (c *ECSFargateCollector) parseMetadata(meta metadata.TaskMetadata, parseAll
 			low, orch, high := tags.Compute()
 			info := &TagInfo{
 				Source:               ecsFargateCollectorName,
-				Entity:               containers.BuildTaggerEntityName(string(ctr.DockerID)),
+				Entity:               containers.BuildTaggerEntityName(ctr.DockerID),
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
@@ -101,9 +101,9 @@ func parseECSClusterName(value string) string {
 	if strings.Contains(value, "/") {
 		parts := strings.Split(value, "/")
 		return parts[len(parts)-1]
-	} else {
-		return value
 	}
+
+	return value
 }
 
 func parseFargateRegion(arn string) string {

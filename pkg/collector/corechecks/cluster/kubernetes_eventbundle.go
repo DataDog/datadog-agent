@@ -12,14 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"math"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type kubernetesEventBundle struct {
-	objUid        types.UID      // Unique object Identifier used as the Aggregation key
+	objUID        types.UID      // Unique object Identifier used as the Aggregation key
 	namespace     string         // namespace of the bundle
 	readableKey   string         // Formated key used in the Title in the events
 	component     string         // Used to identify the Kubernetes component which generated the event
@@ -32,9 +33,9 @@ type kubernetesEventBundle struct {
 	nodename      string         // Stores the nodename that should be used to submit the events
 }
 
-func newKubernetesEventBundler(objUid types.UID, compName string) *kubernetesEventBundle {
+func newKubernetesEventBundler(objUID types.UID, compName string) *kubernetesEventBundle {
 	return &kubernetesEventBundle{
-		objUid:        objUid,
+		objUID:        objUID,
 		component:     compName,
 		countByAction: make(map[string]int),
 	}
@@ -48,8 +49,8 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	if event.Reason == "" || event.Message == "" || event.InvolvedObject.Name == "" {
 		return errors.New("could not retrieve some attributes of the event")
 	}
-	if event.InvolvedObject.UID != b.objUid {
-		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.UID, b.objUid)
+	if event.InvolvedObject.UID != b.objUID {
+		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.UID, b.objUID)
 	}
 
 	b.events = append(b.events, event)
@@ -95,7 +96,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string) (metrics.Event,
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(b.lastTimestamp),
 		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)},
-		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUid),
+		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
 	}
 	if b.namespace != "" {
 		// TODO remove the deprecated namespace tag, we should only rely on kube_namespace

@@ -1,15 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build !linux !orchestrator
 
 package checks
 
 import (
-	"time"
-
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
@@ -20,7 +18,6 @@ var Pod = &PodCheck{}
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
 	sysInfo *model.SystemInfo
-	lastRun time.Time
 }
 
 // Init initializes a ContainerCheck instance.

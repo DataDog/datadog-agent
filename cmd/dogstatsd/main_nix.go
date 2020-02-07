@@ -7,4 +7,26 @@
 
 package main
 
+import (
+	"fmt"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
 const defaultLogFile = "/var/log/datadog/dogstatsd.log"
+
+func main() {
+	// go_expvar server
+	go http.ListenAndServe(
+		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
+		http.DefaultServeMux)
+
+	if err := dogstatsdCmd.Execute(); err != nil {
+		log.Error(err)
+		os.Exit(-1)
+	}
+}

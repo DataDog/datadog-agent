@@ -44,7 +44,7 @@ var (
 	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
 		[]string{"domain"}, "Count of transactions dropped on input")
 	tlmTxErrors = telemetry.NewCounter("transactions", "errors",
-		[]string{"domain", "type"}, "Count of transactions errored grouped by type of error")
+		[]string{"domain", "error_type"}, "Count of transactions errored grouped by type of error")
 	tlmTxHTTPErrors = telemetry.NewCounter("transactions", "http_errors",
 		[]string{"domain", "code"}, "Count of transactions http errors per http code")
 )

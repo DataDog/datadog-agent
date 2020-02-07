@@ -74,4 +74,4 @@ if __name__ == '__main__':
         except (ValueError, IOError) as e:
             output[s] = {"error": str(e)}
 
-    print json.dumps(output)
+    print(json.dumps(output))
