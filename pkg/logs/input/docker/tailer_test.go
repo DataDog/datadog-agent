@@ -70,7 +70,7 @@ func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer 
 		decoder:       nil,
 		source:        config.NewLogSource("foo", nil),
 		tagProvider:   tag.NoopProvider,
-		cli:           nil,
+		dockerutil:    nil,
 		sleepDuration: defaultSleepDuration,
 		stop:          make(chan struct{}, 1),
 		done:          make(chan struct{}, 1),

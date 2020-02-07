@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 )
 
 const defaultSleepDuration = 1 * time.Second
@@ -38,7 +37,7 @@ type Tailer struct {
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
 	reader      *safeReader
-	cli         *client.Client
+	dockerutil  *dockerutil.DockerUtil
 	source      *config.LogSource
 	tagProvider tag.Provider
 
@@ -53,14 +52,14 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
+func NewTailer(dockeruti *dockerutil.DockerUtil, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            InitializeDecoder(source, containerID),
 		source:             source,
 		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToTaggerEntityName(containerID)),
-		cli:                cli,
+		dockerutil:         dockeruti,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
@@ -129,7 +128,7 @@ func (t *Tailer) setupReader() error {
 		Since:      t.getLastSince(),
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
+	reader, err := t.dockerutil.ContainerLogs(ctx, t.ContainerID, options)
 	t.reader.setUnsafeReader(reader)
 	t.cancelFunc = cancelFunc
 	return err
