@@ -9,7 +9,6 @@ WORKDIR /output
 COPY datadog-cluster-agent.amd64 opt/datadog-agent/bin/datadog-cluster-agent
 COPY ./conf.d etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml etc/datadog-agent/datadog-cluster.yaml
-COPY ./dist/templates opt/datadog-agent/bin/dist/templates
 COPY entrypoint.sh .
 COPY readsecret.sh .
 
@@ -37,17 +36,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder /output /
-
-# We need to set the NET_BIND_SERVICE capability to allow the cluster-agent to bind
-# port 443 for metrics provider.
-# And we need to do it here because capabilities set in `builder` stage are not kept
-# by the `COPY --from=builder`.
-RUN apt-get update \
-    && apt-get install -y libcap2-bin \
-    && setcap cap_net_bind_service+ep /opt/datadog-agent/bin/datadog-cluster-agent \
-    && apt-get remove -y libcap2-bin \
-    && apt-get autoremove -y \
-    && apt-get clean
 
 # Allow running as an unprivileged user:
 # - General case is the dd-agent user

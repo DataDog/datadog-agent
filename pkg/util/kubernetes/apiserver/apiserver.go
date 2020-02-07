@@ -374,6 +374,7 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 		if err != nil {
 			warn := fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
 			stats.Warnings = append(stats.Warnings, warn)
+			continue
 		}
 		stats.Nodes[node.Name] = convertmetadataMapperBundleToAPI(bundle)
 	}
@@ -423,6 +424,9 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 
 func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
 	output := apiv1.NewMetadataResponseBundle()
+	if input == nil {
+		return output
+	}
 	for key, val := range input.Services {
 		output.Services[key] = val
 	}

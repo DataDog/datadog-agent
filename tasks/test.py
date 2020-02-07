@@ -15,7 +15,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .utils import get_build_flags, get_version
-from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint
+from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
@@ -76,6 +76,8 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     lint_filenames(ctx)
     print("--- Linting licenses:")
     lint_licenses(ctx)
+    print("--- go generating:")
+    generate(ctx)
 
     # Until all packages whitelisted in .golangci.yml are fixed and remove
     # from the 'skip-dirs' list we need to keep using the old functions that

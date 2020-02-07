@@ -426,7 +426,6 @@ build_puppy_agent-deb_arm64:
     - inv -e cluster-agent.build
     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
     - $S3_CP_CMD $SRC_PATH/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
-    - $S3_CP_CMD --recursive $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/dist/templates $S3_ARTIFACTS_URI/dist/templates
 
 # build cluster-agent bin
 cluster_agent-build_amd64:
