@@ -2,9 +2,15 @@
 
 package ebpf
 
+import "runtime"
+
 // CurrentKernelVersion is not implemented on non-linux systems
 func CurrentKernelVersion() (uint32, error) {
-	return 0, ErrNotImplemented
+	if runtime.GOOS == "windows" {
+		return 1, nil
+	} else {
+		return 0, ErrNotImplemented
+	}
 }
 
 // Tracer is not implemented on non-linux systems
