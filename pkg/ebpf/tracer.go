@@ -36,8 +36,9 @@ type Tracer struct {
 
 	config *Config
 
-	state       NetworkState
-	portMapping *PortMapping
+	state          NetworkState
+	portMapping    *PortMapping
+	udpPortMapping *PortMapping
 
 	conntracker netlink.Conntracker
 
@@ -169,8 +170,13 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	portMapping := NewPortMapping(config.ProcRoot, config)
+	udpPortMapping := NewPortMapping(config.ProcRoot, config)
 	if err := portMapping.ReadInitialState(); err != nil {
-		return nil, fmt.Errorf("failed to read initial pid->port mapping: %s", err)
+		return nil, fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
+	}
+
+	if err := udpPortMapping.ReadInitialUDPState(); err != nil {
+		return nil, fmt.Errorf("failed to read initial UDP pid->port mapping: %s")
 	}
 
 	conntracker := netlink.NewNoOpConntracker()
@@ -189,6 +195,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		config:         config,
 		state:          state,
 		portMapping:    portMapping,
+		udpPortMapping: udpPortMapping,
 		reverseDNS:     reverseDNS,
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
@@ -364,6 +371,11 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 		return nil, 0, fmt.Errorf("error retrieving the bpf %s map: %s", portBindingsMap, err)
 	}
 
+	udpPortMp, err := t.getMap(udpPortBindingsMap)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error retrieving the bpf %s map: %s", udpPortBindingsMap, err)
+	}
+
 	latestTime, ok, err := t.getLatestTimestamp()
 	if err != nil {
 		return nil, 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
@@ -373,10 +385,12 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 		return nil, 0, nil
 	}
 
-	closedPortBindings, err := t.populatePortMapping(portMp)
+	closedPortBindings, err := t.populatePortMapping(portMp, t.portMapping)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error populating port mapping: %s", err)
 	}
+
+	closedUDPPortBindings, err := t.populatePortMapping(udpPortMp, t.udpPortMapping)
 
 	// Iterate through all key-value pairs in map
 	key, nextKey, stats := &ConnTuple{}, &ConnTuple{}, &ConnStatsWithTimestamp{}
@@ -417,6 +431,11 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 	for _, key := range closedPortBindings {
 		t.portMapping.RemoveMapping(key)
 		_ = t.m.DeleteElement(portMp, unsafe.Pointer(&key))
+	}
+
+	for _, key := range closedUDPPortBindings {
+		t.udpPortMapping.RemoveMapping(key)
+		_ = t.m.DeleteElement(udpPortMp, unsafe.Pointer(&key))
 	}
 
 	// Get the latest time a second time because it could have changed while we were reading the eBPF map
@@ -622,9 +641,11 @@ func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 	return &Connections{Conns: latestConns}, nil
 }
 
-// populatePortMapping reads the entire portBinding bpf map and populates the local port/address map.  A list of
-// closed ports will be returned
-func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
+// populatePortMapping reads an entire portBinding bpf map and populates the userspace  port map.  A list of
+// closed ports will be returned.
+// the map will be one of port_bindings  or udp_port_bindings, and the mapping will be one of tracer#portMapping
+// tracer#udpPortMapping respectively.
+func (t *Tracer) populatePortMapping(mp *bpflib.Map, mapping *PortMapping) ([]uint16, error) {
 	var key, nextKey uint16
 	var state uint8
 
@@ -638,7 +659,7 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 
 		port := nextKey
 
-		t.portMapping.AddMapping(port)
+		mapping.AddMapping(port)
 
 		if isPortClosed(state) {
 			closedPortBindings = append(closedPortBindings, port)
@@ -652,7 +673,10 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 
 func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionDirection {
 	if conn.Type == UDP {
-		return NONE
+		if t.udpPortMapping.IsListening(conn.SPort) {
+			return INCOMING
+		}
+		return OUTGOING
 	}
 
 	if t.portMapping.IsListening(conn.SPort) {
@@ -672,6 +696,9 @@ func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.Se
 			MapMaxEntries: int(c.MaxTrackedConnections),
 		},
 		portBindingsMap.sectionName(): {
+			MapMaxEntries: int(c.MaxTrackedConnections),
+		},
+		udpPortBindingsMap.sectionName(): {
 			MapMaxEntries: int(c.MaxTrackedConnections),
 		},
 		tcpCloseEventMap.sectionName(): {
