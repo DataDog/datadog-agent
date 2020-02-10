@@ -88,7 +88,7 @@ func (pm *PortMapping) ReadInitialUDPState() error {
 	defer pm.Unlock()
 
 	udpPath := path.Join(pm.procRoot, "net/udp")
-	if ports, err := readProcNetWithStatus(udpPath, 7); err != nil {
+	if ports, err := readProcNetWithStatus(udpPath, tcpClose); err != nil {
 		log.Errorf("failed to read UDP state: %s", err)
 	} else {
 		log.Info("read UDP ports: %v", ports)
