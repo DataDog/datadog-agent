@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fix docker logs when the tailer receive a io.EOF error during a file rotation.
+    Fix docker logs when the tailer receives a io.EOF error during a file rotation.

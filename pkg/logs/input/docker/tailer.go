@@ -185,10 +185,12 @@ func (t *Tailer) readForever() {
 					// This error is raised when the agent is stopping
 					return
 				case err == io.EOF:
-					// This error is raised when the container is stopping
-					// or when the container has not started to output logs yet.
+					// This error is raised when:
+					// * the container is stopping
+					// * when the container has not started to output logs yet.
+					// * during a file rotation.
 					// Ask the Launcher to restart the Tailer, until the Autodiscovery
-					// remove the associated Service.
+					// removes the associated Service.
 					t.source.Status.Error(err)
 					log.Debugf("No new logs are available for container %v", ShortContainerID(t.ContainerID))
 					t.erroredContainerID <- t.ContainerID
