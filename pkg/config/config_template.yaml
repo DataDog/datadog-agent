@@ -1441,9 +1441,6 @@
 #
 # cluster_name: <CLUSTER_IDENTIFIER>
 
-
-
-
 ## @param multi_secrets - list of secrets - optional
 ## `multi_secrets` allow multiple secrets configurations, 
 ##
