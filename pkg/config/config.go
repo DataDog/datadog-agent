@@ -194,6 +194,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
 	config.BindEnvAndSetDefault("secret_backend_timeout", 5)
 
+	// multi secret backend
+	config.SetKnown("multi_secrets.*")
+
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
 
@@ -804,6 +807,37 @@ func ResolveSecrets(config Config, origin string) error {
 		r := bytes.NewReader(finalYamlConf)
 		if err = config.MergeConfigOverride(r); err != nil {
 			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
+		}
+	}
+
+	for k, _ := range config.GetStringMapString("multi_secrets") {
+		secrets.InitMultipleSecrets(
+			config.GetString("multi_secrets."+k+".secret_backend_command"),
+			config.GetStringSlice("multi_secrets."+k+".secret_backend_arguments"),
+			config.GetInt("multi_secrets."+k+".secret_backend_timeout"),
+			config.GetInt("multi_secrets."+k+".secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize),
+			config.GetString("multi_secrets."+k+".secret_backend_key_name"),
+		)
+
+		if config.GetString("multi_secrets."+k+".secret_backend_command") != "" {
+
+			// Viper doesn't expose the final location of the file it
+			// loads. Since we are searching for 'datadog.yaml' in multiple
+			// locations we let viper determine the one to use before
+			// updating it.
+			yamlConf, err := yaml.Marshal(config.AllSettings())
+			if err != nil {
+				return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+			}
+
+			finalYamlConf, err := secrets.Decrypt(yamlConf, origin)
+			if err != nil {
+				return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+			}
+			r := bytes.NewReader(finalYamlConf)
+			if err = config.MergeConfigOverride(r); err != nil {
+				return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
+			}
 		}
 	}
 	return nil

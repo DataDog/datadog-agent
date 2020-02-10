@@ -83,61 +83,61 @@ func TestLimitBuffer(t *testing.T) {
 
 func TestExecCommandError(t *testing.T) {
 	defer func() {
-		secretBackendCommand = ""
-		secretBackendArguments = []string{}
-		secretBackendTimeout = 0
+		tmpSecretBackendCommand = ""
+		tmpSecretBackendArguments = []string{}
+		tmpSecretBackendTimeout = 0
 	}()
 
 	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 
 	// empty secretBackendCommand
-	secretBackendCommand = ""
+	tmpSecretBackendCommand = ""
 	_, err := execCommand(inputPayload)
 	require.NotNil(t, err)
 
 	// test timeout
-	secretBackendCommand = "./test/timeout/timeout" + binExtension
-	setCorrectRight(secretBackendCommand)
-	secretBackendTimeout = 2
+	tmpSecretBackendCommand = "./test/timeout/timeout" + binExtension
+	setCorrectRight(tmpSecretBackendCommand)
+	tmpSecretBackendTimeout = 2
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 	require.Equal(t, "error while running './test/timeout/timeout"+binExtension+"': command timeout", err.Error())
 
 	// test simple (no error)
-	secretBackendCommand = "./test/simple/simple" + binExtension
-	setCorrectRight(secretBackendCommand)
+	tmpSecretBackendCommand = "./test/simple/simple" + binExtension
+	setCorrectRight(tmpSecretBackendCommand)
 	resp, err := execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"simple_password\"}}"), resp)
 
 	// test error
-	secretBackendCommand = "./test/error/error" + binExtension
-	setCorrectRight(secretBackendCommand)
+	tmpSecretBackendCommand = "./test/error/error" + binExtension
+	setCorrectRight(tmpSecretBackendCommand)
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 
 	// test arguments
-	secretBackendCommand = "./test/argument/argument" + binExtension
-	setCorrectRight(secretBackendCommand)
-	secretBackendArguments = []string{"arg1"}
+	tmpSecretBackendCommand = "./test/argument/argument" + binExtension
+	setCorrectRight(tmpSecretBackendCommand)
+	tmpSecretBackendArguments = []string{"arg1"}
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
-	secretBackendArguments = []string{"arg1", "arg2"}
+	tmpSecretBackendArguments = []string{"arg1", "arg2"}
 	resp, err = execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"arg_password\"}}"), resp)
 
 	// test input
-	secretBackendCommand = "./test/input/input" + binExtension
-	setCorrectRight(secretBackendCommand)
+	tmpSecretBackendCommand = "./test/input/input" + binExtension
+	setCorrectRight(tmpSecretBackendCommand)
 	resp, err = execCommand(inputPayload)
 	require.Nil(t, err)
 	require.Equal(t, []byte("{\"handle1\":{\"value\":\"input_password\"}}"), resp)
 
 	// test buffer limit
-	secretBackendCommand = "./test/response_too_long/response_too_long" + binExtension
-	setCorrectRight(secretBackendCommand)
-	SecretBackendOutputMaxSize = 20
+	tmpSecretBackendCommand = "./test/response_too_long/response_too_long" + binExtension
+	setCorrectRight(tmpSecretBackendCommand)
+	tmpSecretBackendOutputMaxSize = 20
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 	assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())

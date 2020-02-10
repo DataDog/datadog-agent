@@ -14,34 +14,40 @@ import (
 )
 
 func (info *SecretInfo) populateRights() {
-	err := checkRights(info.ExecutablePath)
-	if err != nil {
-		info.Rights = fmt.Sprintf("Error: %s", err)
-	} else {
-		info.Rights = fmt.Sprintf("OK, the executable has the correct rights")
-	}
+	for x := 0; x < len(info.ExecutablePath); x++ {
+		err := checkRights(info.ExecutablePath[x])
+		if err != nil {
+			info.Rights = append(info.Rights, fmt.Sprintf("Error: %s", err))
+		} else {
+			info.Rights = append(info.Rights, fmt.Sprintf("OK, the executable has the correct rights"))
+		}
 
-	ps, err := exec.LookPath("powershell.exe")
-	if err != nil {
-		info.RightDetails = fmt.Sprintf("Could not find executable powershell.exe: %s", err)
-		return
-	}
+		ps, err := exec.LookPath("powershell.exe")
+		if err != nil {
+			info.RightDetails = append(info.Rights, fmt.Sprintf("Could not find executable powershell.exe: %s", err))
+			return
+		}
 
-	cmd := exec.Command(ps, "get-acl", "-Path", info.ExecutablePath, "|", "format-list")
+		cmd := exec.Command(ps, "get-acl", "-Path", info.ExecutablePath, "|", "format-list")
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
 
-	err = cmd.Run()
-	if err != nil {
-		info.RightDetails += fmt.Sprintf("Error calling 'get-acl': %s\n", err)
-	} else {
-		info.RightDetails += fmt.Sprintf("Acl list:\n")
-	}
-	info.RightDetails += fmt.Sprintf("stdout:\n %s\n", stdout.String())
-	if stderr.Len() != 0 {
-		info.RightDetails += fmt.Sprintf("stderr:\n %s\n", stderr.String())
+		err = cmd.Run()
+		var tmp = ""
+		if err != nil {
+			tmp += fmt.Sprintf("Error calling 'get-acl': %s\n", err)
+		} else {
+			tmp += fmt.Sprintf("Acl list:\n")
+		}
+		tmp += fmt.Sprintf("stdout:\n %s\n", stdout.String())
+		if stderr.Len() != 0 {
+			tmp += fmt.Sprintf("stderr:\n %s\n", stderr.String())
+		}
+
+		info.RightDetails = append(info.RightDetails, tmp)
+
 	}
 }

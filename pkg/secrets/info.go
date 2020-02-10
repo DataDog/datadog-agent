@@ -14,27 +14,32 @@ import (
 
 // SecretInfo export troubleshooting information about the decrypted secrets
 type SecretInfo struct {
-	ExecutablePath string
-	Rights         string
-	RightDetails   string
-	UnixOwner      string
-	UnixGroup      string
+	ExecutablePath []string
+	Rights         []string
+	RightDetails   []string
+	UnixOwner      []string
+	UnixGroup      []string
 	SecretsHandles map[string][]string
 }
 
 // Print output a SecretInfo to a io.Writer
 func (si *SecretInfo) Print(w io.Writer) {
-	fmt.Fprintf(w, "=== Checking executable rights ===\n")
-	fmt.Fprintf(w, "Executable path: %s\n", si.ExecutablePath)
 
-	fmt.Fprintf(w, "Check Rights: %s\n", si.Rights)
+	for x := 0; x < len(si.ExecutablePath); x++ {
 
-	fmt.Fprintf(w, "\nRights Detail:\n")
-	fmt.Fprintf(w, "%s\n", si.RightDetails)
+		fmt.Fprintf(w, "=== Checking executable rights ===\n")
+		fmt.Fprintf(w, "Executable path: %s\n", si.ExecutablePath[x])
 
-	if runtime.GOOS != "windows" {
-		fmt.Fprintf(w, "Owner username: %s\n", si.UnixOwner)
-		fmt.Fprintf(w, "Group name: %s\n", si.UnixGroup)
+		fmt.Fprintf(w, "Check Rights: %s\n", si.Rights[x])
+
+		fmt.Fprintf(w, "\nRights Detail:\n")
+		fmt.Fprintf(w, "%s\n", si.RightDetails[x])
+
+		if runtime.GOOS != "windows" {
+			fmt.Fprintf(w, "Owner username: %s\n", si.UnixOwner[x])
+			fmt.Fprintf(w, "Group name: %s\n", si.UnixGroup[x])
+		}
+		fmt.Fprintf(w, "\n")
 	}
 
 	fmt.Fprintf(w, "\n=== Secrets stats ===\n")

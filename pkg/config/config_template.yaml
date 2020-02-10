@@ -7,7 +7,6 @@
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
-api_key:
 
 ## @param site - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
@@ -889,11 +888,9 @@ api_key:
 ###########################
 
 ## @param log_level - string - optional - default: info
-## Minimum log level of the Datadog Agent.
-## Valid log levels are: trace, debug, info, warn, error, critical, and off.
-## Note: When using the 'off' log level, quotes are mandatory.
+## Minum log level of the Datadog Agent.
 #
-# log_level: 'info'
+# log_level: info
 
 ## @param log_file - string - optional
 ## Path of the log file for the Datadog Agent.
@@ -1443,5 +1440,24 @@ api_key:
 ## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
 # cluster_name: <CLUSTER_IDENTIFIER>
+log_file: /Users/thiago.frutuozo/workspace/merge-datadog-agent/datadog-my-fork/datadog.log
+multi_secrets:
+  database_secrets:
+    secret_backend_command: /Users/thiago.frutuozo/workspace/merge-datadog-agent/datadog-agent/tt.sh
+    secret_backend_timeout: 5
+    secret_backend_arguments:
+      - -param1
+      - -param2
+      - -param3
+    secret_backend_key_name: SECRET_KEY_NAME_1 # all secrets stated with SECRET_KEY_NAME will be sended to this backend
+  other_secrets:
+    secret_backend_command: /Users/thiago.frutuozo/workspace/merge-datadog-agent/datadog-agent/tt2.sh
+    secret_backend_timeout: 5
+    secret_backend_arguments:
+      - -param1
+      - -param2
+      - -param3
+    secret_backend_key_name: SECRET_KEY_NAME_2 # all secrets stated with SECRET_KEY_NAME will be sended to this backend
 
+secret_backend_command: /Users/thiago.frutuozo/workspace/merge-datadog-agent/datadog-agent/tt2.sh
 {{ end -}}

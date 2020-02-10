@@ -286,7 +286,7 @@ func TestDebugInfo(t *testing.T) {
 	info, err := GetDebugInfo()
 	require.Nil(t, err)
 
-	assert.Equal(t, "some_command", info.ExecutablePath)
+	assert.Equal(t, "some_command", info.ExecutablePath[0])
 
 	// sort handle first. The only handle with multiple location is "pass2".
 	handles := info.SecretsHandles

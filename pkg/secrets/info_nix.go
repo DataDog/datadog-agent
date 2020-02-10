@@ -15,31 +15,33 @@ import (
 )
 
 func (info *SecretInfo) populateRights() {
-	err := checkRights(info.ExecutablePath)
-	if err != nil {
-		info.Rights = fmt.Sprintf("Error: %s", err)
-	} else {
-		info.Rights = fmt.Sprintf("OK, the executable has the correct rights")
-	}
+	for x := 0; x < len(info.ExecutablePath); x++ {
+		err := checkRights(info.ExecutablePath[x])
+		if err != nil {
+			info.Rights = append(info.Rights, fmt.Sprintf("Error: %s", err))
+		} else {
+			info.Rights = append(info.Rights, fmt.Sprintf("OK, the executable has the correct rights"))
+		}
 
-	var stat syscall.Stat_t
-	if err := syscall.Stat(secretBackendCommand, &stat); err != nil {
-		info.RightDetails = fmt.Sprintf("Could not stat %s: %s", secretBackendCommand, err)
-	} else {
-		info.RightDetails = fmt.Sprintf("file mode: %o", stat.Mode)
-	}
+		var stat syscall.Stat_t
+		if err := syscall.Stat(info.ExecutablePath[x], &stat); err != nil {
+			info.RightDetails = append(info.RightDetails, fmt.Sprintf("Could not stat %s: %s", info.ExecutablePath[x], err))
+		} else {
+			info.RightDetails = append(info.RightDetails, fmt.Sprintf("file mode: %o", stat.Mode))
+		}
 
-	owner, err := user.LookupId(strconv.Itoa(int(stat.Uid)))
-	if err != nil {
-		info.UnixOwner = fmt.Sprintf("could not fetch name for UID %d: %s", stat.Uid, err)
-	} else {
-		info.UnixOwner = owner.Username
-	}
+		owner, err := user.LookupId(strconv.Itoa(int(stat.Uid)))
+		if err != nil {
+			info.UnixOwner = append(info.UnixOwner, fmt.Sprintf("could not fetch name for UID %d: %s", stat.Uid, err))
+		} else {
+			info.UnixOwner = append(info.UnixOwner, owner.Username)
+		}
 
-	group, err := user.LookupGroupId(strconv.Itoa(int(stat.Gid)))
-	if err != nil {
-		info.UnixGroup = fmt.Sprintf("could not fetch name for GID %d: %s", stat.Gid, err)
-	} else {
-		info.UnixGroup = group.Name
+		group, err := user.LookupGroupId(strconv.Itoa(int(stat.Gid)))
+		if err != nil {
+			info.UnixGroup = append(info.UnixGroup, fmt.Sprintf("could not fetch name for GID %d: %s", stat.Gid, err))
+		} else {
+			info.UnixGroup = append(info.UnixGroup, group.Name)
+		}
 	}
 }
