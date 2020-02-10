@@ -269,7 +269,7 @@ static int guess_offsets(tracer_status_t* status, struct sock* skp) {
         if (!check_family(skp, status, AF_INET6))
             break;
 
-        bpf_probe_read(new_status.daddr_ipv6, sizeof(u32)*4, ((char*)skp) + status->offset_daddr_ipv6);
+        bpf_probe_read(new_status.daddr_ipv6, sizeof(u32) * 4, ((char*)skp) + status->offset_daddr_ipv6);
         break;
     default:
         // not for us
@@ -400,8 +400,8 @@ static void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
     if (stats.rtt > 0) {
         // For more information on the bit shift operations see:
         // https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
-        val->rtt = stats.rtt>>3;
-        val->rtt_var = stats.rtt_var>>2;
+        val->rtt = stats.rtt >> 3;
+        val->rtt_var = stats.rtt_var >> 2;
     }
 }
 
@@ -460,7 +460,7 @@ static int handle_retransmit(struct sock* sk, tracer_status_t* status) {
         return 0;
     }
 
-    tcp_stats_t stats = { .retransmits = 1, .rtt = 0, .rtt_var = 0 };
+    tcp_stats_t stats = {.retransmits = 1, .rtt = 0, .rtt_var = 0 };
     update_tcp_stats(&t, stats);
 
     // Update latest timestamp that we've seen - for connection expiration tracking
@@ -474,7 +474,7 @@ static void handle_tcp_stats(conn_tuple_t* t, tracer_status_t* status, struct so
     bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + status->offset_rtt);
     bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + status->offset_rtt_var);
 
-    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    tcp_stats_t stats = {.retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     update_tcp_stats(t, stats);
     return;
 }
@@ -857,12 +857,12 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
 // When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
 // All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
 SEC("socket/dns_filter")
-int socket__dns_filter(struct __sk_buff *skb) {
+int socket__dns_filter(struct __sk_buff* skb) {
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
     __u8 l4_proto;
     size_t ip_hdr_size;
 
-    switch(l3_proto) {
+    switch (l3_proto) {
     case ETH_P_IP:
         ip_hdr_size = sizeof(struct iphdr);
         l4_proto = load_byte(skb, ETH_HLEN + offsetof(struct iphdr, protocol));
