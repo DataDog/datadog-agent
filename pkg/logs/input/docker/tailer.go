@@ -187,10 +187,12 @@ func (t *Tailer) readForever() {
 				case err == io.EOF:
 					// This error is raised when the container is stopping
 					// or when the container has not started to output logs yet.
-					// Retry to read to make sure all logs are collected
-					// or stop reading on the next iteration
-					// if the tailer has been stopped.
+					// Ask the Launcher to restart the Tailer, until the Autodiscovery
+					// remove the associated Service.
+					t.source.Status.Error(err)
 					log.Debugf("No new logs are available for container %v", ShortContainerID(t.ContainerID))
+					t.erroredContainerID <- t.ContainerID
+					return
 				default:
 					t.source.Status.Error(err)
 					log.Errorf("Could not tail logs for container %v: %v", ShortContainerID(t.ContainerID), err)
