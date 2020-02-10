@@ -94,8 +94,7 @@ def build(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch=
 def clean(ctx):
     """
     Clean up CMake's cache.
-    Necessary when the paths to some libraries found by CMake (for example Python) have changed on the system.
-    This command does not clean all the temporary artifacts created by CMake.
+    Necessary when the paths to some libraries found by CMake (for example Python) have changed on the system.    
     """    
     dev_path = get_dev_path()
     include_path = os.path.join(dev_path, "include")
