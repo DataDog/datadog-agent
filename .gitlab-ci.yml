@@ -265,27 +265,6 @@ run_tests_rpm-x64-py3:
     # This is OK because the test on systemd still runs on the debian image above
     - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 --build-exclude=systemd
 
-run_tests_rpm-selinux:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:2xlarge" ]
-  variables:
-    PYTHON_RUNTIMES: '3'
-    CONDA_ENV: ddpy3
-  <<: *run_tests_preparation
-  before_script:
-    - source /root/.bashrc && conda activate $CONDA_ENV
-  script:
-    # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
-    # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
-    # This is OK because the test on systemd still runs on the debian image above
-    - inv -e selinux.compile-policy-file
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - cmd/agent/selinux
-
-
 # run tests for eBPF code
 run_tests_ebpf:
   stage: source_test

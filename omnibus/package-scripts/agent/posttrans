@@ -74,4 +74,11 @@ else
     echo "No datadog.yaml file detected, not starting the agent"
 fi
 
+# Setup SELinux policy and label if SELinux detected on the host
+if command -v semanage >/dev/null 2>&1 && command -v semodule >/dev/null 2>&1 && [ -f "$INSTALL_DIR/embedded/bin/system-probe" ]; then
+    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp
+    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe
+    restorecon -v $INSTALL_DIR/embedded/bin/system-probe
+fi
+
 exit 0

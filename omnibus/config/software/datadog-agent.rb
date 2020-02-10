@@ -76,6 +76,7 @@ build do
   unless windows?
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/scripts/"
+    mkdir "#{install_dir}/selinux/"
   end
 
   ## build the custom action library required for the install
@@ -126,6 +127,12 @@ build do
     command "invoke -e system-probe.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --go-version=1.10.1", :env => env
     copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
     block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
+
+    # Add SELinux policy for system-probe
+    if debian? || redhat?
+      mkdir "#{conf_dir}/selinux"
+      command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+    end
   end
 
 

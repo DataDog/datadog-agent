@@ -6,11 +6,32 @@ import os
 import invoke
 from invoke import task
 
+DEFAULT_SYSPROBE_POLICY_TE_FILE = os.path.join(".", "cmd", "agent", "selinux", "system_probe_policy.te")
+DEFAULT_SYSPROBE_POLICY_OUTPUT_DIRECTORY = os.path.join(".", "cmd", "agent", "selinux", "system_probe_policy.te")
+
 @task
-def compile_policy_file(ctx):
-  policy_dir = os.path.join(".", "cmd", "agent", "selinux")
-  policy_name = "system_probe_policy"
-  command = "checkmodule -M -m -o {0}.mod {0}.te".format(os.path.join(policy_dir, policy_name))
+def compile_system_probe_policy_file(ctx, te_file = DEFAULT_SYSPROBE_POLICY_TE_FILE,
+                                     output_directory = DEFAULT_SYSPROBE_POLICY_OUTPUT_DIRECTORY):
+  """
+    Takes a SELinux .te policy file and compiles it into a .pp policy module.
+  """
+
+  # Get the filename without the .te extension
+  policy_filename = os.path.splitext(te_file)[0]
+
+  # Compute the .mod module name
+  temp_module_name = ".".join([policy_filename, "mod"])
+
+  # Compute the .pp packaged module name
+  output_module_name = ".".join([
+    os.path.join(output_directory, os.path.basename(policy_filename)),
+    "pp"
+  ])
+
+  # Compile the module
+  command = "checkmodule -M -m -o {} {}".format(temp_module_name, te_file)
   ctx.run(command)
-  command = "semodule_package -o {0}.pp -m {0}.mod".format(os.path.join(policy_dir, policy_name))
+
+  # Package the module
+  command = "semodule_package -o {} -m {}".format(output_module_name, temp_module_name)
   ctx.run(command)
