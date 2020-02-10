@@ -47,13 +47,6 @@ func main() {
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
 
-	// Set up a default config before parsing config so we log errors nicely.
-	// The default will be stdout since we can't assume any file is writable.
-	if err := config.SetupInitialLogger(loggerName); err != nil {
-		panic(err)
-	}
-	defer log.Flush()
-
 	// --version
 	if opts.version {
 		fmt.Println(versionString("\n"))
