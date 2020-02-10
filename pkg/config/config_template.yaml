@@ -1440,24 +1440,41 @@
 ## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
 # cluster_name: <CLUSTER_IDENTIFIER>
-log_file: /Users/thiago.frutuozo/workspace/merge-datadog-agent/datadog-my-fork/datadog.log
-multi_secrets:
-  database_secrets:
-    secret_backend_command: /Users/thiago.frutuozo/workspace/merge-datadog-agent/datadog-agent/tt.sh
-    secret_backend_timeout: 5
-    secret_backend_arguments:
-      - -param1
-      - -param2
-      - -param3
-    secret_backend_key_name: SECRET_KEY_NAME_1 # all secrets stated with SECRET_KEY_NAME will be sended to this backend
-  other_secrets:
-    secret_backend_command: /Users/thiago.frutuozo/workspace/merge-datadog-agent/datadog-agent/tt2.sh
-    secret_backend_timeout: 5
-    secret_backend_arguments:
-      - -param1
-      - -param2
-      - -param3
-    secret_backend_key_name: SECRET_KEY_NAME_2 # all secrets stated with SECRET_KEY_NAME will be sended to this backend
 
-secret_backend_command: /Users/thiago.frutuozo/workspace/merge-datadog-agent/datadog-agent/tt2.sh
+
+
+
+## @param multi_secrets - list of secrets - optional
+## `multi_secrets` allow multiple secrets configurations, 
+##
+#
+# multi_secrets: 
+#  - secret_backend_command: <COMMAND_PATH>
+#    secret_backend_arguments:
+#      - <ARGUMENT_1>
+#      - <ARGUMENT_2>
+#    secret_backend_key_name: <SECRET_KEY_NAME> # all secrets stated with SECRET_KEY_NAME will be send to this backend
+#  - secret_backend_command: <COMMAND_PATH>
+#    secret_backend_arguments:
+#      - <ARGUMENT_1>
+#      - <ARGUMENT_2>
+#    secret_backend_key_name: <SECRET_KEY_NAME> # all secrets stated with SECRET_KEY_NAME will be sent to this backend
+#
+## Configuration example:
+# 
+# multi_secrets: 
+#  - secret_backend_command: application_name
+#    secret_backend_arguments:
+#      - -param1
+#    secret_backend_key_name: SECRET1 # all secrets stated with SECRET_KEY_NAME will be send to this backend
+#  - secret_backend_command: application_name2
+#    secret_backend_arguments:
+#      - -param2
+#    secret_backend_key_name: SECRET2 # all secrets stated with SECRET_KEY_NAME will be sent to this backend
+#
+## Secrets configuration:
+#
+#     secret1: "SECRET1[my_key1]"
+#     secret2: "SECRET2[my_key2]"
+#     secret3: "ENC[my_key3]"
 {{ end -}}

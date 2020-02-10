@@ -70,24 +70,13 @@ func Init(command string, arguments []string, timeout int, maxSize int) {
 // this package is used by the 'config' package to decrypt itself we can't
 // directly use it.
 func InitMultipleSecrets(command string, arguments []string, timeout int, maxSize int, keyName string) {
-	if maxSize == 0 {
-		secretProviders = append(secretProviders, secretProvider{
-			secretBackendCommand:       command,
-			secretBackendArguments:     arguments,
-			secretBackendTimeout:       timeout,
-			secretBackendOutputMaxSize: SecretBackendOutputMaxSize,
-			secretBackendKeyName:       strings.Trim(keyName, " "),
-		})
-	} else {
-		secretProviders = append(secretProviders, secretProvider{
-			secretBackendCommand:       command,
-			secretBackendArguments:     arguments,
-			secretBackendTimeout:       timeout,
-			secretBackendOutputMaxSize: maxSize,
-			secretBackendKeyName:       strings.Trim(keyName, " "),
-		})
-	}
-
+	secretProviders = append(secretProviders, secretProvider{
+		secretBackendCommand:       command,
+		secretBackendArguments:     arguments,
+		secretBackendTimeout:       timeout,
+		secretBackendOutputMaxSize: SecretBackendOutputMaxSize,
+		secretBackendKeyName:       strings.Trim(keyName, " "),
+	})
 }
 
 type walkerCallback func(string) (string, error)
