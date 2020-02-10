@@ -829,12 +829,17 @@ func trimTrailingSlashFromURLS(config Config) error {
 	}
 
 	for _, domain := range urls {
+		key := config.GetString(domain)
+		if len(key) == 0 {
+			continue
+		}
 		for {
-			if config.GetString(domain)[len(config.GetString(domain))-1:] != "/" {
+			if key[len(key)-1:] != "/" {
 				break
 			}
-			config.Set(domain, strings.TrimSuffix(config.GetString(domain), "/"))
+			key = strings.TrimSuffix(key, "/")
 		}
+		config.Set(domain, key)
 	}
 
 	for _, es := range additionalEndpointSelectors {

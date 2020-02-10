@@ -632,7 +632,7 @@ func TestTrimTrailingSlashFromURLS(t *testing.T) {
 	datadogYaml := `
 api_key: fakeapikey
 site: datadoghq.com/////
-dd_url: https://7-17-0-app.agent.datadoghq.com/
+dd_url:
 additional_endpoints:
   testing.com///:
   - fakekey
@@ -662,6 +662,9 @@ process_config:
 
 	for _, u := range urls {
 		testString := testConfig.GetString(u)
+		if len(testString) == 0 {
+			continue
+		}
 		if testString[len(testString)-1:] == "/" {
 			t.Errorf("Error: The key %v: has a vlue of %v -- The trailing forward slash was not properly trimmed", u, testConfig.GetString(u))
 		}
