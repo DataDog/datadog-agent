@@ -2,6 +2,25 @@
 Release Notes
 =============
 
+.. _Release Notes_1.5.2:
+
+1.5.2
+=====
+
+.. _Release Notes_1.5.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-02-11
+
+Minor release on 1.5 branch
+
+Bug Fixed
+------------
+
+- Fix agent commands in DCA (always start listener) (#4870)
+
 .. _Release Notes_1.5.1:
 
 1.5.1
