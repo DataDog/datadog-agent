@@ -1333,6 +1333,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:0b30de1a6957125af05f8dbe7dfe8843fb4aa0d87d803d3ebd83f39aed113c9a"
+  name = "github.com/vishvananda/netns"
+  packages = ["."]
+  pruneopts = ""
+  revision = "0a2b9b5464df8343199164a0321edf3313202f7e"
+
+[[projects]]
+  branch = "master"
   digest = "1:4a4c4edf69b61bf98e98d22696aa80c4059384895920de4d5e2fe696068d5f13"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
@@ -2188,6 +2196,7 @@
     "github.com/tinylib/msgp/msgp",
     "github.com/twmb/murmur3",
     "github.com/urfave/negroni",
+    "github.com/vishvananda/netns",
     "golang.org/x/mobile/asset",
     "golang.org/x/net/context",
     "golang.org/x/net/proxy",
