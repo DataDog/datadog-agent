@@ -1133,7 +1133,7 @@ func removeConnection(t *testing.T, tr *Tracer, c *ConnectionStats) {
 	require.NoError(t, err)
 
 	tuple := []*ConnTuple{
-		&ConnTuple{
+		{
 			pid:      _Ctype_uint(c.Pid),
 			saddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Source.Bytes())),
 			daddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Dest.Bytes())),
