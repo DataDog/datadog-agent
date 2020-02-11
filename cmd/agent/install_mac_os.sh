@@ -7,7 +7,7 @@
 set -e
 logfile=ddagent-install.log
 dmg_file=/tmp/datadog-agent.dmg
-dmg_base_url="https://dd-agent.s3.amazonaws.com"
+dmg_base_url="https://s3.amazonaws.com/dd-agent"
 
 dd_upgrade=
 if [ -n "$DD_UPGRADE" ]; then
