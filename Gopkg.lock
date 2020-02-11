@@ -840,7 +840,7 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:67cd1819192a5fed8a7378065f27cc4cec3022c36b3f0d6fface973a788cb642"
+  digest = "1:d113f3f920e4f5eb7890b7cb131aef30f6362ea9efbc06e5a7ca9de668e904f7"
   name = "github.com/iovisor/gobpf"
   packages = [
     "bcc",
