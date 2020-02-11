@@ -14,6 +14,11 @@ import (
 
 var errReaderNotInitialized = errors.New("reader not initialized")
 
+type reader interface {
+	io.ReadCloser
+	setUnsafeReader(reader io.ReadCloser)
+}
+
 type safeReader struct {
 	reader io.ReadCloser
 }

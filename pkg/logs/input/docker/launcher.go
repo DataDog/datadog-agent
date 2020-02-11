@@ -305,7 +305,7 @@ func (l *Launcher) restartTailer(containerID string) {
 	tailer := NewTailer(cli, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
 
 	// compute the offset to prevent from missing or duplicating logs
-	since, err := Since(l.registry, tailer.Identifier(), service.Before)
+	since, err := Since(l.registry, tailer.Identifier(), service.After)
 	if err != nil {
 		log.Warnf("Could not recover last committed offset for container %v: %v", ShortContainerID(containerID), err)
 	}

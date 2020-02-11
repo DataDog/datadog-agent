@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -16,8 +17,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,19 +66,29 @@ func (m *mockReaderSleep) Close() error {
 	return nil
 }
 
+func NewTestDecoder() *decoder.Decoder {
+	return &decoder.Decoder{
+		InputChan: make(chan *decoder.Input),
+	}
+
+}
+
 func NewTestTailer(reader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
+	containerID := "1234567890abcdef"
+	source := config.NewLogSource("foo", nil)
 	tailer := &Tailer{
-		ContainerID:   "1234567890abcdef",
-		outputChan:    make(chan *message.Message, 100),
-		decoder:       nil,
-		source:        config.NewLogSource("foo", nil),
-		tagProvider:   tag.NoopProvider,
-		cli:           nil,
-		sleepDuration: defaultSleepDuration,
-		stop:          make(chan struct{}, 1),
-		done:          make(chan struct{}, 1),
-		reader:        newSafeReader(),
-		cancelFunc:    cancelFunc,
+		ContainerID:        containerID,
+		outputChan:         make(chan *message.Message, 100),
+		decoder:            NewTestDecoder(),
+		source:             source,
+		tagProvider:        tag.NoopProvider,
+		cli:                nil,
+		sleepDuration:      defaultSleepDuration,
+		stop:               make(chan struct{}, 1),
+		done:               make(chan struct{}, 1),
+		erroredContainerID: make(chan string, 1),
+		reader:             newSafeReader(),
+		cancelFunc:         cancelFunc,
 	}
 	tailer.reader.setUnsafeReader(reader)
 
@@ -124,4 +137,118 @@ func TestTailerCanStopWithNilReader(t *testing.T) {
 	tailer.Stop()
 
 	assert.True(t, true)
+}
+
+func TestTailer_readForever(t *testing.T) {
+	tests := []struct {
+		name      string
+		newTailer func() *Tailer
+		newReader reader
+		wantFunc  func(tailer *Tailer) error
+	}{
+		{
+			name: "The reader has been closed during the shut down process",
+			newTailer: func() *Tailer {
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				reader := NewTestReader(ctx, "", fmt.Errorf("http: read on closed response body"), nil)
+				tailer := NewTestTailer(reader, cancelFunc)
+				return tailer
+			},
+			wantFunc: func(tailer *Tailer) error {
+				if len(tailer.erroredContainerID) != 0 {
+					return fmt.Errorf("tailer.erroredContainerID should be empty, current len: %d", len(tailer.erroredContainerID))
+				}
+				return nil
+			},
+		},
+		{
+			name: "The agent is stopping",
+			newTailer: func() *Tailer {
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				reader := NewTestReader(ctx, "", fmt.Errorf("use of closed network connection"), nil)
+				tailer := NewTestTailer(reader, cancelFunc)
+				return tailer
+			},
+			wantFunc: func(tailer *Tailer) error {
+				if len(tailer.erroredContainerID) != 0 {
+					return fmt.Errorf("tailer.erroredContainerID should be empty, current len: %d", len(tailer.erroredContainerID))
+				}
+				return nil
+			},
+		},
+		{
+			name: "reader io.EOF error",
+			newTailer: func() *Tailer {
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				reader := NewTestReader(ctx, "", io.EOF, nil)
+				tailer := NewTestTailer(reader, cancelFunc)
+				return tailer
+			},
+			wantFunc: func(tailer *Tailer) error {
+				if len(tailer.erroredContainerID) != 1 {
+					return fmt.Errorf("tailer.erroredContainerID should contains one ID, current value: %d", len(tailer.erroredContainerID))
+				}
+				containerID := <-tailer.erroredContainerID
+				if containerID != "1234567890abcdef" {
+					return fmt.Errorf("wront containerID, current: %s", containerID)
+				}
+				return nil
+			},
+		},
+		{
+			name: "default case with random error",
+			newTailer: func() *Tailer {
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				reader := NewTestReader(ctx, "", fmt.Errorf("this is a random error"), nil)
+				tailer := NewTestTailer(reader, cancelFunc)
+				return tailer
+			},
+			wantFunc: func(tailer *Tailer) error {
+				if len(tailer.erroredContainerID) != 1 {
+					return fmt.Errorf("tailer.erroredContainerID should contains one ID, current value: %d", len(tailer.erroredContainerID))
+				}
+				containerID := <-tailer.erroredContainerID
+				if containerID != "1234567890abcdef" {
+					return fmt.Errorf("wront containerID, current: %s", containerID)
+				}
+				return nil
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tailer := tt.newTailer()
+			tailer.readForever()
+			if err := tt.wantFunc(tailer); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
+func NewTestReader(ctx context.Context, data string, err, closeErr error) io.ReadCloser {
+	return &testErrorReader{
+		data:     data,
+		err:      err,
+		closeErr: closeErr,
+		ctx:      ctx,
+	}
+
+}
+
+type testErrorReader struct {
+	data     string
+	err      error
+	closeErr error
+	ctx      context.Context
+}
+
+func (tr *testErrorReader) Read(p []byte) (int, error) {
+	s := strings.NewReader(tr.data)
+	n, _ := io.ReadFull(s, p)
+	return n, tr.err
+}
+
+func (tr *testErrorReader) Close() error {
+	return tr.closeErr
 }
