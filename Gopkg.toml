@@ -263,3 +263,7 @@
 [[constraint]]
   name = "github.com/cenkalti/backoff"
   version = "v3.0.0"
+
+[[constraint]]
+  name = "github.com/vishvananda/netns"
+  revision = "0a2b9b5464df8343199164a0321edf3313202f7e"
