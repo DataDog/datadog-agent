@@ -1,5 +1,27 @@
 # StackState Agent v2 releases
 
+## 2.1.0 (2020-02-06)
+
+**Features**
+
+- AWS X-Ray check [(STAC-6347)](https://stackstate.atlassian.net/browse/STAC-6347)
+    * This check provides real time gathering of AWS X-Ray traces that allows mapping the relations between X-Ray services, and ultimately AWS resources provided from AWS StackPack. 
+    * It provides performance metrics, as well as local anomaly detection on all performance metrics based on AWS X-Ray traces 
+
+- SAP check [(STAC-7515)](https://stackstate.atlassian.net/browse/STAC-7515)
+    * This check provide host instance metrics:
+        + available memory metric
+        + DIA free worker processes
+        + BTC free worker processes
+
+    * Ensure SAP host instances merge with vsphere VMs
+    * Add `stackpack:sap` label to the StackPack
+
+**Improvements**
+
+- Added kubernetes cluster name, namespace and pod name as a tag to all kubernetes container and process topology.
+- Improved the process blacklisting to ensure that only processes that are of interest to the user is reported to StackState.
+
 ## 2.0.8 (2019-12-20)
 
 **Features**
