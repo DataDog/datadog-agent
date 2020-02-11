@@ -25,7 +25,7 @@ func TestDNSSnooping(t *testing.T) {
 	filter := m.SocketFilter("socket/dns_filter")
 	require.NotNil(t, filter)
 
-	reverseDNS, err := NewSocketFilterSnooper(filter)
+	reverseDNS, err := NewSocketFilterSnooper("/proc", filter)
 	require.NoError(t, err)
 	defer reverseDNS.Close()
 

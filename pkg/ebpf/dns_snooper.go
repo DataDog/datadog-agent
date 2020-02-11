@@ -5,6 +5,7 @@ package ebpf
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -14,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket/afpacket"
 	bpflib "github.com/iovisor/gobpf/elf"
+	"github.com/vishvananda/netns"
 )
 
 const (
@@ -44,10 +46,21 @@ type SocketFilterSnooper struct {
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
-func NewSocketFilterSnooper(filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
-	packetSrc, err := newPacketSource(filter)
-	if err != nil {
-		return nil, err
+func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
+	var (
+		packetSrc *packetSource
+		srcErr    error
+	)
+
+	// Create the RAW_SOCKET inside the root network namespace
+	nsErr := WithRootNS(rootPath, func() {
+		packetSrc, srcErr = newPacketSource(filter)
+	})
+	if nsErr != nil {
+		return nil, nsErr
+	}
+	if srcErr != nil {
+		return nil, srcErr
 	}
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
@@ -231,4 +244,34 @@ func (p *packetSource) Close() {
 	}
 
 	p.TPacket.Close()
+}
+
+// WithRootNS executes a function within root network namespace and then switch back
+// to the previous namespace. If the thread is already in the root network namespace,
+// the function is executed without calling SYS_SETNS.
+func WithRootNS(procRoot string, fn func()) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	prevNS, err := netns.Get()
+	if err != nil {
+		return err
+	}
+
+	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", procRoot))
+	if err != nil {
+		return err
+	}
+
+	if rootNS.Equal(prevNS) {
+		fn()
+		return nil
+	}
+
+	if err := netns.Set(rootNS); err != nil {
+		return err
+	}
+
+	fn()
+	return netns.Set(prevNS)
 }
