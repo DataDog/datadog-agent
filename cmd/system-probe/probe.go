@@ -32,8 +32,6 @@ type SystemProbe struct {
 
 	tracer *ebpf.Tracer
 	conn   net.Conn
-
-	tcpQueueLengthTracer *ebpf.TCPQueueLengthTracer
 }
 
 // CreateSystemProbe creates a SystemProbe as well as it's UDS socket after confirming that the OS supports BPF-based
@@ -56,12 +54,6 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
-	log.Infof("Starting the TCP queue length tracer")
-	tqlt, err := ebpf.NewTCPQueueLengthTracer()
-	if err != nil {
-		log.Errorf("unable to start the TCP queue length tracer: %v", err)
-	}
-
 	// Setting up the unix socket
 	uds, err := net.NewUDSListener(cfg)
 	if err != nil {
@@ -69,10 +61,9 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	}
 
 	return &SystemProbe{
-		tracer:               t,
-		tcpQueueLengthTracer: tqlt,
-		cfg:                  cfg,
-		conn:                 uds,
+		tracer: t,
+		cfg:    cfg,
+		conn:   uds,
 	}, nil
 }
 
@@ -139,17 +130,6 @@ func (nt *SystemProbe) Run() {
 			w.WriteHeader(500)
 			return
 		}
-
-		writeAsJSON(w, stats)
-	})
-
-	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
-		if nt.tcpQueueLengthTracer == nil {
-			log.Errorf("TCP queue length tracer was not properly initialized")
-			w.WriteHeader(500)
-			return
-		}
-		stats := nt.tcpQueueLengthTracer.GetAndFlush()
 
 		writeAsJSON(w, stats)
 	})

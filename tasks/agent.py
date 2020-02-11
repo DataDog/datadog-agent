@@ -61,7 +61,6 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "systemd",
-    "tcp_queue_length",
     "uptime",
     "winproc",
 ]

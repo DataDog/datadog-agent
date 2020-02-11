@@ -3,7 +3,6 @@
 package net
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"net"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -23,7 +21,6 @@ import (
 const (
 	statusURL           = "http://unix/status"
 	connectionsURL      = "http://unix/connections"
-	checksURL           = "http://unix/check"
 	contentTypeProtobuf = "application/protobuf"
 )
 
@@ -106,34 +103,6 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	}
 
 	return conns, nil
-}
-
-// GetCheck returns the output of the specified check
-func (r *RemoteSysProbeUtil) GetCheck(check string) ([]ebpf.Stats, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s", checksURL, check), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("conn request failed: socket %s, url %s, status code: %d", r.socketPath, fmt.Sprintf("%s/%s", checksURL, check), resp.StatusCode)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var stats []ebpf.Stats
-	err = json.Unmarshal(body, &stats)
-	if err != nil {
-		return nil, err
-	}
-
-	return stats, nil
 }
 
 // ShouldLogTracerUtilError will return whether or not errors sourced from the RemoteSysProbeUtil _should_ be logged, for less noisy logging.
