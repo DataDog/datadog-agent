@@ -4,20 +4,20 @@ stages:
   - fail_on_tag
   - source_test
   - binary_build
-  - integration_test
+  # - integration_test
   - package_build
-  - internal_deploy
-  - check_deploy
-  - testkitchen_deploy
-  - testkitchen_testing
-  - pkg_metrics
+  # - internal_deploy
+  # - check_deploy
+  # - testkitchen_deploy
+  # - testkitchen_testing
+  # - pkg_metrics
   - image_build
-  - image_deploy
-  - deploy6
+  # - image_deploy
+  # - deploy6
   - deploy7
-  - deploy_invalidate
-  - e2e
-  - testkitchen_cleanup
+  # - deploy_invalidate
+  # - e2e
+  # - testkitchen_cleanup
   - notify
 
 variables:
@@ -2349,38 +2349,38 @@ deploy_deb-6:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*arm64.deb
 
-deploy_deb-7:
-  <<: *run_when_triggered
-  <<: *skip_when_unwanted_on_7
-  stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  script:
-    # We first check that the current version hasn't already been deployed
-    # (same as the check_already_deployed_version). We do this twice to mitigate
-    # races and issues with retries while failing early if there is an issue.
-    - pushd $OMNIBUS_PACKAGE_DIR
-    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh *_7.*amd64.deb
-    - popd
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
+# deploy_deb-7:
+#   <<: *run_when_triggered
+#   <<: *skip_when_unwanted_on_7
+#   stage: deploy7
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     # We first check that the current version hasn't already been deployed
+#     # (same as the check_already_deployed_version). We do this twice to mitigate
+#     # races and issues with retries while failing early if there is an issue.
+#     - pushd $OMNIBUS_PACKAGE_DIR
+#     - /deploy_scripts/fail_deb_is_pkg_already_exists.sh *_7.*amd64.deb
+#     - popd
+#     - source /usr/local/rvm/scripts/rvm
+#     - rvm use 2.4
 
-    - set +x # make sure we don't output the creds to the build log
+#     - set +x # make sure we don't output the creds to the build log
 
-    - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
-    - APT_SIGNING_PRIVATE_KEY_PART1=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part1 --with-decryption --query "Parameter.Value" --out text)
-    - APT_SIGNING_PRIVATE_KEY_PART2=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part2 --with-decryption --query "Parameter.Value" --out text)
-    - APT_SIGNING_KEY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+#     - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
+#     - APT_SIGNING_PRIVATE_KEY_PART1=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part1 --with-decryption --query "Parameter.Value" --out text)
+#     - APT_SIGNING_PRIVATE_KEY_PART2=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_private_key_part2 --with-decryption --query "Parameter.Value" --out text)
+#     - APT_SIGNING_KEY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
 
-    - echo "$APT_SIGNING_KEY_ID"
-    - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
+#     - echo "$APT_SIGNING_KEY_ID"
+#     - printf -- "$APT_SIGNING_PRIVATE_KEY_PART1\n$APT_SIGNING_PRIVATE_KEY_PART2\n" | gpg --import --batch
 
-    # Release the artifacts to the "7" component
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
+#     # Release the artifacts to the "7" component
+#     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
+#     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
+#     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
 
 # nightlies (6 and 7), deployed to bucket/master
 deploy_windows_master:
@@ -2417,15 +2417,15 @@ deploy_windows_tags-a6:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # triggered builds (7), deployed to bucket/tagged
-deploy_windows_tags-a7:
-  stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered_on_tag_7
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+# deploy_windows_tags-a7:
+#   stage: deploy7
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   <<: *run_when_triggered_on_tag_7
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # triggered builds latest (6, x64 only), deployed to bucket/tagged
 deploy_windows_tags-latest-6:
@@ -2442,18 +2442,18 @@ deploy_windows_tags-latest-6:
     - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-6*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
 
 # triggered builds latest (7, x64 only), deployed to bucket/tagged
-deploy_windows_tags-latest-7:
-  stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered_on_tag_7
-  tags: [ "runner:main", "size:large" ]
-  script:
-    # By default we update the "latest" artifacts on our s3 bucket so the
-    # staging box can pick it up. Allow the job to skip this step if needed
-    # (when building a custom beta for example).
-    - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-7-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
+# deploy_windows_tags-latest-7:
+#   stage: deploy7
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   <<: *run_when_triggered_on_tag_7
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     # By default we update the "latest" artifacts on our s3 bucket so the
+#     # staging box can pick it up. Allow the job to skip this step if needed
+#     # (when building a custom beta for example).
+#     - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-7-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
 
 # deploy android packages to a public s3 bucket when tagged
 deploy_android_tags:
@@ -2491,29 +2491,29 @@ deploy_rpm-6:
     # sync to S3
     - aws s3 sync --only-show-errors ./rpmrepo/6/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-deploy_rpm-7:
-  <<: *run_when_triggered
-  <<: *skip_when_unwanted_on_7
-  stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
-    - mkdir -p ./rpmrepo/7/x86_64/
-    - mkdir -p ./rpmrepo/7/aarch64/
-    - aws s3 sync --only-show-errors s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ ./rpmrepo/7/
+# deploy_rpm-7:
+#   <<: *run_when_triggered
+#   <<: *skip_when_unwanted_on_7
+#   stage: deploy7
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - source /usr/local/rvm/scripts/rvm
+#     - rvm use 2.4
+#     - mkdir -p ./rpmrepo/7/x86_64/
+#     - mkdir -p ./rpmrepo/7/aarch64/
+#     - aws s3 sync --only-show-errors s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ ./rpmrepo/7/
 
-    # add RPMs to new "7" branch
-    - cp $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm ./rpmrepo/7/x86_64/
-    - cp $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm ./rpmrepo/7/aarch64/
-    - createrepo --update -v --checksum sha ./rpmrepo/7/x86_64
-    - createrepo --update -v --checksum sha ./rpmrepo/7/aarch64
+#     # add RPMs to new "7" branch
+#     - cp $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm ./rpmrepo/7/x86_64/
+#     - cp $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm ./rpmrepo/7/aarch64/
+#     - createrepo --update -v --checksum sha ./rpmrepo/7/x86_64
+#     - createrepo --update -v --checksum sha ./rpmrepo/7/aarch64
 
-    # sync to S3
-    - aws s3 sync --only-show-errors ./rpmrepo/7/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+#     # sync to S3
+#     - aws s3 sync --only-show-errors ./rpmrepo/7/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy suse rpm packages to yum staging repo
 # NOTE: no SuSE ARM builds currently.
@@ -2538,26 +2538,26 @@ deploy_suse_rpm-6:
     # sync to S3
     - aws s3 sync --only-show-errors ./rpmrepo/6/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-deploy_suse_rpm-7:
-  <<: *run_when_triggered
-  <<: *skip_when_unwanted_on_7
-  stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR_SUSE
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
-    - mkdir -p ./rpmrepo/7/x86_64/
-    - aws s3 sync --only-show-errors s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/7/ ./rpmrepo/7/
+# deploy_suse_rpm-7:
+#   <<: *run_when_triggered
+#   <<: *skip_when_unwanted_on_7
+#   stage: deploy7
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR_SUSE
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - source /usr/local/rvm/scripts/rvm
+#     - rvm use 2.4
+#     - mkdir -p ./rpmrepo/7/x86_64/
+#     - aws s3 sync --only-show-errors s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/7/ ./rpmrepo/7/
 
-    # add RPMs to new "7" branch
-    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm ./rpmrepo/7/x86_64/
-    - createrepo --update -v --checksum sha ./rpmrepo/7/x86_64
+#     # add RPMs to new "7" branch
+#     - cp $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm ./rpmrepo/7/x86_64/
+#     - createrepo --update -v --checksum sha ./rpmrepo/7/x86_64
 
-    # sync to S3
-    - aws s3 sync --only-show-errors ./rpmrepo/7/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+#     # sync to S3
+#     - aws s3 sync --only-show-errors ./rpmrepo/7/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy dsd binary to staging bucket
 deploy_dsd:
@@ -2572,18 +2572,18 @@ deploy_dsd:
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy puppy binary to staging bucket
-deploy_puppy:
-  <<: *run_when_triggered
-  stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/puppy/agent ./agent
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
-    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/linux/puppy/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+# # deploy puppy binary to staging bucket
+# deploy_puppy:
+#   <<: *run_when_triggered
+#   stage: deploy7
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+#   before_script:
+#     - ls $OMNIBUS_PACKAGE_DIR
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - $S3_CP_CMD $S3_ARTIFACTS_URI/puppy/agent ./agent
+#     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+#     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/linux/puppy/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy agent windows zip to the staging bucket, currently used for cloudfoundry bosh
 deploy_datadog_agent_windows_zip:
@@ -2649,23 +2649,23 @@ tag_release_6:
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}      --template datadog/agent-ARCH:${VERSION}
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
 
-tag_release_7:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag_7
-  stage: deploy7
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - VERSION=$(inv -e agent.version --major-version 7)
-    # Images
-    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
-    # Other
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:${VERSION}
-    # Manifests
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}      --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
+# tag_release_7:
+#   <<: *docker_tag_job_definition
+#   <<: *run_when_triggered_on_tag_7
+#   stage: deploy7
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - VERSION=$(inv -e agent.version --major-version 7)
+#     # Images
+#     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
+#     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
+#     # Other
+#     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:${VERSION}
+#     # Manifests
+#     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}      --template datadog/agent-ARCH:${VERSION}
+#     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
 
 latest_release_6:
   <<: *docker_tag_job_definition
@@ -2681,21 +2681,21 @@ latest_release_6:
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6                 --template datadog/agent-ARCH:${VERSION}
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6-jmx             --template datadog/agent-ARCH:${VERSION}-jmx
 
-latest_release_7:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag_7
-  stage: deploy7
-  when: manual
-  variables:
-    <<: *docker_hub_variables
-  script:
-    - VERSION=$(inv -e agent.version --major-version 7)
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest      --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 7           --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 7-jmx       --template datadog/agent-ARCH:${VERSION}-jmx
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:latest
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:7
+# latest_release_7:
+#   <<: *docker_tag_job_definition
+#   <<: *run_when_triggered_on_tag_7
+#   stage: deploy7
+#   when: manual
+#   variables:
+#     <<: *docker_hub_variables
+#   script:
+#     - VERSION=$(inv -e agent.version --major-version 7)
+#     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest      --template datadog/agent-ARCH:${VERSION}
+#     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
+#     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 7           --template datadog/agent-ARCH:${VERSION}
+#     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 7-jmx       --template datadog/agent-ARCH:${VERSION}-jmx
+#     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:latest
+#     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:7
 
 #
 # Use these steps to revert the latest tags to a previous release
