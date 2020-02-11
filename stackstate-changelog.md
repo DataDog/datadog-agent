@@ -1,6 +1,6 @@
 # StackState Agent v2 releases
 
-## 2.1.0 (2020-02-06)
+## 2.1.0 (2020-02-11)
 
 **Features**
 

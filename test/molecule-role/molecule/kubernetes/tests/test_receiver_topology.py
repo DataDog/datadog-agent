@@ -43,18 +43,46 @@ def _find_component(json_data, type_name, external_id_assert_fn):
     return None
 
 
-def test_agent_base_topology(host, ansible_var):
+def _container_component(json_data, type_name, external_id_assert_fn, tags_assert_fn):
+    for message in json_data["messages"]:
+        p = message["message"]["TopologyElement"]["payload"]
+        if "TopologyComponent" in p and \
+            p["TopologyComponent"]["typeName"] == type_name and \
+                external_id_assert_fn(p["TopologyComponent"]["externalId"]):
+            component_data = json.loads(p["TopologyComponent"]["data"])
+            if "tags" in component_data and tags_assert_fn(component_data["tags"]):
+                return component_data
+    return None
+
+
+def _container_process_component(json_data, type_name, external_id_assert_fn, tags_assert_fn, containerId):
+    for message in json_data["messages"]:
+        p = message["message"]["TopologyElement"]["payload"]
+        if "TopologyComponent" in p and \
+            p["TopologyComponent"]["typeName"] == type_name and \
+                external_id_assert_fn(p["TopologyComponent"]["externalId"]):
+            component_data = json.loads(p["TopologyComponent"]["data"])
+            if "tags" in component_data and tags_assert_fn(component_data["tags"]) and "containerId" in component_data and component_data["containerId"] == containerId:
+                return component_data
+    return None
+
+
+def test_cluster_agent_base_topology(host, ansible_var):
     cluster_name = ansible_var("cluster_name")
     namespace = ansible_var("namespace")
-
     topic = "sts_topo_kubernetes_%s" % cluster_name
     url = "http://localhost:7070/api/topic/%s?limit=1000" % topic
 
-    def wait_for_components():
+    def wait_for_cluster_agent_components():
         data = host.check_output("curl \"%s\"" % url)
         json_data = json.loads(data)
         with open("./topic-" + topic + ".json", 'w') as f:
             json.dump(json_data, f, indent=4)
+
+        process_data = host.check_output("curl \"%s\"" % "http://localhost:7070/api/topic/sts_topo_process_agents?limit=1000")
+        process_json_data = json.loads(process_data)
+        with open("./topic-topo-process-agents-k8s.json", 'w') as f:
+            json.dump(process_json_data, f, indent=4)
 
         # TODO make sure we identify the 2 different ec2 instances using i-*
         # 2 nodes
@@ -90,13 +118,16 @@ def test_agent_base_topology(host, ansible_var):
             identifiers_assert_fn=lambda identifiers: next(x for x in identifiers if x.startswith("urn:ip:/%s:" % cluster_name))
         )
         cluster_agent_container_match = re.compile("urn:/kubernetes:%s:pod:stackstate-cluster-agent-.*:container:stackstate-cluster-agent" % cluster_name)
-        assert _component_data(
+        cluster_agent_container = _component_data(
             json_data=json_data,
             type_name="container",
             external_id_assert_fn=lambda eid: cluster_agent_container_match.findall(eid),
             cluster_name=cluster_name,
             identifiers_assert_fn=lambda identifiers: next(x for x in identifiers if x.startswith("urn:container:/i-"))  # TODO ec2 i-*
         )
+        stackstate_cluster_agent_container_external_id = cluster_agent_container["identifiers"][0]
+        stackstate_cluster_agent_container_id = cluster_agent_container["docker"]["containerId"]
+        stackstate_cluster_agent_container_pod = cluster_agent_container["pod"]
         # 2 service, one for each agent
         assert _component_data(
             json_data=json_data,
@@ -366,4 +397,22 @@ def test_agent_base_topology(host, ansible_var):
             external_id_assert_fn=lambda eid:  job_controls_match.findall(eid)
         ).startswith("urn:/kubernetes:%s:job:hello" % (cluster_name))
 
-    util.wait_until(wait_for_components, 240, 3)
+        # assert process agent data
+        stackstate_cluster_agent_process_match = re.compile("%s" % stackstate_cluster_agent_container_external_id)
+        stackstate_cluster_agent_container = _container_component(
+            json_data=process_json_data,
+            type_name="container",
+            external_id_assert_fn=lambda eid: stackstate_cluster_agent_process_match.findall(eid),
+            tags_assert_fn=lambda tags: all([assertTag for assertTag in ["pod-name:%s" % stackstate_cluster_agent_container_pod, "namespace:%s" % namespace, "cluster-name:%s" % cluster_name] if assertTag in tags])
+        )
+
+        stackstate_cluster_agent_process_match = re.compile("urn:process:/%s.*" % stackstate_cluster_agent_container["host"])
+        assert _container_process_component(
+            json_data=process_json_data,
+            type_name="process",
+            external_id_assert_fn=lambda eid: stackstate_cluster_agent_process_match.findall(eid),
+            tags_assert_fn=lambda tags: all([assertTag for assertTag in ["pod-name:%s" % stackstate_cluster_agent_container_pod, "namespace:%s" % namespace, "cluster-name:%s" % cluster_name] if assertTag in tags]),
+            containerId=stackstate_cluster_agent_container_id
+        )
+
+    util.wait_until(wait_for_cluster_agent_components, 120, 3)
