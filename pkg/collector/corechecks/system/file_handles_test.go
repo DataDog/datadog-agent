@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,7 +47,7 @@ func TestFhCheckLinux(t *testing.T) {
 	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(nil, nil, "test")
+	fileHandleCheck.Configure(integration.Data("{\"val\": 42}"), integration.Data("{\"val\": 42}"), "test")
 
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
 

@@ -59,8 +59,14 @@ type CommonInstanceConfig struct {
 	MinCollectionInterval int      `yaml:"min_collection_interval"`
 	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
 	Tags                  []string `yaml:"tags"`
+	Service               string   `yaml:"service"`
 	Name                  string   `yaml:"name"`
 	Namespace             string   `yaml:"namespace"`
+}
+
+// CommonGlobalConfig holds the reserved fields for the yaml init_config data
+type CommonGlobalConfig struct {
+	Service string `yaml:"service"`
 }
 
 // Equal determines whether the passed config is the same
