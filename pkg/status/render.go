@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-//go:generate go-bindata -pkg status -prefix templates/ -o ./templates.go templates/...
+//go:generate go-bindata -pkg status -prefix templates -o ./templates.go templates/...
 //go:generate go fmt ./templates.go
 
 package status
@@ -43,16 +43,16 @@ func FormatStatus(data []byte) (string, error) {
 	inventoriesStats := stats["inventories"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
-	renderStatusTemplate(b, "header.tmpl", stats)
+	renderStatusTemplate(b, "/header.tmpl", stats)
 	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
 	renderJMXFetchStatus(b, jmxStats)
-	renderStatusTemplate(b, "forwarder.tmpl", forwarderStats)
-	renderStatusTemplate(b, "endpoints.tmpl", endpointsInfos)
-	renderStatusTemplate(b, "logsagent.tmpl", logsStats)
-	renderStatusTemplate(b, "aggregator.tmpl", aggregatorStats)
-	renderStatusTemplate(b, "dogstatsd.tmpl", dogstatsdStats)
+	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
+	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
+	renderStatusTemplate(b, "/logsagent.tmpl", logsStats)
+	renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
+	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
 	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
-		renderStatusTemplate(b, "clusteragent.tmpl", dcaStats)
+		renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
 	}
 
 	return b.String(), nil
@@ -71,10 +71,10 @@ func FormatDCAStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
-	renderStatusTemplate(b, "header.tmpl", stats)
+	renderStatusTemplate(b, "/header.tmpl", stats)
 	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, nil, "")
-	renderStatusTemplate(b, "forwarder.tmpl", forwarderStats)
-	renderStatusTemplate(b, "endpoints.tmpl", endpointsInfos)
+	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
+	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
 
 	return b.String(), nil
 }
@@ -84,7 +84,7 @@ func FormatHPAStatus(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats)
-	renderStatusTemplate(b, "custommetricsprovider.tmpl", stats)
+	renderStatusTemplate(b, "/custommetricsprovider.tmpl", stats)
 	return b.String(), nil
 }
 
@@ -97,7 +97,7 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	renderStatusTemplate(b, "metadatamapper.tmpl", stats)
+	renderStatusTemplate(b, "/metadatamapper.tmpl", stats)
 	return b.String(), nil
 }
 
@@ -110,7 +110,7 @@ func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, auto
 	checkStats["CheckSchedulerStats"] = checkSchedulerStats
 	checkStats["OnlyCheck"] = onlyCheck
 	checkStats["CheckMetadata"] = inventoriesStats
-	renderStatusTemplate(w, "collector.tmpl", checkStats)
+	renderStatusTemplate(w, "/collector.tmpl", checkStats)
 }
 
 func renderCheckStats(data []byte, checkName string) (string, error) {
@@ -132,7 +132,7 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
 	stats := make(map[string]interface{})
 	stats["JMXStatus"] = jmxStats
-	renderStatusTemplate(w, "jmxfetch.tmpl", jmxStats)
+	renderStatusTemplate(w, "/jmxfetch.tmpl", jmxStats)
 }
 
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
