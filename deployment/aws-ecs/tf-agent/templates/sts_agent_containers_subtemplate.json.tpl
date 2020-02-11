@@ -82,10 +82,6 @@
         {
           "name": "HOST_SYS",
           "value": "/host/sys"
-        },
-        {
-          "name": "STS_PROCESS_BLACKLIST_PATTERNS",
-          "value": "^s6-,^docker-,^/usr/sbin"
         }
 
       ]

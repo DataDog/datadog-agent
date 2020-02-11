@@ -128,7 +128,6 @@ services:
       STS_PROCESS_AGENT_URL: "http://localhost:7077/stsAgent"
       STS_PROCESS_AGENT_ENABLED: "true"
       STS_NETWORK_TRACING_ENABLED: "true"
-      STS_PROCESS_BLACKLIST_PATTERNS: "^s6-,^docker-,^/sbin/,^/usr/sbin,^/pause,^/usr/bin/dbus-daemon,^-bash,^su$$,^/bin/bash,/lib/systemd/,agent"
       STS_APM_URL: "http://localhost:7077/stsAgent"
       STS_APM_ENABLED: "true"
       HOST_PROC: "/host/proc"
