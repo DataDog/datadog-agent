@@ -21,7 +21,7 @@ func TestUptimeCheckLinux(t *testing.T) {
 	// because the FinalizeCheckServiceTag is called in Configure.
 	// Hopefully, the check ID is an empty string while running unit tests;
 	mock := mocksender.NewMockSender("")
-	mock.SetupAcceptAll()
+	mock.On("FinalizeCheckServiceTag").Return()
 
 	uptime = uptimeSampler
 	uptimeCheck := new(UptimeCheck)
