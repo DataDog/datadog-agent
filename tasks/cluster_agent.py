@@ -27,7 +27,7 @@ DEFAULT_BUILD_TAGS = {
     ],
     "cloudfoundry": [
         "cloudfoundry",
-        "clustercheks",
+        "clusterchecks",
         "secrets",
     ],
 }
