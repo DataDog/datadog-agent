@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -108,34 +107,11 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		return
 	}
 
-	// simple linear interpolation, TODO: optimize
-	var linearIncr float64
-	var incrCount int
-	var countPerIncr uint
-	if bucket.Value > cs.interpolationGranularity {
-		linearIncr = bucketRange / float64(cs.interpolationGranularity)
-		countPerIncr = uint(bucket.Value / cs.interpolationGranularity)
-		incrCount = cs.interpolationGranularity
-	} else {
-		linearIncr = bucketRange / float64(bucket.Value)
-		countPerIncr = 1
-		incrCount = bucket.Value
-	}
-	if math.IsInf(bucket.UpperBound, 1) {
-		// We simulate the behavior of promQL for the infinity bucket:
-		// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
-		incrCount = 1
-		countPerIncr = uint(bucket.Value)
-	}
-	currentVal := bucket.LowerBound
 	log.Tracef(
-		"Interpolating %d values by group of %d over the [%f-%f] bucket with %f increment",
-		bucket.Value, countPerIncr, bucket.LowerBound, bucket.UpperBound, linearIncr,
+		"Interpolating %d values over the [%f-%f] bucket",
+		bucket.Value, bucket.LowerBound, bucket.UpperBound,
 	)
-	for i := 0; i < incrCount; i++ {
-		cs.sketchMap.insertN(int64(bucket.Timestamp), contextKey, currentVal, countPerIncr)
-		currentVal += linearIncr
-	}
+	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
 func (cs *CheckSampler) commitSeries(timestamp float64) {

@@ -19,7 +19,7 @@ func buildStore(t *testing.T, dsl string) *sparseStore {
 		}
 
 		s.count += int(n)
-		s.bins = append(s.bins, bin{k: k, n: uint16(n)})
+		s.bins = append(s.bins, bin{k: k, n: uint32(n)})
 	})
 
 	return s

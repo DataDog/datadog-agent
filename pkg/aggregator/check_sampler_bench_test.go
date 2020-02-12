@@ -31,6 +31,35 @@ func benchmarkAddBucket(bucketValue int, b *testing.B) {
 		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int)
 		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
 	}
+	b.Logf("Sketch size: %d", checkSampler.sketchMap.Len())
+}
+
+func benchmarkAddBucketWideBounds(bucketValue int, b *testing.B) {
+	checkSampler := newCheckSampler()
+
+	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
+	bucket := &metrics.HistogramBucket{
+		Name:      "my.histogram",
+		Value:     bucketValue,
+		Tags:      []string{"foo", "bar"},
+		Timestamp: 12345.0,
+	}
+
+	for n := 0; n < b.N; n++ {
+		for i := range bounds {
+			if i == 0 {
+				continue
+			}
+			bucket.LowerBound = bounds[i-1]
+			bucket.UpperBound = bounds[i]
+			checkSampler.addBucket(bucket)
+		}
+		// reset bucket cache
+		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int)
+		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
+	}
+	b.Logf("Sketch size: %d", checkSampler.sketchMap.Len())
+
 }
 
 func BenchmarkAddBucket1(b *testing.B)        { benchmarkAddBucket(1, b) }
@@ -40,3 +69,5 @@ func BenchmarkAddBucket1000(b *testing.B)     { benchmarkAddBucket(1000, b) }
 func BenchmarkAddBucket10000(b *testing.B)    { benchmarkAddBucket(10000, b) }
 func BenchmarkAddBucket1000000(b *testing.B)  { benchmarkAddBucket(1000000, b) }
 func BenchmarkAddBucket10000000(b *testing.B) { benchmarkAddBucket(10000000, b) }
+
+func BenchmarkAddBucketWide1e10(b *testing.B) { benchmarkAddBucketWideBounds(1e10, b) }

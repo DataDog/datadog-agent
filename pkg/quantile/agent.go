@@ -9,8 +9,9 @@ var agentConfig = Default()
 // An Agent sketch is an insert optimized version of the sketch for use in the
 // datadog-agent.
 type Agent struct {
-	Sketch Sketch
-	Buf    []Key
+	Sketch   Sketch
+	Buf      []Key
+	CountBuf []KeyCount
 }
 
 // IsEmpty returns true if the sketch is empty
@@ -29,14 +30,22 @@ func (a *Agent) Finish() *Sketch {
 	return a.Sketch.Copy()
 }
 
+// Flush flushes any pending inserts.
+func (a *Agent) Flush() {
+	a.flush()
+}
+
 // flush buffered values into the sketch.
 func (a *Agent) flush() {
-	if len(a.Buf) == 0 {
-		return
+	if len(a.Buf) != 0 {
+		a.Sketch.insert(agentConfig, a.Buf)
+		a.Buf = nil
 	}
 
-	a.Sketch.insert(agentConfig, a.Buf)
-	a.Buf = nil
+	if len(a.CountBuf) != 0 {
+		a.Sketch.insertCounts(agentConfig, a.CountBuf)
+		a.CountBuf = nil
+	}
 }
 
 // Reset the agent sketch to the empty state.
@@ -60,13 +69,22 @@ func (a *Agent) Insert(v float64) {
 // InsertN inserts v, n times into the sketch.
 func (a *Agent) InsertN(v float64, n uint) {
 	a.Sketch.Basic.InsertN(v, n)
+	a.CountBuf = append(a.CountBuf, KeyCount{k: agentConfig.key(v), n: n})
+}
 
-	for i := 0; i < int(n); i++ {
-		a.Buf = append(a.Buf, agentConfig.key(v))
+// InsertInterpolate linearly interpolates counts from lower (l) to upper (u)
+func (a *Agent) InsertInterpolate(l float64, u float64, n uint) {
+	keys := make([]Key, 0)
+	for k := agentConfig.key(l); k <= agentConfig.key(u); k++ {
+		keys = append(keys, k)
 	}
-	if len(a.Buf) < agentBufCap {
-		return
+	// non-linear interpolation
+	each := n / uint(len(keys))
+	leftover := n - (each * uint(len(keys)))
+	for _, k := range keys {
+		a.Sketch.Basic.InsertN(agentConfig.f64(k), each)
+		a.CountBuf = append(a.CountBuf, KeyCount{k: k, n: each})
 	}
-
+	a.CountBuf = append(a.CountBuf, KeyCount{k: keys[len(keys)-1], n: leftover})
 	a.flush()
 }
