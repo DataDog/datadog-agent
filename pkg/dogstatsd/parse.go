@@ -23,6 +23,9 @@ var (
 	commaSeparator = []byte(",")
 
 	commaSeparatorString = ","
+
+	// how many strings the string interner is caching
+	stringInternerCacheSize = 4096
 )
 
 // parser parses dogstatsd messages
@@ -33,7 +36,7 @@ type parser struct {
 
 func newParser() *parser {
 	return &parser{
-		interner: newStringInterner(4096),
+		interner: newStringInterner(stringInternerCacheSize),
 	}
 }
 
