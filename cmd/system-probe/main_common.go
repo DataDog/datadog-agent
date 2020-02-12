@@ -24,9 +24,9 @@ var opts struct {
 	pidFilePath string
 	debug       bool
 	version     bool
-	checkCmd	*flag.FlagSet
-	checkType	string
-	checkClient	string
+	checkCmd    *flag.FlagSet
+	checkType   string
+	checkClient string
 }
 
 // Version info sourced from build flags

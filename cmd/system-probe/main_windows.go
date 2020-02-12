@@ -20,4 +20,3 @@ func main() {
 func runCheck(cfg *config.AgentConfig) {
 	return
 }
-

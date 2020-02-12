@@ -95,7 +95,7 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 		}
 	}
 
-	if runtime.GOOS == "windows"{
+	if runtime.GOOS == "windows" {
 		return true, ""
 
 	} else {

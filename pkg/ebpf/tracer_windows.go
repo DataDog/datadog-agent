@@ -12,7 +12,7 @@ func CurrentKernelVersion() (uint32, error) {
 }
 
 type Tracer struct {
-	config *Config
+	config      *Config
 	portMapping *PortMapping
 	// Telemetry
 	perfReceived  int64
@@ -32,12 +32,11 @@ type Tracer struct {
 	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 	// to determine whether a connection is truly closed or not
 	expiredTCPConns int64
-	buffer     []ConnectionStats
-	bufferLock sync.Mutex
+	buffer          []ConnectionStats
+	bufferLock      sync.Mutex
 	// Connections for the tracer to blacklist
 	sourceExcludes []*ConnectionFilter
 	destExcludes   []*ConnectionFilter
-
 }
 
 func NewTracer(config *Config) (*Tracer, error) {
@@ -61,4 +60,3 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 	return nil, ErrNotImplemented
 }
-

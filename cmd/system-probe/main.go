@@ -20,7 +20,7 @@ func main() {
 
 	opts.checkCmd = flag.NewFlagSet("check", flag.ExitOnError)
 	flag.StringVar(&opts.checkType, "type", "", "The type of check to run. Choose from: conections, network_maps, network_state, stags")
-	flag.StringVar(&opts.checkClient, "client","", "The client ID that the check will use to run")
+	flag.StringVar(&opts.checkClient, "client", "", "The client ID that the check will use to run")
 	flag.Parse()
 
 	// Set up a default config before parsing config so we log errors nicely.
@@ -36,7 +36,7 @@ func main() {
 }
 
 // run check command if the flag is specified
-func runCheck (cfg *config.AgentConfig) {
+func runCheck(cfg *config.AgentConfig) {
 	if len(os.Args) >= 2 && os.Args[1] == "check" {
 		err := opts.checkCmd.Parse(os.Args[2:])
 		if err != nil {

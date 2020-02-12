@@ -43,6 +43,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
+	// TODO move to tracer
 	if runtime.GOOS != "windows" {
 		// make sure debugfs is mounted
 		if mounted, msg := util.IsDebugfsMounted(); !mounted {
@@ -57,7 +58,13 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
-	conn, err := net.NewUDSListener(cfg)
+	var conn net.Conn
+	if runtime.GOOS != "windows" {
+		conn, err = net.NewUDSListener(cfg)
+	} else {
+		conn, err = net.NewListener(cfg)
+	}
+
 	if err != nil {
 		return nil, err
 	}
