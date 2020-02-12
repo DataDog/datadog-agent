@@ -18,29 +18,27 @@ const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
-	series                   []*metrics.Serie
-	sketches                 []metrics.SketchSeries
-	contextResolver          *ContextResolver
-	metrics                  metrics.ContextMetrics
-	sketchMap                sketchMap
-	lastBucketValue          map[ckey.ContextKey]int
-	lastSeenBucket           map[ckey.ContextKey]time.Time
-	bucketExpiry             time.Duration
-	interpolationGranularity int
+	series          []*metrics.Serie
+	sketches        []metrics.SketchSeries
+	contextResolver *ContextResolver
+	metrics         metrics.ContextMetrics
+	sketchMap       sketchMap
+	lastBucketValue map[ckey.ContextKey]int
+	lastSeenBucket  map[ckey.ContextKey]time.Time
+	bucketExpiry    time.Duration
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
 func newCheckSampler() *CheckSampler {
 	return &CheckSampler{
-		series:                   make([]*metrics.Serie, 0),
-		sketches:                 make([]metrics.SketchSeries, 0),
-		contextResolver:          newContextResolver(),
-		metrics:                  metrics.MakeContextMetrics(),
-		sketchMap:                make(sketchMap),
-		lastBucketValue:          make(map[ckey.ContextKey]int),
-		lastSeenBucket:           make(map[ckey.ContextKey]time.Time),
-		bucketExpiry:             1 * time.Minute,
-		interpolationGranularity: 1000,
+		series:          make([]*metrics.Serie, 0),
+		sketches:        make([]metrics.SketchSeries, 0),
+		contextResolver: newContextResolver(),
+		metrics:         metrics.MakeContextMetrics(),
+		sketchMap:       make(sketchMap),
+		lastBucketValue: make(map[ckey.ContextKey]int),
+		lastSeenBucket:  make(map[ckey.ContextKey]time.Time),
+		bucketExpiry:    1 * time.Minute,
 	}
 }
 
