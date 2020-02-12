@@ -8,12 +8,12 @@ import (
 
 )
 
-// UDSListener (Unix Domain Socket Listener)
 type WindowsPipeListener struct {
 	conn     net.Listener
 	pipePath string
 }
 
+// Sets up a TCP listener for now, will eventually be a named pipe
 func NewListener(cfg *config.AgentConfig) (*WindowsPipeListener, error) {
 	l, err := net.Listen("tcp", "localhost:3333")
 	return &WindowsPipeListener{l, "path"}, err
