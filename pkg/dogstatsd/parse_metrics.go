@@ -89,7 +89,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	// especially important here since all the unidentified garbage gets
 	// identified as metrics
 	if !hasMetricSampleFormat(message) {
-		return dogstatsdMetricSample{}, fmt.Errorf("invalid dogstatsd message format: %q", message)
+		return dogstatsdMetricSample{}, fmt.Errorf("invalid dogstatsd message format")
 	}
 
 	rawNameAndValue, message := nextField(message)

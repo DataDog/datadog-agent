@@ -108,16 +108,9 @@ func toUnsortedList(s map[string]interface{}) string {
 	return fmt.Sprintf("%s", res)
 }
 
-// mkHuman makes large numbers more readable
+// mkHuman adds commas to large numbers to assist readability in status outputs
 func mkHuman(f float64) string {
-	var str string
-	if f > 1000000.0 {
-		str = humanize.SIWithDigits(f, 1, "")
-	} else {
-		str = humanize.Commaf(f)
-	}
-
-	return str
+	return humanize.Commaf(f)
 }
 
 // mkHumanDuration makes time values more readable

@@ -29,7 +29,7 @@ type warning struct {
 	Message   string `json:"message"`
 	Path      string `json:"path"`
 	Symbol    string `json:"symbol"`
-	MessageId string `json:"message-id"`
+	MessageID string `json:"message-id"`
 }
 
 // validatePython3 checks that a check can run on python 3.
@@ -61,7 +61,7 @@ func validatePython3(moduleName string, modulePath string) ([]string, error) {
 
 	// no post processing needed for now, we just retrieve every messages
 	for _, warn := range warnings {
-		message := fmt.Sprintf("%s:%d:%d : %s (%s, %s)", filepath.Base(warn.Path), warn.Line, warn.Column, warn.Message, warn.Symbol, warn.MessageId)
+		message := fmt.Sprintf("%s:%d:%d : %s (%s, %s)", filepath.Base(warn.Path), warn.Line, warn.Column, warn.Message, warn.Symbol, warn.MessageID)
 		res = append(res, message)
 	}
 

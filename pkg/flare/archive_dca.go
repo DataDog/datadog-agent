@@ -44,7 +44,7 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		return "", err
 	}
 
-	dirName := hex.EncodeToString([]byte(b))
+	dirName := hex.EncodeToString(b)
 	tempDir, err := ioutil.TempDir("", dirName)
 	if err != nil {
 		return "", err

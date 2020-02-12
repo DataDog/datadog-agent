@@ -148,6 +148,19 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	}
 }
 
+func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	os.Setenv("DD_LOG_LEVEL", "error")
+	defer os.Unsetenv("DD_LOG_LEVEL")
+	os.Setenv("LOG_LEVEL", "debug")
+	defer os.Unsetenv("LOG_LEVEL")
+
+	agentConfig, _ := NewAgentConfig("test", "", "")
+	assert.Equal(t, "error", agentConfig.LogLevel)
+}
+
 func TestDisablingDNSInspection(t *testing.T) {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()
@@ -281,8 +294,8 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.True(agentConfig.DisableUDPTracing)
 	assert.True(agentConfig.DisableIPv6Tracing)
 	assert.False(agentConfig.DisableDNSInspection)
-	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}), agentConfig.ExcludedSourceConnections)
-	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}), agentConfig.ExcludedDestinationConnections)
+	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}, agentConfig.ExcludedSourceConnections)
+	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}, agentConfig.ExcludedDestinationConnections)
 }
 
 func TestProxyEnv(t *testing.T) {

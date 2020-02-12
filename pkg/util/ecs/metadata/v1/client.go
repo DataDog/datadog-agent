@@ -22,7 +22,6 @@ const (
 	DefaultAgentPort = 51678
 
 	// Metadata v1 API paths
-	commandsPath     = "/"
 	instancePath     = "/metadata"
 	taskMetadataPath = "/tasks"
 

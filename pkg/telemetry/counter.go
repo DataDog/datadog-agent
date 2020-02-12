@@ -21,11 +21,17 @@ type Counter interface {
 	Delete(tagsValue ...string)
 }
 
-// NewCounter creates a Counter for telemetry purpose.
-// Current implementation used: Prometheus Counter.
+// NewCounter creates a Counter with default options for telemetry purpose.
+// Current implementation used: Prometheus Counter
 func NewCounter(subsystem, name string, tags []string, help string) Counter {
+	return NewCounterWithOpts(subsystem, name, tags, help, DefaultOptions)
+}
+
+// NewCounterWithOpts creates a Counter with the given options for telemetry purpose.
+// See NewCounter()
+func NewCounterWithOpts(subsystem, name string, tags []string, help string, opts Options) Counter {
 	// subsystem is optional
-	if subsystem != "" {
+	if subsystem != "" && !opts.NoDoubleUnderscoreSep {
 		// Prefix metrics with a _, prometheus will add a second _
 		// It will create metrics with a custom separator and
 		// will let us replace it to a dot later in the process.

@@ -17,3 +17,11 @@ func TestNtpWarning(t *testing.T) {
 	require.True(t, ntpWarning(3601))
 	require.True(t, ntpWarning(-601))
 }
+
+func TestMkHuman(t *testing.T) {
+	f := 1695783.0
+	fStr := mkHuman(f)
+	if fStr != "1,695,783" {
+		t.Errorf("Large number formatting is incorrectly adding commas in agent statuses")
+	}
+}

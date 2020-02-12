@@ -80,7 +80,7 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 		containers = d.labelCache
 	}
 
-	d.syncCounter += 1
+	d.syncCounter++
 	d.upToDate = true
 	d.Unlock()
 

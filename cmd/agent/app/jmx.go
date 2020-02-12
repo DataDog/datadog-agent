@@ -173,6 +173,7 @@ func RunJmxCommand(command string, reporter jmxfetch.JMXReporter, output func(..
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
 	runner.Output = log.Info
+	runner.LogLevel = jmxLogLevel
 	if output != nil {
 		runner.Output = output
 	}
@@ -204,7 +205,7 @@ func RunJmxListWithMetrics() error {
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJson, out)
+	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJSON, out)
 }
 
 func loadConfigs(runner *jmxfetch.JMXFetch) {

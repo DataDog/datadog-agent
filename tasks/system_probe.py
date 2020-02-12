@@ -22,7 +22,8 @@ GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
 @task
-def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7'):
+def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7',
+          python_runtimes='3'):
     """
     Build the system_probe
     """
@@ -49,7 +50,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
                     goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:

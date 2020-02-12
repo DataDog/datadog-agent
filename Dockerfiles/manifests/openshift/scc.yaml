@@ -43,7 +43,7 @@ fsGroup:
   type: MustRunAs
 readOnlyRootFilesystem: false
 runAsUser:
-  type: MustRunAsRange
+  type: RunAsAny
 supplementalGroups:
   type: RunAsAny
 seccompProfiles: []

@@ -73,10 +73,6 @@ func init() {
 	}
 }
 
-// const things
-const agentCheckClassName = "AgentCheck"
-const agentCheckModuleName = "checks"
-
 // PythonCheckLoader is a specific loader for checks living in Python modules
 type PythonCheckLoader struct{}
 
@@ -87,8 +83,8 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 
 func getRtLoaderError() error {
 	if C.has_error(rtloader) == 1 {
-		c_err := C.get_error(rtloader)
-		return errors.New(C.GoString(c_err))
+		cErr := C.get_error(rtloader)
+		return errors.New(C.GoString(cErr))
 	}
 	return nil
 }

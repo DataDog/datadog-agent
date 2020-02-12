@@ -170,7 +170,7 @@ func TestFindDockerNetworks(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			// Create temporary files on disk with the routes and stats.
-			err = dummyProcDir.Add(filepath.Join(strconv.Itoa(int(tc.pid)), "net", "route"), tc.routes)
+			err = dummyProcDir.Add(filepath.Join(strconv.Itoa(tc.pid), "net", "route"), tc.routes)
 			assert.NoError(t, err)
 
 			// Use the routes file and settings to get our networks.

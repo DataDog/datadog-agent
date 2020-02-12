@@ -78,7 +78,7 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err, "port is not available, it should be")
 }
 
-func TestUPDReceive(t *testing.T) {
+func TestUDPReceive(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -161,6 +161,44 @@ func TestUPDReceive(t *testing.T) {
 		assert.Equal(t, sample.Name, "daemon_set")
 		assert.Equal(t, sample.RawValue, "abc")
 		assert.Equal(t, sample.Mtype, metrics.SetType)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
+	// multi-metric packet
+	conn.Write([]byte("daemon1:666|c\ndaemon2:1000|c"))
+	select {
+	case res := <-metricOut:
+		assert.Equal(t, 2, len(res))
+		sample1 := res[0]
+		assert.NotNil(t, sample1)
+		assert.Equal(t, sample1.Name, "daemon1")
+		assert.EqualValues(t, sample1.Value, 666.0)
+		assert.Equal(t, sample1.Mtype, metrics.CounterType)
+		sample2 := res[1]
+		assert.NotNil(t, sample2)
+		assert.Equal(t, sample2.Name, "daemon2")
+		assert.EqualValues(t, sample2.Value, 1000.0)
+		assert.Equal(t, sample2.Mtype, metrics.CounterType)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
+	// slightly malformed multi-metric packet, should still be parsed in whole
+	conn.Write([]byte("daemon1:666|c\n\ndaemon2:1000|c\n"))
+	select {
+	case res := <-metricOut:
+		assert.Equal(t, 2, len(res))
+		sample1 := res[0]
+		assert.NotNil(t, sample1)
+		assert.Equal(t, sample1.Name, "daemon1")
+		assert.EqualValues(t, sample1.Value, 666.0)
+		assert.Equal(t, sample1.Mtype, metrics.CounterType)
+		sample2 := res[1]
+		assert.NotNil(t, sample2)
+		assert.Equal(t, sample2.Name, "daemon2")
+		assert.EqualValues(t, sample2.Value, 1000.0)
+		assert.Equal(t, sample2.Mtype, metrics.CounterType)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

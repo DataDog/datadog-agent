@@ -8,8 +8,7 @@ import (
 // Returns true if a * is present in the telemetry.checks list.
 func IsCheckEnabled(checkName string) bool {
 	// false if telemetry is disabled
-	if !config.Datadog.IsSet("telemetry.enabled") ||
-		config.Datadog.GetBool("telemetry.enabled") == false {
+	if !IsEnabled() {
 		return false
 	}
 
@@ -24,4 +23,9 @@ func IsCheckEnabled(checkName string) bool {
 		}
 	}
 	return false
+}
+
+// IsEnabled returns whether or not telemetry is enabled
+func IsEnabled() bool {
+	return config.Datadog.IsSet("telemetry.enabled") && config.Datadog.GetBool("telemetry.enabled")
 }
