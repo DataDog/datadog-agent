@@ -36,8 +36,12 @@ type DatadogMetricsAdapter struct {
 	basecmd.AdapterBase
 }
 
+func init() {
+	RunServerFunc = RunServerKubeAPIServer
+}
+
 // RunServer creates and start a k8s custom metrics API server
-func RunServer(ctx context.Context) error {
+func RunServerKubeAPIServer(ctx context.Context) error {
 	defer clearServerResources()
 	cmd = &DatadogMetricsAdapter{}
 	cmd.Flags()

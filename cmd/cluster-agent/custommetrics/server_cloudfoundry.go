@@ -9,6 +9,10 @@ package custommetrics
 
 import "context"
 
-func RunServer(ctx context.Context) error {
+func init() {
+	RunServerFunc = RunServerCloudFoundry
+}
+
+func RunServerCloudFoundry(ctx context.Context) error {
 	return nil
 }

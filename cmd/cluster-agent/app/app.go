@@ -80,9 +80,10 @@ metadata for their metrics.`,
 		},
 	}
 
-	confPath    string
-	flagNoColor bool
-	stopCh      chan struct{}
+	confPath             string
+	flagNoColor          bool
+	stopCh               chan struct{}
+	startControllersFunc func() error
 )
 
 func init() {
@@ -165,7 +166,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 	log.Infof("Datadog Cluster Agent is now running.")
 
-	err = startControllers()
+	err = startControllersFunc()
 	if err != nil {
 		return err
 	}
@@ -206,7 +207,7 @@ func start(cmd *cobra.Command, args []string) error {
 		go func() {
 			defer wg.Done()
 
-			errServ := custommetrics.RunServer(mainCtx)
+			errServ := custommetrics.RunServerFunc(mainCtx)
 			if errServ != nil {
 				log.Errorf("Error in the External Metrics API Server: %v", errServ)
 			}

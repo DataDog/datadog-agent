@@ -18,8 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func init() {
+	startControllersFunc = startControllersKubeAPIServer
+}
 
-func startControllers() error {
+func startControllersKubeAPIServer() error {
 	apiCl, err := apiserver.GetAPIClient() // make sure we can connect to the apiserver
 	if err != nil {
 		log.Errorf("Could not connect to the apiserver: %v", err)
