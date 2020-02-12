@@ -404,7 +404,7 @@ func initConfig(config Config) {
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
 	// since some of them require custom parsing algorithms. DO NOT add environment variable
 	// bindings here, add them there instead.
-	if runtime.GOARCH == "386" {
+	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
 		// so that there aren't messages in the log about failing to start.
 		config.BindEnvAndSetDefault("apm_config.enabled", false)
