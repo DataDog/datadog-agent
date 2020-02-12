@@ -50,13 +50,13 @@ func TestFhCheckLinux(t *testing.T) {
 	// because the FinalizeCheckServiceTag is called in Configure.
 	// Hopefully, the check ID is an empty string while running unit tests;
 	mock := mocksender.NewMockSender("")
-	mock.On("FinalizeCheckServiceTag").Return()
+	mock.SetupAcceptAll()
 
 	fileHandleCheck := new(fhCheck)
 	fileHandleCheck.Configure(nil, nil, "test")
 
-	// it's not needed but we've better to recreate it with the check ID, for the sake of correctness
-	mock = mocksender.NewMockSender(fileHandleCheck.ID())
+	// reset the check ID for the sake of correctness
+	mocksender.SetSender(mock, fileHandleCheck.ID())
 
 	mock.On("Gauge", "system.fs.file_handles.allocated", 896.0, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.fs.file_handles.allocated_unused", 201.0, "", []string(nil)).Return().Times(1)
