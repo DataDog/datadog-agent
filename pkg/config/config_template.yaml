@@ -142,6 +142,13 @@ api_key:
 ## 'aggregator_stop_timeout' to 0.
 #
 # aggregator_stop_timeout: 2
+#
+# @param aggregator_buffer_size - unsigned int
+# The default buffer size for the aggregator use a sane value for most of the
+# use cases, however, it could be useful to manually set it in order to trade
+# RSS usage with better performances.
+#
+# aggregator_buffer_size: 100
 
 ## @param forwarder_timeout - integer - optional - default: 20
 ## Forwarder timeout in seconds
