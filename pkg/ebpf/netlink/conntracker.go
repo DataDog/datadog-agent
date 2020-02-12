@@ -76,6 +76,7 @@ type realConntracker struct {
 		unregisters          int64
 		unregistersTotalTime int64
 		expiresTotal         int64
+		missedRegisters      int64
 	}
 	exceededSizeLogLimit *util.LogLimit
 }
@@ -200,6 +201,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 		"state_size":             int64(size),
 		"short_term_buffer_size": int64(stBufSize),
 		"expires":                int64(ctr.stats.expiresTotal),
+		"missed_registers":       int64(ctr.stats.missedRegisters),
 	}
 
 	if ctr.stats.gets != 0 {
@@ -270,6 +272,7 @@ func (ctr *realConntracker) register(c ct.Con) int {
 	atomic.AddInt64(&ctr.stats.registers, 1)
 	atomic.AddInt64(&ctr.stats.registersTotalTime, then-now)
 
+	log.Debugf("registered %s", conDebug(c))
 	return 0
 }
 
@@ -286,17 +289,22 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 		return 0
 	}
 
+	misses := 0
 	unregisterTuple := func(keyTuple *ct.IPTuple) {
 		key, ok := formatKey(keyTuple)
 		if !ok {
 			return
 		}
 
-		// move the mapping from the permanent to "short lived" connection
 		translation, ok := ctr.state[key]
+		if !ok {
+			misses++
+			return
+		}
 
+		// move the mapping from the permanent to "short lived" connection
 		delete(ctr.state, key)
-		if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer && ok {
+		if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer {
 			ctr.shortLivedBuffer[key] = translation.IPTranslation
 		} else {
 			log.Warn("exceeded maximum tracked short lived connections")
@@ -311,6 +319,10 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 	then := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.unregisters, 1)
 	atomic.AddInt64(&ctr.stats.unregistersTotalTime, then-now)
+	if misses == 2 {
+		log.Debugf("missed register event for: %s", conDebug(c))
+		atomic.AddInt64(&ctr.stats.missedRegisters, 1)
+	}
 
 	return 0
 }
@@ -392,4 +404,20 @@ func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 	}
 
 	return
+}
+
+func conDebug(c ct.Con) string {
+	proto := "tcp"
+	if *c.Origin.Proto.Number == 17 {
+		proto = "udp"
+	}
+
+	return fmt.Sprintf(
+		"orig_src=%s:%d orig_dst=%s:%d reply_src=%s:%d reply_dst=%s:%d proto=%s",
+		c.Origin.Src, *c.Origin.Proto.SrcPort,
+		c.Origin.Dst, *c.Origin.Proto.DstPort,
+		c.Reply.Src, *c.Reply.Proto.SrcPort,
+		c.Reply.Dst, *c.Reply.Proto.DstPort,
+		proto,
+	)
 }
