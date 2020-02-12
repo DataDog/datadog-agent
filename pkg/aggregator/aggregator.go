@@ -207,18 +207,24 @@ type BufferedAggregator struct {
 
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+
+	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
+	if bufferSize == 0 {
+		bufferSize = 100
+	}
+
 	aggregator := &BufferedAggregator{
 		metricPool:             metricPool,
-		bufferedMetricIn:       make(chan []metrics.MetricSample, 100),  // TODO make buffer size configurable
-		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, 100), // TODO make buffer size configurable
-		bufferedEventIn:        make(chan []*metrics.Event, 100),        // TODO make buffer size configurable
+		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
+		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
+		bufferedEventIn:        make(chan []*metrics.Event, bufferSize),
 
-		metricIn:       make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
-		serviceCheckIn: make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
-		eventIn:        make(chan metrics.Event, 100),         // TODO make buffer size configurable
+		metricIn:       make(chan *metrics.MetricSample, bufferSize),
+		serviceCheckIn: make(chan metrics.ServiceCheck, bufferSize),
+		eventIn:        make(chan metrics.Event, bufferSize),
 
-		checkMetricIn:          make(chan senderMetricSample, 100),    // TODO make buffer size configurable
-		checkHistogramBucketIn: make(chan senderHistogramBucket, 100), // TODO make buffer size configurable
+		checkMetricIn:          make(chan senderMetricSample, bufferSize),
+		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
 
 		statsdSampler:      *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
