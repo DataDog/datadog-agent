@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    The Agent and Logs Agent is now compiled with Go 1.13.6
