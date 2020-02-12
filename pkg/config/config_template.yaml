@@ -143,7 +143,7 @@ api_key:
 #
 # aggregator_stop_timeout: 2
 #
-# @param aggregator_buffer_size - unsigned int
+# @param aggregator_buffer_size - integer - optional - default: 100
 # The default buffer size for the aggregator use a sane value for most of the
 # use cases, however, it could be useful to manually set it in order to trade
 # RSS usage with better performances.
