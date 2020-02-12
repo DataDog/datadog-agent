@@ -68,12 +68,14 @@ func (a *Agent) InsertInterpolate(l float64, u float64, n uint) {
 		keys = append(keys, k)
 	}
 	whatsLeft := n
+	distance := u - l
 	kStartIdx := 0
 	lowerB := agentConfig.f64(keys[kStartIdx])
 	kEndIdx := 1
 	for kEndIdx < len(keys) {
 		upperB := agentConfig.f64(keys[kEndIdx])
-		distance := u - l
+		// ((upperB - lowerB) / distance) is the ratio of the distance between the current buckets to the total distance
+		// which tells us how much of the remaining value to put in this bucket
 		kn := uint(((upperB - lowerB) / distance) * float64(whatsLeft))
 		if kn > 0 {
 			a.Sketch.Basic.InsertN(lowerB, kn)
