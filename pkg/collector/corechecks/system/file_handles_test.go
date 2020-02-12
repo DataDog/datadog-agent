@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,7 +53,7 @@ func TestFhCheckLinux(t *testing.T) {
 	mock.On("FinalizeCheckServiceTag").Return()
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(integration.Data("{\"val\": 42}"), integration.Data("{\"val\": 42}"), "test")
+	fileHandleCheck.Configure(nil, nil, "test")
 
 	// it's not needed but we've better to recreate it with the check ID, for the sake of correctness
 	mock = mocksender.NewMockSender(fileHandleCheck.ID())
