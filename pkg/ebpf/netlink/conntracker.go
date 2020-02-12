@@ -27,15 +27,23 @@ const (
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
-	GetTranslationForConn(ip util.Address, port uint16, transport process.ConnectionType) *IPTranslation
+	GetTranslationForConn(
+		srcIP util.Address,
+		srcPort uint16,
+		dstIP util.Address,
+		dstPort uint16,
+		transport process.ConnectionType) *IPTranslation
 	ClearShortLived()
 	GetStats() map[string]int64
 	Close()
 }
 
 type connKey struct {
-	ip   util.Address
-	port uint16
+	srcIP   util.Address
+	srcPort uint16
+
+	dstIP   util.Address
+	dstPort uint16
 
 	// the transport protocol of the connection, using the same values as specified in the agent payload.
 	transport process.ConnectionType
@@ -161,13 +169,25 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	return ctr, nil
 }
 
-func (ctr *realConntracker) GetTranslationForConn(ip util.Address, port uint16, transport process.ConnectionType) *IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(
+	srcIP util.Address,
+	srcPort uint16,
+	dstIP util.Address,
+	dstPort uint16,
+	transport process.ConnectionType,
+) *IPTranslation {
 	then := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	k := connKey{ip, port, transport}
+	k := connKey{
+		srcIP:     srcIP,
+		srcPort:   srcPort,
+		dstIP:     dstIP,
+		dstPort:   dstPort,
+		transport: transport,
+	}
 	var result *IPTranslation
 	value, ok := ctr.state[k]
 	if !ok {
@@ -319,7 +339,7 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 	then := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.unregisters, 1)
 	atomic.AddInt64(&ctr.stats.unregistersTotalTime, then-now)
-	if misses == 2 {
+	if misses > 0 {
 		log.Debugf("missed register event for: %s", conDebug(c))
 		atomic.AddInt64(&ctr.stats.missedRegisters, 1)
 	}
@@ -389,8 +409,10 @@ func formatIPTranslation(tuple *ct.IPTuple, generation uint8) *connValue {
 
 func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 	ok = true
-	k.ip = util.AddressFromNetIP(*tuple.Src)
-	k.port = *tuple.Proto.SrcPort
+	k.srcIP = util.AddressFromNetIP(*tuple.Src)
+	k.dstIP = util.AddressFromNetIP(*tuple.Dst)
+	k.srcPort = *tuple.Proto.SrcPort
+	k.dstPort = *tuple.Proto.DstPort
 
 	proto := *tuple.Proto.Number
 	switch proto {
