@@ -12,6 +12,7 @@ import (
 	"errors"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -96,4 +97,71 @@ func TestSafeReaderClose(t *testing.T) {
 	reader.setUnsafeReader(nil)
 	err = reader.Close()
 	assert.Equal(t, errReaderNotInitialized, err)
+}
+
+func Test_safeReader_getBackoffAndIncrement(t *testing.T) {
+	type fields struct {
+		backoffRetry           int
+		backoffWaitDuration    time.Duration
+		backoffDefaultDuration time.Duration
+	}
+	tests := []struct {
+		name             string
+		fields           fields
+		want             time.Duration
+		wantRetry        int
+		wantWaitDuration time.Duration
+	}{
+		{
+			name: "init backoff, should return 0",
+			fields: fields{
+				backoffRetry:           0,
+				backoffWaitDuration:    0,
+				backoffDefaultDuration: time.Second,
+			},
+			want:             0,
+			wantRetry:        1,
+			wantWaitDuration: time.Second,
+		},
+		{
+			name: "second backoff, should return 1",
+			fields: fields{
+				backoffRetry:           1,
+				backoffWaitDuration:    time.Second,
+				backoffDefaultDuration: time.Second,
+			},
+			want:             time.Second,
+			wantRetry:        2,
+			wantWaitDuration: 3 * time.Second,
+		},
+		{
+			name: "third backoff, should return 3",
+			fields: fields{
+				backoffRetry:           2,
+				backoffWaitDuration:    3 * time.Second,
+				backoffDefaultDuration: time.Second,
+			},
+			want:             3 * time.Second,
+			wantRetry:        3,
+			wantWaitDuration: 6 * time.Second,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &safeReader{
+				backoffRetry:           tt.fields.backoffRetry,
+				backoffWaitDuration:    tt.fields.backoffWaitDuration,
+				backoffDefaultDuration: tt.fields.backoffDefaultDuration,
+			}
+			if got := s.getBackoffAndIncrement(); got != tt.want {
+				t.Errorf("safeReader.getBackoffAndIncrement() = %v, want %v", got, tt.want)
+			}
+			if s.backoffRetry != tt.wantRetry {
+				t.Errorf("safeReader.backoffRetry = %v, want %v", s.backoffRetry, tt.wantRetry)
+			}
+			if s.backoffWaitDuration != tt.wantWaitDuration {
+				t.Errorf("safeReader.backoffWaitDuration = %v, want %v", s.backoffWaitDuration, tt.wantWaitDuration)
+			}
+		})
+	}
 }
