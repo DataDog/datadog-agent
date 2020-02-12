@@ -20,6 +20,11 @@ func newStringInterner(maxSize int) *stringInterner {
 // If we need to store a new entry and the cache is at its maximum capacity,
 // it is reset.
 func (i *stringInterner) LoadOrStore(key []byte) string {
+	// here is the string interner trick: the map lookup using
+	// string(key) doesn't actually allocate a string, but is
+	// returning the string value -> no new heap allocation
+	// for this string.
+	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := i.strings[string(key)]; found {
 		return s
 	}
