@@ -30,11 +30,6 @@ func (a *Agent) Finish() *Sketch {
 	return a.Sketch.Copy()
 }
 
-// Flush flushes any pending inserts.
-func (a *Agent) Flush() {
-	a.flush()
-}
-
 // flush buffered values into the sketch.
 func (a *Agent) flush() {
 	if len(a.Buf) != 0 {
@@ -78,7 +73,7 @@ func (a *Agent) InsertInterpolate(l float64, u float64, n uint) {
 	for k := agentConfig.key(l); k <= agentConfig.key(u); k++ {
 		keys = append(keys, k)
 	}
-	// non-linear interpolation
+	// @TODO[jtb] this is non-linear interpolation, make it linear
 	each := n / uint(len(keys))
 	leftover := n - (each * uint(len(keys)))
 	for _, k := range keys {
