@@ -43,14 +43,6 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
-	// TODO move to tracer
-	if runtime.GOOS != "windows" {
-		// make sure debugfs is mounted
-		if mounted, msg := util.IsDebugfsMounted(); !mounted {
-			return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
-		}
-	}
-
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
 
 	t, err := ebpf.NewTracer(config.SysProbeConfigFromConfig(cfg))

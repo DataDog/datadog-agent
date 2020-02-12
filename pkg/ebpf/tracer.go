@@ -113,6 +113,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
 	}
 
+	// make sure debugfs is mounted
+	if mounted, msg := util.IsDebugfsMounted(); !mounted {
+		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
+	}
+
 	// Enable kernel probes used for offset guessing.
 	// TODO: Disable them once offsets have been figured out.
 	for _, probeName := range offsetGuessProbes(config) {
