@@ -8,6 +8,7 @@ from invoke import task
 # ALL_TAGS lists any available build tag
 ALL_TAGS = set([
     "apm",
+    "cloudfoundry",
     "clusterchecks",
     "consul",
     "containerd",
@@ -39,6 +40,7 @@ PROCESS_ONLY_TAGS = [
 ]
 
 LINUX_ONLY_TAGS = [
+    "cloudfoundry",
     "containerd",
     "cri",
     "docker",

@@ -18,23 +18,46 @@ from .go import deps, generate
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
-DEFAULT_BUILD_TAGS = [
-    "kubeapiserver",
-    "clusterchecks",
-    "secrets",
-]
+DEFAULT_PLATFORM = "kubernetes"
+DEFAULT_BUILD_TAGS = {
+    "kubernetes": [
+        "kubeapiserver",
+        "clusterchecks",
+        "secrets",
+    ],
+    "cloudfoundry": [
+        "cloudfoundry",
+        "clustercheks",
+        "secrets",
+    ],
+}
+
+
+def get_default_build_tags(platform):
+    tags = DEFAULT_BUILD_TAGS.get(platform, None)
+    if tags is None:
+        msg = "Unknown platform {}, available choices: {}".format(
+            platform,
+            ', '.join(DEFAULT_BUILD_TAGS.keys())
+        )
+        raise Exit(message=msg, code=1)
+    return tags
 
 
 @task
 def build(ctx, rebuild=False, build_include=None, build_exclude=None,
-          race=False, development=True, skip_assets=False):
+          race=False, development=True, skip_assets=False, platform=DEFAULT_PLATFORM):
     """
     Build Cluster Agent
 
      Example invokation:
         inv cluster-agent.build
     """
-    build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
+    bin = "datadog-cluster-agent"
+    if platform != DEFAULT_PLATFORM:
+        bin += "-" + platform
+    build_include = get_default_build_tags(platform) \
+        if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -50,7 +73,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "-i",
         "build_tags": " ".join(build_tags),
-        "bin_name": os.path.join(BIN_PATH, bin_name("datadog-cluster-agent")),
+        "bin_name": os.path.join(BIN_PATH, bin_name(bin)),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
@@ -106,7 +129,8 @@ def clean(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False,
+                      platform=DEFAULT_PLATFORM):
     """
     Run integration tests for cluster-agent
     """
@@ -114,7 +138,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         deps(ctx)
 
     # We need docker for the kubeapiserver integration tests
-    tags = DEFAULT_BUILD_TAGS + ["docker"]
+    tags = get_default_build_tags(platform) + ["docker"]
 
     test_args = {
         "go_build_tags": " ".join(get_build_tags(tags, [])),

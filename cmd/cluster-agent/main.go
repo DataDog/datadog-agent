@@ -4,7 +4,7 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 // +build !windows
-// +build kubeapiserver
+// +build kubeapiserver cloudfoundry
 
 //go:generate go run ../../pkg/config/render_config.go dca ../../pkg/config/config_template.yaml ../../Dockerfiles/cluster-agent/datadog-cluster.yaml
 
