@@ -14,7 +14,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -80,9 +79,6 @@ func init() {
 	// attach the command to the root
 	dogstatsdCmd.AddCommand(startCmd)
 	dogstatsdCmd.AddCommand(versionCmd)
-
-	// enable blocking profiler
-	runtime.SetBlockProfileRate(1)
 
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
