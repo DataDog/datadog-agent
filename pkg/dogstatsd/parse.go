@@ -22,8 +22,6 @@ var (
 	colonSeparator = []byte(":")
 	commaSeparator = []byte(",")
 
-	commaSeparatorString = ","
-
 	// how many strings the string interner is caching
 	stringInternerCacheSize = 4096
 )
