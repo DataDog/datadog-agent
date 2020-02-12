@@ -69,17 +69,18 @@ func (a *Agent) InsertInterpolate(l float64, u float64, n uint) {
 	}
 	whatsLeft := n
 	kStartIdx := 0
+	lowerB := agentConfig.f64(keys[kStartIdx])
 	kEndIdx := 1
 	for kEndIdx < len(keys) {
-		distance := u - l
-		lowerB := agentConfig.f64(keys[kStartIdx])
 		upperB := agentConfig.f64(keys[kEndIdx])
+		distance := u - l
 		kn := uint(((upperB - lowerB) / distance) * float64(whatsLeft))
 		if kn > 0 {
 			a.Sketch.Basic.InsertN(lowerB, kn)
 			a.CountBuf = append(a.CountBuf, KeyCount{k: keys[kStartIdx], n: kn})
 			whatsLeft -= kn
 			kStartIdx = kEndIdx
+			lowerB = upperB
 		}
 		kEndIdx++
 	}
