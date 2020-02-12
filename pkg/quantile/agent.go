@@ -67,15 +67,23 @@ func (a *Agent) InsertInterpolate(l float64, u float64, n uint) {
 	for k := agentConfig.key(l); k <= agentConfig.key(u); k++ {
 		keys = append(keys, k)
 	}
-	// @TODO[jtb] this is non-linear interpolation, make it linear
-	each := n / uint(len(keys))
-	leftover := n - (each * uint(len(keys)))
-	for _, k := range keys {
-		a.Sketch.Basic.InsertN(agentConfig.f64(k), each)
-		a.CountBuf = append(a.CountBuf, KeyCount{k: k, n: each})
+	whatsLeft := n
+	kStartIdx := 0
+	kEndIdx := 1
+	for kEndIdx < len(keys) {
+		distance := u - l
+		lowerB := agentConfig.f64(keys[kStartIdx])
+		upperB := agentConfig.f64(keys[kEndIdx])
+		kn := uint(((upperB - lowerB) / distance) * float64(whatsLeft))
+		if kn > 0 {
+			a.Sketch.Basic.InsertN(lowerB, kn)
+			a.CountBuf = append(a.CountBuf, KeyCount{k: keys[kStartIdx], n: kn})
+			whatsLeft -= kn
+			kStartIdx = kEndIdx
+		}
+		kEndIdx++
 	}
-	lastk := keys[len(keys)-1]
-	a.Sketch.Basic.InsertN(agentConfig.f64(lastk), leftover)
-	a.CountBuf = append(a.CountBuf, KeyCount{k: lastk, n: leftover})
+	a.Sketch.Basic.InsertN(agentConfig.f64(keys[len(keys)-1]), whatsLeft)
+	a.CountBuf = append(a.CountBuf, KeyCount{k: keys[len(keys)-1], n: whatsLeft})
 	a.flush()
 }

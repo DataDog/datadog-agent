@@ -278,11 +278,11 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 
 	checkSampler.commit(12349.0)
 	_, flushed := checkSampler.flush()
+	assert.Equal(t, 1, len(flushed))
 
 	expSketch := &quantile.Sketch{}
 	expSketch.InsertMany(quantile.Default(), []float64{9000.0, 9000.0, 9000.0, 9000.0})
 
-	assert.Equal(t, 1, len(flushed))
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},

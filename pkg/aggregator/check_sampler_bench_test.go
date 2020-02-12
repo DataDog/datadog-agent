@@ -31,7 +31,6 @@ func benchmarkAddBucket(bucketValue int, b *testing.B) {
 		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int)
 		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
 	}
-	b.Logf("Sketch size: %d", checkSampler.sketchMap.Len())
 }
 
 func benchmarkAddBucketWideBounds(bucketValue int, b *testing.B) {
@@ -58,8 +57,6 @@ func benchmarkAddBucketWideBounds(bucketValue int, b *testing.B) {
 		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int)
 		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
 	}
-	b.Logf("Sketch size: %d", checkSampler.sketchMap.Len())
-
 }
 
 func BenchmarkAddBucket1(b *testing.B)        { benchmarkAddBucket(1, b) }
