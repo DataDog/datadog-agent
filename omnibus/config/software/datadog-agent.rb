@@ -76,7 +76,6 @@ build do
   unless windows?
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/scripts/"
-    mkdir "#{install_dir}/selinux/"
   end
 
   ## build the custom action library required for the install
