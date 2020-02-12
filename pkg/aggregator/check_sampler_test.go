@@ -210,12 +210,12 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 
 	checkSampler.commit(12349.0)
 	_, flushed := checkSampler.flush()
+	assert.Equal(t, 1, len(flushed))
 
 	expSketch := &quantile.Sketch{}
 	// linear interpolated values
 	expSketch.Insert(quantile.Default(), 10.0, 12.5, 15.0, 17.5)
 
-	assert.Equal(t, 1, len(flushed))
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},

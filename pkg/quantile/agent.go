@@ -61,12 +61,6 @@ func (a *Agent) Insert(v float64) {
 	a.flush()
 }
 
-// InsertN inserts v, n times into the sketch.
-func (a *Agent) InsertN(v float64, n uint) {
-	a.Sketch.Basic.InsertN(v, n)
-	a.CountBuf = append(a.CountBuf, KeyCount{k: agentConfig.key(v), n: n})
-}
-
 // InsertInterpolate linearly interpolates counts from lower (l) to upper (u)
 func (a *Agent) InsertInterpolate(l float64, u float64, n uint) {
 	keys := make([]Key, 0)
@@ -80,6 +74,8 @@ func (a *Agent) InsertInterpolate(l float64, u float64, n uint) {
 		a.Sketch.Basic.InsertN(agentConfig.f64(k), each)
 		a.CountBuf = append(a.CountBuf, KeyCount{k: k, n: each})
 	}
-	a.CountBuf = append(a.CountBuf, KeyCount{k: keys[len(keys)-1], n: leftover})
+	lastk := keys[len(keys)-1]
+	a.Sketch.Basic.InsertN(agentConfig.f64(lastk), leftover)
+	a.CountBuf = append(a.CountBuf, KeyCount{k: lastk, n: leftover})
 	a.flush()
 }
