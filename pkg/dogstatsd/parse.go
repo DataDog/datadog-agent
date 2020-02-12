@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strconv"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 type messageType int
@@ -21,9 +23,6 @@ var (
 	fieldSeparator = []byte("|")
 	colonSeparator = []byte(":")
 	commaSeparator = []byte(",")
-
-	// how many strings the string interner is caching
-	stringInternerCacheSize = 4096
 )
 
 // parser parses dogstatsd messages
@@ -33,6 +32,11 @@ type parser struct {
 }
 
 func newParser() *parser {
+	stringInternerCacheSize := config.Datadog.GetInt("dogstatsd_string_interner_size")
+	if stringInternerCacheSize == 0 {
+		stringInternerCacheSize = 4096
+	}
+
 	return &parser{
 		interner: newStringInterner(stringInternerCacheSize),
 	}
