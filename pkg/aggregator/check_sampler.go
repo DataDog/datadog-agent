@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -104,6 +105,10 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	}
 	if bucket.Value == 0 {
 		// noop
+		return
+	}
+	if math.IsInf(bucket.UpperBound, 1) {
+		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
 		return
 	}
 
