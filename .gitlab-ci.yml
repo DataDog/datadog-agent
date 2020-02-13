@@ -319,11 +319,12 @@ run_tests_ebpf:
     - inv -e deps --verbose --dep-vendor-only
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
-    - tar -xvf /tmp/libbcc.tar.xz -C /usr
+    - mkdir /opt/libbcc
+    - tar -xvf /tmp/libbcc.tar.xz -C /opt/libbcc
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
-    - inv -e system-probe.test --only-check-bpf-bytes
+    - CGO_CFLAGS='-I/opt/libbcc/include' CGO_LDFLAGS='-Wl,-rpath,/opt/libbcc/lib -L/opt/libbcc/lib' inv -e system-probe.test --only-check-bpf-bytes
 
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
