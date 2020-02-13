@@ -247,13 +247,14 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 
 func (s *Server) worker() {
 	batcher := newBatcher(s.samplePool, s.samplesOut, s.eventsOut, s.servicesCheckOut)
+	parser := newParser()
 	for {
 		select {
 		case <-s.stopChan:
 			return
 		case <-s.health.C:
 		case packets := <-s.packetsIn:
-			s.parsePackets(batcher, packets)
+			s.parsePackets(batcher, parser, packets)
 		}
 	}
 }
@@ -272,7 +273,7 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
-func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
+func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet) {
 	for _, packet := range packets {
 		originTags := findOriginTags(packet.Origin)
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
@@ -291,7 +292,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 
 			switch messageType {
 			case serviceCheckType:
-				serviceCheck, err := s.parseServiceCheckMessage(message)
+				serviceCheck, err := s.parseServiceCheckMessage(parser, message)
 				if err != nil {
 					log.Errorf("Dogstatsd: error parsing service check %q: %s", message, err)
 					continue
@@ -299,7 +300,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 				serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
-				event, err := s.parseEventMessage(message)
+				event, err := s.parseEventMessage(parser, message)
 				if err != nil {
 					log.Errorf("Dogstatsd: error parsing event %q: %s", message, err)
 					continue
@@ -307,7 +308,7 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 				event.Tags = append(event.Tags, originTags...)
 				batcher.appendEvent(event)
 			case metricSampleType:
-				sample, err := s.parseMetricMessage(message)
+				sample, err := s.parseMetricMessage(parser, message)
 				if err != nil {
 					log.Errorf("Dogstatsd: error parsing metric message %q: %s", message, err)
 					continue
@@ -330,8 +331,8 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 	batcher.flush()
 }
 
-func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error) {
-	sample, err := parseMetricSample(message)
+func (s *Server) parseMetricMessage(parser *parser, message []byte) (metrics.MetricSample, error) {
+	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
 		tlmProcessed.Inc("metrics", "error")
@@ -355,8 +356,8 @@ func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error
 	return metricSample, nil
 }
 
-func (s *Server) parseEventMessage(message []byte) (*metrics.Event, error) {
-	sample, err := parseEvent(message)
+func (s *Server) parseEventMessage(parser *parser, message []byte) (*metrics.Event, error) {
+	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
 		tlmProcessed.Inc("events", "error")
@@ -369,8 +370,8 @@ func (s *Server) parseEventMessage(message []byte) (*metrics.Event, error) {
 	return event, nil
 }
 
-func (s *Server) parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
-	sample, err := parseServiceCheck(message)
+func (s *Server) parseServiceCheckMessage(parser *parser, message []byte) (*metrics.ServiceCheck, error) {
+	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
 		tlmProcessed.Inc("service_checks", "error")
