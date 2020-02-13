@@ -74,7 +74,7 @@ func parseN(t *testing.T, s string) uint64 {
 	}
 
 	// <k>:max case
-	n := uint64(math.MaxUint16)
+	n := uint64(math.MaxUint32)
 	switch {
 	case s == "max":
 		return n

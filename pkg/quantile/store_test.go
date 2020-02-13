@@ -13,7 +13,7 @@ import (
 func buildStore(t *testing.T, dsl string) *sparseStore {
 	s := &sparseStore{}
 
-	eachParsedToken(t, dsl, 16, func(k Key, n uint64) {
+	eachParsedToken(t, dsl, 32, func(k Key, n uint64) {
 		if n > maxBinWidth {
 			t.Fatal("n > max", n, maxBinWidth)
 		}
@@ -95,7 +95,7 @@ func TestStore(t *testing.T) {
 			},
 			{
 				s: "1:max 1:max 1:1 2:max 3:1 4:1",
-				e: "1:65535 1:65535 2:1 2:65535 3:1 4:1",
+				e: "1:4294967295 1:4294967295 2:1 2:4294967295 3:1 4:1",
 				b: 3,
 			},
 			{
@@ -159,8 +159,6 @@ func TestStore(t *testing.T) {
 			c("0:1 0:max 0:max", "0:3 0:max 0:max", 0, 0),
 			c("1:1 3:1 4:1 5:1 6:1 7:1", "1:1 2:1 3:2 4:1 5:1 6:1 7:1", 2, 3),
 			c("1:1 3:1", "1:1 2:3 3:1", 2, 2, 2),
-			c("1:1", "0:3 0:max 1:1", make([]Key, maxBinWidth+3)...),
-			c("", "0:1 0:max 0:max", make([]Key, maxBinWidth*2+1)...),
 			c("0:max-3", "0:2 0:max", make([]Key, 5)...),
 		} {
 			// TODO|TEST: that we never exceed binLimit.
