@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -41,11 +42,12 @@ func initForwarderHealthExpvars() {
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
 // unhealthy if the API keys are not longer valid
 type forwarderHealth struct {
-	health         *health.Handle
-	stop           chan bool
-	stopped        chan struct{}
-	timeout        time.Duration
-	keysPerDomains map[string][]string
+	health             *health.Handle
+	stop               chan bool
+	stopped            chan struct{}
+	timeout            time.Duration
+	keysPerDomains     map[string][]string
+	keysPerAPIEndpoint map[string][]string
 }
 
 func (fh *forwarderHealth) init() {
@@ -66,6 +68,8 @@ func (fh *forwarderHealth) init() {
 }
 
 func (fh *forwarderHealth) Start() {
+	fh.keysPerAPIEndpoint = make(map[string][]string)
+	fh.setKeysPerAPIEndpoints()
 	fh.health = health.Register("forwarder")
 	fh.init()
 	go fh.healthCheckLoop()
@@ -102,6 +106,24 @@ func (fh *forwarderHealth) healthCheckLoop() {
 				return
 			}
 		case <-fh.health.C:
+		}
+	}
+}
+
+//populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
+func (fh *forwarderHealth) setKeysPerAPIEndpoints() {
+	for domain, apiKeys := range fh.keysPerDomains {
+		apiDomain := ""
+		re := regexp.MustCompile("datadoghq.[a-z]*")
+		if re.MatchString(domain) {
+			apiDomain = "https://api." + re.FindString(domain)
+		} else {
+			apiDomain = domain
+		}
+		if _, ok := fh.keysPerAPIEndpoint[apiDomain]; ok {
+			fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], apiKeys...)
+		} else {
+			fh.keysPerAPIEndpoint[apiDomain] = apiKeys
 		}
 	}
 }
@@ -156,7 +178,7 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 	validKey := false
 	apiError := false
 
-	for domain, apiKeys := range fh.keysPerDomains {
+	for domain, apiKeys := range fh.keysPerAPIEndpoint {
 		for _, apiKey := range apiKeys {
 			v, err := fh.validateAPIKey(apiKey, domain)
 			if err != nil {
