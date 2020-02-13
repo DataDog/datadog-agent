@@ -8,7 +8,7 @@ name 'bcc'
 dependency 'libelf'
 
 build do
-  command "#{ENV['S3_CP_CMD']} #{ENV['S3_ARTIFACTS_URI']}/libbcc-#{ENV['PACKAGE_ARCH']}.tar.xz /tmp/libbcc.tar.xz"
-  command "tar -xvf /tmp/libbcc.tar.xz -C #{install_dir}/embedded"
-  delete '/tmp/libbcc.tar.xz'
+  if ENV.has_key?('LIBBCC_TARBALL') and not ENV['LIBBCC_TARBALL'].empty?
+    command "tar -xvf #{ENV['LIBBCC_TARBALL']} -C #{install_dir}/embedded"
+  end
 end
