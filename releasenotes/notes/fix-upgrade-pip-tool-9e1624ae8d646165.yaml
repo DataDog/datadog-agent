@@ -1,4 +1,4 @@
 ---
 upgrade:
   - |
-    Upgrade pip-tool and wheel for py2.
+    Upgrade ``pip-tools`` and ``wheel`` dependencies for Python 2.
