@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Upgrade pip-tool and wheel for py2.
