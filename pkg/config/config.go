@@ -27,8 +27,9 @@ import (
 
 const (
 	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite    = "datadoghq.com"
-	infraURLPrefix = "https://app."
+	DefaultSite         = "datadoghq.com"
+	infraURLPrefix      = "https://app."
+	apiValidationPrefix = "https://api."
 
 	// DefaultNumWorkers default number of workers for our check runner
 	DefaultNumWorkers = 4
@@ -856,6 +857,16 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 
 func getMainInfraEndpointWithConfig(config Config) string {
 	return GetMainEndpointWithConfig(config, infraURLPrefix, "dd_url")
+}
+
+//WORKING
+func getAPIValidationEndpoint(config Config) string {
+	//should I add api_validation_endpoint to global config here?
+	//how can I forward or save this value so that forwarderhealth can use it to validate the apikey
+	//does forwarder health have access to the Datadog config type when it runs?
+	apiEndpoint := GetMainEndpointWithConfig(config, apiValidationPrefix, "dd_url")
+	return apiEndpoint
+
 }
 
 // GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
