@@ -566,9 +566,10 @@ run_dogstatsd_arm_size_test:
     - inv -e deps --verbose --dep-vendor-only
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
-    - tar -xvf /tmp/libbcc.tar.xz -C /usr
+    - mkdir -p /opt/datadog-agent/embedded
+    - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
   script:
-    - CGO_LDFLAGS="-Wl,-rpath,/opt/datadog-agent/embedded/lib" inv -e system-probe.build
+    - CGO_CFLAGS='-I/opt/datadog-agent/embedded/include' CGO_LDFLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib -L/opt/datadog-agent/embedded/lib' inv -e system-probe.build
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
 
 build_system-probe-x64:
