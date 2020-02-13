@@ -158,7 +158,7 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 
 	go ctr.run()
 
-	nfct.Register(context.Background(), ct.Conntrack, ct.NetlinkCtNew|ct.NetlinkCtExpectedNew|ct.NetlinkCtUpdate, ctr.register)
+	nfct.Register(context.Background(), ct.Conntrack, ct.NetlinkCtNew, ctr.register)
 	log.Debugf("initialized register hook")
 
 	nfctDel.Register(context.Background(), ct.Conntrack, ct.NetlinkCtDestroy, ctr.unregister)
