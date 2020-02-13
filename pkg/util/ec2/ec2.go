@@ -151,11 +151,11 @@ func getResponse(url string, method string, headers map[string]string) (*http.Re
 	}
 
 	req, err := http.NewRequest(method, url, nil)
-	for header, value := range headers {
-		req.Header.Add(header, value)
-	}
 	if err != nil {
 		return nil, err
+	}
+	for header, value := range headers {
+		req.Header.Add(header, value)
 	}
 
 	res, err := client.Do(req)
@@ -167,7 +167,6 @@ func getResponse(url string, method string, headers map[string]string) (*http.Re
 		// Retry with a token
 		token, err := getToken()
 		if err != nil {
-			fmt.Println("3")
 			return nil, err
 		}
 		headers["X-aws-ec2-metadata-token"] = token
@@ -185,12 +184,11 @@ func getToken() (string, error) {
 	}
 
 	req, err := http.NewRequest(http.MethodPut, tokenURL, nil)
-	req.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", "60")
-
 	if err != nil {
 		return "", err
 	}
 
+	req.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", "60")
 	res, err := client.Do(req)
 	if err != nil {
 		return "", err
