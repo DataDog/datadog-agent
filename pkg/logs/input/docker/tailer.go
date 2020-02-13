@@ -212,6 +212,7 @@ func (t *Tailer) readForever() {
 					// restart the reader (by providing the error the t.reader)
 					// the reader will be restarted with a backoff policy.
 					t.source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart"))
+					log.Debugf("log decoder returns an EOF error that will trigger a Reader restart for container %v", ShortContainerID(t.ContainerID))
 					t.reader.err = err
 					continue
 				default:
@@ -221,7 +222,8 @@ func (t *Tailer) readForever() {
 					return
 				}
 			}
-			t.reader.succeed()
+			t.reader.Success()
+			t.source.Status.Success()
 			if n == 0 {
 				// wait for new data to come
 				t.wait()

@@ -34,7 +34,7 @@ func newSafeReader() *safeReader {
 	}
 }
 
-func (s *safeReader) succeed() {
+func (s *safeReader) Success() {
 	s.err = nil
 	s.backoffRetry = 0
 	s.backoffWaitDuration = 0
