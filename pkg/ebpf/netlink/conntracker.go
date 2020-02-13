@@ -292,7 +292,7 @@ func (ctr *realConntracker) register(c ct.Con) int {
 	atomic.AddInt64(&ctr.stats.registers, 1)
 	atomic.AddInt64(&ctr.stats.registersTotalTime, then-now)
 
-	log.Debugf("registered %s", conDebug(c))
+	log.Tracef("registered %s", conDebug(c))
 	return 0
 }
 
