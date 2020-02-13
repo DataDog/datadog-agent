@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -172,6 +174,15 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	}
 
 	var service *service.Service
+
+	commonGlobalOptions := integration.CommonGlobalConfig{}
+	err = yaml.Unmarshal(config.InitConfig, &commonGlobalOptions)
+	if err != nil {
+		return nil, fmt.Errorf("invalid init_config section for source %s: %s", config.Name, err)
+	}
+
+	globalServiceDefined := len(commonGlobalOptions.Service) > 0
+
 	if config.Entity != "" {
 		// all configs attached to a docker label or a pod annotation contains an entity;
 		// this entity is used later on by an input to match a service with a source
@@ -186,6 +197,11 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	configName := s.configName(config)
 	var sources []*logsConfig.LogSource
 	for _, cfg := range configs {
+		// if no service is set fall back to the global one
+		if len(cfg.Service) == 0 && globalServiceDefined {
+			cfg.Service = commonGlobalOptions.Service
+		}
+
 		if service != nil {
 			// a config defined in a docker label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.

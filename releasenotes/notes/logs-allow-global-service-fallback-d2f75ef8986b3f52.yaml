@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Allow sources for the Logs Agent to fallback to the ``service``
+    defined in the ``init_config`` section of integration configuration.
