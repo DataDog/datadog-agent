@@ -853,6 +853,9 @@ func trimTrailingSlashFromURLS(config Config) error {
 		}
 		for domain, key := range additionalEndpoints {
 			for {
+				if len(domain) == 0 {
+					continue
+				}
 				domain = strings.TrimSuffix(domain, "/")
 				if domain[len(domain)-1:] != "/" {
 					sanitizedAdditionalEndpoints[domain] = key
