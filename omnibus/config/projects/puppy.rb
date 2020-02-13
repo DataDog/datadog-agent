@@ -125,11 +125,6 @@ if windows?
   dependency 'datadog-agent-finalize'
 end
 
-# System probe
-if linux?
-  dependency 'system-probe'
-end
-
 # version manifest file
 dependency 'version-manifest'
 
