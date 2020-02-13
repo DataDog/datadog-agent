@@ -10,48 +10,16 @@ package docker
 import (
 	"errors"
 	"io"
-	"time"
 )
 
 var errReaderNotInitialized = errors.New("reader not initialized")
 
-const defaultBackoffDuration = time.Second
-const maxBackoffDuration = 30 * time.Second
-
 type safeReader struct {
 	reader io.ReadCloser
-
-	err error
-
-	backoffRetry           int
-	backoffWaitDuration    time.Duration
-	backoffDefaultDuration time.Duration
 }
 
 func newSafeReader() *safeReader {
-	return &safeReader{
-		backoffDefaultDuration: defaultBackoffDuration,
-	}
-}
-
-func (s *safeReader) Success() {
-	s.err = nil
-	s.backoffRetry = 0
-	s.backoffWaitDuration = 0
-}
-
-func (s *safeReader) getBackoffAndIncrement() time.Duration {
-	if s.backoffWaitDuration == maxBackoffDuration {
-		return s.backoffWaitDuration
-	}
-	duration := s.backoffWaitDuration
-	s.backoffRetry++
-	s.backoffWaitDuration += time.Duration(s.backoffRetry) * s.backoffDefaultDuration
-	if s.backoffWaitDuration > maxBackoffDuration {
-		s.backoffWaitDuration = maxBackoffDuration
-	}
-
-	return duration
+	return &safeReader{}
 }
 
 func (s *safeReader) setUnsafeReader(reader io.ReadCloser) {
