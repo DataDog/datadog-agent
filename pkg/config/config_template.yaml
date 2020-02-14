@@ -1479,3 +1479,41 @@ api_key:
 # cluster_name: <CLUSTER_IDENTIFIER>
 
 {{ end -}}
+{{- if .CloudFoundryBBS }}
+#######################################################
+## Cloud Foundry BBS Configuration for Autodiscovery ##
+#######################################################
+
+## @param cloud_foundry_bbs - custom object - optional
+## This section configures how Cluster Agent accesses BBS API to gather information
+## necessary for autodiscovery on BBS-based Cloud Foundry deployments.
+#
+# cloud_foundry_bbs:
+
+  ## @param url - string - optional - default: https://bbs.service.cf.internal:8889
+  ## URL of the BBS API.
+  #
+  # url: https://bbs.service.cf.internal:8889
+
+  ## @param poll_interval - integer - optional - default: 15
+  ## How often to refresh data from BBS API, in seconds. Values lower than 10 might influence
+  ## performance of other operations in the cluster.
+  #
+  # poll_interval: 15
+
+  ## @param ca_file - string - optional - default: ""
+  ## PEM-encoded CA certificate used when connecting to the BBS API.
+  #
+  # ca_file: ""
+
+  ## @param cert_file - string - optional - default: ""
+  ## PEM-encoded client certificate used when connecting to the BBS API.
+  #
+  # cert_file: ""
+
+  ## @param key_file - string - optional - default: ""
+  ## PEM-encoded client key used when connecting to the BBS API.
+  #
+  # key_file: ""
+
+{{ end -}}

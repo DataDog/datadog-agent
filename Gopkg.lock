@@ -2,6 +2,43 @@
 
 
 [[projects]]
+  digest = "1:1260c7a2fa91d5a7d5e515fb36e695491d341bff65e9299d0bd16cf2f6539c88"
+  name = "code.cloudfoundry.org/bbs"
+  packages = [
+    ".",
+    "encryption",
+    "events",
+    "format",
+    "models",
+  ]
+  pruneopts = ""
+  revision = "d0518a556b8f5320812b7d26d20ef0a71f058d44"
+
+[[projects]]
+  digest = "1:2c620dd8ec51475b61f876e9ec1dac8a06e3a4f81b5ffb5cb28d1ce9725b4c52"
+  name = "code.cloudfoundry.org/cfhttp"
+  packages = ["v2"]
+  pruneopts = ""
+  revision = "96f7a23cbfc6b07fdc47b5b51ed7ca6215dfeb0c"
+  version = "v2.0.0"
+
+[[projects]]
+  digest = "1:673cab9bb26a0011fbc34255ec4a6695ecb31cf6338860263959c415e3aa3dd1"
+  name = "code.cloudfoundry.org/lager"
+  packages = ["."]
+  pruneopts = ""
+  revision = "b152b7147a2a0154109a5194fcc7f4a933283abb"
+  version = "v2.0.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:940a615bfcfa3879421b3150f6dbec81219884e627b7d60f4a7406b2d1ec0e9a"
+  name = "code.cloudfoundry.org/tlsconfig"
+  packages = ["."]
+  pruneopts = ""
+  revision = "bbe0f8da39b3c59d42217afcc79019c754dabdfb"
+
+[[projects]]
   digest = "1:f882937802f3c29b5acf7ff0464920d13df994f84e209f2f4e956703d68a109f"
   name = "github.com/DataDog/agent-payload"
   packages = [
@@ -232,6 +269,21 @@
   pruneopts = ""
   revision = "37c8de3658fcb183f997c4e13e8337516ab753e6"
   version = "v1.0.1"
+
+[[projects]]
+  digest = "1:726bda001886a6f0db8ff130569d6e6e16a152d344cd8db55ee5cea57a435c99"
+  name = "github.com/bhmj/jsonslice"
+  packages = ["."]
+  pruneopts = ""
+  revision = "882a55fa931cb1034965bd34d2366b6b5fb012ae"
+
+[[projects]]
+  branch = "master"
+  digest = "1:da54e55f2f63347514121c0d7b53631970367b26281d057ec66925c57324b8f1"
+  name = "github.com/bmizerany/pat"
+  packages = ["."]
+  pruneopts = ""
+  revision = "6226ea591a40176dd3ff9cd8eff81ed6ca721a00"
 
 [[projects]]
   digest = "1:8561fc011218ed9821f6d73057154e692cdfd0f37e929ef6c4a574b6299136cb"
@@ -1296,6 +1348,14 @@
   revision = "d98352740cb2c55f81556b63d4a1ec64c5a319c2"
 
 [[projects]]
+  digest = "1:5eb69e54b6af5896a81dc45c5125eebe4b37a70df5e121e41d5a879a0c740234"
+  name = "github.com/tedsuo/rata"
+  packages = ["."]
+  pruneopts = ""
+  revision = "0649c23705dfb45a9693b668c4fc1c0666f485d9"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:23ed2a28cfc147d46f7fbf4d85f83f6d659e15eac4ad1c16c4d32b19da5bd2fa"
   name = "github.com/tinylib/msgp"
   packages = ["msgp"]
@@ -1345,6 +1405,14 @@
   packages = ["."]
   pruneopts = ""
   revision = "0a2b9b5464df8343199164a0321edf3313202f7e"
+
+[[projects]]
+  digest = "1:c08877a1449a912a4ab75f557c70bd2e1af5a024e61dbc6118a0229f4def32ad"
+  name = "github.com/vito/go-sse"
+  packages = ["sse"]
+  pruneopts = ""
+  revision = "6da6c7343a744d57f29151a2d2c3817c21ffe9bf"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -2119,6 +2187,9 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "code.cloudfoundry.org/bbs",
+    "code.cloudfoundry.org/bbs/models",
+    "code.cloudfoundry.org/lager",
     "github.com/DataDog/agent-payload/gogen",
     "github.com/DataDog/agent-payload/process",
     "github.com/DataDog/datadog-go/statsd",
@@ -2147,6 +2218,7 @@
     "github.com/aws/aws-sdk-go/service/ec2",
     "github.com/beevik/ntp",
     "github.com/benesch/cgosymbolizer",
+    "github.com/bhmj/jsonslice",
     "github.com/cenkalti/backoff",
     "github.com/cihub/seelog",
     "github.com/clbanning/mxj",
