@@ -54,6 +54,9 @@ func (fh *forwarderHealth) init() {
 	fh.stop = make(chan bool, 1)
 	fh.stopped = make(chan struct{})
 
+	fh.keysPerAPIEndpoint = make(map[string][]string)
+	fh.computeDomainsURL()
+
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
 	apiKeyCount := 0
@@ -68,8 +71,6 @@ func (fh *forwarderHealth) init() {
 }
 
 func (fh *forwarderHealth) Start() {
-	fh.keysPerAPIEndpoint = make(map[string][]string)
-	fh.setKeysPerAPIEndpoints()
 	fh.health = health.Register("forwarder")
 	fh.init()
 	go fh.healthCheckLoop()
@@ -110,8 +111,8 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	}
 }
 
-//populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
-func (fh *forwarderHealth) setKeysPerAPIEndpoints() {
+//computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
+func (fh *forwarderHealth) computeDomainsURL() {
 	for domain, apiKeys := range fh.keysPerDomains {
 		apiDomain := ""
 		re := regexp.MustCompile("datadoghq.[a-z]*")
@@ -120,11 +121,7 @@ func (fh *forwarderHealth) setKeysPerAPIEndpoints() {
 		} else {
 			apiDomain = domain
 		}
-		if _, ok := fh.keysPerAPIEndpoint[apiDomain]; ok {
-			fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], apiKeys...)
-		} else {
-			fh.keysPerAPIEndpoint[apiDomain] = apiKeys
-		}
+		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], apiKeys...)
 	}
 }
 
