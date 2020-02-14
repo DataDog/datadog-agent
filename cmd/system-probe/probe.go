@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -49,13 +48,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
-	var conn net.Conn
-	if runtime.GOOS != "windows" {
-		conn, err = net.NewUDSListener(cfg)
-	} else {
-		conn, err = net.NewListener(cfg)
-	}
-
+	conn, err := net.NewListener(cfg)
 	if err != nil {
 		return nil, err
 	}
