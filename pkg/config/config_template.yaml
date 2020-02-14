@@ -65,6 +65,12 @@ api_key:
 #   - environment:dev
 #   - <TAG_KEY>:<TAG_VALUE>
 
+## @param env - string - optional
+## The environment name where the agent is running. Attached in-app to every
+## metric, event, log, trace, and service check emitted by this Agent.
+#
+# env: <environment name>
+
 ## @param tag_value_split_separator - list of key:value elements - optional
 ## Split tag values according to a given separator. Only applies to host tags,
 ## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
@@ -429,9 +435,9 @@ api_key:
   ## compresses logs before sending them.
   #
   # use_compression: true
-  
+
   ## @param compression_level - integer - optional - default: 6
-  ## The compression_level parameter accepts values from 0 (no compression) 
+  ## The compression_level parameter accepts values from 0 (no compression)
   ## to 9 (maximum compression but higher resource usage).
   #
   # compression_level: 6
@@ -457,7 +463,9 @@ api_key:
 
   ## @param env - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
-  ## Inherits from "env" tag if "none" is applied here.
+  ## If not set the value will be inherited, in order, from the top level
+  ## "env" config option if set and then from the 'env:' tag if present in the
+  ## 'tags' top level config option.
   #
   # env: none
 

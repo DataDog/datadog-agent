@@ -175,6 +175,18 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	if config.Datadog.IsSet("apm_config.env") {
 		c.DefaultEnv = config.Datadog.GetString("apm_config.env")
+		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", c.DefaultEnv)
+	} else if config.Datadog.IsSet("env") {
+		c.DefaultEnv = config.Datadog.GetString("env")
+		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", c.DefaultEnv)
+	} else if config.Datadog.IsSet("tags") {
+		for _, tag := range config.Datadog.GetStringSlice("tags") {
+			if strings.HasPrefix(tag, "env:") {
+				c.DefaultEnv = strings.TrimPrefix(tag, "env:")
+				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", c.DefaultEnv, tag)
+				break
+			}
+		}
 	}
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = config.Datadog.GetInt("apm_config.receiver_port")
