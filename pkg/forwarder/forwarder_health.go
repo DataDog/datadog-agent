@@ -111,7 +111,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	}
 }
 
-//computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
+// computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
 func (fh *forwarderHealth) computeDomainsURL() {
 	for domain, apiKeys := range fh.keysPerDomains {
 		apiDomain := ""
