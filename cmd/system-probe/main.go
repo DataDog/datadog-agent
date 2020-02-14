@@ -31,7 +31,6 @@ func main() {
 	defer log.Flush()
 
 	runAgent()
-
 }
 
 // run check command if the flag is specified

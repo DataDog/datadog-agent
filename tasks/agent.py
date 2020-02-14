@@ -17,7 +17,7 @@ from invoke.exceptions import Exit, ParseError
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
-from .go import deps
+from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
 
@@ -146,6 +146,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         build_tags = get_default_build_tags(puppy=True)
     else:
         build_tags = get_build_tags(build_include, build_exclude)
+ 
+    # Generating go source from templates by running go generate on ./pkg/status
+    generate(ctx)
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
@@ -224,7 +227,6 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
     if "process" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/process_agent.yaml.default", os.path.join(dist_folder, "conf.d/process_agent.yaml.default"))
 
-    copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
     if development:
         copy_tree("./dev/dist/", dist_folder)

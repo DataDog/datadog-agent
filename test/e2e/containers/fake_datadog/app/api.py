@@ -29,6 +29,7 @@ payload_names = [
     "check_run",
     "series",
     "intake",
+    "logs",
 ]
 
 
@@ -81,6 +82,11 @@ def insert_intake(data: dict):
 
 def insert_check_run(data: list):
     coll = get_collection("check_run")
+    coll.insert_many(data)
+
+
+def insert_logs(data: list):
+    coll = get_collection("logs")
     coll.insert_many(data)
 
 
@@ -203,6 +209,18 @@ def intake():
         content=request.data
     )
     insert_intake(data)
+    return Response(status=200)
+
+
+@app.route("/v1/input/", methods=["POST"])
+def logs():
+    data = record_and_loads(
+        filename="logs",
+        content_type=request.content_type,
+        content_encoding=request.content_encoding,
+        content=request.data
+    )
+    insert_logs(data)
     return Response(status=200)
 
 
