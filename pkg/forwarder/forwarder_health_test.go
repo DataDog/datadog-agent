@@ -43,12 +43,14 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.datadoghq.com": {"api_key1"},
 	}
 
+	testMap := map[string][]string{
+		"https://api.datadoghq.com": {"api_key1"},
+	}
+
 	fh := forwarderHealth{keysPerDomains: keysPerDomains}
 	fh.init()
 
-	_, ok := fh.keysPerAPIEndpoint["https://api.datadoghq.com"]
-
-	assert.True(t, ok)
+	assert.Equal(t, fh.keysPerAPIEndpoint, testMap)
 }
 
 func TestHasValidAPIKeyErrors(t *testing.T) {
