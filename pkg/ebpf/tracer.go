@@ -91,7 +91,7 @@ func CurrentKernelVersion() (uint32, error) {
 func NewTracer(config *Config) (*Tracer, error) {
 	// make sure debugfs is mounted
 	if mounted, msg := util.IsDebugfsMounted(); !mounted {
-		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
+		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
 	}
 
 	m, err := readBPFModule(config.BPFDebug)
