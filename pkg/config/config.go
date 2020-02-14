@@ -767,8 +767,8 @@ func load(config Config, origin string, loadSecret bool) error {
 
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
-	trimTrailingSlashFromURLS(config)
 	applyOverrides(config)
+	trimTrailingSlashFromURLS(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -815,7 +815,7 @@ func sanitizeAPIKey(config Config) {
 	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
 }
 
-//trims any forward slashes from the end of various config URL's (site, dd_url, and additional endpoints)
+//trimTrailingSlashFromURLS trims any forward slashes from the end of various config URL's (site, dd_url, and various additional endpoints)
 func trimTrailingSlashFromURLS(config Config) error {
 	var urls = []string{
 		"site",
@@ -846,7 +846,6 @@ func trimTrailingSlashFromURLS(config Config) error {
 			return err
 		}
 		for domain, keys := range additionalEndpoints {
-
 			if domain == "" {
 				continue
 			}
