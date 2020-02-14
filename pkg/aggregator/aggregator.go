@@ -207,11 +207,7 @@ type BufferedAggregator struct {
 
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
-
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
-	if bufferSize == 0 {
-		bufferSize = 100
-	}
 
 	aggregator := &BufferedAggregator{
 		metricPool:             metricPool,
