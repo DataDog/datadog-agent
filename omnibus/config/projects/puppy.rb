@@ -51,6 +51,19 @@ package :deb do
   priority 'extra'
 end
 
+# .rpm specific flags
+package :rpm do
+  vendor 'Datadog <package@datadoghq.com>'
+  epoch 1
+  dist_tag ''
+  license 'Apache License Version 2.0'
+  category 'System Environment/Daemons'
+  priority 'extra'
+  if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
+    signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
+  end
+end
+
 # ------------------------------------
 # OS specific DSLs and dependencies
 # ------------------------------------
