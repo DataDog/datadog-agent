@@ -120,7 +120,9 @@ func (s *SocketFilterSnooper) Close() {
 func (s *SocketFilterSnooper) processPacket(data []byte) {
 	t := s.getCachedTranslation()
 	if err := s.parser.ParseInto(data, t); err != nil {
-		atomic.AddInt64(&s.decodingErrors, 1)
+		if err == errParsing {
+			atomic.AddInt64(&s.decodingErrors, 1)
+		}
 		return
 	}
 

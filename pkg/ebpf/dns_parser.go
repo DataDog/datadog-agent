@@ -4,7 +4,6 @@ package ebpf
 
 import (
 	"bytes"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -13,7 +12,9 @@ import (
 
 const maxIPBufferSize = 200
 
-var errDNSParsing = errors.New("error parsing DNS payload")
+var errParsing = errors.New("error parsing packet")
+var errUnhandledDNSResponse = errors.New("unsupported DNS response")
+var errNoDNSLayer = errors.New("parsed layers do not contain a DNS layer")
 
 type dnsParser struct {
 	decoder *gopacket.DecodingLayerParser
@@ -30,7 +31,6 @@ func newDNSParser() *dnsParser {
 		&layers.IPv6{},
 		&layers.UDP{},
 		&tcpWithDNSSupport{},
-		&layers.DNS{},
 		payload,
 	}
 
@@ -43,27 +43,25 @@ func newDNSParser() *dnsParser {
 func (p *dnsParser) ParseInto(data []byte, t *translation) error {
 	err := p.decoder.DecodeLayers(data, &p.layers)
 	if err != nil || p.decoder.Truncated {
-		return nil
+		return errParsing
 	}
 
-	for _, layer := range p.layers {
-		if layer == layers.LayerTypeDNS {
-			return p.parseAnswerInto(p.payload, t)
-		}
+	if p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
+		return errNoDNSLayer
 	}
 
-	return nil
+	return p.parseAnswerInto(p.payload, t)
 }
 
 // source: https://github.com/weaveworks/scope
 func (p *dnsParser) parseAnswerInto(dns *layers.DNS, t *translation) error {
 	// Only consider responses to singleton, A-record questions
 	if !dns.QR || dns.ResponseCode != 0 || len(dns.Questions) != 1 {
-		return errDNSParsing
+		return errUnhandledDNSResponse
 	}
 	question := dns.Questions[0]
 	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
-		return errDNSParsing
+		return errUnhandledDNSResponse
 	}
 
 	var alias []byte

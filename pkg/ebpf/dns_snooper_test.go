@@ -103,11 +103,10 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 
 	var destIP = ""
 	for _, r := range rep.Answer {
-		if aRecord, ok := r.(*mdns.A); ok {
-			if mdns.NumField(aRecord) >= 1 {
-				destIP = mdns.Field(aRecord, 1)
-				checkSnooping(t, destIP, reverseDNS)
-			}
-		}
+		aRecord, ok := r.(*mdns.A);
+		require.True(t, ok)
+		require.True(t, mdns.NumField(aRecord) >= 1)
+		destIP = mdns.Field(aRecord, 1)
+		checkSnooping(t, destIP, reverseDNS)
 	}
 }
