@@ -123,7 +123,13 @@ func buildTCPEndpoints() (*Endpoints, error) {
 	}
 
 	var additionals []Endpoint
-	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
+	var err error
+	raw := coreConfig.Datadog.GetString("logs_config.additional_endpoints")
+	if raw != "" {
+		err = json.Unmarshal([]byte(raw), &additionals)
+	} else {
+		err = coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
+	}
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
@@ -131,7 +137,6 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
 	}
-
 	return NewEndpoints(main, additionals, useProto, false, 0), nil
 }
 
@@ -157,7 +162,13 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 	}
 
 	var additionals []Endpoint
-	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
+	var err error
+	raw := coreConfig.Datadog.GetString("logs_config.additional_endpoints")
+	if raw != "" {
+		err = json.Unmarshal([]byte(raw), &additionals)
+	} else {
+		err = coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
+	}
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
