@@ -276,7 +276,7 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 			continue
 		}
 		monitoredCount++
-		tags := []string{"unit:" + unit.Name}
+		tags := []string{"unit:" + unit.Name, "substate:" + unit.SubState}
 		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState), "", tags, "")
 
 		c.submitBasicUnitMetrics(sender, conn, unit, tags)
