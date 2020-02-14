@@ -35,7 +35,7 @@ func (m *tcpWithDNSSupport) hasSelfContainedDNSPayload() bool {
 
 func (m *tcpWithDNSSupport) NextLayerType() gopacket.LayerType {
 	// TODO: deal with TCP fragmentation and out-of-order segments
-	if (m.tcp.SrcPort == 53 || m.tcp.DstPort == 53) && m.hasSelfContainedDNSPayload() {
+	if m.hasSelfContainedDNSPayload() {
 		return layers.LayerTypeDNS
 	}
 	return m.tcp.NextLayerType()
@@ -43,7 +43,7 @@ func (m *tcpWithDNSSupport) NextLayerType() gopacket.LayerType {
 
 func (m *tcpWithDNSSupport) LayerPayload() []byte {
 	payload := m.tcp.LayerPayload()
-	if len(payload) > 1 && (m.tcp.SrcPort == 53 || m.tcp.DstPort == 53) {
+	if len(payload) > 1 {
 		// Omit the DNS length field, only included
 		// in TCP, in order to reuse the DNS UDP parser
 		payload = payload[2:]
