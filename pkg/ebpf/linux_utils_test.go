@@ -2,6 +2,12 @@
 
 package ebpf
 
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
 func TestUbuntuKernelsNotSupported(t *testing.T) {
 	for i := uint32(114); i < uint32(128); i++ {
 		ok, msg := verifyOSVersion(linuxKernelVersionCode(4, 4, i), "linux-4.4-with-ubuntu", nil)
