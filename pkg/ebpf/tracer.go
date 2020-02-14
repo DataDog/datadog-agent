@@ -89,6 +89,11 @@ func CurrentKernelVersion() (uint32, error) {
 }
 
 func NewTracer(config *Config) (*Tracer, error) {
+	// make sure debugfs is mounted
+	if mounted, msg := util.IsDebugfsMounted(); !mounted {
+		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
+	}
+
 	m, err := readBPFModule(config.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
@@ -111,11 +116,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 	err = m.Load(SectionsFromConfig(config, enableSocketFilter))
 	if err != nil {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
-	}
-
-	// make sure debugfs is mounted
-	if mounted, msg := util.IsDebugfsMounted(); !mounted {
-		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
 	// Enable kernel probes used for offset guessing.

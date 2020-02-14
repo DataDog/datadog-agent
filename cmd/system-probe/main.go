@@ -30,8 +30,7 @@ func main() {
 	}
 	defer log.Flush()
 
-	exit := make(chan bool)
-	runAgent(exit)
+	runAgent()
 
 }
 

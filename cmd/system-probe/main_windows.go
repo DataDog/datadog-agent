@@ -13,8 +13,7 @@ func main() {
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
 
-	exit := make(chan bool)
-	runAgent(exit)
+	runAgent()
 }
 
 func runCheck(cfg *config.AgentConfig) {

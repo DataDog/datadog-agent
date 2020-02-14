@@ -9,7 +9,7 @@ func CurrentKernelVersion() (uint32, error) {
 
 type Tracer struct{}
 
-// Tracer is not implemented on non-linux/Windows systems
+// Tracer is not implemented
 func NewTracer(_ *Config) (*Tracer, error) {
 	return nil, ErrNotImplemented
 }

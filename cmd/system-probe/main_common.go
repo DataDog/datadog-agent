@@ -40,8 +40,7 @@ var (
 
 const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
-func runAgent(exit chan bool) {
-
+func runAgent() {
 	// --version
 	if opts.version {
 		fmt.Println(versionString("\n"))
