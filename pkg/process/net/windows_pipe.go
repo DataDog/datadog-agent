@@ -3,9 +3,8 @@
 package net
 
 import (
-	"net"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-
+	"net"
 )
 
 type WindowsPipeListener struct {

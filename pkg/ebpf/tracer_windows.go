@@ -7,7 +7,7 @@ import (
 )
 
 type Tracer struct {
-	config      *Config
+	config *Config
 }
 
 func NewTracer(config *Config) (*Tracer, error) {
