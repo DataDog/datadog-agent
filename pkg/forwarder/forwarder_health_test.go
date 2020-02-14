@@ -38,6 +38,19 @@ func TestHasValidAPIKey(t *testing.T) {
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 }
 
+func TestComputeDomainsURL(t *testing.T) {
+	keysPerDomains := map[string][]string{
+		"https://app.datadoghq.com": {"api_key1"},
+	}
+
+	fh := forwarderHealth{keysPerDomains: keysPerDomains}
+	fh.init()
+
+	_, ok := fh.keysPerAPIEndpoint["https://api.datadoghq.com"]
+
+	assert.True(t, ok)
+}
+
 func TestHasValidAPIKeyErrors(t *testing.T) {
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
