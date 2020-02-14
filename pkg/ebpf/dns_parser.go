@@ -46,11 +46,13 @@ func (p *dnsParser) ParseInto(data []byte, t *translation) error {
 		return errParsing
 	}
 
-	if p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
-		return errNoDNSLayer
+	for _, layer := range p.layers {
+		if layer == layers.LayerTypeDNS {
+			return p.parseAnswerInto(p.payload, t)
+		}
 	}
 
-	return p.parseAnswerInto(p.payload, t)
+	return errNoDNSLayer
 }
 
 // source: https://github.com/weaveworks/scope

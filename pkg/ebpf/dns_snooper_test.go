@@ -110,3 +110,18 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 		checkSnooping(t, destIP, reverseDNS)
 	}
 }
+
+func TestParsingError(t *testing.T) {
+	m, err := readBPFModule(false)
+	require.NoError(t, err)
+	defer m.Close()
+
+	reverseDNS := getSnooper(t, m)
+	defer reverseDNS.Close()
+
+	// Pass a byte array of size 1 which should result in parsing error
+	reverseDNS.processPacket(make([]byte, 1))
+	stats := reverseDNS.GetStats()
+	assert.True(t, stats["ips"] == 0)
+	assert.True(t, stats["decoding_errors"] == 1)
+}
