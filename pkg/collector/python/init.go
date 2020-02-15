@@ -237,12 +237,11 @@ func detectPythonLocation(pythonVersion string) {
 				log.Warnf("Error getting executable folder w/o symlinks: %v", err)
 			}
 		}
-		log.Warnf("Executable folder is %v", _here)
+		log.Debugf("Executable folder is %v", _here)
 
 		agentpythonHome2 := filepath.Join(_here, "..", "embedded2")
 		agentpythonHome3 := filepath.Join(_here, "..", "embedded3")
 
-		log.Warnf("Computed embedded3 to be %v", agentpythonHome3)
 		/*
 		 * want to use the path relative embedded2/3 directories above by default;
 		 * they'll be correct for normal installation (on windows).
