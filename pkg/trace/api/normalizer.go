@@ -43,7 +43,7 @@ var (
 
 // normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
 // is invalid beyond repair
-func normalize(ts *info.TagStats, s *pb.Span) error {
+func normalize(ts *info.TagStats, s *pb.Span, overriddenServiceName string) error {
 	fallbackServiceName := DefaultServiceName
 	if ts.Lang != "" {
 		fallbackServiceName = fmt.Sprintf("unnamed-%s-service", ts.Lang)
@@ -56,11 +56,20 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 		atomic.AddInt64(&ts.TracesDropped.SpanIDZero, 1)
 		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %s", s)
 	}
+
+	// Allow overriding the service name (if present) if the source specifies
+	// it empty
 	if s.Service == "" {
-		atomic.AddInt64(&ts.SpansMalformed.ServiceEmpty, 1)
-		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", fallbackServiceName, s)
-		s.Service = fallbackServiceName
+		if overriddenServiceName != "" {
+			log.Debugf("Overriding empty service name with span.service=%s: %s", overriddenServiceName, s)
+			s.Service = overriddenServiceName
+		} else {
+			atomic.AddInt64(&ts.SpansMalformed.ServiceEmpty, 1)
+			log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", fallbackServiceName, s)
+			s.Service = fallbackServiceName
+		}
 	}
+
 	if len(s.Service) > MaxServiceLen {
 		atomic.AddInt64(&ts.SpansMalformed.ServiceTruncate, 1)
 		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", MaxServiceLen, s)
@@ -169,7 +178,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 // * return the normalized trace and an error:
 //   - nil if the trace can be accepted
 //   - a reason tag explaining the reason the traces failed normalization
-func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
+func normalizeTrace(ts *info.TagStats, t pb.Trace, overriddenServiceName string) error {
 	if len(t) == 0 {
 		atomic.AddInt64(&ts.TracesDropped.EmptyTrace, 1)
 		return errors.New("trace is empty (reason:empty_trace)")
@@ -183,7 +192,7 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 			atomic.AddInt64(&ts.TracesDropped.ForeignSpan, 1)
 			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
 		}
-		if err := normalize(ts, span); err != nil {
+		if err := normalize(ts, span, overriddenServiceName); err != nil {
 			return err
 		}
 		if _, ok := spanIDs[span.SpanID]; ok {
