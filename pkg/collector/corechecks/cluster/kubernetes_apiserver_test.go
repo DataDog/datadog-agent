@@ -28,10 +28,10 @@ func TestParseComponentStatus(t *testing.T) {
 	// We only test one Component Condition as only the Healthy Condition is supported.
 	// We check if the OK, Critical and Unknown Service Checks are returned accordingly to the condition and the status given.
 
-	expectedComp := v1.ComponentCondition{Type: "Healthy", Status: "True"}
-	unExpectedComp := v1.ComponentCondition{Type: "Not Supported", Status: "True"}
-	unHealthyComp := v1.ComponentCondition{Type: "Healthy", Status: "False"}
-	unExpectedStatus := v1.ComponentCondition{Type: "Healthy", Status: "Other"}
+	expectedComp := v1.ComponentCondition{Type: "Healthy", Status: "True", Message: "imok"}
+	unExpectedComp := v1.ComponentCondition{Type: "Not Supported", Status: "True", Message: ""}
+	unHealthyComp := v1.ComponentCondition{Type: "Healthy", Status: "False", Error: "Connection closed"}
+	unExpectedStatus := v1.ComponentCondition{Type: "Healthy", Status: "Other", Message: ""}
 
 	expected := &v1.ComponentStatusList{
 		Items: []v1.ComponentStatus{
@@ -95,20 +95,20 @@ func TestParseComponentStatus(t *testing.T) {
 	}
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "imok")
 	kubeASCheck.parseComponentStatus(mocked, expected)
 
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 1)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "imok")
 
 	err := kubeASCheck.parseComponentStatus(mocked, unExpected)
 	assert.EqualError(t, err, "metadata structure has changed. Not collecting API Server's Components status")
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "Connection closed")
 	kubeASCheck.parseComponentStatus(mocked, unHealthy)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 2)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "Connection closed")
 
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
 	kubeASCheck.parseComponentStatus(mocked, unknown)

@@ -11,7 +11,8 @@ import (
 )
 
 func parseAndEnrichMetricMessage(message []byte, namespace string, namespaceBlacklist []string, defaultHostname string) (metrics.MetricSample, error) {
-	parsed, err := parseMetricSample(message)
+	parser := newParser()
+	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return metrics.MetricSample{}, err
 	}
@@ -19,7 +20,8 @@ func parseAndEnrichMetricMessage(message []byte, namespace string, namespaceBlac
 }
 
 func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
-	parsed, err := parseServiceCheck(message)
+	parser := newParser()
+	parsed, err := parser.parseServiceCheck(message)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +29,8 @@ func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (
 }
 
 func parseAndEnrichEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
-	parsed, err := parseEvent(message)
+	parser := newParser()
+	parsed, err := parser.parseEvent(message)
 	if err != nil {
 		return nil, err
 	}

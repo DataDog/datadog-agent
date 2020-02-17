@@ -74,6 +74,16 @@ func (m *MockSender) SetCheckCustomTags(tags []string) {
 	m.Called(tags)
 }
 
+//SetCheckService enables the setting of check service mock call.
+func (m *MockSender) SetCheckService(service string) {
+	m.Called(service)
+}
+
+//FinalizeCheckServiceTag enables the sending of check service tag mock call.
+func (m *MockSender) FinalizeCheckServiceTag() {
+	m.Called()
+}
+
 //GetMetricStats enables the get metric stats mock call.
 func (m *MockSender) GetMetricStats() map[string]int64 {
 	m.Called()

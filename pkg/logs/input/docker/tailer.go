@@ -27,7 +27,11 @@ import (
 )
 
 const defaultSleepDuration = 1 * time.Second
-const readTimeout = 30 * time.Second
+const defaultReadTimeout = 30 * time.Second
+
+type dockerContainerLogInterface interface {
+	ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error)
+}
 
 // Tailer tails logs coming from stdout and stderr of a docker container
 // Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later one.
@@ -37,10 +41,11 @@ type Tailer struct {
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
 	reader      *safeReader
-	dockerutil  *dockerutil.DockerUtil
+	dockerutil  dockerContainerLogInterface
 	source      *config.LogSource
 	tagProvider tag.Provider
 
+	readTimeout        time.Duration
 	sleepDuration      time.Duration
 	shouldStop         bool
 	stop               chan struct{}
@@ -60,6 +65,7 @@ func NewTailer(dockeruti *dockerutil.DockerUtil, containerID string, source *con
 		source:             source,
 		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToTaggerEntityName(containerID)),
 		dockerutil:         dockeruti,
+		readTimeout:        defaultReadTimeout,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
@@ -131,6 +137,18 @@ func (t *Tailer) setupReader() error {
 	reader, err := t.dockerutil.ContainerLogs(ctx, t.ContainerID, options)
 	t.reader.setUnsafeReader(reader)
 	t.cancelFunc = cancelFunc
+
+	return err
+}
+
+func (t *Tailer) tryRestartReader(reason string) error {
+	log.Debugf("%s for container %v", reason, ShortContainerID(t.ContainerID))
+	t.wait()
+	err := t.setupReader()
+	if err != nil {
+		log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
+		t.erroredContainerID <- t.ContainerID
+	}
 	return err
 }
 
@@ -164,7 +182,7 @@ func (t *Tailer) readForever() {
 			return
 		default:
 			inBuf := make([]byte, 4096)
-			n, err := t.read(inBuf, readTimeout)
+			n, err := t.read(inBuf, t.readTimeout)
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
 				case isReaderClosed(err):
@@ -172,11 +190,7 @@ func (t *Tailer) readForever() {
 					// of the tailer, stop reading
 					return
 				case isContextCanceled(err):
-					log.Debugf("Restarting reader for container %v after a read timeout", ShortContainerID(t.ContainerID))
-					err := t.setupReader()
-					if err != nil {
-						log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
-						t.erroredContainerID <- t.ContainerID
+					if err := t.tryRestartReader("Restarting reader for container %v after a read timeout"); err != nil {
 						return
 					}
 					continue
@@ -184,12 +198,16 @@ func (t *Tailer) readForever() {
 					// This error is raised when the agent is stopping
 					return
 				case err == io.EOF:
-					// This error is raised when the container is stopping
-					// or when the container has not started to output logs yet.
-					// Retry to read to make sure all logs are collected
-					// or stop reading on the next iteration
-					// if the tailer has been stopped.
-					log.Debugf("No new logs are available for container %v", ShortContainerID(t.ContainerID))
+					// This error is raised when:
+					// * the container is stopping.
+					// * when the container has not started to output logs yet.
+					// * during a file rotation.
+					// restart the reader (restartReader() include 1second wait)
+					t.source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart"))
+					if err := t.tryRestartReader("log decoder returns an EOF error that will trigger a Reader restart"); err != nil {
+						return
+					}
+					continue
 				default:
 					t.source.Status.Error(err)
 					log.Errorf("Could not tail logs for container %v: %v", ShortContainerID(t.ContainerID), err)
@@ -197,6 +215,7 @@ func (t *Tailer) readForever() {
 					return
 				}
 			}
+			t.source.Status.Success()
 			if n == 0 {
 				// wait for new data to come
 				t.wait()

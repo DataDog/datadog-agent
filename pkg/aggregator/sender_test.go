@@ -139,6 +139,95 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	assert.Equal(t, false, checksender.defaultHostnameDisabled)
 }
 
+func TestGetSenderServiceTagMetrics(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, nil, "testhostname", "")
+
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	bucketChan := make(chan senderHistogramBucket, 10)
+	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan)
+	checkTags := []string{"check:tag1", "check:tag2"}
+
+	// only tags added by the check
+	checkSender.SetCheckService("")
+	checkSender.FinalizeCheckServiceTag()
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType)
+	sms := <-senderMetricSampleChan
+	assert.Equal(t, checkTags, sms.metricSample.Tags)
+
+	// only last call is added as a tag
+	checkSender.SetCheckService("service1")
+	checkSender.SetCheckService("service2")
+	checkSender.FinalizeCheckServiceTag()
+	checkSender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType)
+	sms = <-senderMetricSampleChan
+	assert.Equal(t, append(checkTags, "service:service2"), sms.metricSample.Tags)
+}
+
+func TestGetSenderServiceTagServiceCheck(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, nil, "testhostname", "")
+
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	bucketChan := make(chan senderHistogramBucket, 10)
+	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan)
+	checkTags := []string{"check:tag1", "check:tag2"}
+
+	// only tags added by the check
+	checkSender.SetCheckService("")
+	checkSender.FinalizeCheckServiceTag()
+	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	sc := <-serviceCheckChan
+	assert.Equal(t, checkTags, sc.Tags)
+
+	// only last call is added as a tag
+	checkSender.SetCheckService("service1")
+	checkSender.SetCheckService("service2")
+	checkSender.FinalizeCheckServiceTag()
+	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	sc = <-serviceCheckChan
+	assert.Equal(t, append(checkTags, "service:service2"), sc.Tags)
+}
+
+func TestGetSenderServiceTagEvent(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, nil, "testhostname", "")
+
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	bucketChan := make(chan senderHistogramBucket, 10)
+	checkSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan)
+	checkTags := []string{"check:tag1", "check:tag2"}
+
+	event := metrics.Event{
+		Title: "title",
+		Host:  "testhostname",
+		Ts:    time.Now().Unix(),
+		Text:  "text",
+		Tags:  checkTags,
+	}
+
+	// only tags added by the check
+	checkSender.SetCheckService("")
+	checkSender.FinalizeCheckServiceTag()
+	checkSender.Event(event)
+	e := <-eventChan
+	assert.Equal(t, checkTags, e.Tags)
+
+	// only last call is added as a tag
+	checkSender.SetCheckService("service1")
+	checkSender.SetCheckService("service2")
+	checkSender.FinalizeCheckServiceTag()
+	checkSender.Event(event)
+	e = <-eventChan
+	assert.Equal(t, append(checkTags, "service:service2"), e.Tags)
+}
+
 func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	resetAggregator()
 	InitAggregator(nil, nil, "testhostname", "")

@@ -77,9 +77,15 @@ func (l *Launcher) Start() {
 func (l *Launcher) Stop() {
 	l.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
+	l.lock.Lock()
+	var containerIDs []string
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)
-		l.removeTailer(tailer.ContainerID)
+		containerIDs = append(containerIDs, tailer.ContainerID)
+	}
+	l.lock.Unlock()
+	for _, containerID := range containerIDs {
+		l.removeTailer(containerID)
 	}
 	stopper.Stop()
 }
@@ -181,7 +187,7 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 // startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 	containerID := container.service.Identifier
-	if _, isTailed := l.tailers[containerID]; isTailed {
+	if _, isTailed := l.getTailer(containerID); isTailed {
 		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
 		return
 	}
@@ -215,7 +221,7 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 
 // stopTailer stops the tailer matching the containerID.
 func (l *Launcher) stopTailer(containerID string) {
-	if tailer, isTailed := l.tailers[containerID]; isTailed {
+	if tailer, isTailed := l.getTailer(containerID); isTailed {
 		// No-op if the tailer source came from AD
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
@@ -230,8 +236,7 @@ func (l *Launcher) restartTailer(containerID string) {
 	cumulatedBackoff := 0 * time.Second
 	var source *config.LogSource
 
-	oldTailer, exists := l.tailers[containerID]
-	if exists {
+	if oldTailer, exists := l.getTailer(containerID); exists {
 		source = oldTailer.source
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
@@ -287,4 +292,11 @@ func (l *Launcher) removeTailer(containerID string) {
 	l.lock.Lock()
 	delete(l.tailers, containerID)
 	l.lock.Unlock()
+}
+
+func (l *Launcher) getTailer(containerID string) (*Tailer, bool) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	tailer, exist := l.tailers[containerID]
+	return tailer, exist
 }
