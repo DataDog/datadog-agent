@@ -7,8 +7,6 @@ package config
 
 import (
 	"errors"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RuntimeSettings registers all runtime editable config
@@ -27,42 +25,11 @@ func initRuntimeSettings() {
 	registerRuntimeSetting(RuntimeSetting(ll))
 }
 
-// LogLevel wraps operations to change log level at runtime
-type logLevel string
-
-var ll logLevel = "log_level"
-
 // RegisterRuntimeSettings keeps track of configurable settings
 func registerRuntimeSetting(setting RuntimeSetting) error {
 	if _, ok := RuntimeSettings[setting.Name()]; ok {
 		return errors.New("duplicated settings detected")
 	}
 	RuntimeSettings[setting.Name()] = setting
-	return nil
-}
-
-func (l logLevel) Description() string {
-	return "Set/get the log level, valid values are: trace, debug, info, warn, error, critical and off"
-}
-
-func (l logLevel) Name() string {
-	return string(l)
-}
-
-func (l logLevel) Get() (interface{}, error) {
-	level, err := log.GetLogLevel()
-	if err != nil {
-		return "", err
-	}
-	return level.String(), nil
-}
-
-func (l logLevel) Set(v interface{}) error {
-	logLevel := v.(string)
-	err := log.ChangeLogLevel(logLevel)
-	if err != nil {
-		return err
-	}
-	Datadog.Set("log_level", logLevel)
 	return nil
 }

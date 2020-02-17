@@ -293,7 +293,7 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	setting := vars["setting"]
-	log.Info("Got a request to change a setting: %s", setting)
+	log.Infof("Got a request to change a setting: %s", setting)
 	r.ParseForm()
 	value := html.UnescapeString(r.Form.Get("value"))
 
