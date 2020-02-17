@@ -20,6 +20,13 @@
         "JMXFETCH_VERSION": "0.34.0", 
         "JMXFETCH_HASH": "b5c053b960f9fa949a76ec3b84c308586c409f956379481e6a0044867deb7b52"
     }, 
+    "7.17.0-snmp-beta": {
+        "INTEGRATIONS_CORE_VERSION": "therve/snmp-check-threads", 
+        "OMNIBUS_SOFTWARE_VERSION": "7.17.0", 
+        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0", 
+        "JMXFETCH_VERSION": "0.34.0", 
+        "JMXFETCH_HASH": "b5c053b960f9fa949a76ec3b84c308586c409f956379481e6a0044867deb7b52"
+    }, 
     "7.17.0": {
         "INTEGRATIONS_CORE_VERSION": "7.17.0", 
         "OMNIBUS_SOFTWARE_VERSION": "7.17.0", 
