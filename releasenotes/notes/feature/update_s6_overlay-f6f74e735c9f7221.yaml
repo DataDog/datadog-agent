@@ -8,4 +8,4 @@
 ---
 other:
   - |
-    Update `s6-overlay` to `v1.22.1.0` in the docker images
+    Update `s6-overlay` to `v1.22.1.0` in docker images
