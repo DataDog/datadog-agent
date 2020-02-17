@@ -181,7 +181,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 		return nil, fmt.Errorf("invalid init_config section for source %s: %s", config.Name, err)
 	}
 
-	globalServiceDefined := len(commonGlobalOptions.Service) > 0
+	globalServiceDefined := commonGlobalOptions.Service != ""
 
 	if config.Entity != "" {
 		// all configs attached to a docker label or a pod annotation contains an entity;
@@ -198,7 +198,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 	var sources []*logsConfig.LogSource
 	for _, cfg := range configs {
 		// if no service is set fall back to the global one
-		if len(cfg.Service) == 0 && globalServiceDefined {
+		if cfg.Service == "" && globalServiceDefined {
 			cfg.Service = commonGlobalOptions.Service
 		}
 
