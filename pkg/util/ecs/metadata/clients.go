@@ -39,11 +39,11 @@ type util struct {
 func V1() (*v1.Client, error) {
 	globalUtil.initV1.Do(func() {
 		globalUtil.initRetryV1.SetupRetrier(&retry.Config{
-			Name:          "ecsutil-meta-v1",
-			AttemptMethod: initV1,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "ecsutil-meta-v1",
+			AttemptMethod:     initV1,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	})
 	if err := globalUtil.initRetryV1.TriggerRetry(); err != nil {
@@ -75,11 +75,11 @@ func V3(containerID string) (*v3.Client, error) {
 func V3FromCurrentTask() (*v3.Client, error) {
 	globalUtil.initV3.Do(func() {
 		globalUtil.initRetryV3.SetupRetrier(&retry.Config{
-			Name:          "ecsutil-meta-v3",
-			AttemptMethod: initV3,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "ecsutil-meta-v3",
+			AttemptMethod:     initV3,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	})
 	if err := globalUtil.initRetryV3.TriggerRetry(); err != nil {
