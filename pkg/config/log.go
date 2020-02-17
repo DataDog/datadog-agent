@@ -101,13 +101,12 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		seelogLogLevel = "warn"
 	}
 
-	configTemplate := fmt.Sprintf(`<seelog minlevel="%s">`, seelogLogLevel)
-
 	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
 	}
 
+	configTemplate := `<seelog>`
 	configTemplate += fmt.Sprintf(`<outputs formatid="%s">`, formatID)
 
 	if logToConsole {
