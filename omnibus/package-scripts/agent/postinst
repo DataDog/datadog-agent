@@ -93,7 +93,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Setup SELinux policy and label if SELinux detected on the host
         if command -v semodule >/dev/null 2>&1 && [ -f "$INSTALL_DIR/embedded/bin/system-probe" ]; then
             echo "Loading SELinux policy module for datadog-agent."
-            semodule -v -i $CONFIG_DIR/selinux/system_probe_policy.pp #>/dev/null 2>&1
+            semodule -v -i $CONFIG_DIR/selinux/system_probe_policy.pp >/dev/null 2>&1
             if [ "$?" != "0" ]; then
                 echo "SELinux policy module for datadog-agent not compatible with this host. Is the SELinux targeted policy (package selinux-policy-default) up to date?"
                 echo "Skipping SELinux configuration."
