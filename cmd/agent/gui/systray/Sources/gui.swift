@@ -64,6 +64,7 @@ class AgentGUI: NSObject {
         systemTrayItem.menu = ddMenu
         if ddImage!.isValid {
             ddImage!.size = NSMakeSize(15, 15)
+            ddImage!.isTemplate = true
             systemTrayItem.button!.image = ddImage
         } else {
             systemTrayItem.button!.title = "DD"

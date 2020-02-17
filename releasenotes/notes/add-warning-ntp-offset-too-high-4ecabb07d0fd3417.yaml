@@ -10,4 +10,4 @@ enhancements:
   - |
     Added a warning message on agent status command and status gui
     tab when ntp offset is too large and may result in metrics
-    ignored by the web application.
+    ignored by Datadog.

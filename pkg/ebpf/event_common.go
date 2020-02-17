@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/dustin/go-humanize"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -50,6 +53,9 @@ const (
 
 	// LOCAL represents connections that don't leave the host
 	LOCAL ConnectionDirection = 3
+
+	// NONE represents connections that have no direction (udp, for example)
+	NONE ConnectionDirection = 4
 )
 
 func (d ConnectionDirection) String() string {
@@ -58,72 +64,53 @@ func (d ConnectionDirection) String() string {
 		return "outgoing"
 	case LOCAL:
 		return "local"
+	case NONE:
+		return "none"
 	default:
 		return "incoming"
 	}
 }
 
 // Connections wraps a collection of ConnectionStats
-//easyjson:json
 type Connections struct {
-	Conns []ConnectionStats `json:"connections"`
+	DNS   map[util.Address][]string
+	Conns []ConnectionStats
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
-//easyjson:json
 type ConnectionStats struct {
-	// Source & Dest represented as a string to handle both IPv4 & IPv6
-	// Note: As ebpf.Address is an interface, we need to use interface{} for easyjson
-	Source interface{} `json:"source,string"`
-	Dest   interface{} `json:"dest,string"`
+	Source util.Address
+	Dest   util.Address
 
-	MonotonicSentBytes uint64 `json:"monotonic_sent_bytes"`
-	LastSentBytes      uint64 `json:"last_sent_bytes"`
+	MonotonicSentBytes uint64
+	LastSentBytes      uint64
 
-	MonotonicRecvBytes uint64 `json:"monotonic_recv_bytes"`
-	LastRecvBytes      uint64 `json:"last_recv_bytes"`
+	MonotonicRecvBytes uint64
+	LastRecvBytes      uint64
 
 	// Last time the stats for this connection were updated
-	LastUpdateEpoch uint64 `json:"last_update_epoch"`
+	LastUpdateEpoch uint64
 
-	MonotonicRetransmits uint32 `json:"monotonic_retransmits"`
-	LastRetransmits      uint32 `json:"last_retransmits"`
+	MonotonicRetransmits uint32
+	LastRetransmits      uint32
 
-	Pid   uint32 `json:"pid"`
-	NetNS uint32 `json:"net_ns"`
+	RTT    uint32 // Stored in µs
+	RTTVar uint32
 
-	SPort         uint16                 `json:"sport"`
-	DPort         uint16                 `json:"dport"`
-	Type          ConnectionType         `json:"type"`
-	Family        ConnectionFamily       `json:"family"`
-	Direction     ConnectionDirection    `json:"direction"`
-	IPTranslation *netlink.IPTranslation `json:"conntrack"`
-}
+	Pid   uint32
+	NetNS uint32
 
-// SourceAddr returns the source address in the Address abstraction
-func (c ConnectionStats) SourceAddr() util.Address {
-	return c.Source.(util.Address)
-}
-
-// DestAddr returns the dest address in the Address abstraction
-func (c ConnectionStats) DestAddr() util.Address {
-	return c.Dest.(util.Address)
+	SPort         uint16
+	DPort         uint16
+	Type          ConnectionType
+	Family        ConnectionFamily
+	Direction     ConnectionDirection
+	IPTranslation *netlink.IPTranslation
+	IntraHost     bool
 }
 
 func (c ConnectionStats) String() string {
-	return fmt.Sprintf(
-		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %d bytes sent (+%d), %d bytes received (+%d), %d retransmits (+%d)",
-		c.Type,
-		c.Pid,
-		c.Source,
-		c.SPort,
-		c.Dest,
-		c.DPort,
-		c.Direction,
-		c.MonotonicSentBytes, c.LastSentBytes,
-		c.MonotonicRecvBytes, c.LastRecvBytes,
-		c.MonotonicRetransmits, c.LastRetransmits,
-	)
+	return ConnectionSummary(c, nil)
 }
 
 // ByteKey returns a unique key for this connection represented as a byte array
@@ -150,11 +137,11 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 		return nil, err
 	}
 
-	if _, err := buffer.Write(c.SourceAddr().Bytes()); err != nil {
+	if _, err := buffer.Write(c.Source.Bytes()); err != nil {
 		return nil, err
 	}
 
-	if _, err := buffer.Write(c.DestAddr().Bytes()); err != nil {
+	if _, err := buffer.Write(c.Dest.Bytes()); err != nil {
 		return nil, err
 	}
 
@@ -196,4 +183,39 @@ func BeautifyKey(key string) string {
 	dest := bytesToAddress(raw[9+addrSize : 9+2*addrSize])
 
 	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
+}
+
+// ConnectionSummary returns a string summarizing a connection
+func ConnectionSummary(c ConnectionStats, names map[util.Address][]string) string {
+	str := fmt.Sprintf(
+		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
+		c.Type,
+		c.Pid,
+		printAddress(c.Source, names[c.Source]),
+		c.SPort,
+		printAddress(c.Dest, names[c.Dest]),
+		c.DPort,
+		c.Direction,
+		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
+		humanize.Bytes(c.MonotonicRecvBytes), humanize.Bytes(c.LastRecvBytes),
+	)
+
+	if c.Type == TCP {
+		str += fmt.Sprintf(
+			", %d retransmits (+%d), RTT %s (± %s)",
+			c.MonotonicRetransmits, c.LastRetransmits,
+			time.Duration(c.RTT)*time.Microsecond,
+			time.Duration(c.RTTVar)*time.Microsecond,
+		)
+	}
+
+	return str
+}
+
+func printAddress(address util.Address, names []string) string {
+	if len(names) == 0 {
+		return address.String()
+	}
+
+	return strings.Join(names, ",")
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -202,7 +202,7 @@ func TestHandlerRun(t *testing.T) {
 	ac.On("AddScheduler", schedulerName, mock.AnythingOfType("*clusterchecks.dispatcher"), true).Return()
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// Keep node-agent caches even when timestamp is off (warmup)
-		response, err := h.PostStatus("dummy", types.NodeStatus{LastChange: -50})
+		response, err := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
 		return err == nil && response.IsUpToDate == true
 	})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 500*time.Millisecond, func() bool {
@@ -223,7 +223,7 @@ func TestHandlerRun(t *testing.T) {
 	})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 250*time.Millisecond, func() bool {
 		// Flush node-agent caches when timestamp is off
-		response, err := h.PostStatus("dummy", types.NodeStatus{LastChange: -50})
+		response, err := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
 		return err == nil && response.IsUpToDate == false
 	})
 
@@ -265,7 +265,7 @@ func TestHandlerRun(t *testing.T) {
 		return err == nil && len(state.Nodes) == 0 && len(state.Dangling) == 0
 	})
 
-	h.PostStatus("dummy", types.NodeStatus{})
+	h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{})
 	assertTrueBeforeTimeout(t, 10*time.Millisecond, 500*time.Millisecond, func() bool {
 		// Test whether we're connected to the AD
 		return ac.AssertNumberOfCalls(dummyT, "AddScheduler", 2)

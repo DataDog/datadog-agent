@@ -1,11 +1,24 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package obfuscate
 
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
+
+// JSONSettings specifies the behaviour of the JSON obfuscator.
+type JSONSettings struct {
+	// Enabled will specify whether obfuscation should be enabled.
+	Enabled bool
+
+	// KeepValues specifies a set of keys for which their values will not be obfuscated.
+	KeepValues []string
+}
 
 // obfuscateJSON obfuscates the given span's tag using the given obfuscator. If the obfuscator is
 // nil it is considered disabled.
@@ -32,7 +45,7 @@ type jsonObfuscator struct {
 	keepDepth int  // the depth at which we've stopped obfuscating
 }
 
-func newJSONObfuscator(cfg *config.JSONObfuscationConfig) *jsonObfuscator {
+func newJSONObfuscator(cfg *JSONSettings) *jsonObfuscator {
 	keepValue := make(map[string]bool, len(cfg.KeepValues))
 	for _, v := range cfg.KeepValues {
 		keepValue[v] = true

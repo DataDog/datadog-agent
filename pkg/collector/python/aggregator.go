@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build python
 
@@ -15,9 +15,9 @@ import (
 )
 
 /*
-#include <datadog_agent_six.h>
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
+#include <datadog_agent_rtloader.h>
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 */
 import "C"
 
@@ -38,19 +38,19 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	_tags := cStringArrayToSlice(tags)
 
 	switch metricType {
-	case C.DATADOG_AGENT_SIX_GAUGE:
+	case C.DATADOG_AGENT_RTLOADER_GAUGE:
 		sender.Gauge(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_RATE:
+	case C.DATADOG_AGENT_RTLOADER_RATE:
 		sender.Rate(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_COUNT:
+	case C.DATADOG_AGENT_RTLOADER_COUNT:
 		sender.Count(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_MONOTONIC_COUNT:
+	case C.DATADOG_AGENT_RTLOADER_MONOTONIC_COUNT:
 		sender.MonotonicCount(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_COUNTER:
+	case C.DATADOG_AGENT_RTLOADER_COUNTER:
 		sender.Counter(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_HISTOGRAM:
+	case C.DATADOG_AGENT_RTLOADER_HISTOGRAM:
 		sender.Histogram(_name, _value, _hostname, _tags)
-	case C.DATADOG_AGENT_SIX_HISTORATE:
+	case C.DATADOG_AGENT_RTLOADER_HISTORATE:
 		sender.Historate(_name, _value, _hostname, _tags)
 	}
 }
@@ -103,14 +103,30 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		AlertType:      metrics.EventAlertType(eventParseString(event.alert_type, "alert_type")),
 		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
 		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
-	}
-
-	if event.ts == 0 {
-		log.Errorf("Can't cast timestamp to integer in event submitted from python check")
-	} else {
-		_event.Ts = int64(event.ts)
+		Ts:             int64(event.ts),
 	}
 
 	sender.Event(_event)
 	return
+}
+
+// SubmitHistogramBucket is the method exposed to Python scripts to submit metrics
+//export SubmitHistogramBucket
+func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.int, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char) {
+	goCheckID := C.GoString(checkID)
+	sender, err := aggregator.GetSender(chk.ID(goCheckID))
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting histogram bucket to the Sender: %v", err)
+		return
+	}
+
+	_name := C.GoString(metricName)
+	_value := int(value)
+	_lowerBound := float64(lowerBound)
+	_upperBound := float64(upperBound)
+	_monotonic := (monotonic != 0)
+	_hostname := C.GoString(hostname)
+	_tags := cStringArrayToSlice(tags)
+
+	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags)
 }

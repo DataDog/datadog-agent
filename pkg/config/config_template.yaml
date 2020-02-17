@@ -131,6 +131,25 @@ api_key:
 #
 # histogram_copy_to_distribution_prefix: "<PREFIX>"
 
+## @param aggregator_stop_timeout - integer - optional - default: 2
+## When stopping the agent, the Aggregator will try to flush out data ready for
+## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
+## to be sent to DataDog, therefore the Agent might take at most
+## 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+##
+## You can set the maximum amount of time, in seconds, allocated to the
+## Aggregator to do so. You can disable this feature by setting
+## 'aggregator_stop_timeout' to 0.
+#
+# aggregator_stop_timeout: 2
+#
+# @param aggregator_buffer_size - integer - optional - default: 100
+# The default buffer size for the aggregator use a sane value for most of the
+# use cases, however, it could be useful to manually set it in order to trade
+# RSS usage with better performances.
+#
+# aggregator_buffer_size: 100
+
 ## @param forwarder_timeout - integer - optional - default: 20
 ## Forwarder timeout in seconds
 #
@@ -148,6 +167,18 @@ api_key:
 #
 # forwarder_num_workers: 1
 
+## @param forwarder_stop_timeout - integer - optional - default: 2
+## When stopping the agent, the Forwarder will try to flush all new
+## transactions (not the ones in retry state).  New transactions will be created
+## as the Aggregator flush it's internal data too, therefore the Agent might take
+## at most 'aggregator_stop_timeout'+'forwarder_stop_timeout' seconds to exit.
+##
+## You can set the maximum amount of time, in seconds, allocated to the
+## Forwarder to send those transactions.  You can disable this feature by setting
+## 'forwarder_stop_timeout' to 0.
+#
+# forwarder_stop_timeout: 2
+
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
 #
@@ -158,8 +189,47 @@ api_key:
 #
 # collect_gce_tags: true
 
+## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
+## Google Cloud Engine metadata attribute to exclude from being converted into
+## host tags -- only applicable when collect_gce_tags is true.
+#
+# exclude_gce_tags:
+#   - "kube-env"
+#   - "kubelet-config"
+#   - "containerd-configure-sh"
+#   - "startup-script"
+#   - "shutdown-script"
+#   - "configure-sh"
+#   - "sshKeys"
+#   - "ssh-keys"
+#   - "user-data"
+#   - "cli-cert"
+#   - "ipsec-cert"
+#   - "ssl-cert"
+#   - "google-container-manifest"
+#   - "bosh_settings"
+
+## @param flare_stripped_keys - list of strings - optional
+## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
+## including them in the flare.
+## Use this parameter to define additional sensitive keys that the Agent should scrub from
+## the yaml files included in the flare.
+#
+# flare_stripped_keys:
+#   - "sensitive_key_1"
+#   - "sensitive_key_2"
+
 {{ end }}
 {{- if .Agent }}
+{{- if .BothPythonPresent -}}
+## @param python_version - integer - optional - default: 2
+## The major version of Python used to run integrations and custom checks.
+## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
+## Do not change this option when using the official Docker Agent images.
+#
+# python_version: 2
+
+{{ end }}
 
 ############################
 ## Advanced Configuration ##
@@ -245,6 +315,36 @@ api_key:
 ## Disable Python3 validation of python checks.
 #
 # disable_py3_validation: false
+#
+## @param python3_linter_timeout - integer - optional - default: 120
+## Timeout in seconds for validation of compatibility with python 3 when running python 2.
+#
+# python3_linter_timeout: 120
+
+## @param memtrack_enabled - boolean - optional - default: true
+## Enables tracking of memory allocations made from the python runtime loader.
+#
+# memtrack_enabled: true
+
+## @param tracemalloc_debug - boolean - optional - default: false
+## Enables debugging with tracemalloc for python checks.
+## Please note that this option is only available when python_version is set to "3".
+## Additionally when this option becomes effective the number of check runners is
+## overridden to 1.
+#
+# tracemalloc_debug: false
+
+## @param tracemalloc_whitelist - string - optional
+## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
+## By default, all Python checks are enabled.
+#
+# tracemalloc_whitelist: <TRACEMALLOC_WHITELIST>
+
+## @param tracemalloc_blacklist - string - optional
+## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
+## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_whitelist`.
+#
+# tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
 
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
@@ -261,10 +361,10 @@ api_key:
 #   - <ARGUMENT_1>
 #   - <ARGUMENT_2>
 
-## @param secret_backend_output_max_size - integer - optional - default: 1024
+## @param secret_backend_output_max_size - integer - optional - default: 1048576
 ## The size in bytes of the buffer used to store the command answer (apply to both stdout and stderr)
 #
-# secret_backend_output_max_size: 1024
+# secret_backend_output_max_size: 1048576
 
 ## @param secret_backend_timeout - integer - optional - default: 5
 ## The timeout to execute the command in second
@@ -286,7 +386,7 @@ api_key:
 ## @param logs_config - custom object - optional
 ## Enter specific configurations for your Log collection.
 ## Uncomment this parameter and the one below to enable them.
-## See https://docs.datadoghq.com/logs/log_collection/
+## See https://docs.datadoghq.com/agent/logs/
 #
 # logs_config:
 
@@ -311,7 +411,7 @@ api_key:
   ## @param processing_rules - list of custom objects - optional
   ## Global processing rules that are applied to all logs. The available rules are
   ## "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
-  ## https://docs.datadoghq.com/logs/log_collection/#global-processing-rules
+  ## https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
   #
   # processing_rules:
   #   - type: <RULE_TYPE>
@@ -385,14 +485,17 @@ api_key:
   # max_events_per_second: 200
 
   ## @param max_memory - integer - optional - default: 500000000
-  ## Maximum memory to allow for the trace Agent. The Agent is killed if this number is surpassed.
+  ## This value is what the Agent aims to use in terms of memory. If surpassed, the API
+  ## rate limits incoming requests to aim and stay below this value.
+  ## Note: The Agent process is killed if it uses more than 150% of `max_memory`.
+  ## Set the `max_memory` parameter to `0` to disable the memory limitation.
   #
   # max_memory: 500000000
 
   ## @param max_cpu_percent - integer - optional - default: 50
-  ## Maximum CPU percentage allowed to be occupied by the trace Agent
-  ## The Agent is killed if this number is surpassed.
-  ## Note: it is possible to go above `100` %. For example, `250` means up to 2.5 cores can be used by the trace Agent.
+  ## The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
+  ## incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
+  ## Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
   #
   # max_cpu_percent: 50
 
@@ -639,6 +742,49 @@ api_key:
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
 
+## @param dogstatsd_mapper_profiles - list of custom object - optional
+## The profiles will be used to convert parts of metrics names into tags.
+## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.
+## The profiles and matching rules are processed in the order defined in this configuration.
+##
+## For each profile, following fields are available:
+##    name (required): profile name
+##    prefix (required): mapping only applies to metrics with the prefix. If set to `*`, it will match everything.
+##    mappings: mapping rules, see below.
+## For each mapping, following fields are available:
+##    match (required): pattern for matching the incoming metric name e.g. `test.job.duration.*`
+##    match_type (optional): pattern type can be `wildcard` (default) or `regex` e.g. `test\.job\.(\w+)\.(.*)`
+##    name (required): the metric name the metric should be mapped to e.g. `test.job.duration`
+##    tags (optional): list of key:value pair of tag key and tag value
+##      The value can use $1, $2, etc, that will be replaced by the corresponding element capture by `match` pattern
+##      This alternative syntax can also be used: ${1}, ${2}, etc
+#
+# dogstatsd_mapper_profiles:
+#   - name: <PROFILE_NAME>                        # e.g. "airflow", "consul", "some_database"
+#     prefix: <PROFILE_PREFIX>                    # e.g. "airflow.", "consul.", "some_database."
+#     mappings:
+#       - match: <METRIC_TO_MATCH>                # e.g. `test.job.duration.*` to match `test.job.duration.my_job_name`
+#         match_type: <MATCH_TYPE>                # e.g. `wildcard` or `regex`
+#         name: <MAPPED_METRIC_NAME>              # e.g. `test.job.duration`
+#         tags:
+#           <TAG_KEY>: <TAG_VALUE_TO_EXPAND>      # e.g. `job_name: "$1"`, $1 is replaced by value capture by *
+#       - match: 'test.worker.*.*.start_time'     # to match `test.worker.<worker_type>.<worker_name>.start_time`
+#         name: 'test.worker.start_time'
+#         tags:
+#           worker_type: '$1'
+#           worker_name: '$2'
+#       - match: 'test\.task\.duration\.(\w+)\.(.*)'     # no need to escape in yaml context using single quote
+#         match_type: regex
+#         name: 'test.task'
+#         tags:
+#           task_type: '$1'
+#           task_name: '$2'
+
+## @param dogstatsd_mapper_cache_size - integer - optional - default: 1000
+## Size of the cache (max number of mapping results) used by Dogstatsd mapping feature.
+#
+# dogstatsd_mapper_cache_size: 1000
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
 ## WARNING: Make sure that forwarded packets are regular statsd packets and not "DogStatsD" packets,
@@ -687,9 +833,19 @@ api_key:
 ## When running in a memory cgroup, openjdk 8u131 and higher can automatically adjust
 ## its heap memory usage in accordance to the cgroup/container's memory limit.
 ## The Agent set a Xmx of 200MB if none is configured.
-## Note: older openjdk versions and other jvms might fail to start if this option is set
+## Note: OpenJDK version < 8u131 or >= 10 as well as other JVMs might fail
+## to start if this option is set.
 #
 # jmx_use_cgroup_memory_limit: false
+
+## @param jmx_use_container_support - boolean - optional - default: false
+## When running in a container, openjdk 10 and higher can automatically detect
+## container specific configuration instead of querying the operating system
+## to adjust resources allotted to the JVM.
+## Note: openjdk versions prior to 10 and other JVMs might fail to start if
+## this option is set.
+#
+# jmx_use_container_support: false
 
 ## @param jmx_max_restarts - integer - optional - default: 3
 ## Number of JMX restarts allowed in the restart-interval before giving up.
@@ -740,9 +896,11 @@ api_key:
 ###########################
 
 ## @param log_level - string - optional - default: info
-## Minum log level of the Datadog Agent.
+## Minimum log level of the Datadog Agent.
+## Valid log levels are: trace, debug, info, warn, error, critical, and off.
+## Note: When using the 'off' log level, quotes are mandatory.
 #
-# log_level: info
+# log_level: 'info'
 
 ## @param log_file - string - optional
 ## Path of the log file for the Datadog Agent.
@@ -988,6 +1146,18 @@ api_key:
   # extra_tags:
   #   - <TAG_KEY>:<TAG_VALUE>
 
+  ## @param advanced_dispatching_enabled - boolean - optional - default: false
+  ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
+  ## from the cluster level check runners to optimize the check dispatching logic.
+  #
+  # advanced_dispatching_enabled: false
+
+  ## @param clc_runners_port - integer - optional - default: 5005
+  ## Set the "clc_runners_port" used by the cluster-agent client to reach cluster level
+  ## check runners and collect their stats.
+  #
+  # clc_runners_port: 5005
+
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -1063,6 +1233,12 @@ api_key:
 ## Agent should look for with ecs_agent_container_name, or force a fixed url here:
 #
 # ecs_agent_url: http://localhost:51678
+
+## @param ecs_collect_resource_tags_ec2 - boolean - optional - default: false
+## The Agent can collect resource tags from the metadata API exposed by the
+## ECS Agent for tasks scheduled with the EC2 launch type.
+#
+# ecs_collect_resource_tags_ec2: false
 
 {{ end -}}
 {{- if .CRI }}
@@ -1186,6 +1362,12 @@ api_key:
 #
 # kubernetes_pod_expiration_duration: 900
 
+## @param kubelet_listener_polling_interval - integer - optional - default: 5
+## Polling frequency in seconds at which autodiscovery will query the pod watcher to detect new pods/containers.
+## Note that kubelet_cache_pods_duration needs to be lower than this setting, or autodiscovery will only poll more frequently the same cached data (kubelet_cache_pods_duration controls the cache refresh frequency).
+#
+# kubelet_listener_polling_interval: 5
+
 {{ end -}}
 {{- if .KubeApiServer }}
 
@@ -1259,7 +1441,14 @@ api_key:
 
 ## @param clustername - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
+## The cluster name can be up to 40 characters with the following restrictions:
+## * Lowercase letters, numbers, and hyphens only.
+## * Must start with a letter.
+## * Must end with a number or a letter.
+##
+## These are the same rules as the ones enforced by GKE:
+## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
-# clustername: <CLUSTER_IDENTIFIER>
+# cluster_name: <CLUSTER_IDENTIFIER>
 
 {{ end -}}

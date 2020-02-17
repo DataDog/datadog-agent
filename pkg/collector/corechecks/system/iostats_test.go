@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build !windows
 
 package system
@@ -89,7 +89,7 @@ func sampler(samples []map[string]disk.IOCountersStat, names ...string) (map[str
 func TestIOCheckDM(t *testing.T) {
 	ioCounters = ioSamplerDM
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
+	ioCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -112,7 +112,7 @@ func TestIOCheck(t *testing.T) {
 
 	ioCounters = ioSampler
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
+	ioCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -175,7 +175,7 @@ func TestIOCheck(t *testing.T) {
 func TestIOCheckBlacklist(t *testing.T) {
 	ioCounters = ioSampler
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
+	ioCheck.Configure(nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 

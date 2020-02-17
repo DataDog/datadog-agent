@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package legacy
 
@@ -103,7 +103,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 		return deprecations, nil
 	}
 	if len(c.Instances) > 1 {
-		fmt.Printf("Warning: %s contains more than one instance: converting only the first one", src)
+		fmt.Printf("Warning: %s contains more than one instance: converting only the first one\n", src)
 	}
 
 	// kubelet.yaml (only tags for now)

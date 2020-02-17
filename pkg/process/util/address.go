@@ -3,15 +3,13 @@ package util
 import (
 	"encoding/binary"
 	"net"
-
-	"github.com/mailru/easyjson/jwriter"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
 type Address interface {
 	Bytes() []byte
 	String() string
-	MarshalEasyJSON(w *jwriter.Writer)
+	IsLoopback() bool
 }
 
 // AddressFromNetIP returns an Address from a provided net.IP
@@ -30,6 +28,11 @@ func AddressFromNetIP(ip net.IP) Address {
 // AddressFromString creates an Address using the string representation of an v4 IP
 func AddressFromString(ip string) Address {
 	return AddressFromNetIP(net.ParseIP(ip))
+}
+
+// NetIPFromAddress returns a net.IP from an Address
+func NetIPFromAddress(addr Address) net.IP {
+	return net.IP(addr.Bytes())
 }
 
 type v4Address [4]byte
@@ -61,9 +64,9 @@ func (a v4Address) String() string {
 	return net.IPv4(a[0], a[1], a[2], a[3]).String()
 }
 
-// MarshalEasyJSON is a marshaller used by easyjson to convert an v4Address into a string
-func (a v4Address) MarshalEasyJSON(w *jwriter.Writer) {
-	w.String(a.String())
+// IsLoopback returns true if this address is the loopback address
+func (a v4Address) IsLoopback() bool {
+	return net.IP(a[:]).IsLoopback()
 }
 
 type v6Address [16]byte
@@ -93,7 +96,7 @@ func (a v6Address) String() string {
 	return net.IP(a[:]).String()
 }
 
-// MarshalEasyJSON is a marshaller used by easyjson to convert an v4Address into a string
-func (a v6Address) MarshalEasyJSON(w *jwriter.Writer) {
-	w.String(a.String())
+// IsLoopback returns true if this address is the loopback address
+func (a v6Address) IsLoopback() bool {
+	return net.IP(a[:]).IsLoopback()
 }

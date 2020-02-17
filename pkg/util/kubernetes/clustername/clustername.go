@@ -1,18 +1,30 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package clustername
 
 import (
+	"regexp"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	// validClusterName matches exactly the same naming rule as the one enforced by GKE:
+	// https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
+	// The cluster name can be up to 40 characters with the following restrictions:
+	// * Lowercase letters, numbers, dots and hyphens only.
+	// * Must start with a letter.
+	// * Must end with a number or a letter.
+	validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
 )
 
 type clusterNameData struct {
@@ -50,6 +62,13 @@ func getClusterName(data *clusterNameData) string {
 		data.clusterName = config.Datadog.GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
+			if !validClusterName.MatchString(data.clusterName) || len(data.clusterName) > 40 {
+				log.Errorf("%q isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
+					"start with a lowercase letter followed by up to 39 lowercase letters, numbers, or "+
+					"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen.", data.clusterName)
+				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
+				data.clusterName = ""
+			}
 		}
 
 		// autodiscover clustername through k8s providers' API
@@ -67,6 +86,15 @@ func getClusterName(data *clusterNameData) string {
 					data.clusterName = clusterName
 					break
 				}
+			}
+		}
+
+		if data.clusterName == "" {
+			clusterName, err := hostinfo.GetNodeClusterNameLabel()
+			if err != nil {
+				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+			} else {
+				data.clusterName = clusterName
 			}
 		}
 		data.initDone = true

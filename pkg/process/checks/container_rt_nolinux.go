@@ -7,8 +7,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 

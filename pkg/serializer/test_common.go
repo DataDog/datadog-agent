@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package serializer
 
@@ -17,12 +17,12 @@ type MockSerializer struct {
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *MockSerializer) SendEvents(e marshaler.Marshaler) error {
+func (s *MockSerializer) SendEvents(e EventsStreamJSONMarshaler) error {
 	return s.Called(e).Error(0)
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *MockSerializer) SendServiceChecks(sc marshaler.Marshaler) error {
+func (s *MockSerializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	return s.Called(sc).Error(0)
 }
 

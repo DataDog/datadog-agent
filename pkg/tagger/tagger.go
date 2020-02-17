@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package tagger
 
@@ -245,9 +245,11 @@ IterCollectors:
 		}
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
 		low, orch, high, err := collector.Fetch(entity)
+		cacheMiss := false
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
+			cacheMiss = true
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
 			continue // don't store empty tags, retry next time
@@ -266,6 +268,7 @@ IterCollectors:
 			LowCardTags:          low,
 			OrchestratorCardTags: orch,
 			HighCardTags:         high,
+			CacheMiss:            cacheMiss,
 		})
 	}
 	t.RUnlock()

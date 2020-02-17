@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const externalMetricsMaxBackoff = 32 * time.Second
+const externalMetricsBaseBackoff = 1 * time.Second
+
 type externalMetric struct {
 	info  provider.ExternalMetricInfo
 	value external_metrics.ExternalMetricValue
@@ -37,7 +41,6 @@ type datadogProvider struct {
 	mapper apimeta.RESTMapper
 
 	externalMetrics []externalMetric
-	resVersion      string
 	store           Store
 	isServing       bool
 	timestamp       int64
@@ -57,45 +60,26 @@ func NewDatadogProvider(ctx context.Context, client dynamic.Interface, mapper ap
 	return d
 }
 
-type timer struct {
-	period time.Duration
-	timer  time.Timer
-}
-
-func (t *timer) resetTimer() {
-	t.timer.Stop()
-	t.timer = *time.NewTimer(t.period)
-}
-
-func createTimer(period time.Duration) *timer {
-	return &timer{period, *time.NewTimer(period)}
-}
-
 func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 	log.Infof("Starting async loop to collect External Metrics")
-	tick := time.NewTicker(time.Duration(p.maxAge) * time.Second)
-	defer tick.Stop()
-	out := createTimer(3 * time.Duration(p.maxAge) * time.Second)
-	defer out.timer.Stop()
-
-	// If we exceed 3 retries trying to access the ConfigMap, we permafail and stop trying to refresh the External Metrics.
 	ctxCancel, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	currentBackoff := externalMetricsBaseBackoff
 	for {
-		select {
-		case <-tick.C:
-			var externalMetricsList []externalMetric
-			// TODO as we implement a more resilient logic to access a potentially deleted CM, we should pass in ctxCancel in case of permafail.
-			rawMetrics, err := p.store.ListAllExternalMetricValues()
-			if err != nil {
+		var externalMetricsList []externalMetric
+		// TODO as we implement a more resilient logic to access a potentially deleted CM, we should pass in ctxCancel in case of permafail.
+		rawMetrics, err := p.store.ListAllExternalMetricValues()
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				log.Errorf("ConfigMap for external metrics not found: %s", err.Error())
+			} else {
 				log.Errorf("Could not list the external metrics in the store: %s", err.Error())
-				p.isServing = false
-				break
 			}
-
-			for _, metric := range rawMetrics {
-				// Only metrics that exist in Datadog and available are eligible to be evaluated in the HPA process.
+			p.isServing = false
+		} else {
+			for _, metric := range rawMetrics.External {
+				// Only metrics that exist in Datadog and available are eligible to be evaluated in the Autoscaler Controller process.
 				if !metric.Valid {
 					continue
 				}
@@ -119,28 +103,34 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			p.externalMetrics = externalMetricsList
 			p.timestamp = metav1.Now().Unix()
 			p.isServing = true
-
-			out.resetTimer()
-
-		case <-out.timer.C:
-			log.Error("Timeout while processing the collection of external metrics")
-			cancel()
-
+		}
+		select {
 		case <-ctxCancel.Done():
-			p.isServing = false
 			log.Infof("Received instruction to terminate collection of External Metrics, stopping async loop")
 			return
+		default:
+			if p.isServing == true {
+				currentBackoff = externalMetricsBaseBackoff
+			} else {
+				currentBackoff = currentBackoff * 2
+				if currentBackoff > externalMetricsMaxBackoff {
+					currentBackoff = externalMetricsMaxBackoff
+				}
+				log.Infof("Retrying externalMetricsSetter with backoff %.0f seconds", currentBackoff.Seconds())
+			}
+			time.Sleep(currentBackoff)
+			continue
 		}
 	}
 }
 
 // GetMetricByName - Not implemented
-func (p *datadogProvider) GetMetricByName(name types.NamespacedName, info provider.CustomMetricInfo) (*custom_metrics.MetricValue, error) {
+func (p *datadogProvider) GetMetricByName(name types.NamespacedName, info provider.CustomMetricInfo, labels labels.Selector) (*custom_metrics.MetricValue, error) {
 	return nil, fmt.Errorf("not Implemented - GetMetricByName")
 }
 
 // GetMetricBySelector - Not implemented
-func (p *datadogProvider) GetMetricBySelector(namespace string, selector labels.Selector, info provider.CustomMetricInfo) (*custom_metrics.MetricValueList, error) {
+func (p *datadogProvider) GetMetricBySelector(namespace string, selector labels.Selector, info provider.CustomMetricInfo, label labels.Selector) (*custom_metrics.MetricValueList, error) {
 	return nil, fmt.Errorf("not Implemented - GetMetricBySelector")
 }
 
@@ -163,7 +153,7 @@ func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo
 	return externalMetricsInfoList
 }
 
-// GetExternalMetric is called by the PodAutoscaler Controller to get the value of the external metric it is currently evaluating.
+// GetExternalMetric is called by the Autoscaler Controller to get the value of the external metric it is currently evaluating.
 func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 
 	if !p.isServing || time.Now().Unix()-p.timestamp > 2*p.maxAge {
@@ -177,10 +167,10 @@ func (p *datadogProvider) GetExternalMetric(namespace string, metricSelector lab
 			MetricLabels: metric.value.MetricLabels,
 			Value:        metric.value.Value,
 		}
-		// Datadog metrics are not case sensitive but the HPA Controller lower cases the metric name as it queries the metrics provider.
-		// Lowering the metric name retrieved by the HPA Informer here, allows for users to use metrics with capital letters.
+		// Datadog metrics are not case sensitive but the Autoscaler Controller lower cases the metric name as it queries the metrics provider.
+		// Lowering the metric name retrieved by the Autoscaler Informer here, allows for users to use metrics with capital letters.
 		// Datadog tags are lower cased, but metrics labels are not case sensitive.
-		// If tags with capital letters are used (as the label selector in the HPA), no metrics will be retrieved from Datadog.
+		// If tags with capital letters are used (as the label selector in the Autoscaler), no metrics will be retrieved from Datadog.
 		if info.Metric == strings.ToLower(metric.info.Metric) &&
 			metricSelector.Matches(labels.Set(metric.value.MetricLabels)) {
 			metricValue := metricFromDatadog

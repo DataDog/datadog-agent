@@ -1,19 +1,19 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build kubeapiserver
 
 package cluster
 
 import (
+	"fmt"
 	"testing"
-
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	obj "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -28,10 +28,10 @@ func TestParseComponentStatus(t *testing.T) {
 	// We only test one Component Condition as only the Healthy Condition is supported.
 	// We check if the OK, Critical and Unknown Service Checks are returned accordingly to the condition and the status given.
 
-	expectedComp := v1.ComponentCondition{Type: "Healthy", Status: "True"}
-	unExpectedComp := v1.ComponentCondition{Type: "Not Supported", Status: "True"}
-	unHealthyComp := v1.ComponentCondition{Type: "Healthy", Status: "False"}
-	unExpectedStatus := v1.ComponentCondition{Type: "Healthy", Status: "Other"}
+	expectedComp := v1.ComponentCondition{Type: "Healthy", Status: "True", Message: "imok"}
+	unExpectedComp := v1.ComponentCondition{Type: "Not Supported", Status: "True", Message: ""}
+	unHealthyComp := v1.ComponentCondition{Type: "Healthy", Status: "False", Error: "Connection closed"}
+	unExpectedStatus := v1.ComponentCondition{Type: "Healthy", Status: "Other", Message: ""}
 
 	expected := &v1.ComponentStatusList{
 		Items: []v1.ComponentStatus{
@@ -95,28 +95,28 @@ func TestParseComponentStatus(t *testing.T) {
 	}
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "imok")
 	kubeASCheck.parseComponentStatus(mocked, expected)
 
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 1)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "imok")
 
 	err := kubeASCheck.parseComponentStatus(mocked, unExpected)
 	assert.EqualError(t, err, "metadata structure has changed. Not collecting API Server's Components status")
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "Connection closed")
 	kubeASCheck.parseComponentStatus(mocked, unHealthy)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 2)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "Connection closed")
 
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
 	kubeASCheck.parseComponentStatus(mocked, unknown)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 3)
 	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
 
-	empty_resp := kubeASCheck.parseComponentStatus(mocked, empty)
-	assert.Nil(t, empty_resp, "metadata structure has changed. Not collecting API Server's Components status")
+	emptyResp := kubeASCheck.parseComponentStatus(mocked, empty)
+	assert.Nil(t, emptyResp, "metadata structure has changed. Not collecting API Server's Components status")
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
 	mocked.AssertExpectations(t)
@@ -156,9 +156,6 @@ func TestProcessBundledEvents(t *testing.T) {
 	// (As Object kinds are Pod and Node here, the event should take the remote hostname `machine-blue`)
 
 	kubeASCheck := &KubeASCheck{
-		instance: &KubeASConfig{
-			FilteredEventType: []string{"ignored"},
-		},
 		CheckBase:             core.NewCheckBase(kubernetesAPIServerCheckName),
 		KubeAPIServerHostname: "hostname",
 	}
@@ -172,7 +169,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
-	kubeASCheck.processEvents(mocked, newKubeEventsBundle, false)
+	kubeASCheck.processEvents(mocked, newKubeEventsBundle)
 
 	// We are only expecting one bundle event.
 	// We need to check that the countByAction concatenated string contains the source events.
@@ -189,7 +186,7 @@ func TestProcessBundledEvents(t *testing.T) {
 		ev4,
 	}
 	modifiedNewDatadogEvents := metrics.Event{
-		Title:          "Events from the machine-blue Node",
+		Title:          "Events from the Node machine-blue",
 		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"namespace:default", "source_component:kubelet"},
@@ -202,13 +199,13 @@ func TestProcessBundledEvents(t *testing.T) {
 	mocked = mocksender.NewMockSender(kubeASCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
-	kubeASCheck.processEvents(mocked, modifiedKubeEventsBundle, true)
+	kubeASCheck.processEvents(mocked, modifiedKubeEventsBundle)
 
 	mocked.AssertEvent(t, modifiedNewDatadogEvents, 0)
 	mocked.AssertExpectations(t)
 
 	// Test the hostname change when a cluster name is set
-	var testClusterName = "Laika"
+	var testClusterName = "laika"
 	mockConfig := config.Mock()
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
@@ -217,7 +214,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	defer clustername.ResetClusterName()
 
 	modifiedNewDatadogEventsWithClusterName := metrics.Event{
-		Title:          "Events from the machine-blue Node",
+		Title:          "Events from the Node machine-blue",
 		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"namespace:default", "source_component:kubelet"},
@@ -231,7 +228,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	mocked = mocksender.NewMockSender(kubeASCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
-	kubeASCheck.processEvents(mocked, modifiedKubeEventsBundle, true)
+	kubeASCheck.processEvents(mocked, modifiedKubeEventsBundle)
 
 	mocked.AssertEvent(t, modifiedNewDatadogEventsWithClusterName, 0)
 	mocked.AssertExpectations(t)
@@ -244,9 +241,6 @@ func TestProcessEvent(t *testing.T) {
 	// (Object kind was changed from Pod to ReplicaSet to test the choice of hostname: it should take here the local hostname below `hostname`)
 
 	kubeASCheck := &KubeASCheck{
-		instance: &KubeASConfig{
-			FilteredEventType: []string{"ignored"},
-		},
 		CheckBase:             core.NewCheckBase(kubernetesAPIServerCheckName),
 		KubeAPIServerHostname: "hostname",
 	}
@@ -257,7 +251,7 @@ func TestProcessEvent(t *testing.T) {
 	}
 	// 1 Scheduled:
 	newDatadogEvent := metrics.Event{
-		Title:          "Events from the dca-789976f5d7-2ljx6 ReplicaSet",
+		Title:          "Events from the ReplicaSet default/dca-789976f5d7-2ljx6",
 		Text:           "%%% \n2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n \n _New events emitted by the default-scheduler seen at " + time.Unix(709662600000, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"source_component:default-scheduler", "namespace:default"},
@@ -268,24 +262,43 @@ func TestProcessEvent(t *testing.T) {
 		EventType:      "kubernetes_apiserver",
 	}
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
-	kubeASCheck.processEvents(mocked, newKubeEventBundle, false)
+	kubeASCheck.processEvents(mocked, newKubeEventBundle)
 	mocked.AssertEvent(t, newDatadogEvent, 0)
 	mocked.AssertExpectations(t)
 
 	// No events
 	empty := []*v1.Event{}
 	mocked = mocksender.NewMockSender(kubeASCheck.ID())
-	kubeASCheck.processEvents(mocked, empty, false)
+	kubeASCheck.processEvents(mocked, empty)
 	mocked.AssertNotCalled(t, "Event")
 	mocked.AssertExpectations(t)
+}
 
-	// Ignored Event
-	ev5 := createEvent(1, "default", "machine-blue", "Node", "529fe848-e132-11e7-bad4-0e4863e1cbf4", "kubelet", "machine-blue", "ignored", "", 709675200)
-	filteredKubeEventsBundle := []*v1.Event{
-		ev5,
+func TestConvertFilter(t *testing.T) {
+	for n, tc := range []struct {
+		caseName string
+		filters  []string
+		output   string
+	}{
+		{
+			caseName: "legacy support",
+			filters:  []string{"OOM"},
+			output:   "reason!=OOM",
+		},
+		{
+			caseName: "exclude node and type",
+			filters:  []string{"involvedObject.kind!=Node", "type==Normal"},
+			output:   "involvedObject.kind!=Node,type==Normal",
+		},
+		{
+			caseName: "legacy support and exclude HorizontalPodAutoscaler",
+			filters:  []string{"involvedObject.kind!=HorizontalPodAutoscaler", "type!=Normal", "OOM"},
+			output:   "involvedObject.kind!=HorizontalPodAutoscaler,type!=Normal,reason!=OOM",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", n, tc.caseName), func(t *testing.T) {
+			output := convertFilter(tc.filters)
+			assert.Equal(t, tc.output, output)
+		})
 	}
-	mocked = mocksender.NewMockSender(kubeASCheck.ID())
-	kubeASCheck.processEvents(mocked, filteredKubeEventsBundle, false)
-	mocked.AssertNotCalled(t, "Event")
-	mocked.AssertExpectations(t)
 }

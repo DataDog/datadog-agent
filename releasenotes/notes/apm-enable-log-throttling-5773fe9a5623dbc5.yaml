@@ -10,5 +10,6 @@ upgrade:
   - |
     APM: Log throttling is now automatically enabled by default when
     `log_level` differs from `debug`. A maximum of no more than 10 error
-    messages every 10 seconds will be displayed.
+    messages every 10 seconds will be displayed. If you had it enabled before,
+    it can now be removed from the config file.
     

@@ -18,10 +18,12 @@ EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
 EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
 
 BPF_TAG = "linux_bpf"
+GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
 @task
-def build(ctx, race=False, incremental_build=False):
+def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7',
+          python_runtimes='3'):
     """
     Build the system_probe
     """
@@ -31,14 +33,29 @@ def build(ctx, race=False, incremental_build=False):
     # TODO use pkg/version for this
     main = "main."
     ld_vars = {
-        "Version": get_version(ctx),
+        "Version": get_version(ctx, major_version=major_version),
         "GoVersion": get_go_version(),
         "GitBranch": get_git_branch_name(),
         "GitCommit": get_git_commit(),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-    ldflags, gcflags, env = get_build_flags(ctx)
+    goenv = {}
+    # TODO: this is a temporary workaround. system probe had issues when built with go 1.11 and 1.12
+    if go_version:
+        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        for line in lines:
+            for env_var in GIMME_ENV_VARS:
+                if env_var in line:
+                    goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
+        ld_vars["GoVersion"] = go_version
+
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+
+    # extend PATH from gimme with the one from get_build_flags
+    if "PATH" in os.environ and "PATH" in goenv:
+        goenv["PATH"] += ":" + os.environ["PATH"]
+    env.update(goenv)
 
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
@@ -50,7 +67,7 @@ def build(ctx, race=False, incremental_build=False):
 
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-i" if incremental_build else "-a",
+        "build_type": "" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": BIN_PATH,
         "gcflags": gcflags,
@@ -62,7 +79,7 @@ def build(ctx, race=False, incremental_build=False):
 
 
 @task
-def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False):
+def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7'):
     """
     Build the system_probe using a container
     This can be used when the current OS don't have up to date linux headers
@@ -80,7 +97,7 @@ def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_bui
     if should_use_sudo(ctx):
         docker_cmd = "sudo " + docker_cmd
 
-    cmd = "invoke -e system-probe.build"
+    cmd = "invoke -e system-probe.build --major-version {}".format(major_version)
 
     if race:
         cmd += " --race"
@@ -118,18 +135,22 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
 
 
 @task
-def nettop(ctx):
+def nettop(ctx, incremental_build=False):
     """
     Build and run the `nettop` utility for testing
     """
     build_object_files(ctx, install=True)
 
-    cmd = 'go build -a -tags "linux_bpf" -o {bin_path} {path}'
+    cmd = 'go build {build_type} -tags "linux_bpf" -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
-    ctx.run(cmd.format(path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"), bin_path=bin_path))
-    # Run
+    ctx.run(cmd.format(
+        path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
+        bin_path=bin_path,
+        build_type="-i" if incremental_build else "-a",
+    ))
 
+    # Run
     if should_use_sudo(ctx):
         ctx.sudo(bin_path)
     else:
@@ -174,22 +195,6 @@ def build_dev_docker_image(ctx, image_name, push=False):
 
 
 @task
-def codegen(ctx):
-    """codegen handles retrieving the easyjson dependency and rebuilding
-    the easyjson files
-    """
-
-    ctx.run("go get -u github.com/mailru/easyjson/...")
-    ebpf_path = os.path.join(".", "pkg", "ebpf")
-    paths = [
-        os.path.join(ebpf_path, "event_common.go"),
-        os.path.join(ebpf_path, "netlink", "event.go"),
-    ]
-    for path in paths:
-        ctx.run("easyjson {}".format(path))
-
-
-@task
 def object_files(ctx, install=True):
     """object_files builds the eBPF object files"""
     build_object_files(ctx, install=install)
@@ -200,11 +205,17 @@ def build_object_files(ctx, install=True):
     set install to False to disable replacing the assets
     """
 
-    headers_dir = "/usr/src"
-    linux_headers = [
-        os.path.join(headers_dir, d) for d in os.listdir(headers_dir)
-        if "linux-headers" in d
-    ]
+    centos_headers_dir = "/usr/src/kernels"
+    debian_headers_dir = "/usr/src"
+    if os.path.isdir(centos_headers_dir):
+        linux_headers = [
+            os.path.join(centos_headers_dir, d) for d in os.listdir(centos_headers_dir)
+        ]
+    else:
+        linux_headers = [
+            os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir)
+            if d.startswith("linux-")
+        ]
 
     bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
@@ -268,13 +279,16 @@ def build_object_files(ctx, install=True):
         # Now update the assets stored in the go code
         commands.append("go get -u github.com/jteeuwen/go-bindata/...")
 
-        assets_cmd = "go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}'"
+        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}'"
+        go_file = os.path.join(bpf_dir, "tracer-ebpf.go")
         commands.append(assets_cmd.format(
             c_dir=c_dir,
-            go_file=os.path.join(bpf_dir, "tracer-ebpf.go"),
+            go_file=go_file,
             obj_file=obj_file,
             debug_obj_file=debug_obj_file,
         ))
+
+        commands.append("gofmt -w -s {go_file}".format(go_file=go_file))
 
     for cmd in commands:
         ctx.run(cmd)

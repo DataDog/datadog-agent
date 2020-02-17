@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build containerd
 
@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	ddContainers "github.com/DataDog/datadog-agent/pkg/util/containers"
+	cmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -72,9 +73,9 @@ func (co *ContainerdConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerdCheck) Configure(config, initConfig integration.Data) error {
+func (c *ContainerdCheck) Configure(config, initConfig integration.Data, source string) error {
 	var err error
-	if err = c.CommonConfigure(config); err != nil {
+	if err = c.CommonConfigure(config, source); err != nil {
 		return err
 	}
 
@@ -158,7 +159,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *ddCo
 		output.Title = fmt.Sprintf("Event on %s from Containerd", split[1])
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
-			tags, err := tagger.Tag(e.ID, collectors.HighCardinality)
+			tags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+e.ID, collectors.HighCardinality)
 			if err != nil {
 				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
 				log.Errorf("Could not retrieve tags for the container %s: %v", e.ID, err)
@@ -191,7 +192,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
 		}
 		// Tagger tags
-		taggerTags, err := tagger.Tag(ctn.ID(), collectors.HighCardinality)
+		taggerTags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+ctn.ID(), collectors.HighCardinality)
 		if err != nil {
 			log.Errorf(err.Error())
 			continue
@@ -210,9 +211,9 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 
-		if metrics.Memory != nil {
-			computeMem(sender, metrics.Memory, tags)
-		}
+		currentTime := time.Now()
+		computeUptime(sender, info, currentTime, tags)
+		computeMem(sender, metrics.Memory, tags)
 
 		if metrics.CPU.Throttling != nil && metrics.CPU.Usage != nil {
 			computeCPU(sender, metrics.CPU, tags)
@@ -232,6 +233,24 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 		sender.Gauge("containerd.image.size", float64(size), "", tags)
+
+		// Collect open file descriptor counts
+		processes, err := cu.TaskPids(ctn)
+		if err != nil {
+			log.Tracef("Could not retrieve pids from task %s: %s", ctn.ID()[:12], errTask.Error())
+			continue
+		}
+		fileDescCount := 0
+		for _, p := range processes {
+			pid := p.Pid
+			fdCount, err := cmetrics.GetFileDescriptorLen(int(pid))
+			if err != nil {
+				log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, ctn.ID()[:12], err)
+				continue
+			}
+			fileDescCount += fdCount
+		}
+		sender.Gauge("containerd.proc.open_fds", float64(fileDescCount), "", tags)
 	}
 }
 
@@ -279,7 +298,17 @@ func computeHugetlb(sender aggregator.Sender, huge []*cgroups.HugetlbStat, tags 
 	}
 }
 
+func computeUptime(sender aggregator.Sender, ctn containers.Container, currentTime time.Time, tags []string) {
+	uptime := currentTime.Sub(ctn.CreatedAt).Seconds()
+	if uptime > 0 {
+		sender.Gauge("containerd.uptime", uptime, "", tags)
+	}
+}
+
 func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string) {
+	if mem == nil {
+		return
+	}
 
 	memList := map[string]*cgroups.MemoryEntry{
 		"containerd.mem.current":    mem.Usage,

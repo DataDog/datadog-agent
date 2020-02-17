@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package api
 
 import (
@@ -46,13 +51,6 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	metrics.Count(receiverErrorKey, 1, tags, 1)
 
 	http.Error(w, msg, status)
-}
-
-// httpEndpointNotSupported is for payloads getting sent to a wrong endpoint
-func httpEndpointNotSupported(tags []string, w http.ResponseWriter) {
-	tags = append(tags, "error:unsupported-endpoint")
-	metrics.Count(receiverErrorKey, 1, tags, 1)
-	http.Error(w, "unsupported-endpoint", http.StatusInternalServerError)
 }
 
 // httpOK is a dumb response for when things are a OK

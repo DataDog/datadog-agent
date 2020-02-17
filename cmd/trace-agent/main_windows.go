@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 // +build windows
 
 package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -88,9 +94,11 @@ func runService(isDebug bool) {
 
 // main is the main application entry point
 func main() {
+	flag.Parse()
+
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
-		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
+		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 	}
 	if !isIntSess {
 		runService(false)
@@ -112,7 +120,7 @@ func main() {
 		optcount++
 	}
 	if optcount > 1 {
-		fmt.Printf("Incompatible options chosen")
+		fmt.Println("Incompatible options chosen")
 		return
 	}
 	if flags.Win.InstallService {

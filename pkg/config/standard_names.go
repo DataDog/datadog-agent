@@ -18,6 +18,7 @@ var StandardStatsdPrefixes = []string{
 	"datadog.dogstatsd",
 	"datadog.process",
 	"datadog.trace_agent",
+	"datadog.tracer",
 
 	"activemq",
 	"activemq_58",
@@ -27,4 +28,5 @@ var StandardStatsdPrefixes = []string{
 	"solr",
 	"tomcat",
 	"kafka",
+	"runtime",
 }

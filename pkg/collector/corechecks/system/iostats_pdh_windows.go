@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build windows
 
 package system
@@ -68,8 +68,8 @@ func isDrive(instance string) bool {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	err := c.commonConfigure(data, initConfig)
+func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	err := c.commonConfigure(data, initConfig, source)
 	if err != nil {
 		return err
 	}

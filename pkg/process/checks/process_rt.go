@@ -7,8 +7,8 @@ import (
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/DataDog/gopsutil/process"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -49,6 +49,9 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
+	}
+	if len(cpuTimes) == 0 {
+		return nil, errEmptyCPUTime
 	}
 	procs, err := getAllProcesses(cfg)
 	if err != nil {

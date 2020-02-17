@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -9,6 +9,7 @@ package containers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	cmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -52,4 +53,19 @@ func TestReportIOMetrics(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(671846400), "", sdaTags)
 	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", float64(1130496), "", sdbTags)
 	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(0), "", sdbTags)
+}
+
+func TestReportUptime(t *testing.T) {
+	dockerCheck := &DockerCheck{
+		instance: &DockerConfig{},
+	}
+	mockSender := mocksender.NewMockSender(dockerCheck.ID())
+	mockSender.SetupAcceptAll()
+
+	tags := []string{"constant:tags", "container_name:dummy"}
+	currentTime := time.Now().Unix()
+
+	startTime := currentTime - 60
+	dockerCheck.reportUptime(startTime, currentTime, tags, mockSender)
+	mockSender.AssertMetric(t, "Gauge", "docker.uptime", 60.0, "", tags)
 }

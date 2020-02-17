@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package flare
 
@@ -59,7 +59,7 @@ func TestFlareHasRightForm(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	av, _ := version.New(version.AgentVersion, version.Commit)
+	av, _ := version.Agent()
 
 	assert.Equal(t, caseID, lastRequest.FormValue("case_id"))
 	assert.Equal(t, email, lastRequest.FormValue("email"))

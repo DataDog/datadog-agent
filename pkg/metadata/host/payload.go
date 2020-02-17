@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package host
 
@@ -26,6 +26,12 @@ type Meta struct {
 	Hostname       string   `json:"hostname"`
 	HostAliases    []string `json:"host_aliases"`
 	InstanceID     string   `json:"instance-id"`
+	AgentHostname  string   `json:"agent-hostname,omitempty"`
+}
+
+// NetworkMeta is metadata about the host's network
+type NetworkMeta struct {
+	ID string `json:"network-id"`
 }
 
 type tags struct {
@@ -41,4 +47,5 @@ type Payload struct {
 	Meta          *Meta             `json:"meta"`
 	HostTags      *tags             `json:"host-tags"`
 	ContainerMeta map[string]string `json:"container-meta,omitempty"`
+	NetworkMeta   *NetworkMeta      `json:"network"`
 }

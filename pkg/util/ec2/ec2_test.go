@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package ec2
 
@@ -12,14 +12,50 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+var (
+	initialTimeout     = timeout
+	initialMetadataURL = metadataURL
+	initialTokenURL    = tokenURL
+)
+
+func resetPackageVars() {
+	timeout = initialTimeout
+	metadataURL = initialMetadataURL
+	tokenURL = initialTokenURL
+}
+
 func TestIsDefaultHostname(t *testing.T) {
-	assert.True(t, IsDefaultHostname("IP-FOO"))
-	assert.True(t, IsDefaultHostname("domuarigato"))
-	assert.False(t, IsDefaultHostname(""))
+	const key = "ec2_use_windows_prefix_detection"
+	prefixDetection := config.Datadog.GetBool(key)
+	defer config.Datadog.SetDefault(key, prefixDetection)
+
+	for _, prefix := range []bool{true, false} {
+		config.Datadog.SetDefault(key, prefix)
+
+		assert.True(t, IsDefaultHostname("IP-FOO"))
+		assert.True(t, IsDefaultHostname("domuarigato"))
+		assert.Equal(t, prefix, IsDefaultHostname("EC2AMAZ-FOO"))
+		assert.False(t, IsDefaultHostname(""))
+	}
+}
+
+func TestIsDefaultHostnameForIntake(t *testing.T) {
+	const key = "ec2_use_windows_prefix_detection"
+	prefixDetection := config.Datadog.GetBool(key)
+	config.Datadog.SetDefault(key, true)
+	defer config.Datadog.SetDefault(key, prefixDetection)
+
+	assert.True(t, IsDefaultHostnameForIntake("IP-FOO"))
+	assert.True(t, IsDefaultHostnameForIntake("domuarigato"))
+	assert.False(t, IsDefaultHostnameForIntake("EC2AMAZ-FOO"))
+	assert.True(t, IsDefaultHostname("EC2AMAZ-FOO"))
 }
 
 func TestGetInstanceID(t *testing.T) {
@@ -32,6 +68,8 @@ func TestGetInstanceID(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	val, err := GetInstanceID()
 	assert.Nil(t, err)
@@ -49,6 +87,8 @@ func TestGetHostname(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
 
 	val, err := GetHostname()
 	assert.Nil(t, err)
@@ -106,4 +146,188 @@ func TestExtractClusterName(t *testing.T) {
 			assert.Equal(t, test.err, err)
 		})
 	}
+}
+
+func TestGetNetworkID(t *testing.T) {
+	mac := "00:00:00:00:00"
+	vpc := "vpc-12345"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/network/interfaces/macs":
+			io.WriteString(w, mac+"/")
+		case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
+			io.WriteString(w, vpc)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
+
+	val, err := GetNetworkID()
+	assert.NoError(t, err)
+	assert.Equal(t, vpc, val)
+}
+
+func TestGetInstanceIDNoMac(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "")
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
+
+	_, err := GetNetworkID()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no mac addresses returned")
+}
+
+func TestGetInstanceIDMultipleVPC(t *testing.T) {
+	mac := "00:00:00:00:00"
+	vpc := "vpc-12345"
+	mac2 := "00:00:00:00:01"
+	vpc2 := "vpc-6789"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/network/interfaces/macs":
+			io.WriteString(w, mac+"/\n")
+			io.WriteString(w, mac2+"/\n")
+		case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
+			io.WriteString(w, vpc)
+		case "/network/interfaces/macs/00:00:00:00:01/vpc-id":
+			io.WriteString(w, vpc2)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
+
+	_, err := GetNetworkID()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too many mac addresses returned")
+}
+
+func TestGetLocalIPv4(t *testing.T) {
+	ip := "10.0.0.2"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/local-ipv4":
+			io.WriteString(w, ip)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	metadataURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
+
+	ips, err := GetLocalIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ip}, ips)
+}
+
+func TestGetToken(t *testing.T) {
+	originalToken := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
+		if h != "" && r.Method == http.MethodPut {
+			io.WriteString(w, originalToken)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	defer ts.Close()
+	tokenURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
+
+	token, err := getToken()
+	require.NoError(t, err)
+	assert.Equal(t, originalToken, token)
+}
+
+func TestMetedataRequestWithToken(t *testing.T) {
+	var requestWithoutToken *http.Request
+	var requestForToken *http.Request
+	var requestWithToken *http.Request
+	var seq int = 0
+
+	ipv4 := "198.51.100.1"
+	token := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.Method {
+		case http.MethodPut:
+			// Should be a token request
+			h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
+			if h == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+			}
+			r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+			seq++
+			requestForToken = r
+			io.WriteString(w, token)
+		case http.MethodGet:
+			// Should be a metadata request
+			t := r.Header.Get("X-aws-ec2-metadata-token")
+			if t != token {
+				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+				seq++
+				requestWithoutToken = r
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			switch r.RequestURI {
+			case "/local-ipv4":
+				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+				seq++
+				requestWithToken = r
+				io.WriteString(w, ipv4)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		default:
+			fmt.Println("q")
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+	tokenURL = ts.URL
+	timeout = time.Second
+	defer resetPackageVars()
+
+	ips, err := GetLocalIPv4()
+	require.NoError(t, err)
+	assert.Equal(t, []string{ipv4}, ips)
+
+	assert.Equal(t, "0", requestWithoutToken.Header.Get("X-sequence"))
+	assert.Equal(t, "1", requestForToken.Header.Get("X-sequence"))
+	assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
+	assert.Equal(t, "", requestWithoutToken.Header.Get("X-aws-ec2-metadata-token"))
+	assert.Equal(t, "/local-ipv4", requestWithoutToken.RequestURI)
+	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
+	assert.Equal(t, "60", requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
+	assert.Equal(t, http.MethodPut, requestForToken.Method)
+	assert.Equal(t, "/", requestForToken.RequestURI)
+	assert.Equal(t, token, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
+	assert.Equal(t, "/local-ipv4", requestWithToken.RequestURI)
+	assert.Equal(t, http.MethodGet, requestWithToken.Method)
 }

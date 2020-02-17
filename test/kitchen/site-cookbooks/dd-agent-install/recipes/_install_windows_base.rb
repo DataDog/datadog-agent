@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-agent-install
 # Recipe:: _install_windows_base
 #
-# Copyright (C) 2019 Datadog
+# Copyright (C) 2019-2020 Datadog
 #
 # All rights reserved - Do Not Redistribute
 #
@@ -55,7 +55,7 @@ remote_file temp_file do
 end
 
 execute "install-agent" do
-  command "echo %TIME% && start /wait msiexec /log install.log /q /i #{temp_file} #{install_options} && echo %TIME% && sc interrogate datadogagent 2>&1"
+  command "echo %TIME% && start /wait msiexec /q /i #{temp_file} #{install_options} && echo %TIME% && sc interrogate datadogagent 2>&1"
   status_out = `sc interrogate datadogagent 2>&1`
   puts status_out
   action :run

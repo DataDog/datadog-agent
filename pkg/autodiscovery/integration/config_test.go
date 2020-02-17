@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package integration
 
@@ -55,6 +55,24 @@ func TestConfigEqual(t *testing.T) {
 		LogsConfig: Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 	assert.Equal(t, checkConfigWithOrderedTags.Digest(), checkConfigWithUnorderedTags.Digest())
+}
+
+func TestIsLogConfig(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsLogConfig())
+	config.Instances = []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")}
+	assert.False(t, config.IsLogConfig())
+	config.LogsConfig = Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]")
+	assert.True(t, config.IsLogConfig())
+}
+
+func TestIsCheckConfig(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsCheckConfig())
+	config.Instances = []Data{Data("tags: [\"foo:bar\", \"bar:foo\"]")}
+	assert.True(t, config.IsCheckConfig())
+	config.ClusterCheck = true
+	assert.False(t, config.IsCheckConfig())
 }
 
 func TestString(t *testing.T) {

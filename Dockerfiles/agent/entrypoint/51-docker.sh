@@ -19,7 +19,7 @@ if [[ ! -e /etc/datadog-agent/datadog.yaml ]]; then
 fi
 
 # Enable the docker corecheck
-if [[ ! -e /etc/datadog-agent/conf.d/docker.d/conf.yaml.default ]]; then
+if [[ ! -e /etc/datadog-agent/conf.d/docker.d/conf.yaml.default && -e /etc/datadog-agent/conf.d/docker.d/conf.yaml.example ]]; then
     mv /etc/datadog-agent/conf.d/docker.d/conf.yaml.example \
     /etc/datadog-agent/conf.d/docker.d/conf.yaml.default
 fi

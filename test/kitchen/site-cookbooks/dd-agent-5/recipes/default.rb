@@ -11,5 +11,5 @@ require 'uri'
 if node['platform_family'] == 'windows' 
   include_recipe 'dd-agent-5::_install_windows_base'
 else
-  include_recipe 'datadog::dd-agent'
+  include_recipe 'dd-agent-5::_install_linux'
 end

@@ -68,8 +68,8 @@ func setupSensitiveCmdlines() []testCase {
 		{[]string{"fitz", "--consul_token", "1234567890"}, []string{"fitz", "--consul_token", "********"}},
 		{[]string{"fitz", "-dd_password", "1234567890"}, []string{"fitz", "-dd_password", "********"}},
 		{[]string{"fitz", "dd_password", "1234567890"}, []string{"fitz", "dd_password", "********"}},
-		{[]string{"python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 &"},
-			[]string{"python", "~/test/run.py", "--password=********", "-password", "********", "-open_password=admin", "-consul_token", "********", "-blocked_from_yaml=********", "&"}},
+		{[]string{"python ~/test/run.py --password=1234 -password 1234 -open_pword=admin -consul_token 2345 -blocked_from_yaml=1234 &"},
+			[]string{"python", "~/test/run.py", "--password=********", "-password", "********", "-open_pword=admin", "-consul_token", "********", "-blocked_from_yaml=********", "&"}},
 		{[]string{"agent", "-PASSWORD", "1234"}, []string{"agent", "-PASSWORD", "********"}},
 		{[]string{"agent", "--PASSword", "1234"}, []string{"agent", "--PASSword", "********"}},
 		{[]string{"agent", "--PaSsWoRd=1234"}, []string{"agent", "--PaSsWoRd=********"}},
@@ -79,6 +79,18 @@ func setupSensitiveCmdlines() []testCase {
 		{[]string{"java kafka password 1234"}, []string{"java", "kafka", "password", "********"}},
 		{[]string{"agent", "password:1234"}, []string{"agent", "password:********"}},
 		{[]string{"agent password:1234"}, []string{"agent", "password:********"}},
+		{[]string{"p1", "--openpassword=admin"}, []string{"p1", "--openpassword=********"}},
+		{[]string{"p1", "-openpassword", "admin"}, []string{"p1", "-openpassword", "********"}},
+		{[]string{"java -openpassword 1234"}, []string{"java", "-openpassword", "********"}},
+		{[]string{"java -open_password 1234"}, []string{"java", "-open_password", "********"}},
+		{[]string{"java -passwordOpen 1234"}, []string{"java", "-passwordOpen", "********"}},
+		{[]string{"java -password_open 1234"}, []string{"java", "-password_open", "********"}},
+		{[]string{"java -password1 1234"}, []string{"java", "-password1", "********"}},
+		{[]string{"java -password_1 1234"}, []string{"java", "-password_1", "********"}},
+		{[]string{"java -1password 1234"}, []string{"java", "-1password", "********"}},
+		{[]string{"java -1_password 1234"}, []string{"java", "-1_password", "********"}},
+		{[]string{"agent", "1_password:1234"}, []string{"agent", "1_password:********"}},
+		{[]string{"agent 1_password:1234"}, []string{"agent", "1_password:********"}},
 	}
 }
 
@@ -86,18 +98,18 @@ func setupInsensitiveCmdlines() []testCase {
 	return []testCase{
 		{[]string{"spidly", "--debug_port=2043"}, []string{"spidly", "--debug_port=2043"}},
 		{[]string{"agent", "start", "-p", "config.cfg"}, []string{"agent", "start", "-p", "config.cfg"}},
-		{[]string{"p1", "--openpassword=admin"}, []string{"p1", "--openpassword=admin"}},
-		{[]string{"p1", "-openpassword", "admin"}, []string{"p1", "-openpassword", "admin"}},
-		{[]string{"java -openpassword 1234"}, []string{"java -openpassword 1234"}},
-		{[]string{"java -open_password 1234"}, []string{"java -open_password 1234"}},
-		{[]string{"java -passwordOpen 1234"}, []string{"java -passwordOpen 1234"}},
-		{[]string{"java -password_open 1234"}, []string{"java -password_open 1234"}},
-		{[]string{"java -password1 1234"}, []string{"java -password1 1234"}},
-		{[]string{"java -password_1 1234"}, []string{"java -password_1 1234"}},
-		{[]string{"java -1password 1234"}, []string{"java -1password 1234"}},
-		{[]string{"java -1_password 1234"}, []string{"java -1_password 1234"}},
-		{[]string{"agent", "1_password:1234"}, []string{"agent", "1_password:1234"}},
-		{[]string{"agent 1_password:1234"}, []string{"agent 1_password:1234"}},
+		{[]string{"p1", "-user=admin"}, []string{"p1", "-user=admin"}},
+		{[]string{"p1", "-user", "admin"}, []string{"p1", "-user", "admin"}},
+		{[]string{"java -xMg 1234"}, []string{"java -xMg 1234"}},
+		{[]string{"java -open_pword 1234"}, []string{"java -open_pword 1234"}},
+		{[]string{"java -pwordOpen 1234"}, []string{"java -pwordOpen 1234"}},
+		{[]string{"java -pword_open 1234"}, []string{"java -pword_open 1234"}},
+		{[]string{"java -pword1 1234"}, []string{"java -pword1 1234"}},
+		{[]string{"java -pword_1 1234"}, []string{"java -pword_1 1234"}},
+		{[]string{"java -1pword 1234"}, []string{"java -1pword 1234"}},
+		{[]string{"java -1_pword 1234"}, []string{"java -1_pword 1234"}},
+		{[]string{"agent", "1_pword:1234"}, []string{"agent", "1_pword:1234"}},
+		{[]string{"agent 1_pword:1234"}, []string{"agent 1_pword:1234"}},
 	}
 }
 
@@ -256,7 +268,7 @@ func TestUncompilableWord(t *testing.T) {
 	}
 
 	for i := range cases {
-		cases[i].cmdline, _ = scrubber.scrubCommand(cases[i].cmdline)
+		cases[i].cmdline, _ = scrubber.ScrubCommand(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -266,7 +278,7 @@ func TestBlacklistedArgs(t *testing.T) {
 	scrubber := setupDataScrubber(t)
 
 	for i := range cases {
-		cases[i].cmdline, _ = scrubber.scrubCommand(cases[i].cmdline)
+		cases[i].cmdline, _ = scrubber.ScrubCommand(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -284,8 +296,8 @@ func TestBlacklistedArgsWhenDisabled(t *testing.T) {
 		{[]string{"fitz", "--consul_token=1234567890"}, []string{"fitz", "--consul_token=1234567890"}},
 		{[]string{"fitz", "-consul_token", "1234567890"}, []string{"fitz", "-consul_token", "1234567890"}},
 		{[]string{"fitz", "--consul_token", "1234567890"}, []string{"fitz", "--consul_token", "1234567890"}},
-		{[]string{"python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 &"},
-			[]string{"python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 &"}},
+		{[]string{"python ~/test/run.py --password=1234 -password 1234 -open_pword=admin -consul_token 2345 -blocked_from_yaml=1234 &"},
+			[]string{"python ~/test/run.py --password=1234 -password 1234 -open_pword=admin -consul_token 2345 -blocked_from_yaml=1234 &"}},
 		{[]string{"agent", "-PASSWORD", "1234"}, []string{"agent", "-PASSWORD", "1234"}},
 		{[]string{"agent", "--PASSword", "1234"}, []string{"agent", "--PASSword", "1234"}},
 		{[]string{"agent", "--PaSsWoRd=1234"}, []string{"agent", "--PaSsWoRd=1234"}},
@@ -344,7 +356,7 @@ func TestNoBlacklistedArgs(t *testing.T) {
 	scrubber := setupDataScrubber(t)
 
 	for i := range cases {
-		cases[i].cmdline, _ = scrubber.scrubCommand(cases[i].cmdline)
+		cases[i].cmdline, _ = scrubber.ScrubCommand(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -354,7 +366,7 @@ func TestMatchWildCards(t *testing.T) {
 	scrubber := setupDataScrubberWildCard(t)
 
 	for i := range cases {
-		cases[i].cmdline, _ = scrubber.scrubCommand(cases[i].cmdline)
+		cases[i].cmdline, _ = scrubber.ScrubCommand(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -414,7 +426,7 @@ func benchmarkRegexMatching(nbProcesses int, b *testing.B) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		for _, p := range runningProcesses {
-			r, _ = scrubber.scrubCommand(p)
+			r, _ = scrubber.ScrubCommand(p)
 		}
 	}
 
@@ -465,7 +477,7 @@ func benchmarkWithoutCache(b *testing.B) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < len(fps); i++ {
-			r, _ = scrubber.scrubCommand(fps[i].Cmdline)
+			r, _ = scrubber.ScrubCommand(fps[i].Cmdline)
 		}
 	}
 	avoidOptimization = r

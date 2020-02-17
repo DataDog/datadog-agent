@@ -4,10 +4,26 @@ Invoke entrypoint, import here all the tasks we want to make available
 import os
 from invoke import Collection
 
-from . import agent, trace_agent, android, bench, customaction, docker, dogstatsd, pylauncher, cluster_agent, systray, release, six, system_probe, process_agent
+from . import (agent,
+    android,
+    bench,
+    cluster_agent,
+    customaction,
+    docker,
+    dogstatsd,
+    installcmd,
+    process_agent,
+    pylauncher,
+    release,
+    rtloader,
+    system_probe,
+    systray,
+    trace_agent
+)
 
-from .go import fmt, lint, vet, cyclo, ineffassign, misspell, deps, lint_licenses, reset
-from .test import test, integration_tests, lint_teamassignment, lint_releasenote, lint_milestone, lint_filenames, e2e_tests
+
+from .go import fmt, lint, vet, cyclo, golangci_lint, deps, lint_licenses, reset, generate
+from .test import test, integration_tests, lint_teamassignment, lint_releasenote, lint_milestone, lint_filenames, e2e_tests, make_kitchen_gitlab_yml
 from .build_tags import audit_tag_impact
 
 # the root namespace
@@ -18,8 +34,7 @@ ns.add_task(fmt)
 ns.add_task(lint)
 ns.add_task(vet)
 ns.add_task(cyclo)
-ns.add_task(ineffassign)
-ns.add_task(misspell)
+ns.add_task(golangci_lint)
 ns.add_task(test)
 ns.add_task(integration_tests)
 ns.add_task(deps)
@@ -31,12 +46,15 @@ ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(audit_tag_impact)
 ns.add_task(e2e_tests)
+ns.add_task(make_kitchen_gitlab_yml)
+ns.add_task(generate)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
 ns.add_collection(android)
 ns.add_collection(cluster_agent)
 ns.add_collection(customaction)
+ns.add_collection(installcmd)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker)
@@ -44,7 +62,7 @@ ns.add_collection(dogstatsd)
 ns.add_collection(pylauncher)
 ns.add_collection(systray)
 ns.add_collection(release)
-ns.add_collection(six)
+ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 

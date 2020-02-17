@@ -73,18 +73,10 @@ Exiting.`
 )
 
 func runAgent(exit chan bool) {
-	platform, err := util.GetPlatform()
-	if err != nil {
-		log.Debugf("error retrieving platform: %s", err)
-	} else {
-		log.Infof("running on platform: %s", platform)
-	}
-
 	if opts.version {
 		fmt.Print(versionString("\n"))
 		os.Exit(0)
 	}
-	log.Infof("running version: %s", versionString(", "))
 
 	if opts.check == "" && !opts.info && opts.pidfilePath != "" {
 		err := pidfile.WritePID(opts.pidfilePath)
@@ -105,6 +97,16 @@ func runAgent(exit chan bool) {
 		log.Criticalf("Error parsing config: %s", err)
 		os.Exit(1)
 	}
+
+	// Now that the logger is configured log host info
+	platform, err := util.GetPlatform()
+	if err != nil {
+		log.Debugf("error retrieving platform: %s", err)
+	} else {
+		log.Infof("running on platform: %s", platform)
+	}
+
+	log.Infof("running version: %s", versionString(", "))
 
 	// Tagger must be initialized after agent config has been setup
 	tagger.Init()
@@ -207,12 +209,7 @@ func printResults(cfg *config.AgentConfig, ch checks.Check) error {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	if cfg.EnableLocalSystemProbe && ch.Name() == checks.Connections.Name() {
-		fmt.Printf("Waiting 5 seconds to allow for active connections to transmit data\n")
-		time.Sleep(5 * time.Second)
-	} else {
-		time.Sleep(1 * time.Second)
-	}
+	time.Sleep(1 * time.Second)
 
 	fmt.Printf("-----------------------------\n\n")
 	fmt.Printf("\nResults for check %s\n", ch.Name())

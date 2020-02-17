@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Empty logs could appear when collecting Docker logs in addition
+    to the actual container logs. This was due to the way the Agent
+    handles the header Docker adds to the logs. The process has been
+    changed to make sure that no empty logs are generated.

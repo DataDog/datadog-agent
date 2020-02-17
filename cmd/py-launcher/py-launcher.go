@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build python
 
@@ -19,9 +19,9 @@ import (
 )
 
 /*
-#include "datadog_agent_six.h"
-#cgo !windows LDFLAGS: -L../../six/ -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -L../../six/ -ldatadog-agent-six -lstdc++ -static
+#include "datadog_agent_rtloader.h"
+#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
 */
 import "C"
 
@@ -48,25 +48,25 @@ func main() {
 		config.Datadog.SetConfigFile(*conf)
 		confErr := config.Load()
 		if confErr != nil {
-			fmt.Printf("unable to parse Datadog config file, running with env variables: %s", confErr)
+			fmt.Printf("unable to parse Datadog config file, running with env variables: %s\n", confErr)
 		}
 	}
 
 	paths := strings.Split(*pythonPath, ",")
 	python.Initialize(paths...)
 
-	pySix := python.GetSix()
-	six := (*C.six_t)(pySix)
+	pyRtLoader := python.GetRtLoader()
+	rtloader := (*C.rtloader_t)(pyRtLoader)
 	pythonCode, err := ioutil.ReadFile(*pythonScript)
 	if err != nil {
 		fmt.Printf("Could not read %s: %s\n", *pythonScript, err)
 		os.Exit(1)
 	}
-	state := C.ensure_gil(six)
-	res := C.run_simple_string(six, C.CString(string(pythonCode)))
-	C.release_gil(six, state)
+	state := C.ensure_gil(rtloader)
+	res := C.run_simple_string(rtloader, C.CString(string(pythonCode)))
+	C.release_gil(rtloader, state)
 	if res == 0 {
-		fmt.Printf("Error while running python script: %s\n", C.GoString(C.get_error(six)))
+		fmt.Printf("Error while running python script: %s\n", C.GoString(C.get_error(rtloader)))
 	}
 
 	python.Destroy()

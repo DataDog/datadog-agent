@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
 # This software definition doesn"t build anything, it"s the place where we create
 # files outside the omnibus installation directory, so that we can add them to
@@ -32,9 +32,14 @@ build do
             delete "#{install_dir}/bin/agent/libdatadog-agent-two.dll"
             delete "#{install_dir}/bin/agent/customaction.dll"
 
+            # not sure where it's coming from, but we're being left with an `embedded` dir.
+            # delete it
+            delete "#{install_dir}/embedded"
+
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
+            delete "#{conf_dir}/process_agent.yaml.default"
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
@@ -45,6 +50,17 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         elsif linux?
+            # Fix pip after building on extended toolchain in CentOS builder
+            if redhat?
+              unless arm?
+                rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
+                # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
+                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
+                # replace paths with expected target toolchain location
+                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
+              end
+            end
+
             # Move system service files
             mkdir "/etc/init"
             move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
@@ -61,7 +77,12 @@ build do
                 move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-sysprobe", "/etc/init.d"
+            end
+            if suse?
+                mkdir "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
@@ -83,6 +104,7 @@ build do
 
             # remove unused configs
             delete "/etc/datadog-agent/conf.d/apm.yaml.default"
+            delete "/etc/datadog-agent/conf.d/process_agent.yaml.default"
 
             # remove windows specific configs
             delete "/etc/datadog-agent/conf.d/winproc.d"
@@ -94,11 +116,53 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
-            # Setup pip aliases: `/opt/datadog-agent/embedded/bin/pip` will default to `pip2`
+            # removing the doc from the embedded folder to reduce package size by ~3MB
+            delete "#{install_dir}/embedded/share/doc"
+
+            # removing the terminfo db from the embedded folder to reduce package size by ~7MB
+            delete "#{install_dir}/embedded/share/terminfo"
+            # removing the symlink too
+            delete "#{install_dir}/embedded/lib/terminfo"
+
+            # removing useless folder
+            delete "#{install_dir}/embedded/share/aclocal"
+            delete "#{install_dir}/embedded/share/examples"
+
+            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
+            # default to `pip2` if the default Python runtime is Python 2.
             if with_python_runtime? "2"
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
+
+                delete "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
+            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
+            # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
+            # Caution: we don't want to do this for Agent 6.x
+            elsif with_python_runtime? "3"
+                delete "#{install_dir}/embedded/bin/pip"
+                link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
+
+                delete "#{install_dir}/embedded/bin/python"
+                link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
+
+                delete "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-3.7", "#{install_dir}/embedded/bin/2to3"
             end
+
+            # removing the man pages from the embedded folder to reduce package size by ~4MB
+            delete "#{install_dir}/embedded/man"
+            delete "#{install_dir}/embedded/share/man"
+
+            # linux build will be stripped - but psycopg2 affected by bug in the way binutils
+            # and patchelf work together:
+            #    https://github.com/pypa/manylinux/issues/119
+            #    https://github.com/NixOS/patchelf
+            #
+            # Only affects psycopg2 - any binary whose path matches the pattern will be
+            # skipped.
+            strip_exclude("*psycopg2*")
+            strip_exclude("*cffi_backend*")
 
         elsif osx?
             # Remove linux specific configs
@@ -107,7 +171,11 @@ build do
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
 
-            # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
+            # Codesign everything
+            command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs codesign --force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+            command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+            command "find #{install_dir}/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+            command "codesign --force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)' '#{install_dir}/Datadog Agent.app'"
         end
     end
 end

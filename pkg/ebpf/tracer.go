@@ -6,13 +6,13 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,11 +20,15 @@ import (
 )
 
 var (
-	probeExpvar *expvar.Map
+	expvarEndpoints map[string]*expvar.Map
+	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns"}
 )
 
 func init() {
-	probeExpvar = expvar.NewMap("systemprobe")
+	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
+	for _, name := range expvarTypes {
+		expvarEndpoints[name] = expvar.NewMap(name)
+	}
 }
 
 type Tracer struct {
@@ -32,18 +36,32 @@ type Tracer struct {
 
 	config *Config
 
-	state          NetworkState
-	portMapping    *PortMapping
-	localAddresses map[util.Address]struct{}
+	state       NetworkState
+	portMapping *PortMapping
 
 	conntracker netlink.Conntracker
+
+	reverseDNS ReverseDNS
 
 	perfMap *bpflib.PerfMap
 
 	// Telemetry
-	perfReceived    int64
-	perfLost        int64
-	skippedConns    int64
+	perfReceived  int64
+	perfLost      int64
+	skippedConns  int64
+	pidCollisions int64
+	// Will track the count of expired TCP connections
+	// We are manually expiring TCP connections because it seems that we are losing some of the TCP close events
+	// For now we are only tracking the `tcp_close` probe but we should also track the `tcp_set_state` probe when
+	// states are set to `TCP_CLOSE_WAIT`, `TCP_CLOSE` and `TCP_FIN_WAIT1` we should probably also track `tcp_time_wait`
+	// However there are some caveats by doing that:
+	// - `tcp_set_state` does not have access to the PID of the connection => we have to remove the PID from the connection tuple (which can lead to issues)
+	// - We will have multiple probes that can trigger for the same connection close event => we would have to add something to dedupe those
+	// - - Using the timestamp does not seem to be reliable (we are already seeing unordered connections)
+	// - - Having IDs for those events would need to have an internal monotonic counter and this is tricky to manage (race conditions, cleaning)
+	//
+	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
+	// to determine whether a connection is truly closed or not
 	expiredTCPConns int64
 
 	buffer     []ConnectionStats
@@ -51,12 +69,17 @@ type Tracer struct {
 
 	// Internal buffer used to compute bytekeys
 	buf *bytes.Buffer
+
+	// Connections for the tracer to blacklist
+	sourceExcludes []*ConnectionFilter
+	destExcludes   []*ConnectionFilter
 }
 
-// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
 const (
-	maxActive = 128
+	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
+	maxActive                = 128
+	defaultClosedChannelSize = 500
 )
 
 // CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
@@ -71,24 +94,78 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
 	}
 
-	err = m.Load(SectionsFromConfig(config))
+	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
+	currKernelVersion, err := CurrentKernelVersion()
+	if err != nil {
+		// if the platform couldn't be determined, treat it as new kernel case
+		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
+	}
+
+	// check to see if current kernel is earlier than version 4.1.0
+	pre410Kernel := isPre410Kernel(currKernelVersion)
+	if pre410Kernel {
+		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
+	}
+
+	enableSocketFilter := config.DNSInspection && !pre410Kernel
+	err = m.Load(SectionsFromConfig(config, enableSocketFilter))
 	if err != nil {
 		return nil, fmt.Errorf("could not load bpf module: %s", err)
 	}
 
+	// Enable kernel probes used for offset guessing.
+	// TODO: Disable them once offsets have been figured out.
+	for _, probeName := range offsetGuessProbes(config) {
+		if err := m.EnableKprobe(string(probeName), maxActive); err != nil {
+			return nil, fmt.Errorf(
+				"could not enable kprobe(%s) used for offset guessing: %s",
+				probeName,
+				err,
+			)
+		}
+	}
+
+	start := time.Now()
+	if err := guessOffsets(m, config); err != nil {
+		return nil, fmt.Errorf("failed to init module: error guessing offsets: %v", err)
+	}
+	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
+
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes := config.EnabledKProbes()
+	enabledProbes := config.EnabledKProbes(pre410Kernel)
+
 	for k := range m.IterKprobes() {
-		if _, ok := enabledProbes[KProbeName(k.Name)]; ok {
-			if err = m.EnableKprobe(k.Name, maxActive); err != nil {
+		probeName := KProbeName(k.Name)
+		if _, ok := enabledProbes[probeName]; ok {
+			// check if we should override kprobe name
+			if override, ok := kprobeOverrides[probeName]; ok {
+				if err = m.SetKprobeForSection(string(probeName), string(override)); err != nil {
+					return nil, fmt.Errorf("could not update kprobe \"%s\" to \"%s\" : %s", k.Name, string(override), err)
+				}
+			}
+			if err = m.EnableKprobe(string(probeName), maxActive); err != nil {
 				return nil, fmt.Errorf("could not enable kprobe(%s): %s", k.Name, err)
 			}
 		}
 	}
 
-	// TODO: Disable TCPv{4,6} connect kernel probes once offsets have been figured out.
-	if err := guess(m, config); err != nil {
-		return nil, fmt.Errorf("failed to init module: error guessing offsets: %v", err)
+	var reverseDNS ReverseDNS = nullReverseDNS{}
+	if enableSocketFilter {
+		filter := m.SocketFilter("socket/dns_filter")
+		if filter == nil {
+			return nil, fmt.Errorf("error retrieving socket filter")
+		}
+
+		if snooper, err := NewSocketFilterSnooper(config.ProcRoot, filter); err == nil {
+			reverseDNS = snooper
+		} else {
+			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
+		}
+
+		if !util.IsRootNS(config.ProcRoot) {
+			log.Warn("system-probe is not running on the root network namespace, which is usually caused by running the " +
+				"system-probe in a container without using the host network. in this mode, you may see partial DNS resolution.")
+		}
 	}
 
 	portMapping := NewPortMapping(config.ProcRoot, config)
@@ -98,7 +175,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize, int(config.MaxTrackedConnections)); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize, config.ConntrackMaxStateSize); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
@@ -112,10 +189,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 		config:         config,
 		state:          state,
 		portMapping:    portMapping,
-		localAddresses: readLocalAddresses(),
+		reverseDNS:     reverseDNS,
 		buffer:         make([]ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
+		sourceExcludes: ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:   ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
 	tr.perfMap, err = tr.initPerfPolling()
@@ -156,26 +235,16 @@ func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	// starts running the body immediately instead waiting for the first tick
 	for ; true; <-ticker.C {
-		stats, err := t.GetStats()
+		stats, err := t.getTelemetry()
 		if err != nil {
 			continue
 		}
 
-		if states, ok := stats["state"]; ok {
-			if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-				for metric, val := range telemetry.(map[string]int64) {
-					currVal := &expvar.Int{}
-					currVal.Set(val)
-					probeExpvar.Set(snakeToCapInitialCamel(metric), currVal)
-				}
-			}
-		}
-
-		if conntrackStats, ok := stats["conntrack"]; ok {
-			for metric, val := range conntrackStats.(map[string]int64) {
+		for name, stat := range stats {
+			for metric, val := range stat.(map[string]int64) {
 				currVal := &expvar.Int{}
 				currVal.Set(val)
-				probeExpvar.Set(fmt.Sprintf("Conntrack%s", snakeToCapInitialCamel(metric)), currVal)
+				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
 			}
 		}
 	}
@@ -183,7 +252,11 @@ func (t *Tracer) expvarStats() {
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
 func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
-	closedChannel := make(chan []byte, 100)
+	closedChannelSize := defaultClosedChannelSize
+	if t.config.ClosedChannelSize > 0 {
+		closedChannelSize = t.config.ClosedChannelSize
+	}
+	closedChannel := make(chan []byte, closedChannelSize)
 	lostChannel := make(chan uint64, 10)
 
 	pm, err := bpflib.InitPerfMap(t.m, string(tcpCloseEventMap), closedChannel, lostChannel)
@@ -210,7 +283,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.SourceAddr(), cs.SPort)
+					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
@@ -237,10 +310,16 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 //  • Local DNS (*:53) requests if configured (default: true)
 func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
-	return !t.config.CollectLocalDNS && isDNSConnection && conn.Direction == LOCAL
+	if !t.config.CollectLocalDNS && isDNSConnection && conn.Dest.IsLoopback() {
+		return true
+	} else if IsBlacklistedConnection(t.sourceExcludes, t.destExcludes, conn) {
+		return true
+	}
+	return false
 }
 
 func (t *Tracer) Stop() {
+	t.reverseDNS.Close()
 	_ = t.m.Close()
 	t.perfMap.PollStop()
 	t.conntracker.Close()
@@ -262,7 +341,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	return &Connections{Conns: t.state.Connections(clientID, latestTime, latestConns)}, nil
+	conns := t.state.Connections(clientID, latestTime, latestConns)
+	names := t.reverseDNS.Resolve(conns)
+	return &Connections{Conns: conns, DNS: names}, nil
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -299,6 +380,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 	// Iterate through all key-value pairs in map
 	key, nextKey, stats := &ConnTuple{}, &ConnTuple{}, &ConnStatsWithTimestamp{}
+	seen := make(map[ConnTuple]struct{})
 	var expired []*ConnTuple
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
@@ -310,14 +392,14 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 				atomic.AddInt64(&t.expiredTCPConns, 1)
 			}
 		} else {
-			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey))
+			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey, seen))
 			conn.Direction = t.determineConnectionDirection(&conn)
 
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.SourceAddr(), conn.SPort)
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort, process.ConnectionType(conn.Type))
 				active = append(active, conn)
 			}
 		}
@@ -352,7 +434,6 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 	keys := make([]string, 0, len(entries))
 	// Used to create the keys
 	statsWithTs, tcpStats := &ConnStatsWithTimestamp{}, &TCPStats{}
-
 	// Remove the entries from the eBPF Map
 	for i := range entries {
 		err := t.m.DeleteElement(mp, unsafe.Pointer(entries[i]))
@@ -381,21 +462,28 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
-func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple) *TCPStats {
+func (t *Tracer) getTCPStats(mp *bpflib.Map, tuple *ConnTuple, seen map[ConnTuple]struct{}) *TCPStats {
+	stats := new(TCPStats)
+
+	if !tuple.isTCP() {
+		return stats
+	}
+
 	// The PID isn't used as a key in the stats map, we will temporarily set it to 0 here and reset it when we're done
 	pid := tuple.pid
 	tuple.pid = 0
 
-	stats := &TCPStats{retransmits: 0}
+	_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
 
-	// Don't bother looking in the map if the connection is UDP, there will never be data for that and we will avoid
-	// the overhead of the syscall and creating the resultant error
-	if tuple.isTCP() {
-		_ = t.m.LookupElement(mp, unsafe.Pointer(tuple), unsafe.Pointer(stats))
+	// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
+	if _, reported := seen[*tuple]; reported {
+		atomic.AddInt64(&t.pidCollisions, 1)
+		stats.retransmits = 0
+	} else {
+		seen[*tuple] = struct{}{}
 	}
 
 	tuple.pid = pid
-
 	return stats
 }
 
@@ -416,6 +504,26 @@ func (t *Tracer) getLatestTimestamp() (uint64, bool, error) {
 	}
 
 	return latestTime, true, nil
+}
+
+// getEbpfTelemetry reads the telemetry map from the kernelspace and returns a map of key -> count
+func (t *Tracer) getEbpfTelemetry() map[string]int64 {
+	mp, err := t.getMap(telemetryMap)
+	if err != nil {
+		log.Warnf("error retrieving telemetry map: %s", err)
+		return map[string]int64{}
+	}
+
+	telemetry := &kernelTelemetry{}
+	if err := t.m.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+		// This can happen if we haven't initialized the telemetry object yet
+		// so let's just use a trace log
+		log.Tracef("error retrieving the telemetry struct: %s", err)
+	}
+
+	return map[string]int64{
+		"tcp_sent_miscounts": int64(telemetry.tcp_sent_miscounts),
+	}
 }
 
 func (t *Tracer) getMap(name bpfMapName) (*bpflib.Map, error) {
@@ -451,6 +559,21 @@ func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
 	return uint64(t.config.UDPConnTimeout.Nanoseconds())
 }
 
+// getTelemetry calls GetStats and extract telemetry from the state structure
+func (t *Tracer) getTelemetry() (map[string]interface{}, error) {
+	stats, err := t.GetStats()
+	if err != nil {
+		return nil, err
+	}
+
+	if states, ok := stats["state"]; ok {
+		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
+			stats["state"] = telemetry
+		}
+	}
+	return stats, nil
+}
+
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	if t.state == nil {
@@ -461,13 +584,24 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	received := atomic.LoadInt64(&t.perfReceived)
 	skipped := atomic.LoadInt64(&t.skippedConns)
 	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
+	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
 
-	stateStats := t.state.GetStats(lost, received, skipped, expiredTCP)
+	stateStats := t.state.GetStats()
 	conntrackStats := t.conntracker.GetStats()
 
 	return map[string]interface{}{
 		"conntrack": conntrackStats,
 		"state":     stateStats,
+		"tracer": map[string]int64{
+			"closed_conn_polling_lost":     lost,
+			"closed_conn_polling_received": received,
+			"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
+			"expired_tcp_conns":            expiredTCP,
+			"pid_collisions":               pidCollisions,
+		},
+		"ebpf":    t.getEbpfTelemetry(),
+		"kprobes": GetProbeStats(),
+		"dns":     t.reverseDNS.GetStats(),
 	}, nil
 }
 
@@ -517,58 +651,19 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map) ([]uint16, error) {
 }
 
 func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionDirection {
-	sourceLocal := t.isLocalAddress(conn.SourceAddr())
-	destLocal := t.isLocalAddress(conn.DestAddr())
-
-	if sourceLocal && destLocal {
-		return LOCAL
+	if conn.Type == UDP {
+		return NONE
 	}
 
-	if sourceLocal && t.portMapping.IsListening(conn.SPort) {
+	if t.portMapping.IsListening(conn.SPort) {
 		return INCOMING
 	}
 
 	return OUTGOING
 }
 
-func (t *Tracer) isLocalAddress(address util.Address) bool {
-	_, ok := t.localAddresses[address]
-	return ok
-}
-
-func readLocalAddresses() map[util.Address]struct{} {
-	addresses := make(map[util.Address]struct{}, 0)
-
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		_ = log.Errorf("error reading network interfaces: %s", err)
-		return addresses
-	}
-
-	for _, intf := range interfaces {
-		addrs, err := intf.Addrs()
-
-		if err != nil {
-			_ = log.Errorf("error reading interface %s addresses: %s", intf.Name, err)
-			continue
-		}
-
-		for _, addr := range addrs {
-			switch v := addr.(type) {
-			case *net.IPNet:
-				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
-			case *net.IPAddr:
-				addresses[util.AddressFromNetIP(v.IP)] = struct{}{}
-			}
-		}
-
-	}
-
-	return addresses
-}
-
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
-func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
+func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.SectionParams {
 	return map[string]bpflib.SectionParams{
 		connMap.sectionName(): {
 			MapMaxEntries: int(c.MaxTrackedConnections),
@@ -581,6 +676,9 @@ func SectionsFromConfig(c *Config) map[string]bpflib.SectionParams {
 		},
 		tcpCloseEventMap.sectionName(): {
 			MapMaxEntries: 1024,
+		},
+		"socket/dns_filter": {
+			Disabled: !enableSocketFilter,
 		},
 	}
 }

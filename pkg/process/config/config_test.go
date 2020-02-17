@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -79,9 +80,17 @@ func TestOnlyEnvConfig(t *testing.T) {
 	// setting an API Key should be enough to generate valid config
 	os.Setenv("DD_API_KEY", "apikey_from_env")
 	defer os.Unsetenv("DD_API_KEY")
+	os.Setenv("DD_PROCESS_AGENT_ENABLED", "true")
+	defer os.Unsetenv("DD_PROCESS_AGENT_ENABLED")
 
 	agentConfig, _ := NewAgentConfig("test", "", "")
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
+	assert.True(t, agentConfig.Enabled)
+
+	os.Setenv("DD_PROCESS_AGENT_ENABLED", "false")
+	agentConfig, _ = NewAgentConfig("test", "", "")
+	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
+	assert.False(t, agentConfig.Enabled)
 }
 
 func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
@@ -105,7 +114,7 @@ func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 	}
 
 	for i := range cases {
-		cases[i].cmdline, _ = agentConfig.Scrubber.scrubCommand(cases[i].cmdline)
+		cases[i].cmdline, _ = agentConfig.Scrubber.ScrubCommand(cases[i].cmdline)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
@@ -139,8 +148,46 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	}
 }
 
+func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	os.Setenv("DD_LOG_LEVEL", "error")
+	defer os.Unsetenv("DD_LOG_LEVEL")
+	os.Setenv("LOG_LEVEL", "debug")
+	defer os.Unsetenv("LOG_LEVEL")
+
+	agentConfig, _ := NewAgentConfig("test", "", "")
+	assert.Equal(t, "error", agentConfig.LogLevel)
+}
+
+func TestDisablingDNSInspection(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		cfg, err := NewAgentConfig(
+			"test",
+			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNS.yaml",
+			"",
+		)
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.DisableDNSInspection)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		os.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
+		defer os.Unsetenv("DD_DISABLE_DNS_INSPECTION")
+		cfg, err := NewAgentConfig("test", "", "")
+
+		assert.Nil(t, err)
+		assert.True(t, cfg.DisableDNSInspection)
+	})
+}
+
 func TestGetHostname(t *testing.T) {
-	cfg := NewDefaultAgentConfig()
+	cfg := NewDefaultAgentConfig(false)
 	h, err := getHostname(cfg.DDAgentBin)
 	assert.Nil(t, err)
 	assert.NotEqual(t, "", h)
@@ -148,20 +195,18 @@ func TestGetHostname(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	assert := assert.New(t)
-	agentConfig := NewDefaultAgentConfig()
+	agentConfig := NewDefaultAgentConfig(false)
 
 	// assert that some sane defaults are set
 	assert.Equal("info", agentConfig.LogLevel)
 	assert.Equal(true, agentConfig.AllowRealTime)
-	assert.Equal(containerChecks, agentConfig.EnabledChecks)
 	assert.Equal(true, agentConfig.Scrubber.Enabled)
 
 	os.Setenv("DOCKER_DD_AGENT", "yes")
-	agentConfig = NewDefaultAgentConfig()
+	agentConfig = NewDefaultAgentConfig(false)
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
 	os.Setenv("DOCKER_DD_AGENT", "no")
-	assert.Equal(containerChecks, agentConfig.EnabledChecks)
 	assert.Equal(6062, agentConfig.ProcessExpVarPort)
 
 	os.Unsetenv("DOCKER_DD_AGENT")
@@ -193,6 +238,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal(5065, agentConfig.ProcessExpVarPort)
+	assert.False(agentConfig.DisableDNSInspection)
 
 	agentConfig, err = NewAgentConfig(
 		"test",
@@ -203,6 +249,7 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 
 	assert.Equal("apikey_20", ep.APIKey)
 	assert.Equal("my-process-app.datadoghq.com", ep.Endpoint.Hostname())
+	assert.Equal("server-01", agentConfig.HostName)
 	assert.Equal(10, agentConfig.QueueSize)
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Enabled)
@@ -213,11 +260,13 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeSocketPath)
 	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)
+	assert.Equal(500, agentConfig.ClosedChannelSize)
 	assert.True(agentConfig.SysProbeBPFDebug)
 	assert.Empty(agentConfig.ExcludedBPFLinuxVersions)
 	assert.False(agentConfig.DisableTCPTracing)
 	assert.False(agentConfig.DisableUDPTracing)
 	assert.False(agentConfig.DisableIPv6Tracing)
+	assert.False(agentConfig.DisableDNSInspection)
 
 	agentConfig, err = NewAgentConfig(
 		"test",
@@ -237,12 +286,16 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.False(agentConfig.SysProbeBPFDebug)
+	assert.Equal(1000, agentConfig.ClosedChannelSize)
 	assert.Equal(agentConfig.ExcludedBPFLinuxVersions, []string{"5.5.0", "4.2.1"})
 	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeSocketPath)
 	assert.Equal(append(processChecks, "connections"), agentConfig.EnabledChecks)
 	assert.True(agentConfig.DisableTCPTracing)
 	assert.True(agentConfig.DisableUDPTracing)
 	assert.True(agentConfig.DisableIPv6Tracing)
+	assert.False(agentConfig.DisableDNSInspection)
+	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}, agentConfig.ExcludedSourceConnections)
+	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}, agentConfig.ExcludedDestinationConnections)
 }
 
 func TestProxyEnv(t *testing.T) {
@@ -346,4 +399,53 @@ func TestIsAffirmative(t *testing.T) {
 	value, err = isAffirmative("ok")
 	assert.Nil(t, err)
 	assert.False(t, value)
+}
+
+func TestGetCheckURL(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("endpoint doesn't contain path", func(t *testing.T) {
+		url, err := url.Parse("https://process.datadoghq.com")
+		assert.Nil(err)
+		endpoint := APIEndpoint{Endpoint: url}
+
+		assert.Equal(
+			"https://process.datadoghq.com/api/v1/collector",
+			endpoint.GetCheckURL("api/v1/collector"),
+		)
+		assert.Equal(
+			"https://process.datadoghq.com/api/v1/container",
+			endpoint.GetCheckURL("api/v1/container"),
+		)
+	})
+
+	t.Run("endpoint contain default collector path", func(t *testing.T) {
+		url, err := url.Parse("https://process.datadoghq.com/api/v1/collector")
+		assert.Nil(err)
+		endpoint := APIEndpoint{Endpoint: url}
+
+		assert.Equal(
+			"https://process.datadoghq.com/api/v1/collector",
+			endpoint.GetCheckURL("api/v1/collector"),
+		)
+		assert.Equal(
+			"https://process.datadoghq.com/api/v1/container",
+			endpoint.GetCheckURL("api/v1/container"),
+		)
+	})
+
+	t.Run("endpoint has an arbitrary path set", func(t *testing.T) {
+		url, err := url.Parse("https://nginx-server/proxy-path")
+		assert.Nil(err)
+		endpoint := APIEndpoint{Endpoint: url}
+
+		assert.Equal(
+			"https://nginx-server/proxy-path/api/v1/collector",
+			endpoint.GetCheckURL("api/v1/collector"),
+		)
+		assert.Equal(
+			"https://nginx-server/proxy-path/api/v1/container",
+			endpoint.GetCheckURL("api/v1/container"),
+		)
+	})
 }

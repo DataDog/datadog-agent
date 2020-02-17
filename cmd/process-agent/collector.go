@@ -8,15 +8,16 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -24,24 +25,28 @@ import (
 type checkPayload struct {
 	messages []model.MessageBody
 	endpoint string
+	name     string
 }
 
 // Collector will collect metrics from the local system and ship to the backend.
 type Collector struct {
+	// Set to 1 if enabled 0 is not. We're using an integer
+	// so we can use the sync/atomic for thread-safe access.
+	realTimeEnabled int32
+
+	groupID int32
+
 	send         chan checkPayload
 	rtIntervalCh chan time.Duration
 	cfg          *config.AgentConfig
 	httpClient   http.Client
-	groupID      int32
+
 	// counters for each type of check
 	runCounters   sync.Map
 	enabledChecks []checks.Check
 
 	// Controls the real-time interval, can change live.
 	realTimeInterval time.Duration
-	// Set to 1 if enabled 0 is not. We're using an integer
-	// so we can use the sync/atomic for thread-safe access.
-	realTimeEnabled int32
 }
 
 // NewCollector creates a new Collector
@@ -85,9 +90,9 @@ func (l *Collector) runCheck(c checks.Check) {
 	updateLastCollectTime(time.Now())
 	messages, err := c.Run(l.cfg, atomic.AddInt32(&l.groupID, 1))
 	if err != nil {
-		log.Criticalf("Unable to run check '%s': %s", c.Name(), err)
+		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 	} else {
-		l.send <- checkPayload{messages, c.Endpoint()}
+		l.send <- checkPayload{messages, c.Endpoint(), c.Name()}
 		// update proc and container count for info
 		updateProcContainerCount(messages)
 		if !c.RealTime() {
@@ -109,12 +114,20 @@ func (l *Collector) run(exit chan bool) {
 	for _, e := range l.cfg.APIEndpoints {
 		eps = append(eps, e.Endpoint.String())
 	}
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, l.cfg.EnabledChecks)
+	orchestratorEps := make([]string, 0, len(l.cfg.OrchestratorEndpoints))
+	for _, e := range l.cfg.OrchestratorEndpoints {
+		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
+	}
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
 
 	go util.HandleSignals(exit)
 	heartbeat := time.NewTicker(15 * time.Second)
 	queueSizeTicker := time.NewTicker(10 * time.Second)
 	go func() {
+		tags := []string{
+			fmt.Sprintf("version:%s", Version),
+			fmt.Sprintf("revision:%s", GitCommit),
+		}
 		for {
 			select {
 			case payload := <-l.send:
@@ -124,10 +137,10 @@ func (l *Collector) run(exit chan bool) {
 					<-l.send
 				}
 				for _, m := range payload.messages {
-					l.postMessage(payload.endpoint, m)
+					l.postMessage(payload.endpoint, payload.name, m)
 				}
 			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, []string{"version:" + Version}, 1)
+				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
 			case <-queueSizeTicker.C:
 				updateQueueSize(l.send)
 			case <-exit:
@@ -168,7 +181,7 @@ func (l *Collector) run(exit chan bool) {
 	<-exit
 }
 
-func (l *Collector) postMessage(checkPath string, m model.MessageBody) {
+func (l *Collector) postMessage(checkPath string, checkName string, m model.MessageBody) {
 	msgType, err := model.DetectMessageType(m)
 	if err != nil {
 		log.Errorf("Unable to detect message type: %s", err)
@@ -185,15 +198,18 @@ func (l *Collector) postMessage(checkPath string, m model.MessageBody) {
 		log.Errorf("Unable to encode message: %s", err)
 	}
 
+	containerCount := getContainerCount(m)
+
 	responses := make(chan postResponse)
-	for _, ep := range l.cfg.APIEndpoints {
-		go l.postToAPI(ep, checkPath, body, responses)
+	endpoints := l.endpointsForCheck(checkName)
+	for _, ep := range endpoints {
+		go l.postToAPI(ep, checkPath, body, responses, containerCount)
 	}
 
 	// Wait for all responses to come back before moving on.
-	statuses := make([]*model.CollectorStatus, 0, len(l.cfg.APIEndpoints))
-	for i := 0; i < len(l.cfg.APIEndpoints); i++ {
-		url := l.cfg.APIEndpoints[i].Endpoint.String()
+	statuses := make([]*model.CollectorStatus, 0, len(endpoints))
+	for i := 0; i < len(endpoints); i++ {
+		url := endpoints[i].Endpoint.String()
 		res := <-responses
 		if res.err != nil {
 			log.Error(res.err)
@@ -266,9 +282,8 @@ func errResponse(format string, a ...interface{}) postResponse {
 	return postResponse{err: fmt.Errorf(format, a...)}
 }
 
-func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse) {
-	endpoint.Endpoint.Path = checkPath
-	url := endpoint.Endpoint.String()
+func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, containerCount int) {
+	url := endpoint.GetCheckURL(checkPath)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
 		responses <- errResponse("could not create request to %s: %s", url, err)
@@ -278,6 +293,7 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 	req.Header.Add("X-Dd-APIKey", endpoint.APIKey)
 	req.Header.Add("X-Dd-Hostname", l.cfg.HostName)
 	req.Header.Add("X-Dd-Processagentversion", Version)
+	req.Header.Add("X-Dd-ContainerCount", strconv.Itoa(containerCount))
 
 	ctx, cancel := context.WithTimeout(context.Background(), ReqCtxTimeout)
 	defer cancel()
@@ -313,6 +329,13 @@ func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, bod
 	responses <- postResponse{r, err}
 }
 
+func (l *Collector) endpointsForCheck(checkName string) []config.APIEndpoint {
+	if checkName == checks.Pod.Name() {
+		return l.cfg.OrchestratorEndpoints
+	}
+	return l.cfg.APIEndpoints
+}
+
 const (
 	// HTTPTimeout is the timeout in seconds for process-agent to send process payloads to DataDog
 	HTTPTimeout = 20 * time.Second
@@ -328,4 +351,21 @@ func isHTTPTimeout(err error) bool {
 		return true
 	}
 	return false
+}
+
+// getContainerCount returns the number of containers in the message body
+func getContainerCount(mb model.MessageBody) int {
+	switch v := mb.(type) {
+	case *model.CollectorProc:
+		return len(v.GetContainers())
+	case *model.CollectorRealTime:
+		return len(v.GetContainerStats())
+	case *model.CollectorContainer:
+		return len(v.GetContainers())
+	case *model.CollectorContainerRealTime:
+		return len(v.GetStats())
+	case *model.CollectorConnections:
+		return 0
+	}
+	return 0
 }

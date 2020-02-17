@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build windows
 
 package pdhutil
@@ -71,6 +71,12 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 func pdhEnumObjectItems(className string) (counters []string, instances []string, err error) {
 	var counterlen uint32
 	var instancelen uint32
+
+	if counterlen != 0 || instancelen != 0 {
+		log.Errorf("invalid parameter %v %v", counterlen, instancelen)
+		counterlen = 0
+		instancelen = 0
+	}
 	r, _, _ := procPdhEnumObjectItems.Call(
 		uintptr(0), // NULL data source, use computer in computername parameter
 		uintptr(0), // local computer
@@ -82,7 +88,7 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
 	if r != PDH_MORE_DATA {
-		log.Errorf("Failed to enumerate windows performance counters (class %s)", className)
+		log.Errorf("Failed to enumerate windows performance counters (%v) (class %s)", r, className)
 		log.Errorf("This error indicates that the Windows performance counter database may need to be rebuilt")
 		return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
 	}

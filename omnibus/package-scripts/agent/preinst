@@ -23,18 +23,18 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Only supports systemd and upstart
         if command -v systemctl >/dev/null 2>&1; then
             systemctl stop $SERVICE_NAME-process || true
-            systemctl stop $SERVICE_NAME-network || true
+            systemctl stop $SERVICE_NAME-sysprobe || true
             systemctl stop $SERVICE_NAME-trace || true
             systemctl stop $SERVICE_NAME || true
         elif command -v initctl >/dev/null 2>&1; then
             initctl stop $SERVICE_NAME-process || true
-            initctl stop $SERVICE_NAME-network || true
+            initctl stop $SERVICE_NAME-sysprobe || true
             initctl stop $SERVICE_NAME-trace || true
             initctl stop $SERVICE_NAME || true
         elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
             if command -v service >/dev/null 2>&1; then
                 service $SERVICE_NAME-process stop || true
-                service $SERVICE_NAME-network stop || true
+                service $SERVICE_NAME-sysprobe stop || true
                 service $SERVICE_NAME-trace stop || true
                 service $SERVICE_NAME stop || true
             else
@@ -73,10 +73,15 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Uninstall every datadog integration
         # Starting with 6.10, integrations are also uninstalled on package removal
         # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
-        PIP_PATH=$INSTALL_DIR/embedded/bin/pip
-        if [ -x $PIP_PATH ]; then
-            echo "Uninstalling integrations..."
-            $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
+        PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
+        PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
+        if [ -x $PIP2_PATH ]; then
+            echo "Uninstalling Python 2 integrations..."
+            $PIP2_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP2_PATH uninstall -y -q --no-cache-dir || true
+        fi
+        if [ -x $PIP3_PATH ]; then
+            echo "Uninstalling Python 3 integrations..."
+            $PIP3_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP3_PATH uninstall -y -q --no-cache-dir || true
         fi
 
         # Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
@@ -89,6 +94,16 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
         if [ -f $DOWNLOADER_DATA ]; then
             rm -rf $DOWNLOADER_DATA
+        fi
+
+        DOWNLOADER_DATA37="$INSTALL_DIR/embedded/lib/python3.7/site-packages/datadog_checks/downloader/data"
+        if [ -d $DOWNLOADER_DATA37 ]; then
+            rm -rf $DOWNLOADER_DATA37
+        fi
+
+        DOWNLOADER_DATA38="$INSTALL_DIR/embedded/lib/python3.8/site-packages/datadog_checks/downloader/data"
+        if [ -d $DOWNLOADER_DATA38 ]; then
+            rm -rf $DOWNLOADER_DATA38
         fi
     else
         echo "[ FAILED ]\tYour system is currently not supported by this script.";

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package decoder
 
@@ -12,21 +12,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 )
 
-// defaultContentLenLimit represents the length limit above which we want to
-// truncate the output content
+// defaultContentLenLimit represents the max size for a line,
+// if a line is bigger than this limit, it will be truncated.
 const defaultContentLenLimit = 256 * 1000
 
-// Input represents a list of bytes consumed by the Decoder
+// Input represents a chunk of line.
 type Input struct {
 	content []byte
 }
 
-// NewInput returns a new input
+// NewInput returns a new input.
 func NewInput(content []byte) *Input {
-	return &Input{content}
+	return &Input{
+		content: content,
+	}
 }
 
-// Output represents the fields parsed from decoder.
+// Output represents a structured line.
 type Output struct {
 	Content    []byte
 	Status     string
@@ -46,9 +48,9 @@ func NewOutput(content []byte, status string, rawDataLen int, timestamp string) 
 
 // Decoder splits raw data into lines and passes them to a lineHandler that emits outputs
 type Decoder struct {
-	InputChan  chan *Input
-	OutputChan chan *Output
-
+	InputChan       chan *Input
+	OutputChan      chan *Output
+	matcher         EndLineMatcher
 	lineBuffer      *bytes.Buffer
 	lineHandler     LineHandler
 	contentLenLimit int
@@ -56,6 +58,11 @@ type Decoder struct {
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
+	return NewDecoderWithEndLineMatcher(source, parser, &newLineMatcher{})
+}
+
+// NewDecoderWithEndLineMatcher initialize a decoder with given endline strategy.
+func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser, matcher EndLineMatcher) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Output)
 	lineLimit := defaultContentLenLimit
@@ -69,11 +76,11 @@ func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder 
 		lineHandler = NewSingleLineHandler(outputChan, parser, lineLimit)
 	}
 
-	return New(inputChan, outputChan, lineHandler, lineLimit)
+	return New(inputChan, outputChan, lineHandler, lineLimit, matcher)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler, contentLenLimit int) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler, contentLenLimit int, matcher EndLineMatcher) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
 		InputChan:       InputChan,
@@ -81,6 +88,7 @@ func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler
 		lineBuffer:      &lineBuffer,
 		lineHandler:     lineHandler,
 		contentLenLimit: contentLenLimit,
+		matcher:         matcher,
 	}
 }
 
@@ -117,10 +125,10 @@ func (d *Decoder) decodeIncomingData(inBuf []byte) {
 			d.sendLine()
 			i = j
 			maxj = i + d.contentLenLimit
-		} else if inBuf[j] == '\n' {
+		} else if d.matcher.Match(d.lineBuffer.Bytes(), inBuf, i, j) {
 			d.lineBuffer.Write(inBuf[i:j])
 			d.sendLine()
-			i = j + 1 // +1 as we skip the `\n`
+			i = j + 1 // skip the matching byte.
 			maxj = i + d.contentLenLimit
 		}
 	}

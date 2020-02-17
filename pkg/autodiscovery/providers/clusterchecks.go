@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package providers
 
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -58,7 +59,7 @@ func (c *ClusterChecksConfigProvider) initClient() error {
 
 // String returns a string representation of the ClusterChecksConfigProvider
 func (c *ClusterChecksConfigProvider) String() string {
-	return ClusterChecks
+	return names.ClusterChecks
 }
 
 func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {

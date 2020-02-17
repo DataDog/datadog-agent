@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -90,6 +90,10 @@ func (pu *podUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.I
 
 	iter.ReadObjectCB(func(iter *jsoniter.Iterator, field string) bool {
 		if field == "items" {
+			// consider null pod list as an error
+			if iter.WhatIsNext() == jsoniter.NilValue {
+				return false
+			}
 			iter.ReadArrayCB(podCallback)
 		} else {
 			iter.Skip()

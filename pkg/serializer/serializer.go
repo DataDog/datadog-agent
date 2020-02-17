@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package serializer
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -21,10 +22,11 @@ import (
 )
 
 const (
-	protobufContentType      = "application/x-protobuf"
-	jsonContentType          = "application/json"
-	payloadVersionHTTPHeader = "DD-Agent-Payload"
-	apiKeyReplacement        = "\"apiKey\":\"*************************$1"
+	protobufContentType                         = "application/x-protobuf"
+	jsonContentType                             = "application/json"
+	payloadVersionHTTPHeader                    = "DD-Agent-Payload"
+	apiKeyReplacement                           = "\"apiKey\":\"*************************$1"
+	maxItemCountForCreateMarshalersBySourceType = 100
 )
 
 var (
@@ -36,11 +38,17 @@ var (
 	protobufExtraHeaders                http.Header
 	jsonExtraHeadersWithCompression     http.Header
 	protobufExtraHeadersWithCompression http.Header
+
+	expvars                                 = expvar.NewMap("serializer")
+	expvarsSendEventsErrItemTooBigs         = expvar.Int{}
+	expvarsSendEventsErrItemTooBigsFallback = expvar.Int{}
 )
 
 var apiKeyRegExp = regexp.MustCompile("\"apiKey\":\"*\\w+(\\w{5})")
 
 func init() {
+	expvars.Set("SendEventsErrItemTooBigs", &expvarsSendEventsErrItemTooBigs)
+	expvars.Set("SendEventsErrItemTooBigsFallback", &expvarsSendEventsErrItemTooBigsFallback)
 	initExtraHeaders()
 }
 
@@ -70,10 +78,21 @@ func initExtraHeaders() {
 	}
 }
 
+// EventsStreamJSONMarshaler handles two serialization logics.
+type EventsStreamJSONMarshaler interface {
+	marshaler.Marshaler
+
+	// Create a single marshaler.
+	CreateSingleMarshaler() marshaler.StreamJSONMarshaler
+
+	// If the single marshaler cannot serialize, use smaller marshalers.
+	CreateMarshalersBySourceType() []marshaler.StreamJSONMarshaler
+}
+
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
-	SendEvents(e marshaler.Marshaler) error
-	SendServiceChecks(sc marshaler.Marshaler) error
+	SendEvents(e EventsStreamJSONMarshaler) error
+	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.Marshaler) error
@@ -92,25 +111,29 @@ type Serializer struct {
 	// might collect data considered too sensitive (database IP and
 	// such). By default every kind of payload is enabled since
 	// almost every user won't fall into this use case.
-	enableEvents         bool
-	enableSeries         bool
-	enableServiceChecks  bool
-	enableSketches       bool
-	enableJSONToV1Intake bool
-	enableJSONStream     bool
+	enableEvents                  bool
+	enableSeries                  bool
+	enableServiceChecks           bool
+	enableSketches                bool
+	enableJSONToV1Intake          bool
+	enableJSONStream              bool
+	enableServiceChecksJSONStream bool
+	enableEventsJSONStream        bool
 }
 
 // NewSerializer returns a new Serializer initialized
 func NewSerializer(forwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
-		Forwarder:            forwarder,
-		seriesPayloadBuilder: jsonstream.NewPayloadBuilder(),
-		enableEvents:         config.Datadog.GetBool("enable_payloads.events"),
-		enableSeries:         config.Datadog.GetBool("enable_payloads.series"),
-		enableServiceChecks:  config.Datadog.GetBool("enable_payloads.service_checks"),
-		enableSketches:       config.Datadog.GetBool("enable_payloads.sketches"),
-		enableJSONToV1Intake: config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
-		enableJSONStream:     jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
+		Forwarder:                     forwarder,
+		seriesPayloadBuilder:          jsonstream.NewPayloadBuilder(),
+		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
+		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
+		enableServiceChecks:           config.Datadog.GetBool("enable_payloads.service_checks"),
+		enableSketches:                config.Datadog.GetBool("enable_payloads.sketches"),
+		enableJSONToV1Intake:          config.Datadog.GetBool("enable_payloads.json_to_v1_intake"),
+		enableJSONStream:              jsonstream.Available && config.Datadog.GetBool("enable_stream_payload_serialization"),
+		enableServiceChecksJSONStream: jsonstream.Available && config.Datadog.GetBool("enable_service_checks_stream_payload_serialization"),
+		enableEventsJSONStream:        jsonstream.Available && config.Datadog.GetBool("enable_events_stream_payload_serialization"),
 	}
 
 	if !s.enableEvents {
@@ -161,22 +184,64 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 	return payloads, extraHeaders, nil
 }
 
-func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler) (forwarder.Payloads, http.Header, error) {
-	payloads, err := s.seriesPayloadBuilder.Build(payload)
+func (s Serializer) serializeStreamablePayload(payload marshaler.StreamJSONMarshaler, policy jsonstream.OnErrItemTooBigPolicy) (forwarder.Payloads, http.Header, error) {
+	payloads, err := s.seriesPayloadBuilder.BuildWithOnErrItemTooBigPolicy(payload, policy)
 	return payloads, jsonExtraHeadersWithCompression, err
 }
 
+// As events are gathered by SourceType, the serialization logic is more complex than for the other serializations.
+// We first try to use PayloadBuilder where a single item is the list of all events for the same source type.
+
+// This method may lead to item than can be too big to be serialized. In this case we try the following method.
+// If the count of source type is less than maxItemCountForCreateMarshalersBySourceType then we use a
+// of PayloadBuilder for each source type where an item is a single event. We limit to maxItemCountForCreateMarshalersBySourceType
+// for performance reasons.
+//
+// If none of the previous methods work, we fallback to the old serialization method (Serializer.serializePayload).
+func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
+	eventsStreamJSONMarshaler EventsStreamJSONMarshaler, useV1API bool) (forwarder.Payloads, http.Header, error) {
+	marshaler := eventsStreamJSONMarshaler.CreateSingleMarshaler()
+	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, jsonstream.FailOnErrItemTooBig)
+
+	if err == jsonstream.ErrItemTooBig {
+		expvarsSendEventsErrItemTooBigs.Add(1)
+
+		// Do not use CreateMarshalersBySourceType when there are too many source types (Performance issue).
+		if marshaler.Len() > maxItemCountForCreateMarshalersBySourceType {
+			expvarsSendEventsErrItemTooBigsFallback.Add(1)
+			eventPayloads, extraHeaders, err = s.serializePayload(eventsStreamJSONMarshaler, true, useV1API)
+		} else {
+			eventPayloads = nil
+			for _, v := range eventsStreamJSONMarshaler.CreateMarshalersBySourceType() {
+				var eventPayloadsForSourceType forwarder.Payloads
+				eventPayloadsForSourceType, extraHeaders, err = s.serializeStreamablePayload(v, jsonstream.DropItemOnErrItemTooBig)
+				if err != nil {
+					return nil, nil, err
+				}
+				eventPayloads = append(eventPayloads, eventPayloadsForSourceType...)
+			}
+		}
+	}
+	return eventPayloads, extraHeaders, err
+}
+
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
+func (s *Serializer) SendEvents(e EventsStreamJSONMarshaler) error {
 	if !s.enableEvents {
 		log.Debug("events payloads are disabled: dropping it")
 		return nil
 	}
 
 	useV1API := !config.Datadog.GetBool("use_v2_api.events")
+	var eventPayloads forwarder.Payloads
+	var extraHeaders http.Header
+	var err error
 
-	compress := true
-	eventPayloads, extraHeaders, err := s.serializePayload(e, compress, useV1API)
+	if useV1API && s.enableEventsJSONStream {
+		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(e, useV1API)
+	} else {
+		eventPayloads, extraHeaders, err = s.serializePayload(e, true, useV1API)
+	}
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
 	}
@@ -188,7 +253,7 @@ func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
+func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	if !s.enableServiceChecks {
 		log.Debug("service_checks payloads are disabled: dropping it")
 		return nil
@@ -196,8 +261,15 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 
 	useV1API := !config.Datadog.GetBool("use_v2_api.service_checks")
 
-	compress := true
-	serviceCheckPayloads, extraHeaders, err := s.serializePayload(sc, compress, useV1API)
+	var serviceCheckPayloads forwarder.Payloads
+	var extraHeaders http.Header
+	var err error
+
+	if useV1API && s.enableServiceChecksJSONStream {
+		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, jsonstream.DropItemOnErrItemTooBig)
+	} else {
+		serviceCheckPayloads, extraHeaders, err = s.serializePayload(sc, true, useV1API)
+	}
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)
 	}
@@ -222,7 +294,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	var err error
 
 	if useV1API && s.enableJSONStream {
-		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series)
+		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series, jsonstream.DropItemOnErrItemTooBig)
 	} else {
 		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
 	}
@@ -244,7 +316,7 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 		return nil
 	}
 
-	compress := false // TODO: enable compression once the backend supports it on this endpoint
+	compress := true
 	useV1API := false // Sketches only have a v2 endpoint
 	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1API)
 	if err != nil {
@@ -261,7 +333,7 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
-	log.Debugf("Sending host metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+	log.Debugf("Sending metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
 
 	if !smallEnough {
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed), metadata payloads cannot be split", len(compressedPayload))
@@ -271,7 +343,7 @@ func (s *Serializer) SendMetadata(m marshaler.Marshaler) error {
 		return err
 	}
 
-	log.Infof("Sent host metadata payload, size (raw/compressed): %d/%d bytes.", len(payload), len(compressedPayload))
+	log.Infof("Sent metadata payload, size (raw/compressed): %d/%d bytes.", len(payload), len(compressedPayload))
 	return nil
 }
 

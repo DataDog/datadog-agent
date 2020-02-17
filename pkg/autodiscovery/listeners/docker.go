@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/go-connections/nat"
@@ -51,7 +52,11 @@ type DockerService struct {
 	pid           int
 	hostname      string
 	creationTime  integration.CreationTime
+	checkNames    []string
 }
+
+// Make sure DockerService implements the Service interface
+var _ Service = &DockerService{}
 
 func init() {
 	Register("docker", NewDockerListener)
@@ -136,11 +141,17 @@ func (l *DockerListener) init() {
 		}
 		var svc Service
 
+		checkNames, err := getCheckNamesFromLabels(co.Labels)
+		if err != nil {
+			log.Errorf("Error getting check names from docker labels on container %s: %v", co.ID, err)
+		}
+
 		if findKubernetesInLabels(co.Labels) {
 			svc = &DockerKubeletService{
 				DockerService: DockerService{
 					cID:           co.ID,
 					adIdentifiers: l.getConfigIDFromPs(co),
+					checkNames:    checkNames,
 					// Host and Ports will be looked up when needed
 				},
 			}
@@ -151,6 +162,7 @@ func (l *DockerListener) init() {
 				hosts:         l.getHostsFromPs(co),
 				ports:         l.getPortsFromPs(co),
 				creationTime:  integration.Before,
+				checkNames:    checkNames,
 			}
 		}
 		l.newService <- svc
@@ -168,9 +180,15 @@ func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 	l.m.RUnlock()
 
 	if found {
-		if e.Action == "die" {
+		switch e.Action {
+		case "die":
 			l.removeService(cID)
-		} else {
+		case "start":
+			// Container restarted with the same ID within 5 seconds.
+			time.AfterFunc(5*time.Second, func() {
+				l.createService(cID)
+			})
+		default:
 			// FIXME sometimes the agent's container's events are picked up twice at startup
 			log.Debugf("Expected die for container %s got %s: skipping event", cID[:12], e.Action)
 			return
@@ -209,16 +227,23 @@ func (l *DockerListener) createService(cID string) {
 		}
 	}
 
+	checkNames, err := getCheckNamesFromLabels(cInspect.Config.Labels)
+	if err != nil {
+		log.Errorf("Error getting check names from docker labels on container %s: %v", cID, err)
+	}
+
 	if isKube {
 		svc = &DockerKubeletService{
 			DockerService: DockerService{
-				cID: cID,
+				cID:        cID,
+				checkNames: checkNames,
 			},
 		}
 	} else {
 		svc = &DockerService{
 			cID:          cID,
 			creationTime: integration.After,
+			checkNames:   checkNames,
 		}
 	}
 
@@ -258,11 +283,13 @@ func (l *DockerListener) removeService(cID string) {
 	l.m.RUnlock()
 
 	if ok {
-		l.m.Lock()
-		delete(l.services, cID)
-		l.m.Unlock()
-
-		l.delService <- svc
+		// delay service removal for short lived service detection
+		time.AfterFunc(5*time.Second, func() {
+			l.m.Lock()
+			delete(l.services, cID)
+			l.m.Unlock()
+			l.delService <- svc
+		})
 	} else {
 		log.Debugf("Container %s not found, not removing", cID[:12])
 	}
@@ -330,6 +357,10 @@ func (l *DockerListener) getPortsFromPs(co types.Container) []ContainerPort {
 // GetEntity returns the unique entity name linked to that service
 func (s *DockerService) GetEntity() string {
 	return docker.ContainerIDToEntityName(s.cID)
+}
+
+func (s *DockerService) GetTaggerEntity() string {
+	return docker.ContainerIDToTaggerEntityName(s.cID)
 }
 
 func (l *DockerListener) isExcluded(co types.Container) bool {
@@ -492,7 +523,7 @@ func parseDockerPort(port nat.Port) ([]ContainerPort, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
-	tags, err := tagger.Tag(s.GetEntity(), tagger.ChecksCardinality)
+	tags, err := tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
 	if err != nil {
 		return []string{}, err
 	}
@@ -557,4 +588,29 @@ func findKubernetesInLabels(labels map[string]string) bool {
 		}
 	}
 	return false
+}
+
+// IsReady returns if the service is ready
+func (s *DockerService) IsReady() bool {
+	return true
+}
+
+// GetCheckNames returns slice check names defined in docker labels
+func (s *DockerService) GetCheckNames() []string {
+	if s.checkNames == nil {
+		du, err := docker.GetDockerUtil()
+		if err != nil {
+			return nil
+		}
+		cj, err := du.Inspect(s.cID, false)
+		if err != nil {
+			return nil
+		}
+		s.checkNames, err = getCheckNamesFromLabels(cj.Config.Labels)
+		if err != nil {
+			log.Error(err.Error())
+		}
+	}
+
+	return s.checkNames
 }

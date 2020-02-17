@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -13,7 +13,7 @@ import (
 	"sort"
 	"sync"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
@@ -45,6 +45,9 @@ type KubeServiceService struct {
 	ports        []ContainerPort
 	creationTime integration.CreationTime
 }
+
+// Make sure KubeServiceService implements the Service interface
+var _ Service = &KubeServiceService{}
 
 func init() {
 	Register("kube_services", NewKubeServiceListener)
@@ -238,6 +241,11 @@ func (s *KubeServiceService) GetEntity() string {
 	return s.entity
 }
 
+// GetEntity returns the unique entity name linked to that service
+func (s *KubeServiceService) GetTaggerEntity() string {
+	return s.entity
+}
+
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeServiceService) GetADIdentifiers() ([]string, error) {
 	// Only the entity for now, to match on annotation
@@ -272,6 +280,17 @@ func (s *KubeServiceService) GetHostname() (string, error) {
 // GetCreationTime returns the creation time of the service compare to the agent start.
 func (s *KubeServiceService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
+}
+
+// IsReady returns if the service is ready
+func (s *KubeServiceService) IsReady() bool {
+	return true
+}
+
+// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
+// KubeServiceService doesn't implement this method
+func (s *KubeServiceService) GetCheckNames() []string {
+	return nil
 }
 
 func isServiceAnnotated(ksvc *v1.Service) bool {

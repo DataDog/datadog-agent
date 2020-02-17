@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package traceutil
 
 import (
@@ -25,6 +30,17 @@ func TestTopLevelTypical(t *testing.T) {
 	assert.True(HasTopLevel(tr[2]), "only 1 span for this service, should be top-level")
 	assert.True(HasTopLevel(tr[3]), "only 1 span for this service, should be top-level")
 	assert.False(HasTopLevel(tr[4]), "yet another sup span, not top-level")
+}
+
+func TestSetMeta(t *testing.T) {
+	for _, s := range []*pb.Span{
+		{},
+		{Meta: map[string]string{"A": "B", "C": "D"}},
+	} {
+		SetMeta(s, "X", "Y")
+		assert.NotNil(t, s.Meta)
+		assert.Equal(t, s.Meta["X"], "Y")
+	}
 }
 
 func TestTopLevelSingle(t *testing.T) {
@@ -155,14 +171,15 @@ func TestTopLevelGetSetMetrics(t *testing.T) {
 	assert.Equal(float64(42), span.Metrics["custom"], "former metrics should still be here")
 }
 
-func TestForceMetrics(t *testing.T) {
+func TestIsMeasured(t *testing.T) {
 	assert := assert.New(t)
-
 	span := &pb.Span{}
 
-	assert.False(HasForceMetrics(span), "by default, metrics are not enforced for sub name spans")
-	span.Meta = map[string]string{"datadog.trace_metrics": "true"}
-	assert.True(HasForceMetrics(span), "metrics should be enforced because tag is present")
-	span.Meta = map[string]string{"env": "dev"}
-	assert.False(HasForceMetrics(span), "there's a tag, but metrics should not be enforced anyway")
+	assert.False(IsMeasured(span), "by default, metrics are not calculated for non top-level spans")
+
+	span.Metrics = map[string]float64{"_dd.measured": 1}
+	assert.True(IsMeasured(span), "the measured key is present, the span should be measured")
+
+	span.Metrics = map[string]float64{"_dd.measured": 0}
+	assert.False(IsMeasured(span), "the measured key is present but the value != 1, the span should not be measured")
 }

@@ -1,4 +1,4 @@
-Flask==0.12.3
+Flask==1.1.1
 gunicorn==19.7.1
 ujson==1.35
 pymongo==3.6.1

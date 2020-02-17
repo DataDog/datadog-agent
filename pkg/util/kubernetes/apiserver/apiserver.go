@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -27,13 +27,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
+	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
+	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
 )
 
 var (
 	globalAPIClient  *APIClient
 	ErrNotFound      = errors.New("entity not found")
 	ErrIsEmpty       = errors.New("entity is empty")
-	ErrOutdated      = errors.New("entity is outdated")
 	ErrNotLeader     = errors.New("not Leader")
 	isConnectVerbose = false
 )
@@ -52,6 +54,11 @@ type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
 
+	// WPAClient gives access to WPA API
+	WPAClient wpa_client.Interface
+
+	// WPAInformerFactory gives access to informers for Watermark Pod Autoscalers.
+	WPAInformerFactory wpa_informers.SharedInformerFactory
 	// used to setup the APIClient
 	initRetry      retry.Retrier
 	Cl             kubernetes.Interface
@@ -79,8 +86,7 @@ func GetAPIClient() (*APIClient, error) {
 	}
 	return globalAPIClient, nil
 }
-
-func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+func getClientConfig() (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
@@ -98,12 +104,40 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 			return nil, err
 		}
 	}
-	clientConfig.Timeout = timeout
 
 	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
+	return clientConfig, nil
+}
+
+func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
 	return kubernetes.NewForConfig(clientConfig)
+}
+
+func getWPAClient(timeout time.Duration) (wpa_client.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
+	return wpa_client.NewForConfig(clientConfig)
+}
+
+func getWPAInformerFactory() (wpa_informers.SharedInformerFactory, error) {
+	// default to 300s
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getWPAClient(0) // No timeout for the Informers, to allow long watch.
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return nil, err
+	}
+	return wpa_informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
@@ -128,7 +162,16 @@ func (c *APIClient) connect() error {
 	if err != nil {
 		return err
 	}
-
+	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
+		if c.WPAInformerFactory, err = getWPAInformerFactory(); err != nil {
+			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
+			return err
+		}
+		if c.WPAClient, err = getWPAClient(time.Duration(c.timeoutSeconds) * time.Second); err != nil {
+			log.Errorf("Error getting WPA Client: %s", err.Error())
+			return err
+		}
+	}
 	// Try to get apiserver version to confim connectivity
 	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
 	if APIversion.Empty() {
@@ -210,62 +253,79 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	return c.Cl.CoreV1().ComponentStatuses().List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
 }
 
-// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
-func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
-	namespace := common.GetResourcesNamespace()
-	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.ConfigMap, err error) {
+	cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
-		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
-		return "", false, ErrNotFound
+		log.Errorf("Could not get the ConfigMap %s: %s, trying to create it.", name, err.Error())
+		cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Create(&v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create the ConfigMap: %s", err.Error())
+		}
+		log.Infof("Created the ConfigMap %s", name)
 	}
-	log.Infof("Found the ConfigMap %s", configMapDCAToken)
+	return cmEvent, nil
+}
 
-	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
-	tokenValue, found := tokenConfigMap.Data[eventTokenKey]
-	if !found {
-		log.Errorf("%s was not found in the ConfigMap %s", eventTokenKey, configMapDCAToken)
-		return "", found, ErrNotFound
+// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
+func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, error) {
+	namespace := common.GetResourcesNamespace()
+	nowTs := time.Now()
+
+	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
+	if err != nil {
+		// we do not process event if we can't interact with the CM.
+		return "", time.Now(), err
 	}
-	log.Infof("%s is %q", token, tokenValue)
+	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	if cmEvent.Data == nil {
+		cmEvent.Data = make(map[string]string)
+	}
+	tokenValue, found := cmEvent.Data[eventTokenKey]
+	if !found {
+		log.Debugf("%s was not found in the ConfigMap %s, updating it to resync.", eventTokenKey, configMapDCAToken)
+		// we should try to set it to "" .
+		err = c.UpdateTokenInConfigmap(token, "", time.Now())
+		return "", time.Now(), err
+	}
+	log.Tracef("%s is %q", token, tokenValue)
 
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
-	tokenTimeStr, set := tokenConfigMap.Data[eventTokenTS] // This is so we can have one timestamp per token
-
+	tokenTimeStr, set := cmEvent.Data[eventTokenTS]
 	if !set {
 		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", eventTokenTS, configMapDCAToken)
-		// We return ErrOutdated to reset the tokenValue and its timestamp as token's timestamp was not found.
-		return tokenValue, found, ErrOutdated
+		// The timestamp of the last List is not present, it will be set during the next Collection.
+		return tokenValue, nowTs, nil
 	}
 
-	tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
+	tokenTime, err := time.Parse(time.RFC3339, tokenTimeStr)
 	if err != nil {
-		return "", found, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", token, configMapDCAToken)
+		log.Errorf("Could not convert the timestamp associated with %s from the ConfigMap %s, resync might not work correctly.", token, configMapDCAToken)
+		return tokenValue, nowTs, nil
 	}
-	tokenAge := time.Now().Unix() - tokenTime.Unix()
-
-	if tokenAge > tokenTimeout {
-		log.Debugf("The tokenValue %s is outdated, refreshing the state", token)
-		return tokenValue, found, ErrOutdated
-	}
-	log.Debugf("Token %s was updated recently, using value to collect newer events.", token)
-	return tokenValue, found, nil
+	return tokenValue, tokenTime, err
 }
 
 // UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
-func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
+func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp time.Time) error {
 	namespace := common.GetResourcesNamespace()
-	tokenConfigMap, err := c.Cl.CoreV1().ConfigMaps(namespace).Get(configMapDCAToken, metav1.GetOptions{})
+	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
 	if err != nil {
 		return err
 	}
-
 	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	if tokenConfigMap.Data == nil {
+		tokenConfigMap.Data = make(map[string]string)
+	}
 	tokenConfigMap.Data[eventTokenKey] = tokenValue
 
-	now := time.Now()
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
-	tokenConfigMap.Data[eventTokenTS] = now.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
+	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC3339) // Timestamps in the ConfigMap should all use the type int.
 
 	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(tokenConfigMap)
 	if err != nil {
@@ -285,8 +345,8 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 }
 
 // GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on
-func (c *APIClient) GetNodeForPod(namespace, pod_name string) (string, error) {
-	pod, err := c.Cl.CoreV1().Pods(namespace).Get(pod_name, metav1.GetOptions{})
+func (c *APIClient) GetNodeForPod(namespace, podName string) (string, error) {
+	pod, err := c.Cl.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -314,6 +374,7 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 		if err != nil {
 			warn := fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
 			stats.Warnings = append(stats.Warnings, warn)
+			continue
 		}
 		stats.Nodes[node.Name] = convertmetadataMapperBundleToAPI(bundle)
 	}
@@ -351,7 +412,7 @@ func getNodeList(cl *APIClient) ([]v1.Node, error) {
 	return nodes.Items, nil
 }
 
-// GetRESTObject allows to retrive a custom resource from the APIserver
+// GetRESTObject allows to retrieve a custom resource from the APIserver
 func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	result := c.Cl.CoreV1().RESTClient().Get().AbsPath(path).Do()
 	if result.Error() != nil {
@@ -363,6 +424,9 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 
 func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
 	output := apiv1.NewMetadataResponseBundle()
+	if input == nil {
+		return output
+	}
 	for key, val := range input.Services {
 		output.Services[key] = val
 	}

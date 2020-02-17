@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'json'
@@ -31,7 +31,9 @@ if linux?
 end
 
 relative_path 'integrations-core'
-whitelist_file "embedded/lib/python2.7"
+whitelist_file "embedded/lib/python2.7/site-packages/psycopg2"
+whitelist_file "embedded/lib/python2.7/site-packages/wrapt"
+whitelist_file "embedded/lib/python2.7/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
@@ -99,7 +101,7 @@ build do
     #
     command "#{pip} install wheel==0.30.0"
     command "#{pip} install pip-tools==2.0.2"
-    uninstall_buildtime_deps = ['six', 'click', 'first', 'pip-tools']
+    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -137,6 +139,9 @@ build do
         requirements.push(line)
       end
     end
+
+    # Adding pympler for memory debug purposes
+    requirements.push("pympler==0.7")
 
     # Render the filtered requirements file
     erb source: "static_requirements.txt.erb",
@@ -235,6 +240,12 @@ build do
         end
       end
 
+      # Copy SNMP profiles
+      profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
+      if File.exist? profiles
+        copy profiles, "#{check_conf_dir}/"
+      end
+
       File.file?("#{check_dir}/setup.py") || next
       if windows?
         command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{check}"
@@ -246,8 +257,10 @@ build do
     # Patch applies to only one file: set it explicitly as a target, no need for -p
     if windows?
       patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
+      patch :source => "jpype_0_7.patch", :target => "#{python_2_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
     else
       patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
+      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/jaydebeapi/__init__.py"
     end
 
   end

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package autodiscovery
 
@@ -58,7 +58,6 @@ type AutoConfig struct {
 	listenerCandidates map[string]listeners.ServiceListenerFactory
 	listenerRetryStop  chan struct{}
 	scheduler          *scheduler.MetaScheduler
-	healthPolling      *health.Handle
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
 	newService         chan listeners.Service
@@ -112,18 +111,18 @@ func (ac *AutoConfig) checkTagFreshness() {
 	// check if services tags are up to date
 	var servicesToRefresh []listeners.Service
 	for _, service := range ac.store.getServices() {
-		previousHash := ac.store.getTagsHashForService(service.GetEntity())
-		currentHash := tagger.GetEntityHash(service.GetEntity())
+		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
+		currentHash := tagger.GetEntityHash(service.GetTaggerEntity())
+		// Since an empty hash is a valid value, and we are not able to differentiate
+		// an empty tagger or store with an empty value.
+		// So we only look at the difference between current and previous
 		if currentHash != previousHash {
-			ac.store.setTagsHashForService(service.GetEntity(), currentHash)
-			if previousHash != "" {
-				// only refresh service if we already had a hash to avoid resetting it
-				servicesToRefresh = append(servicesToRefresh, service)
-			}
+			ac.store.setTagsHashForService(service.GetTaggerEntity(), currentHash)
+			servicesToRefresh = append(servicesToRefresh, service)
 		}
 	}
 	for _, service := range servicesToRefresh {
-		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetEntity())
+		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetTaggerEntity())
 		ac.processDelService(service)
 		ac.processNewService(service)
 	}
@@ -532,8 +531,8 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	ac.store.addConfigForService(svc.GetEntity(), resolvedConfig)
 	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	ac.store.setTagsHashForService(
-		svc.GetEntity(),
-		tagger.GetEntityHash(svc.GetEntity()),
+		svc.GetTaggerEntity(),
+		tagger.GetEntityHash(svc.GetTaggerEntity()),
 	)
 	errorStats.removeResolveWarnings(tpl.Name)
 	return resolvedConfig, nil
@@ -541,6 +540,10 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 
 // GetLoadedConfigs returns configs loaded
 func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
+	if ac == nil || ac.store == nil {
+		log.Error("Autoconfig store not initialized")
+		return map[string]integration.Config{}
+	}
 	return ac.store.getLoadedConfigs()
 }
 
@@ -564,6 +567,10 @@ func GetResolveWarnings() map[string][]string {
 func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// in any case, register the service and store its tag hash
 	ac.store.setServiceForEntity(svc, svc.GetEntity())
+	ac.store.setTagsHashForService(
+		svc.GetTaggerEntity(),
+		tagger.GetEntityHash(svc.GetTaggerEntity()),
+	)
 
 	// get all the templates matching service identifiers
 	var templates []integration.Config
@@ -597,6 +604,7 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 		{
 			LogsConfig:   integration.Data{},
 			Entity:       svc.GetEntity(),
+			TaggerEntity: svc.GetTaggerEntity(),
 			CreationTime: svc.GetCreationTime(),
 		},
 	})
@@ -609,12 +617,13 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	configs := ac.store.getConfigsForService(svc.GetEntity())
 	ac.store.removeConfigsForService(svc.GetEntity())
 	ac.processRemovedConfigs(configs)
-	ac.store.removeTagsHashForService(svc.GetEntity())
+	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 	// FIXME: unschedule remove services as well
 	ac.unschedule([]integration.Config{
 		{
 			LogsConfig:   integration.Data{},
 			Entity:       svc.GetEntity(),
+			TaggerEntity: svc.GetTaggerEntity(),
 			CreationTime: svc.GetCreationTime(),
 		},
 	})

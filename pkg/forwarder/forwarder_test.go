@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package forwarder
 
@@ -59,15 +59,35 @@ func TestStart(t *testing.T) {
 	assert.NotNil(t, forwarder.Start())
 }
 
-func TestStop(t *testing.T) {
+func TestStopWithoutPurgingTransaction(t *testing.T) {
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
+	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.Set("forwarder_stop_timeout", 0)
+
+	testStop(t)
+}
+
+func TestStopWithPurgingTransaction(t *testing.T) {
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
+	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.Set("forwarder_stop_timeout", 1)
+
+	testStop(t)
+}
+
+func testStop(t *testing.T) {
 	forwarder := NewDefaultForwarder(keysPerDomains)
 	assert.Equal(t, Stopped, forwarder.State())
 	forwarder.Stop() // this should be a noop
 	forwarder.Start()
+	domainForwarders := forwarder.domainForwarders
 	forwarder.Stop()
 	assert.Equal(t, Stopped, forwarder.State())
 	assert.Nil(t, forwarder.healthChecker)
 	assert.Len(t, forwarder.domainForwarders, 0)
+	for _, df := range domainForwarders {
+		assert.Equal(t, Stopped, df.internalState)
+	}
 }
 
 func TestSubmitIfStopped(t *testing.T) {
@@ -88,7 +108,7 @@ func TestSubmitIfStopped(t *testing.T) {
 
 func TestCreateHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(keysPerDomains)
-	endpoint := "/api/foo"
+	endpoint := endpoint{"/api/foo", "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
 	payloads := Payloads{&p1, &p2}
@@ -101,10 +121,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
 	assert.Equal(t, testVersionDomain, transactions[2].Domain)
 	assert.Equal(t, testVersionDomain, transactions[3].Domain)
-	assert.Equal(t, endpoint, transactions[0].Endpoint)
-	assert.Equal(t, endpoint, transactions[1].Endpoint)
-	assert.Equal(t, endpoint, transactions[2].Endpoint)
-	assert.Equal(t, endpoint, transactions[3].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[0].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[1].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[2].Endpoint)
+	assert.Equal(t, endpoint.route, transactions[3].Endpoint)
 	assert.Len(t, transactions[0].Headers, 4)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
@@ -125,7 +145,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 
 func TestSendHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(keysPerDomains)
-	endpoint := "/api/foo"
+	endpoint := endpoint{"/api/foo", "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
 	headers := make(http.Header)

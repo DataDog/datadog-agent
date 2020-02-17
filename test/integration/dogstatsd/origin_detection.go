@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build linux
 
@@ -89,7 +89,7 @@ func testUDSOriginDetection(t *testing.T) {
 		packet := packets[0]
 		require.NotNil(t, packet)
 		require.Equal(t, "custom_counter1:1|c", string(packet.Contents))
-		require.Equal(t, fmt.Sprintf("docker://%s", containerId), packet.Origin)
+		require.Equal(t, fmt.Sprintf("container_id://%s", containerId), packet.Origin)
 		packetPool.Put(packet)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")

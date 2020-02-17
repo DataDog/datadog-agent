@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -461,16 +461,6 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 	)
 
 	return metaController, informerFactory
-}
-
-func requireReceive(t *testing.T, ch chan struct{}, msgAndArgs ...interface{}) {
-	timeout := time.NewTimer(2 * time.Second)
-
-	select {
-	case <-ch:
-	case <-timeout.C:
-		require.FailNow(t, "Timeout waiting to receive from channel", msgAndArgs...)
-	}
 }
 
 func newFakePod(namespace, name, uid, ip string) v1.Pod {

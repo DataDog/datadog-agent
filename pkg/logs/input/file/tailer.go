@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package file
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
@@ -31,14 +33,13 @@ const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
+	readOffset    int64
+	decodedOffset int64
+
 	path           string
-	fullpath       string
 	file           *os.File
 	isWildcardPath bool
 	tags           []string
-
-	readOffset    int64
-	decodedOffset int64
 
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
@@ -52,15 +53,21 @@ type Tailer struct {
 	didFileRotate int32
 	stop          chan struct{}
 	done          chan struct{}
+
+	forwardContext context.Context
+	stopForward    context.CancelFunc
 }
 
 // NewTailer returns an initialized Tailer
 func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration, isWildcardPath bool) *Tailer {
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var parser lineParser.Parser
-	if source.GetSourceType() == config.KubernetesSourceType {
+	switch source.GetSourceType() {
+	case config.KubernetesSourceType:
 		parser = kubernetes.Parser
-	} else {
+	case config.DockerSourceType:
+		parser = docker.JSONParser
+	default:
 		parser = lineParser.NoopParser
 	}
 	var tagProvider tag.Provider
@@ -69,6 +76,9 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 	} else {
 		tagProvider = tag.NoopProvider
 	}
+
+	forwardContext, stopForward := context.WithCancel(context.Background())
+
 	return &Tailer{
 		path:           path,
 		outputChan:     outputChan,
@@ -81,6 +91,8 @@ func NewTailer(outputChan chan *message.Message, source *config.LogSource, path 
 		stop:           make(chan struct{}, 1),
 		done:           make(chan struct{}, 1),
 		isWildcardPath: isWildcardPath,
+		forwardContext: forwardContext,
+		stopForward:    stopForward,
 	}
 }
 
@@ -99,7 +111,6 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.path)
 
-	t.tagProvider.Start()
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
@@ -180,7 +191,6 @@ func (t *Tailer) StartFromBeginning() error {
 func (t *Tailer) Stop() {
 	atomic.StoreInt32(&t.didFileRotate, 0)
 	t.stop <- struct{}{}
-	t.tagProvider.Stop()
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
 	<-t.done
@@ -198,6 +208,7 @@ func (t *Tailer) StopAfterFileRotation() {
 func (t *Tailer) startStopTimer() {
 	stopTimer := time.NewTimer(t.closeTimeout)
 	<-stopTimer.C
+	t.stopForward()
 	t.stop <- struct{}{}
 }
 
@@ -213,7 +224,7 @@ func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
 		atomic.StoreInt32(&t.shouldStop, 1)
-		t.done <- struct{}{}
+		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
 		offset := t.decodedOffset + int64(output.RawDataLen)
@@ -227,7 +238,15 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
-		t.outputChan <- message.NewMessage(output.Content, origin, output.Status)
+
+		// Make the write to the output chan cancellable to be able to stop the tailer
+		// after a file rotation when it is stuck on it.
+		// We don't return directly to keep the same shutdown sequence that in the
+		// normal case.
+		select {
+		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status):
+		case <-t.forwardContext.Done():
+		}
 	}
 }
 

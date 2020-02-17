@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package metrics
 
@@ -14,6 +14,7 @@ import (
 
 	// 3p
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,6 +33,21 @@ func AssertTagsEqual(t assert.TestingT, expected, actual []string) {
 		for _, tag := range expected {
 			assert.Contains(t, actual, tag)
 		}
+	}
+}
+
+// AssertSeriesEqual evaluate if two list of series match
+func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
+	assert.Equal(t, len(expected), len(series))
+	for _, serie := range series {
+		found := false
+		for _, expectedSerie := range expected {
+			if ckey.Compare(serie.ContextKey, expectedSerie.ContextKey) == 0 {
+				AssertSerieEqual(t, expectedSerie, serie)
+				found = true
+			}
+		}
+		assert.True(t, found)
 	}
 }
 

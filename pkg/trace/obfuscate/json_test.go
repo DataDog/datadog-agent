@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package obfuscate
 
 import (
@@ -9,7 +14,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -75,7 +79,7 @@ func TestObfuscateJSON(t *testing.T) {
 	runTest := func(s *xmlObfuscateTest) func(*testing.T) {
 		return func(t *testing.T) {
 			assert := assert.New(t)
-			cfg := &config.JSONObfuscationConfig{KeepValues: s.KeepValues}
+			cfg := &JSONSettings{KeepValues: s.KeepValues}
 			out, err := newJSONObfuscator(cfg).obfuscate([]byte(s.In))
 			if !s.DontNormalize {
 				assert.NoError(err)
@@ -94,7 +98,7 @@ func TestObfuscateJSON(t *testing.T) {
 }
 
 func BenchmarkObfuscateJSON(b *testing.B) {
-	cfg := &config.JSONObfuscationConfig{KeepValues: []string{"highlight"}}
+	cfg := &JSONSettings{KeepValues: []string{"highlight"}}
 	if len(jsonSuite) == 0 {
 		b.Fatal("no test suite loaded")
 	}

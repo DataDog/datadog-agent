@@ -5,9 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -22,8 +20,7 @@ import (
 
 // Flag values
 var opts struct {
-	configPath string
-
+	configPath  string
 	pidFilePath string
 	debug       bool
 	version     bool
@@ -44,15 +41,11 @@ func main() {
 	// Parse flags
 	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
+	checkCmd := flag.NewFlagSet("check", flag.ExitOnError)
+	checkType := checkCmd.String("type", "", "The type of the check to run. Choose from: connections, network_maps, network_state, stats")
+	checkClient := checkCmd.String("client", "", "The client ID that the check will use to run")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
-
-	// Set up a default config before parsing config so we log errors nicely.
-	// The default will be stdout since we can't assume any file is writable.
-	if err := config.SetupInitialLogger(loggerName); err != nil {
-		panic(err)
-	}
-	defer log.Flush()
 
 	// --version
 	if opts.version {
@@ -87,6 +80,28 @@ func main() {
 		gracefulExit()
 	}
 
+	// run check command if the flag is specified
+	if len(os.Args) >= 2 && os.Args[1] == "check" {
+		err = checkCmd.Parse(os.Args[2:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		if *checkType == "" {
+			checkCmd.PrintDefaults()
+			os.Exit(1)
+		}
+		err := querySocketEndpoint(cfg, *checkType, *checkClient)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		os.Exit(0)
+	}
+
+	log.Infof("running system-probe with version: %s", versionString(", "))
+
 	// configure statsd
 	if err := statsd.Configure(cfg); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
@@ -94,7 +109,7 @@ func main() {
 	}
 
 	sysprobe, err := CreateSystemProbe(cfg)
-	if err != nil && strings.HasPrefix(err.Error(), ErrTracerUnsupported.Error()) {
+	if err != nil && strings.HasPrefix(err.Error(), ErrSysprobeUnsupported.Error()) {
 		// If tracer is unsupported by this operating system, then exit gracefully
 		log.Infof("%s, exiting.", err)
 		gracefulExit()
@@ -104,15 +119,8 @@ func main() {
 	}
 	defer sysprobe.Close()
 
-	platform, err := util.GetPlatform()
-	if err != nil {
-		log.Debugf("error retrieving platform: %s", err)
-	} else {
-		log.Infof("running on platform: %s", platform)
-	}
-	log.Infof("running system-probe with version: %s", versionString(", "))
 	go sysprobe.Run()
-	log.Infof("system probe started")
+	log.Infof("system probe successfully started")
 
 	// Handles signals, which tells us whether we should exit.
 	e := make(chan bool)
@@ -126,21 +134,6 @@ func gracefulExit() {
 	// http://supervisord.org/subprocess.html#process-states
 	time.Sleep(5 * time.Second)
 	os.Exit(0)
-}
-
-func handleSignals(exit chan bool) {
-	sigIn := make(chan os.Signal, 100)
-	signal.Notify(sigIn)
-	// unix only in all likelihood;  but we don't care.
-	for sig := range sigIn {
-		switch sig {
-		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT:
-			log.Criticalf("Caught signal '%s'; terminating.", sig)
-			close(exit)
-		default:
-			log.Warnf("Caught signal %s; continuing/ignoring.", sig)
-		}
-	}
 }
 
 // versionString returns the version information filled in at build time

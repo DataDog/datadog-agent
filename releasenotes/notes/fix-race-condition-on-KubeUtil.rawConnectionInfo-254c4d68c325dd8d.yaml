@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    Protect KubeUtil.rawConnectionInfo map against race update.
+    Fix a crash that could occur when having trouble connecting to the Kubelet.
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -15,7 +15,9 @@ import (
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver"
 	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
@@ -91,32 +93,46 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context) (provider
 }
 
 // Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService
-func (o *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
-	o.SecureServing.ServerCert.CertDirectory = "/etc/datadog-agent/certificates"
-	o.SecureServing.BindPort = config.Datadog.GetInt("external_metrics_provider.port")
+func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
+	a.SecureServing.ServerCert.CertDirectory = "/etc/datadog-agent/certificates"
+	a.SecureServing.BindPort = config.Datadog.GetInt("external_metrics_provider.port")
 
-	if err := o.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
+	if err := a.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
 		log.Errorf("Failed to create self signed AuthN/Z configuration %#v", err)
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
 
 	scheme := runtime.NewScheme()
 	codecs := serializer.NewCodecFactory(scheme)
+
+	// we need to add the options to empty v1
+	// TODO fix the server code to avoid this
+	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Version: "v1"})
+
+	// TODO: keep the generic API server from wanting this
+	unversioned := schema.GroupVersion{Group: "", Version: "v1"}
+	scheme.AddUnversionedTypes(unversioned,
+		&metav1.Status{},
+		&metav1.APIVersions{},
+		&metav1.APIGroupList{},
+		&metav1.APIGroup{},
+		&metav1.APIResourceList{},
+	)
 	serverConfig := genericapiserver.NewConfig(codecs)
 
-	err := o.SecureServing.ApplyTo(serverConfig)
+	err := a.SecureServing.ApplyTo(&serverConfig.SecureServing, &serverConfig.LoopbackClientConfig)
 	if err != nil {
 		log.Errorf("Error while converting SecureServing type %v", err)
 		return nil, err
 	}
 
 	// Get the certificates from the extension-apiserver-authentication ConfigMap
-	if err := o.Authentication.ApplyTo(&serverConfig.Authentication, serverConfig.SecureServing, nil); err != nil {
+	if err := a.Authentication.ApplyTo(&serverConfig.Authentication, serverConfig.SecureServing, nil); err != nil {
 		log.Errorf("Could not create Authentication configuration: %v", err)
 		return nil, err
 	}
 
-	if err := o.Authorization.ApplyTo(&serverConfig.Authorization); err != nil {
+	if err := a.Authorization.ApplyTo(&serverConfig.Authorization); err != nil {
 		log.Infof("Could not create Authorization configuration: %v", err)
 		return nil, err
 	}

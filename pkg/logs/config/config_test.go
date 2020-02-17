@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 
@@ -39,6 +40,8 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(30, suite.config.GetInt("logs_config.stop_grace_period"))
 	suite.Equal(nil, suite.config.Get("logs_config.processing_rules"))
 	suite.Equal("", suite.config.GetString("logs_config.processing_rules"))
+	suite.Equal(false, suite.config.GetBool("logs_config.use_http"))
+	suite.Equal(false, suite.config.GetBool("logs_config.k8s_container_use_file"))
 }
 
 func (suite *ConfigTestSuite) TestDefaultSources() {
@@ -121,6 +124,17 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 	suite.Equal("([A-Fa-f0-9]{28})", rule.Pattern)
 	suite.Equal("****************************", rule.ReplacePlaceholder)
 	suite.NotNil(rule.Regex)
+}
+
+func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
+	// assert TaggerWarmupDuration is disabled by default
+	taggerWarmupDuration := TaggerWarmupDuration()
+	suite.Equal(0*time.Second, taggerWarmupDuration)
+
+	// override
+	suite.config.Set("logs_config.tagger_warmup_duration", 5)
+	taggerWarmupDuration = TaggerWarmupDuration()
+	suite.Equal(5*time.Second, taggerWarmupDuration)
 }
 
 func TestConfigTestSuite(t *testing.T) {

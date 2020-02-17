@@ -1,0 +1,619 @@
+
+/* function descriptions */
+.memtitle {
+  padding: 8px;
+  border-top: 1px solid #eee;
+  border-left: 1px solid #eee;
+  border-right: 1px solid #eee;
+  border-top-right-radius: 4px;
+  border-top-left-radius: 4px;
+  margin-bottom: -1px;
+  background-image: url();
+  background-repeat: repeat-x;
+  background-color: #fff;
+  line-height: 1.25;
+  font-weight: 600;
+  float: left;
+}
+
+dt {
+  font-weight: 600;
+}
+
+p.reference, p.definition {
+font: 400 14px/22px -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;;
+margin-top: 0px;
+margin-bottom: 5px;
+padding-top: 8px;
+border-top: 1px solid #eee;
+}
+
+/* parameter names */
+.params .paramname, .retval .paramname, .tparams .paramname {
+  font-weight: 600;
+  vertical-align: top;
+}
+
+/* parameter data types */
+.paramtype {
+  white-space: nowrap;
+  color: #008141;
+}
+
+/* headers */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+}
+
+/* parameter names */
+.paramname {
+  color: #db0303;
+  white-space: nowrap;
+}
+
+/* overall style */
+body, table, div, p, dl {
+  font-style: normal;
+  font-variant-ligatures: normal;
+  font-variant-caps: normal;
+  font-variant-numeric: normal;
+  font-variant-east-asian: normal;
+  font-weight: 500;
+  font-stretch: normal;
+  font-size: 14px;
+  line-height: 22px;
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+}
+
+/* project name */
+#projectname {
+/* markdown font */
+font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+font-weight: 600;
+margin: 0;
+padding: 2px 0;
+}
+/* title area */
+
+#titlearea {
+padding: 0;
+margin: 0;
+width: 100%;
+border-bottom: none;
+}
+
+h2.groupheader {
+border-bottom: 1px solid #eee;
+color: #000;
+font-size: 150%;
+font-weight: 600;
+font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+margin-top: 1em;
+padding-top: 12px;
+padding-bottom: 4px;
+width: 100%;
+}
+
+/* function description text box */
+.memdoc, dl.reflist dd {
+
+  border-bottom: none;
+  border-left: none;
+  border-right: none;
+  padding: 0px 10px 0px 10px;
+  background-color: #FFF;
+  border-top-width: 0;
+  background-image: none;
+  background-repeat: repeat-x;
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
+  box-shadow: 5px 5px 5px rgba(0, 0, 0, 0);
+  -moz-border-radius-bottomleft: 4px;
+  -moz-border-radius-bottomright: 4px;
+  -moz-box-shadow: rgba(0, 0, 0, 0) 5px 5px 5px;
+  -webkit-border-bottom-left-radius: 4px;
+  -webkit-border-bottom-right-radius: 4px;
+  -webkit-box-shadow: 5px 5px 5px rgba(0, 0, 0, 0);
+}
+
+/* function prototype text box */
+.memproto, dl.reflist dt {
+border-bottom: 1px solid #eee;
+  border-top: 1px solid #eee;
+  border-left: 1px solid #eee;
+  border-right: 1px solid #eee;
+  padding: 0px 0 0px 0;
+  color: #000;
+  font-weight: bold;
+  text-shadow: none;
+  background-color: #f9f9f9;
+  box-shadow: none;
+  border-top-right-radius: 4px;
+  -moz-box-shadow: none;
+  -moz-border-radius-topright: 4px;
+  -webkit-box-shadow: none;
+  -webkit-border-top-right-radius: 4px;
+}
+
+/* function prototype */
+.memname td {
+
+  vertical-align: bottom;
+  font-family: SFMono-Regular,Consolas,Liberation Mono,Menlo,Courier,monospace;
+
+}
+
+
+/* icon for each data type */
+.icon {
+background-color: #026ea1;
+}
+/* arrows for treenav */
+
+.arrow {
+color: #09A716;
+-webkit-user-select: none;
+-khtml-user-select: none;
+-moz-user-select: none;
+-ms-user-select: none;
+user-select: none;
+cursor: pointer;
+font-size: 80%;
+display: inline-block;
+width: 16px;
+height: 22px;
+}
+/* colors and fonts for description pages */
+
+table, div, p, dl {
+font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+font-weight: normal;
+color: black;
+}
+
+.sm li, .sm a {
+  position: relative;
+  color: black;
+}
+
+body {
+font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+font-weight: normal;
+color: #FFF;
+min-height: 100%;
+overflow-x: hidden;
+background: #fff;
+}
+
+/* file member function descriptions */
+.memberdecls td, .fieldtable tr {
+
+  -webkit-transition-property: background-color, box-shadow;
+  -webkit-transition-duration: 0.5s;
+  -moz-transition-property: background-color, box-shadow;
+  -moz-transition-duration: 0.5s;
+  -ms-transition-property: background-color, box-shadow;
+  -ms-transition-duration: 0.5s;
+  -o-transition-property: background-color, box-shadow;
+  -o-transition-duration: 0.5s;
+  transition-property: background-color, box-shadow;
+  transition-duration: 0.5s;
+  font-family: SFMono-Regular,Consolas,Liberation Mono,Menlo,Courier,monospace;
+font-weight: 501;
+}
+
+/* function descriptor */
+td.mdescLeft, td.mdescRight {
+padding: 0 8px 4px 8px;
+color: #000;
+font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+font-weight: 400;
+}
+
+/* headers for #include descriptions */
+tt, code, kbd, samp {
+  display: inline-block;
+  direction: ltr;
+  background-color: #f8f8f8;
+  font-family: SFMono-Regular,Consolas,Liberation Mono,Menlo,Courier,monospace;
+  font-weight: 550;
+}
+
+/* list for file members */
+div.contents {
+font-family: SFMono-Regular,Consolas,Liberation Mono,Menlo,Courier,monospace;
+  font-weight: 550;
+}
+
+/* links to a class or struct on the class list page */
+a.el {
+font-family: SFMono-Regular,Consolas,Liberation Mono,Menlo,Courier,monospace;
+  font-weight: 550;
+}
+
+/* header dividers */
+hr {
+  height: 0;
+  border: none;
+  border-top: 1px solid #eee;
+}
+
+#side-nav {
+padding: 0 0 0 0;
+margin: 0;
+display: block;
+position: absolute;
+left: 0;
+width: 250;
+}
+/* nav tree arrow symbol */
+
+#nav-sync img {
+opacity: 0;
+}
+#nav-sync img:hover {
+opacity: 0.9;
+}
+/* The main page button */
+
+.sm-dox>li:first-child>a, .sm-dox>li:first-child> :not(ul) a {
+padding-right: 12px;
+}
+/* content of for all class members list */
+
+#doc-content {
+overflow: auto;
+display: block;
+padding: 0;
+margin: 0;
+margin-left: 0;
+-webkit-overflow-scrolling: touch;
+background-color: #FFF;
+}
+/* label for which tree menu you are on (displays in the doc menu */
+
+.title {
+font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+font-weight: 600;
+font-size: 150%;
+margin: -2px 0 0 2px;
+background-color: white;
+}
+/* title for each section (class List, Class index) */
+
+#titlearea {
+padding: 0;
+margin: 0;
+width: 100%;
+border-bottom: none;
+}
+/* title for each section (class List, Class index) */
+
+div.headertitle {
+padding: none;
+background-color: white;
+}
+/* actual header for each section */
+
+div.header {
+background-image: none;
+background-repeat: repeat-x;
+background-color: #FFF;
+margin: 0;
+border-bottom: 1px solid #eee;
+}
+/* for class and function lists */
+
+table.directory {
+font-style: normal;
+font-variant-caps: normal;
+font-weight: normal;
+font-stretch: normal;
+line-height: normal;
+font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+font-size-adjust: none;
+font-kerning: auto;
+font-optical-sizing: auto;
+font-variant-alternates: normal;
+font-variant-east-asian: normal;
+font-variant-ligatures: normal;
+font-variant-numeric: normal;
+font-variant-position: normal;
+font-language-override: normal;
+font-feature-settings: normal;
+font-variation-settings: normal;
+}
+/* main page, classes, files banner */
+
+.sm-dox {
+padding: 0 0;
+background-image: none;
+line-height: 36px;
+background-color: #7fbdff;
+}
+/* item list on botton left */
+
+.navpath li.navelem a {
+height: 32px;
+display: block;
+text-decoration: none;
+outline: none;
+color: #FFF;
+font-family: 'Lucida Grande', Geneva, Helvetica, Arial, sans-serif;
+text-shadow: none;
+text-decoration: none;
+}
+.navpath li {
+list-style-type: none;
+float: left;
+padding-left: 10px;
+padding-right: 15px;
+background-image: none;
+background-repeat: no-repeat;
+background-position: right;
+color: #364D7C;
+}
+/* top menu, Classes button */
+
+.sm-dox a, .sm-dox a:focus, .sm-dox a:active, .sm-dox a.highlighted, .sm-dox a.highlighted {
+padding-right: 12px;
+background-image: none;
+background-repeat: no-repeat;
+background-position: right;
+background-color: #7fbdff;
+color: #b8b8b8;
+padding-left: 12px;
+}
+
+.sm-dox a.has-submenu {
+  padding-right: 24px;
+}
+
+.sm a {
+display: block;
+}
+/* top menu, main buttons label */
+
+.sm-dox a, .sm-dox a:focus, .sm-dox a:visited, .sm-dox a:visited {
+font-family: "Lucida Grande", "Geneva", "Helvetica", Arial, sans-serif;
+font-size: 14px;
+font-weight: bold;
+line-height: 36px;
+color: #000;
+text-shadow: none;
+}
+/* hover over class/main page, files buttons */
+
+.sm-dox a:hover {
+font-family: "Lucida Grande", "Geneva", "Helvetica", Arial, sans-serif;
+font-size: 14px;
+font-weight: bold;
+line-height: 36px;
+text-decoration: none;
+text-decoration-line: none;
+text-decoration-style: solid;
+text-decoration-color: currentcolor;
+text-shadow: none;
+color: #FFF;
+outline: 0;
+outline-color: currentcolor;
+outline-style: none;
+outline-width: 0;
+background-color: #156ac9;
+background-image: none;
+}
+
+.sm-dox ul a:hover {
+  background-image: none;
+  background-repeat: repeat-x;
+  color: white;
+  background-color: #000;
+  text-shadow: none;
+}
+
+/* top list items */
+
+.sm-dox ul {
+color: #FFF;
+border-top-color: rgb(187, 187, 187);
+border-top-style: solid;
+border-top-width: 1px;
+border-right-color: rgb(187, 187, 187);
+border-right-style: solid;
+border-right-width: 1px;
+border-bottom-color: rgb(187, 187, 187);
+border-bottom-style: solid;
+border-bottom-width: 1px;
+border-left-color: rgb(187, 187, 187);
+border-left-style: solid;
+border-left-width: 1px;
+border-image-outset: 0;
+border-image-repeat: stretch;
+border-image-slice: 100%;
+border-image-source: none;
+border-image-width: 1;
+padding: 5px 0;
+background: #fff;
+background-color: rgb(255, 255, 255);
+background-position-x: 0%;
+background-position-y: 0%;
+background-repeat: repeat;
+background-attachment: scroll;
+background-image: none;
+background-size: auto;
+background-origin: padding-box;
+background-clip: border-box;
+-moz-border-radius: 5px !important;
+-webkit-border-radius: 5px;
+border-radius: 5px !important;
+-moz-box-shadow: 0 5px 9px rgba(0, 0, 0, 0.2);
+-webkit-box-shadow: 0 5px 9px rgba(0, 0, 0, 0.2);
+box-shadow: 0 5px 9px rgba(0, 0, 0, 0.2);
+}
+.sm-dox ul a:hover {
+background-image: none;
+}
+/* dividers for class/function lists */
+
+div.directory {
+margin: 10px 0;
+border-top: 1px solid #eee;
+border-bottom: 1px solid #eee;
+width: 100%;
+}
+/* for navigation tree links */
+
+#nav-tree .label a {
+padding-top: 1px;
+padding-right: 1px;
+padding-bottom: 1px;
+margin-left: 12px;
+color: #FFF;
+font-weight: 700;
+font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+}
+/* hovering over tree view items */
+
+#nav-tree .label a:hover {
+padding-top: 2px;
+padding-right: 2px;
+padding-bottom: -3px;
+margin-left: 12px;
+color: #000;
+font-weight: 700;
+font-family: "Lucida Grande", Geneva, Helvetica, Arial, sans-serif;
+background-color: #FFF
+}
+/* nav tree labels */
+
+#nav-tree .label {
+font-weight: 700;
+font-family: "Lucida Grande", Geneva, Helvetica, Arial, sans-serif;
+}
+/* still for the navtree, but not labels */
+
+#nav-tree {
+padding: 0 0;
+background-color: #404040;
+font-size: normal;
+overflow: auto;
+background-image: none;
+margin-right: 16px;
+}
+
+span.lineno {
+background-color: #f7f7f7;
+}
+
+a {
+color: #4d95c4;
+}
+
+span.lineno a {
+background-color: #e6e5e5;
+}
+
+div.fragment {
+  padding: 0 0 1px 0;
+  margin: 4px 8px 4px 2px;
+  background-color: #FBFCFD;
+  border: 1px solid #eee;
+}
+
+.permalink {
+color: #476092;
+font-size: 85%;
+}
+
+/* selected nav tree */
+#nav-tree .selected {
+background-image: none;
+background-repeat: repeat-x;
+color: #fff;
+background-color: #000;
+}
+/* selected nav tree link */
+
+#nav-tree .selected a {
+background-image: none;
+background-repeat: repeat-x;
+color: #fff;
+}
+/* visited nav tree link */
+
+#nav-tree .visited a {
+background-image: none;
+background-repeat: repeat-x;
+color: #127FCF;
+}
+/* bar separator for tree view */
+
+.ui-resizable-e {
+background-image: none;
+background-size: 100%;
+background-repeat: repeat-y;
+background-attachment: scroll;
+cursor: ew-resize;
+height: 100%;
+right: 0;
+top: 0;
+width: 0;
+background-color: black;
+}
+/* visited links in general */
+
+a:visited {
+color: #4d95c4;
+}
+/* bottom bar */
+
+a.code, a.code:visited, a.line, a.line:visited {
+  color: #4d95c4;
+}
+
+.contents a:visited {
+  color: #4d95c4;
+}
+
+.navpath ul {
+font-size: 11px;
+background-image: none;
+background-repeat: repeat-x;
+background-position: 0 -5px;
+height: 30px;
+line-height: 30px;
+color: #fff;
+border: none;
+overflow: hidden;
+margin: 0;
+padding: 0;
+background-color: #181818;
+}
+/* text 'Generated by doxygen' */
+
+.navpath li.footer {
+list-style-type: none;
+float: right;
+padding-left: 10px;
+padding-right: 15px;
+background-image: none;
+background-repeat: no-repeat;
+background-position: right;
+color: #FFF;
+font-size: 8pt;
+}
+
+@font-face {
+font-family: "Roboto Slab";
+font-style: normal;
+font-weight: 400;
+src: url("../fonts/RobotoSlab/roboto-slab.eot");
+src: url("../fonts/RobotoSlab/roboto-slab-v7-regular.eot?#iefix") format("embedded-opentype"), url("../fonts/RobotoSlab/roboto-slab-v7-regular.woff2") format("woff2"), url("../fonts/RobotoSlab/roboto-slab-v7-regular.woff") format("woff"), url("../fonts/RobotoSlab/roboto-slab-v7-regular.ttf") format("truetype")
+}
+@font-face {
+font-family: "Roboto Slab";
+font-style: normal;
+font-weight: 700;
+src: url("../fonts/RobotoSlab/roboto-slab-v7-bold.eot");
+src: url("../fonts/RobotoSlab/roboto-slab-v7-bold.eot?#iefix") format("embedded-opentype"), url("../fonts/RobotoSlab/roboto-slab-v7-bold.woff2") format("woff2"), url("../fonts/RobotoSlab/roboto-slab-v7-bold.woff") format("woff"), url("../fonts/RobotoSlab/roboto-slab-v7-bold.ttf") format("truetype")
+}

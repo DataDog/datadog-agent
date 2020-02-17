@@ -1,12 +1,10 @@
-# Upgrade to Agent 6
+# Upgrade to Agent v7
 
-Datadog Agent 6 has officially been released. Please use the in-application [install instructions](https://app.datadoghq.com/account/settings#agent) to install Agent 6 from scratch or upgrade from Agent 5.
+Instructions to upgrade your Agent to version 7:
 
-For a list of changes between Agent 5 and 6 that may affect you, please refer to:
-* [the doc on the general Agent changes][changes]
-* [the doc on the differences in the Agent config options][config]
-* [the list of Agent 5 features that are not ported to Agent 6][missing-features]
+  * [Upgrade from Agent v6 to Agent v7](https://docs.datadoghq.com/agent/versions/upgrade_to_agent_v7/#from-agent-v6-to-agent-v7)
+  * [Upgrade from Agent v5 to Agent v7](https://docs.datadoghq.com/agent/versions/upgrade_to_agent_v7/#from-agent-v5-to-agent-v7)
 
-[changes]: changes.md
-[config]: config.md
-[missing-features]: missing_features.md
+# Upgrade to Agent v6
+
+Instructions to upgrade your Agent from version 5 to version 6 can be found in the [Datadog public documentation](https://docs.datadoghq.com/agent/versions/upgrade_to_agent_v6).

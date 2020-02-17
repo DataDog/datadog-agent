@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build python,kubelet
 
@@ -18,9 +18,9 @@ import (
 )
 
 /*
-#include <datadog_agent_six.h>
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
+#include <datadog_agent_rtloader.h>
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 */
 import "C"
 
@@ -76,5 +76,5 @@ func GetKubeletConnectionInfo(payload **C.char) {
 		cache.Cache.Set(kubeletCacheKey, creds, 5*time.Minute)
 	}
 
-	*payload = C.CString(creds)
+	*payload = TrackedCString(creds)
 }

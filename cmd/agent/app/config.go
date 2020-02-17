@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package app
 
@@ -16,10 +16,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	configJSON bool
-)
-
 func init() {
 	AgentCmd.AddCommand(configCommand)
 }
@@ -29,16 +25,25 @@ var configCommand = &cobra.Command{
 	Short: "Print the runtime configuration of a running agent",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfigWithoutSecrets(confFilePath)
+
+		if flagNoColor {
+			color.NoColor = true
+		}
+
+		err := common.SetupConfigWithoutSecrets(confFilePath, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		err = util.SetAuthToken()
 		if err != nil {
 			return err
-		}
-		if flagNoColor {
-			color.NoColor = true
 		}
 
 		runtimeConfig, err := requestConfig()
@@ -53,12 +58,16 @@ var configCommand = &cobra.Command{
 
 func requestConfig() (string, error) {
 	c := util.GetClient(false)
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {
 		var errMap = make(map[string]string)
-		json.Unmarshal(r, errMap)
+		json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
 			return "", fmt.Errorf(e)

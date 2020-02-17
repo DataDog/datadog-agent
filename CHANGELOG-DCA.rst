@@ -2,6 +2,55 @@
 Release Notes
 =============
 
+
+.. _Release Notes_1.4.0:
+
+1.4.0
+=====
+
+.. _Release Notes_1.4.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2019-11-06
+
+This version contains the changes released with version 6.15.0 of the core agent.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#6150>`_.
+
+New Features
+------------
+
+- Introducing the Advanced dispatching logic to rebalancing Cluster Level Checks [#4068, #4226, #4344]
+- Enable the Endpoint check logic [#3853, #3704]
+- HTTP proxy support for the external metrics provider #4191
+- Improve External Metrics Provider resiliency [#4285, #3727]
+- Revamp the Kubernetes event collection check [#4259, #4346, #4342, #4337, #4314]
+
+Enhancement Notes
+-----------------
+
+- Update Gopkg.lock with new import #3837
+- Fix kubernetes_apiserver default config file #3854
+- Fix registration of the External Metrics Server's API #4233
+- Fixing status of the Cluster Agent if the External Metrics Provider is not enabled #4277
+- Fix how the endpoints check source is displayed in agent command outputs #4357
+- Fix how we invalidate changed Endpoints config #4363
+- Get Cluster Level Checks runner IPs from headers #4386
+- Fixing output of `agent status` #4352
+
+1.3.2
+=====
+2019-07-09
+
+- Fix Cluster-agent failure with `cluster-agent flare` command.
+
+1.3.1
+=====
+2019-06-19
+
+- Fix "Kube Services" service: `kube service` tags attached to pod are not consistent.
+
 .. _Release Notes_1.3.0:
 
 1.3.0
@@ -27,6 +76,10 @@ Bug Fixes
 ---------
 - Fix race condition: immutable MetaBundle stored in DCA cache.
 
+1.3.0-rc.2
+==========
+2019-04-30
+
 Bug Fixes
 ---------
 - Fix race condition in Cluster Agent's API handler.
@@ -40,13 +93,13 @@ New Features
 - The Cluster Agent can now auto-discover config templates for kubernetes endpoints checks and expose them to node Agents via its API
 - Add the ``config`` and ``configcheck`` command to the cluster agent CLI
 - Add the ``diagnose`` command to the cluster agent CLI and flare
-- Add cluster_checks.extra_tags option
+- Add cluster_checks.extra_tags option to allow users to add tags globally to the cluster level checks.
 
 Enhancement Notes
 -----------------
 - Improving Lifecycle of the External Metrics Provider
 - Support milliquantities for the External Metrics Provider
-- Move logs info to debug
+- Move some logs from info to debug, in order to generates fewer noisy logs when running correctly.
 
 .. _Release Notes_1.2.0:
 

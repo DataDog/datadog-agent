@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
@@ -13,21 +13,24 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ktypes "k8s.io/apimachinery/pkg/types"
-	v1 "k8s.io/client-go/listers/core/v1"
 )
+
+const firstRunnerStatsMinutes = 2  // collect runner stats after the first 2 minutes
+const secondRunnerStatsMinutes = 5 // collect runner stats after the first 7 minutes
+const finalRunnerStatsMinutes = 10 // collect runner stats endlessly every 10 minutes
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
 	store                 *clusterStore
 	nodeExpirationSeconds int64
 	extraTags             []string
-	endpointsLister       v1.EndpointsLister
+	clcRunnersClient      clusteragent.CLCRunnerClientInterface
+	advancedDispatching   bool
 }
 
 func newDispatcher() *dispatcher {
@@ -42,12 +45,18 @@ func newDispatcher() *dispatcher {
 	if clusterTagName != "" && clusterTagValue != "" {
 		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
 	}
-	var err error
-	d.endpointsLister, err = newEndpointsLister()
-	if err != nil {
-		log.Errorf("Cannot create endpoints lister: %s", err)
+
+	d.advancedDispatching = config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled")
+	if !d.advancedDispatching {
+		return d
 	}
 
+	var err error
+	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
+	if err != nil {
+		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
+		d.advancedDispatching = false
+	}
 	return d
 }
 
@@ -62,12 +71,15 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
-		if isKubeServiceCheck(c) && len(c.EndpointsChecks) > 0 {
-			// A kube service that requires endpoints checks will be scheduled,
-			// endpoints cache must be updated with the new checks.
-			d.store.Lock()
-			d.store.endpointsCache[ktypes.UID(getServiceUID(c))] = newEndpointsInfo(c)
-			d.store.Unlock()
+		if c.NodeName != "" {
+			// An endpoint check backed by a pod
+			patched, err := d.patchEndpointsConfiguration(c)
+			if err != nil {
+				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				continue
+			}
+			d.addEndpointConfig(patched, c.NodeName)
+			continue
 		}
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
@@ -84,11 +96,14 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
-		if isKubeServiceCheck(c) && len(c.EndpointsChecks) > 0 {
-			d.store.Lock()
-			// Remove the cached endpoints checks of the service
-			delete(d.store.endpointsCache, ktypes.UID(getServiceUID(c)))
-			d.store.Unlock()
+		if c.NodeName != "" {
+			patched, err := d.patchEndpointsConfiguration(c)
+			if err != nil {
+				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				continue
+			}
+			d.removeEndpointConfig(patched, c.NodeName)
+			continue
 		}
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
@@ -143,11 +158,12 @@ func (d *dispatcher) run(ctx context.Context) {
 	healthProbe := health.Register("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe)
 
-	registerMetrics()
-	defer unregisterMetrics()
-
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()
+
+	runnerStatsMinutes := firstRunnerStatsMinutes
+	runnerStatsTicker := time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
+	defer runnerStatsTicker.Stop()
 
 	for {
 		select {
@@ -164,22 +180,23 @@ func (d *dispatcher) run(ctx context.Context) {
 				danglingConfs := d.retrieveAndClearDangling()
 				d.reschedule(danglingConfs)
 			}
-		}
-	}
-}
+		case <-runnerStatsTicker.C:
+			// Collect stats with an exponential backoff 2 - 5 - 10 minutes
+			if runnerStatsMinutes == firstRunnerStatsMinutes {
+				runnerStatsMinutes = secondRunnerStatsMinutes
+				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
+			} else if runnerStatsMinutes == secondRunnerStatsMinutes {
+				runnerStatsMinutes = finalRunnerStatsMinutes
+				runnerStatsTicker = time.NewTicker(time.Duration(runnerStatsMinutes) * time.Minute)
+			}
 
-// newEndpointsInfo initializes an EndpointsInfo struct from a service config.
-// Needed by the endpoints configs dispatching logic to validate the checks.
-func newEndpointsInfo(c integration.Config) *types.EndpointsInfo {
-	var namespace string
-	var name string
-	if len(c.EndpointsChecks) > 0 {
-		namespace, name = getNameAndNamespaceFromADIDs(c.EndpointsChecks)
-	}
-	return &types.EndpointsInfo{
-		ServiceEntity: c.Entity,
-		Namespace:     namespace,
-		Name:          name,
-		Configs:       c.EndpointsChecks,
+			// Update runner stats and rebalance if needed
+			if d.advancedDispatching {
+				// Collect CLC runners stats and update cache
+				d.updateRunnersStats()
+				// Rebalance checks distribution
+				d.rebalance()
+			}
+		}
 	}
 }

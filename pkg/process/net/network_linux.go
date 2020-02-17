@@ -6,23 +6,27 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 
 	"context"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
-	statusURL      = "http://unix/status"
-	connectionsURL = "http://unix/connections"
+	statusURL           = "http://unix/status"
+	connectionsURL      = "http://unix/connections"
+	contentTypeProtobuf = "application/protobuf"
 )
 
 var (
 	globalUtil            *RemoteSysProbeUtil
+	globalUtilOnce        sync.Once
 	globalSocketPath      string
 	hasLoggedErrForStatus map[retry.Status]struct{}
 )
@@ -52,7 +56,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 		return nil, fmt.Errorf("remote tracer has no socket path defined")
 	}
 
-	if globalUtil == nil {
+	globalUtilOnce.Do(func() {
 		globalUtil = newSystemProbe()
 		globalUtil.initRetry.SetupRetrier(&retry.Config{
 			Name:          "system-probe-util",
@@ -62,7 +66,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 			RetryCount: 10,
 			RetryDelay: 30 * time.Second,
 		})
-	}
+	})
 
 	if err := globalUtil.initRetry.TriggerRetry(); err != nil {
 		log.Debugf("system probe init error: %s", err)
@@ -73,8 +77,14 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 }
 
 // GetConnections returns a set of active network connections, retrieved from the system probe service
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionStats, error) {
-	resp, err := r.httpClient.Get(fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID))
+func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Accept", contentTypeProtobuf)
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	} else if resp.StatusCode != http.StatusOK {
@@ -86,12 +96,13 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) ([]ebpf.ConnectionS
 		return nil, err
 	}
 
-	conn := &ebpf.Connections{}
-	if err := conn.UnmarshalJSON(body); err != nil {
+	contentType := resp.Header.Get("Content-type")
+	conns, err := encoding.GetUnmarshaler(contentType).Unmarshal(body)
+	if err != nil {
 		return nil, err
 	}
 
-	return conn.Conns, nil
+	return conns, nil
 }
 
 // ShouldLogTracerUtilError will return whether or not errors sourced from the RemoteSysProbeUtil _should_ be logged, for less noisy logging.

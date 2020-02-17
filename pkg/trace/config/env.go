@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -10,7 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func applyEnv() {
+// loadEnv loads all known environment variables into the global config.
+func loadEnv() {
 	// Warning: do not use BindEnv to bind config variables. They will be overridden
 	// when using the legacy config loader.
 	for _, override := range []struct{ env, key string }{
@@ -39,6 +46,7 @@ func applyEnv() {
 		{"DD_APM_MAX_TPS", "apm_config.max_traces_per_second"},
 		{"DD_APM_MAX_MEMORY", "apm_config.max_memory"},
 		{"DD_APM_MAX_CPU_PERCENT", "apm_config.max_cpu_percent"},
+		{"DD_APM_RECEIVER_SOCKET", "apm_config.receiver_socket"},
 	} {
 		if v := os.Getenv(override.env); v != "" {
 			config.Datadog.Set(override.key, v)
@@ -62,6 +70,14 @@ func applyEnv() {
 			config.Datadog.Set("apm_config.analyzed_spans", analyzedSpans)
 		} else {
 			log.Errorf("Bad format for %s it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v", "DD_APM_ANALYZED_SPANS", err)
+		}
+	}
+	if v := os.Getenv("DD_APM_REPLACE_TAGS"); v != "" {
+		replaceTags, err := parseReplaceTags(v)
+		if err == nil {
+			config.Datadog.Set("apm_config.replace_tags", replaceTags)
+		} else {
+			log.Errorf("Bad format for %s it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "DD_APM_REPLACE_TAGS", err)
 		}
 	}
 }
@@ -94,4 +110,13 @@ func parseAnalyzedSpans(env string) (analyzedSpans map[string]float64, err error
 		analyzedSpans[name] = rate
 	}
 	return
+}
+
+func parseReplaceTags(env string) ([]map[string]string, error) {
+	var replaceTags []map[string]string
+	err := json.Unmarshal([]byte(env), &replaceTags)
+	if err != nil {
+		return nil, err
+	}
+	return replaceTags, nil
 }

@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.7.1"
+default_version "3.8.1"
 
 if ohai["platform"] != "windows"
   dependency "libffi"
@@ -10,16 +10,10 @@ if ohai["platform"] != "windows"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
+  dependency "libyaml"
 
-  version "3.6.7" do
-    source :sha256 => "b7c36f7ed8f7143b2c46153b7332db2227669f583ea0cce753facf549d1a4239"
-  end
-
-  version "3.7.1" do
-    source :sha256 => "36c1b81ac29d0f8341f727ef40864d99d8206897be96be73dc34d4739c9c9f06"
-  end
-
-  source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz"
+  source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
+         :sha256 => "c7cfa39a43b994621b245e029769e9126caa2a93571cee2e743b213cceac35fb"
 
   relative_path "Python-#{version}"
 
@@ -54,21 +48,31 @@ if ohai["platform"] != "windows"
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
     command "make install", :env => env
-    # delete "#{install_dir}/embedded/lib/python2.7/test"
+    delete "#{install_dir}/embedded/lib/python3.8/test"
 
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/lib-dynload/readline.*"))
+      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
   end
 
 else
-  default_version "3.7.1"
+  dependency "vc_redist_14"
 
-  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
-         :sha256 => "c9da8a6890ce7df603724abebcd893c63616f499b9a619bb39399a09f382269a"
+  if windows_arch_i386?
+    dependency "vc_ucrt_redist"
 
+    source :url => "http://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
+            :sha256 => "44f4a665392912fe172223c42c62dd193670392fee5010bc9f89c5cd2722964c"
+  else
+
+    # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
+    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
+         :sha256 => "58563ca60891025923572107e02b8f07439928eb5222dd10466cc92089072c2a"
+
+  end
   build do
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
   end

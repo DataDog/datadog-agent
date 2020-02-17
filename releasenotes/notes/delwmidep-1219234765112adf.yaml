@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+other:
+  - |
+    The Windows agent no longer depends on the Windows WMI service.  
+    If the WMI service stops for any reason, the Windows agent will no 
+    longer stop with it.  However, any integrations that do use WMI
+    (wmi_check and win32_event_log) will not be able to function until 
+    the WMI service restarts.

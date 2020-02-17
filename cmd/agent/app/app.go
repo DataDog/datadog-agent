@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 /*
 Package app implements the Agent main loop, orchestrating
@@ -26,6 +26,7 @@ var (
 The Datadog Agent faithfully collects events and metrics and brings them
 to Datadog on your behalf so that you can do something useful with your
 monitoring and performance data.`,
+		SilenceUsage: true,
 	}
 	// confFilePath holds the path to the folder containing the configuration
 	// file, to allow overrides from the command line

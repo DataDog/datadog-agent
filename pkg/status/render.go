@@ -1,7 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
+
+//go:generate go-bindata -pkg status -prefix templates -o ./templates.go templates/...
+//go:generate go fmt ./templates.go
 
 package status
 
@@ -9,24 +12,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
-	"path/filepath"
+	"text/template"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
-var (
-	here, _        = executable.Folder()
-	fmap           = Fmap()
-	templateFolder string
-)
-
-func init() {
-	templateFolder = filepath.Join(common.GetDistPath(), "templates")
-}
+var fmap = Textfmap()
 
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatStatus(data []byte) (string, error) {
@@ -46,18 +38,19 @@ func FormatStatus(data []byte) (string, error) {
 	logsStats := stats["logsStats"]
 	dcaStats := stats["clusterAgentStatus"]
 	endpointsInfos := stats["endpointsInfos"]
+	inventoriesStats := stats["inventories"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
-	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, "")
+	renderStatusTemplate(b, "/header.tmpl", stats)
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
 	renderJMXFetchStatus(b, jmxStats)
-	renderForwarderStatus(b, forwarderStats)
-	renderEndpointsInfos(b, endpointsInfos)
-	renderLogsStatus(b, logsStats)
-	renderAggregatorStatus(b, aggregatorStats)
-	renderDogstatsdStatus(b, dogstatsdStats)
-	if config.Datadog.GetBool("cluster_agent.enabled") {
-		renderDatadogClusterAgentStatus(b, dcaStats)
+	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
+	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
+	renderStatusTemplate(b, "/logsagent.tmpl", logsStats)
+	renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
+	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
+	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
+		renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
 	}
 
 	return b.String(), nil
@@ -76,10 +69,10 @@ func FormatDCAStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
-	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, "")
-	renderForwarderStatus(b, forwarderStats)
-	renderEndpointsInfos(b, endpointsInfos)
+	renderStatusTemplate(b, "/header.tmpl", stats)
+	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, nil, "")
+	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
+	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
 
 	return b.String(), nil
 }
@@ -89,7 +82,7 @@ func FormatHPAStatus(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats)
-	renderHPAStats(b, stats)
+	renderStatusTemplate(b, "/custommetricsprovider.tmpl", stats)
 	return b.String(), nil
 }
 
@@ -102,69 +95,11 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	renderMetadataMapper(b, stats)
-
+	renderStatusTemplate(b, "/metadatamapper.tmpl", stats)
 	return b.String(), nil
 }
 
-func renderHeader(w io.Writer, stats map[string]interface{}) {
-	t := template.Must(template.New("header.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "header.tmpl")))
-	err := t.Execute(w, stats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func renderAggregatorStatus(w io.Writer, aggregatorStats interface{}) {
-	t := template.Must(template.New("aggregator.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "aggregator.tmpl")))
-	err := t.Execute(w, aggregatorStats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func renderDogstatsdStatus(w io.Writer, dogstatsdStats interface{}) {
-	t := template.Must(template.New("dogstatsd.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "dogstatsd.tmpl")))
-	err := t.Execute(w, dogstatsdStats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func renderForwarderStatus(w io.Writer, forwarderStats interface{}) {
-	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "forwarder.tmpl")))
-	err := t.Execute(w, forwarderStats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func renderEndpointsInfos(w io.Writer, endpointsInfos interface{}) {
-	t := template.Must(template.New("endpoints.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "endpoints.tmpl")))
-
-	err := t.Execute(w, endpointsInfos)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func renderDatadogClusterAgentStatus(w io.Writer, dcaStats interface{}) {
-	t := template.Must(template.New("clusteragent.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "clusteragent.tmpl")))
-	err := t.Execute(w, dcaStats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func renderHPAStats(w io.Writer, hpaStats interface{}) {
-	t := template.Must(template.New("custommetricsprovider.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "custommetricsprovider.tmpl")))
-	err := t.Execute(w, hpaStats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats interface{}, onlyCheck string) {
+func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats interface{}, onlyCheck string) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["pyLoaderStats"] = pyLoaderStats
@@ -172,12 +107,8 @@ func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, auto
 	checkStats["AutoConfigStats"] = autoConfigStats
 	checkStats["CheckSchedulerStats"] = checkSchedulerStats
 	checkStats["OnlyCheck"] = onlyCheck
-	t := template.Must(template.New("collector.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "collector.tmpl")))
-
-	err := t.Execute(w, checkStats)
-	if err != nil {
-		fmt.Println(err)
-	}
+	checkStats["CheckMetadata"] = inventoriesStats
+	renderStatusTemplate(w, "/collector.tmpl", checkStats)
 }
 
 func renderCheckStats(data []byte, checkName string) (string, error) {
@@ -190,7 +121,8 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	pythonInit := stats["pythonInit"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
-	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, checkName)
+	inventoriesStats := stats["inventories"]
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, checkName)
 
 	return b.String(), nil
 }
@@ -198,25 +130,17 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
 	stats := make(map[string]interface{})
 	stats["JMXStatus"] = jmxStats
-	t := template.Must(template.New("jmxfetch.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "jmxfetch.tmpl")))
+	renderStatusTemplate(w, "/jmxfetch.tmpl", jmxStats)
+}
 
+func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
+	tmpl, tmplErr := Asset(templateName)
+	if tmplErr != nil {
+		fmt.Println(tmplErr)
+		return
+	}
+	t := template.Must(template.New(templateName).Funcs(fmap).Parse(string(tmpl)))
 	err := t.Execute(w, stats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func renderLogsStatus(w io.Writer, logsStats interface{}) {
-	t := template.Must(template.New("logsagent.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "logsagent.tmpl")))
-	err := t.Execute(w, logsStats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func renderMetadataMapper(w io.Writer, metadataMapperStats interface{}) {
-	t := template.Must(template.New("metadatamapper.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "metadatamapper.tmpl")))
-	err := t.Execute(w, metadataMapperStats)
 	if err != nil {
 		fmt.Println(err)
 	}

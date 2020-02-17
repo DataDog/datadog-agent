@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build python
 
@@ -14,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,9 +23,11 @@ import (
 )
 
 /*
-#include <datadog_agent_six.h>
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
 */
 import (
 	"C"
@@ -32,9 +36,9 @@ import (
 // GetVersion exposes the version of the agent to Python checks.
 //export GetVersion
 func GetVersion(agentVersion **C.char) {
-	av, _ := version.New(version.AgentVersion, version.Commit)
-	// version will be free by six when it's done with it
-	*agentVersion = C.CString(av.GetNumber())
+	av, _ := version.Agent()
+	// version will be free by rtloader when it's done with it
+	*agentVersion = TrackedCString(av.GetNumber())
 }
 
 // GetHostname exposes the current hostname of the agent to Python checks.
@@ -45,16 +49,22 @@ func GetHostname(hostname **C.char) {
 		log.Warnf("Error getting hostname: %s\n", err)
 		goHostname = ""
 	}
-	// hostname will be free by six when it's done with it
-	*hostname = C.CString(goHostname)
+	// hostname will be free by rtloader when it's done with it
+	*hostname = TrackedCString(goHostname)
 }
 
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
 	goClusterName := clustername.GetClusterName()
-	// clusterName will be free by six when it's done with it
-	*clusterName = C.CString(goClusterName)
+	// clusterName will be free by rtloader when it's done with it
+	*clusterName = TrackedCString(goClusterName)
+}
+
+// TracemallocEnabled exposes the tracemalloc configuration of the agent to Python checks.
+//export TracemallocEnabled
+func TracemallocEnabled() C.bool {
+	return C.bool(config.Datadog.GetBool("tracemalloc_debug"))
 }
 
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
@@ -68,8 +78,8 @@ func Headers(yamlPayload **C.char) {
 		*yamlPayload = nil
 		return
 	}
-	// yamlPayload will be free by six when it's done with it
-	*yamlPayload = C.CString(string(data))
+	// yamlPayload will be free by rtloader when it's done with it
+	*yamlPayload = TrackedCString(string(data))
 }
 
 // GetConfig returns a value from the agent configuration.
@@ -89,8 +99,8 @@ func GetConfig(key *C.char, yamlPayload **C.char) {
 		*yamlPayload = nil
 		return
 	}
-	// yaml Payload will be free by six when it's done with it
-	*yamlPayload = C.CString(string(data))
+	// yaml Payload will be free by rtloader when it's done with it
+	*yamlPayload = TrackedCString(string(data))
 }
 
 // LogMessage logs a message from python through the agent logger (see
@@ -121,7 +131,7 @@ func LogMessage(message *C.char, logLevel C.int) {
 	return
 }
 
-// SetExternalTags adds a set of tags for a given hostnane to the External Host
+// SetExternalTags adds a set of tags for a given hostname to the External Host
 // Tags metadata provider cache.
 //export SetExternalTags
 func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {
@@ -141,4 +151,37 @@ func SetExternalTags(hostname *C.char, sourceType *C.char, tags **C.char) {
 	}
 
 	externalhost.SetExternalTags(hname, stype, tagsStrings)
+}
+
+// SetCheckMetadata updates a metadata value for one check instance in the cache.
+// Indirectly used by the C function `set_check_metadata` that's mapped to `datadog_agent.set_check_metadata`.
+//export SetCheckMetadata
+func SetCheckMetadata(checkID, name, value *C.char) {
+	cid := C.GoString(checkID)
+	key := C.GoString(name)
+	val := C.GoString(value)
+
+	inventories.SetCheckMetadata(cid, key, val)
+}
+
+// WritePersistentCache stores a value for one check instance
+// Indirectly used by the C function `write_persistent_cache` that's mapped to `datadog_agent.write_persistent_cache`.
+//export WritePersistentCache
+func WritePersistentCache(key, value *C.char) {
+	keyName := C.GoString(key)
+	val := C.GoString(value)
+	persistentcache.Write(keyName, val)
+}
+
+// ReadPersistentCache retrieves a value for one check instance
+// Indirectly used by the C function `read_persistent_cache` that's mapped to `datadog_agent.read_persistent_cache`.
+//export ReadPersistentCache
+func ReadPersistentCache(key *C.char) *C.char {
+	keyName := C.GoString(key)
+	data, err := persistentcache.Read(keyName)
+	if err != nil {
+		log.Errorf("Failed to read cache %s: %s", keyName, err)
+		return nil
+	}
+	return TrackedCString(data)
 }

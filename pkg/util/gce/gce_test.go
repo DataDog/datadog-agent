@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package gce
 
@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -85,4 +86,65 @@ func TestGetClusterName(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/attributes/cluster-name", lastRequest.URL.Path)
+}
+
+func TestGetNetwork(t *testing.T) {
+	expected := "projects/123456789/networks/my-network-name"
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/instance/network-interfaces/":
+			io.WriteString(w, "0/\n")
+		case "/instance/network-interfaces/0/network":
+			io.WriteString(w, expected)
+		default:
+			t.Errorf("unexpected request %s", r.RequestURI)
+		}
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	val, err := GetNetworkID()
+	assert.NoError(t, err)
+	assert.Equal(t, expected, val)
+}
+
+func TestGetNetworkNoInferface(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, "")
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	_, err := GetNetworkID()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty response body")
+}
+
+func TestGetNetworkMultipleVPC(t *testing.T) {
+	vpc := "projects/123456789/networks/my-network-name"
+	vpcOther := "projects/123456789/networks/my-other-name"
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.RequestURI {
+		case "/instance/network-interfaces/":
+			io.WriteString(w, "0/\n")
+			io.WriteString(w, "1/\n")
+		case "/instance/network-interfaces/0/network":
+			io.WriteString(w, vpc)
+		case "/instance/network-interfaces/1/network":
+			io.WriteString(w, vpcOther)
+		default:
+			t.Errorf("unexpected request %s", r.RequestURI)
+		}
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	_, err := GetNetworkID()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "more than one network interface")
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build python
 
@@ -21,12 +21,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
 #include <stdlib.h>
-#include <datadog_agent_six.h>
+
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
 
 char *getStringAddr(char **array, unsigned int idx);
 */
@@ -36,23 +39,26 @@ import "C"
 type PythonCheck struct {
 	id           check.ID
 	version      string
-	instance     *C.six_pyobject_t
-	class        *C.six_pyobject_t
+	instance     *C.rtloader_pyobject_t
+	class        *C.rtloader_pyobject_t
 	ModuleName   string
 	interval     time.Duration
 	lastWarnings []error
+	source       string
+	telemetry    bool // whether or not the telemetry is enabled for this check
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(name string, class *C.six_pyobject_t) *PythonCheck {
+func NewPythonCheck(name string, class *C.rtloader_pyobject_t) *PythonCheck {
 	glock := newStickyLock()
-	C.six_incref(six, class) // own the ref
+	C.rtloader_incref(rtloader, class) // own the ref
 	glock.unlock()
 	pyCheck := &PythonCheck{
 		ModuleName:   name,
 		class:        class,
 		interval:     defaults.DefaultCheckInterval,
 		lastWarnings: []error{},
+		telemetry:    telemetry.IsCheckEnabled(name),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 	return pyCheck
@@ -65,14 +71,14 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 
 	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
 
-	cResult := C.run_check(six, c.instance)
+	cResult := C.run_check(rtloader, c.instance)
 	if cResult == nil {
-		if err := getSixError(); err != nil {
+		if err := getRtLoaderError(); err != nil {
 			return err
 		}
 		return fmt.Errorf("An error occurred while running python check %s", c.ModuleName)
 	}
-	defer C.six_free(six, unsafe.Pointer(cResult))
+	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
 
 	if commitMetrics {
 		s, err := aggregator.GetSender(c.ID())
@@ -115,6 +121,16 @@ func (c *PythonCheck) Version() string {
 	return c.version
 }
 
+// IsTelemetryEnabled returns if the telemetry is enabled for this check
+func (c *PythonCheck) IsTelemetryEnabled() bool {
+	return c.telemetry
+}
+
+// ConfigSource returns the source of the configuration for this check
+func (c *PythonCheck) ConfigSource() string {
+	return c.source
+}
+
 // GetWarnings grabs the last warnings from the struct
 func (c *PythonCheck) GetWarnings() []error {
 	warnings := c.lastWarnings
@@ -128,9 +144,9 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	This function is run with the GIL locked by runCheck
 	**/
 
-	pyWarnings := C.get_checks_warnings(six, c.instance)
+	pyWarnings := C.get_checks_warnings(rtloader, c.instance)
 	if pyWarnings == nil {
-		if err := getSixError(); err != nil {
+		if err := getRtLoaderError(); err != nil {
 			log.Errorf("error while collecting python check's warnings: %s", err)
 		}
 		return nil
@@ -145,17 +161,33 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 		}
 		warn := C.GoString(warnPtr)
 		warnings = append(warnings, errors.New(warn))
-		C.six_free(six, unsafe.Pointer(warnPtr))
+		C.rtloader_free(rtloader, unsafe.Pointer(warnPtr))
 	}
-	C.six_free(six, unsafe.Pointer(pyWarnings))
+	C.rtloader_free(rtloader, unsafe.Pointer(pyWarnings))
 
 	return warnings
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data) error {
+func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = check.Identify(c, data, initConfig)
+
+	commonGlobalOptions := integration.CommonGlobalConfig{}
+	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {
+		log.Errorf("invalid init_config section for check %s: %s", string(c.id), err)
+		return err
+	}
+
+	// Set service for this check
+	if len(commonGlobalOptions.Service) > 0 {
+		s, err := aggregator.GetSender(c.id)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
+		} else {
+			s.SetCheckService(commonGlobalOptions.Service)
+		}
+	}
 
 	commonOptions := integration.CommonInstanceConfig{}
 	if err := yaml.Unmarshal(data, &commonOptions); err != nil {
@@ -178,20 +210,31 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 		}
 	}
 
-	cInitConfig := C.CString(string(initConfig))
+	// Set configured service for this check, overriding the one possibly defined globally
+	if len(commonOptions.Service) > 0 {
+		s, err := aggregator.GetSender(c.id)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
+		} else {
+			s.SetCheckService(commonOptions.Service)
+		}
+	}
 
-	cInstance := C.CString(string(data))
-	cCheckID := C.CString(string(c.id))
-	cCheckName := C.CString(c.ModuleName)
-	defer C.free(unsafe.Pointer(cInitConfig))
-	defer C.free(unsafe.Pointer(cInstance))
-	defer C.free(unsafe.Pointer(cCheckID))
-	defer C.free(unsafe.Pointer(cCheckName))
+	cInitConfig := TrackedCString(string(initConfig))
+	cInstance := TrackedCString(string(data))
+	cCheckID := TrackedCString(string(c.id))
+	cCheckName := TrackedCString(c.ModuleName)
+	defer C._free(unsafe.Pointer(cInitConfig))
+	defer C._free(unsafe.Pointer(cInstance))
+	defer C._free(unsafe.Pointer(cCheckID))
+	defer C._free(unsafe.Pointer(cCheckName))
 
-	var check *C.six_pyobject_t
-	res := C.get_check(six, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
+	var check *C.rtloader_pyobject_t
+	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
+	var rtLoaderError error
 	if res == 0 {
-		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, getSixError())
+		rtLoaderError = getRtLoaderError()
+		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, rtLoaderError)
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
 		allSettings := config.Datadog.AllSettings()
@@ -200,16 +243,28 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 			log.Errorf("error serializing agent config: %s", err)
 			return err
 		}
-		cAgentConfig := C.CString(string(agentConfig))
-		defer C.free(unsafe.Pointer(cAgentConfig))
+		cAgentConfig := TrackedCString(string(agentConfig))
+		defer C._free(unsafe.Pointer(cAgentConfig))
 
-		res := C.get_check_deprecated(six, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
+		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {
-			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getSixError())
+			if rtLoaderError != nil {
+				return fmt.Errorf("could not invoke '%s' python check constructor. New constructor API returned:\n%sDeprecated constructor API returned:\n%s", c.ModuleName, rtLoaderError, getRtLoaderError())
+			}
+			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getRtLoaderError())
 		}
 		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 	}
 	c.instance = check
+	c.source = source
+
+	// Add the possibly configured service as a tag for this check
+	s, err := aggregator.GetSender(c.id)
+	if err != nil {
+		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
+	} else {
+		s.FinalizeCheckServiceTag()
+	}
 
 	log.Debugf("python check configure done %s", c.ModuleName)
 	return nil
@@ -242,9 +297,9 @@ func pythonCheckFinalizer(c *PythonCheck) {
 	go func(c *PythonCheck) {
 		glock := newStickyLock() // acquire lock to call DecRef
 		defer glock.unlock()
-		C.six_decref(six, c.class)
+		C.rtloader_decref(rtloader, c.class)
 		if c.instance != nil {
-			C.six_decref(six, c.instance)
+			C.rtloader_decref(rtloader, c.instance)
 		}
 	}(c)
 }

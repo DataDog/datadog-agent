@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    On Linux, preserve the script `/opt/datadog-agent/embedded/bin/2to3`
+    that relies on the python 2 interpreter, alongside the python 3 one.

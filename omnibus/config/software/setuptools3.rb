@@ -22,4 +22,10 @@ build do
   ship_license "PSFL"
   command "#{python_bin} bootstrap.py"
   command "#{python_bin} setup.py install --prefix=#{python_prefix}"
+
+  if ohai["platform"] != "windows"
+    block do
+      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python3.*/site-packages/setuptools/*.exe"))
+    end
+  end
 end

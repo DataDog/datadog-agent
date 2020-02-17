@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a possible race in autodiscovery where checks & log collection
+    would be wrongly unscheduled.

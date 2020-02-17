@@ -4,18 +4,20 @@ package checks
 
 import (
 	"runtime"
+	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	agentutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	containercollectors "github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Container is a singleton ContainerCheck.
@@ -23,14 +25,28 @@ var Container = &ContainerCheck{}
 
 // ContainerCheck is a check that returns container metadata and stats.
 type ContainerCheck struct {
-	sysInfo   *model.SystemInfo
-	lastRates map[string]util.ContainerRateMetrics
-	lastRun   time.Time
+	sync.Mutex
+
+	sysInfo         *model.SystemInfo
+	lastRates       map[string]util.ContainerRateMetrics
+	lastRun         time.Time
+	lastCtrIDForPID map[int32]string
+	networkID       string
+
+	containerFailedLogLimit *util.LogLimit
 }
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.sysInfo = info
+
+	networkID, err := agentutil.GetNetworkID()
+	if err != nil {
+		log.Infof("no network ID detected: %s", err)
+	}
+	c.networkID = networkID
+
+	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 }
 
 // Name returns the name of the ProcessCheck.
@@ -45,21 +61,36 @@ func (c *ContainerCheck) RealTime() bool { return false }
 // Run runs the ContainerCheck to collect a list of running ctrList and the
 // stats for each container.
 func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+	c.Lock()
+	defer c.Unlock()
+
 	start := time.Now()
 	ctrList, err := util.GetContainers()
+	// We ignore certain errors when a container runtime environment isn't available.
+	if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet {
+		if c.containerFailedLogLimit.ShouldLog() {
+			log.Debug("container collector was not detected, container check will not return any data. This message will logged for the first ten occurrences, and then every ten minutes")
+		}
+		return nil, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
+
+	// Keep track of containers addresses
+	LocalResolver.LoadAddrs(ctrList)
 
 	// End check early if this is our first run.
 	if c.lastRates == nil {
 		c.lastRates = util.ExtractContainerRateMetric(ctrList)
 		c.lastRun = time.Now()
+		c.lastCtrIDForPID = ctrIDForPID(ctrList)
 		return nil, nil
 	}
 
 	groupSize := len(ctrList) / cfg.MaxPerMessage
-	if len(ctrList) != cfg.MaxPerMessage*groupSize {
+	if len(ctrList)%cfg.MaxPerMessage != 0 {
 		groupSize++
 	}
 	chunked := chunkContainers(ctrList, c.lastRates, c.lastRun, groupSize, cfg.MaxPerMessage)
@@ -69,6 +100,7 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		totalContainers += float64(len(chunked[i]))
 		messages = append(messages, &model.CollectorContainer{
 			HostName:   cfg.HostName,
+			NetworkId:  c.networkID,
 			Info:       c.sysInfo,
 			Containers: chunked[i],
 			GroupId:    groupID,
@@ -78,10 +110,25 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 
 	c.lastRates = util.ExtractContainerRateMetric(ctrList)
 	c.lastRun = time.Now()
+	c.lastCtrIDForPID = ctrIDForPID(ctrList)
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", totalContainers, []string{}, 1)
 	log.Debugf("collected %d containers in %s", int(totalContainers), time.Now().Sub(start))
 	return messages, nil
+}
+
+// filterCtrIDsByPIDs uses lastCtrIDForPID and filter down only the pid -> cid that we need
+func (c *ContainerCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
+	c.Lock()
+	defer c.Unlock()
+
+	ctrByPid := make(map[int32]string)
+	for _, pid := range pids {
+		if cid, ok := c.lastCtrIDForPID[pid]; ok {
+			ctrByPid[pid] = cid
+		}
+	}
+	return ctrByPid
 }
 
 // fmtContainers loops through container list and converts them to a list of container objects

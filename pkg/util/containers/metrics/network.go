@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build linux
 
@@ -33,7 +33,7 @@ func (ns ContainerNetStats) SumInterfaces() *InterfaceNetStats {
 func CollectNetworkStats(pid int, networks map[string]string) (ContainerNetStats, error) {
 	netStats := ContainerNetStats{}
 
-	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "dev")
+	procNetFile := hostProc(strconv.Itoa(pid), "net", "dev")
 	if !pathExists(procNetFile) {
 		log.Debugf("Unable to read %s for pid %d", procNetFile, pid)
 		return netStats, nil
@@ -88,7 +88,7 @@ func CollectNetworkStats(pid int, networks map[string]string) (ContainerNetStats
 // DetectNetworkDestinations lists all the networks available
 // to a given PID and parses them in NetworkInterface objects
 func DetectNetworkDestinations(pid int) ([]NetworkDestination, error) {
-	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "route")
+	procNetFile := hostProc(strconv.Itoa(pid), "net", "route")
 	if !pathExists(procNetFile) {
 		return nil, fmt.Errorf("%s not found", procNetFile)
 	}

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -28,7 +28,11 @@ import (
 )
 
 const defaultSleepDuration = 1 * time.Second
-const readTimeout = 30 * time.Second
+const defaultReadTimeout = 30 * time.Second
+
+type dockerContainerLogInterface interface {
+	ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error)
+}
 
 // Tailer tails logs coming from stdout and stderr of a docker container
 // Logs from stdout and stderr are multiplexed into a single channel and needs to be demultiplexed later one.
@@ -38,10 +42,11 @@ type Tailer struct {
 	outputChan  chan *message.Message
 	decoder     *decoder.Decoder
 	reader      *safeReader
-	cli         *client.Client
+	cli         dockerContainerLogInterface
 	source      *config.LogSource
 	tagProvider tag.Provider
 
+	readTimeout        time.Duration
 	sleepDuration      time.Duration
 	shouldStop         bool
 	stop               chan struct{}
@@ -57,10 +62,11 @@ func NewTailer(cli *client.Client, containerID string, source *config.LogSource,
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
-		decoder:            decoder.InitializeDecoder(source, NewDockerParser(containerID)),
+		decoder:            InitializeDecoder(source, containerID),
 		source:             source,
-		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToEntityName(containerID)),
+		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToTaggerEntityName(containerID)),
 		cli:                cli,
+		readTimeout:        defaultReadTimeout,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
 		done:               make(chan struct{}, 1),
@@ -80,7 +86,6 @@ func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", ShortContainerID(t.ContainerID))
 	t.stop <- struct{}{}
 
-	t.tagProvider.Stop()
 	t.reader.Close()
 	// no-op if already closed because of a timeout
 	t.cancelFunc()
@@ -133,6 +138,18 @@ func (t *Tailer) setupReader() error {
 	reader, err := t.cli.ContainerLogs(ctx, t.ContainerID, options)
 	t.reader.setUnsafeReader(reader)
 	t.cancelFunc = cancelFunc
+
+	return err
+}
+
+func (t *Tailer) tryRestartReader(reason string) error {
+	log.Debugf("%s for container %v", reason, ShortContainerID(t.ContainerID))
+	t.wait()
+	err := t.setupReader()
+	if err != nil {
+		log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
+		t.erroredContainerID <- t.ContainerID
+	}
 	return err
 }
 
@@ -148,7 +165,6 @@ func (t *Tailer) tail(since string) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.ContainerID)
 
-	t.tagProvider.Start()
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
@@ -167,15 +183,15 @@ func (t *Tailer) readForever() {
 			return
 		default:
 			inBuf := make([]byte, 4096)
-			n, err := t.read(inBuf, readTimeout)
+			n, err := t.read(inBuf, t.readTimeout)
 			if err != nil { // an error occurred, stop from reading new logs
 				switch {
+				case isReaderClosed(err):
+					// The reader has been closed during the shut down process
+					// of the tailer, stop reading
+					return
 				case isContextCanceled(err):
-					log.Debugf("Restarting reader for container %v after a read timeout", ShortContainerID(t.ContainerID))
-					err := t.setupReader()
-					if err != nil {
-						log.Warnf("Could not restart the docker reader for container %v: %v:", ShortContainerID(t.ContainerID), err)
-						t.erroredContainerID <- t.ContainerID
+					if err := t.tryRestartReader("Restarting reader for container %v after a read timeout"); err != nil {
 						return
 					}
 					continue
@@ -183,9 +199,16 @@ func (t *Tailer) readForever() {
 					// This error is raised when the agent is stopping
 					return
 				case err == io.EOF:
-					// This error is raised when the container is stopping
-					t.source.RemoveInput(t.ContainerID)
-					return
+					// This error is raised when:
+					// * the container is stopping.
+					// * when the container has not started to output logs yet.
+					// * during a file rotation.
+					// restart the reader (restartReader() include 1second wait)
+					t.source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart"))
+					if err := t.tryRestartReader("log decoder returns an EOF error that will trigger a Reader restart"); err != nil {
+						return
+					}
+					continue
 				default:
 					t.source.Status.Error(err)
 					log.Errorf("Could not tail logs for container %v: %v", ShortContainerID(t.ContainerID), err)
@@ -193,6 +216,7 @@ func (t *Tailer) readForever() {
 					return
 				}
 			}
+			t.source.Status.Success()
 			if n == 0 {
 				// wait for new data to come
 				t.wait()
@@ -263,4 +287,9 @@ func isClosedConnError(err error) bool {
 // isContextCanceled returns true if the error is related to a canceled context,
 func isContextCanceled(err error) bool {
 	return err == context.Canceled
+}
+
+// isReaderClosed returns true if a reader has been closed.
+func isReaderClosed(err error) bool {
+	return strings.Contains(err.Error(), "http: read on closed response body")
 }

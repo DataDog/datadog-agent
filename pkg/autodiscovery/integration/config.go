@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package integration
 
@@ -38,17 +38,20 @@ const (
 
 // Config is a generic container for configuration files
 type Config struct {
-	Name            string       `json:"check_name"`     // the name of the check
-	Instances       []Data       `json:"instances"`      // array of Yaml configurations
-	InitConfig      Data         `json:"init_config"`    // the init_config in Yaml (python check only)
-	MetricConfig    Data         `json:"metric_config"`  // the metric config in Yaml (jmx check only)
-	LogsConfig      Data         `json:"logs"`           // the logs config in Yaml (logs-agent only)
-	ADIdentifiers   []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
-	Provider        string       `json:"provider"`       // the provider that issued the config
-	Entity          string       `json:"-"`              // the id of the entity (optional)
-	ClusterCheck    bool         `json:"cluster_check"`  // cluster-check configuration flag
-	EndpointsChecks []Config     `json:"-"`              // endpoints check configs related to a service
-	CreationTime    CreationTime `json:"-"`              // creation time of service
+	Name                    string       `json:"check_name"`                // the name of the check
+	Instances               []Data       `json:"instances"`                 // array of Yaml configurations
+	InitConfig              Data         `json:"init_config"`               // the init_config in Yaml (python check only)
+	MetricConfig            Data         `json:"metric_config"`             // the metric config in Yaml (jmx check only)
+	LogsConfig              Data         `json:"logs"`                      // the logs config in Yaml (logs-agent only)
+	ADIdentifiers           []string     `json:"ad_identifiers"`            // the list of AutoDiscovery identifiers (optional)
+	Provider                string       `json:"provider"`                  // the provider that issued the config
+	Entity                  string       `json:"-"`                         // the entity ID (optional)
+	TaggerEntity            string       `json:"-"`                         // the tagger entity ID (optional)
+	ClusterCheck            bool         `json:"cluster_check"`             // cluster-check configuration flag
+	NodeName                string       `json:"node_name"`                 // node name in case of an endpoint check backed by a pod
+	CreationTime            CreationTime `json:"-"`                         // creation time of service
+	Source                  string       `json:"source"`                    // the source of the configuration
+	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
@@ -56,8 +59,14 @@ type CommonInstanceConfig struct {
 	MinCollectionInterval int      `yaml:"min_collection_interval"`
 	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
 	Tags                  []string `yaml:"tags"`
+	Service               string   `yaml:"service"`
 	Name                  string   `yaml:"name"`
 	Namespace             string   `yaml:"namespace"`
+}
+
+// CommonGlobalConfig holds the reserved fields for the yaml init_config data
+type CommonGlobalConfig struct {
+	Service string `yaml:"service"`
 }
 
 // Equal determines whether the passed config is the same
@@ -102,6 +111,16 @@ func (c *Config) String() string {
 // IsTemplate returns if the config has AD identifiers
 func (c *Config) IsTemplate() bool {
 	return len(c.ADIdentifiers) > 0
+}
+
+// IsCheckConfig returns true if the config is a node-agent check configuration,
+func (c *Config) IsCheckConfig() bool {
+	return c.ClusterCheck == false && len(c.Instances) > 0
+}
+
+// IsLogConfig returns true if config contains a logs config.
+func (c *Config) IsLogConfig() bool {
+	return c.LogsConfig != nil
 }
 
 // AddMetrics adds metrics to a check configuration
@@ -260,9 +279,7 @@ func (c *Config) Digest() string {
 	for _, i := range c.ADIdentifiers {
 		h.Write([]byte(i))
 	}
-	for _, i := range c.EndpointsChecks {
-		h.Write([]byte(i.Digest()))
-	}
+	h.Write([]byte(c.NodeName))
 	h.Write([]byte(c.LogsConfig))
 
 	return strconv.FormatUint(h.Sum64(), 16)

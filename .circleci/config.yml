@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:six-pip3
+      - image: datadog/datadog-agent-runner-circle:go1129-doxygen-golangci
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -29,17 +29,17 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen14-godeps-{{ .Branch }}-{{ .Revision }}
-          - gen14-godeps-{{ .Branch }}-
-          - gen14-godeps-master-
+          - gen15-godeps-{{ .Branch }}-{{ .Revision }}
+          - gen15-godeps-{{ .Branch }}-
+          - gen15-godeps-master-
     - save_cache: &save_deps
-        key: gen14-godeps-{{ .Branch }}-{{ .Revision }}
+        key: gen15-godeps-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
-          - v3-repo-{{ .Revision }}
+          - v4-repo-{{ .Revision }}
     - save_cache: &save_source
-        key: v3-repo-{{ .Revision }}
+        key: v4-repo-{{ .Revision }}
 
 jobs:
   checkout_code:
@@ -59,22 +59,6 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: build six
-          command: |
-            inv six.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
-            inv six.install
-      - run:
-          name: lint six
-          command: |
-            inv six.format
-            [[ $(git ls-files -m | wc -l) -eq 0 ]]
-      - run:
-          name: test six
-          command: |
-            # remove base check before running tests, go on if pip fails
-            pip uninstall datadog-checks-base -y || :
-            inv six.test
-      - run:
           name: setup python deps
           command: |
             pip install wheel
@@ -82,8 +66,22 @@ jobs:
       - run:
           name: grab go deps
           command: |
-            pip install -U invoke
-            inv deps --verbose
+            inv deps --verbose --dep-vendor-only
+      - run:
+          name: build rtloader
+          command: |
+            inv rtloader.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.install
+      - run:
+          name: lint rtloader
+          command: |
+            inv rtloader.format --raise-if-changed
+      - run:
+          name: test rtloader
+          command: |
+            # remove base check before running tests, go on if pip fails
+            pip uninstall datadog-checks-base -y || :
+            inv rtloader.test
       - run:
           name: pre-compile go deps
           command: inv -e agent.build --race --precompile-only
@@ -99,12 +97,13 @@ jobs:
 
   unit_tests:
     <<: *job_template
+    resource_class: large
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --coverage --race --profile --fail-on-fmt --cpus 3
+          command: inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
@@ -193,6 +192,15 @@ jobs:
           name: test puppy
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
+  documentation_generation:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: generate doxygen documentation
+          command: inv -e rtloader.generate-doc
+
 workflows:
   version: 2
   test_and_build:
@@ -220,6 +228,9 @@ workflows:
           requires:
             - dependencies
       - docker_tests:
+          requires:
+            - dependencies
+      - documentation_generation:
           requires:
             - dependencies
       - build_binaries:

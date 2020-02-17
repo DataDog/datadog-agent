@@ -10,12 +10,15 @@ To run it, you need to:
 This is an example Kubernetes spec:
 
 ```
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: test-producer
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: test-producer
   template:
     metadata:
       labels:

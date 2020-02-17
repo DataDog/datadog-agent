@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add persistent volume claim as tag (``persistentvolumeclaim:<pvc_name>``) to StatefulSets pods.

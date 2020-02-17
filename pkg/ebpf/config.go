@@ -18,6 +18,10 @@ type Config struct {
 	// CollectLocalDNS specifies whether the tracer should capture traffic for local DNS calls
 	CollectLocalDNS bool
 
+	// DNSInspection specifies whether the tracer should enhance connection data with domain names by inspecting DNS traffic
+	// Notice this does *not* depend on CollectLocalDNS
+	DNSInspection bool
+
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
 	// connection as inactive.
 	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
@@ -29,7 +33,7 @@ type Config struct {
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
 
-	// MaxTrackedConnections specifies the maximum number of connections we can track, this will be the size of the eBPF + Conntrack.
+	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
 	MaxTrackedConnections uint
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
@@ -52,61 +56,82 @@ type Config struct {
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
+	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
+	ConntrackMaxStateSize int
+
 	// ConntrackShortTermBufferSize is the maximum number of short term conntracked connections that will
 	// held in memory at once
 	ConntrackShortTermBufferSize int
 
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
+
+	// ClosedChannelSize specifies the size for closed channel for the tracer
+	ClosedChannelSize int
+
+	// ExcludedSourceConnections is a map of source connections to blacklist
+	ExcludedSourceConnections map[string][]string
+
+	// ExcludedDestinationConnections is a map of destination connections to blacklist
+	ExcludedDestinationConnections map[string][]string
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
 func NewDefaultConfig() *Config {
 	return &Config{
-		CollectTCPConns:       true,
-		CollectUDPConns:       true,
-		CollectIPv6Conns:      true,
-		CollectLocalDNS:       false,
-		UDPConnTimeout:        30 * time.Second,
-		TCPConnTimeout:        2 * time.Minute,
-		MaxTrackedConnections: 65536,
-		ProcRoot:              "/proc",
-		BPFDebug:              false,
-		EnableConntrack:       true,
+		CollectTCPConns:              true,
+		CollectUDPConns:              true,
+		CollectIPv6Conns:             true,
+		CollectLocalDNS:              false,
+		DNSInspection:                true,
+		UDPConnTimeout:               30 * time.Second,
+		TCPConnTimeout:               2 * time.Minute,
+		MaxTrackedConnections:        65536,
+		ConntrackMaxStateSize:        65536,
+		ConntrackShortTermBufferSize: 100,
+		ProcRoot:                     "/proc",
+		BPFDebug:                     false,
+		EnableConntrack:              true,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
 		ClientStateExpiry:            2 * time.Minute,
+		ClosedChannelSize:            500,
 	}
 }
 
-// EnabledKProbes returns a map of kprobes that are enabled per config settings
-func (c *Config) EnabledKProbes() map[KProbeName]struct{} {
+// EnabledKProbes returns a map of kprobes that are enabled per config settings.
+// This map does not include the probes used exclusively in the offset guessing process.
+func (c *Config) EnabledKProbes(pre410Kernel bool) map[KProbeName]struct{} {
 	enabled := make(map[KProbeName]struct{}, 0)
 
-	// Note: TCPv4Connect & TCPv4ConnectReturn are always included as they're needed for initialization
-	// and can be disabled after field offset guessing has completed.
-	enabled[TCPv4Connect] = struct{}{}
-	enabled[TCPv4ConnectReturn] = struct{}{}
-
 	if c.CollectTCPConns {
-		enabled[TCPSendMsg] = struct{}{}
+		if pre410Kernel {
+			enabled[TCPSendMsgPre410] = struct{}{}
+		} else {
+			enabled[TCPSendMsg] = struct{}{}
+		}
 		enabled[TCPCleanupRBuf] = struct{}{}
 		enabled[TCPClose] = struct{}{}
 		enabled[TCPRetransmit] = struct{}{}
 		enabled[InetCskAcceptReturn] = struct{}{}
 		enabled[TCPv4DestroySock] = struct{}{}
+
+		if c.BPFDebug {
+			enabled[TCPSendMsgReturn] = struct{}{}
+		}
 	}
 
 	if c.CollectUDPConns {
 		enabled[UDPRecvMsgReturn] = struct{}{}
-		enabled[UDPRecvMsg] = struct{}{}
-		enabled[UDPSendMsg] = struct{}{}
-	}
+		if pre410Kernel {
+			enabled[UDPSendMsgPre410] = struct{}{}
+			enabled[UDPRecvMsgPre410] = struct{}{}
+		} else {
+			enabled[UDPRecvMsg] = struct{}{}
+			enabled[UDPSendMsg] = struct{}{}
+		}
 
-	if c.CollectIPv6Conns {
-		enabled[TCPv6Connect] = struct{}{}
-		enabled[TCPv6ConnectReturn] = struct{}{}
 	}
 
 	return enabled

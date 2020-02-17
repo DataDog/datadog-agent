@@ -1,16 +1,18 @@
 package checks
 
 import (
+	"errors"
 	"sync"
 	"time"
 
+	agentutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/DataDog/gopsutil/process"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -19,6 +21,8 @@ const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
 var Process = &ProcessCheck{}
+
+var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
@@ -32,11 +36,18 @@ type ProcessCheck struct {
 	lastCtrRates    map[string]util.ContainerRateMetrics
 	lastCtrIDForPID map[int32]string
 	lastRun         time.Time
+	networkID       string
 }
 
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
+
+	networkID, err := agentutil.GetNetworkID()
+	if err != nil {
+		log.Infof("no network ID detected: %s", err)
+	}
+	p.networkID = networkID
 }
 
 // Name returns the name of the ProcessCheck.
@@ -64,11 +75,17 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	if err != nil {
 		return nil, err
 	}
+	if len(cpuTimes) == 0 {
+		return nil, errEmptyCPUTime
+	}
 	procs, err := getAllProcesses(cfg)
 	if err != nil {
 		return nil, err
 	}
 	ctrList, _ := util.GetContainers()
+
+	// Keep track of containers addresses
+	LocalResolver.LoadAddrs(ctrList)
 
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
@@ -83,7 +100,7 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrList, cpuTimes[0], p.lastCPUTime, p.lastRun)
 	containers := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.sysInfo, groupID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -105,6 +122,7 @@ func createProcCtrMessages(
 	cfg *config.AgentConfig,
 	sysInfo *model.SystemInfo,
 	groupID int32,
+	networkID string,
 ) ([]model.MessageBody, int, int) {
 	totalProcs, totalContainers := 0, 0
 	msgs := make([]*model.CollectorProc, 0)
@@ -114,6 +132,7 @@ func createProcCtrMessages(
 	for _, c := range chunks {
 		msgs = append(msgs, &model.CollectorProc{
 			HostName:  cfg.HostName,
+			NetworkId: networkID,
 			Info:      sysInfo,
 			Processes: c,
 			GroupId:   groupID,
@@ -132,6 +151,7 @@ func createProcCtrMessages(
 	if len(ctrs) > 0 {
 		msgs = append(msgs, &model.CollectorProc{
 			HostName:   cfg.HostName,
+			NetworkId:  networkID,
 			Info:       sysInfo,
 			Processes:  ctrProcs,
 			Containers: ctrs,
@@ -330,13 +350,13 @@ func (p *ProcessCheck) filterCtrIDsByPIDs(pids []int32) map[int32]string {
 	return ctrByPid
 }
 
-func (p *ProcessCheck) createTimesforPIDs(pids []uint32) map[uint32]int64 {
+func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 	p.Lock()
 	defer p.Unlock()
 
-	createTimeForPID := make(map[uint32]int64)
+	createTimeForPID := make(map[int32]int64)
 	for _, pid := range pids {
-		if p, ok := p.lastProcs[int32(pid)]; ok {
+		if p, ok := p.lastProcs[pid]; ok {
 			createTimeForPID[pid] = p.CreateTime
 		}
 	}

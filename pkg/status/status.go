@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package status
 
@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -38,14 +39,14 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	stats["version"] = version.AgentVersion
-	hostname, err := util.GetHostname()
+	hostnameData, err := util.GetHostnameData()
 
 	var metadata *host.Payload
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache("unknown")
+		metadata = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
 	} else {
-		metadata = host.GetPayloadFromCache(hostname)
+		metadata = host.GetPayloadFromCache(hostnameData)
 	}
 	stats["metadata"] = metadata
 
@@ -57,16 +58,13 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["config"] = getPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 
-	platformPayload, err := getPlatformPayload()
-	if err != nil {
-		return nil, err
-	}
 	stats["pid"] = os.Getpid()
+	stats["go_version"] = runtime.Version()
 	pythonVersion := host.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["agent_start"] = startTime.Format(timeFormat)
-	stats["platform"] = platformPayload
 	stats["hostinfo"] = host.GetStatusInformation()
+	stats["build_arch"] = runtime.GOARCH
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 
@@ -152,12 +150,12 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 	stats["version"] = version.AgentVersion
 	stats["pid"] = os.Getpid()
-	hostname, err := util.GetHostname()
+	hostnameData, err := util.GetHostnameData()
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache("unknown")
+		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
 	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostname)
+		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
 	}
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
@@ -321,5 +319,49 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
 
+	inventories := expvar.Get("inventories")
+	var inventoriesStats map[string]interface{}
+	if inventories != nil {
+		inventoriesStatsJSON := []byte(inventories.String())
+		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats)
+	}
+
+	checkMetadata := map[string]map[string]string{}
+	if data, ok := inventoriesStats["check_metadata"]; ok {
+		for _, instances := range data.(map[string]interface{}) {
+			for _, instance := range instances.([]interface{}) {
+				metadata := map[string]string{}
+				checkHash := ""
+				for k, v := range instance.(map[string]interface{}) {
+					if vStr, ok := v.(string); ok {
+						if k == "config.hash" {
+							checkHash = vStr
+						} else if k != "config.provider" && k != "last_updated" {
+							metadata[k] = vStr
+						}
+					}
+				}
+				if checkHash != "" && len(metadata) != 0 {
+					checkMetadata[checkHash] = metadata
+				}
+			}
+		}
+	}
+	stats["inventories"] = checkMetadata
+	if data, ok := inventoriesStats["agent_metadata"]; ok {
+		stats["agent_metadata"] = data
+	} else {
+		stats["agent_metadata"] = map[string]string{}
+	}
+
 	return stats, err
+}
+
+// GetExpvarRunnerStats grabs the status of the runner from expvar
+// and puts it into a CLCChecks struct
+func GetExpvarRunnerStats() (CLCChecks, error) {
+	runnerStatsJSON := []byte(expvar.Get("runner").String())
+	runnerStats := CLCChecks{}
+	err := json.Unmarshal(runnerStatsJSON, &runnerStats)
+	return runnerStats, err
 }

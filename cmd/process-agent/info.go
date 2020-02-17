@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -235,13 +235,6 @@ func initInfo(conf *config.AgentConfig) error {
 		expvar.Publish("container_count", expvar.Func(publishContainerCount))
 		expvar.Publish("queue_size", expvar.Func(publishQueueSize))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
-		c := *conf
-		var buf []byte
-		buf, err = json.Marshal(&c)
-		if err != nil {
-			return
-		}
-		expvar.Publish("config", infoString(string(buf)))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {

@@ -7,10 +7,11 @@ RUN set -ex \
         gcc g++ make git ssh curl pkg-config file \
         python-dev python-setuptools python-pip \
         python3.7-dev python3-distutils python3-pip python3-yaml \
-        libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev
+        libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev \
+        doxygen graphviz
 
 # Golang
-ENV GIMME_GO_VERSION 1.11.5
+ENV GIMME_GO_VERSION 1.12.9
 ENV GOROOT /root/.gimme/versions/go$GIMME_GO_VERSION.linux.amd64
 ENV GOPATH /go
 ENV PATH $GOROOT/bin:$GOPATH/bin:$PATH
@@ -18,6 +19,9 @@ RUN curl -sL -o /bin/gimme https://raw.githubusercontent.com/travis-ci/gimme/mas
 RUN chmod +x /bin/gimme
 RUN gimme $GIMME_GO_VERSION
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
+
+# Download and install golangci-lint
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $GOPATH/bin v1.21.0
 
 # CMake
 ENV CMAKE_NAME cmake-3.13.3-Linux-x86_64

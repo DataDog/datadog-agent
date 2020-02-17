@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018 Datadog, Inc.
+// Copyright 2018-2020 Datadog, Inc.
 
 package app
 
@@ -38,13 +38,22 @@ var dogstatsdStatsCmd = &cobra.Command{
 	Short: "Print basic statistics on the metrics processed by dogstatsd",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfigWithoutSecrets(confFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global agent configuration: %v", err)
-		}
+
 		if flagNoColor {
 			color.NoColor = true
 		}
+
+		err := common.SetupConfigWithoutSecrets(confFilePath, "")
+		if err != nil {
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
+
+		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		return requestDogstatsdStats()
 	},
 }
@@ -54,7 +63,11 @@ func requestDogstatsdStats() error {
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/dogstatsd-stats", config.Datadog.GetInt("cmd_port"))
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken()
@@ -103,7 +116,7 @@ func requestDogstatsdStats() error {
 
 	// if the file is already existing, ask for a confirmation.
 	if _, err := os.Stat(dsdStatsFilePath); err == nil {
-		if !input.AskForConfirmation(fmt.Sprintf("'%s' existing, do you wan't to overwrite it? [Y/N]", dsdStatsFilePath)) {
+		if !input.AskForConfirmation(fmt.Sprintf("'%s' already exists, do you want to overwrite it? [y/N]", dsdStatsFilePath)) {
 			fmt.Println("Canceling.")
 			return nil
 		}

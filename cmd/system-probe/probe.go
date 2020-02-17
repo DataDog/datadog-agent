@@ -11,36 +11,40 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mailru/easyjson"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
-// ErrTracerUnsupported is the unsupported error prefix, for error-class matching from callers
-var ErrTracerUnsupported = errors.New("tracer unsupported")
+// ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
+var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
+
+var inactivityLogDuration = 10 * time.Minute
 
 // SystemProbe maintains and starts the underlying network connection collection process as well as
 // exposes these connections over HTTP (via UDS)
 type SystemProbe struct {
 	cfg *config.AgentConfig
 
-	supported bool
-	tracer    *ebpf.Tracer
-	conn      net.Conn
+	tracer *ebpf.Tracer
+	conn   net.Conn
 }
 
 // CreateSystemProbe creates a SystemProbe as well as it's UDS socket after confirming that the OS supports BPF-based
 // system probe
 func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
-	var err error
-	nt := &SystemProbe{}
-
 	// Checking whether the current OS + kernel version is supported by the tracer
-	if nt.supported, err = ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); err != nil {
-		return nil, fmt.Errorf("%s: %s", ErrTracerUnsupported, err)
+	if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
+		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
+	}
+
+	// make sure debugfs is mounted
+	if mounted, msg := util.IsDebugfsMounted(); !mounted {
+		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
@@ -56,10 +60,11 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
-	nt.tracer = t
-	nt.cfg = cfg
-	nt.conn = uds
-	return nt, nil
+	return &SystemProbe{
+		tracer: t,
+		cfg:    cfg,
+		conn:   uds,
+	}, nil
 }
 
 // Run makes available the HTTP endpoint for network collection
@@ -69,13 +74,14 @@ func (nt *SystemProbe) Run() {
 		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeDebugPort), http.DefaultServeMux)
 	}
 
-	// We don't want the endpoint for systemprobe output to be mixed with pprof and expvar
+	var runCounter uint64
+
+	// We don't want the endpoint for the system-probe output to be mixed with pprof and expvar
 	// We can only do this by creating a new HTTP Mux that does not have these endpoints handled
 	httpMux := http.NewServeMux()
 
 	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
 
-	var runCounter uint64
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		id := getClientID(req)
@@ -85,7 +91,9 @@ func (nt *SystemProbe) Run() {
 			w.WriteHeader(500)
 			return
 		}
-		writeConnections(w, cs)
+		contentType := req.Header.Get("Accept")
+		marshaler := encoding.GetMarshaler(contentType)
+		writeConnections(w, marshaler, cs)
 
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
@@ -99,7 +107,9 @@ func (nt *SystemProbe) Run() {
 			return
 		}
 
-		writeConnections(w, cs)
+		contentType := req.Header.Get("Accept")
+		marshaler := encoding.GetMarshaler(contentType)
+		writeConnections(w, marshaler, cs)
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
@@ -125,11 +135,23 @@ func (nt *SystemProbe) Run() {
 	})
 
 	go func() {
+		tags := []string{
+			fmt.Sprintf("version:%s", Version),
+			fmt.Sprintf("revision:%s", GitCommit),
+		}
 		heartbeat := time.NewTicker(15 * time.Second)
 		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.system_probe.agent", 1, []string{"version:" + Version}, 1)
+			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1)
 		}
 	}()
+
+	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
+	// This should be helpful for customers + support to debug the underlying issue.
+	time.AfterFunc(inactivityLogDuration, func() {
+		if run := atomic.LoadUint64(&runCounter); run == 0 {
+			log.Warnf("%v since the agent started without activity, the process-agent may not be configured correctly and/or running", inactivityLogDuration)
+		}
+	})
 
 	http.Serve(nt.conn.GetListener(), httpMux)
 }
@@ -153,13 +175,15 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, cs *ebpf.Connections) {
-	buf, err := easyjson.Marshal(cs)
+func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *ebpf.Connections) {
+	buf, err := marshaler.Marshal(cs)
 	if err != nil {
-		log.Errorf("unable to marshall connections into JSON: %s", err)
+		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
 		return
 	}
+
+	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf)
 	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
 }

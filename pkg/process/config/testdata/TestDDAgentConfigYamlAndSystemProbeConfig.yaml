@@ -1,4 +1,5 @@
 api_key: apikey_20
+hostname: server-01
 
 process_agent_enabled: true
 process_config:

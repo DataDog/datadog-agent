@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package v1
 
@@ -52,7 +52,7 @@ func TestNamespacesPodsStringsSet_Copy(t *testing.T) {
 			},
 		},
 		{
-			name: "overwrite case",
+			name: "merge service case",
 			m: NamespacesPodsStringsSet{
 				"foo": map[string]sets.String{"bur": sets.NewString("boz")},
 			},
@@ -60,7 +60,19 @@ func TestNamespacesPodsStringsSet_Copy(t *testing.T) {
 				"foo": map[string]sets.String{"bar": sets.NewString("buz")},
 			},
 			want: NamespacesPodsStringsSet{
-				"foo": map[string]sets.String{"bar": sets.NewString("buz")},
+				"foo": map[string]sets.String{"bar": sets.NewString("buz"), "bur": sets.NewString("boz")},
+			},
+		},
+		{
+			name: "union case",
+			m: NamespacesPodsStringsSet{
+				"foo": map[string]sets.String{"bur": sets.NewString("boz")},
+			},
+			old: &NamespacesPodsStringsSet{
+				"foo": map[string]sets.String{"bur": sets.NewString("buz")},
+			},
+			want: NamespacesPodsStringsSet{
+				"foo": map[string]sets.String{"bur": sets.NewString("buz", "boz")},
 			},
 		},
 	}

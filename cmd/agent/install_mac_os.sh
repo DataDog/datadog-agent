@@ -1,13 +1,13 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
 # Datadog Agent install script for macOS.
 set -e
 logfile=ddagent-install.log
 dmg_file=/tmp/datadog-agent.dmg
-dmg_url="https://s3.amazonaws.com/dd-agent/datadogagent.dmg"
+dmg_base_url="https://s3.amazonaws.com/dd-agent"
 
 dd_upgrade=
 if [ -n "$DD_UPGRADE" ]; then
@@ -29,6 +29,23 @@ if [ -n "$DD_SITE" ]; then
     site=$DD_SITE
 fi
 
+dd_agent_major_version=6
+if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
+  if [ "$DD_AGENT_MAJOR_VERSION" != "6" -a "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
+    echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
+    exit 1;
+  fi
+  dd_agent_major_version=$DD_AGENT_MAJOR_VERSION
+else
+  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+fi
+
+dmg_remote_file="datadogagent.dmg"
+if [ "$dd_agent_major_version" = "7" ]; then
+    dmg_remote_file="datadog-agent-7-latest.dmg"
+fi
+dmg_url="$dmg_base_url/$dmg_remote_file"
+
 if [ $dd_upgrade ]; then
     if [ ! -f /opt/datadog-agent/etc/datadog.conf ]; then
         printf "\033[31mDD_UPGRADE set but no config was found at /opt/datadog-agent/etc/datadog.conf.\033[0m\n"
@@ -44,8 +61,26 @@ if [ ! $apikey ]; then
     fi
 fi
 
-# get real user (in case of sudo)
-real_user=`logname`
+
+# SUDO_USER is defined in man sudo: https://linux.die.net/man/8/sudo
+# "SUDO_USER Set to the login name of the user who invoked sudo."
+
+# USER is defined in man login: https://ss64.com/osx/login.html
+# "Login enters information into the environment (see environ(7))
+#  specifying the user's home directory (HOME), command interpreter (SHELL),
+#  search path (PATH), terminal type (TERM) and user name (both LOGNAME and USER)."
+
+# We want to get the real user who executed the command. Two situations can happen:
+# - the command was run as the current user: then $USER contains the user which launched the command, and $SUDO_USER is empty,
+# - the command was run with sudo: then $USER contains the name of the user targeted by the sudo command (by default, root)
+#   and $SUDO_USER contains the user which launched the sudo command.
+# The following block covers both cases so that we have tbe username we want in the real_user variable.
+real_user=`if [ "$SUDO_USER" ]; then
+  echo $SUDO_USER
+else
+  echo $USER
+fi`
+
 export TMPDIR=`sudo -u $real_user getconf DARWIN_USER_TEMP_DIR`
 cmd_real_user="sudo -Eu $real_user"
 
@@ -91,7 +126,7 @@ function import_config() {
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
 rm -f $dmg_file
-curl --progress-bar $dmg_url > $dmg_file
+curl --fail --progress-bar $dmg_url > $dmg_file
 printf "\033[34m\n* Installing datadog-agent, you might be asked for your sudo password...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "\033[34m\n    - Mounting the DMG installer...\n\033[0m"

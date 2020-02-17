@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build ec2
 
@@ -11,11 +11,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+)
+
+// declare these as vars not const to ease testing
+var (
+	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 )
 
 // GetTags grabs the host tags from the EC2 api
@@ -32,7 +38,7 @@ func GetTags() ([]string, error) {
 		return tags, err
 	}
 
-	awsCreds := credentials.NewStaticCredentials(iamParams.AccessKeyId,
+	awsCreds := credentials.NewStaticCredentials(iamParams.AccessKeyID,
 		iamParams.SecretAccessKey,
 		iamParams.Token)
 
@@ -49,7 +55,7 @@ func GetTags() ([]string, error) {
 		Filters: []*ec2.Filter{{
 			Name: aws.String("resource-id"),
 			Values: []*string{
-				aws.String(instanceIdentity.InstanceId),
+				aws.String(instanceIdentity.InstanceID),
 			},
 		}},
 	})
@@ -66,13 +72,13 @@ func GetTags() ([]string, error) {
 
 type ec2Identity struct {
 	Region     string
-	InstanceId string
+	InstanceID string
 }
 
 func getInstanceIdentity() (*ec2Identity, error) {
 	instanceIdentity := &ec2Identity{}
 
-	res, err := getResponse(instanceIdentityURL)
+	res, err := doHTTPRequest(instanceIdentityURL, http.MethodGet, map[string]string{}, true)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -92,7 +98,7 @@ func getInstanceIdentity() (*ec2Identity, error) {
 }
 
 type ec2SecurityCred struct {
-	AccessKeyId     string
+	AccessKeyID     string
 	SecretAccessKey string
 	Token           string
 }
@@ -105,7 +111,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole)
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/"+iamRole, http.MethodGet, map[string]string{}, true)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -124,7 +130,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 }
 
 func getIAMRole() (string, error) {
-	res, err := getResponse(metadataURL + "/iam/security-credentials/")
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/", http.MethodGet, map[string]string{}, true)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}

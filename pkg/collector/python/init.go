@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build python
 
@@ -27,10 +27,12 @@ import (
 )
 
 /*
-#cgo !windows LDFLAGS: -ldatadog-agent-six -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-six -lstdc++ -static
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 
-#include <datadog_agent_six.h>
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+
 #include <stdlib.h>
 
 // helpers
@@ -40,14 +42,32 @@ char *getStringAddr(char **array, unsigned int idx) {
 }
 
 //
+// init memory tracking facilities method
+//
+void MemoryTracker(void *, size_t, rtloader_mem_ops_t);
+void initMemoryTracker(void) {
+	set_memory_tracker_cb(MemoryTracker);
+}
+
+//
 // init free method
 //
 // On windows we need to free memory in the same DLL where it was allocated.
-// This allows six to free memory returned by Go callbacks.
+// This allows rtloader to free memory returned by Go callbacks.
 //
 
-void initCgoFree(six_t *six) {
-	set_cgo_free_cb(six, free);
+void initCgoFree(rtloader_t *rtloader) {
+	set_cgo_free_cb(rtloader, _free);
+}
+
+//
+// init log method
+//
+
+void LogMessage(char *, int);
+
+void initLogger(rtloader_t *rtloader) {
+	set_log_cb(rtloader, LogMessage);
 }
 
 //
@@ -56,22 +76,28 @@ void initCgoFree(six_t *six) {
 // This also init "util" module who expose the same "headers" function
 //
 
-void GetVersion(char **);
-void GetHostname(char **);
 void GetClusterName(char **);
-void Headers(char **);
 void GetConfig(char*, char **);
-void LogMessage(char *, int);
+void GetHostname(char **);
+void GetVersion(char **);
+void Headers(char **);
+void ReadPersistentCache(char *);
+void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
+void WritePersistentCache(char *, char *);
+bool TracemallocEnabled();
 
-void initDatadogAgentModule(six_t *six) {
-	set_get_version_cb(six, GetVersion);
-	set_get_hostname_cb(six, GetHostname);
-	set_get_clustername_cb(six, GetClusterName);
-	set_headers_cb(six, Headers);
-	set_log_cb(six, LogMessage);
-	set_get_config_cb(six, GetConfig);
-	set_set_external_tags_cb(six, SetExternalTags);
+void initDatadogAgentModule(rtloader_t *rtloader) {
+	set_get_clustername_cb(rtloader, GetClusterName);
+	set_get_config_cb(rtloader, GetConfig);
+	set_get_hostname_cb(rtloader, GetHostname);
+	set_get_version_cb(rtloader, GetVersion);
+	set_headers_cb(rtloader, Headers);
+	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
+	set_set_external_tags_cb(rtloader, SetExternalTags);
+	set_write_persistent_cache_cb(rtloader, WritePersistentCache);
+	set_read_persistent_cache_cb(rtloader, ReadPersistentCache);
+	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 }
 
 //
@@ -81,11 +107,13 @@ void initDatadogAgentModule(six_t *six) {
 void SubmitMetric(char *, metric_type_t, char *, float, char **, int, char *);
 void SubmitServiceCheck(char *, char *, int, char **, int, char *, char *);
 void SubmitEvent(char *, event_t *, int);
+void SubmitHistogramBucket(char *, char *, int, float, float, int, char *, char **);
 
-void initAggregatorModule(six_t *six) {
-	set_submit_metric_cb(six, SubmitMetric);
-	set_submit_service_check_cb(six, SubmitServiceCheck);
-	set_submit_event_cb(six, SubmitEvent);
+void initAggregatorModule(rtloader_t *rtloader) {
+	set_submit_metric_cb(rtloader, SubmitMetric);
+	set_submit_service_check_cb(rtloader, SubmitServiceCheck);
+	set_submit_event_cb(rtloader, SubmitEvent);
+	set_submit_histogram_bucket_cb(rtloader, SubmitHistogramBucket);
 }
 
 //
@@ -94,8 +122,8 @@ void initAggregatorModule(six_t *six) {
 
 void GetSubprocessOutput(char **, int, char **, char **, int*, char **);
 
-void initUtilModule(six_t *six) {
-	set_get_subprocess_output_cb(six, GetSubprocessOutput);
+void initUtilModule(rtloader_t *rtloader) {
+	set_get_subprocess_output_cb(rtloader, GetSubprocessOutput);
 }
 
 //
@@ -104,8 +132,8 @@ void initUtilModule(six_t *six) {
 
 char **Tags(char **, int);
 
-void initTaggerModule(six_t *six) {
-	set_tags_cb(six, Tags);
+void initTaggerModule(rtloader_t *rtloader) {
+	set_tags_cb(rtloader, Tags);
 }
 
 //
@@ -114,8 +142,8 @@ void initTaggerModule(six_t *six) {
 
 int IsContainerExcluded(char *, char *);
 
-void initContainersModule(six_t *six) {
-	set_is_excluded_cb(six, IsContainerExcluded);
+void initContainersModule(rtloader_t *rtloader) {
+	set_is_excluded_cb(rtloader, IsContainerExcluded);
 }
 
 //
@@ -124,8 +152,8 @@ void initContainersModule(six_t *six) {
 
 void GetKubeletConnectionInfo(char *);
 
-void initkubeutilModule(six_t *six) {
-	set_get_connection_info_cb(six, GetKubeletConnectionInfo);
+void initkubeutilModule(rtloader_t *rtloader) {
+	set_get_connection_info_cb(rtloader, GetKubeletConnectionInfo);
 }
 */
 import "C"
@@ -143,12 +171,13 @@ var (
 	// initialized, or the Agent was built using system libs and the env var
 	// PYTHONHOME is empty. It's expected to always contain a value when the
 	// Agent is built using embedded libs.
-	PythonHome = ""
+	PythonHome    = ""
+	pythonBinPath = ""
 	// PythonPath contains the string representation of the Python list returned
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
 
-	six *C.six_t = nil
+	rtloader *C.rtloader_t = nil
 
 	expvarPyInit *expvar.Map
 	pyInitLock   sync.RWMutex
@@ -181,7 +210,7 @@ func sendTelemetry(pythonVersion string) {
 	tags := []string{
 		fmt.Sprintf("python_version:%s", pythonVersion),
 	}
-	if agentVersion, err := version.New(version.AgentVersion, version.Commit); err == nil {
+	if agentVersion, err := version.Agent(); err == nil {
 		tags = append(tags,
 			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
 			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
@@ -196,9 +225,7 @@ func sendTelemetry(pythonVersion string) {
 	})
 }
 
-func Initialize(paths ...string) error {
-	pythonVersion := config.Datadog.GetString("python_version")
-
+func detectPythonLocation(pythonVersion string) {
 	// Since the install location can be set by the user on Windows we use relative import
 	if runtime.GOOS == "windows" {
 		_here, _ := executable.Folder()
@@ -222,57 +249,86 @@ func Initialize(paths ...string) error {
 		}
 	}
 
-	var pyErr *C.char = nil
 	if pythonVersion == "2" {
-		// Do not free this CString which stores the path of the python home: it is passed to `Py_SetPythonHome`,
-		// which explicitly needs it to be kept around until the interpreter exits.
-		six = C.make2(C.CString(pythonHome2), &pyErr)
-		log.Infof("Initializing six with python2 %s", pythonHome2)
 		PythonHome = pythonHome2
 	} else if pythonVersion == "3" {
-		// Do not free this CString which stores the path of the python home: it is passed to `Py_SetPythonHome`,
-		// which explicitly needs it to be kept around until the interpreter exits.
-		six = C.make3(C.CString(pythonHome3), &pyErr)
-		log.Infof("Initializing six with python3 %s", pythonHome3)
 		PythonHome = pythonHome3
+	}
+
+	if runtime.GOOS == "windows" {
+		pythonBinPath = filepath.Join(PythonHome, "python.exe")
+	} else {
+		// On Unix both python are installed on the same embedded
+		// directory. We don't want to use the default version (aka
+		// "python") but either "python2" or "python3" based on the
+		// configuration.
+		pythonBinPath = filepath.Join(PythonHome, "bin", "python"+pythonVersion)
+	}
+}
+
+func Initialize(paths ...string) error {
+	pythonVersion := config.Datadog.GetString("python_version")
+
+	// memory related RTLoader-global initialization
+	if config.Datadog.GetBool("memtrack_enabled") {
+		C.initMemoryTracker()
+	}
+
+	detectPythonLocation(pythonVersion)
+
+	var pyErr *C.char = nil
+	csPythonHome := TrackedCString(PythonHome)
+	defer C._free(unsafe.Pointer(csPythonHome))
+	if pythonVersion == "2" {
+		rtloader = C.make2(csPythonHome, &pyErr)
+		log.Infof("Initializing rtloader with python2 %s", PythonHome)
+	} else if pythonVersion == "3" {
+		rtloader = C.make3(csPythonHome, &pyErr)
+		log.Infof("Initializing rtloader with python3 %s", PythonHome)
 	} else {
 		return addExpvarPythonInitErrors(fmt.Sprintf("unsuported version of python: %s", pythonVersion))
 	}
 
-	if six == nil {
+	if rtloader == nil {
 		err := addExpvarPythonInitErrors(fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)))
 		if pyErr != nil {
-			C.free(unsafe.Pointer(pyErr))
+			// pyErr tracked when created in rtloader
+			C._free(unsafe.Pointer(pyErr))
 		}
 		return err
 	}
 
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
-		C.add_python_path(six, C.CString(p))
+		// bounded but never released allocations with CString
+		C.add_python_path(rtloader, TrackedCString(p))
 	}
 
-	// Setup custom builtin before Six initialization
-	C.initCgoFree(six)
-	C.initDatadogAgentModule(six)
-	C.initAggregatorModule(six)
-	C.initUtilModule(six)
-	C.initTaggerModule(six)
+	// Any platform-specific initialization
+	if initializePlatform() != nil {
+		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
+	}
+
+	// Setup custom builtin before RtLoader initialization
+	C.initCgoFree(rtloader)
+	C.initLogger(rtloader)
+	C.initDatadogAgentModule(rtloader)
+	C.initAggregatorModule(rtloader)
+	C.initUtilModule(rtloader)
+	C.initTaggerModule(rtloader)
 	initContainerFilter() // special init for the container go code
-	C.initContainersModule(six)
-	C.initkubeutilModule(six)
+	C.initContainersModule(rtloader)
+	C.initkubeutilModule(rtloader)
 
-	// Init Six machinery
-	C.init(six)
-
-	if C.is_initialized(six) == 0 {
-		err := C.GoString(C.get_error(six))
+	// Init RtLoader machinery
+	if C.init(rtloader) == 0 {
+		err := fmt.Sprintf("could not initialize rtloader: %s", C.GoString(C.get_error(rtloader)))
 		return addExpvarPythonInitErrors(err)
 	}
 
 	// Lock the GIL
 	glock := newStickyLock()
-	pyInfo := C.get_py_info(six)
+	pyInfo := C.get_py_info(rtloader)
 	glock.unlock()
 
 	// store the Python version after killing \n chars within the string
@@ -283,10 +339,9 @@ func Initialize(paths ...string) error {
 		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
 
 		PythonPath = C.GoString(pyInfo.path)
-		C.six_free(six, unsafe.Pointer(pyInfo.path))
-		C.six_free(six, unsafe.Pointer(pyInfo))
+		C.free_py_info(rtloader, pyInfo)
 	} else {
-		log.Errorf("Could not query python information: %s", C.GoString(C.get_error(six)))
+		log.Errorf("Could not query python information: %s", C.GoString(C.get_error(rtloader)))
 	}
 
 	sendTelemetry(pythonVersion)
@@ -296,13 +351,13 @@ func Initialize(paths ...string) error {
 
 // Destroy destroys the loaded Python interpreter initialized by 'Initialize'
 func Destroy() {
-	if six != nil {
-		C.destroy(six)
+	if rtloader != nil {
+		C.destroy(rtloader)
 	}
 }
 
-// GetSix returns the underlying six_t struct. This is meant for testing and
-// tooling, use the six_t struct at your own risk
-func GetSix() *C.six_t {
-	return six
+// GetRtLoader returns the underlying rtloader_t struct. This is meant for testing and
+// tooling, use the rtloader_t struct at your own risk
+func GetRtLoader() *C.rtloader_t {
+	return rtloader
 }

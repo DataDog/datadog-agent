@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package config
 
@@ -32,9 +32,16 @@ func BuildCommonFormat(loggerName LoggerName) string {
 	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat, loggerName)
 }
 
+func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		return strconv.Quote(message)
+	}
+}
+
 // BuildJSONFormat returns the log JSON format seelog string
 func BuildJSONFormat(loggerName LoggerName) string {
-	return fmt.Sprintf("{&quot;agent&quot;:&quot;%s&quot;,&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n", strings.ToLower(string(loggerName)), logDateFormat)
+	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter)
+	return fmt.Sprintf("{&quot;agent&quot;:&quot;%s&quot;,&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:%%QuoteMsg}%%n", strings.ToLower(string(loggerName)), logDateFormat)
 }
 
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
@@ -141,6 +148,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	seelog.ReplaceLogger(logger)
 
 	log.SetupDatadogLogger(logger, seelogLogLevel)
+	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
 	return nil
 }
 
@@ -179,7 +187,7 @@ func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
 
 		rfc = (ps[1] == "true")
 	} else {
-		fmt.Printf("badly formatted syslog header parameters - using defaults")
+		fmt.Println("badly formatted syslog header parameters - using defaults")
 	}
 
 	pid := os.Getpid()

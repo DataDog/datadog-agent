@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -17,7 +17,7 @@ import (
 )
 
 func TestParsePods(t *testing.T) {
-	dockerEntityID := "docker://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerEntityID := "container_id://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -37,7 +37,7 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
-	dockerEntityID2 := "docker://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerEntityID2 := "container_id://ff242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
 	dockerTwoContainersStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -66,11 +66,62 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
-	criEntityId := "cri-containerd://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
+	dockerEntityIDCassandra := "container_id://6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d"
+	dockerContainerStatusCassandra := kubelet.Status{
+		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityIDCassandra,
+				Image: "gcr.io/google-samples/cassandra:v13",
+				Name:  "cassandra",
+			},
+		},
+		Phase: "Running",
+	}
+	dockerContainerSpecCassandra := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "cassandra",
+				Image: "gcr.io/google-samples/cassandra:v13",
+			},
+		},
+		Volumes: []kubelet.VolumeSpec{
+			{
+				Name: "cassandra-data",
+				PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
+					ClaimName: "cassandra-data-cassandra-0",
+				},
+			},
+		},
+	}
+
+	dockerContainerSpecCassandraMultiplePvcs := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "cassandra",
+				Image: "gcr.io/google-samples/cassandra:v13",
+			},
+		},
+		Volumes: []kubelet.VolumeSpec{
+			{
+				Name: "cassandra-data",
+				PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
+					ClaimName: "cassandra-data-cassandra-0",
+				},
+			},
+			{
+				Name: "another-pvc",
+				PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
+					ClaimName: "another-pvc-data-0",
+				},
+			},
+		},
+	}
+
+	criEntityID := "container_id://acbe44ff07525934cab9bf7c38c6627d64fd0952d8e6b87535d57092bfa6e9d1"
 	criContainerStatus := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
-				ID:    criEntityId,
+				ID:    criEntityID,
 				Image: "sha256:0f006d265944c984e05200fab1c14ac54163cbcd4e8ae0ba3b35eb46fc559823",
 				Name:  "redis-master",
 			},
@@ -160,7 +211,7 @@ func TestParsePods(t *testing.T) {
 			expectedInfo: []*TagInfo{
 				{
 					Source: "kubelet",
-					Entity: "kubernetes_pod://5e8e05",
+					Entity: "kubernetes_pod_uid://5e8e05",
 					LowCardTags: []string{
 						"kube_namespace:default",
 						"kube_daemon_set:dd-agent-rc",
@@ -453,7 +504,7 @@ func TestParsePods(t *testing.T) {
 			labelsAsTags: map[string]string{},
 			expectedInfo: []*TagInfo{{
 				Source: "kubelet",
-				Entity: criEntityId,
+				Entity: criEntityID,
 				LowCardTags: []string{
 					"kube_container_name:redis-master",
 					"kube_deployment:redis-master",
@@ -509,6 +560,116 @@ func TestParsePods(t *testing.T) {
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
 			}},
+		}, {
+			desc: "cronjob",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "hello-1562187720-xzbzh",
+					Namespace: "default",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "Job",
+							Name: "hello-1562187720",
+							ID:   "d0dcc17b-9dd5-11e9-b6f0-42010a840064",
+						},
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"image_name:datadog/docker-dd-agent",
+					"image_tag:latest5",
+					"kube_container_name:dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+					"kube_cronjob:hello",
+				},
+				OrchestratorCardTags: []string{"kube_job:hello-1562187720", "pod_name:hello-1562187720-xzbzh"},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"display_container_name:dd-agent_hello-1562187720-xzbzh",
+				},
+			}},
+		},
+		{
+			desc: "statefulset",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "cassandra-0",
+					Namespace: "default",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "StatefulSet",
+							Name: "cassandra",
+							ID:   "0fa7e650-da09-11e9-b8b8-42010af002dd",
+						},
+					},
+				},
+				Status: dockerContainerStatusCassandra,
+				Spec:   dockerContainerSpecCassandra,
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityIDCassandra,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"image_name:gcr.io/google-samples/cassandra",
+					"image_tag:v13",
+					"kube_container_name:cassandra",
+					"short_image:cassandra",
+					"pod_phase:running",
+					"kube_stateful_set:cassandra",
+					"persistentvolumeclaim:cassandra-data-cassandra-0",
+				},
+				OrchestratorCardTags: []string{"pod_name:cassandra-0"},
+				HighCardTags: []string{
+					"container_id:6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d",
+					"display_container_name:cassandra_cassandra-0",
+				},
+			}},
+		},
+		{
+			desc: "statefulset 2 pvcs",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "cassandra-0",
+					Namespace: "default",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "StatefulSet",
+							Name: "cassandra",
+							ID:   "0fa7e650-da09-11e9-b8b8-42010af002dd",
+						},
+					},
+				},
+				Status: dockerContainerStatusCassandra,
+				Spec:   dockerContainerSpecCassandraMultiplePvcs,
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityIDCassandra,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"image_name:gcr.io/google-samples/cassandra",
+					"image_tag:v13",
+					"kube_container_name:cassandra",
+					"short_image:cassandra",
+					"pod_phase:running",
+					"kube_stateful_set:cassandra",
+					"persistentvolumeclaim:cassandra-data-cassandra-0",
+					"persistentvolumeclaim:another-pvc-data-0",
+				},
+				OrchestratorCardTags: []string{"pod_name:cassandra-0"},
+				HighCardTags: []string{
+					"container_id:6eaa4782de428f5ea639e33a837ed47aa9fa9e6969f8cb23e39ff788a751ce7d",
+					"display_container_name:cassandra_cassandra-0",
+				},
+			}},
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
@@ -551,8 +712,25 @@ func TestParseDeploymentForReplicaset(t *testing.T) {
 		"frontend-56a89cfff7": "", // no vowels allowed
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
-			collector := &KubeletCollector{}
-			assert.Equal(t, out, collector.parseDeploymentForReplicaset(in))
+			assert.Equal(t, out, parseDeploymentForReplicaset(in))
+		})
+	}
+}
+
+func TestParseCronJobForJob(t *testing.T) {
+	for in, out := range map[string]string{
+		"hello-1562319360": "hello",
+		"hello-600":        "hello",
+		"hello-world":      "",
+		"hello":            "",
+		"-hello1562319360": "",
+		"hello1562319360":  "",
+		"hello60":          "",
+		"hello-60":         "",
+		"hello-1562319a60": "",
+	} {
+		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+			assert.Equal(t, out, parseCronJobForJob(in))
 		})
 	}
 }

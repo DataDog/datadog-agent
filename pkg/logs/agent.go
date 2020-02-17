@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package logs
 
@@ -10,6 +10,7 @@ import (
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -41,7 +42,7 @@ type Agent struct {
 }
 
 // NewAgent returns a new Agent
-func NewAgent(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *client.Endpoints) *Agent {
+func NewAgent(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.Register("logs-agent")
 
 	// setup the auditor
@@ -56,7 +57,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// setup the inputs
 	inputs := []restart.Restartable{
 		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		container.NewLauncher(coreConfig.Datadog.GetBool("logs_config.container_collect_all"), sources, services, pipelineProvider, auditor),
+		container.NewLauncher(coreConfig.Datadog.GetBool("logs_config.container_collect_all"), coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file"), sources, services, pipelineProvider, auditor),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),
@@ -114,6 +115,19 @@ func (a *Agent) Stop() {
 		// trying to write to the network.
 		a.destinationsCtx.Stop()
 		// Wait again for the stopper to complete.
-		<-c
+		// In some situation, the stopper unfortunately never succeed to complete,
+		// we've already reached the grace period, give it some more seconds and
+		// then force quit.
+		timeout := time.NewTimer(5 * time.Second)
+		select {
+		case <-c:
+		case <-timeout.C:
+			log.Warn("Force close of the Logs Agent, dumping the Go routines.")
+			if stack, err := util.GetGoRoutinesDump(); err != nil {
+				log.Warnf("can't get the Go routines dump: %s\n", err)
+			} else {
+				log.Warn(stack)
+			}
+		}
 	}
 }

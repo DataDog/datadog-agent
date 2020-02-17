@@ -13,7 +13,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_build_tags
 from .utils import get_build_flags, bin_name, get_version
 from .utils import REPO_PATH
-from .go import deps
+from .go import deps, generate
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -21,6 +21,7 @@ AGENT_TAG = "datadog/cluster_agent:master"
 DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
     "clusterchecks",
+    "secrets",
 ]
 
 
@@ -39,6 +40,9 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
     ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca')
+
+    # Generating go source from templates by running go generate on ./pkg/status
+    generate(ctx)
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent"
@@ -84,7 +88,6 @@ def refresh_assets(ctx, development=True):
     for dist_folder in dist_folders:
         if os.path.exists(dist_folder):
             shutil.rmtree(dist_folder)
-        copy_tree("./pkg/status/dist/", dist_folder)
         if development:
             copy_tree("./dev/dist/", dist_folder)
 
@@ -134,7 +137,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def image_build(ctx, tag=AGENT_TAG, push=False):
+def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
     """
     Build the docker image
     """
@@ -148,9 +151,14 @@ def image_build(ctx, tag=AGENT_TAG, push=False):
     latest_file = max(dca_binary, key=os.path.getctime)
     ctx.run("chmod +x {}".format(latest_file))
 
-    shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
-    ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(tag))
-    ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
+    build_context = "Dockerfiles/cluster-agent"
+    exec_path = "{}/datadog-cluster-agent.{}".format(build_context,arch)
+    dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
+
+    shutil.copy2(latest_file, exec_path)
+    ctx.run("docker build -t {} {} -f {}".format(tag, build_context, dockerfile_path))
+    ctx.run("rm {}".format(exec_path))
+
     if push:
         ctx.run("docker push {}".format(tag))
 

@@ -1,24 +1,23 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
 package clusterchecks
 
 import (
-	"fmt"
-	"strings"
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
 const (
-	kubeServiceIDPrefix  = "kube_service://"
-	KubePodPrefix        = "kubernetes_pod://"
-	kubeEndpointIDPrefix = "kube_endpoint://"
+	checkExecutionTimeWeight = 0.8
+	checkMetricSamplesWeight = 0.2
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice
@@ -37,47 +36,26 @@ func timestampNow() int64 {
 	return time.Now().Unix()
 }
 
-// isKubeServiceCheck checks if a config template represents a service check
-func isKubeServiceCheck(config integration.Config) bool {
-	return strings.HasPrefix(config.Entity, kubeServiceIDPrefix)
-}
-
-// getServiceUID retrieves service UID from service config
-func getServiceUID(config integration.Config) string {
-	return strings.TrimLeft(config.Entity, kubeServiceIDPrefix)
-}
-
-// getPodEntity returns pod entity
-func getPodEntity(podUID string) string {
-	return fmt.Sprintf("%s%s", KubePodPrefix, podUID)
-}
-
-// getNameAndNamespaceFromADIDs extracts namespace
-// and name from endpoints configs AD identifiers.
-func getNameAndNamespaceFromADIDs(configs []integration.Config) (string, string) {
-	for _, config := range configs {
-		for _, adID := range config.ADIdentifiers {
-			namespace, name := getNameAndNamespaceFromEntity(adID)
-			if namespace != "" && name != "" {
-				// All configs in the slice share the same namespace and name
-				// and contain the same kube_endpoint AD identifier.
-				// Return the first valid namespace and name found.
-				return namespace, name
-			}
-		}
+// calculateBusyness returns the busyness value of a node
+func calculateBusyness(checkStats types.CLCRunnersStats) int {
+	busyness := 0
+	for _, stats := range checkStats {
+		busyness += busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
 	}
-	return "", ""
+	return busyness
 }
 
-// getNameAndNamespaceFromEntity parses endpoints entity
-// string to extract namespace and name.
-func getNameAndNamespaceFromEntity(s string) (string, string) {
-	if !strings.HasPrefix(s, kubeEndpointIDPrefix) {
-		return "", ""
+// busynessFunc returns the weight of a check
+func busynessFunc(avgExecTime, mSamples int) int {
+	return int(checkExecutionTimeWeight*float64(avgExecTime) + checkMetricSamplesWeight*float64(mSamples))
+}
+
+// orderedKeys sorts the keys of a map and return them in a slice
+func orderedKeys(m map[string]int) []string {
+	keys := []string{}
+	for key := range m {
+		keys = append(keys, key)
 	}
-	split := strings.Split(s, "/") // Format: kube_endpoint://namespace/name
-	if len(split) == 4 {
-		return split[2], split[3]
-	}
-	return "", ""
+	sort.Strings(keys)
+	return keys
 }

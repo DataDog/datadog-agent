@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package obfuscate
 
 import (
@@ -13,7 +18,7 @@ func (o *Obfuscator) obfuscateHTTP(span *pb.Span) {
 	if span.Meta == nil {
 		return
 	}
-	if !o.opts.HTTP.RemoveQueryString && !o.opts.HTTP.RemovePathDigits {
+	if !o.opts.RemoveQueryString && !o.opts.RemovePathDigits {
 		// nothing to do
 		return
 	}
@@ -29,11 +34,11 @@ func (o *Obfuscator) obfuscateHTTP(span *pb.Span) {
 		span.Meta[k] = "?"
 		return
 	}
-	if o.opts.HTTP.RemoveQueryString && u.RawQuery != "" {
+	if o.opts.RemoveQueryString && u.RawQuery != "" {
 		u.ForceQuery = true // add the '?'
 		u.RawQuery = ""
 	}
-	if o.opts.HTTP.RemovePathDigits {
+	if o.opts.RemovePathDigits {
 		segs := strings.Split(u.Path, "/")
 		var changed bool
 		for i, seg := range segs {

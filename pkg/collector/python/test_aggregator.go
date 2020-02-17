@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build python,test
 
@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-// #include <datadog_agent_six.h>
+// #include <datadog_agent_rtloader.h>
 import "C"
 
 func testSubmitMetric(t *testing.T) {
@@ -24,43 +24,43 @@ func testSubmitMetric(t *testing.T) {
 
 	cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
 	SubmitMetric(C.CString("testID"),
-		C.DATADOG_AGENT_SIX_GAUGE,
+		C.DATADOG_AGENT_RTLOADER_GAUGE,
 		C.CString("test_gauge"),
 		C.float(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
-		C.DATADOG_AGENT_SIX_RATE,
+		C.DATADOG_AGENT_RTLOADER_RATE,
 		C.CString("test_rate"),
 		C.float(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
-		C.DATADOG_AGENT_SIX_COUNT,
+		C.DATADOG_AGENT_RTLOADER_COUNT,
 		C.CString("test_count"),
 		C.float(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
-		C.DATADOG_AGENT_SIX_MONOTONIC_COUNT,
+		C.DATADOG_AGENT_RTLOADER_MONOTONIC_COUNT,
 		C.CString("test_monotonic_count"),
 		C.float(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
-		C.DATADOG_AGENT_SIX_COUNTER,
+		C.DATADOG_AGENT_RTLOADER_COUNTER,
 		C.CString("test_counter"),
 		C.float(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
-		C.DATADOG_AGENT_SIX_HISTOGRAM,
+		C.DATADOG_AGENT_RTLOADER_HISTOGRAM,
 		C.CString("test_histogram"),
 		C.float(21),
 		&cTags[0],
 		C.CString("my_hostname"))
 	SubmitMetric(C.CString("testID"),
-		C.DATADOG_AGENT_SIX_HISTORATE,
+		C.DATADOG_AGENT_RTLOADER_HISTORATE,
 		C.CString("test_historate"),
 		C.float(21),
 		&cTags[0],
@@ -81,7 +81,7 @@ func testSubmitMetricEmptyTags(t *testing.T) {
 
 	cTags := []*C.char{nil}
 	SubmitMetric(C.CString("testID"),
-		C.DATADOG_AGENT_SIX_GAUGE,
+		C.DATADOG_AGENT_RTLOADER_GAUGE,
 		C.CString("test_gauge"),
 		C.float(21),
 		&cTags[0],
@@ -96,7 +96,7 @@ func testSubmitMetricEmptyHostname(t *testing.T) {
 
 	cTags := []*C.char{nil}
 	SubmitMetric(C.CString("testID"),
-		C.DATADOG_AGENT_SIX_GAUGE,
+		C.DATADOG_AGENT_RTLOADER_GAUGE,
 		C.CString("test_gauge"),
 		C.float(21),
 		&cTags[0],
@@ -181,4 +181,23 @@ func testSubmitEvent(t *testing.T) {
 		SourceTypeName: "source_type",
 	}
 	sender.AssertEvent(t, expectedEvent, 0)
+}
+
+func testSubmitHistogramBucket(t *testing.T) {
+	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender.SetupAcceptAll()
+
+	cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
+	SubmitHistogramBucket(
+		C.CString("testID"),
+		C.CString("test_histogram"),
+		C.int(42),
+		C.float(1.0),
+		C.float(2.0),
+		C.int(1),
+		C.CString("my_hostname"),
+		&cTags[0],
+	)
+
+	sender.AssertHistogramBucket(t, "HistogramBucket", "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"})
 }

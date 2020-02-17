@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package collector
 
@@ -63,13 +63,6 @@ func (ce *collectorErrors) setRunError(checkID check.ID, err string) {
 	defer ce.m.Unlock()
 
 	ce.run[checkID] = err
-}
-
-func (ce *collectorErrors) removeRunError(checkID check.ID) {
-	ce.m.Lock()
-	defer ce.m.Unlock()
-
-	delete(ce.run, checkID)
 }
 
 func (ce *collectorErrors) getRunErrors() map[check.ID]string {

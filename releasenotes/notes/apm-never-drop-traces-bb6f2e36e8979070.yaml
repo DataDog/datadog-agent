@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+enhancements:
   - |
     APM: traces are not dropped anymore because or rate limiting due to
     performance issues. Instead, the trace is kept in a queue awaiting to

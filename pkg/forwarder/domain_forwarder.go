@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package forwarder
 
@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,6 +24,13 @@ var (
 	transactionsRetried  = expvar.Int{}
 	transactionsDropped  = expvar.Int{}
 	transactionsRequeued = expvar.Int{}
+
+	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
+		[]string{"domain"}, "Transaction retry count")
+	tlmTxDropped = telemetry.NewCounter("transactions", "dropped",
+		[]string{"domain"}, "Transaction drop count")
+	tlmTxRequeud = telemetry.NewCounter("transactions", "requeud",
+		[]string{"domain"}, "Transaction requeue count")
 )
 
 func initDomainForwarderExpvars() {
@@ -35,6 +43,7 @@ func initDomainForwarderExpvars() {
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
+	isRetrying          int32
 	domain              string
 	numberOfWorkers     int
 	highPrio            chan Transaction // use to receive new transactions
@@ -46,8 +55,8 @@ type domainForwarder struct {
 	retryQueueLimit     int
 	internalState       uint32
 	m                   sync.Mutex // To control Start/Stop races
-	isRetrying          int32
-	blockedList         *blockedEndpoints
+
+	blockedList *blockedEndpoints
 }
 
 func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int) *domainForwarder {
@@ -86,21 +95,26 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 			select {
 			case f.lowPrio <- t:
 				transactionsRetried.Add(1)
+				tlmTxRetried.Inc(f.domain)
 			default:
 				droppedWorkerBusy++
 				transactionsDropped.Add(1)
+				tlmTxDropped.Inc(f.domain)
 			}
 		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
 			transactionsRequeued.Add(1)
+			tlmTxRequeud.Inc(f.domain)
 		} else {
 			droppedRetryQueueFull++
 			transactionsDropped.Add(1)
+			tlmTxDropped.Inc(f.domain)
 		}
 	}
 
 	f.retryQueue = newQueue
 	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
+	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
 
 	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
 		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding the retry queue size limit of %d, %d because the workers are too busy",
@@ -112,6 +126,7 @@ func (f *domainForwarder) requeueTransaction(t Transaction) {
 	f.retryQueue = append(f.retryQueue, t)
 	transactionsRequeued.Add(1)
 	transactionsRetryQueueSize.Set(int64(len(f.retryQueue)))
+	tlmTxRetryQueueSize.Set(float64(len(f.retryQueue)), f.domain)
 }
 
 func (f *domainForwarder) handleFailedTransactions() {
@@ -163,7 +178,7 @@ func (f *domainForwarder) Start() error {
 }
 
 // Stop stops a domainForwarder, all transactions not yet flushed will be lost.
-func (f *domainForwarder) Stop() {
+func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	// Lock so we can't start a Forwarder while is stopping
 	f.m.Lock()
 	defer f.m.Unlock()
@@ -175,7 +190,7 @@ func (f *domainForwarder) Stop() {
 
 	f.stopRetry <- true
 	for _, w := range f.workers {
-		w.Stop()
+		w.Stop(purgeHighPrio)
 	}
 	f.workers = []*Worker{}
 	f.retryQueue = []Transaction{}
@@ -200,6 +215,7 @@ func (f *domainForwarder) sendHTTPTransactions(transaction Transaction) error {
 	case f.highPrio <- transaction:
 	default:
 		transactionsDroppedOnInput.Add(1)
+		tlmTxDroppedOnInput.Inc(f.domain)
 		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
 	}
 	return nil

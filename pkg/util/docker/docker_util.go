@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -20,6 +20,7 @@ import (
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -208,12 +209,16 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 
 // Inspect returns a docker inspect object for a given container ID.
 // It tries to locate the container in the inspect cache before making the docker inspect call
-// TODO: try sized inspect if withSize=false and unsized key cache misses
 func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, error) {
 	cacheKey := GetInspectCacheKey(id, withSize)
 	var container types.ContainerJSON
 
 	cached, hit := cache.Cache.Get(cacheKey)
+	// Try to get sized hit if we got a miss and withSize=false
+	if !hit && !withSize {
+		cached, hit = cache.Cache.Get(GetInspectCacheKey(id, true))
+	}
+
 	if hit {
 		container, ok := cached.(types.ContainerJSON)
 		if !ok {
@@ -225,6 +230,9 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
 	defer cancel()
 	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
+	if client.IsErrNotFound(err) {
+		return container, dderrors.NewNotFound(fmt.Sprintf("docker container %s", id))
+	}
 	if err != nil {
 		return container, err
 	}
@@ -238,15 +246,24 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 	return container, nil
 }
 
-// Inspect detect the container ID we are running in and returns the inspect contents.
+// InspectSelf returns the inspect content of the container the current agent is running in
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	prefix := config.Datadog.GetString("container_cgroup_prefix")
-	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup", prefix)
+	cID, err := GetAgentCID()
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}
 
 	return d.Inspect(cID, false)
+}
+
+// GetAgentCID returns the container ID where the current agent is running
+func GetAgentCID() (string, error) {
+	prefix := config.Datadog.GetString("container_cgroup_prefix")
+	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup", prefix)
+	if err != nil {
+		return "", err
+	}
+	return cID, err
 }
 
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package collector
 
@@ -72,7 +72,7 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !isCheckConfig(config) {
+		if !config.IsCheckConfig() {
 			// skip non check configs.
 			continue
 		}
@@ -173,7 +173,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 
 	var allChecks []check.Check
 	for _, config := range configs {
-		if !isCheckConfig(config) {
+		if !config.IsCheckConfig() {
 			// skip non check configs.
 			continue
 		}
@@ -193,11 +193,6 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	}
 
 	return allChecks
-}
-
-// isCheckConfig returns true if the config is a node-agent check configuration,
-func isCheckConfig(config integration.Config) bool {
-	return config.ClusterCheck == false && len(config.Instances) > 0
 }
 
 // GetLoaderErrors returns the check loader errors

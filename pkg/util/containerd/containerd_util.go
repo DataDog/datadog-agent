@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build containerd
 
@@ -41,6 +41,7 @@ type ContainerdItf interface {
 	Metadata() (containerd.Version, error)
 	Namespace() string
 	TaskMetrics(ctn containerd.Container) (*types.Metric, error)
+	TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -173,4 +174,18 @@ func (c *ContainerdUtil) TaskMetrics(ctn containerd.Container) (*types.Metric, e
 	}
 
 	return t.Metrics(ctxNamespace)
+}
+
+// TaskPids interfaces with the containerd api to get the pids from a container
+func (c *ContainerdUtil) TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	t, errTask := ctn.Task(ctxNamespace, nil)
+	if errTask != nil {
+		return nil, errTask
+	}
+
+	return t.Pids(ctxNamespace)
 }

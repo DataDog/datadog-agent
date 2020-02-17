@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package azure
 
@@ -20,7 +20,18 @@ import (
 var (
 	metadataURL = "http://169.254.169.254"
 	timeout     = 300 * time.Millisecond
+
+	// CloudProviderName contains the inventory name of for EC2
+	CloudProviderName = "Azure"
 )
+
+// IsRunningOn returns true if the agent is running on Azure
+func IsRunningOn() bool {
+	if _, err := GetHostAlias(); err == nil {
+		return true
+	}
+	return false
+}
 
 // GetHostAlias returns the VM ID from the Azure Metadata api
 func GetHostAlias() (string, error) {
@@ -29,7 +40,6 @@ func GetHostAlias() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 	}
-
 	return res, nil
 }
 
@@ -40,7 +50,7 @@ func GetClusterName() (string, error) {
 		return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
 	}
 
-	splitAll := strings.Split(string(all), "_")
+	splitAll := strings.Split(all, "_")
 	if len(splitAll) < 4 || splitAll[0] != "MC" {
 		return "", errors.New("cannot parse the clustername from metadata")
 	}

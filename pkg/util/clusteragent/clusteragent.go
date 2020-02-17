@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package clusteragent
 
@@ -33,6 +33,8 @@ Client to query the Datadog Cluster Agent (DCA) API.
 
 const (
 	authorizationHeaderKey = "Authorization"
+	// RealIPHeader refers to the cluster level check runner ip passed in the request headers
+	RealIPHeader = "X-Real-Ip"
 )
 
 var globalClusterAgentClient *DCAClient
@@ -106,6 +108,8 @@ func (c *DCAClient) init() error {
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
 	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
+	podIP := config.Datadog.GetString("clc_runner_host")
+	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
 	// TODO remove insecure
 	c.clusterAgentAPIClient = util.GetClient(false)
@@ -135,7 +139,8 @@ func (c *DCAClient) ClusterAgentAPIEndpoint() string {
 }
 
 // getClusterAgentEndpoint provides a validated https endpoint from configuration keys in datadog.yaml:
-// 1st. configuration key "cluster_agent.url", add the https prefix if the scheme isn't specified
+// 1st. configuration key "cluster_agent.url" (or the DD_CLUSTER_AGENT_URL environment variable),
+//      add the https prefix if the scheme isn't specified
 // 2nd. environment variables associated with "cluster_agent.kubernetes_service_name"
 //      ${dcaServiceName}_SERVICE_HOST and ${dcaServiceName}_SERVICE_PORT
 func getClusterAgentEndpoint() (string, error) {

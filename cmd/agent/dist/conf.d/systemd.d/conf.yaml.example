@@ -1,0 +1,26 @@
+init_config:
+
+instances:
+    ## @param unit_names - list of strings - required
+    ## List of systemd units to monitor.
+    ## Full names must be used. Examples: ssh.service, docker.socket
+    #
+  - unit_names:
+      - <UNIT_NAME>
+
+    ## @param private_socket - string - optional
+    ## Path to systemd private socket needed to retrieve systemd data.
+    ## Defaults to `/run/systemd/private` or `/host/run/systemd/private` when
+    ## using Docker Agent (https://docs.datadoghq.com/agent/docker/).
+    ##
+    # private_socket: <PATH_TO_SYSTEMD_PRIVATE_SOCKET>
+    
+    ## @param tags  - list of key:value elements - optional
+    ## List of tags to attach to every metric, event, and service check emitted
+    ## by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>

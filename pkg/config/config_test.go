@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package config
 
@@ -618,6 +618,72 @@ func TestSanitizeAPIKey(t *testing.T) {
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
 
+func TestTrimTrailingSlashFromURLS(t *testing.T) {
+	var urls = []string{
+		"site",
+		"dd_url",
+	}
+	var additionalEndpointSelectors = []string{
+		"additional_endpoints",
+		"apm_config.additional_endpoints",
+		"logs_config.additional_endpoints",
+		"process_config.additional_endpoints",
+	}
+	datadogYaml := `
+api_key: fakeapikey
+site: datadoghq.com/////
+dd_url:
+additional_endpoints:
+  testing.com///:
+  - fakekey
+  test2.com/:
+  - fakekey
+apm_config:
+  additional_endpoints:
+    testingapm.com//:
+    - fakekey
+    test2apm.com/:
+    - fakekey
+logs_config:
+  additional_endpoints:
+    testinglogs.com///////:
+    - fakekey
+    test2logs.com/:
+    - fakekey
+process_config:
+  additional_endpoints:
+    testingproc.com/////:
+    - fakekey
+    test2proc.com/:
+    - fakekey
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+	trimTrailingSlashFromURLS(testConfig)
+
+	for _, u := range urls {
+		testString := testConfig.GetString(u)
+		if len(testString) == 0 {
+			continue
+		}
+		if testString[len(testString)-1:] == "/" {
+			t.Errorf("Error: The key %v: has a vlue of %v -- The trailing forward slash was not properly trimmed", u, testConfig.GetString(u))
+		}
+	}
+	for _, es := range additionalEndpointSelectors {
+		additionalEndpoints := make(map[string][]string)
+		err := testConfig.UnmarshalKey(es, &additionalEndpoints)
+		if err != nil {
+			t.Errorf("Error: %v", err)
+		}
+
+		for domain := range additionalEndpoints {
+			if domain[len(domain)-1:] == "/" {
+				t.Errorf("Error: The key %v: has a vlue of %v -- The trailing forward slash was not properly trimmed", es, domain)
+			}
+		}
+	}
+}
+
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
 // key includes the key delimiter. Affects the config package when both secrets and multiple
 // endpoints are configured.
@@ -635,4 +701,151 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	keysPerDomain, err := getMultipleEndpointsWithConfig(conf)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
+}
+
+func TestNumWorkers(t *testing.T) {
+	config := setupConf()
+
+	config.Set("python_version", "2")
+	config.Set("tracemalloc_debug", true)
+	config.Set("check_runners", 4)
+
+	setNumWorkers(config)
+	workers := config.GetInt("check_runners")
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("tracemalloc_debug", false)
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("python_version", "3")
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
+	assert.Equal(t, workers, config.GetInt("check_runners"))
+
+	config.Set("tracemalloc_debug", true)
+	setNumWorkers(config)
+	workers = config.GetInt("check_runners")
+	assert.Equal(t, workers, 1)
+}
+
+// TestOverrides validates that the config overrides system works well.
+func TestApplyOverrides(t *testing.T) {
+	assert := assert.New(t)
+
+	datadogYaml := `
+dd_url: "https://app.datadoghq.eu"
+api_key: fakeapikey
+
+external_config:
+  external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
+`
+	AddOverrides(map[string]interface{}{
+		"api_key": "overrided",
+	})
+
+	config := setupConfFromYAML(datadogYaml)
+	applyOverrides(config)
+
+	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
+	assert.Equal(config.GetString("dd_url"), "https://app.datadoghq.eu", "this shouldn't be overrided")
+
+	AddOverrides(map[string]interface{}{
+		"dd_url": "http://localhost",
+	})
+	applyOverrides(config)
+
+	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
+	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
+}
+
+func TestDogstatsdMappingProfilesOk(t *testing.T) {
+	datadogYaml := `
+dogstatsd_mapper_profiles:
+  - name: "airflow"
+    prefix: "airflow."
+    mappings:
+      - match: "airflow.job.duration_sec.*.*"
+        name: "airflow.job.duration"
+        tags:
+          job_type: "$1"
+          job_name: "$2"
+      - match: "airflow.job.size.*.*"
+        name: "airflow.job.size"
+        tags:
+          foo: "$1"
+          bar: "$2"
+  - name: "profile2"
+    prefix: "profile2."
+    mappings:
+      - match: "profile2.hello.*"
+        name: "profile2.hello"
+        tags:
+          foo: "$1"
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+
+	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
+
+	expectedProfiles := []MappingProfile{
+		{
+			Name:   "airflow",
+			Prefix: "airflow.",
+			Mappings: []MetricMapping{
+				{
+					Match: "airflow.job.duration_sec.*.*",
+					Name:  "airflow.job.duration",
+					Tags:  map[string]string{"job_type": "$1", "job_name": "$2"},
+				},
+				{
+					Match: "airflow.job.size.*.*",
+					Name:  "airflow.job.size",
+					Tags:  map[string]string{"foo": "$1", "bar": "$2"},
+				},
+			},
+		},
+		{
+			Name:   "profile2",
+			Prefix: "profile2.",
+			Mappings: []MetricMapping{
+				{
+					Match: "profile2.hello.*",
+					Name:  "profile2.hello",
+					Tags:  map[string]string{"foo": "$1"},
+				},
+			},
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedProfiles, profiles)
+}
+
+func TestDogstatsdMappingProfilesEmpty(t *testing.T) {
+	datadogYaml := `
+dogstatsd_mapper_profiles:
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+
+	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
+
+	var expectedProfiles []MappingProfile
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedProfiles, profiles)
+}
+
+func TestDogstatsdMappingProfilesError(t *testing.T) {
+	datadogYaml := `
+dogstatsd_mapper_profiles:
+  - abc
+`
+	testConfig := setupConfFromYAML(datadogYaml)
+	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
+
+	expectedErrorMsg := "Could not parse dogstatsd_mapper_profiles"
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), expectedErrorMsg)
+	assert.Empty(t, profiles)
 }

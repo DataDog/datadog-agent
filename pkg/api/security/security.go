@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package security
 
@@ -54,7 +54,7 @@ func CertTemplate() (*x509.Certificate, error) {
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Datadoc, Inc."},
+			Organization: []string{"Datadog, Inc."},
 		},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,

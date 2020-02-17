@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package flare
 
@@ -46,6 +46,8 @@ const (
 
 var (
 	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
+		config.Datadog.GetString("expvar_port"))
+	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/telemetry",
 		config.Datadog.GetString("expvar_port"))
 
 	// Match .yaml and .yml to ship configuration files in the flare.
@@ -99,7 +101,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		return "", err
 	}
 
-	dirName := hex.EncodeToString([]byte(b))
+	dirName := hex.EncodeToString(b)
 	tempDir, err := ioutil.TempDir("", dirName)
 	if err != nil {
 		return "", err
@@ -192,6 +194,13 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	err = zipHealth(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip health check: %s", err)
+	}
+
+	if config.Datadog.GetBool("telemetry.enabled") {
+		err = zipTelemetry(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not collect telemetry metrics: %s", err)
+		}
 	}
 
 	err = zipStackTraces(tempDir, hostname)
@@ -326,7 +335,40 @@ func zipExpVar(tempDir, hostname string) error {
 		}
 	}
 
-	return nil
+	apmPort := "8126"
+	if config.Datadog.IsSet("apm_config.receiver_port") {
+		apmPort = config.Datadog.GetString("apm_config.receiver_port")
+	}
+	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/debug/vars", apmPort))
+	if err != nil {
+		_, err := w.Write([]byte(fmt.Sprintf("Error retrieving vars: %v", err)))
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		slurp, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write([]byte(fmt.Sprintf("Got response %s from /debug/vars:\n%s", resp.Status, string(slurp))))
+		return err
+	}
+	var all map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&all); err != nil {
+		return fmt.Errorf("error decoding trace-agent /debug/vars response: %v", err)
+	}
+	v, err := yaml.Marshal(all)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(v)
+	return err
 }
 
 func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
@@ -360,30 +402,14 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 	if config.Datadog.ConfigFileUsed() != "" {
 		// zip up the config file that was actually used, if one exists
 		filePath := config.Datadog.ConfigFileUsed()
-
-		// Check if the file exists
-		_, err := os.Stat(filePath)
-		if err == nil {
-			f = filepath.Join(tempDir, hostname, "etc", "datadog.yaml")
-			err := ensureParentDirsExist(f)
-			if err != nil {
-				return err
-			}
-
-			w, err := newRedactingWriter(f, os.ModePerm, true)
-			if err != nil {
-				return err
-			}
-			defer w.Close()
-
-			_, err = w.WriteFromFile(filePath)
-			if err != nil {
-				return err
-			}
-
-			if permsInfos != nil {
-				permsInfos.add(filePath)
-			}
+		if err = createConfigFiles(filePath, tempDir, hostname, permsInfos); err != nil {
+			return err
+		}
+		// figure out system-probe file path based on main config path,
+		// and use best effort to include system-probe.yaml to the flare
+		systemProbePath := getSystemProbePath(filePath)
+		if systemErr := createConfigFiles(systemProbePath, tempDir, hostname, permsInfos); systemErr != nil {
+			log.Warnf("could not zip system-probe.yaml, system-probe might not be configured, or is in a different directory with datadog.yaml: %s", systemErr)
 		}
 	}
 
@@ -494,12 +520,23 @@ func zipHealth(tempDir, hostname string) error {
 	return err
 }
 
+func zipTelemetry(tempDir, hostname string) error {
+	return zipHTTPCallContent(tempDir, hostname, "telemetry.log", telemetryURL)
+}
+
 func zipStackTraces(tempDir, hostname string) error {
+	return zipHTTPCallContent(tempDir, hostname, routineDumpFilename, pprofURL)
+}
+
+// zipHTTPCallContent does a GET HTTP call to the given url and
+// writes the content of the HTTP response in the given file, ready
+// to be shipped in a flare.
+func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
 	client := http.Client{}
-	req, err := http.NewRequest(http.MethodGet, pprofURL, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
@@ -510,7 +547,7 @@ func zipStackTraces(tempDir, hostname string) error {
 	}
 	defer resp.Body.Close()
 
-	f := filepath.Join(tempDir, hostname, routineDumpFilename)
+	f := filepath.Join(tempDir, hostname, filename)
 	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
@@ -623,4 +660,40 @@ func cleanDirectoryName(name string) string {
 		return filteredName[:directoryNameMaxSize]
 	}
 	return filteredName
+}
+
+// createConfigFiles takes the content of config files that need to be included in the flare and
+// put them in the directory waiting to be archived
+func createConfigFiles(filePath, tempDir, hostname string, permsInfos permissionsInfos) error {
+	// Check if the file exists
+	_, err := os.Stat(filePath)
+	if err == nil {
+		f := filepath.Join(tempDir, hostname, "etc", filepath.Base(filePath))
+		err := ensureParentDirsExist(f)
+		if err != nil {
+			return err
+		}
+
+		w, err := newRedactingWriter(f, os.ModePerm, true)
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+
+		_, err = w.WriteFromFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		if permsInfos != nil {
+			permsInfos.add(filePath)
+		}
+	}
+	return err
+}
+
+// getSystemProbePath would take the path to datadog.yaml and replace the file name with system-probe.yaml
+func getSystemProbePath(ddCfgFilePath string) string {
+	path := filepath.Dir(ddCfgFilePath)
+	return filepath.Join(path, "system-probe.yaml")
 }

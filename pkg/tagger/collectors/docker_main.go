@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
@@ -88,8 +89,8 @@ func (c *DockerCollector) Stop() error {
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
 func (c *DockerCollector) Fetch(entity string) ([]string, []string, []string, error) {
-	runtime, cID := containers.SplitEntityName(entity)
-	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
+	entityType, cID := containers.SplitEntityName(entity)
+	if entityType != containers.ContainerEntityName || len(cID) == 0 {
 		return nil, nil, nil, nil
 	}
 	return c.fetchForDockerID(cID)
@@ -119,8 +120,9 @@ func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, []string, error) {
 	co, err := c.dockerUtil.Inspect(cID, false)
 	if err != nil {
-		// TODO separate "not found" and inspect error
-		log.Debugf("Failed to inspect container %s - %s", cID, err)
+		if !errors.IsNotFound(err) {
+			log.Debugf("Failed to inspect container %s - %s", cID, err)
+		}
 		return nil, nil, nil, err
 	}
 	return c.extractFromInspect(co)

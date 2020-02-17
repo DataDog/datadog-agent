@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -69,11 +69,11 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		tags.AddLow("pod_phase", strings.ToLower(pod.Status.Phase))
 
 		// OpenShift pod annotations
-		if dc_name, found := pod.Metadata.Annotations["openshift.io/deployment-config.name"]; found {
-			tags.AddLow("oshift_deployment_config", dc_name)
+		if dcName, found := pod.Metadata.Annotations["openshift.io/deployment-config.name"]; found {
+			tags.AddLow("oshift_deployment_config", dcName)
 		}
-		if deploy_name, found := pod.Metadata.Annotations["openshift.io/deployment.name"]; found {
-			tags.AddOrchestrator("oshift_deployment", deploy_name)
+		if deployName, found := pod.Metadata.Annotations["openshift.io/deployment.name"]; found {
+			tags.AddOrchestrator("oshift_deployment", deployName)
 		}
 
 		// Creator
@@ -89,10 +89,23 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				tags.AddLow("kube_replication_controller", owner.Name)
 			case "StatefulSet":
 				tags.AddLow("kube_stateful_set", owner.Name)
+				pvcs := pod.GetPersistentVolumeClaimNames()
+				for _, pvc := range pvcs {
+					if pvc != "" {
+						tags.AddLow("persistentvolumeclaim", pvc)
+					}
+				}
+
 			case "Job":
-				tags.AddOrchestrator("kube_job", owner.Name) // TODO detect if no from cronjob, then low card
+				cronjob := parseCronJobForJob(owner.Name)
+				if cronjob != "" {
+					tags.AddOrchestrator("kube_job", owner.Name)
+					tags.AddLow("kube_cronjob", cronjob)
+				} else {
+					tags.AddLow("kube_job", owner.Name)
+				}
 			case "ReplicaSet":
-				deployment := c.parseDeploymentForReplicaset(owner.Name)
+				deployment := parseDeploymentForReplicaset(owner.Name)
 				if len(deployment) > 0 {
 					tags.AddOrchestrator("kube_replica_set", owner.Name)
 					tags.AddLow("kube_deployment", deployment)
@@ -108,7 +121,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		if pod.Metadata.UID != "" {
 			podInfo := &TagInfo{
 				Source:               kubeletCollectorName,
-				Entity:               kubelet.PodUIDToEntityName(pod.Metadata.UID),
+				Entity:               kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID),
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
@@ -117,7 +130,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		}
 
 		// container tags
-		for _, container := range pod.Status.Containers {
+		for _, container := range pod.Status.GetAllContainers() {
 			cTags := tags.Copy()
 			cTags.AddLow("kube_container_name", container.Name)
 			cTags.AddHigh("container_id", kubelet.TrimRuntimeFromCID(container.ID))
@@ -156,9 +169,14 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 
 			cLow, cOrch, cHigh := cTags.Compute()
+			entityID, err := kubelet.KubeContainerIDToTaggerEntityID(container.ID)
+			if err != nil {
+				log.Warnf("Unable to parse container pName: %s / cName: %s / cId: %s / err: %s", pod.Metadata.Name, container.Name, container.ID, err)
+				continue
+			}
 			info := &TagInfo{
 				Source:               kubeletCollectorName,
-				Entity:               container.ID,
+				Entity:               entityID,
 				HighCardTags:         cHigh,
 				OrchestratorCardTags: cOrch,
 				LowCardTags:          cLow,
@@ -171,7 +189,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 // parseDeploymentForReplicaset gets the deployment name from a replicaset,
 // or returns an empty string if no parent deployment is found.
-func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
+func parseDeploymentForReplicaset(name string) string {
 	lastDash := strings.LastIndexAny(name, "-")
 	if lastDash == -1 {
 		// No dash
@@ -184,6 +202,29 @@ func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
 	}
 
 	if !utils.StringInRuneset(suffix, Digits) && !utils.StringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
+		// Invalid suffix
+		return ""
+	}
+
+	return name[:lastDash]
+}
+
+// parseCronJobForJob gets the cronjob name from a job,
+// or returns an empty string if no parent cronjob is found.
+// https://github.com/kubernetes/kubernetes/blob/b4e3bd381bd4d7c0db1959341b39558b45187345/pkg/controller/cronjob/utils.go#L156
+func parseCronJobForJob(name string) string {
+	lastDash := strings.LastIndexAny(name, "-")
+	if lastDash == -1 {
+		// No dash
+		return ""
+	}
+	suffix := name[lastDash+1:]
+	if len(suffix) < 3 {
+		// Suffix is variable length but we cutoff at 3+ characters
+		return ""
+	}
+
+	if !utils.StringInRuneset(suffix, Digits) {
 		// Invalid suffix
 		return ""
 	}
