@@ -50,8 +50,9 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
-	r.HandleFunc("/config", getRuntimeConfig).Methods("GET")
+	r.HandleFunc("/config", getFullRuntimeConfig).Methods("GET")
 	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
+	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")
 	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
@@ -270,7 +271,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
-func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+func getFullRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		log.Errorf("Unable to marshal runtime config response: %s", err)
@@ -288,6 +289,32 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(scrubbed)
+}
+
+func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	setting := vars["setting"]
+	log.Infof("Got a request to read a setting value: %s", setting)
+
+	val, err := config.GetRuntimeSetting(setting)
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		switch err.(type) {
+		case *config.SettingNotFoundError:
+			http.Error(w, string(body), 400)
+		default:
+			http.Error(w, string(body), 500)
+		}
+		return
+	}
+	body, err := json.Marshal(map[string]interface{}{"value": val})
+	if err != nil {
+		log.Errorf("Unable to marshal runtime setting value response: %s", err)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	w.Write(body)
 }
 
 func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
