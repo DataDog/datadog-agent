@@ -152,7 +152,7 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 		SetSamplingPriority(root, SamplingPriority(i%2))
 		_, rate := s.Sample(trace, root, env)
 		if rate < 1 {
-			assert.Less(rate, prioritySamplingRateThresholdTo1)
+			assert.True(rate < prioritySamplingRateThresholdTo1)
 		}
 	}
 }
