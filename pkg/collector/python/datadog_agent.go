@@ -12,6 +12,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -31,6 +32,15 @@ import (
 */
 import (
 	"C"
+)
+
+type configFormat struct {
+	InitConfig interface{} `yaml:"init_config"`
+	Instances  []integration.RawMap
+}
+
+var (
+	checkRunner func(checkName string, configs []integration.Config)
 )
 
 // GetVersion exposes the version of the agent to Python checks.
@@ -184,4 +194,50 @@ func ReadPersistentCache(key *C.char) *C.char {
 		return nil
 	}
 	return TrackedCString(data)
+}
+
+func SetRunner(runner func(checkName string, configs []integration.Config)) {
+	checkRunner = runner
+}
+
+func GetRunner() func(checkName string, configs []integration.Config) {
+	return checkRunner
+}
+
+// ScheduleInstance creates a runtime instance which is not backed by file configuration
+// Indirectly used by the C function `schedule_instance` that's mapped to `datadog_agent.schedule_instance`.
+//export ScheduleInstance
+func ScheduleInstance(checkName, cfg *C.char) {
+	instanceCheck := C.GoString(checkName)
+	instanceConfig := C.GoString(cfg)
+
+	cf := configFormat{}
+	configs := []integration.Config{}
+	intConfig := integration.Config{Name: instanceCheck}
+
+	if strictErr := yaml.UnmarshalStrict([]byte(instanceConfig), &cf); strictErr != nil {
+		if err := yaml.Unmarshal([]byte(instanceConfig), &cf); err != nil {
+			log.Errorf("Failed to parse config: %s", err)
+			return
+		}
+		log.Warnf("reading config: %v\n", strictErr)
+	}
+
+	if cf.InitConfig != nil {
+		rawInitConfig, _ := yaml.Marshal(cf.InitConfig)
+		intConfig.InitConfig = rawInitConfig
+	}
+
+	// Go through instances and return corresponding []byte
+	for _, instance := range cf.Instances {
+		// at this point the Yaml was already parsed, no need to check the error
+		rawConf, _ := yaml.Marshal(instance)
+		intConfig.Instances = append(intConfig.Instances, rawConf)
+	}
+
+	intConfig.Source = "memory:" + instanceCheck
+
+	configs = append(configs, intConfig)
+
+	GetRunner()(instanceCheck, configs)
 }

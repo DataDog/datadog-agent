@@ -20,6 +20,7 @@ static cb_set_check_metadata_t cb_set_check_metadata = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
 static cb_write_persistent_cache_t cb_write_persistent_cache = NULL;
 static cb_read_persistent_cache_t cb_read_persistent_cache = NULL;
+static cb_schedule_instance_t cb_schedule_instance = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -33,6 +34,7 @@ static PyObject *set_check_metadata(PyObject *self, PyObject *args);
 static PyObject *set_external_tags(PyObject *self, PyObject *args);
 static PyObject *write_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
+static PyObject *schedule_instance(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -46,6 +48,7 @@ static PyMethodDef methods[] = {
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
     { "write_persistent_cache", write_persistent_cache, METH_VARARGS, "Store a value for a given key." },
     { "read_persistent_cache", read_persistent_cache, METH_VARARGS, "Retrieve the value associated with a key." },
+    { "schedule_instance", schedule_instance, METH_VARARGS, "Schedule a check instance." },
     { NULL, NULL } // guards
 };
 
@@ -104,6 +107,11 @@ void _set_write_persistent_cache_cb(cb_write_persistent_cache_t cb)
 void _set_read_persistent_cache_cb(cb_read_persistent_cache_t cb)
 {
     cb_read_persistent_cache = cb;
+}
+
+void _set_schedule_instance_cb(cb_schedule_instance_t cb)
+{
+    cb_schedule_instance = cb;
 }
 
 void _set_set_external_tags_cb(cb_set_external_tags_t cb)
@@ -484,6 +492,38 @@ static PyObject *read_persistent_cache(PyObject *self, PyObject *args)
     PyObject *retval = PyStringFromCString(v);
     cgo_free(v);
     return retval;
+}
+
+/*! \fn PyObject *schedule_instance(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.schedule_instance` method, scheduling a check instance
+    with a configuration
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a 2-ary tuple containing the check name and the configuration.
+    \return A PyObject* pointer to `None`.
+
+    This function is callable as the `datadog_agent.schedule_instance` Python method and
+    uses the `cb_schedule_instance()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *schedule_instance(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_schedule_instance == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *check, *config;
+
+    // datadog_agent.schedule_instance(check, config)
+    if (!PyArg_ParseTuple(args, "ss", &check, &config)) {
+        return NULL;
+    }
+
+    Py_BEGIN_ALLOW_THREADS
+    cb_schedule_instance(check, config);
+    Py_END_ALLOW_THREADS
+
+    Py_RETURN_NONE;
 }
 
 /*! \fn PyObject *set_external_tags(PyObject *self, PyObject *args)

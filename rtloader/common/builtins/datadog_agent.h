@@ -119,6 +119,13 @@
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
+/*! \fn void _set_schedule_instance_cb(cb_schedule_instance_t)
+    \brief Sets a callback to be used by rtloader to allow scheduling a check instance.
+    \param object A function pointer with cb_schedule_instance_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
 
 #include <Python.h>
 #include <rtloader_types.h>
@@ -146,6 +153,7 @@ void _set_set_check_metadata_cb(cb_set_check_metadata_t);
 void _set_set_external_tags_cb(cb_set_external_tags_t);
 void _set_write_persistent_cache_cb(cb_write_persistent_cache_t);
 void _set_read_persistent_cache_cb(cb_read_persistent_cache_t);
+void _set_schedule_instance_cb(cb_schedule_instance_t);
 
 PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs);
 

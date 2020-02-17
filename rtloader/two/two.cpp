@@ -883,6 +883,11 @@ void Two::setReadPersistentCacheCb(cb_read_persistent_cache_t cb)
     _set_read_persistent_cache_cb(cb);
 }
 
+void Two::setScheduleInstanceCb(cb_schedule_instance_t cb)
+{
+    _set_schedule_instance_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.

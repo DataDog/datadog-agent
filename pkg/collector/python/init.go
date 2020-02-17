@@ -85,6 +85,7 @@ void ReadPersistentCache(char *);
 void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);
+void ScheduleInstance(char *, char *);
 bool TracemallocEnabled();
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
@@ -97,6 +98,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_set_external_tags_cb(rtloader, SetExternalTags);
 	set_write_persistent_cache_cb(rtloader, WritePersistentCache);
 	set_read_persistent_cache_cb(rtloader, ReadPersistentCache);
+	set_schedule_instance_cb(rtloader, ScheduleInstance);
 	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 }
 

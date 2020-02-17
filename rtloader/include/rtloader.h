@@ -427,6 +427,14 @@ public:
     */
     virtual void setReadPersistentCacheCb(cb_read_persistent_cache_t) = 0;
 
+    //! setScheduleInstanceCb member.
+    /*!
+      \param A cb_schedule_instance_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow scheduling an instance.
+    */
+    virtual void setScheduleInstanceCb(cb_schedule_instance_t) = 0;
+
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */
     mutable bool _errorFlag; /*!< boolean indicating whether an error was set on RtLoader */

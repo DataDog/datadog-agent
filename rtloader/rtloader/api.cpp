@@ -451,6 +451,11 @@ void set_read_persistent_cache_cb(rtloader_t *rtloader, cb_read_persistent_cache
     AS_TYPE(RtLoader, rtloader)->setReadPersistentCacheCb(cb);
 }
 
+void set_schedule_instance_cb(rtloader_t *rtloader, cb_schedule_instance_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setScheduleInstanceCb(cb);
+}
+
 /*
  * _util API
  */

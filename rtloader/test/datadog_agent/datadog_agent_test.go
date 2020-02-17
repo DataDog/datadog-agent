@@ -436,3 +436,16 @@ func TestReadPersistentCache(t *testing.T) {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 }
+
+func TestScheduleInstance(t *testing.T) {
+	code := `
+	datadog_agent.schedule_instance("check", "someconfig")
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "checksomeconfig" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}

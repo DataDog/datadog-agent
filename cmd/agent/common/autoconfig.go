@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -28,6 +30,8 @@ func SetupAutoConfig(confdPath string) {
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment, if available
 	Coll = collector.NewCollector(GetPythonPaths()...)
+
+	python.SetRunner(checkRunner)
 
 	// creating the meta scheduler
 	metaScheduler := scheduler.NewMetaScheduler()
@@ -106,4 +110,11 @@ func SetupAutoConfig(confdPath string) {
 //   2. run all the Checks for each configuration found
 func StartAutoConfig() {
 	AC.LoadAndRun()
+}
+
+func checkRunner(checkName string, configs []integration.Config) {
+	instances := collector.GetChecksByNameForConfigs(checkName, configs)
+	for _, ch := range instances {
+		Coll.RunCheck(ch)
+	}
 }

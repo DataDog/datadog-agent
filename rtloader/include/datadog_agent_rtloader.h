@@ -570,6 +570,16 @@ DATADOG_AGENT_RTLOADER_API void set_write_persistent_cache_cb(rtloader_t *, cb_w
 */
 DATADOG_AGENT_RTLOADER_API void set_read_persistent_cache_cb(rtloader_t *, cb_read_persistent_cache_t);
 
+/*! \fn void set_schedule_instance_cb(rtloader_t *, cb_schedule_instance_t)
+    \brief Sets a callback to be used by rtloader to allow scheduling an instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_schedule_instance_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_schedule_instance_cb(rtloader_t *, cb_schedule_instance_t);
+
 #ifdef __cplusplus
 }
 #endif
