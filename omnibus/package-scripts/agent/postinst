@@ -95,7 +95,8 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             echo "Loading SELinux policy module for datadog-agent."
             semodule -v -i $CONFIG_DIR/selinux/system_probe_policy.pp #>/dev/null 2>&1
             if [ "$?" != "0" ]; then
-                echo "SELinux policy module for datadog-agent not compatible with this host. Skipping SELinux configuration."
+                echo "SELinux policy module for datadog-agent not compatible with this host. Is the SELinux targeted policy (package selinux-policy-default) up to date?"
+                echo "Skipping SELinux configuration."
             else
                 echo "Labeling SELinux type for the system-probe binary."
                 if command -v semanage >/dev/null 2>&1 && command -v restorecon >/dev/null 2>&1;then
@@ -103,7 +104,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                     restorecon -v $INSTALL_DIR/embedded/bin/system-probe
                 else
                     echo "Could not set up SELinux labels for datadog-agent: semanage and/or restorecon commands not found."
-                    echo "Please make sure they are installed (via the policycoreutils and policycoreutils-python-utils packages), and then run:"
+                    echo "Please make sure they are installed (via the policycoreutils, policycoreutils-python and/or policycoreutils-python-utils packages), and then run:"
                     echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
                     echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
                 fi
