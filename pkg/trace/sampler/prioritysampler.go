@@ -30,6 +30,8 @@ const (
 	// was sampled.
 	SamplingPriorityRateKey = "_sampling_priority_rate_v1"
 	syncPeriod              = 3 * time.Second
+	// when a sampling rate is above prioritySamplingRateThresholdTo1, it's set at 1
+	prioritySamplingRateThresholdTo1 = 0.3
 )
 
 // PriorityEngine is the main component of the sampling logic
@@ -45,7 +47,7 @@ type PriorityEngine struct {
 // NewPriorityEngine returns an initialized Sampler
 func NewPriorityEngine(extraRate float64, maxTPS float64, rateByService *RateByService) *PriorityEngine {
 	s := &PriorityEngine{
-		Sampler:       newSampler(extraRate, maxTPS),
+		Sampler:       newSampler(extraRate, maxTPS, prioritySamplingRateThresholdTo1),
 		rateByService: rateByService,
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
@@ -120,7 +122,7 @@ func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (samp
 	// fetching applied sample rate
 	var ok bool
 	rate, ok = root.Metrics[SamplingPriorityRateKey]
-	if !ok {
+	if !ok || rate > prioritySamplingRateThresholdTo1 {
 		rate = s.Sampler.GetSignatureSampleRate(signature)
 		root.Metrics[SamplingPriorityRateKey] = rate
 	}

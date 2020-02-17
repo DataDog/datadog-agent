@@ -22,13 +22,13 @@ func getTestSampler() *Sampler {
 	extraRate := 1.0
 	maxTPS := 0.0
 
-	return newSampler(extraRate, maxTPS)
+	return newSampler(extraRate, maxTPS, defaultSamplingRateThresholdTo1)
 }
 
 func TestSamplerAccessRace(t *testing.T) {
 	// regression test: even though the sampler is channel protected, it
 	// has getters accessing its fields.
-	s := newSampler(1, 2)
+	s := newSampler(1, 2, defaultSamplingRateThresholdTo1)
 	go func() {
 		for i := 0; i < 10000; i++ {
 			s.SetSignatureCoefficients(float64(i), float64(i)/2)
