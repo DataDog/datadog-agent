@@ -297,12 +297,7 @@ func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	value := html.UnescapeString(r.Form.Get("value"))
 
-	if _, ok := config.RuntimeSettings[setting]; !ok {
-		body, _ := json.Marshal(map[string]string{"error": "unknown setting"})
-		http.Error(w, string(body), 500)
-		return
-	}
-	if err := config.RuntimeSettings[setting].Set(value); err != nil {
+	if err := config.SetRuntimeSetting(setting, value); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), 500)
 		return
@@ -311,7 +306,7 @@ func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 
 func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
 	configurableSettings := make(map[string]string)
-	for name, setting := range config.RuntimeSettings {
+	for name, setting := range config.RuntimeSettings() {
 		configurableSettings[name] = setting.Description()
 	}
 	body, err := json.Marshal(configurableSettings)

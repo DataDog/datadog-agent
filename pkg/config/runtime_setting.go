@@ -10,7 +10,7 @@ import (
 )
 
 // RuntimeSettings registers all runtime editable config
-var RuntimeSettings = make(map[string](RuntimeSetting))
+var runtimeSettings = make(map[string](RuntimeSetting))
 
 // RuntimeSetting represents a setting that can be changed and read at runtime.
 type RuntimeSetting interface {
@@ -27,9 +27,25 @@ func initRuntimeSettings() {
 
 // RegisterRuntimeSettings keeps track of configurable settings
 func registerRuntimeSetting(setting RuntimeSetting) error {
-	if _, ok := RuntimeSettings[setting.Name()]; ok {
+	if _, ok := runtimeSettings[setting.Name()]; ok {
 		return errors.New("duplicated settings detected")
 	}
-	RuntimeSettings[setting.Name()] = setting
+	runtimeSettings[setting.Name()] = setting
+	return nil
+}
+
+// RuntimeSettings return all runtime configurable settings
+func RuntimeSettings() map[string]RuntimeSetting {
+	return runtimeSettings
+}
+
+// SetRuntimeSetting change the value of a runtime configurable setting
+func SetRuntimeSetting(setting string, value interface{}) error {
+	if _, ok := runtimeSettings[setting]; !ok {
+		return errors.New("unknown setting")
+	}
+	if err := runtimeSettings[setting].Set(value); err != nil {
+		return err
+	}
 	return nil
 }
