@@ -135,6 +135,8 @@ def _is_version_higher(version_1, version_2):
         return False
     if version_1["rc"] == 0:
         return True
+    if version_2["rc"] == 0:
+        return False
     if version_1["rc"] < version_2["rc"]:
         return False
     return True
