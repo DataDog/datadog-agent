@@ -557,7 +557,7 @@ func GetLogLevel() (seelog.LogLevel, error) {
 	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 }
 
-// ChangeLogLevel change the current log level, valide levels are trace, debug, info, warn, error, critical and off
+// ChangeLogLevel changes the current log level, valide levels are trace, debug, info, warn, error, critical and off
 func ChangeLogLevel(level string) error {
 	if logger != nil {
 		return logger.changeLogLevel(level)

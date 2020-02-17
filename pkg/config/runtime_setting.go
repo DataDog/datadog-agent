@@ -7,10 +7,19 @@ package config
 
 import (
 	"errors"
+	"fmt"
 )
 
-// RuntimeSettings registers all runtime editable config
-var runtimeSettings = make(map[string](RuntimeSetting))
+var runtimeSettings = make(map[string]RuntimeSetting)
+
+// SettingNotFoundError is used to warn about non existing/not registered runtime setting
+type SettingNotFoundError struct {
+	name string
+}
+
+func (e *SettingNotFoundError) Error() string {
+	return fmt.Sprintf("setting %s not found", e.name)
+}
 
 // RuntimeSetting represents a setting that can be changed and read at runtime.
 type RuntimeSetting interface {
@@ -34,15 +43,15 @@ func registerRuntimeSetting(setting RuntimeSetting) error {
 	return nil
 }
 
-// RuntimeSettings return all runtime configurable settings
+// RuntimeSettings returns all runtime configurable settings
 func RuntimeSettings() map[string]RuntimeSetting {
 	return runtimeSettings
 }
 
-// SetRuntimeSetting change the value of a runtime configurable setting
+// SetRuntimeSetting changes the value of a runtime configurable setting
 func SetRuntimeSetting(setting string, value interface{}) error {
 	if _, ok := runtimeSettings[setting]; !ok {
-		return errors.New("unknown setting")
+		return &SettingNotFoundError{name: setting}
 	}
 	if err := runtimeSettings[setting].Set(value); err != nil {
 		return err

@@ -299,7 +299,12 @@ func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 
 	if err := config.SetRuntimeSetting(setting, value); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
+		switch err.(type) {
+		case *config.SettingNotFoundError:
+			http.Error(w, string(body), 400)
+		default:
+			http.Error(w, string(body), 500)
+		}
 		return
 	}
 }
@@ -311,7 +316,7 @@ func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	body, err := json.Marshal(configurableSettings)
 	if err != nil {
-		log.Errorf("Unable to marshal response: %s", err)
+		log.Errorf("Unable to marshal runtime configurable settings list response: %s", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), 500)
 		return

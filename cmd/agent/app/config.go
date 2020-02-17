@@ -126,7 +126,7 @@ func listRuntimeConfigurableValue(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println("=== Settings that can be changed at runtime ===")
 	for setting, desc := range settings {
-		fmt.Printf("%s: %s\n", setting, desc)
+		fmt.Printf("%s:\t\t\t%s\n", setting, desc)
 	}
 	return nil
 }
