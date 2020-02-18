@@ -86,9 +86,6 @@ type Container struct {
 	StartedAt      int64
 	ThreadCount    uint64
 	ThreadLimit    uint64
-
-	// For internal use only
-	cgroup *metrics.ContainerCgroup
 }
 
 // NetworkAddress represents a tuple IP/Port/Protocol

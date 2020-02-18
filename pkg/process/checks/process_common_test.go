@@ -3,7 +3,6 @@ package checks
 import (
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -11,55 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/DataDog/gopsutil/process"
 )
-
-func makeContainer(id string) *containers.Container {
-	return &containers.Container{
-		ID:     id,
-		CPU:    &metrics.CgroupTimesStat{},
-		Memory: &metrics.CgroupMemStat{},
-		IO:     &metrics.CgroupIOStat{},
-	}
-}
-
-func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*process.FilledProcess, []*containers.Container) {
-	procs := make([]*process.FilledProcess, 0, pCount)
-	for i := 0; i < pCount; i++ {
-		procs = append(procs, makeProcess(int32(i), strconv.Itoa(i)))
-	}
-
-	ctrs := make([]*containers.Container, 0, cCount)
-	for i := 0; i < cCount; i++ {
-		ctrs = append(ctrs, makeContainer(strconv.Itoa(i)))
-	}
-
-	// build container process relationship
-	ctrIdx := 0
-	for i := 0; i < containeredProcs; i++ {
-		// reset to 0 if hit the last one
-		if ctrIdx == cCount {
-			ctrIdx = 0
-		}
-		ctrs[ctrIdx].Pids = append(ctrs[ctrIdx].Pids, procs[i].Pid)
-		ctrIdx++
-	}
-
-	return procs, ctrs
-}
-
-func procsToHash(procs []*process.FilledProcess) (procsByPid map[int32]*process.FilledProcess) {
-	procsByPid = make(map[int32]*process.FilledProcess)
-	for _, p := range procs {
-		procsByPid[p.Pid] = p
-	}
-	return
-}
 
 func makeProcess(pid int32, cmdline string) *process.FilledProcess {
 	return &process.FilledProcess{
@@ -68,40 +23,6 @@ func makeProcess(pid int32, cmdline string) *process.FilledProcess {
 		MemInfo:     &process.MemoryInfoStat{},
 		CtxSwitches: &process.NumCtxSwitchesStat{},
 	}
-}
-
-// procMsgsVerification takes raw containers and processes and make sure the chunked messages have all data, and each chunk has the correct grouping
-func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*process.FilledProcess, maxSize int) {
-	actualProcs := 0
-	for _, msg := range msgs {
-		payload := msg.(*model.CollectorProc)
-
-		if len(payload.Containers) > 0 {
-			// assume no blacklist involved
-			assert.Equal(t, len(rawContainers), len(payload.Containers))
-
-			procsByPid := make(map[int32]struct{}, len(payload.Processes))
-			for _, p := range payload.Processes {
-				procsByPid[p.Pid] = struct{}{}
-			}
-
-			// make sure all containerized processes are in the payload
-			containeredProcs := 0
-			for _, ctr := range rawContainers {
-				for _, pid := range ctr.Pids {
-					assert.Contains(t, procsByPid, pid)
-					containeredProcs++
-				}
-			}
-			assert.Equal(t, len(payload.Processes), containeredProcs)
-
-			actualProcs += containeredProcs
-		} else {
-			assert.True(t, len(payload.Processes) <= maxSize)
-			actualProcs += len(payload.Processes)
-		}
-	}
-	assert.Equal(t, len(rawProcesses), actualProcs)
 }
 
 func TestProcessChunking(t *testing.T) {

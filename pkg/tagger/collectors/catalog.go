@@ -16,9 +16,3 @@ var DefaultCatalog = make(Catalog)
 
 // CollectorPriorities holds collector priorities
 var CollectorPriorities = make(map[string]CollectorPriority)
-
-// registerCollector is to be called by collectors to be added to the default catalog
-func registerCollector(name string, c CollectorFactory, p CollectorPriority) {
-	DefaultCatalog[name] = c
-	CollectorPriorities[name] = p
-}

@@ -18,7 +18,6 @@ var Container = &ContainerCheck{}
 // ContainerCheck is a check that returns container metadata and stats.
 type ContainerCheck struct {
 	sysInfo *model.SystemInfo
-	lastRun time.Time
 }
 
 // Init initializes a ContainerCheck instance.
@@ -40,12 +39,6 @@ func (c *ContainerCheck) RealTime() bool { return false }
 func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 
 	return nil, nil
-}
-
-// chunkContainers formats and chunks the containers into a slice of chunks using a specific
-// number of chunks. len(result) MUST EQUAL chunks.
-func chunkContainers(ctrList []*containers.Container, lastRates map[string]util.ContainerRateMetrics, lastRun time.Time, chunks, perChunk int) [][]*model.Container {
-	return make([][]*model.Container, chunks)
 }
 
 func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.ContainerRateMetrics, lastRun time.Time) []*model.Container {

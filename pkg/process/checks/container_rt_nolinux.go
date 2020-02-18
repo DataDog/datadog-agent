@@ -18,7 +18,6 @@ var RTContainer = &RTContainerCheck{}
 // RTContainerCheck collects numeric statistics about live containers.
 type RTContainerCheck struct {
 	sysInfo *model.SystemInfo
-	lastRun time.Time
 }
 
 // Init initializes a RTContainerCheck instance.
