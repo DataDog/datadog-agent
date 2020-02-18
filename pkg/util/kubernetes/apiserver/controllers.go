@@ -14,8 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	dd_client "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned"
+	dd_informers "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions"
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -36,7 +39,9 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		startMetadataController,
 	},
 	autoscalersController: {
-		func() bool { return config.Datadog.GetBool("external_metrics_provider.enabled") },
+		func() bool {
+			return config.Datadog.GetBool("external_metrics_provider.enabled") && !config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd")
+		},
 		startAutoscalersController,
 	},
 	servicesController: {
@@ -52,7 +57,9 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 type ControllerContext struct {
 	InformerFactory    informers.SharedInformerFactory
 	WPAClient          wpa_client.Interface
-	WPAInformerFactory externalversions.SharedInformerFactory
+	WPAInformerFactory wpa_informers.SharedInformerFactory
+	DDClient           dd_client.Interface
+	DDInformerFactory  dd_informers.SharedInformerFactory
 	Client             kubernetes.Interface
 	IsLeaderFunc       func() bool
 	EventRecorder      record.EventRecorder

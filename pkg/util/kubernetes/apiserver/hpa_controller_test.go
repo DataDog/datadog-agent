@@ -107,6 +107,9 @@ func (h *fakeProcessor) ProcessEMList(metrics []custommetrics.ExternalMetricValu
 	}
 	return nil
 }
+func (h *fakeProcessor) QueryExternalMetric(queries []string) (map[string]autoscalers.Point, error) {
+	return nil, nil
+}
 
 func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
 	if d.queryMetricsFunc != nil {
@@ -133,6 +136,10 @@ func makePoints(ts int, val float64) datadog.DataPoint {
 }
 
 func makePtr(val string) *string {
+	return &val
+}
+
+func makeIntPtr(val int) *int {
 	return &val
 }
 
@@ -285,15 +292,6 @@ func TestAutoscalerController(t *testing.T) {
 			},
 			Scope: makePtr("foo:bar"),
 		},
-		{
-			Metric: &metricName,
-			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12.34),
-				makePoints(penTime, 1.01),
-				makePoints(0, 0.902),
-			},
-			Scope: makePtr("dcos_version:2.1.9"),
-		},
 	}
 	d := &fakeDatadogClient{
 		queryMetricsFunc: func(from, to int64, query string) ([]datadog.Series, error) {
@@ -377,6 +375,17 @@ func TestAutoscalerController(t *testing.T) {
 					},
 				},
 			},
+		},
+	}
+	ddSeries = []datadog.Series{
+		{
+			Metric: &metricName,
+			Points: []datadog.DataPoint{
+				makePoints(1531492452000, 12.34),
+				makePoints(penTime, 1.01),
+				makePoints(0, 0.902),
+			},
+			Scope: makePtr("dcos_version:2.1.9"),
 		},
 	}
 	mockedHPA.Annotations = makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
