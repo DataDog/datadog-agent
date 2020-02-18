@@ -325,7 +325,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 @task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, puppy=False, cf_windows=False, log_level="info", base_dir=None, gem_path=None,
                   skip_deps=False, skip_sign=False, release_version="nightly", major_version='7',
-                  python_runtimes='3', omnibus_s3_cache=False):
+                  python_runtimes='3', omnibus_s3_cache=False, system_probe_bin=None, libbcc_tarball=None):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -401,6 +401,10 @@ def omnibus_build(ctx, puppy=False, cf_windows=False, log_level="info", base_dir
             env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version, env=env)
             env['MAJOR_VERSION'] = major_version
             env['PY_RUNTIMES'] = python_runtimes
+            if system_probe_bin is not None:
+                env['SYSTEM_PROBE_BIN'] = system_probe_bin
+            if libbcc_tarball is not None:
+                env['LIBBCC_TARBALL'] = libbcc_tarball
             omnibus_start = datetime.datetime.now()
             ctx.run(cmd.format(**args), env=env)
             omnibus_done = datetime.datetime.now()
