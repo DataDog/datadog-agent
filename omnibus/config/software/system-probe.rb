@@ -5,7 +5,7 @@
 
 name 'system-probe'
 
-dependency 'libbcc'
+# dependency 'libbcc'
 
 build do
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
