@@ -52,8 +52,8 @@ variables:
   DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
-  WINDOWS_TESTING_S3_BUCKET_A6: $WIN_S3_BUCKET/pipelines/A6/$CI_PIPELINE_ID
-  WINDOWS_TESTING_S3_BUCKET_A7: $WIN_S3_BUCKET/pipelines/A7/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   ANDROID_BUILDS_S3_BUCKET: $ANDROID_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
@@ -1226,7 +1226,7 @@ deploy_windows_testing-a6:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET_A6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_windows_testing-a7:
   <<: *run_when_testkitchen_triggered
@@ -1238,7 +1238,7 @@ deploy_windows_testing-a7:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 #
 # Kitchen Test Common templates
@@ -1302,8 +1302,8 @@ deploy_windows_testing-a7:
 .kitchen_os_suse: &kitchen_os_suse
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-11,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/SLES-11-SP4/versions/1.0.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-12,urn,SUSE:SLES:12-SP4:2019.11.13"
+    - export TEST_PLATFORMS="sles-11,urn,SUSE:SLES-BYOS:11-SP4:2019.12.05"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-12,urn,SUSE:SLES-BYOS:12-SP4:2019.11.13"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:SLES-BYOS:15:2019.11.15"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
@@ -1804,7 +1804,8 @@ send_pkg_size-a7:
     - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$DD_PIPELINE_ID --recursive
-    - aws s3 rm s3://$WINDOWS_TESTING_S3_BUCKET_A6 --recursive
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - aws s3 rm s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET --recursive
     - cd $OMNIBUS_PACKAGE_DIR
     - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
 
@@ -1815,6 +1816,7 @@ testkitchen_cleanup_s3-a6:
   <<: *run_when_testkitchen_triggered
   tags: [ "runner:main", "size:large" ]
   variables:
+    AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
     - ls
@@ -1829,6 +1831,7 @@ testkitchen_cleanup_s3-a7:
   <<: *run_when_testkitchen_triggered
   tags: [ "runner:main", "size:large" ]
   variables:
+    AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
     - ls
