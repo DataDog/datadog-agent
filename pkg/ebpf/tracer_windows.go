@@ -50,7 +50,3 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 	return nil, ErrNotImplemented
 }
-
-func CurrentKernelVersion() (uint32, error) {
-	return 1, ErrNotImplemented
-}

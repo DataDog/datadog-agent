@@ -82,11 +82,6 @@ const (
 	defaultClosedChannelSize = 500
 )
 
-// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
-// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-func CurrentKernelVersion() (uint32, error) {
-	return bpflib.CurrentKernelVersion()
-}
 
 func NewTracer(config *Config) (*Tracer, error) {
 	// make sure debugfs is mounted
