@@ -69,8 +69,8 @@ TEST_F(CustomActionDataTest, When_ServiceExists_And_UserDoesNotExists_WithUserIn
 
 TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserDoesNotExists_WithUserInDotLocalDomain_ReturnsTrue) {
     CustomActionData customActionCtx;
-    customActionCtx.init(L"DDAGENTUSER_NAME=EBOKSWEB.LOCAL\\ddagentuser_dom");
-    domainname = L"eboksweb";
+    customActionCtx.init(L"DDAGENTUSER_NAME=TEST.LOCAL\\username");
+    domainname = L"test";
 
     bool shouldResetPass;
 
