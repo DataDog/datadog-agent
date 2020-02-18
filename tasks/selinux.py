@@ -7,7 +7,7 @@ import invoke
 from invoke import task
 
 DEFAULT_SYSPROBE_POLICY_TE_FILE = os.path.join(".", "cmd", "agent", "selinux", "system_probe_policy.te")
-DEFAULT_SYSPROBE_POLICY_OUTPUT_DIRECTORY = os.path.join(".", "cmd", "agent", "selinux", "system_probe_policy.te")
+DEFAULT_SYSPROBE_POLICY_OUTPUT_DIRECTORY = os.path.join(".", "cmd", "agent", "selinux")
 
 @task
 def compile_system_probe_policy_file(ctx, te_file = DEFAULT_SYSPROBE_POLICY_TE_FILE,
