@@ -7,7 +7,6 @@ rules:
   - ""
   resources:
   - services
-  - events
   - endpoints
   - pods
   - nodes
@@ -16,6 +15,15 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+  - create
 - apiGroups:
   - "autoscaling"
   resources:
