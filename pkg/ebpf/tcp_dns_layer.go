@@ -10,19 +10,19 @@ import (
 
 // source: https://github.com/weaveworks/scope/blob/master/probe/endpoint/dns_snooper.go
 // Gopacket doesn't provide direct support for DNS over TCP, see https://github.com/google/gopacket/issues/236
+
+type tcpLayer = layers.TCP
+
 type tcpWithDNSSupport struct {
-	tcp layers.TCP
+	tcpLayer
 }
 
-func (m *tcpWithDNSSupport) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
-	return m.tcp.DecodeFromBytes(data, df)
-}
-
-func (m *tcpWithDNSSupport) CanDecode() gopacket.LayerClass { return m.tcp.CanDecode() }
-
-// Determine if a TCP segment contains a full DNS message (i.e. not fragmented)
+// A DNS payload in a TCP segment is preceded by extra two bytes that
+// contain the size of the DNS payload. So if the size of the TCP payload
+// minus first two bytes equals the DNS payload size, we can safely say
+// that the whole of the DNS payload is contained in that single TCP segment.
 func (m *tcpWithDNSSupport) hasSelfContainedDNSPayload() bool {
-	payload := m.tcp.LayerPayload()
+	payload := m.tcpLayer.LayerPayload()
 	if len(payload) < 2 {
 		return false
 	}
@@ -38,11 +38,11 @@ func (m *tcpWithDNSSupport) NextLayerType() gopacket.LayerType {
 	if m.hasSelfContainedDNSPayload() {
 		return layers.LayerTypeDNS
 	}
-	return m.tcp.NextLayerType()
+	return m.tcpLayer.NextLayerType()
 }
 
 func (m *tcpWithDNSSupport) LayerPayload() []byte {
-	payload := m.tcp.LayerPayload()
+	payload := m.tcpLayer.LayerPayload()
 	if len(payload) > 1 {
 		// Omit the DNS length field, only included
 		// in TCP, in order to reuse the DNS UDP parser
