@@ -438,8 +438,13 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 	for i := range entries {
 		err := t.m.DeleteElement(mp, unsafe.Pointer(entries[i]))
 		if err != nil {
-			// It's possible some other process deleted this entry already (e.g. tcp_close)
+			// If this entry no longer exists in the eBPF map it means `tcp_close` has executed
+			// during this function call. In that case state.StoreClosedConnection() was already called for this connection
+			// and we can't delete the corresponding client state or we'll likely over-report the metric values.
+			// By skipping to the next iteration and not calling state.RemoveConnections() we'll let
+			// this connection expire "naturally" when either next connection check runs or the client itself expires.
 			_ = log.Warnf("failed to remove entry from connections map: %s", err)
+			continue
 		}
 
 		// Append the connection key to the keys to remove from the userspace state
