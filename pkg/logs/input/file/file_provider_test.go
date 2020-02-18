@@ -253,6 +253,25 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	suite.Equal([]string{"0 files tailed out of 0 files matching"}, logSources[1].Messages.GetMessages())
 }
 
+func (suite *ProviderTestSuite) TestExcludePath() {
+	filesLimit := 6
+	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
+	excludePaths := []string{fmt.Sprintf("%s/2/*.log", suite.testDir)}
+	fileProvider := NewProvider(filesLimit)
+	logSources := []*config.LogSource{
+		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, ExcludePaths: excludePaths}),
+	}
+
+	files := fileProvider.FilesToTail(logSources)
+	suite.Equal(3, len(files))
+	for i := 0; i < len(files); i++ {
+		suite.Assert().True(files[i].IsWildcardPath)
+	}
+	suite.Equal(fmt.Sprintf("%s/1/3.log", suite.testDir), files[0].Path)
+	suite.Equal(fmt.Sprintf("%s/1/2.log", suite.testDir), files[1].Path)
+	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[2].Path)
+}
+
 func TestProviderTestSuite(t *testing.T) {
 	suite.Run(t, new(ProviderTestSuite))
 }
