@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	containerRe = regexp.MustCompile("[0-9a-f]{64}")
+	containerRe = regexp.MustCompile("[0-9a-f]{64}|[0-9a-f]{8}(-[0-9a-f]{4}){4}")
 	// ErrMissingTarget is an error set when a cgroup target is missing.
 	ErrMissingTarget = errors.New("Missing cgroup target")
 	// dindCgroupRe represents the cgroup pattern that the container runs inside a dind container,

@@ -7,6 +7,10 @@
   revision = "c340012d34adb8462b1e23ad4d7a73944f4224b8"
 
 [[constraint]]
+  name = "code.cloudfoundry.org/garden"
+  revision = "6c6c7943f9d3509d9eb45fd9e95c70affd12f6a6"
+
+[[constraint]]
   name = "github.com/DataDog/gohai"
   branch = "master"
 

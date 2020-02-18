@@ -162,7 +162,7 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 	return svc
 }
 
-func (l *CloudFoundryListener) getAllADIdentifiers(desiredLRPs []cloudfoundry.DesiredLRP, actualLRPs map[string][]cloudfoundry.ActualLRP) []cloudfoundry.ADIdentifier {
+func (l *CloudFoundryListener) getAllADIdentifiers(desiredLRPs map[string]cloudfoundry.DesiredLRP, actualLRPs map[string][]cloudfoundry.ActualLRP) []cloudfoundry.ADIdentifier {
 	ret := []cloudfoundry.ADIdentifier{}
 	for _, dLRP := range desiredLRPs {
 		for adName := range dLRP.EnvAD {

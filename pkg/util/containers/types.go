@@ -27,6 +27,7 @@ const (
 	ContainerPausedState            = "paused"
 	ContainerExitedState            = "exited"
 	ContainerDeadState              = "dead"
+	ContainerActiveState            = "active"
 )
 
 // Supported container health

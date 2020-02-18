@@ -22,9 +22,10 @@ import (
 
 type bbsCacheFake struct {
 	sync.RWMutex
-	Updated     time.Time
-	ActualLRPs  map[string][]cloudfoundry.ActualLRP
-	DesiredLRPs []cloudfoundry.DesiredLRP
+	Updated                 time.Time
+	ActualLRPs              map[string][]cloudfoundry.ActualLRP
+	ActualLRPByInstanceGUID map[string]*cloudfoundry.ActualLRP
+	DesiredLRPs             map[string]cloudfoundry.DesiredLRP
 }
 
 func (b *bbsCacheFake) LastUpdated() time.Time {
@@ -42,28 +43,28 @@ func (b *bbsCacheFake) GetPollSuccesses() int {
 }
 
 func (b *bbsCacheFake) GetActualLRPsFor(appGUID string) []cloudfoundry.ActualLRP {
-	b.RLock()
-	defer b.RUnlock()
-	lrps, ok := b.ActualLRPs[appGUID]
-	if !ok {
-		lrps = []cloudfoundry.ActualLRP{}
-	}
-	return lrps
+	panic("implement me")
 }
 
-func (b *bbsCacheFake) GetDesiredLRPs() []cloudfoundry.DesiredLRP {
-	b.RLock()
-	defer b.RUnlock()
-	return b.DesiredLRPs
+func (b *bbsCacheFake) GetActualLRPFor(instanceGUID string) cloudfoundry.ActualLRP {
+	panic("implement me")
 }
 
-func (b *bbsCacheFake) GetAllLRPs() (map[string][]cloudfoundry.ActualLRP, []cloudfoundry.DesiredLRP) {
+func (b *bbsCacheFake) GetDesiredLRPFor(appGUID string) cloudfoundry.DesiredLRP {
+	panic("implement me")
+}
+
+func (b *bbsCacheFake) GetAllLRPs() (map[string][]cloudfoundry.ActualLRP, map[string]cloudfoundry.DesiredLRP) {
 	b.RLock()
 	defer b.RUnlock()
 	return b.ActualLRPs, b.DesiredLRPs
 }
 
-var testBBSCache *bbsCacheFake = &bbsCacheFake{}
+func (b *bbsCacheFake) ExtractTags() map[string][]string {
+	panic("implement me")
+}
+
+var testBBSCache = &bbsCacheFake{}
 
 func TestCloudFoundryListener(t *testing.T) {
 	var lastRefreshCount int64 = 0
@@ -80,7 +81,7 @@ func TestCloudFoundryListener(t *testing.T) {
 
 	for _, tc := range []struct {
 		aLRP   map[string][]cloudfoundry.ActualLRP
-		dLRP   []cloudfoundry.DesiredLRP
+		dLRP   map[string]cloudfoundry.DesiredLRP
 		expNew map[string]Service
 		expDel map[string]Service
 	}{
@@ -89,8 +90,8 @@ func TestCloudFoundryListener(t *testing.T) {
 			aLRP: map[string][]cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{AppGUID: "appguid1", ProcessGUID: "processguid1"},
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {AppGUID: "appguid1", ProcessGUID: "processguid1"},
 			},
 			expNew: map[string]Service{},
 			expDel: map[string]Service{},
@@ -100,8 +101,8 @@ func TestCloudFoundryListener(t *testing.T) {
 			aLRP: map[string][]cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"differentappguid": {
 					AppGUID:     "differentappguid",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{"flask-app": map[string]json.RawMessage{
@@ -138,8 +139,8 @@ func TestCloudFoundryListener(t *testing.T) {
 					},
 				},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{"flask-app": map[string]json.RawMessage{
@@ -161,7 +162,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		{
 			// now the service created above should be deleted
 			aLRP:   map[string][]cloudfoundry.ActualLRP{},
-			dLRP:   []cloudfoundry.DesiredLRP{},
+			dLRP:   map[string]cloudfoundry.DesiredLRP{},
 			expNew: map[string]Service{},
 			expDel: map[string]Service{
 				"processguid1/flask-app/0": &CloudFoundryService{
@@ -176,8 +177,8 @@ func TestCloudFoundryListener(t *testing.T) {
 			aLRP: map[string][]cloudfoundry.ActualLRP{
 				"differentappguid1": {{AppGUID: "differentappguid1", CellID: "cellX", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {
 					AppGUID:     "myappguid1",
 					ProcessGUID: "myprocessguid1",
 					EnvAD: cloudfoundry.ADConfig{"my-postgres": map[string]json.RawMessage{
@@ -265,8 +266,8 @@ func TestCloudFoundryListener(t *testing.T) {
 					},
 				},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{
@@ -284,7 +285,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					},
 					EnvVcapServices: map[string][]byte{"my-postgres": []byte(`{"credentials":{"host":"a.b.c","Username":"me","Password":"secret","database_name":"mydb"}}`)},
 				},
-				{
+				"appguid2": {
 					AppGUID:     "appguid2",
 					ProcessGUID: "processguid2",
 					EnvAD: cloudfoundry.ADConfig{
@@ -302,7 +303,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					},
 					EnvVcapServices: map[string][]byte{"my-postgres": []byte(`{"credentials":{"host":"a.b.c","Username":"me","Password":"secret","database_name":"mydb"}}`)},
 				},
-				{
+				"appguid3": {
 					AppGUID:     "appguid3",
 					ProcessGUID: "processguid3",
 				},

@@ -50,17 +50,42 @@ func TestBBSCachePolling(t *testing.T) {
 	assert.NotZero(t, c.GetPollSuccesses())
 }
 
-func TestBBSCache_GetDesiredLRPs(t *testing.T) {
-	assert.EqualValues(t, []DesiredLRP{ExpectedD1}, c.GetDesiredLRPs())
+func TestBBSCache_GetDesiredLRPFor(t *testing.T) {
+	assert.EqualValues(t, ExpectedD1, c.GetDesiredLRPFor("012345678901234567890123456789012345"))
 }
 
-func TestBBSCache_GetActualLRPs(t *testing.T) {
+func TestBBSCache_GetActualLRPFor(t *testing.T) {
+	assert.EqualValues(t, ExpectedA1, c.GetActualLRPFor("0123456789012345678"))
+	assert.EqualValues(t, ExpectedA2, c.GetActualLRPFor("0123456789012345679"))
+}
+
+func TestBBSCache_ExtractTags(t *testing.T) {
+	expectedTags := map[string][]string{
+		"0123456789012345678": {
+			"container_name:name_of_the_app_4",
+			"app_name:name_of_the_app",
+			"app_guid:012345678901234567890123456789012345",
+			"app_instance_index:4",
+			"app_instance_guid:0123456789012345678",
+		},
+		"0123456789012345679": {
+			"container_name:name_of_the_app_3",
+			"app_name:name_of_the_app",
+			"app_guid:012345678901234567890123456789012345",
+			"app_instance_index:3",
+			"app_instance_guid:0123456789012345679",
+		},
+	}
+	assert.Equal(t, expectedTags, c.ExtractTags())
+}
+
+func TestBBSCache_GetActualLRPsFor(t *testing.T) {
 	assert.EqualValues(t, []ActualLRP{ExpectedA1, ExpectedA2}, c.GetActualLRPsFor("012345678901234567890123456789012345"))
 }
 
 func TestBBSCache_GetAllLRPs(t *testing.T) {
 	a, d := c.GetAllLRPs()
-	assert.EqualValues(t, ([]DesiredLRP{ExpectedD1}), d)
+	assert.EqualValues(t, map[string]DesiredLRP{ExpectedD1.AppGUID: ExpectedD1}, d)
 	assert.EqualValues(t, map[string][]ActualLRP{"012345678901234567890123456789012345": {ExpectedA1, ExpectedA2}}, a)
 }
 

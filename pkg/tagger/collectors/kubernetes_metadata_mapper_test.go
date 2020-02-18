@@ -79,6 +79,10 @@ func (f *FakeDCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigR
 	return f.EndpointsCheckConfigs, f.EndpointsCheckConfigsErr
 }
 
+func (f *FakeDCAClient) GetAllCFAppsMetadata() (map[string][]string, error) {
+	panic("implement me")
+}
+
 func TestKubeMetadataCollector_getMetadaNames(t *testing.T) {
 	type fields struct {
 		dcaClient           clusteragent.DCAClientInterface

@@ -20,7 +20,7 @@ import (
 type bbsCacheFake struct {
 	Updated     time.Time
 	ActualLRPs  map[string][]cloudfoundry.ActualLRP
-	DesiredLRPs []cloudfoundry.DesiredLRP
+	DesiredLRPs map[string]cloudfoundry.DesiredLRP
 }
 
 func (b bbsCacheFake) LastUpdated() time.Time {
@@ -35,23 +35,27 @@ func (b bbsCacheFake) GetPollSuccesses() int {
 	panic("implement me")
 }
 
+func (b bbsCacheFake) GetActualLRPFor(instanceGUID string) cloudfoundry.ActualLRP {
+	panic("implement me")
+}
+
 func (b bbsCacheFake) GetActualLRPsFor(appGUID string) []cloudfoundry.ActualLRP {
-	lrps, ok := b.ActualLRPs[appGUID]
-	if !ok {
-		lrps = []cloudfoundry.ActualLRP{}
-	}
-	return lrps
+	panic("implement me")
 }
 
-func (b bbsCacheFake) GetDesiredLRPs() []cloudfoundry.DesiredLRP {
-	return b.DesiredLRPs
+func (b bbsCacheFake) GetDesiredLRPFor(appGUID string) cloudfoundry.DesiredLRP {
+	panic("implement me")
 }
 
-func (b bbsCacheFake) GetAllLRPs() (map[string][]cloudfoundry.ActualLRP, []cloudfoundry.DesiredLRP) {
+func (b bbsCacheFake) GetAllLRPs() (map[string][]cloudfoundry.ActualLRP, map[string]cloudfoundry.DesiredLRP) {
 	return b.ActualLRPs, b.DesiredLRPs
 }
 
-var testBBSCache *bbsCacheFake = &bbsCacheFake{}
+func (b bbsCacheFake) ExtractTags() map[string][]string {
+	panic("implement me")
+}
+
+var testBBSCache = &bbsCacheFake{}
 
 func TestCloudFoundryConfigProvider_IsUpToDate(t *testing.T) {
 	now := time.Now()
@@ -79,14 +83,14 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 	for _, tc := range []struct {
 		tc       string
 		aLRP     map[string][]cloudfoundry.ActualLRP
-		dLRP     []cloudfoundry.DesiredLRP
+		dLRP     map[string]cloudfoundry.DesiredLRP
 		expected []integration.Config
 	}{
 		{
 			// empty inputs => no configs
 			tc:       "empty_inputs",
 			aLRP:     map[string][]cloudfoundry.ActualLRP{},
-			dLRP:     []cloudfoundry.DesiredLRP{},
+			dLRP:     map[string]cloudfoundry.DesiredLRP{},
 			expected: []integration.Config{},
 		},
 		{
@@ -95,8 +99,8 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			aLRP: map[string][]cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{AppGUID: "appguid1", ProcessGUID: "processguid1"},
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {AppGUID: "appguid1", ProcessGUID: "processguid1"},
 			},
 			expected: []integration.Config{},
 		},
@@ -106,8 +110,8 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			aLRP: map[string][]cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"differentappguid": {
 					AppGUID:     "differentappguid",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{"flask-app": map[string]json.RawMessage{
@@ -126,8 +130,8 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				"appguid1":          {{AppGUID: "appguid1", CellID: "cellX", Index: 0}},
 				"differentappguid1": {{AppGUID: "differentappguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{"flask-app": map[string]json.RawMessage{
@@ -156,8 +160,8 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				"appguid1":          {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 				"differentappguid1": {{AppGUID: "differentappguid1", CellID: "cellZ", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{"flask-app": map[string]json.RawMessage{
@@ -194,8 +198,8 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			aLRP: map[string][]cloudfoundry.ActualLRP{
 				"differentappguid1": {{AppGUID: "differentappguid1", CellID: "cellX", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{"my-postgres": map[string]json.RawMessage{
@@ -226,8 +230,8 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			aLRP: map[string][]cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{"my-postgres": map[string]json.RawMessage{
@@ -259,8 +263,8 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 				"appguid2": {{AppGUID: "appguid2", CellID: "cellY", Index: 0}, {AppGUID: "appguid2", CellID: "cellZ", Index: 1}},
 				"appguid3": {{AppGUID: "appguid3", CellID: "cellZ", Index: 0}, {AppGUID: "appguid3", CellID: "cellZ", Index: 1}},
 			},
-			dLRP: []cloudfoundry.DesiredLRP{
-				{
+			dLRP: map[string]cloudfoundry.DesiredLRP{
+				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{
@@ -278,7 +282,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 					},
 					EnvVcapServices: map[string][]byte{"my-postgres": []byte(`{"credentials":{"host":"a.b.c","Username":"me","Password":"secret","database_name":"mydb"}}`)},
 				},
-				{
+				"appguid2": {
 					AppGUID:     "appguid2",
 					ProcessGUID: "processguid2",
 					EnvAD: cloudfoundry.ADConfig{
@@ -296,7 +300,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 					},
 					EnvVcapServices: map[string][]byte{"my-postgres": []byte(`{"credentials":{"host":"a.b.c","Username":"me","Password":"secret","database_name":"mydb"}}`)},
 				},
-				{
+				"appguid3": {
 					AppGUID:     "appguid3",
 					ProcessGUID: "processguid3",
 				},

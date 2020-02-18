@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -35,8 +36,43 @@ func Install(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/tags/pod/{nodeName}", getPodMetadataForNode).Methods("GET")
 	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
 	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
+	r.HandleFunc("/tags/cf/apps", getAllCFAppsMetadata).Methods("GET")
 	installClusterCheckEndpoints(r, sc)
 	installEndpointsCheckEndpoints(r, sc)
+}
+
+// getCFAppMetadata is only used when the node agent hits the DCA for the list of cloudfoundry applications tags
+// It return a list of tags for each application that can be directly used in the tagger
+func getAllCFAppsMetadata(w http.ResponseWriter, r *http.Request) {
+	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
+	if err != nil {
+		log.Errorf("Could not retrieve BBS cache: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc("getCFAppMetadata", strconv.Itoa(http.StatusInternalServerError))
+		return
+	}
+
+	tags := bbsCache.ExtractTags()
+
+	tagsBytes, err := json.Marshal(tags)
+	if err != nil {
+		log.Errorf("Could not process tags for CF applications: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc(
+			"getAllCFAppsMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		)
+		return
+	}
+	if len(tagsBytes) > 0 {
+		w.WriteHeader(http.StatusOK)
+		w.Write(tagsBytes)
+		apiRequests.Inc(
+			"getAllCFAppsMetadata",
+			strconv.Itoa(http.StatusOK),
+		)
+		return
+	}
 }
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels

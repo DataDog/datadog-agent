@@ -38,7 +38,8 @@ MODULE_WHITELIST = [
     "adapters.go",  # pkg/util/winutil/iphelper
     "routes.go",    # pkg/util/winutil/iphelper
     # All
-    "agent.pb.go"
+    "agent.pb.go",
+    "bbscache_test.go",
 ]
 
 # List of paths to ignore in misspell's output

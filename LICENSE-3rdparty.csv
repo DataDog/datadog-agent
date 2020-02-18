@@ -166,6 +166,7 @@ core,code.cloudfoundry.org/bbs,Apache-2.0
 core,github.com/tedsuo/rata,MIT
 core,github.com/bmizerany/pat,MIT
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0
+core,code.cloudfoundry.org/garden,Apache-2.0
 process,github.com/DataDog/gopsutil,BSD-3-Clause
 network,github.com/iovisor/gobpf,Apache-2.0
 network,github.com/florianl/go-conntrack,MIT

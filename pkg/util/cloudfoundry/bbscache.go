@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"code.cloudfoundry.org/bbs"
 	"code.cloudfoundry.org/bbs/models"
 	"code.cloudfoundry.org/lager"
@@ -26,9 +28,11 @@ type BBSCacheI interface {
 	LastUpdated() time.Time
 	GetPollAttempts() int
 	GetPollSuccesses() int
+	GetActualLRPFor(instanceGUID string) ActualLRP
 	GetActualLRPsFor(appGUID string) []ActualLRP
-	GetDesiredLRPs() []DesiredLRP
-	GetAllLRPs() (map[string][]ActualLRP, []DesiredLRP)
+	GetDesiredLRPFor(appGUID string) DesiredLRP
+	GetAllLRPs() (map[string][]ActualLRP, map[string]DesiredLRP)
+	ExtractTags() map[string][]string
 }
 
 // BBSCache is a simple structure that caches and automatically refreshes data from Cloud Foundry BBS API
@@ -42,13 +46,14 @@ type BBSCache struct {
 	pollAttempts       int
 	pollSuccesses      int
 	// maps Desired LRPs' AppGUID to list of ActualLRPs (IOW this is list of running containers per app)
-	actualLRPs  map[string][]ActualLRP
-	desiredLRPs []DesiredLRP
-	lastUpdated time.Time
+	actualLRPs              map[string][]ActualLRP
+	actualLRPByInstanceGUID map[string]*ActualLRP
+	desiredLRPs             map[string]DesiredLRP
+	lastUpdated             time.Time
 }
 
 var (
-	globalBBSCache     *BBSCache = &BBSCache{}
+	globalBBSCache     = &BBSCache{}
 	globalBBSCacheLock sync.Mutex
 )
 
@@ -102,22 +107,35 @@ func GetGlobalBBSCache() (*BBSCache, error) {
 	return globalBBSCache, nil
 }
 
+// LastUpdated return the last time the cache was updated
 func (bc *BBSCache) LastUpdated() time.Time {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.lastUpdated
 }
 
+// GetPollAttempts returns the number of times the cache queried the BBS API
 func (bc *BBSCache) GetPollAttempts() int {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.pollAttempts
 }
 
+// GetPollSuccesses returns the number of times the cache successfully queried the BBS API
 func (bc *BBSCache) GetPollSuccesses() int {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.pollSuccesses
+}
+
+// GetActualLRPFor returns the App GUID associated to an instance GUID
+func (bc *BBSCache) GetActualLRPFor(instanceGUID string) ActualLRP {
+	bc.RLock()
+	defer bc.RUnlock()
+	if val, ok := bc.actualLRPByInstanceGUID[instanceGUID]; ok {
+		return *val
+	}
+	return ActualLRP{}
 }
 
 // GetActualLRPsFor returns slice of ActualLRP objects for given App GUID
@@ -130,15 +148,15 @@ func (bc *BBSCache) GetActualLRPsFor(appGUID string) []ActualLRP {
 	return []ActualLRP{}
 }
 
-// GetDesiredLRPs returns slice of all DesiredLRP objects
-func (bc *BBSCache) GetDesiredLRPs() []DesiredLRP {
+// GetDesiredLRPFor returns DesiredLRP for a specific app GUID
+func (bc *BBSCache) GetDesiredLRPFor(appGUID string) DesiredLRP {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.desiredLRPs
+	return bc.desiredLRPs[appGUID]
 }
 
 // GetAllLRPs returns all Actual LRPs (in mapping {appGuid: []ActualLRP}) and all Desired LRPs
-func (bc *BBSCache) GetAllLRPs() (map[string][]ActualLRP, []DesiredLRP) {
+func (bc *BBSCache) GetAllLRPs() (map[string][]ActualLRP, map[string]DesiredLRP) {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.actualLRPs, bc.desiredLRPs
@@ -165,13 +183,14 @@ func (bc *BBSCache) readData() {
 	bc.Unlock()
 	var wg sync.WaitGroup
 	var actualLRPs map[string][]ActualLRP
-	var desiredLRPs []DesiredLRP
+	var actualLRPByInstanceGUID map[string]*ActualLRP
+	var desiredLRPs map[string]DesiredLRP
 	var errActual, errDesired error
 
 	wg.Add(2)
 
 	go func() {
-		actualLRPs, errActual = bc.readActualLRPs()
+		actualLRPs, actualLRPByInstanceGUID, errActual = bc.readActualLRPs()
 		wg.Done()
 	}()
 	go func() {
@@ -193,38 +212,72 @@ func (bc *BBSCache) readData() {
 	defer bc.Unlock()
 	log.Debug("Data from BBS API read successfully, refreshing the cache")
 	bc.actualLRPs = actualLRPs
+	bc.actualLRPByInstanceGUID = actualLRPByInstanceGUID
 	bc.desiredLRPs = desiredLRPs
 	bc.lastUpdated = time.Now()
 	bc.pollSuccesses++
 }
 
-func (bc *BBSCache) readActualLRPs() (map[string][]ActualLRP, error) {
+func (bc *BBSCache) readActualLRPs() (map[string][]ActualLRP, map[string]*ActualLRP, error) {
 	actualLRPs := map[string][]ActualLRP{}
+	actualLRPByInstanceGUID := map[string]*ActualLRP{}
 	actualLRPsBBS, err := bc.bbsAPIClient.ActualLRPs(bc.bbsAPIClientLogger, models.ActualLRPFilter{})
 	if err != nil {
-		return actualLRPs, err
+		return actualLRPs, actualLRPByInstanceGUID, err
 	}
 	for _, lrp := range actualLRPsBBS {
 		alrp := ActualLRPFromBBSModel(lrp)
 		if lrpList, ok := actualLRPs[alrp.AppGUID]; ok {
 			actualLRPs[alrp.AppGUID] = append(lrpList, alrp)
+			actualLRPByInstanceGUID[alrp.InstanceGUID] = &actualLRPs[alrp.AppGUID][len(lrpList)]
 		} else {
 			actualLRPs[alrp.AppGUID] = []ActualLRP{alrp}
+			actualLRPByInstanceGUID[alrp.InstanceGUID] = &actualLRPs[alrp.AppGUID][0]
 		}
 	}
 	log.Debugf("Successfully read %d Actual LRPs", len(actualLRPsBBS))
-	return actualLRPs, nil
+	return actualLRPs, actualLRPByInstanceGUID, nil
 }
 
-func (bc *BBSCache) readDesiredLRPs() ([]DesiredLRP, error) {
+func (bc *BBSCache) readDesiredLRPs() (map[string]DesiredLRP, error) {
 	desiredLRPsBBS, err := bc.bbsAPIClient.DesiredLRPs(bc.bbsAPIClientLogger, models.DesiredLRPFilter{})
 	if err != nil {
-		return []DesiredLRP{}, err
+		return map[string]DesiredLRP{}, err
 	}
-	desiredLRPs := make([]DesiredLRP, len(desiredLRPsBBS))
-	for i, lrp := range desiredLRPsBBS {
-		desiredLRPs[i] = DesiredLRPFromBBSModel(lrp)
+	desiredLRPs := make(map[string]DesiredLRP, len(desiredLRPsBBS))
+	for _, lrp := range desiredLRPsBBS {
+		desiredLRP := DesiredLRPFromBBSModel(lrp)
+		desiredLRPs[desiredLRP.AppGUID] = desiredLRP
 	}
 	log.Debugf("Successfully read %d Desired LRPs", len(desiredLRPsBBS))
 	return desiredLRPs, nil
+}
+
+// ExtractTags extract all the container tags for each app in the cache an returns a mapping of tags by instance GUID
+func (bc *BBSCache) ExtractTags() map[string][]string {
+	tags := map[string][]string{}
+	alrps, dlrps := bc.GetAllLRPs()
+	for appGUID, dlrp := range dlrps {
+		alrpsForApp, ok := alrps[appGUID]
+		if !ok {
+			log.Debugf("Could not find actual LRPs for app GUID %s", appGUID)
+			continue
+		}
+		vcApp := dlrp.EnvVcapApplication
+		appName, ok := vcApp["application_name"]
+		if !ok {
+			log.Debugf("Could not find application_name of app %s", appGUID)
+			continue
+		}
+		for _, alrp := range alrpsForApp {
+			tags[alrp.InstanceGUID] = []string{
+				fmt.Sprintf("container_name:%s_%d", appName, alrp.Index),
+				fmt.Sprintf("app_name:%s", appName),
+				fmt.Sprintf("app_guid:%s", appGUID),
+				fmt.Sprintf("app_instance_index:%d", alrp.Index),
+				fmt.Sprintf("app_instance_guid:%s", alrp.InstanceGUID),
+			}
+		}
+	}
+	return tags
 }
