@@ -8,13 +8,12 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+var _ gopacket.DecodingLayer = &tcpWithDNSSupport{}
+
 // source: https://github.com/weaveworks/scope/blob/master/probe/endpoint/dns_snooper.go
 // Gopacket doesn't provide direct support for DNS over TCP, see https://github.com/google/gopacket/issues/236
-
-type tcpLayer = layers.TCP
-
 type tcpWithDNSSupport struct {
-	tcpLayer
+	layers.TCP
 }
 
 // A DNS payload in a TCP segment is preceded by extra two bytes that
@@ -22,7 +21,7 @@ type tcpWithDNSSupport struct {
 // minus first two bytes equals the DNS payload size, we can safely say
 // that the whole of the DNS payload is contained in that single TCP segment.
 func (m *tcpWithDNSSupport) hasSelfContainedDNSPayload() bool {
-	payload := m.tcpLayer.LayerPayload()
+	payload := m.TCP.LayerPayload()
 	if len(payload) < 2 {
 		return false
 	}
@@ -38,11 +37,11 @@ func (m *tcpWithDNSSupport) NextLayerType() gopacket.LayerType {
 	if m.hasSelfContainedDNSPayload() {
 		return layers.LayerTypeDNS
 	}
-	return m.tcpLayer.NextLayerType()
+	return m.TCP.NextLayerType()
 }
 
 func (m *tcpWithDNSSupport) LayerPayload() []byte {
-	payload := m.tcpLayer.LayerPayload()
+	payload := m.TCP.LayerPayload()
 	if len(payload) > 1 {
 		// Omit the DNS length field, only included
 		// in TCP, in order to reuse the DNS UDP parser
