@@ -119,12 +119,12 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	netns := getGlobalNetNSFD(procRoot)
 
 	logger := getLogger()
-	nfct, err := ct.Open(&ct.Config{ReadTimeout: 10 * time.Millisecond, NetNS: netns, Logger: logger})
+	nfct, err := ct.Open(&ct.Config{NetNS: netns, Logger: logger})
 	if err != nil {
 		return nil, err
 	}
 
-	nfctDel, err := ct.Open(&ct.Config{ReadTimeout: 10 * time.Millisecond, NetNS: netns, Logger: logger})
+	nfctDel, err := ct.Open(&ct.Config{NetNS: netns, Logger: logger})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open delete NFCT")
 	}
