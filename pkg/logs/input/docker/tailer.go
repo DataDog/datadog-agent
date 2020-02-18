@@ -57,14 +57,14 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(dockeruti *dockerutil.DockerUtil, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
+func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *config.LogSource, outputChan chan *message.Message, erroredContainerID chan string) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            InitializeDecoder(source, containerID),
 		source:             source,
 		tagProvider:        tag.NewProvider(dockerutil.ContainerIDToTaggerEntityName(containerID)),
-		dockerutil:         dockeruti,
+		dockerutil:         cli,
 		readTimeout:        defaultReadTimeout,
 		sleepDuration:      defaultSleepDuration,
 		stop:               make(chan struct{}, 1),
