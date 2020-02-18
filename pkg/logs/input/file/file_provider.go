@@ -164,7 +164,7 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 			log.Debugf("Adding excluded path: %s", excludedPath)
 			excludedPaths[excludedPath]++
 			if excludedPaths[excludedPath] > 1 {
-				log.Debugf("Overlaping excluded path: %s", excludedPath)
+				log.Debugf("Overlapping excluded path: %s", excludedPath)
 			}
 		}
 	}
