@@ -85,6 +85,13 @@ bool CustomActionData::parseUsernameData()
         computed_domain = computername;
         this->domainUser = false;
     } else {
+        WCHAR netBiosDomainName[256];
+        DWORD size = sizeof(netBiosDomainName)/sizeof(WCHAR);
+        if (DnsHostnameToComputerName(computed_domain.c_str(), netBiosDomainName, &size))
+        {
+            computed_domain = netBiosDomainName;
+        }
+
         if(0 == _wcsicmp(computed_domain.c_str(), computername.c_str())){
             WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
             this->domainUser = false;
