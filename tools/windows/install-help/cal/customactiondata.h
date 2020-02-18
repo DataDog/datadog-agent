@@ -1,7 +1,6 @@
 #pragma once
 #include <map>
 #include <string>
-
 class CustomActionData
 {
     public:
@@ -13,7 +12,6 @@ class CustomActionData
 
         bool present(const std::wstring& key) const;
         bool value(const std::wstring& key, std::wstring &val) const;
-        void set_value(const std::wstring& key, const std::wstring& val);
 
         bool isUserDomainUser() const {
             return domainUser;

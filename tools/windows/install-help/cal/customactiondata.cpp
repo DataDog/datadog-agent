@@ -59,10 +59,6 @@ bool CustomActionData::value(const std::wstring& key, std::wstring &val) const {
     return true;
 }
 
-void CustomActionData::set_value(const std::wstring& key, const std::wstring& val) {
-    values[key] = val;
-}
-
 bool CustomActionData::parseUsernameData()
 {
     std::wstring tmpName = ddAgentUserName;

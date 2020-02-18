@@ -4,8 +4,7 @@
 // Case 2
 TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserExists_WithPassword_ReturnsTrue) {
     CustomActionData customActionCtx;
-    propertyDDAgentUserPassword = L"pass";
-    customActionCtx.set_value(propertyDDAgentUserPassword, L"1234");
+    customActionCtx.init(L"DDAGENTUSER_NAME=different_domain\\test;DDAGENTUSER_PASSWORD=1234");
     bool shouldResetPass;
 
     bool result = canInstall(
