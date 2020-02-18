@@ -79,11 +79,11 @@ func GetClusterAgentClient() (DCAClientInterface, error) {
 	if globalClusterAgentClient == nil {
 		globalClusterAgentClient = &DCAClient{}
 		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{
-			Name:          "clusterAgentClient",
-			AttemptMethod: globalClusterAgentClient.init,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "clusterAgentClient",
+			AttemptMethod:     globalClusterAgentClient.init,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	if err := globalClusterAgentClient.initRetry.TriggerRetry(); err != nil {

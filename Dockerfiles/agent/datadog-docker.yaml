@@ -9,9 +9,7 @@ config_providers:
     polling: true
     poll_interval: 1s
 
-# Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
 apm_config:
-  enabled: false
   apm_non_local_traffic: true
 
 # Use java container support

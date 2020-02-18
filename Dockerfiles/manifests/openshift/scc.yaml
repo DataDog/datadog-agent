@@ -43,9 +43,16 @@ fsGroup:
   type: MustRunAs
 readOnlyRootFilesystem: false
 runAsUser:
-  type: MustRunAsRange
+  type: RunAsAny
 supplementalGroups:
   type: RunAsAny
+# If your environment restricts user access to the Docker socket or journald (for logging)
+# create or use an existing group that has access and add the GID to
+# the lines below (also remove the previous line, `type: RunAsAny`)
+#   type: MustRunAs
+#   ranges:
+#   - min: <min-group-ID>
+#   - max: <max-group-ID>
 seccompProfiles: []
 requiredDropCapabilities: []
 allowedCapabilities: []

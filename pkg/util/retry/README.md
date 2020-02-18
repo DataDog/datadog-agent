@@ -12,6 +12,8 @@ strategies than we default ones.
 - **OneTry** (default): don't retry, fail on the first error
 - **RetryCount**: retry for a set number of attempts when `TriggerRetry`
 is called (returning a `FailWillRetry` error), then fail with a `PermaFail`
+- **Backoff**: retry with a duration between two consecutive retries that
+double at each new try up to a maximum
 
 ### How to embed the Retrier
 

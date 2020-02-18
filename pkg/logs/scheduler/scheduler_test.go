@@ -44,6 +44,64 @@ func TestScheduleConfigCreatesNewSource(t *testing.T) {
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
+func TestScheduleConfigCreatesNewSourceServiceFallback(t *testing.T) {
+	logSources := config.NewLogSources()
+	services := service.NewServices()
+	scheduler := NewScheduler(logSources, services)
+
+	logSourcesStream := logSources.GetAddedForType(config.DockerType)
+
+	configSource := integration.Config{
+		InitConfig:    []byte(`{"service":"foo"}`),
+		LogsConfig:    []byte(`[{"source":"bar"}]`),
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		Provider:      names.Kubernetes,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck:  false,
+		CreationTime:  0,
+	}
+
+	go scheduler.Schedule([]integration.Config{configSource})
+	logSource := <-logSourcesStream
+	assert.Equal(t, config.DockerType, logSource.Name)
+	// We use the docker socket, not sourceType here
+	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
+	assert.Equal(t, "foo", logSource.Config.Service)
+	assert.Equal(t, "bar", logSource.Config.Source)
+	assert.Equal(t, config.DockerType, logSource.Config.Type)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+}
+
+func TestScheduleConfigCreatesNewSourceServiceOverride(t *testing.T) {
+	logSources := config.NewLogSources()
+	services := service.NewServices()
+	scheduler := NewScheduler(logSources, services)
+
+	logSourcesStream := logSources.GetAddedForType(config.DockerType)
+
+	configSource := integration.Config{
+		InitConfig:    []byte(`{"service":"foo"}`),
+		LogsConfig:    []byte(`[{"source":"bar","service":"baz"}]`),
+		ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
+		Provider:      names.Kubernetes,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:        "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck:  false,
+		CreationTime:  0,
+	}
+
+	go scheduler.Schedule([]integration.Config{configSource})
+	logSource := <-logSourcesStream
+	assert.Equal(t, config.DockerType, logSource.Name)
+	// We use the docker socket, not sourceType here
+	assert.Equal(t, config.SourceType(""), logSource.GetSourceType())
+	assert.Equal(t, "baz", logSource.Config.Service)
+	assert.Equal(t, "bar", logSource.Config.Source)
+	assert.Equal(t, config.DockerType, logSource.Config.Type)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+}
+
 func TestScheduleConfigCreatesNewService(t *testing.T) {
 	logSources := config.NewLogSources()
 	services := service.NewServices()

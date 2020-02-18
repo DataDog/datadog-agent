@@ -7,6 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func parseMetricSample(rawSample []byte) (dogstatsdMetricSample, error) {
+	parser := newParser()
+	return parser.parseMetricSample(rawSample)
+}
+
 const epsilon = 0.00001
 
 func TestParseGauge(t *testing.T) {
