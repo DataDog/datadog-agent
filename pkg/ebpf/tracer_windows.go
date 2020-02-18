@@ -19,10 +19,10 @@ func (t *Tracer) Stop() {}
 func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 	return &Connections{
 		DNS: map[util.Address][]string{
-			util.AddressFromString("127.0.0.1"): []string{"localhost"},
+			util.AddressFromString("127.0.0.1"): {"localhost"},
 		},
 		Conns: []ConnectionStats{
-			ConnectionStats{
+			{
 				Source: util.AddressFromString("127.0.0.1"),
 				Dest:   util.AddressFromString("127.0.0.1"),
 				SPort:  35673,
