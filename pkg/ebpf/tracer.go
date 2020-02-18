@@ -82,7 +82,6 @@ const (
 	defaultClosedChannelSize = 500
 )
 
-
 func NewTracer(config *Config) (*Tracer, error) {
 	// make sure debugfs is mounted
 	if mounted, msg := util.IsDebugfsMounted(); !mounted {

@@ -4,10 +4,12 @@ package ebpf
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	bpflib "github.com/iovisor/gobpf/elf"
 )
 
 func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
