@@ -136,7 +136,6 @@ func TestPrioritySampleTracerWeight(t *testing.T) {
 	}
 }
 func TestPrioritySampleThresholdTo1(t *testing.T) {
-	// Simple sample unit test
 	assert := assert.New(t)
 	env := defaultEnv
 

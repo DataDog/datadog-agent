@@ -24,7 +24,8 @@ const (
 	initialSignatureScoreOffset float64       = 1
 	minSignatureScoreOffset     float64       = 0.01
 	defaultSignatureScoreSlope  float64       = 3
-	// when a sampling rate is above defaultSamplingRateThresholdTo1, it's set at 1
+	// defaultSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
+	// If this is surpassed, the rate is set to 1.
 	defaultSamplingRateThresholdTo1 float64 = 1
 )
 
@@ -63,7 +64,7 @@ type Sampler struct {
 	extraRate float64
 	// Maximum limit to the total number of traces per second to sample
 	maxTPS float64
-	// RateThresholdTo1 is the value above which all computed sampling rates will be set to 1
+	// rateThresholdTo1 is the value above which all computed sampling rates will be set to 1
 	rateThresholdTo1 float64
 
 	// Sample any signature with a score lower than scoreSamplingOffset
@@ -78,12 +79,12 @@ type Sampler struct {
 }
 
 // newSampler returns an initialized Sampler
-func newSampler(extraRate float64, maxTPS float64, rateThresholdTo1 float64) *Sampler {
+func newSampler(extraRate float64, maxTPS float64) *Sampler {
 	s := &Sampler{
 		Backend:              NewMemoryBackend(defaultDecayPeriod, defaultDecayFactor),
 		extraRate:            extraRate,
 		maxTPS:               maxTPS,
-		rateThresholdTo1:     rateThresholdTo1,
+		rateThresholdTo1:     defaultSamplingRateThresholdTo1,
 		signatureScoreOffset: atomic.NewFloat(0),
 		signatureScoreSlope:  atomic.NewFloat(0),
 		signatureScoreFactor: atomic.NewFloat(0),
@@ -160,6 +161,10 @@ func (s *Sampler) GetMaxTPSSampleRate() float64 {
 	}
 
 	return maxTPSrate
+}
+
+func (s *Sampler) setRateThresholdTo1(r float64) {
+	s.rateThresholdTo1 = r
 }
 
 // CombineRates merges two rates from Sampler1, Sampler2. Both samplers law are independent,

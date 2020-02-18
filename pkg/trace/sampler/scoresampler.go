@@ -5,9 +5,7 @@
 
 package sampler
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-)
+import "github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 // ScoreEngine is the main component of the sampling logic
 type ScoreEngine struct {
@@ -19,7 +17,7 @@ type ScoreEngine struct {
 // NewScoreEngine returns an initialized Sampler
 func NewScoreEngine(extraRate float64, maxTPS float64) *ScoreEngine {
 	s := &ScoreEngine{
-		Sampler:    newSampler(extraRate, maxTPS, defaultSamplingRateThresholdTo1),
+		Sampler:    newSampler(extraRate, maxTPS),
 		engineType: NormalScoreEngineType,
 	}
 
@@ -31,7 +29,7 @@ func NewScoreEngine(extraRate float64, maxTPS float64) *ScoreEngine {
 // for reporting).
 func NewErrorsEngine(extraRate float64, maxTPS float64) *ScoreEngine {
 	s := &ScoreEngine{
-		Sampler:    newSampler(extraRate, maxTPS, defaultSamplingRateThresholdTo1),
+		Sampler:    newSampler(extraRate, maxTPS),
 		engineType: ErrorsScoreEngineType,
 	}
 

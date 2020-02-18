@@ -30,7 +30,8 @@ const (
 	// was sampled.
 	SamplingPriorityRateKey = "_sampling_priority_rate_v1"
 	syncPeriod              = 3 * time.Second
-	// when a sampling rate is above prioritySamplingRateThresholdTo1, it's set at 1
+	// prioritySamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
+	// If this is surpassed, the rate is set to 1.
 	prioritySamplingRateThresholdTo1 = 0.3
 )
 
@@ -47,11 +48,12 @@ type PriorityEngine struct {
 // NewPriorityEngine returns an initialized Sampler
 func NewPriorityEngine(extraRate float64, maxTPS float64, rateByService *RateByService) *PriorityEngine {
 	s := &PriorityEngine{
-		Sampler:       newSampler(extraRate, maxTPS, prioritySamplingRateThresholdTo1),
+		Sampler:       newSampler(extraRate, maxTPS),
 		rateByService: rateByService,
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
 	}
+	s.Sampler.setRateThresholdTo1(prioritySamplingRateThresholdTo1)
 
 	return s
 }

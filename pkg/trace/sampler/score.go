@@ -50,7 +50,7 @@ func (s *Sampler) GetDefaultSampleRate() float64 {
 
 func (s *Sampler) loadRate(rate float64) float64 {
 	if rate >= s.rateThresholdTo1 {
-		rate = 1
+		return 1
 	}
 	return rate
 }
