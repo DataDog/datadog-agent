@@ -71,7 +71,7 @@ else
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-withcrt-amd64.zip",
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-withcrt-amd64.zip",
          :sha256 => "1da0a5e43c24ed62a43c9f3a4d42e72abb4905b0e1fa4923f01c9ee5814ef9e7"
 
   end
