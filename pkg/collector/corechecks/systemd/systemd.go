@@ -54,6 +54,7 @@ type metricConfigItem struct {
 }
 
 // metricConfigs contains metricConfigItem(s) grouped by unit type.
+// TODO: Instead of using `optional`, use SystemD version to decide if a attribute/metric should be processed or not.
 var metricConfigs = map[string][]metricConfigItem{
 	typeService: {
 		{
@@ -186,6 +187,8 @@ func (c *SystemdCheck) Run() error {
 	}
 	defer c.stats.CloseConn(conn)
 
+	c.submitSystemdState(sender, conn)
+
 	err = c.submitMetrics(sender, conn)
 	if err != nil {
 		return err
@@ -196,31 +199,34 @@ func (c *SystemdCheck) Run() error {
 
 func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
 	conn, err := c.getDbusConnection()
-
 	if err != nil {
 		newErr := fmt.Errorf("cannot create a connection: %v", err)
 		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
 		return nil, newErr
+	} else {
+		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckOK, "", nil, "")
+		return conn, nil
 	}
+}
 
+func (c *SystemdCheck) submitSystemdState(sender aggregator.Sender, conn *dbus.Conn) {
 	systemStateProp, err := c.stats.SystemState(conn)
+	// Expected to fail for Systemd version <212
+	// Source: https://github.com/systemd/systemd/blob/d4ffda38716d33dbc17faaa12034ccb77d0ed68b/NEWS#L7292-L7300
+	// TODO: Instead of logging debug, replace with condition based on Systemd version.
 	if err != nil {
-		newErr := fmt.Errorf("err calling SystemState: %v", err)
-		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
-		return nil, newErr
-	}
-	sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckOK, "", nil, "")
-
-	serviceCheckStatus := metrics.ServiceCheckUnknown
-	systemState, ok := systemStateProp.Value.Value().(string)
-	if ok {
-		status, ok := systemdStatusMapping[systemState]
+		log.Debugf("err calling SystemState: %v", err)
+	} else {
+		serviceCheckStatus := metrics.ServiceCheckUnknown
+		systemState, ok := systemStateProp.Value.Value().(string)
 		if ok {
-			serviceCheckStatus = status
+			status, ok := systemdStatusMapping[systemState]
+			if ok {
+				serviceCheckStatus = status
+			}
 		}
+		sender.ServiceCheck(systemStateServiceCheck, serviceCheckStatus, "", nil, fmt.Sprintf("Systemd status is %v", systemStateProp.Value))
 	}
-	sender.ServiceCheck(systemStateServiceCheck, serviceCheckStatus, "", nil, fmt.Sprintf("Systemd status is %v", systemStateProp.Value))
-	return conn, nil
 }
 
 func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {

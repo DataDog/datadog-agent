@@ -1,0 +1,13 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Make ``systemd`` core check handle gracefully missing ``SystemState`` attribute.
+    ``SystemState`` attribute is only available from ``systemd`` version 212.
+    Source: https://github.com/systemd/systemd/blob/d4ffda38716d33dbc17faaa12034ccb77d0ed68b/NEWS#L7292-L7300
