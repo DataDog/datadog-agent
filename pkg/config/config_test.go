@@ -649,7 +649,6 @@ func TestTrimTrailingSlashFromURLS(t *testing.T) {
 	var additionalEndpointSelectors = []string{
 		"additional_endpoints",
 		"apm_config.additional_endpoints",
-		"logs_config.additional_endpoints",
 		"process_config.additional_endpoints",
 	}
 	datadogYaml := `
@@ -666,12 +665,6 @@ apm_config:
     testingapm.com//:
     - fakekey
     test2apm.com/:
-    - fakekey
-logs_config:
-  additional_endpoints:
-    testinglogs.com///////:
-    - fakekey
-    test2logs.com/:
     - fakekey
 process_config:
   additional_endpoints:

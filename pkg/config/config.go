@@ -826,7 +826,6 @@ func trimTrailingSlashFromURLS(config Config) error {
 	var additionalEndpointSelectors = []string{
 		"additional_endpoints",
 		"apm_config.additional_endpoints",
-		"logs_config.additional_endpoints",
 		"process_config.additional_endpoints",
 	}
 
