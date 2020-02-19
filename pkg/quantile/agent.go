@@ -101,8 +101,8 @@ func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) {
 		kEndIdx++
 	}
 	if whatsLeft > 0 {
-		a.Sketch.Basic.InsertN(agentConfig.binLow(keys[len(keys)-1]), uint(whatsLeft))
-		a.CountBuf = append(a.CountBuf, KeyCount{k: keys[len(keys)-1], n: uint(whatsLeft)})
+		a.Sketch.Basic.InsertN(agentConfig.binLow(keys[kStartIdx]), uint(whatsLeft))
+		a.CountBuf = append(a.CountBuf, KeyCount{k: keys[kStartIdx], n: uint(whatsLeft)})
 	}
 	a.flush()
 }

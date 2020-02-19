@@ -214,7 +214,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 
 	expSketch := &quantile.Sketch{}
 	// linear interpolated values
-	expSketch.Insert(quantile.Default(), 10.0, 12.5, 15.0, 20)
+	expSketch.Insert(quantile.Default(), 10.0, 12.5, 15.0, 17.5)
 
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
@@ -244,7 +244,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 
 	expSketch = &quantile.Sketch{}
 	// linear interpolated values (only 2 since we stored the delta)
-	expSketch.Insert(quantile.Default(), 10.0, 20.0)
+	expSketch.Insert(quantile.Default(), 10.0, 15.0)
 
 	assert.Equal(t, 1, len(flushed))
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
