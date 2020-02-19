@@ -94,7 +94,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
-	currKernelVersion, err := currentKernelVersion()
+	currKernelVersion, err := CurrentKernelVersion()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")

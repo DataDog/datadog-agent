@@ -53,6 +53,6 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 
 // CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
 // That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-func currentKernelVersion() (uint32, error) {
+func CurrentKernelVersion() (uint32, error) {
 	return bpflib.CurrentKernelVersion()
 }

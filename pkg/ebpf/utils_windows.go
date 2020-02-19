@@ -7,6 +7,6 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 	return true, ""
 }
 
-func currentKernelVersion() (uint32, error) {
+func CurrentKernelVersion() (uint32, error) {
 	return 1, ErrNotImplemented
 }
