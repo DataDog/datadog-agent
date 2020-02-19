@@ -19,11 +19,7 @@ type sketchMap map[int64]map[ckey.ContextKey]*quantile.Agent
 func (m sketchMap) Len() int {
 	l := 0
 	for _, byCtx := range m {
-		for _, q := range byCtx {
-			l += len(q.Buf) * 4
-			used, _ := q.Sketch.MemSize()
-			l += used
-		}
+		l += len(byCtx)
 	}
 	return l
 }

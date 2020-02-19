@@ -216,7 +216,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	// linear interpolated values
 	expSketch.Insert(quantile.Default(), 10.0, 12.5, 15.0, 17.5)
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},
 		Points: []metrics.SketchPoint{
@@ -246,7 +246,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	expSketch.Insert(quantile.Default(), 10.0, 15.0)
 
 	assert.Equal(t, 1, len(flushed))
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},
 		Points: []metrics.SketchPoint{
@@ -283,7 +283,7 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 	expSketch := &quantile.Sketch{}
 	expSketch.InsertMany(quantile.Default(), []float64{9000.0, 9000.0, 9000.0, 9000.0})
 
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},
 		Points: []metrics.SketchPoint{
