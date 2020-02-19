@@ -20,9 +20,14 @@ func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
 	// The MockSender will be injected in the corecheck via the aggregator
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", "", 1*time.Hour)
-	aggregator.SetSender(mockSender, id)
+	SetSender(mockSender, id)
 
 	return mockSender
+}
+
+// SetSender sets passed sender with the passed ID.
+func SetSender(sender *MockSender, id check.ID) {
+	aggregator.SetSender(sender, id)
 }
 
 //MockSender allows mocking of the checks sender for unit testing
@@ -61,6 +66,8 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("GetMetricStats", mock.AnythingOfType("map[string]int64")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
+	m.On("SetCheckService", mock.AnythingOfType("string")).Return()
+	m.On("FinalizeCheckServiceTag").Return()
 	m.On("Commit").Return()
 }
 

@@ -234,6 +234,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
+	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
@@ -289,6 +290,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
 	config.SetKnown("dogstatsd_mapper_profiles")
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
@@ -404,7 +406,7 @@ func initConfig(config Config) {
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
 	// since some of them require custom parsing algorithms. DO NOT add environment variable
 	// bindings here, add them there instead.
-	if runtime.GOARCH == "386" {
+	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
 		// so that there aren't messages in the log about failing to start.
 		config.BindEnvAndSetDefault("apm_config.enabled", false)
@@ -768,6 +770,7 @@ func load(config Config, origin string, loadSecret bool) error {
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
+	trimTrailingSlashFromURLS(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -812,6 +815,48 @@ func ResolveSecrets(config Config, origin string) error {
 // Avoid log ingestion breaking because of a newline in the API key
 func sanitizeAPIKey(config Config) {
 	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
+}
+
+//trimTrailingSlashFromURLS trims any forward slashes from the end of various config URL's (site, dd_url, and various additional endpoints)
+func trimTrailingSlashFromURLS(config Config) error {
+	var urls = []string{
+		"site",
+		"dd_url",
+	}
+	var additionalEndpointSelectors = []string{
+		"additional_endpoints",
+		"apm_config.additional_endpoints",
+		"logs_config.additional_endpoints",
+		"process_config.additional_endpoints",
+	}
+
+	for _, domain := range urls {
+		key := config.GetString(domain)
+		if key == "" {
+			continue
+		}
+		config.Set(domain, strings.TrimRight(key, "/"))
+	}
+
+	for _, es := range additionalEndpointSelectors {
+		additionalEndpoints := make(map[string][]string)
+		sanitizedAdditionalEndpoints := make(map[string][]string)
+
+		err := config.UnmarshalKey(es, &additionalEndpoints)
+
+		if err != nil {
+			return err
+		}
+		for domain, keys := range additionalEndpoints {
+			if domain == "" {
+				continue
+			}
+			domain = strings.TrimRight(domain, "/")
+			sanitizedAdditionalEndpoints[domain] = keys
+		}
+		config.Set(es, sanitizedAdditionalEndpoints)
+	}
+	return nil
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`

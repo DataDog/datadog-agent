@@ -37,6 +37,8 @@ type Sender interface {
 	GetMetricStats() map[string]int64
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
+	SetCheckService(service string)
+	FinalizeCheckServiceTag()
 }
 
 type metricStats struct {
@@ -66,6 +68,7 @@ type checkSender struct {
 	eventOut                chan<- metrics.Event
 	histogramBucketOut      chan<- senderHistogramBucket
 	checkTags               []string
+	service                 string
 }
 
 type senderMetricSample struct {
@@ -167,6 +170,19 @@ func (s *checkSender) DisableDefaultHostname(disable bool) {
 // They will be appended to each send (metric, event and service)
 func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
+}
+
+// SetCheckService appends the service as a tag for metrics, events, and service checks
+// This may be called any number of times, though the only the last call will have an effect
+func (s *checkSender) SetCheckService(service string) {
+	s.service = service
+}
+
+// FinalizeCheckServiceTag appends the service as a tag for metrics, events, and service checks
+func (s *checkSender) FinalizeCheckServiceTag() {
+	if s.service != "" {
+		s.checkTags = append(s.checkTags, fmt.Sprintf("service:%s", s.service))
+	}
 }
 
 // Commit commits the metric samples & histogram buckets that were added during a check run
