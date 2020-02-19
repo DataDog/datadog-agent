@@ -26,7 +26,11 @@ import (
 // Pod is a singleton PodCheck.
 var Pod = &PodCheck{}
 
-const redactedValue = "********"
+const (
+	// from https://github.com/kubernetes/kubernetes/blob/abe6321296123aaba8e83978f7d17951ab1b64fd/pkg/util/node/node.go#L43
+	nodeUnreachablePodReason = "NodeLost"
+	redactedValue            = "********"
+)
 
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
@@ -209,5 +213,108 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 		podModel.ContainerStatuses = append(podModel.ContainerStatuses, &cStatus)
 	}
 
+	podModel.KubectlStatus = computeKubectlStatus(p)
+	podModel.ConditionMessage = getConditionMessage(p)
+
 	return &podModel
+}
+
+// mostly copied from kubernetes to match what users see in kubectl
+// in case of issues, check for changes upstream: https://github.com/kubernetes/kubernetes/blob/1e12d92a5179dbfeb455c79dbf9120c8536e5f9c/pkg/printers/internalversion/printers.go#L685
+func computeKubectlStatus(p *v1.Pod) string {
+	reason := string(p.Status.Phase)
+	if p.Status.Reason != "" {
+		reason = pod.Status.Reason
+	}
+
+	initializing := false
+	for i := range pod.Status.InitContainerStatuses {
+		container := pod.Status.InitContainerStatuses[i]
+		switch {
+		case container.State.Terminated != nil && container.State.Terminated.ExitCode == 0:
+			continue
+		case container.State.Terminated != nil:
+			// initialization is failed
+			if len(container.State.Terminated.Reason) == 0 {
+				if container.State.Terminated.Signal != 0 {
+					reason = fmt.Sprintf("Init:Signal:%d", container.State.Terminated.Signal)
+				} else {
+					reason = fmt.Sprintf("Init:ExitCode:%d", container.State.Terminated.ExitCode)
+				}
+			} else {
+				reason = "Init:" + container.State.Terminated.Reason
+			}
+			initializing = true
+		case container.State.Waiting != nil && len(container.State.Waiting.Reason) > 0 && container.State.Waiting.Reason != "PodInitializing":
+			reason = "Init:" + container.State.Waiting.Reason
+			initializing = true
+		default:
+			reason = fmt.Sprintf("Init:%d/%d", i, len(pod.Spec.InitContainers))
+			initializing = true
+		}
+		break
+	}
+	if !initializing {
+		hasRunning := false
+		for i := len(pod.Status.ContainerStatuses) - 1; i >= 0; i-- {
+			container := pod.Status.ContainerStatuses[i]
+
+			if container.State.Waiting != nil && container.State.Waiting.Reason != "" {
+				reason = container.State.Waiting.Reason
+			} else if container.State.Terminated != nil && container.State.Terminated.Reason != "" {
+				reason = container.State.Terminated.Reason
+			} else if container.State.Terminated != nil && container.State.Terminated.Reason == "" {
+				if container.State.Terminated.Signal != 0 {
+					reason = fmt.Sprintf("Signal:%d", container.State.Terminated.Signal)
+				} else {
+					reason = fmt.Sprintf("ExitCode:%d", container.State.Terminated.ExitCode)
+				}
+			} else if container.Ready && container.State.Running != nil {
+				hasRunning = true
+			}
+		}
+
+		// change pod status back to "Running" if there is at least one container still reporting as "Running" status
+		if reason == "Completed" && hasRunning {
+			reason = "Running"
+		}
+	}
+
+	if pod.DeletionTimestamp != nil && pod.Status.Reason == nodeUnreachablePodReason {
+		reason = "Unknown"
+	} else if pod.DeletionTimestamp != nil {
+		reason = "Terminating"
+	}
+
+	return reason
+}
+
+// getConditionMessage loops through the pod conditions, and reports the message of the first one
+// (in the normal state transition order) that's doesn't pass
+func getConditionMessage(p *v1.Pod) string {
+	messageMap := make(map[string]string)
+
+	// from https://github.com/kubernetes/kubernetes/blob/ddd6d668f6a55cd3a8a2c2f268734e83524e5a7b/staging/src/k8s.io/api/core/v1/types.go#L2439-L2449
+	// update if new ones appear
+	chronologicalConditions := []v1.PodConditionType{
+		v1.PodScheduled,
+		v1.PodInitialized,
+		v1.ContainersReady,
+		v1.PodReady,
+	}
+
+	// populate messageMap with messages for non-passing conditions
+	for _, c := range p.Status.Conditions {
+		if c.Status == v1.ConditionFalse && c.Message != nil {
+			messageMap[c.Type] = c.Message
+		}
+	}
+
+	// return the message of the first one that failed
+	for _, c := range chronologicalConditions {
+		if m := messageMap[c]; m != nil {
+			return m
+		}
+	}
+	return nil
 }
