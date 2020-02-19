@@ -16,7 +16,7 @@ from invoke.exceptions import Exit, ParseError
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
 from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
@@ -104,8 +104,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     # remove all tags that are only available on debian distributions
     distname = distro.id().lower()
-    if distname not in REDHAT_AND_DEBIAN_DIST:
-        for ex in REDHAT_AND_DEBIAN_ONLY_TAGS:
+    if distname not in REDHAT_DEBIAN_SUSE_DIST:
+        for ex in REDHAT_DEBIAN_SUSE_ONLY_TAGS:
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
@@ -146,7 +146,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         build_tags = get_default_build_tags(puppy=True)
     else:
         build_tags = get_build_tags(build_include, build_exclude)
- 
+
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
