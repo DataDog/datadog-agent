@@ -16,7 +16,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, load_release_versions, get_version
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
+from .build_tags import get_build_tags, get_default_build_tags, get_distro_exclude_tags
 from .go import deps, generate
 
 # constants
@@ -65,12 +65,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
-    # remove all tags that are only available on debian distributions
-    distname = distro.id().lower()
-    if distname not in REDHAT_DEBIAN_SUSE_DIST:
-        for ex in REDHAT_DEBIAN_SUSE_ONLY_TAGS:
-            if ex not in build_exclude:
-                build_exclude.append(ex)
+    # remove all tags that are not available for current distro
+    build_exclude.extend(get_distro_exclude_tags())
 
     build_tags = get_default_build_tags(puppy=True)
 
