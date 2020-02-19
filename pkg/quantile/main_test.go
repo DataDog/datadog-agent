@@ -45,7 +45,7 @@ func ParseSketch(t *testing.T, dsl string) *Sketch {
 		}
 
 		s.count += int(n)
-		s.bins = append(s.bins, bin{k: k, n: uint32(n)})
+		s.bins = append(s.bins, bin{k: k, n: uint16(n)})
 		s.Basic.InsertN(c.f64(k), uint(n))
 	})
 
@@ -74,7 +74,7 @@ func parseN(t *testing.T, s string) uint64 {
 	}
 
 	// <k>:max case
-	n := uint64(math.MaxUint32)
+	n := uint64(math.MaxUint16)
 	switch {
 	case s == "max":
 		return n

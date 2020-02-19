@@ -13,13 +13,13 @@ import (
 func buildStore(t *testing.T, dsl string) *sparseStore {
 	s := &sparseStore{}
 
-	eachParsedToken(t, dsl, 32, func(k Key, n uint64) {
+	eachParsedToken(t, dsl, 16, func(k Key, n uint64) {
 		if n > maxBinWidth {
 			t.Fatal("n > max", n, maxBinWidth)
 		}
 
 		s.count += int(n)
-		s.bins = append(s.bins, bin{k: k, n: uint32(n)})
+		s.bins = append(s.bins, bin{k: k, n: uint16(n)})
 	})
 
 	return s
@@ -95,7 +95,7 @@ func TestStore(t *testing.T) {
 			},
 			{
 				s: "1:max 1:max 1:1 2:max 3:1 4:1",
-				e: "1:4294967295 1:4294967295 2:1 2:4294967295 3:1 4:1",
+				e: "1:65535 1:65535 2:1 2:65535 3:1 4:1",
 				b: 3,
 			},
 			{

@@ -161,7 +161,7 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 			s.count += kn
 			keyIdx++
 		default:
-			tmp = appendSafe(tmp, b.k, int(b.n+uint32(kn)))
+			tmp = appendSafe(tmp, b.k, int(b.n+uint16(kn)))
 			s.count += kn
 			sIdx++
 			keyIdx++

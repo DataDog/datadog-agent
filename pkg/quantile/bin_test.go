@@ -9,9 +9,9 @@ import (
 func TestBin_incrSafe(t *testing.T) {
 	const maxn = maxBinWidth
 	tests := []struct {
-		n            uint32
+		n            uint16
 		by           int
-		wantN        uint32
+		wantN        uint16
 		wantOverflow int
 		name         string
 	}{
