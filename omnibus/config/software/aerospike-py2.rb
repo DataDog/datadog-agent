@@ -31,5 +31,5 @@ build do
   command "cd #{install_dir}/embedded/lib/aerospike && make clean", :env => env
   command "cd #{install_dir}/embedded/lib/aerospike && make", :env => env
 
-  pip2 "install --no-binary :all: aerospike==#{version}", :env => env
+  command "#{install_dir}/embedded/bin/pip2 install --no-binary :all: aerospike==#{version}", :env => env
 end
