@@ -29,7 +29,7 @@ build do
   }
 
   command "cd #{install_dir}/embedded/lib/aerospike && make clean", :env => env
-  command "cd #{install_dir}/embedded/lib/aerospike && make -j #{workers}", :env => env
+  command "cd #{install_dir}/embedded/lib/aerospike && make", :env => env
 
-  pip "install --no-binary aerospike aerospike==#{version}", :env => env
+  pip "install --no-binary :all: aerospike==#{version}", :env => env
 end
