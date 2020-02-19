@@ -66,7 +66,7 @@ else
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
-    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-withcrt-x86.zip",
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-withcrt-x86.zip",
             :sha256 => "212a3a2112ef0ca2fd4baebe71c149f89fa5bda4b746c102b7b292fe6e1209ef"
   else
 
