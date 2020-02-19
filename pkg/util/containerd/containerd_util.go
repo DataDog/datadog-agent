@@ -70,11 +70,11 @@ func GetContainerdUtil() (ContainerdItf, error) {
 		}
 		// Initialize the client in the connect method
 		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{
-			Name:          "containerdutil",
-			AttemptMethod: globalContainerdUtil.connect,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "containerdutil",
+			AttemptMethod:     globalContainerdUtil.connect,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	})
 	if err := globalContainerdUtil.initRetry.TriggerRetry(); err != nil {

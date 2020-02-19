@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -160,11 +159,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 			reverseDNS = snooper
 		} else {
 			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
-		}
-
-		if !util.IsRootNS(config.ProcRoot) {
-			log.Warn("system-probe is not running on the root network namespace, which is usually caused by running the " +
-				"system-probe in a container without using the host network. in this mode, you may see partial DNS resolution.")
 		}
 	}
 
@@ -438,8 +432,13 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 	for i := range entries {
 		err := t.m.DeleteElement(mp, unsafe.Pointer(entries[i]))
 		if err != nil {
-			// It's possible some other process deleted this entry already (e.g. tcp_close)
+			// If this entry no longer exists in the eBPF map it means `tcp_close` has executed
+			// during this function call. In that case state.StoreClosedConnection() was already called for this connection
+			// and we can't delete the corresponding client state or we'll likely over-report the metric values.
+			// By skipping to the next iteration and not calling state.RemoveConnections() we'll let
+			// this connection expire "naturally" when either next connection check runs or the client itself expires.
 			_ = log.Warnf("failed to remove entry from connections map: %s", err)
+			continue
 		}
 
 		// Append the connection key to the keys to remove from the userspace state

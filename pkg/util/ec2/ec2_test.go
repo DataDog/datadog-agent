@@ -266,7 +266,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	var requestWithoutToken *http.Request
 	var requestForToken *http.Request
 	var requestWithToken *http.Request
-	var seq int = 0
+	var seq int
 
 	ipv4 := "198.51.100.1"
 	token := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
