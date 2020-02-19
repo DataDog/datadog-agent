@@ -1,7 +1,7 @@
 name "aerospike"
 default_version "3.10.0"
 
-dependency "pip"
+dependency "pip3"
 
 build do
   # The binary wheels on PyPI are not yet compatible with OpenSSL 1.1.0+, see:
@@ -31,5 +31,5 @@ build do
   command "cd #{install_dir}/embedded/lib/aerospike && make clean", :env => env
   command "cd #{install_dir}/embedded/lib/aerospike && make", :env => env
 
-  pip "install --no-binary :all: aerospike==#{version}", :env => env
+  pip3 "install --no-binary :all: aerospike==#{version}", :env => env
 end

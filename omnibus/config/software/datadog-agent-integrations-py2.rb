@@ -30,7 +30,7 @@ if linux?
   dependency 'libkrb5'
 
   unless suse? || arm?
-    dependency 'aerospike'
+    dependency 'aerospike-py2'
   end
 end
 
