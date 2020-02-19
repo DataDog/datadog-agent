@@ -12,9 +12,10 @@ import (
 
 const maxIPBufferSize = 200
 
+var errNoDNSLayer = errors.New("parsed layers do not contain a DNS layer")
 var errParsing = errors.New("error parsing packet")
 var errUnhandledDNSResponse = errors.New("unsupported DNS response")
-var errNoDNSLayer = errors.New("parsed layers do not contain a DNS layer")
+var errTruncated = errors.New("the packet is truncated")
 
 type dnsParser struct {
 	decoder *gopacket.DecodingLayerParser
@@ -42,8 +43,18 @@ func newDNSParser() *dnsParser {
 
 func (p *dnsParser) ParseInto(data []byte, t *translation) error {
 	err := p.decoder.DecodeLayers(data, &p.layers)
-	if err != nil || p.decoder.Truncated {
+	// Parsing errors can be of different types. For example, if a DNS
+	// payload gets fragmented into two TCP segments, parsing of the two segments
+	// will result in two different errors (errDecodeRecordLength and
+	// errDNSNameOffsetNegative respectively). Instead of propagating those
+	// fine-grained errors upstream, we return a generic error to represent all
+	// parsing errors.
+	if err != nil {
 		return errParsing
+	}
+
+	if p.decoder.Truncated {
+		return errTruncated
 	}
 
 	for _, layer := range p.layers {

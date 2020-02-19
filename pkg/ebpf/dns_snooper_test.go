@@ -59,7 +59,7 @@ Loop:
 	assert.Equal(t, int64(1), stats["resolved"])
 }
 
-func TestDNSSnooping(t *testing.T) {
+func TestDNSOverUDPSnooping(t *testing.T) {
 	m, err := readBPFModule(false)
 	require.NoError(t, err)
 	defer m.Close()
