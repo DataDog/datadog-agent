@@ -58,7 +58,6 @@ REDHAT_DEBIAN_SUSE_DIST = [
     'rhel',
     'ubuntu',
     'sles',
-    'opensuse',
 ]
 
 
