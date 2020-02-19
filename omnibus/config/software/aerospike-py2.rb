@@ -1,4 +1,4 @@
-name "aerospike"
+name "aerospike-py2"
 default_version "3.10.0"
 
 dependency "pip2"
@@ -8,9 +8,6 @@ build do
   # https://github.com/aerospike/aerospike-client-python/issues/214#issuecomment-385451007
   # https://github.com/aerospike/aerospike-client-python/issues/227#issuecomment-423220411
   command "git clone https://github.com/aerospike/aerospike-client-c.git #{install_dir}/embedded/lib/aerospike"
-
-  # https://github.com/aerospike/aerospike-client-python/blob/master/BUILD.md#building-on-an-unsupported-linux-distro
-  command "git clone https://github.com/aerospike/aerospike-lua-core.git #{install_dir}/embedded/lib/aerospike/aerospike-lua-core"
 
   # This needs to be kept in sync with whatever the Python library was built with.
   # For example, version 3.10.0 was built with version 4.6.10 of the C library, see:
@@ -25,7 +22,6 @@ build do
     "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
     "DOWNLOAD_C_CLIENT" => "0",
     "AEROSPIKE_C_HOME" => "#{install_dir}/embedded/lib/aerospike",
-    "AEROSPIKE_LUA_PATH" => "#{install_dir}/embedded/lib/aerospike/aerospike-lua-core/src",
   }
 
   command "cd #{install_dir}/embedded/lib/aerospike && make clean", :env => env
