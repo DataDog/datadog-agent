@@ -216,6 +216,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	// linear interpolated values
 	expSketch.Insert(quantile.Default(), 10.0, 12.5, 15.0, 17.5)
 
+	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},
@@ -223,7 +224,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 			{Ts: 12345.0, Sketch: expSketch},
 		},
 		ContextKey: generateContextKey(bucket1),
-	}, flushed[0])
+	}, flushed[0], .03)
 
 	bucket2 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -246,6 +247,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	expSketch.Insert(quantile.Default(), 10.0, 15.0)
 
 	assert.Equal(t, 1, len(flushed))
+	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},
@@ -253,7 +255,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 			{Ts: 12400.0, Sketch: expSketch},
 		},
 		ContextKey: generateContextKey(bucket1),
-	}, flushed[0])
+	}, flushed[0], .03)
 
 	// garbage collection
 	time.Sleep(11 * time.Millisecond)
@@ -283,6 +285,7 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 	expSketch := &quantile.Sketch{}
 	expSketch.InsertMany(quantile.Default(), []float64{9000.0, 9000.0, 9000.0, 9000.0})
 
+	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},
@@ -290,5 +293,5 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 			{Ts: 12345.0, Sketch: expSketch},
 		},
 		ContextKey: generateContextKey(bucket1),
-	}, flushed[0])
+	}, flushed[0], .03)
 }

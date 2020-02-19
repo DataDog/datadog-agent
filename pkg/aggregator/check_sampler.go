@@ -105,6 +105,8 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		// noop
 		return
 	}
+
+	// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
 	if math.IsInf(bucket.UpperBound, 1) {
 		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
 		return

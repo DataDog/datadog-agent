@@ -80,10 +80,10 @@ func AssertSketchSeriesEqual(t assert.TestingT, exp, act SketchSeries) {
 	})
 }
 
-// AssertSketchSeriesApproxEqual checks whether two SketchSeries are approximately equal
-func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act SketchSeries) {
+// AssertSketchSeriesApproxEqual checks whether two SketchSeries are approximately equal. e represents the acceptable error %
+func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act SketchSeries, e float64) {
 	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
-		return quantile.SketchesApproxEqual(exp, act, .05)
+		return quantile.SketchesApproxEqual(exp, act, e)
 	})
 }
 
