@@ -226,13 +226,13 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	suite.config.Set("logs_config.compression_level", 6)
 	suite.config.Set("logs_config.logs_no_ssl", false)
 	endpointsInConfig := []map[string]interface{}{
-		map[string]interface{}{
+		{
 			"api_key":           "456",
 			"host":              "additional.endpoint.1",
 			"port":              1234,
 			"use_compression":   true,
 			"compression_level": 2},
-		map[string]interface{}{
+		{
 			"api_key":           "789",
 			"host":              "additional.endpoint.2",
 			"port":              1234,
@@ -278,7 +278,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	suite.config.Set("logs_config.dev_mode_use_proto", true)
 	suite.config.Set("logs_config.dev_mode_use_proto", true)
 	endpointsInConfig := []map[string]interface{}{
-		map[string]interface{}{
+		{
 			"api_key": "456",
 			"host":    "additional.endpoint",
 			"port":    1234},
