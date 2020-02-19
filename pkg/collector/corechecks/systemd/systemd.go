@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"strings"
 	"time"
 
@@ -146,6 +147,7 @@ type systemdStats interface {
 	SystemState(c *dbus.Conn) (*dbus.Property, error)
 	ListUnits(c *dbus.Conn) ([]dbus.UnitStatus, error)
 	GetUnitTypeProperties(c *dbus.Conn, unitName string, unitType string) (map[string]interface{}, error)
+	GetVersion(c *dbus.Conn) (string, error)
 
 	// Misc
 	UnixNow() int64
@@ -177,6 +179,10 @@ func (s *defaultSystemdStats) GetUnitTypeProperties(c *dbus.Conn, unitName strin
 	return c.GetUnitTypeProperties(unitName, unitType)
 }
 
+func (s *defaultSystemdStats) GetVersion(c *dbus.Conn) (string, error) {
+	return c.GetManagerProperty("Version")
+}
+
 func (s *defaultSystemdStats) UnixNow() int64 {
 	return time.Now().Unix()
 }
@@ -201,6 +207,8 @@ func (c *SystemdCheck) Run() error {
 		return err
 	}
 	sender.Commit()
+
+	c.submitVersion(conn)
 	return nil
 }
 
@@ -268,6 +276,17 @@ func (c *SystemdCheck) getSystemBusSocketConnection() (*dbus.Conn, error) {
 		log.Debugf("Error getting new connection using system bus socket: %v", err)
 	}
 	return conn, err
+}
+
+func (c *SystemdCheck) submitVersion(conn *dbus.Conn) {
+	version, err := c.stats.GetVersion(conn)
+	if err != nil {
+		log.Debugf("Error collection version from the systemd: %v", err)
+		return
+	}
+	checkID := string(c.ID())
+	inventories.SetCheckMetadata(checkID, "version.raw", version)
+	log.Debugf("Submitted version %v for checkID %v", version, checkID)
 }
 
 func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
