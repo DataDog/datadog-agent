@@ -42,20 +42,20 @@ func initForwarderHealthExpvars() {
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
 // unhealthy if the API keys are not longer valid
 type forwarderHealth struct {
-	health             *health.Handle
-	stop               chan bool
-	stopped            chan struct{}
-	timeout            time.Duration
-	keysPerDomains     map[string][]string
-	keysPerAPIEndpoint map[string][]string
+	health           *health.Handle
+	stop             chan bool
+	stopped          chan struct{}
+	timeout          time.Duration
+	keysPerDomains   map[string][]string
+	keysPerAPIDomain map[string][]string
 }
 
 func (fh *forwarderHealth) init() {
 	fh.stop = make(chan bool, 1)
 	fh.stopped = make(chan struct{})
 
-	fh.keysPerAPIEndpoint = make(map[string][]string)
-	fh.computeDomainsURL()
+	fh.keysPerAPIDomain = make(map[string][]string)
+	fh.computeAPIDomains()
 
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
@@ -111,17 +111,17 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	}
 }
 
-// computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
-func (fh *forwarderHealth) computeDomainsURL() {
+// computeAPIDomains populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
+func (fh *forwarderHealth) computeAPIDomains() {
+	re := regexp.MustCompile("datadoghq.[a-z]*")
 	for domain, apiKeys := range fh.keysPerDomains {
 		apiDomain := ""
-		re := regexp.MustCompile("datadoghq.[a-z]*")
 		if re.MatchString(domain) {
 			apiDomain = "https://api." + re.FindString(domain)
 		} else {
 			apiDomain = domain
 		}
-		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], apiKeys...)
+		fh.keysPerAPIDomain[apiDomain] = append(fh.keysPerAPIDomain[apiDomain], apiKeys...)
 	}
 }
 
@@ -175,7 +175,7 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 	validKey := false
 	apiError := false
 
-	for domain, apiKeys := range fh.keysPerAPIEndpoint {
+	for domain, apiKeys := range fh.keysPerAPIDomain {
 		for _, apiKey := range apiKeys {
 			v, err := fh.validateAPIKey(apiKey, domain)
 			if err != nil {

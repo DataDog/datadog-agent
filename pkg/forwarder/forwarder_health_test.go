@@ -38,19 +38,25 @@ func TestHasValidAPIKey(t *testing.T) {
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 }
 
-func TestComputeDomainsURL(t *testing.T) {
+func TestComputeAPIDomains(t *testing.T) {
 	keysPerDomains := map[string][]string{
-		"https://app.datadoghq.com": {"api_key1"},
+		"https://app.datadoghq.com":   {"api_key1"},
+		"https://shouldnotchange.com": {"api_key_2"},
+		"https://app.datadoghq.eu":    {"api_key_3"},
+		"datadoghq.com":               {"api_key_4"},
+		"custom.datadoghq.com":        {"api_key_5"},
 	}
 
 	testMap := map[string][]string{
-		"https://api.datadoghq.com": {"api_key1"},
+		"https://api.datadoghq.com":   {"api_key1", "api_key_4", "api_key_5"},
+		"https://shouldnotchange.com": {"api_key_2"},
+		"https://api.datadoghq.eu":    {"api_key_3"},
 	}
 
 	fh := forwarderHealth{keysPerDomains: keysPerDomains}
 	fh.init()
 
-	assert.Equal(t, fh.keysPerAPIEndpoint, testMap)
+	assert.Equal(t, fh.keysPerAPIDomain, testMap)
 }
 
 func TestHasValidAPIKeyErrors(t *testing.T) {
@@ -70,14 +76,14 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	defer ts1.Close()
 	defer ts2.Close()
 
-	keysPerAPIEndpoint := map[string][]string{
+	keysPerAPIDomain := map[string][]string{
 		ts1.URL: {"api_key1", "api_key2"},
 		ts2.URL: {"key3"},
 	}
 
 	fh := forwarderHealth{}
 	fh.init()
-	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
+	fh.keysPerAPIDomain = keysPerAPIDomain
 	assert.True(t, fh.hasValidAPIKey())
 
 	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending with _key1"))
