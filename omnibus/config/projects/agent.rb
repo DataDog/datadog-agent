@@ -90,7 +90,7 @@ package :zip do
       "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root",
     ]
-  
+
     additional_sign_files [
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
@@ -156,6 +156,11 @@ dependency 'datadog-agent-prepare'
 
 # Datadog agent
 dependency 'datadog-agent'
+
+# System-probe
+if linux?
+  dependency 'system-probe'
+end
 
 # Additional software
 if windows?

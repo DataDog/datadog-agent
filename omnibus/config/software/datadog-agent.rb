@@ -38,6 +38,8 @@ build do
         "Python2_ROOT_DIR" => "#{install_dir}/embedded",
         "Python3_ROOT_DIR" => "#{install_dir}/embedded",
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+        "CGO_CFLAGS" => "-I#{install_dir}/embedded/include",
+        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     }
     major_version_arg = "$MAJOR_VERSION"
     py_runtimes_arg = "$PY_RUNTIMES"
@@ -118,14 +120,6 @@ build do
     # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
     command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --go-version=1.10.1", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
-  end
-
-
-  # Build the system-probe
-  if linux?
-    command "invoke -e system-probe.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --go-version=1.10.1", :env => env
-    copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
-    block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
   end
 
 
