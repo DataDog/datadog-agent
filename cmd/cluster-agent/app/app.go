@@ -189,13 +189,14 @@ func start(cmd *cobra.Command, args []string) error {
 
 		stopCh := make(chan struct{})
 		ctx := apiserver.ControllerContext{
-			InformerFactory:    apiCl.InformerFactory,
-			WPAClient:          apiCl.WPAClient,
-			WPAInformerFactory: apiCl.WPAInformerFactory,
-			Client:             apiCl.Cl,
-			LeaderElector:      le,
-			EventRecorder:      eventRecorder,
-			StopCh:             stopCh,
+			InformerFactory:              apiCl.InformerFactory,
+			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
+			WPAClient:                    apiCl.WPAClient,
+			WPAInformerFactory:           apiCl.WPAInformerFactory,
+			Client:                       apiCl.Cl,
+			LeaderElector:                le,
+			EventRecorder:                eventRecorder,
+			StopCh:                       stopCh,
 		}
 
 		if err := apiserver.StartControllers(ctx); err != nil {

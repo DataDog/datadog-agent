@@ -15,6 +15,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -53,6 +54,9 @@ const (
 type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
+
+	// UnassignedPodInformerFactory gives access to filtered informers
+	UnassignedPodInformerFactory informers.SharedInformerFactory
 
 	// WPAClient gives access to WPA API
 	WPAClient wpa_client.Interface
@@ -150,6 +154,16 @@ func getInformerFactory() (informers.SharedInformerFactory, error) {
 	return informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
+func getInformerFactoryWithOption(options informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
+	if err != nil {
+		log.Infof("Could not get apiserver client: %v", err)
+		return nil, err
+	}
+	return informers.NewSharedInformerFactoryWithOptions(client, resyncPeriodSeconds*time.Second, options), nil
+}
+
 func (c *APIClient) connect() error {
 	var err error
 	c.Cl, err = getKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
@@ -162,6 +176,16 @@ func (c *APIClient) connect() error {
 	if err != nil {
 		return err
 	}
+
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		tweakListOptions := func(options *metav1.ListOptions) {
+			options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
+		}
+		c.UnassignedPodInformerFactory, err = getInformerFactoryWithOption(
+			informers.WithTweakListOptions(tweakListOptions),
+		)
+	}
+
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
 		if c.WPAInformerFactory, err = getWPAInformerFactory(); err != nil {
 			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())

@@ -37,16 +37,21 @@ var controllerCatalog = map[string]controllerFuncs{
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		startServicesInformer,
 	},
+	"orchestrator": {
+		func() bool { return config.Datadog.GetBool("orchestrator_explorer.enabled") },
+		startOrchestratorController,
+	},
 }
 
 type ControllerContext struct {
-	InformerFactory    informers.SharedInformerFactory
-	WPAClient          wpa_client.Interface
-	WPAInformerFactory externalversions.SharedInformerFactory
-	Client             kubernetes.Interface
-	LeaderElector      LeaderElectorInterface
-	EventRecorder      record.EventRecorder
-	StopCh             chan struct{}
+	InformerFactory              informers.SharedInformerFactory
+	UnassignedPodInformerFactory informers.SharedInformerFactory
+	WPAClient                    wpa_client.Interface
+	WPAInformerFactory           externalversions.SharedInformerFactory
+	Client                       kubernetes.Interface
+	LeaderElector                LeaderElectorInterface
+	EventRecorder                record.EventRecorder
+	StopCh                       chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
@@ -71,6 +76,7 @@ func StartControllers(ctx ControllerContext) error {
 	// FIXME: We may want to initialize each of these controllers separately via their respective
 	// `<informer>.Run()`
 	ctx.InformerFactory.Start(ctx.StopCh)
+	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
 
 	return nil
 }
@@ -114,6 +120,16 @@ func startServicesInformer(ctx ControllerContext) error {
 	// Just start the shared informer, the autodiscovery
 	// components will access it when needed.
 	go ctx.InformerFactory.Core().V1().Services().Informer().Run(ctx.StopCh)
+
+	return nil
+}
+
+func startOrchestratorController(ctx ControllerContext) error {
+	orchestratorControler := newOrchestratorController(
+		ctx.UnassignedPodInformerFactory.Core().V1().Pods(),
+	)
+
+	go orchestratorControler.Run(ctx.StopCh)
 
 	return nil
 }
