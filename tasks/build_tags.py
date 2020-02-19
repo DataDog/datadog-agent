@@ -48,15 +48,16 @@ LINUX_ONLY_TAGS = [
     "orchestrator",
 ]
 
-REDHAT_AND_DEBIAN_ONLY_TAGS = [
+REDHAT_DEBIAN_SUSE_ONLY_TAGS = [
     "systemd",
 ]
 
-REDHAT_AND_DEBIAN_DIST = [
+REDHAT_DEBIAN_SUSE_DIST = [
     'centos',
     'debian',
     'rhel',
     'ubuntu',
+    'suse',
 ]
 
 
@@ -78,8 +79,8 @@ def get_default_build_tags(puppy=False, process=False):
 
     # remove all tags that are only available on debian distributions
     distname = distro.id().lower()
-    if distname not in REDHAT_AND_DEBIAN_DIST:
-        exclude = exclude + REDHAT_AND_DEBIAN_ONLY_TAGS
+    if distname not in REDHAT_DEBIAN_SUSE_DIST:
+        exclude = exclude + REDHAT_DEBIAN_SUSE_ONLY_TAGS
 
     return get_build_tags(include, exclude)
 
