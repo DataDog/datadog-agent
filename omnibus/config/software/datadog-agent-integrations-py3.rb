@@ -29,7 +29,7 @@ if linux?
   # need kerberos for hdfs
   dependency 'libkrb5'
 
-  unless suse || arm?
+  unless suse? || arm?
     dependency 'aerospike'
   end
 end
