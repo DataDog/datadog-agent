@@ -435,7 +435,7 @@ func TestConcentratorSublayersStatsCounts(t *testing.T) {
 	traceutil.ComputeTopLevel(trace)
 	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
-	subtraces := ExtractTopLevelSubtraces(trace, traceutil.GetRoot(trace))
+	subtraces := ExtractSubtraces(trace, traceutil.GetRoot(trace))
 	sublayers := make(map[*pb.Span][]SublayerValue)
 	for _, subtrace := range subtraces {
 		subtraceSublayers := ComputeSublayers(subtrace.Trace)
@@ -539,15 +539,18 @@ func TestConcentratorAddNow(t *testing.T) {
 				testSpan(3, 2, 50, 5, "A1", "resource1", 0),
 			},
 			map[string]float64{
-				"query|duration|env:none,resource:resource1,service:A1":                                           50,
-				"query|hits|env:none,resource:resource1,service:A1":                                               1,
-				"query|errors|env:none,resource:resource1,service:A1":                                             0,
-				"query|_sublayers.duration.by_service|env:none,resource:resource1,service:A1,sublayer_service:A1": 140,
-				"query|_sublayers.duration.by_type|env:none,resource:resource1,service:A1,sublayer_type:db":       140,
-				"query|_sublayers.span_count|env:none,resource:resource1,service:A1,:":                            3,
-				"custom_query_op|duration|env:none,resource:resource1,service:A1":                                 40,
-				"custom_query_op|hits|env:none,resource:resource1,service:A1":                                     1,
-				"custom_query_op|errors|env:none,resource:resource1,service:A1":                                   1,
+				"query|duration|env:none,resource:resource1,service:A1":                                                     50,
+				"query|hits|env:none,resource:resource1,service:A1":                                                         1,
+				"query|errors|env:none,resource:resource1,service:A1":                                                       0,
+				"query|_sublayers.duration.by_service|env:none,resource:resource1,service:A1,sublayer_service:A1":           140,
+				"query|_sublayers.duration.by_type|env:none,resource:resource1,service:A1,sublayer_type:db":                 140,
+				"query|_sublayers.span_count|env:none,resource:resource1,service:A1,:":                                      3,
+				"custom_query_op|duration|env:none,resource:resource1,service:A1":                                           40,
+				"custom_query_op|hits|env:none,resource:resource1,service:A1":                                               1,
+				"custom_query_op|errors|env:none,resource:resource1,service:A1":                                             1,
+				"custom_query_op|_sublayers.duration.by_service|env:none,resource:resource1,service:A1,sublayer_service:A1": 90,
+				"custom_query_op|_sublayers.duration.by_type|env:none,resource:resource1,service:A1,sublayer_type:db":       90,
+				"custom_query_op|_sublayers.span_count|env:none,resource:resource1,service:A1,:":                            2,
 			},
 		},
 	} {
@@ -559,7 +562,7 @@ func TestConcentratorAddNow(t *testing.T) {
 				Env:   "none",
 				Trace: wt,
 			}
-			subtraces := ExtractTopLevelSubtraces(test.in, traceutil.GetRoot(test.in))
+			subtraces := ExtractSubtraces(test.in, traceutil.GetRoot(test.in))
 			sublayers := make(map[*pb.Span][]SublayerValue)
 			for _, subtrace := range subtraces {
 				subtraceSublayers := ComputeSublayers(subtrace.Trace)
