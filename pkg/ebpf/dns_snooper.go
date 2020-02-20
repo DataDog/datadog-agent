@@ -123,10 +123,12 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 	t := s.getCachedTranslation()
 	if err := s.parser.ParseInto(data, t); err != nil {
 		switch err {
-		case errParsing:
-			atomic.AddInt64(&s.decodingErrors, 1)
+		case skippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
 			atomic.AddInt64(&s.truncatedPkts, 1)
+		default:
+			atomic.AddInt64(&s.decodingErrors, 1)
+			log.Tracef("error decoding DNS payload: %v", err)
 		}
 		return
 	}

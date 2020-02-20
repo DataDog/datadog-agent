@@ -12,10 +12,10 @@ import (
 
 const maxIPBufferSize = 200
 
-var errNoDNSLayer = errors.New("parsed layers do not contain a DNS layer")
-var errParsing = errors.New("error parsing packet")
-var errUnhandledDNSResponse = errors.New("unsupported DNS response")
-var errTruncated = errors.New("the packet is truncated")
+var (
+	errTruncated   = errors.New("the packet is truncated")
+	skippedPayload = errors.New("the packet does not contain relevant DNS response")
+)
 
 type dnsParser struct {
 	decoder *gopacket.DecodingLayerParser
@@ -43,18 +43,13 @@ func newDNSParser() *dnsParser {
 
 func (p *dnsParser) ParseInto(data []byte, t *translation) error {
 	err := p.decoder.DecodeLayers(data, &p.layers)
-	// Parsing errors can be of different types. For example, if a DNS
-	// payload gets fragmented into two TCP segments, parsing of the two segments
-	// will result in two different errors (errDecodeRecordLength and
-	// errDNSNameOffsetNegative respectively). Instead of propagating those
-	// fine-grained errors upstream, we return a generic error to represent all
-	// parsing errors.
-	if err != nil {
-		return errParsing
-	}
 
 	if p.decoder.Truncated {
 		return errTruncated
+	}
+
+	if err != nil {
+		return err
 	}
 
 	for _, layer := range p.layers {
@@ -63,18 +58,18 @@ func (p *dnsParser) ParseInto(data []byte, t *translation) error {
 		}
 	}
 
-	return errNoDNSLayer
+	return skippedPayload
 }
 
 // source: https://github.com/weaveworks/scope
 func (p *dnsParser) parseAnswerInto(dns *layers.DNS, t *translation) error {
 	// Only consider responses to singleton, A-record questions
 	if !dns.QR || dns.ResponseCode != 0 || len(dns.Questions) != 1 {
-		return errUnhandledDNSResponse
+		return skippedPayload
 	}
 	question := dns.Questions[0]
 	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
-		return errUnhandledDNSResponse
+		return skippedPayload
 	}
 
 	var alias []byte
