@@ -148,6 +148,16 @@ before_script:
       - $RELEASE_VERSION_6 == "nightly"
       - $RELEASE_VERSION_7 == "nightly"
 
+# run job only when triggered on nightly AND when it's a merge to master
+.run_when_triggered_on_nightly_or_master: &run_when_triggered_on_nightly_or_master
+  only:
+    refs:
+      - triggers
+      - master
+    variables:
+      - $RELEASE_VERSION_6 == "nightly"
+      - $RELEASE_VERSION_7 == "nightly"
+
 # skip job only when triggered by an external tool (ex: Jenkins) and when
 # BUILD_AGENT_X is set to "no".
 
@@ -235,6 +245,7 @@ run_tests_windows-x64:
     ARCH: "x64"
 
 run_tests_windows-x86:
+  <<: *run_when_triggered_on_nightly_or_master
   # temporarily allow failure for tests
   extends: .run_tests_windows_base
   allow_failure: true
@@ -978,6 +989,7 @@ windows_msi_x86-a7:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
+  <<: *run_when_triggered_on_nightly_or_master
 
 windows_msi_x64-a6:
   extends: .windows_main_agent_base
@@ -998,29 +1010,12 @@ windows_msi_x86-a6:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
+  <<: *run_when_triggered_on_nightly_or_master
 
 .windows_puppy_agent_base:
   extends: .windows_msi_base
   variables:
     OMNIBUS_TARGET: puppy
-
-windows_puppy_msi_x64-a7:
-  extends: .windows_puppy_agent_base
-  variables:
-    ARCH: "x64"
-    AGENT_MAJOR_VERSION: '7'
-  before_script:
-    - set RELEASE_VERSION $RELEASE_VERSION_7
-  <<: *skip_when_unwanted_on_7
-
-windows_puppy_msi_x86-a7:
-  extends: .windows_puppy_agent_base
-  variables:
-    ARCH: "x86"
-    AGENT_MAJOR_VERSION: '7'
-  before_script:
-    - set RELEASE_VERSION $RELEASE_VERSION_7
-  <<: *skip_when_unwanted_on_7
 
 
 # build dogstatsd package for Windows
@@ -1042,6 +1037,7 @@ agent_android_apk:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   <<: *skip_when_unwanted_on_7
+  <<: *run_when_triggered_on_nightly_or_master
   before_script:
     - echo running android before_script
     - cd $SRC_PATH
