@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	v1 "k8s.io/api/core/v1"
 )
 
 func TestPodOwners(t *testing.T) {
@@ -174,6 +176,135 @@ func TestPodGetPersistentVolumeClaimNames(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {
 			assert.EqualValues(t, tc.pvcs, tc.pod.GetPersistentVolumeClaimNames())
+		})
+	}
+}
+
+func TestComputeStatus(t *testing.T) {
+	for nb, tc := range []struct {
+		pod    *v1.Pod
+		status string
+	}{
+		{
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: "Running",
+				},
+			},
+			status: "Running",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: "Succeeded",
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							State: v1.ContainerState{
+								Terminated: &v1.ContainerStateTerminated{
+									Reason: "Completed",
+								},
+							},
+						},
+					},
+				},
+			},
+			status: "Completed",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: "Failed",
+					InitContainerStatuses: []v1.ContainerStatus{
+						{
+							State: v1.ContainerState{
+								Terminated: &v1.ContainerStateTerminated{
+									Reason:   "Error",
+									ExitCode: 52,
+								},
+							},
+						},
+					},
+				},
+			},
+			status: "Init:Error",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: "Running",
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							State: v1.ContainerState{
+								Waiting: &v1.ContainerStateWaiting{
+									Reason: "CrashLoopBackoff",
+								},
+							},
+						},
+					},
+				},
+			},
+			status: "CrashLoopBackoff",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {
+			assert.EqualValues(t, tc.status, ComputeStatus(tc.pod))
+		})
+	}
+}
+
+func TestGetConditionMessage(t *testing.T) {
+	for nb, tc := range []struct {
+		pod     *v1.Pod
+		message string
+	}{
+		{
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{
+						{
+							Type:    v1.PodScheduled,
+							Status:  v1.ConditionFalse,
+							Message: "foo",
+						},
+					},
+				},
+			},
+			message: "foo",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{
+						{
+							Type:    v1.PodScheduled,
+							Status:  v1.ConditionFalse,
+							Message: "foo",
+						}, {
+							Type:    v1.PodInitialized,
+							Status:  v1.ConditionFalse,
+							Message: "bar",
+						},
+					},
+				},
+			},
+			message: "foo",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{
+						{
+							Type:    v1.PodScheduled,
+							Status:  v1.ConditionTrue,
+							Message: "foo",
+						}, {
+							Type:    v1.PodInitialized,
+							Status:  v1.ConditionFalse,
+							Message: "bar",
+						},
+					},
+				},
+			},
+			message: "bar",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {
+			assert.EqualValues(t, tc.message, GetConditionMessage(tc.pod))
 		})
 	}
 }
