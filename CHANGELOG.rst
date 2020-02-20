@@ -2,6 +2,134 @@
 Release Notes
 =============
 
+.. _Release Notes_7.17.0:
+
+7.17.0 / 6.17.0
+======
+
+.. _Release Notes_7.17.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-02-04
+
+- Please refer to the `7.17.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7170>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.17.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Change agents base images to Debian bullseye
+
+- Starting with this version, the containerized Agent never chooses the OS hostname as its hostname when it is running in a dedicated UTS namespace.
+  This is done in order to avoid picking container IDs or kubernetes POD names as hostnames, since these identifiers do not reflect the identity of the host they run on.
+  
+  This change only affects you if your agent is currently using a container ID or a kubernetes POD name as hostname.
+  The hostname of the agent can be checked with ``agent hostname``.
+  If the output stays stable when the container or POD of the agent is destroyed and recreated, you’re not impacted by this change.
+  If the output changes, it means that the agent was unable to talk to EC2/GKE metadata server, it was unable to get the k8s node name from the kubelet, it was unable to get the hostname from the docker daemon and it is running in its dedicated UTS namespace.
+  Under those conditions, you should set explicitly define the host name to be used by the agent in its configuration file.
+
+
+.. _Release Notes_7.17.0_New Features:
+
+New Features
+------------
+
+- Add logic to support querying the kubelet through the APIServer to monitor AWS Fargate on Amazon EKS.
+
+- Add mapping feature to dogstatsd to convert parts of dogstatsd/statsd
+  metric names to tags using mapping rules in dogstatsd using wildcard and
+  regex patterns.
+
+- Resource tag collection on ECS.
+
+- Add container_mode in journald input to set source/service as Docker image short name when we receive container logs
+
+
+.. _Release Notes_7.17.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add kube_node_role tag in host metadata for the node role based on the ``kubernetes.io/role`` label.
+
+- Add cluster_name tag in host metadata tags. Cluster name used is read from
+  config if set by user or autodiscovered from cloud provider or Kubernetes
+  node label.
+
+- The Agent check command displays the distribution metrics.
+  The Agent status command displays histogram bucket samples.
+
+- The system-probe will augment network connection information with
+  DNS names gathered by inspecting local DNS traffic.
+
+- Users can now use references to capture groups
+  in mask sequence replacement_placeholder strings
+
+- Do not apply the metric namespace configured under ``statsd_metric_namespace`` to dogstatsd metrics prefixed with ``datadog.tracer``. Tracer metrics are published with this prefix.
+
+
+.. _Release Notes_7.17.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: The trace-agent now correctly applies ``log_to_console``, ``log_to_syslog``
+  and all other syslog settings.
+
+- Make the log agent continuously retry to connect to docker rather than giving up when docker is not running when the agent is started.
+  This is to handle the case where the agent is started while the docker daemon is stopped and the docker daemon is started later while the datadog agent is already running.
+
+- Fixes #4650 [v7] Syntax in /readsecret.py for Py3
+
+- Fixes an issue in Docker where mounting empty directories to disable docker check results in an error.
+
+- Fixes the matching of container id in Tagger (due to runtime prefix) by matching on the 'id' part only
+
+- Fix the node roles to host tags feature by handling the other official Kube way to setting node roles (when multiple roles are required)
+
+- Properly check for "true" value of env var DD_LEADER_ELECTION
+
+- It's possible now to reduce the risk of missing kubernetes tags on initial logs by configuring "logs_config.tagger_warmup_duration".
+  Configuring "logs_config.tagger_warmup_duration" delays the send of the first logs of a container.
+  Default value 0 seconds, the fix is disabled by default.
+  Setting "logs_config.tagger_warmup_duration" to 5 (seconds) should be enough to retrieve all the tags.
+
+- Fix eBPF code compilation errors about ``asm goto`` on Ubuntu 19.04 (Disco)
+
+- Fix race condition in singleton initialization
+
+- On Windows, fixes registration of agent as event log source.  Allows
+  agent to correctly write to the Windows event log.
+
+- On Windows, when upgrading, installer will fail if the user attempts 
+  to assign a configuration file directory or binary directory that is 
+  different from the original.
+
+- Add logic to support docker restart of containers.
+
+- Fix a Network Performance Monitoring issue where TCP connection direction was incorrectly classified as ``outgoing`` in containerized environments.
+
+- Fixed a few edge cases that could lead to events payloads being rejected by Datadog's intake for being too big.
+
+
+.. _Release Notes_7.17.0_Other Notes:
+
+Other Notes
+-----------
+
+- Upgrade embedded dependencies: ``curl`` to ``7.66.0``, ``autoconf`` to ``2.69``,
+  ``procps`` to ``3.3.16``
+
+- JMXFetch upgraded to `0.34.0 <https://github.com/DataDog/jmxfetch/releases/0.34.0>`_
+
+- Bump embedded Python 3 to 3.7.6
+
+
 .. _Release Notes_7.16.1:
 
 7.16.1 / 6.16.1

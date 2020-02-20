@@ -75,6 +75,7 @@
     <Property Id="DDAGENTUSER_NAME" />
     <Property Id="DDAGENTUSER_PASSWORD" Hidden="yes" />
     <Property Id="APIKEY" Hidden="yes" />
+    <Property Id="SITE" Value="datadoghq.com" />
     <Property Id="FinalizeInstall" Hidden="yes" />
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
@@ -446,21 +447,6 @@
       </Directory>
     </DirectoryRef>
 
-    <?if $(var.IncludePython3) = true ?>
-      <?if $(var.Platform) = x64 ?>
-        <DirectoryRef Id="TARGETDIR">
-            <Merge Id="VCRedist141" SourceFile="$(var.BinFiles)/Microsoft_VC141_CRT_x64.msm" DiskId="1" Language="0"/>
-        </DirectoryRef>
-      <?else ?>
-        <DirectoryRef Id="TARGETDIR">
-          <Merge Id="VCRedist141" SourceFile="$(var.BinFiles)/Microsoft_VC141_CRT_x86.msm" DiskId="1" Language="0"/>
-        </DirectoryRef>
-      <?endif ?>
-
-      <Feature Id="VCRedist141" Title="Visual C++ 2015 Runtime" AllowAdvertise="no" Display="hidden" Level="1">
-        <MergeRef Id="VCRedist141"/>
-      </Feature>
-    <?endif ?>
     <InstallExecuteSequence>
       <Custom Action='WixCloseApplications' Before='RemoveFiles'> </Custom>
 
@@ -548,6 +534,7 @@
           WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed
       </Publish>
       <?include Resources\assets\apikeydlg.wxi ?>
+      <?include Resources\assets\sitedlg.wxi ?>
       <DialogRef Id="ErrorDlg" />
       <DialogRef Id="FatalError" />
       <DialogRef Id="FilesInUse" />
@@ -558,6 +545,7 @@
       <DialogRef Id="UserExit" />
       <DialogRef Id="WelcomeDlg" />
       <DialogRef Id="ApiKeyDlg"/>
+      <DialogRef Id="SiteDlg"/>
       <DialogRef Id="LicenseAgreementDlg"/>
 
       <DialogRef Id="MaintenanceWelcomeDlg"/>
@@ -574,7 +562,8 @@
       <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">NOT Installed</Publish>
 
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="3">1</Publish>
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
+      <Publish Dialog="SiteDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="SiteDlg">NOT PREVIOUSFOUND</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">PREVIOUSFOUND</Publish>
 
       <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
@@ -582,7 +571,8 @@
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">NOT APIKEY</Publish>
-      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="SiteDlg">APIKEY AND (NOT SITE)</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY AND SITE</Publish>
 
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
 

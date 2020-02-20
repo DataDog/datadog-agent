@@ -72,11 +72,11 @@ func GetAPIClient() (*APIClient, error) {
 			timeoutSeconds: config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
 		}
 		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
-			Name:          "apiserver",
-			AttemptMethod: globalAPIClient.connect,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "apiserver",
+			AttemptMethod:     globalAPIClient.connect,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	err := globalAPIClient.initRetry.TriggerRetry()
@@ -374,6 +374,7 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 		if err != nil {
 			warn := fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
 			stats.Warnings = append(stats.Warnings, warn)
+			continue
 		}
 		stats.Nodes[node.Name] = convertmetadataMapperBundleToAPI(bundle)
 	}
@@ -423,6 +424,9 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 
 func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
 	output := apiv1.NewMetadataResponseBundle()
+	if input == nil {
+		return output
+	}
 	for key, val := range input.Services {
 		output.Services[key] = val
 	}

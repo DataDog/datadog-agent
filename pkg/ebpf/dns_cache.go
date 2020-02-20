@@ -11,18 +11,22 @@ import (
 )
 
 type reverseDNSCache struct {
-	mux  sync.Mutex
-	data map[util.Address]*dnsCacheVal
-	exit chan struct{}
-	ttl  time.Duration
-	size int
-
 	// Telemetry
+	// Note: these variables are manipulated with sync/atomic. To ensure
+	// that this file can run on a 32 bit system, they must 64-bit aligned.
+	// Go will ensure that each struct is 64-bit aligned, so these fields
+	// must always be at the beginning of the struct.
 	length   int64
 	lookups  int64
 	resolved int64
 	added    int64
 	expired  int64
+
+	mux  sync.Mutex
+	data map[util.Address]*dnsCacheVal
+	exit chan struct{}
+	ttl  time.Duration
+	size int
 }
 
 func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {

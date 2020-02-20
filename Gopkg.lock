@@ -2,15 +2,15 @@
 
 
 [[projects]]
-  digest = "1:e2fc614bdd3a92702f18c139dc28bf99c96296d89d3c7076ec8f7b3562c094a9"
+  digest = "1:9ab7542bc72ee9005bbd3f991c3c428979455ba790ab856bbc36017a69183d55"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "a50316bb3ffc06088cdfa8c2a7eda3fd19d2d0cc"
-  version = "4.19.0"
+  revision = "05b7bb250766177fb3d3bb9bdfd2b62f7d849e0b"
+  version = "4.24.0"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -840,7 +840,7 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:1b6f213327a9343809b0328f41d7f2835a8750438292ab0898dbff1d6a60b7ad"
+  digest = "1:d113f3f920e4f5eb7890b7cb131aef30f6362ea9efbc06e5a7ca9de668e904f7"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -848,7 +848,7 @@
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "a14c39bf99c7539b5578baf2449ff2e37dd35901"
+  revision = "6763fd92fd3f414961878bfc5d7a9e1ebcd360d8"
   source = "github.com/DataDog/gobpf"
 
 [[projects]]
@@ -1330,6 +1330,14 @@
   pruneopts = ""
   revision = "c6a59be0ce122566695fbd5e48a77f8f10c8a63a"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:0b30de1a6957125af05f8dbe7dfe8843fb4aa0d87d803d3ebd83f39aed113c9a"
+  name = "github.com/vishvananda/netns"
+  packages = ["."]
+  pruneopts = ""
+  revision = "0a2b9b5464df8343199164a0321edf3313202f7e"
 
 [[projects]]
   branch = "master"
@@ -2188,6 +2196,7 @@
     "github.com/tinylib/msgp/msgp",
     "github.com/twmb/murmur3",
     "github.com/urfave/negroni",
+    "github.com/vishvananda/netns",
     "golang.org/x/mobile/asset",
     "golang.org/x/net/context",
     "golang.org/x/net/proxy",

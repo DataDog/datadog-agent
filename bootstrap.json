@@ -10,7 +10,8 @@
             "golang.org/x/tools/go/ast/astutil",
             "golang.org/x/tools/go/internal",
             "golang.org/x/tools/go/gcexportdata",
-            "github.com/golangci/golangci-lint"
+            "github.com/golangci/golangci-lint",
+            "github.com/shuLhan/go-bindata/cmd/go-bindata"
         ],
         "golang.org/x/tools/go/ast/astutil": {
             "version": "release-branch.go1.10",
@@ -53,6 +54,10 @@
             "version": "v1.23.1",
             "cmd": "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $BOOTSTRAPPED_VERSION",
             "type": "shell"
+        },
+        "github.com/shuLhan/go-bindata/cmd/go-bindata" : {
+            "version": "v3.4.0",
+            "type": "go"
         }
     }
 }

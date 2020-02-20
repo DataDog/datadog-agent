@@ -84,7 +84,7 @@ jobs:
             inv rtloader.test
       - run:
           name: pre-compile go deps
-          command: inv -e agent.build --race --precompile-only
+          command: inv -e agent.build --exclude-rtloader --race --precompile-only
       - save_cache:
           <<: *save_deps
           paths:
@@ -97,6 +97,7 @@ jobs:
 
   unit_tests:
     <<: *job_template
+    resource_class: large
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
@@ -177,7 +178,7 @@ jobs:
           command: inv -e dogstatsd.build --static
       - run:
           name: build agent
-          command: inv -e agent.build
+          command: inv -e agent.build --exclude-rtloader
 
   build_puppy:
     <<: *job_template

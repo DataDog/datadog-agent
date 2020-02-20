@@ -48,13 +48,14 @@ type JSONRegistry struct {
 
 // An Auditor handles messages successfully submitted to the intake
 type Auditor struct {
-	health       *health.Handle
-	inputChan    chan *message.Message
-	registry     map[string]*RegistryEntry
-	registryPath string
-	mu           sync.Mutex
-	entryTTL     time.Duration
-	done         chan struct{}
+	health        *health.Handle
+	chansMutex    sync.Mutex
+	inputChan     chan *message.Message
+	registry      map[string]*RegistryEntry
+	registryPath  string
+	registryMutex sync.Mutex
+	entryTTL      time.Duration
+	done          chan struct{}
 }
 
 // New returns an initialized Auditor
@@ -68,8 +69,7 @@ func New(runPath string, health *health.Handle) *Auditor {
 
 // Start starts the Auditor
 func (a *Auditor) Start() {
-	a.inputChan = make(chan *message.Message, config.ChanSize)
-	a.done = make(chan struct{})
+	a.createChannels()
 	a.registry = a.recoverRegistry()
 	a.cleanupRegistry()
 	go a.run()
@@ -77,6 +77,23 @@ func (a *Auditor) Start() {
 
 // Stop stops the Auditor
 func (a *Auditor) Stop() {
+	a.closeChannels()
+	a.cleanupRegistry()
+	if err := a.flushRegistry(); err != nil {
+		log.Warn(err)
+	}
+}
+
+func (a *Auditor) createChannels() {
+	a.chansMutex.Lock()
+	defer a.chansMutex.Unlock()
+	a.inputChan = make(chan *message.Message, config.ChanSize)
+	a.done = make(chan struct{})
+}
+
+func (a *Auditor) closeChannels() {
+	a.chansMutex.Lock()
+	defer a.chansMutex.Unlock()
 	if a.inputChan != nil {
 		close(a.inputChan)
 	}
@@ -86,12 +103,6 @@ func (a *Auditor) Stop() {
 		a.done = nil
 	}
 	a.inputChan = nil
-
-	a.cleanupRegistry()
-	err := a.flushRegistry()
-	if err != nil {
-		log.Warn(err)
-	}
 }
 
 // Channel returns the channel to use to communicate with the auditor or nil
@@ -156,7 +167,11 @@ func (a *Auditor) run() {
 func (a *Auditor) recoverRegistry() map[string]*RegistryEntry {
 	mr, err := ioutil.ReadFile(a.registryPath)
 	if err != nil {
-		log.Error(err)
+		if os.IsNotExist(err) {
+			log.Debugf("Could not find state file at %q, will start with default offsets", a.registryPath)
+		} else {
+			log.Error(err)
+		}
 		return make(map[string]*RegistryEntry)
 	}
 	r, err := a.unmarshalRegistry(mr)
@@ -169,8 +184,8 @@ func (a *Auditor) recoverRegistry() map[string]*RegistryEntry {
 
 // cleanupRegistry removes expired entries from the registry
 func (a *Auditor) cleanupRegistry() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
 	expireBefore := time.Now().UTC().Add(-a.entryTTL)
 	for path, entry := range a.registry {
 		if entry.LastUpdated.Before(expireBefore) {
@@ -181,8 +196,8 @@ func (a *Auditor) cleanupRegistry() {
 
 // updateRegistry updates the registry entry matching identifier with new the offset and timestamp
 func (a *Auditor) updateRegistry(identifier string, offset string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
 	if identifier == "" {
 		// An empty Identifier means that we don't want to track down the offset
 		// This is useful for origins that don't have offsets (networks), or when we
@@ -197,8 +212,8 @@ func (a *Auditor) updateRegistry(identifier string, offset string) {
 
 // readOnlyRegistryCopy returns a read only copy of the registry
 func (a *Auditor) readOnlyRegistryCopy() map[string]RegistryEntry {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
 	r := make(map[string]RegistryEntry)
 	for path, entry := range a.registry {
 		r[path] = *entry

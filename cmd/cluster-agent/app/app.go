@@ -211,21 +211,25 @@ func start(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
+	var clusterCheckHandler *clusterchecks.Handler
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err := setupClusterCheck(mainCtx)
+		clusterCheckHandler, err = setupClusterCheck(mainCtx)
 		if err != nil {
 			log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
 		}
-		// Start the cmd HTTPS server
-		sc := clusteragent.ServerContext{
-			ClusterCheckHandler: clusterCheckHandler,
-		}
-		if err = api.StartServer(sc); err != nil {
-			return log.Errorf("Error while starting agent API, exiting: %v", err)
-		}
 	} else {
 		log.Debug("Cluster check Autodiscovery disabled")
+	}
+
+	// Start the cmd HTTPS server
+	// We always need to start it, even with nil clusterCheckHandler
+	// as it's also used to perform the agent commands (e.g. agent status)
+	sc := clusteragent.ServerContext{
+		ClusterCheckHandler: clusterCheckHandler,
+	}
+	if err = api.StartServer(sc); err != nil {
+		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
 	wg := sync.WaitGroup{}
