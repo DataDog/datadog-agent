@@ -3,13 +3,13 @@
 name "vc_redist"
 default_version "90"
 
-# source :url => "https://s3.amazonaws.com/dd-agent-omnibus/msvcrntm_x64.tar.gz",
+# source :url => "https://dd-agent-omnibus.s3.amazonaws.com/msvcrntm_x64.tar.gz",
 if windows_arch_i386?
-  source :url => "https://s3.amazonaws.com/dd-agent-omnibus/msvc_runtime_x86.tgz",
+  source :url => "https://dd-agent-omnibus.s3.amazonaws.com/msvc_runtime_x86.tgz",
          :sha256 => "6fee9db533c6547648ea8423d9a0a281298586c3a0761d17ba3f36c5360c2434",
          :extract => :seven_zip
 else
-    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/msvc_runtime_x64.tgz",
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/msvc_runtime_x64.tgz",
            :sha256 => "ee3d4be86e7a63a7a9f9f325962fcf62436ac234f1fd69919003463ffd43ee3f",
            :extract => :seven_zip
 

@@ -59,12 +59,11 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 	globalUtilOnce.Do(func() {
 		globalUtil = newSystemProbe()
 		globalUtil.initRetry.SetupRetrier(&retry.Config{
-			Name:          "system-probe-util",
-			AttemptMethod: globalUtil.init,
-			Strategy:      retry.RetryCount,
-			// 10 tries w/ 30s delays = 5m of trying before permafail
-			RetryCount: 10,
-			RetryDelay: 30 * time.Second,
+			Name:              "system-probe-util",
+			AttemptMethod:     globalUtil.init,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	})
 

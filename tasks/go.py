@@ -47,6 +47,11 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("pkg", "ebpf", "testdata"),
 ]
 
+# Packages that need go:generate
+GO_GENERATE_TARGETS = [
+    "./pkg/status"
+]
+
 @task
 def fmt(ctx, targets, fail_on_fmt=False):
     """
@@ -366,3 +371,11 @@ def reset(ctx):
     # remove vendor folder
     print("Remove vendor folder")
     ctx.run("rm -rf ./vendor")
+
+@task
+def generate(ctx):
+    """
+    Run go generate required package
+    """
+    ctx.run("go generate " + " ".join(GO_GENERATE_TARGETS))
+    print("go generate ran successfully")

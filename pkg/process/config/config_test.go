@@ -148,6 +148,19 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	}
 }
 
+func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	os.Setenv("DD_LOG_LEVEL", "error")
+	defer os.Unsetenv("DD_LOG_LEVEL")
+	os.Setenv("LOG_LEVEL", "debug")
+	defer os.Unsetenv("LOG_LEVEL")
+
+	agentConfig, _ := NewAgentConfig("test", "", "")
+	assert.Equal(t, "error", agentConfig.LogLevel)
+}
+
 func TestDisablingDNSInspection(t *testing.T) {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()

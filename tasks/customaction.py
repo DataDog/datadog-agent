@@ -15,7 +15,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
 from .go import deps
 
 # constants
@@ -74,7 +74,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         srcdll = "{}\\cal\\x64\\{}\\customaction.dll".format(CUSTOM_ACTION_ROOT_DIR, configuration)
     shutil.copy2(srcdll, BIN_PATH)
 
-@task 
+@task
 def clean(ctx, arch="x64", debug=False):
     configuration = "Release"
     if debug:

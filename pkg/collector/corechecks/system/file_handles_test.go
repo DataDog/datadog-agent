@@ -45,10 +45,18 @@ func TestFhCheckLinux(t *testing.T) {
 	fileNrHandle = writeSampleFile(tmpFile, samplecontent1)
 	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
 
+	// we have to init the mocked sender here before fileHandleCheck.Configure(...)
+	// (and append it to the aggregator, which is automatically done in NewMockSender)
+	// because the FinalizeCheckServiceTag is called in Configure.
+	// Hopefully, the check ID is an empty string while running unit tests;
+	mock := mocksender.NewMockSender("")
+	mock.On("FinalizeCheckServiceTag").Return()
+
 	fileHandleCheck := new(fhCheck)
 	fileHandleCheck.Configure(nil, nil, "test")
 
-	mock := mocksender.NewMockSender(fileHandleCheck.ID())
+	// reset the check ID for the sake of correctness
+	mocksender.SetSender(mock, fileHandleCheck.ID())
 
 	mock.On("Gauge", "system.fs.file_handles.allocated", 896.0, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.fs.file_handles.allocated_unused", 201.0, "", []string(nil)).Return().Times(1)
