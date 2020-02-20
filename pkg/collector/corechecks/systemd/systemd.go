@@ -203,10 +203,9 @@ func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
 		newErr := fmt.Errorf("cannot create a connection: %v", err)
 		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
 		return nil, newErr
-	} else {
-		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckOK, "", nil, "")
-		return conn, nil
 	}
+	sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckOK, "", nil, "")
+	return conn, nil
 }
 
 func (c *SystemdCheck) submitSystemdState(sender aggregator.Sender, conn *dbus.Conn) {
