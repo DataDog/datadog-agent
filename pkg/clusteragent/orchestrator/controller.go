@@ -5,23 +5,47 @@
 
 // +build kubeapiserver
 
-package apiserver
+package orchestrator
 
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
+type OrchestratorControllerContext struct {
+	UnassignedPodInformerFactory informers.SharedInformerFactory
+	Client                       kubernetes.Interface
+	StopCh                       chan struct{}
+}
+
 type OrchestratorController struct {
 	unassignedPodLister     corelisters.PodLister
 	unassignedPodListerSync cache.InformerSynced
+}
+
+func StartOrchestratorController(ctx OrchestratorControllerContext) error {
+	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		log.Info("orchestrator explorer is disabled")
+		return nil
+	}
+	orchestratorControler := newOrchestratorController(
+		ctx.UnassignedPodInformerFactory.Core().V1().Pods(),
+	)
+
+	go orchestratorControler.Run(ctx.StopCh)
+
+	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
+
+	return nil
 }
 
 func newOrchestratorController(podInformer coreinformers.PodInformer) *OrchestratorController {

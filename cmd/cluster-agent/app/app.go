@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -189,18 +190,27 @@ func start(cmd *cobra.Command, args []string) error {
 
 		stopCh := make(chan struct{})
 		ctx := apiserver.ControllerContext{
-			InformerFactory:              apiCl.InformerFactory,
-			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
-			WPAClient:                    apiCl.WPAClient,
-			WPAInformerFactory:           apiCl.WPAInformerFactory,
-			Client:                       apiCl.Cl,
-			LeaderElector:                le,
-			EventRecorder:                eventRecorder,
-			StopCh:                       stopCh,
+			InformerFactory:    apiCl.InformerFactory,
+			WPAClient:          apiCl.WPAClient,
+			WPAInformerFactory: apiCl.WPAInformerFactory,
+			Client:             apiCl.Cl,
+			LeaderElector:      le,
+			EventRecorder:      eventRecorder,
+			StopCh:             stopCh,
 		}
 
 		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
+		}
+		// TODO: move rest of the controllers out of the apiserver package
+		orchestratorCtx := orchestrator.OrchestratorControllerContext{
+			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
+			Client:                       apiCl.Cl,
+			StopCh:                       stopCh,
+		}
+		err = orchestrator.StartOrchestratorController(orchestratorCtx)
+		if err != nil {
+			log.Error("Could not start orchestrator controller")
 		}
 	}
 
