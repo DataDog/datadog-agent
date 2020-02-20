@@ -1464,7 +1464,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:6dd91a68f15abb4c9c28b72b485ff05e383dbd581fcc0f807d433ec02bab6f3b"
+  digest = "1:2acb9761651327c7ee1cdf4b5a23903dd6c41b485f147d8bee35185984c1c6fc"
   name = "golang.org/x/tools"
   packages = [
     "go/ast/astutil",
@@ -1476,7 +1476,7 @@
     "internal/packagesinternal",
   ]
   pruneopts = ""
-  revision = "e2a38c836335266bbd5f77dd95b90b60396304f2"
+  revision = "947cbf1911355735edc7395a97190eea60644082"
 
 [[projects]]
   digest = "1:0568e577f790e9bd0420521cff50580f9b38165a38f217ce68f55c4bbaa97066"
