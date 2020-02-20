@@ -122,17 +122,7 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 
-	var additionals []Endpoint
-	var err error
-	raw := coreConfig.Datadog.GetString("logs_config.additional_endpoints")
-	if raw != "" {
-		err = json.Unmarshal([]byte(raw), &additionals)
-	} else {
-		err = coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
-	}
-	if err != nil {
-		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
-	}
+	additionals := getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
@@ -161,17 +151,7 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 
-	var additionals []Endpoint
-	var err error
-	raw := coreConfig.Datadog.GetString("logs_config.additional_endpoints")
-	if raw != "" {
-		err = json.Unmarshal([]byte(raw), &additionals)
-	} else {
-		err = coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
-	}
-	if err != nil {
-		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
-	}
+	additionals := getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 	}
@@ -179,6 +159,21 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 	batchWait := batchWait(coreConfig.Datadog)
 
 	return NewEndpoints(main, additionals, false, true, batchWait), nil
+}
+
+func getAdditionalEndpoints() []Endpoint {
+	var endpoints []Endpoint
+	var err error
+	raw := coreConfig.Datadog.GetString("logs_config.additional_endpoints")
+	if raw != "" {
+		err = json.Unmarshal([]byte(raw), &endpoints)
+	} else {
+		err = coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &endpoints)
+	}
+	if err != nil {
+		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
+	}
+	return endpoints
 }
 
 func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
