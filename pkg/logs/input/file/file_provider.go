@@ -158,7 +158,7 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 	for _, excludePattern := range source.Config.ExcludePaths {
 		excludedGlob, err := filepath.Glob(excludePattern)
 		if err != nil {
-			return nil, fmt.Errorf("malformed exclusion pattern: %s", excludePattern)
+			return nil, fmt.Errorf("malformed exclusion pattern: %s, %s", excludePattern, err)
 		}
 		for _, excludedPath := range excludedGlob {
 			log.Debugf("Adding excluded path: %s", excludedPath)
