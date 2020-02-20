@@ -19,21 +19,12 @@
 #define asm_volatile_goto(x...) asm volatile("invalid use of asm_volatile_goto")
 #pragma clang diagnostic ignored "-Wunused-label"
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wgnu-variable-sized-type-not-at-end"
-#pragma clang diagnostic ignored "-Waddress-of-packed-member"
 #include <linux/ptrace.h>
-#pragma clang diagnostic pop
 #include "bpf_helpers.h"
 #include "tracer-ebpf.h"
 #include <linux/version.h>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wtautological-compare"
-#pragma clang diagnostic ignored "-Wgnu-variable-sized-type-not-at-end"
-#pragma clang diagnostic ignored "-Wenum-conversion"
 #include <net/sock.h>
-#pragma clang diagnostic pop
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
 #include <uapi/linux/ip.h>

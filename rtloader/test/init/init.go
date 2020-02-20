@@ -7,9 +7,6 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
-// #cgo CFLAGS: -I../../include
-// #cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl
-// #cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
 // #include <datadog_agent_rtloader.h>
 //
 import "C"
