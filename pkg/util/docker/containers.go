@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"regexp"
 	"strings"
@@ -156,6 +157,10 @@ func (d *DockerUtil) UpdateContainerMetrics(cList []*containers.Container) error
 		}
 	}
 	return nil
+}
+
+func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
+	return d.cli.ContainerLogs(ctx, container, options)
 }
 
 // dockerContainers returns the running container list from the docker API

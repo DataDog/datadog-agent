@@ -11,12 +11,12 @@ import (
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
-	APIKey           string `mapstructure:"api_key"`
+	APIKey           string `mapstructure:"api_key" json:"api_key"`
 	Host             string
 	Port             int
 	UseSSL           bool
-	UseCompression   bool `mapstructure:"use_compression"`
-	CompressionLevel int  `mapstructure:"compression_level"`
+	UseCompression   bool `mapstructure:"use_compression" json:"use_compression"`
+	CompressionLevel int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress     string
 }
 
