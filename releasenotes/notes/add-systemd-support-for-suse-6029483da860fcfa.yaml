@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add SystemD support for SUSE
+    Add SystemD integration support for SUSE.
