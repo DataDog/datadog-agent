@@ -21,6 +21,7 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -86,11 +87,11 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 		globalLeaderEngine.HolderIdentity = holderIdentity
 		globalLeaderEngine.LeaseDuration = ttl
 		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
-			Name:          "leaderElection",
-			AttemptMethod: globalLeaderEngine.init,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "leaderElection",
+			AttemptMethod:     globalLeaderEngine.init,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	err := globalLeaderEngine.initRetry.TriggerRetry()

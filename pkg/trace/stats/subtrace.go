@@ -52,9 +52,9 @@ func (s *stack) Pop() *spanAndAncestors {
 	return value
 }
 
-// ExtractTopLevelSubtraces extracts all subtraces rooted in a toplevel span,
-// ComputeTopLevel should be called before.
-func ExtractTopLevelSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
+// ExtractSubtraces extracts all subtraces rooted in top-level/measured spans.
+// ComputeTopLevel should be called before so that top-level spans are identified.
+func ExtractSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 	if root == nil {
 		return []Subtrace{}
 	}
@@ -70,8 +70,8 @@ func ExtractTopLevelSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 	for current := next.Pop(); current != nil; current = next.Pop() {
 		// not computing sublayer metrics for db spans for now because they usually don't have children
 		// and they increase the number of metrics computed by much more
-		// TODO[jahanzebk]: stop ignoring DB spans
-		if traceutil.HasTopLevel(current.Span) &&
+		if (traceutil.HasTopLevel(current.Span) ||
+			traceutil.IsMeasured(current.Span)) &&
 			!(traceutil.SpanTypeIsDB(current.Span.Type) && len(childrenMap[current.Span.SpanID]) == 0) {
 			current.Ancestors = append(current.Ancestors, current.Span)
 		}

@@ -31,6 +31,8 @@ const (
 // KubeEndpointsListener listens to kubernetes endpoints creation
 type KubeEndpointsListener struct {
 	endpointsInformer infov1.EndpointsInformer
+	endpointsLister   listv1.EndpointsLister
+	serviceInformer   infov1.ServiceInformer
 	serviceLister     listv1.ServiceLister
 	endpoints         map[types.UID][]*KubeEndpointService
 	newService        chan<- Service
@@ -70,6 +72,8 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 	return &KubeEndpointsListener{
 		endpoints:         make(map[types.UID][]*KubeEndpointService),
 		endpointsInformer: endpointsInformer,
+		endpointsLister:   endpointsInformer.Lister(),
+		serviceInformer:   serviceInformer,
 		serviceLister:     serviceInformer.Lister(),
 	}, nil
 }
@@ -80,18 +84,22 @@ func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Serv
 	l.delService = delSvc
 
 	l.endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    l.added,
-		UpdateFunc: l.updated,
-		DeleteFunc: l.deleted,
+		AddFunc:    l.endpointsAdded,
+		DeleteFunc: l.endpointsDeleted,
+		UpdateFunc: l.endpointsUpdated,
+	})
+
+	l.serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		UpdateFunc: l.serviceUpdated,
 	})
 
 	// Initial fill
-	endpoints, err := l.endpointsInformer.Lister().List(labels.Everything())
+	endpoints, err := l.endpointsLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Cannot list Kubernetes endpoints: %s", err)
 	}
 	for _, e := range endpoints {
-		l.createService(e, true)
+		l.createService(e, true, true)
 	}
 }
 
@@ -100,16 +108,16 @@ func (l *KubeEndpointsListener) Stop() {
 	// We cannot deregister from the informer
 }
 
-func (l *KubeEndpointsListener) added(obj interface{}) {
+func (l *KubeEndpointsListener) endpointsAdded(obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected an Endpoints type, got: %v", obj)
 		return
 	}
-	l.createService(castedObj, false)
+	l.createService(castedObj, false, true)
 }
 
-func (l *KubeEndpointsListener) deleted(obj interface{}) {
+func (l *KubeEndpointsListener) endpointsDeleted(obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected an Endpoints type, got: %v", obj)
@@ -118,7 +126,7 @@ func (l *KubeEndpointsListener) deleted(obj interface{}) {
 	l.removeService(castedObj)
 }
 
-func (l *KubeEndpointsListener) updated(old, obj interface{}) {
+func (l *KubeEndpointsListener) endpointsUpdated(old, obj interface{}) {
 	// Cast the updated object or return on failure
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
@@ -129,13 +137,44 @@ func (l *KubeEndpointsListener) updated(old, obj interface{}) {
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected an Endpoints type, got: %v", old)
-		l.createService(castedObj, false)
+		l.createService(castedObj, false, true)
 		return
 	}
 	if l.endpointsDiffer(castedObj, castedOld) {
 		l.removeService(castedObj)
-		l.createService(castedObj, false)
+		l.createService(castedObj, false, true)
 	}
+}
+
+func (l *KubeEndpointsListener) serviceUpdated(old, obj interface{}) {
+	// Cast the updated object or return on failure
+	castedObj, ok := obj.(*v1.Service)
+	if !ok {
+		log.Errorf("Expected a Service type, got: %v", obj)
+		return
+	}
+
+	// Cast the old object, consider it an add on cast failure
+	castedOld, ok := old.(*v1.Service)
+	if !ok {
+		log.Errorf("Expected a Service type, got: %v", old)
+		l.createService(l.endpointsForService(castedObj), true, false)
+		return
+	}
+
+	if !isServiceEndpointsAnnotated(castedOld) && isServiceEndpointsAnnotated(castedObj) {
+		l.createService(l.endpointsForService(castedObj), true, false)
+	}
+}
+
+func (l *KubeEndpointsListener) endpointsForService(service *v1.Service) *v1.Endpoints {
+	kendpoints, err := l.endpointsLister.Endpoints(service.Namespace).Get(service.Name)
+	if err != nil {
+		log.Warnf("Cannot get Kubernetes endpoints - Endpoints services won't be created - error: %s", err)
+		return nil
+	}
+
+	return kendpoints
 }
 
 // endpointsDiffer compares two endpoints to only go forward
@@ -175,16 +214,27 @@ func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	return false
 }
 
-func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, firstRun bool) {
+func isServiceEndpointsAnnotated(ksvc *v1.Service) bool {
+	if ksvc != nil {
+		if _, found := ksvc.Annotations[kubeEndpointsAnnotationFormat]; found {
+			return true
+		}
+	}
+	return false
+}
+
+func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExistingService, checkServiceAnnotations bool) {
 	if kep == nil {
 		return
 	}
-	if !l.isEndpointsAnnotated(kep) {
-		// Ignore endpoints with no AD annotation on their corresponding service
+
+	if checkServiceAnnotations && !l.isEndpointsAnnotated(kep) {
+		// Ignore endpoints with no AD annotation on their corresponding service if checkServiceAnnotations
+		// Typically we are called with checkServiceAnnotations = false when updates are due to changes on Kube Service object
 		return
 	}
 
-	eps := processEndpoints(kep, firstRun)
+	eps := processEndpoints(kep, alreadyExistingService)
 
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
@@ -198,7 +248,7 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, firstRun bool) 
 
 // processEndpoints parses a kubernetes Endpoints object
 // and returns a slice of KubeEndpointService per endpoint
-func processEndpoints(kep *v1.Endpoints, firstRun bool) []*KubeEndpointService {
+func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 	for i := range kep.Subsets {
 		ports := []ContainerPort{}
@@ -220,7 +270,7 @@ func processEndpoints(kep *v1.Endpoints, firstRun bool) []*KubeEndpointService {
 					fmt.Sprintf("kube_endpoint_ip:%s", host.IP),
 				},
 			}
-			if firstRun {
+			if alreadyExistingService {
 				ep.creationTime = integration.Before
 			}
 			eps = append(eps, ep)

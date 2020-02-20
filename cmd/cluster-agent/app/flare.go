@@ -101,7 +101,7 @@ func requestFlare(caseID string) error {
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
-		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be mising."))
+		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
 		filePath, e = flare.CreateDCAArchive(true, common.GetDistPath(), logFile)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)

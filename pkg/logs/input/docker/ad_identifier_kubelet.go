@@ -24,7 +24,7 @@ const (
 // searching first in the docker labels, then in the pod specs.
 func ContainsADIdentifier(c *Container) bool {
 	var exists bool
-	_, exists = c.container.Labels[configPath]
+	_, exists = c.container.Config.Labels[configPath]
 	if exists {
 		return true
 	}

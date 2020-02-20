@@ -60,11 +60,12 @@ def update_changelog(ctx, new_version):
         raise
 
     # removing releasenotes from bugfix on the old minor.
-    previous_minor = "%s.%s" % (new_version_int[0], new_version_int[1] - 1)
+    branching_point = "{}.{}.0-devel".format(new_version_int[0], new_version_int[1])
+    previous_minor = "{}.{}".format(new_version_int[0], new_version_int[1] - 1)
     if previous_minor == "7.15":
         previous_minor = "6.15" # 7.15 is the first release in the 7.x series
-    log_result = ctx.run("git log {}.0...remotes/origin/{}.x --name-only | \
-            grep releasenotes/notes/ || true".format(previous_minor, previous_minor))
+    log_result = ctx.run("git log {}...remotes/origin/{}.x --name-only --oneline | \
+            grep releasenotes/notes/ || true".format(branching_point, previous_minor))
     log_result = log_result.stdout.replace('\n', ' ').strip()
     if len(log_result) > 0:
         ctx.run("git rm --ignore-unmatch {}".format(log_result))
@@ -72,9 +73,9 @@ def update_changelog(ctx, new_version):
     # generate the new changelog
     ctx.run("reno report \
             --ignore-cache \
-            --earliest-version {}.0 \
+            --earliest-version {} \
             --version {} \
-            --no-show-source > /tmp/new_changelog.rst".format(previous_minor, new_version))
+            --no-show-source > /tmp/new_changelog.rst".format(branching_point, new_version))
 
     # reseting git
     ctx.run("git reset --hard HEAD")
@@ -132,6 +133,10 @@ def _is_version_higher(version_1, version_2):
     if version_1["minor"] < version_2["minor"]:
         return False
     if version_1["patch"] < version_2["patch"]:
+        return False
+    if version_1["rc"] == 0:
+        return True
+    if version_2["rc"] == 0:
         return False
     if version_1["rc"] < version_2["rc"]:
         return False
