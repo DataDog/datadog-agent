@@ -277,7 +277,13 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
+					cs.IPTranslation = t.conntracker.GetTranslationForConn(
+						cs.Source,
+						cs.SPort,
+						cs.Dest,
+						cs.DPort,
+						process.ConnectionType(cs.Type),
+					)
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
@@ -393,7 +399,13 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort, process.ConnectionType(conn.Type))
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(
+					conn.Source,
+					conn.SPort,
+					conn.Dest,
+					conn.DPort,
+					process.ConnectionType(conn.Type),
+				)
 				active = append(active, conn)
 			}
 		}
