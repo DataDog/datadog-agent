@@ -11,7 +11,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	processcfg "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -70,12 +73,27 @@ func (o *OrchestratorController) Run(stopCh <-chan struct{}) {
 
 func (o *OrchestratorController) processPods() {
 	log.Info("processing pods...")
-	pods, err := o.unassignedPodLister.List(labels.Everything())
+	podList, err := o.unassignedPodLister.List(labels.Everything())
+
 	if err != nil {
 		log.Errorf("Unable to list pods: %s", err)
+		return
 	}
-	log.Infof("Number of unassigned pods: %d", len(pods))
-	for _, p := range pods {
+	log.Infof("Number of unassigned pods: %d", len(podList))
+	for _, p := range podList {
 		log.Infof("unassigned pod: %s %s %s", p.Name, p.Spec.NodeName, p.Status.Phase)
+	}
+
+	cfg := processcfg.NewDefaultAgentConfig(true)
+	// FIXME: generate proper groupid
+	groupId := 1
+	msg, err := orchestrator.ProcessPodlist(podList, groupId, cfg)
+	if err != nil {
+		log.Errorf("Unable to process pod list")
+		return
+	}
+
+	for _, m := range msg {
+		log.Infof("message %v", m)
 	}
 }
