@@ -81,7 +81,8 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             echo "Removing integrations installed with the 'agent integration' command"
 
             # List all files in the embedded dir of the datadog-agent install dir
-            pushd $INSTALL_DIR
+            PREV_DIR=$(pwd)
+            cd $INSTALL_DIR
             find ./embedded/lib/python*/site-packages/datadog_* > $INSTALL_DIR/embedded/.all-integrations.txt
 
             # List all files in the embedded dir of the datadog-agent install dir
@@ -89,7 +90,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs --no-run-if-empty -I '{}' rm -r $INSTALL_DIR/{}
 
             rm $INSTALL_DIR/embedded/.all-integrations.txt
-            popd
+            cd $PREV_DIR
         else
             PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
             PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
