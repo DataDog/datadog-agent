@@ -97,16 +97,15 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	dnsHost := net.JoinHostPort(config.Servers[0], config.Port)
 
 	dnsClient := mdns.Client{Net: "tcp"}
-	rep, _, err := dnsClient.Exchange(msg, dnsHost)
+	rep, _, _ := dnsClient.Exchange(msg, dnsHost)
 	require.NotNil(t, rep)
 	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
 
-	var destIP = ""
 	for _, r := range rep.Answer {
 		aRecord, ok := r.(*mdns.A)
 		require.True(t, ok)
 		require.True(t, mdns.NumField(aRecord) >= 1)
-		destIP = mdns.Field(aRecord, 1)
+		destIP := mdns.Field(aRecord, 1)
 		checkSnooping(t, destIP, reverseDNS)
 	}
 }
