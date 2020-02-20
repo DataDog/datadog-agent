@@ -162,3 +162,42 @@ func (s *Sketch) Equals(o *Sketch) bool {
 
 	return true
 }
+
+// ApproxEquals checks if s and o are equivalent, with e error allowed for Sum and Average
+func (s *Sketch) ApproxEquals(o *Sketch, e float64) bool {
+	if math.Abs(s.Basic.Sum-o.Basic.Sum) > e {
+		return false
+	}
+
+	if math.Abs(s.Basic.Avg-o.Basic.Avg) > e {
+		return false
+	}
+
+	if s.Basic.Min != o.Basic.Min {
+		return false
+	}
+
+	if s.Basic.Max != o.Basic.Max {
+		return false
+	}
+
+	if s.Basic.Cnt != o.Basic.Cnt {
+		return false
+	}
+
+	if s.count != o.count {
+		return false
+	}
+
+	if len(s.bins) != len(o.bins) {
+		return false
+	}
+
+	for i := range s.bins {
+		if o.bins[i] != s.bins[i] {
+			return false
+		}
+	}
+
+	return true
+}
