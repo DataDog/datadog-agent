@@ -35,12 +35,13 @@ func (r *Rate) flush(timestamp float64) ([]*Serie, error) {
 	}
 
 	value, ts := (r.sample-r.previousSample)/(r.timestamp-r.previousTimestamp), r.timestamp
-	r.previousSample, r.previousTimestamp = r.sample, r.timestamp
-	r.sample, r.timestamp = 0., 0.
 
 	if value < 0 {
-		return []*Serie{}, fmt.Errorf("Rate value is negative, discarding it (the underlying counter may have been reset)")
+		return []*Serie{}, fmt.Errorf("Rate value is negative (%f - %f = %f), discarding it (the underlying counter may have been reset)", r.sample, r.previousSample, value)
 	}
+
+	r.previousSample, r.previousTimestamp = r.sample, r.timestamp
+	r.sample, r.timestamp = 0., 0.
 
 	return []*Serie{
 		{
