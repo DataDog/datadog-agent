@@ -70,9 +70,9 @@ func ExtractSubtraces(t pb.Trace, root *pb.Span) []Subtrace {
 	for current := next.Pop(); current != nil; current = next.Pop() {
 		// not computing sublayer metrics for db spans for now because they usually don't have children
 		// and they increase the number of metrics computed by much more
-		if (traceutil.HasTopLevel(current.Span) ||
-			traceutil.IsMeasured(current.Span)) &&
-			!(traceutil.SpanTypeIsDB(current.Span.Type) && len(childrenMap[current.Span.SpanID]) == 0) {
+		if traceutil.HasTopLevel(current.Span) ||
+			(traceutil.IsMeasured(current.Span) &&
+				!(traceutil.SpanTypeIsDB(current.Span.Type) && len(childrenMap[current.Span.SpanID]) == 0)) {
 			current.Ancestors = append(current.Ancestors, current.Span)
 		}
 		visited[current.Span] = true
