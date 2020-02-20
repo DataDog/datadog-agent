@@ -1,11 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -20,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 )
 
 type checkPayload struct {
@@ -39,7 +36,7 @@ type Collector struct {
 	send         chan checkPayload
 	rtIntervalCh chan time.Duration
 	cfg          *config.AgentConfig
-	httpClient   http.Client
+	apiClient    api.Client
 
 	// counters for each type of check
 	runCounters   sync.Map
@@ -69,7 +66,7 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
 		groupID:       rand.Int31(),
-		httpClient:    http.Client{Timeout: HTTPTimeout, Transport: cfg.Transport},
+		apiClient:     api.NewClient(http.Client{Timeout: HTTPTimeout, Transport: cfg.Transport}, ReqCtxTimeout),
 		enabledChecks: enabledChecks,
 
 		// Defaults for real-time on start
@@ -137,7 +134,15 @@ func (l *Collector) run(exit chan bool) {
 					<-l.send
 				}
 				for _, m := range payload.messages {
-					l.postMessage(payload.endpoint, payload.name, m)
+					extraHeaders := map[string]string{
+						"X-Dd-Hostname":            l.cfg.HostName,
+						"X-Dd-Processagentversion": Version,
+						"X-Dd-ContainerCount":      strconv.Itoa(getContainerCount(m)),
+					}
+					statuses := l.apiClient.PostMessage(l.endpointsForCheck(payload.name), payload.endpoint, m, extraHeaders)
+					if len(statuses) > 0 {
+						l.updateStatus(statuses)
+					}
 				}
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
@@ -181,60 +186,6 @@ func (l *Collector) run(exit chan bool) {
 	<-exit
 }
 
-func (l *Collector) postMessage(checkPath string, checkName string, m model.MessageBody) {
-	msgType, err := model.DetectMessageType(m)
-	if err != nil {
-		log.Errorf("Unable to detect message type: %s", err)
-		return
-	}
-
-	body, err := model.EncodeMessage(model.Message{
-		Header: model.MessageHeader{
-			Version:  model.MessageV3,
-			Encoding: model.MessageEncodingZstdPB,
-			Type:     msgType,
-		}, Body: m})
-	if err != nil {
-		log.Errorf("Unable to encode message: %s", err)
-	}
-
-	containerCount := getContainerCount(m)
-
-	responses := make(chan postResponse)
-	endpoints := l.endpointsForCheck(checkName)
-	for _, ep := range endpoints {
-		go l.postToAPI(ep, checkPath, body, responses, containerCount)
-	}
-
-	// Wait for all responses to come back before moving on.
-	statuses := make([]*model.CollectorStatus, 0, len(endpoints))
-	for i := 0; i < len(endpoints); i++ {
-		url := endpoints[i].Endpoint.String()
-		res := <-responses
-		if res.err != nil {
-			log.Error(res.err)
-			continue
-		}
-
-		r := res.msg
-		switch r.Header.Type {
-		case model.TypeResCollector:
-			rm := r.Body.(*model.ResCollector)
-			if len(rm.Message) > 0 {
-				log.Errorf("error in response from %s: %s", url, rm.Message)
-			} else {
-				statuses = append(statuses, rm.Status)
-			}
-		default:
-			log.Errorf("unexpected response type from %s: %d", url, r.Header.Type)
-		}
-	}
-
-	if len(statuses) > 0 {
-		l.updateStatus(statuses)
-	}
-}
-
 func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 	curEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
 
@@ -273,63 +224,7 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 	}
 }
 
-type postResponse struct {
-	msg model.Message
-	err error
-}
-
-func errResponse(format string, a ...interface{}) postResponse {
-	return postResponse{err: fmt.Errorf(format, a...)}
-}
-
-func (l *Collector) postToAPI(endpoint config.APIEndpoint, checkPath string, body []byte, responses chan postResponse, containerCount int) {
-	url := endpoint.GetCheckURL(checkPath)
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
-	if err != nil {
-		responses <- errResponse("could not create request to %s: %s", url, err)
-		return
-	}
-
-	req.Header.Add("X-Dd-APIKey", endpoint.APIKey)
-	req.Header.Add("X-Dd-Hostname", l.cfg.HostName)
-	req.Header.Add("X-Dd-Processagentversion", Version)
-	req.Header.Add("X-Dd-ContainerCount", strconv.Itoa(containerCount))
-
-	ctx, cancel := context.WithTimeout(context.Background(), ReqCtxTimeout)
-	defer cancel()
-	req.WithContext(ctx)
-
-	resp, err := l.httpClient.Do(req)
-	if err != nil {
-		if isHTTPTimeout(err) {
-			responses <- errResponse("Timeout detected on %s, %s", url, err)
-		} else {
-			responses <- errResponse("Error submitting payload to %s: %s", url, err)
-		}
-		return
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode > 300 {
-		responses <- errResponse("unexpected response from %s. Status: %s", url, resp.Status)
-		io.Copy(ioutil.Discard, resp.Body)
-		return
-	}
-
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		responses <- errResponse("could not decode response body from %s: %s", url, err)
-		return
-	}
-
-	r, err := model.DecodeMessage(body)
-	if err != nil {
-		responses <- errResponse("could not decode message from %s: %s", url, err)
-	}
-	responses <- postResponse{r, err}
-}
-
-func (l *Collector) endpointsForCheck(checkName string) []config.APIEndpoint {
+func (l *Collector) endpointsForCheck(checkName string) []api.Endpoint {
 	if checkName == checks.Pod.Name() {
 		return l.cfg.OrchestratorEndpoints
 	}
@@ -342,16 +237,6 @@ const (
 	// ReqCtxTimeout is the timeout in seconds for process-agent to cancel POST request using context timeout
 	ReqCtxTimeout = 30 * time.Second
 )
-
-// IsTimeout returns true if the error is due to reaching the timeout limit on the http.client
-func isHTTPTimeout(err error) bool {
-	if netErr, ok := err.(interface {
-		Timeout() bool
-	}); ok && netErr.Timeout() {
-		return true
-	}
-	return false
-}
 
 // getContainerCount returns the number of containers in the message body
 func getContainerCount(mb model.MessageBody) int {

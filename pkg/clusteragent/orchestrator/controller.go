@@ -8,6 +8,8 @@
 package orchestrator
 
 import (
+	"math/rand"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,6 +35,7 @@ type OrchestratorControllerContext struct {
 type OrchestratorController struct {
 	unassignedPodLister     corelisters.PodLister
 	unassignedPodListerSync cache.InformerSynced
+	groupID                 int32
 }
 
 func StartOrchestratorController(ctx OrchestratorControllerContext) error {
@@ -55,6 +58,7 @@ func newOrchestratorController(podInformer coreinformers.PodInformer) *Orchestra
 	return &OrchestratorController{
 		unassignedPodLister:     podInformer.Lister(),
 		unassignedPodListerSync: podInformer.Informer().HasSynced,
+		groupID:                 rand.Int31(),
 	}
 }
 
@@ -85,9 +89,7 @@ func (o *OrchestratorController) processPods() {
 	}
 
 	cfg := processcfg.NewDefaultAgentConfig(true)
-	// FIXME: generate proper groupid
-	groupId := 1
-	msg, err := orchestrator.ProcessPodlist(podList, groupId, cfg)
+	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), cfg, "hostname", "clustername")
 	if err != nil {
 		log.Errorf("Unable to process pod list")
 		return

@@ -25,7 +25,7 @@ import (
 const redactedValue = "********"
 
 // ProcessPodlist processes a pod list into process messages
-func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig) ([]model.MessageBody, error) {
+func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -62,8 +62,8 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig) (
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorPod{
-			HostName:    cfg.HostName,
-			ClusterName: cfg.KubeClusterName,
+			HostName:    hostName,
+			ClusterName: clusterName,
 			Pods:        chunked[i],
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),

@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -16,12 +15,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const processCheckEndpoint = "/api/v1/collector"
 
 var (
 	// defaultProxyPort is the default port used for proxies.
@@ -49,37 +47,13 @@ type WindowsConfig struct {
 	AddNewArgs bool
 }
 
-// APIEndpoint is a single endpoint where process data will be submitted.
-type APIEndpoint struct {
-	APIKey   string
-	Endpoint *url.URL
-}
-
-// GetCheckURL returns the URL string for a given agent check
-func (e *APIEndpoint) GetCheckURL(checkPath string) string {
-	// Make a copy of the URL
-	checkURL := *e.Endpoint
-
-	// This is to maintain backward compatibility with agents configured with the default collector endpoint:
-	// process_dd_url: https://process.datadoghq.com/api/v1/collector
-	if checkURL.Path == processCheckEndpoint {
-		checkURL.Path = ""
-	}
-
-	// Finally, add the checkPath to the existing APIEndpoint path.
-	// This is done like so to support certain use-cases in which `process_dd_url` points to something
-	// like a NGINX server proxying requests under a certain path (eg. https://proxy-host/process-agent)
-	checkURL.Path = path.Join(checkURL.Path, checkPath)
-	return checkURL.String()
-}
-
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
 	Enabled               bool
 	HostName              string
-	APIEndpoints          []APIEndpoint
-	OrchestratorEndpoints []APIEndpoint
+	APIEndpoints          []api.Endpoint
+	OrchestratorEndpoints []api.Endpoint
 	LogFile               string
 	LogLevel              string
 	LogToConsole          bool
@@ -190,8 +164,8 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 	ac := &AgentConfig{
 		Enabled:               canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints:          []APIEndpoint{{Endpoint: processEndpoint}},
-		OrchestratorEndpoints: []APIEndpoint{{Endpoint: orchestratorEndpoint}},
+		APIEndpoints:          []api.Endpoint{{Endpoint: processEndpoint}},
+		OrchestratorEndpoints: []api.Endpoint{{Endpoint: orchestratorEndpoint}},
 		LogFile:               defaultLogFilePath,
 		LogLevel:              "info",
 		LogToConsole:          false,

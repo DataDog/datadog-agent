@@ -12,10 +12,10 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const (
@@ -286,7 +286,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 			}
 			for _, k := range apiKeys {
-				a.APIEndpoints = append(a.APIEndpoints, APIEndpoint{
+				a.APIEndpoints = append(a.APIEndpoints, api.Endpoint{
 					APIKey:   k,
 					Endpoint: u,
 				})
@@ -301,7 +301,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 			}
 			for _, k := range apiKeys {
-				a.OrchestratorEndpoints = append(a.OrchestratorEndpoints, APIEndpoint{
+				a.OrchestratorEndpoints = append(a.OrchestratorEndpoints, api.Endpoint{
 					APIKey:   k,
 					Endpoint: u,
 				})
