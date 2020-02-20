@@ -29,8 +29,7 @@ func TestHasValidAPIKey(t *testing.T) {
 		ts2.URL: {"key3"},
 	}
 
-	fh := forwarderHealth{keysPerDomains: keysPerDomains}
-	fh.init()
+	fh := newForwarderHealth(keysPerDomains)
 	assert.True(t, fh.hasValidAPIKey())
 
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key1"))
@@ -53,8 +52,7 @@ func TestComputeAPIDomains(t *testing.T) {
 		"https://api.datadoghq.eu":    {"api_key_3"},
 	}
 
-	fh := forwarderHealth{keysPerDomains: keysPerDomains}
-	fh.init()
+	fh := newForwarderHealth(keysPerDomains)
 
 	assert.Equal(t, fh.keysPerAPIDomain, testMap)
 }
@@ -81,9 +79,7 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 		ts2.URL: {"key3"},
 	}
 
-	fh := forwarderHealth{}
-	fh.keysPerDomains = keysPerDomains
-	fh.init()
+	fh := newForwarderHealth(keysPerDomains)
 	assert.True(t, fh.hasValidAPIKey())
 
 	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending with _key1"))
