@@ -203,7 +203,8 @@ def _get_highest_version_from_release_json(release_json, highest_major, version_
 
 def _save_release_json(release_json, list_major_versions, highest_version, integration_version, omnibus_software_version, omnibus_ruby_version, jmxfetch_version):
 
-    jmxfetch = urllib.urlopen("https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar")
+    jmxfetch = urllib.urlopen("https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar"
+        .format(jmxfetch_version, jmxfetch_version))
     jmxfetch_sha256 = hashlib.sha256(jmxfetch.read()).hexdigest()
 
     print("Jmxfetch's SHA256 is {}".format(jmxfetch_sha256))
@@ -246,7 +247,8 @@ def create_new_version(
     integration_version = None,
     omnibus_software_version = None,
     jmxfetch_version = None,
-    omnibus_ruby_version = "datadog-5.5.0"):
+    omnibus_ruby_version = "datadog-5.5.0",
+    ignore_rc_tag = False):
 
     """
     Creates new entry in the release.json file for a new version.
@@ -301,17 +303,31 @@ def create_new_version(
 
     if not integration_version:
         integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
+        if integration_version is None:
+            print("EREROR: No version found for integrationscore - did you create the tag ?")
+            return Exit(code=1)
         if integration_version["rc"] != 0:
-            print("ERROR: Integration-Core tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
-            #return Exit(code=1)
+            print("ERROR: Integration-Core tag is still an RC tag. That's probably NOT what you want in the final artifact.")
+            if ignore_rc_tag:
+                print("Continuing with RC tag on Integration-Core.")
+            else:
+                print("Aborting.")
+                return Exit(code=1)
         integration_version = _stringify_version(integration_version)
     print("Integration-Core's tag is {}".format(integration_version))
 
     if not omnibus_software_version:
         omnibus_software_version = _get_highest_repo_version(auth, "omnibus-software", highest_version, version_re)
+        if omnibus_software_version is None:
+            print("EREROR: No version found for omnibus-software - did you create the tag ?")
+            return Exit(code=1)
         if omnibus_software_version["rc"] != 0:
-            print("ERROR: Omnibus-Software tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
-            #return Exit(code=1)
+            print("ERROR: Omnibus-Software tag is still an RC tag. That's probably NOT what you want in the final artifact.")
+            if ignore_rc_tag:
+                print("Continuing with RC tag on Omnibus-Software.")
+            else:
+                print("Aborting.")
+                return Exit(code=1)
         omnibus_software_version = _stringify_version(omnibus_software_version)
     print("Omnibus-Software's tag is {}".format(omnibus_software_version))
 
@@ -326,7 +342,7 @@ def create_new_version(
 
 
     _save_release_json(
-        release_json, 
+        release_json,
         list_major_versions,
         highest_version,
         integration_version,
@@ -402,7 +418,7 @@ def create_rc(
         return Exit(code=1)
 
     _save_release_json(
-        release_json, 
+        release_json,
         list_major_versions,
         highest_version,
         integration_version,
