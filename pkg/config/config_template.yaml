@@ -419,14 +419,14 @@ api_key:
   #     pattern: <RULE_PATTERN>
 
   ## @param use_http - boolean - optional - default: false
-  ## By default, logs are sent through TCP, use this parameter to for the Agent  
+  ## By default, logs are sent through TCP, use this parameter
   ## to send logs in HTTPS batches to port 443
   #
   # use_http: true
 
   ## @param use_compression - boolean - optional - default: false
-  ## Available when sending logs in HTTPS. When enabled, the Agent
-  ## compresses logs before sending them
+  ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
+  ## compresses logs before sending them.
   #
   # use_compression: true
   
