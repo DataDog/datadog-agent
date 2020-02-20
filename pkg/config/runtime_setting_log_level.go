@@ -9,20 +9,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LogLevel wraps operations to change log level at runtime
-type logLevel string
+// logLevelRuntimeSetting wraps operations to change log level at runtime
+type logLevelRuntimeSetting string
 
-var ll logLevel = "log_level"
-
-func (l logLevel) Description() string {
+func (l logLevelRuntimeSetting) Description() string {
 	return "Set/get the log level, valid values are: trace, debug, info, warn, error, critical and off"
 }
 
-func (l logLevel) Name() string {
+func (l logLevelRuntimeSetting) Name() string {
 	return string(l)
 }
 
-func (l logLevel) Get() (interface{}, error) {
+func (l logLevelRuntimeSetting) Get() (interface{}, error) {
 	level, err := log.GetLogLevel()
 	if err != nil {
 		return "", err
@@ -30,7 +28,7 @@ func (l logLevel) Get() (interface{}, error) {
 	return level.String(), nil
 }
 
-func (l logLevel) Set(v interface{}) error {
+func (l logLevelRuntimeSetting) Set(v interface{}) error {
 	logLevel := v.(string)
 	err := log.ChangeLogLevel(logLevel)
 	if err != nil {

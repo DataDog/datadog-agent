@@ -31,7 +31,7 @@ type RuntimeSetting interface {
 
 func initRuntimeSettings() {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	registerRuntimeSetting(RuntimeSetting(ll))
+	registerRuntimeSetting(logLevelRuntimeSetting("log_level"))
 }
 
 // RegisterRuntimeSettings keeps track of configurable settings
