@@ -83,7 +83,7 @@ func NewTestTailer(reader io.ReadCloser, dockerClient *fakeDockerClient, cancelF
 		decoder:            NewTestDecoder(),
 		source:             source,
 		tagProvider:        tag.NoopProvider,
-		cli:                dockerClient,
+		dockerutil:         dockerClient,
 		readTimeout:        time.Millisecond,
 		sleepDuration:      time.Second,
 		stop:               make(chan struct{}, 1),

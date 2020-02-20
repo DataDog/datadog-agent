@@ -207,7 +207,7 @@ func (a *Agent) Process(t *api.Trace) {
 	// which is not thread-safe while samplers and Concentrator might modify it too.
 	traceutil.ComputeTopLevel(t.Spans)
 
-	subtraces := stats.ExtractTopLevelSubtraces(t.Spans, root)
+	subtraces := stats.ExtractSubtraces(t.Spans, root)
 	sublayers := make(map[*pb.Span][]stats.SublayerValue)
 	for _, subtrace := range subtraces {
 		subtraceSublayers := stats.ComputeSublayers(subtrace.Trace)
