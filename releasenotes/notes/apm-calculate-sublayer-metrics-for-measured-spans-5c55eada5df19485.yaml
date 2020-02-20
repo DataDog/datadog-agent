@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add support for calculating trace sublayer metrics for measured spans.
+    APM: Add support for calculating trace sublayer metrics for measured spans.
