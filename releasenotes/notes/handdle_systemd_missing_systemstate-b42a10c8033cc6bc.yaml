@@ -9,5 +9,3 @@
 fixes:
   - |
     Make ``systemd`` core check handle gracefully missing ``SystemState`` attribute.
-    ``SystemState`` attribute is only available from ``systemd`` version 212.
-    Source: https://github.com/systemd/systemd/blob/d4ffda38716d33dbc17faaa12034ccb77d0ed68b/NEWS#L7292-L7300
