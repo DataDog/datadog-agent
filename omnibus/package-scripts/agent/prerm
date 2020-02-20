@@ -100,13 +100,15 @@ remove_py_compiled_files()
     fi
 }
 
-uninstall_integrations()
+remove_custom_integrations()
 {
     # Since 6.18.0, a file containing all integrations files which have been installed by
     # the package is available. We use it to remove only the datadog-related check files which
     # have *NOT* been installed by the package (eg: installed using the `integration` command).
 
     if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
+        echo "Removing integrations installed with the 'agent integration' command"
+
         # List all files in the embedded dir of the datadog-agent install dir
         pushd $INSTALL_DIR
         find ./embedded/lib/python*/site-packages/datadog_* > $INSTALL_DIR/embedded/.all-integrations.txt
@@ -123,7 +125,7 @@ uninstall_integrations()
 if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     stop_agent
     deregister_agent
-    uninstall_integrations
+    remove_custom_integrations
     remove_py_compiled_files
 elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
     stop_agent
@@ -132,7 +134,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
     case "$*" in
         0)
             # We're uninstalling.
-            uninstall_integrations
+            remove_custom_integrations
             remove_py_compiled_files
         ;;
         1)

@@ -78,6 +78,8 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # have *NOT* been installed by the package (eg: installed using the `integration` command).
 
         if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
+            echo "Removing integrations installed with the 'agent integration' command"
+
             # List all files in the embedded dir of the datadog-agent install dir
             pushd $INSTALL_DIR
             find ./embedded/lib/python*/site-packages/datadog_* > $INSTALL_DIR/embedded/.all-integrations.txt
