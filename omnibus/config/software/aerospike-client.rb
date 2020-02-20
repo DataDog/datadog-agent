@@ -9,9 +9,9 @@ build do
   # The binary wheels on PyPI are not yet compatible with OpenSSL 1.1.0+, see:
   # https://github.com/aerospike/aerospike-client-python/issues/214#issuecomment-385451007
   # https://github.com/aerospike/aerospike-client-python/issues/227#issuecomment-423220411
-  command "git clone https://github.com/aerospike/aerospike-client-c.git #{install_dir}/embedded/lib/aerospike"
-  command "cd #{install_dir}/embedded/lib/aerospike && git checkout #{version}"
-  command "cd #{install_dir}/embedded/lib/aerospike && git submodule update --init"
+  command "git clone https://github.com/aerospike/aerospike-client-c.git ./aerospike"
+  command "git checkout #{version}", cwd: "#{project_dir}/aerospike"
+  command "git submodule update --init", cwd: "#{project_dir}/aerospike"
 
   env = {
     "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
@@ -19,6 +19,7 @@ build do
     "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
   }
 
-  command "cd #{install_dir}/embedded/lib/aerospike && make clean", :env => env
-  command "cd #{install_dir}/embedded/lib/aerospike && make", :env => env
+  command "make clean", :env => env, cwd: "#{project_dir}/aerospike"
+  # make fails if used with multiple parallel jobs when building the aerospike client
+  command "make", :env => env, cwd: "#{project_dir}/aerospike"
 end
