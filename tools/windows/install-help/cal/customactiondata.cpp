@@ -86,10 +86,13 @@ bool CustomActionData::parseUsernameData()
         this->domainUser = false;
     } else {
         WCHAR netBiosDomainName[256];
-        DWORD size = sizeof(netBiosDomainName)/sizeof(WCHAR);
+        DWORD size = sizeof netBiosDomainName/sizeof(WCHAR);
         if (DnsHostnameToComputerName(computed_domain.c_str(), netBiosDomainName, &size))
         {
+            WcaLog(LOGMSG_VERBOSE, "Computed domain was %S. Equivalent NetBIOS name: %S", computed_domain.c_str(), netBiosDomainName);
             computed_domain = netBiosDomainName;
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Warning: DnsHostnameToComputerName(%S) did not return success: %d", computed_domain.c_str(), GetLastError());
         }
 
         if(0 == _wcsicmp(computed_domain.c_str(), computername.c_str())){
