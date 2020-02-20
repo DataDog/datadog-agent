@@ -76,14 +76,14 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	defer ts1.Close()
 	defer ts2.Close()
 
-	keysPerAPIDomain := map[string][]string{
+	keysPerDomains := map[string][]string{
 		ts1.URL: {"api_key1", "api_key2"},
 		ts2.URL: {"key3"},
 	}
 
 	fh := forwarderHealth{}
+	fh.keysPerDomains = keysPerDomains
 	fh.init()
-	fh.keysPerAPIDomain = keysPerAPIDomain
 	assert.True(t, fh.hasValidAPIKey())
 
 	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending with _key1"))
