@@ -111,17 +111,25 @@ func TestExtractSubtracesMeasuredSpans(t *testing.T) {
 
 	trace := pb.Trace{
 		&pb.Span{SpanID: 1, ParentID: 0, Service: "s1"},
+		// non top level span will not have a subtrace
 		&pb.Span{SpanID: 2, ParentID: 1, Service: "s1"},
 		// measured span has two child leaf spans
 		&pb.Span{SpanID: 3, ParentID: 2, Service: "s1", Metrics: map[string]float64{"_dd.measured": 1.0}},
 		&pb.Span{SpanID: 4, ParentID: 3, Service: "s2"},
+		// childless db span will not have a subtrace
 		&pb.Span{SpanID: 5, ParentID: 3, Service: "s3", Type: "db"},
+		// db span with children will have a subtrace
+		&pb.Span{SpanID: 6, ParentID: 1, Service: "s3", Type: "db"},
+		&pb.Span{SpanID: 7, ParentID: 6, Service: "s3", Type: "db"},
+		// measured childless db span will not have a subtrace
+		&pb.Span{SpanID: 8, ParentID: 2, Service: "s1", Type: "db", Metrics: map[string]float64{"_dd.measured": 1.0}},
 	}
 
 	expected := []Subtrace{
 		{trace[0], trace},
 		{trace[2], []*pb.Span{trace[2], trace[3], trace[4]}},
 		{trace[3], []*pb.Span{trace[3]}},
+		{trace[5], []*pb.Span{trace[5], trace[6]}},
 	}
 
 	traceutil.ComputeTopLevel(trace)
