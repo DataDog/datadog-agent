@@ -124,6 +124,7 @@ dependency 'datadog-puppy'
 if windows?
   dependency 'datadog-agent-finalize'
 end
+
 # version manifest file
 dependency 'version-manifest'
 

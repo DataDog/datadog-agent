@@ -23,6 +23,7 @@ if ohai["platform"] != "windows"
   dependency "ncurses"
   dependency "zlib"
   dependency "openssl"
+  dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "libyaml"
@@ -35,6 +36,8 @@ if ohai["platform"] != "windows"
   env = {
     "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe -fPIC",
     "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+    "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
+    "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
   }
 
   python_configure = ["./configure",
@@ -78,11 +81,11 @@ else
   dependency "vc_redist"
 
   if windows_arch_i386?
-    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-x86.zip",
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
            :sha256 => "a2c5c5736356f7264a7412cdca050cf2ae924c703c47a27b8f0d8f62ce2d6181",
            :extract => :seven_zip
   else
-    source :url => "https://s3.amazonaws.com/dd-agent-omnibus/python-windows-#{version}-amd64.zip",
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
          :sha256 => "557ea6690c5927360656c003d3114b73adbd755b712a2911975dde813d6d7afb",
          :extract => :seven_zip
   end

@@ -126,10 +126,10 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 
 	return &Connections{
 		DNS: map[util.Address][]string{
-			util.AddressFromString("127.0.0.1"): []string{"localhost"},
+			util.AddressFromString("127.0.0.1"): {"localhost"},
 		},
 		Conns: []ConnectionStats{
-			ConnectionStats{
+			{
 				Source: util.AddressFromString("127.0.0.1"),
 				Dest:   util.AddressFromString("127.0.0.1"),
 				SPort:  35673,
@@ -146,18 +146,17 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 	return nil, 0, ErrNotImplemented
 }
 
+// GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	return nil, ErrNotImplemented
 }
 
+// DebugNetworkState returns a map with the current tracer's internal state, for debugging
 func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
 	return nil, ErrNotImplemented
 }
 
+// DebugNetworkMaps returns all connections stored in the maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 	return nil, ErrNotImplemented
-}
-
-func CurrentKernelVersion() (uint32, error) {
-	return 1, ErrNotImplemented
 }

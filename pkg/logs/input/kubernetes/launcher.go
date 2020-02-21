@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,10 +54,6 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 		kubeutil:           kubeutil,
 		collectAll:         collectAll,
 	}
-	err = launcher.setup()
-	if err != nil {
-		return nil, err
-	}
 	launcher.addedServices = services.GetAllAddedServices()
 	launcher.removedServices = services.GetAllRemovedServices()
 	return launcher, nil
@@ -70,13 +65,6 @@ func isIntegrationAvailable() bool {
 	}
 
 	return true
-}
-
-// setup initializes the pod watcher and the tagger.
-func (l *Launcher) setup() error {
-	// initialize the tagger to collect container tags
-	tagger.Init()
-	return nil
 }
 
 // Start starts the launcher

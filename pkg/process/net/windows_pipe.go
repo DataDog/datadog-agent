@@ -7,22 +7,24 @@ import (
 	"net"
 )
 
+// Windows Pipe Listener for communicating with Probe
 type WindowsPipeListener struct {
 	conn     net.Listener
 	pipePath string
 }
 
-// Sets up a TCP listener for now, will eventually be a named pipe
+// NewListener sets up a TCP listener for now, will eventually be a named pipe
 func NewListener(cfg *config.AgentConfig) (*WindowsPipeListener, error) {
 	l, err := net.Listen("tcp", "localhost:3333")
 	return &WindowsPipeListener{l, "path"}, err
 }
 
+// GetListener will return underlying Listener's conn
 func (wp *WindowsPipeListener) GetListener() net.Listener {
 	return wp.conn
 }
 
-// Stop closes the UDSListener connection and stops listening
+// Stop closes the WindowsPipeListener connection and stops listening
 func (wp *WindowsPipeListener) Stop() {
 	wp.conn.Close()
 }

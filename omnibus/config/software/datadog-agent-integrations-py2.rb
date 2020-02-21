@@ -28,6 +28,10 @@ if linux?
   dependency 'nfsiostat'
   # need kerberos for hdfs
   dependency 'libkrb5'
+
+  unless suse? || arm?
+    dependency 'aerospike-py2'
+  end
 end
 
 relative_path 'integrations-core'
@@ -57,15 +61,25 @@ blacklist_folders = [
 # package names of dependencies that won't be added to the Agent Python environment
 blacklist_packages = Array.new
 
+# We build these manually
+blacklist_packages.push(/^aerospike==/)
+
 if suse?
   blacklist_folders.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
-  blacklist_packages.push(/^aerospike==/)  # Temporarily blacklist Aerospike until builder supports new dependency
+end
+
+if osx?
+  # Blacklist lxml as it fails MacOS notarization: the etree.cpython-37m-darwin.so and objectify.cpython-37m-darwin.so
+  # binaries were built with a MacOS SDK lower than 10.9.
+  # This can be removed once a new lxml version with binaries built with a newer SDK is available.
+  blacklist_packages.push(/^lxml==/)
+  # Blacklist ibm_was, which depends on lxml
+  blacklist_folders.push('ibm_was')
 end
 
 if arm?
   # These two checks don't build on ARM
   blacklist_folders.push('aerospike')
-  blacklist_packages.push(/^aerospike==/)
   blacklist_folders.push('ibm_mq')
   blacklist_packages.push(/^pymqi==/)
 end
@@ -99,8 +113,8 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} install wheel==0.30.0"
-    command "#{pip} install pip-tools==2.0.2"
+    command "#{pip} install wheel==0.34.1"
+    command "#{pip} install pip-tools==4.2.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",

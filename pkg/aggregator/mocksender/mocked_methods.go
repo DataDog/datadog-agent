@@ -60,7 +60,7 @@ func (m *MockSender) Event(e metrics.Event) {
 }
 
 //HistogramBucket enables the histogram bucket mock call.
-func (m *MockSender) HistogramBucket(metric string, value int, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
+func (m *MockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
 	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags)
 }
 

@@ -65,6 +65,12 @@ api_key:
 #   - environment:dev
 #   - <TAG_KEY>:<TAG_VALUE>
 
+## @param env - string - optional
+## The environment name where the agent is running. Attached in-app to every
+## metric, event, log, trace, and service check emitted by this Agent.
+#
+# env: <environment name>
+
 ## @param tag_value_split_separator - list of key:value elements - optional
 ## Split tag values according to a given separator. Only applies to host tags,
 ## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
@@ -418,11 +424,23 @@ api_key:
   #     name: <RULE_NAME>
   #     pattern: <RULE_PATTERN>
 
-  ## @param use_port_443 - boolean - optional - default: false
-  ## By default, logs are sent to port 10516 *for the US site*, use this parameter
-  ## to force the Agent to send logs in TCP to port 443.
+  ## @param use_http - boolean - optional - default: false
+  ## By default, logs are sent through TCP, use this parameter
+  ## to send logs in HTTPS batches to port 443
   #
-  # use_port_443: false
+  # use_http: true
+
+  ## @param use_compression - boolean - optional - default: false
+  ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
+  ## compresses logs before sending them.
+  #
+  # use_compression: true
+
+  ## @param compression_level - integer - optional - default: 6
+  ## The compression_level parameter accepts values from 0 (no compression)
+  ## to 9 (maximum compression but higher resource usage).
+  #
+  # compression_level: 6
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -445,7 +463,9 @@ api_key:
 
   ## @param env - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
-  ## Inherits from "env" tag if "none" is applied here.
+  ## If not set the value will be inherited, in order, from the top level
+  ## "env" config option if set and then from the 'env:' tag if present in the
+  ## 'tags' top level config option.
   #
   # env: none
 
@@ -514,11 +534,7 @@ api_key:
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##
-  ## For instance to remove all query parameters from the http.url tag you would use:
-  ##
-  ##   - name: "http.url"
-  ##     pattern: "\?.*$"
-  ##     repl: "?"
+  ## See https://docs.datadoghq.com/tracing/guide/security/#replace-rules
   ##
   #
   # replace_tags:

@@ -197,7 +197,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		LogToConsole:          false,
 		QueueSize:             20,
 		MaxPerMessage:         100,
-		MaxConnsPerMessage:    300,
+		MaxConnsPerMessage:    600,
 		AllowRealTime:         true,
 		HostName:              "",
 		Transport:             NewDefaultTransport(),

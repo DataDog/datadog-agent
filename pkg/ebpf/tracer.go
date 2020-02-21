@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -82,16 +81,10 @@ const (
 	defaultClosedChannelSize = 500
 )
 
-// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
-// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-func CurrentKernelVersion() (uint32, error) {
-	return bpflib.CurrentKernelVersion()
-}
-
 func NewTracer(config *Config) (*Tracer, error) {
 	// make sure debugfs is mounted
 	if mounted, msg := util.IsDebugfsMounted(); !mounted {
-		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
+		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
 	}
 
 	m, err := readBPFModule(config.BPFDebug)
@@ -165,11 +158,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 			reverseDNS = snooper
 		} else {
 			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
-		}
-
-		if !util.IsRootNS(config.ProcRoot) {
-			log.Warn("system-probe is not running on the root network namespace, which is usually caused by running the " +
-				"system-probe in a container without using the host network. in this mode, you may see partial DNS resolution.")
 		}
 	}
 
@@ -288,7 +276,13 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
+					cs.IPTranslation = t.conntracker.GetTranslationForConn(
+						cs.Source,
+						cs.SPort,
+						cs.Dest,
+						cs.DPort,
+						process.ConnectionType(cs.Type),
+					)
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
@@ -404,7 +398,13 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort, process.ConnectionType(conn.Type))
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(
+					conn.Source,
+					conn.SPort,
+					conn.Dest,
+					conn.DPort,
+					process.ConnectionType(conn.Type),
+				)
 				active = append(active, conn)
 			}
 		}
@@ -443,8 +443,13 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 	for i := range entries {
 		err := t.m.DeleteElement(mp, unsafe.Pointer(entries[i]))
 		if err != nil {
-			// It's possible some other process deleted this entry already (e.g. tcp_close)
+			// If this entry no longer exists in the eBPF map it means `tcp_close` has executed
+			// during this function call. In that case state.StoreClosedConnection() was already called for this connection
+			// and we can't delete the corresponding client state or we'll likely over-report the metric values.
+			// By skipping to the next iteration and not calling state.RemoveConnections() we'll let
+			// this connection expire "naturally" when either next connection check runs or the client itself expires.
 			_ = log.Warnf("failed to remove entry from connections map: %s", err)
+			continue
 		}
 
 		// Append the connection key to the keys to remove from the userspace state

@@ -124,13 +124,13 @@ func FetchAuthToken() (string, error) {
 		key := make([]byte, authTokenMinimalLen)
 		_, e = rand.Read(key)
 		if e != nil {
-			return "", fmt.Errorf("error creating authentication token: %s", e)
+			return "", fmt.Errorf("can't create agent authentication token value: %s", e)
 		}
 
 		// Write the auth token to the auth token file (platform-specific)
 		e = saveAuthToken(hex.EncodeToString(key), authTokenFile)
 		if e != nil {
-			return "", fmt.Errorf("error creating authentication token: %s", e)
+			return "", fmt.Errorf("error writing authentication token file on fs: %s", e)
 		}
 		log.Infof("Saved a new authentication token to %s", authTokenFile)
 	}
@@ -138,7 +138,7 @@ func FetchAuthToken() (string, error) {
 	// Read the token
 	authTokenRaw, e := ioutil.ReadFile(authTokenFile)
 	if e != nil {
-		return "", fmt.Errorf("unable to access authentication token: " + e.Error())
+		return "", fmt.Errorf("unable to access authentication token file: " + e.Error())
 	}
 
 	// Do some basic validation
@@ -177,13 +177,13 @@ func GetClusterAgentAuthToken() (string, error) {
 		key := make([]byte, authTokenMinimalLen)
 		_, e = rand.Read(key)
 		if e != nil {
-			return "", fmt.Errorf("error creating authentication token: %s", e)
+			return "", fmt.Errorf("can't create cluster agent authentication token value: %s", e)
 		}
 
 		// Write the auth token to the auth token file (platform-specific)
 		e = saveAuthToken(hex.EncodeToString(key), tokenAbsPath)
 		if e != nil {
-			return "", fmt.Errorf("error creating authentication token: %s", e)
+			return "", fmt.Errorf("error writing authentication token file on fs: %s", e)
 		}
 		log.Infof("Saved a new authentication token for the Cluster Agent at %s", tokenAbsPath)
 	}

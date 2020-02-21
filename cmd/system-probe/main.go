@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 
 	_ "net/http/pprof"
@@ -22,13 +21,6 @@ func main() {
 	flag.StringVar(&opts.checkType, "type", "", "The type of check to run. Choose from: conections, network_maps, network_state, stags")
 	flag.StringVar(&opts.checkClient, "client", "", "The client ID that the check will use to run")
 	flag.Parse()
-
-	// Set up a default config before parsing config so we log errors nicely.
-	// The default will be stdout since we can't assume any file is writable.
-	if err := config.SetupInitialLogger(loggerName); err != nil {
-		panic(err)
-	}
-	defer log.Flush()
 
 	runAgent()
 }

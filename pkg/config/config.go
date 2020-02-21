@@ -132,6 +132,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("tags", []string{})
+	config.BindEnv("env")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
@@ -254,6 +255,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
 
 	// Forwarder
+	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 30)
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -459,7 +461,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
-	config.SetKnown("logs_config.additional_endpoints")
+	config.BindEnv("logs_config.additional_endpoints")
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -515,7 +517,6 @@ func initConfig(config Config) {
 	config.SetKnown("config_providers")
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
-	config.SetKnown("additional_endpoints.*")
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
@@ -615,6 +616,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_enabled", true)
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
+
+	// command line options
+	config.SetKnown("cmd.check.fullsketches")
 
 	setAssetFs(config)
 }
@@ -770,6 +774,7 @@ func load(config Config, origin string, loadSecret bool) error {
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
+	trimTrailingSlashFromURLS(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -814,6 +819,47 @@ func ResolveSecrets(config Config, origin string) error {
 // Avoid log ingestion breaking because of a newline in the API key
 func sanitizeAPIKey(config Config) {
 	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
+}
+
+//trimTrailingSlashFromURLS trims any forward slashes from the end of various config URL's (site, dd_url, and various additional endpoints)
+func trimTrailingSlashFromURLS(config Config) error {
+	var urls = []string{
+		"site",
+		"dd_url",
+	}
+	var additionalEndpointSelectors = []string{
+		"additional_endpoints",
+		"apm_config.additional_endpoints",
+		"process_config.additional_endpoints",
+	}
+
+	for _, domain := range urls {
+		key := config.GetString(domain)
+		if key == "" {
+			continue
+		}
+		config.Set(domain, strings.TrimRight(key, "/"))
+	}
+
+	for _, es := range additionalEndpointSelectors {
+		additionalEndpoints := make(map[string][]string)
+		sanitizedAdditionalEndpoints := make(map[string][]string)
+
+		err := config.UnmarshalKey(es, &additionalEndpoints)
+
+		if err != nil {
+			return err
+		}
+		for domain, keys := range additionalEndpoints {
+			if domain == "" {
+				continue
+			}
+			domain = strings.TrimRight(domain, "/")
+			sanitizedAdditionalEndpoints[domain] = keys
+		}
+		config.Set(es, sanitizedAdditionalEndpoints)
+	}
+	return nil
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
@@ -891,12 +937,7 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 		},
 	}
 
-	var additionalEndpoints map[string][]string
-	err = config.UnmarshalKey("additional_endpoints", &additionalEndpoints)
-	if err != nil {
-		return keysPerDomain, err
-	}
-
+	additionalEndpoints := config.GetStringMapStringSlice("additional_endpoints")
 	// merge additional endpoints into keysPerDomain
 	for domain, apiKeys := range additionalEndpoints {
 
