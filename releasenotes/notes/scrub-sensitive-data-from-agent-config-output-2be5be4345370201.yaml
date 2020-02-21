@@ -1,5 +1,5 @@
 enhancements:
   - |
     The agent config command output now scrub sensitive
-    data and prevent API keys, password, token, etc. to
+    data and prevents API keys, password, token, etc. from
     appear in the console.
