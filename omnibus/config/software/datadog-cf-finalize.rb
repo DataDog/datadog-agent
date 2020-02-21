@@ -33,15 +33,6 @@ build do
             copy "#{cf_source_root}/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
             copy "#{cf_source_root}/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"
 
-
-            ## for now, do a side directory.  If we put into embedded3, it will get
-            ## pulled into the MSI, which we don't want
-            cf_crt_root = "#{cf_bin_root}/embedded3"
-            cf_crt_expanded = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
-
-            ## we only seem to need to get the c-runtilme DLL
-            mkdir cf_crt_root
-            copy "#{cf_crt_expanded}/vcruntime140.dll", cf_crt_root
         end
     end
 end
