@@ -40,9 +40,9 @@ type Config struct {
 }
 
 // MaxCount returns the max number of values you can insert.
-// This is limited by using a uint16 for bin.n
+// This is limited by using a uint32 for bin.n
 func (c *Config) MaxCount() int {
-	return c.binLimit * math.MaxUint16
+	return c.binLimit * math.MaxUint32
 }
 
 // f64 returns the lower bound for the given key: γ^k

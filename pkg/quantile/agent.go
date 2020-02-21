@@ -9,8 +9,9 @@ var agentConfig = Default()
 // An Agent sketch is an insert optimized version of the sketch for use in the
 // datadog-agent.
 type Agent struct {
-	Sketch Sketch
-	Buf    []Key
+	Sketch   Sketch
+	Buf      []Key
+	CountBuf []KeyCount
 }
 
 // IsEmpty returns true if the sketch is empty
@@ -31,12 +32,15 @@ func (a *Agent) Finish() *Sketch {
 
 // flush buffered values into the sketch.
 func (a *Agent) flush() {
-	if len(a.Buf) == 0 {
-		return
+	if len(a.Buf) != 0 {
+		a.Sketch.insert(agentConfig, a.Buf)
+		a.Buf = nil
 	}
 
-	a.Sketch.insert(agentConfig, a.Buf)
-	a.Buf = nil
+	if len(a.CountBuf) != 0 {
+		a.Sketch.insertCounts(agentConfig, a.CountBuf)
+		a.CountBuf = nil
+	}
 }
 
 // Reset the agent sketch to the empty state.
@@ -57,16 +61,32 @@ func (a *Agent) Insert(v float64) {
 	a.flush()
 }
 
-// InsertN inserts v, n times into the sketch.
-func (a *Agent) InsertN(v float64, n uint) {
-	a.Sketch.Basic.InsertN(v, n)
-
-	for i := 0; i < int(n); i++ {
-		a.Buf = append(a.Buf, agentConfig.key(v))
+// InsertInterpolate linearly interpolates counts from lower (l) to upper (u)
+func (a *Agent) InsertInterpolate(l float64, u float64, n uint) {
+	keys := make([]Key, 0)
+	for k := agentConfig.key(l); k <= agentConfig.key(u); k++ {
+		keys = append(keys, k)
 	}
-	if len(a.Buf) < agentBufCap {
-		return
+	whatsLeft := n
+	distance := u - l
+	kStartIdx := 0
+	lowerB := agentConfig.binLow(keys[kStartIdx])
+	kEndIdx := 1
+	for kEndIdx < len(keys) {
+		upperB := agentConfig.binLow(keys[kEndIdx])
+		// ((upperB - lowerB) / distance) is the ratio of the distance between the current buckets to the total distance
+		// which tells us how much of the remaining value to put in this bucket
+		kn := uint(((upperB - lowerB) / distance) * float64(n))
+		if kn > 0 {
+			a.Sketch.Basic.InsertN(lowerB, kn)
+			a.CountBuf = append(a.CountBuf, KeyCount{k: keys[kStartIdx], n: kn})
+			whatsLeft -= kn
+			kStartIdx = kEndIdx
+			lowerB = upperB
+		}
+		kEndIdx++
 	}
-
+	a.Sketch.Basic.InsertN(agentConfig.binLow(keys[kStartIdx]), whatsLeft)
+	a.CountBuf = append(a.CountBuf, KeyCount{k: keys[kStartIdx], n: whatsLeft})
 	a.flush()
 }

@@ -19,7 +19,11 @@ type sketchMap map[int64]map[ckey.ContextKey]*quantile.Agent
 func (m sketchMap) Len() int {
 	l := 0
 	for _, byCtx := range m {
-		l += len(byCtx)
+		for _, q := range byCtx {
+			l += len(q.Buf) * 4
+			used, _ := q.Sketch.MemSize()
+			l += used
+		}
 	}
 	return l
 }
@@ -35,12 +39,16 @@ func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64) bool {
 	return true
 }
 
-func (m sketchMap) insertN(ts int64, ck ckey.ContextKey, v float64, n uint) bool {
-	if math.IsInf(v, 0) || math.IsNaN(v) {
+func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, l float64, u float64, n uint) bool {
+	if math.IsInf(l, 0) || math.IsNaN(l) {
 		return false
 	}
 
-	m.getOrCreate(ts, ck).InsertN(v, n)
+	if math.IsInf(u, 0) || math.IsNaN(u) {
+		return false
+	}
+
+	m.getOrCreate(ts, ck).InsertInterpolate(l, u, n)
 	return true
 }
 
