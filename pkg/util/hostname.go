@@ -254,10 +254,10 @@ func GetHostnameData() (HostnameData, error) {
 				// is `true` that means `ec2_use_windows_prefix_detection` is set to false.
 				ec2Hostname, _, err := getValidEC2Hostname(getEC2Hostname)
 
-				// Check if we get a valid hostname when enabling `ec2_use_windows_prefix_detection`
-				if err == nil {
+				// Check if we get a valid hostname when enabling `ec2_use_windows_prefix_detection` and the hostnames are different.
+				if err == nil && ec2Hostname != hostName {
 					// REMOVEME: This should be removed if/when the default `ec2_use_windows_prefix_detection` is set to true
-					log.Info("The agent resolved your hostname as '%s'. You may want to use the EC2 instance-id ('%s') for the in-app hostname."+
+					log.Infof("The agent resolved your hostname as '%s'. You may want to use the EC2 instance-id ('%s') for the in-app hostname."+
 						" For more information: https://docs.datadoghq.com/ec2-use-win-prefix-detection", hostName, ec2Hostname)
 				}
 			}
