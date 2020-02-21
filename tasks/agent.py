@@ -334,7 +334,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
     'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands"
 })
-def omnibus_build(ctx, puppy=False, cf_windows=False, log_level="info", base_dir=None, gem_path=None,
+def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base_dir=None, gem_path=None,
                   skip_deps=False, skip_sign=False, release_version="nightly", major_version='7',
                   python_runtimes='3', omnibus_s3_cache=False, hardened_runtime=False, system_probe_bin=None,
                   libbcc_tarball=None):
@@ -383,8 +383,8 @@ def omnibus_build(ctx, puppy=False, cf_windows=False, log_level="info", base_dir
         target_project = "agent"
         if puppy:
             target_project = "puppy"
-        elif cf_windows:
-            target_project = "cf-windows"
+        elif agent_binaries:
+            target_project = "agent-binaries"
 
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"

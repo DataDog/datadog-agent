@@ -919,14 +919,14 @@ agent_suse-x64-a7:
   <<: *agent_build_common_suse_rpm
 
 # cloudfoundry puppy build/windows
-cf_buildpack_windows:
+windows_zip_agent_binaries_x64:
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["fail_on_non_triggered_tag", "run_dep_check_lock"]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7
-    OMNIBUS_TARGET: cf_buildpack
+    OMNIBUS_TARGET: agent_binaries
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   script:
@@ -2699,13 +2699,13 @@ deploy_datadog_agent_windows_zip:
 deploy_datadog_agent_windows_binaries_zip:
   <<: *run_when_triggered_on_tag_7
   stage: deploy7
-  needs: [ "cf_buildpack_windows"]
+  needs: [ "windows_zip_agent_binaries_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "cf-windows-7.*.zip" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/buildpack/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "agent-binaries-7.*.zip" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/buildpack/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy process agent and system-probe to staging bucket
 deploy_process_and_sysprobe:
