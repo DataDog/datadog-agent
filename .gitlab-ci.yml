@@ -70,10 +70,10 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly
-  DATADOG_AGENT_BUILDIMAGES: v2157251-e0a6940
+  DATADOG_AGENT_BUILDIMAGES: v2195996-580f7f3
   DATADOG_AGENT_BUILDERS: v2194239-8bba855
   DATADOG_AGENT_WINBUILDIMAGES: v2123666-a884483
-  DATADOG_AGENT_ARMBUILDIMAGES: v2157251-e0a6940
+  DATADOG_AGENT_ARMBUILDIMAGES: v2195996-580f7f3
   BCC_VERSION: v0.12.0
 
 
@@ -1389,8 +1389,8 @@ deploy_windows_testing-a7:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="centos-69,urn,OpenLogic:CentOS:6.9:6.9.20180530"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-76,urn,OpenLogic:CentOS:7.6:7.6.20190402"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-80,urn,RedHat:RHEL:8:8.0.2019062020"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|centos-77,urn,OpenLogic:CentOS:7.7:7.7.20191209"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|rhel-81,urn,RedHat:RHEL:8.1:8.1.2020020415"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 

@@ -122,6 +122,11 @@ build do
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
+  # Add SELinux policy for system-probe
+  if debian? || redhat?
+    mkdir "#{conf_dir}/selinux"
+    command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+  end
 
   if linux?
     if debian?
