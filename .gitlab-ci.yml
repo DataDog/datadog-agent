@@ -2699,7 +2699,7 @@ deploy_datadog_agent_windows_zip:
 deploy_datadog_agent_windows_binaries_zip:
   <<: *run_when_triggered_on_tag_7
   stage: deploy7
-  needs: [ "cf_buildpack_windows"]
+  needs: [ "windows_zip_agent_binaries_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
