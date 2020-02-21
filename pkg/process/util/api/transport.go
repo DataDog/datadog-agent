@@ -55,6 +55,7 @@ func errResponse(format string, a ...interface{}) postResponse {
 	return postResponse{err: fmt.Errorf(format, a...)}
 }
 
+// Client holds the process http API client
 type Client struct {
 	http       http.Client
 	ctxTimeout time.Duration

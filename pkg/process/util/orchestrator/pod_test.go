@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux,kubelet,orchestrator
+// +build orchestrator
 
-package checks
+package orchestrator
 
 import (
 	"testing"
