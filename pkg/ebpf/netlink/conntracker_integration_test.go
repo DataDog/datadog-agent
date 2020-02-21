@@ -31,13 +31,21 @@ func TestConntracker(t *testing.T) {
 
 	localAddr := pingTCP(t, "2.2.2.2:5432")
 
-	trans := ct.GetTranslationForConn(util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port), process.ConnectionType_tcp)
+	trans := ct.GetTranslationForConn(
+		util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port),
+		util.AddressFromString("2.2.2.2"), uint16(5432),
+		process.ConnectionType_tcp,
+	)
 	require.NotNil(t, trans)
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
 
 	localAddrUDP := pingUDP(t, net.ParseIP("2.2.2.2"), 5432).(*net.UDPAddr)
 	time.Sleep(time.Second)
-	trans = ct.GetTranslationForConn(util.AddressFromNetIP(localAddrUDP.IP), uint16(localAddrUDP.Port), process.ConnectionType_udp)
+	trans = ct.GetTranslationForConn(
+		util.AddressFromNetIP(localAddrUDP.IP), uint16(localAddrUDP.Port),
+		util.AddressFromString("2.2.2.2"), uint16(5432),
+		process.ConnectionType_udp,
+	)
 	require.NotNil(t, trans)
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
 
@@ -45,7 +53,11 @@ func TestConntracker(t *testing.T) {
 	localAddr = pingTCP(t, "1.1.1.1:9876")
 	time.Sleep(time.Second)
 
-	trans = ct.GetTranslationForConn(util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port), process.ConnectionType_tcp)
+	trans = ct.GetTranslationForConn(
+		util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port),
+		util.AddressFromString("1.1.1.1"), uint16(9876),
+		process.ConnectionType_tcp,
+	)
 	assert.Nil(t, trans)
 
 	defer teardown(t)

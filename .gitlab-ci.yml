@@ -2,6 +2,7 @@ include: 'https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml'
 
 stages:
   - fail_on_tag
+  - deps_build
   - source_test
   - binary_build
   - integration_test
@@ -44,6 +45,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
   WIN_S3_BUCKET: dd-agent-mstesting
@@ -65,13 +67,14 @@ variables:
 ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
-  S3_DSD6_URI: s3://dsd6-staging/linux
+  S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly
-  DATADOG_AGENT_BUILDIMAGES: v2123669-fbee190
-  DATADOG_AGENT_BUILDERS: v2123666-a884483
+  DATADOG_AGENT_BUILDIMAGES: v2157251-e0a6940
+  DATADOG_AGENT_BUILDERS: v2194239-8bba855
   DATADOG_AGENT_WINBUILDIMAGES: v2123666-a884483
-  DATADOG_AGENT_ARMBUILDIMAGES: v2123669-fbee190
+  DATADOG_AGENT_ARMBUILDIMAGES: v2157251-e0a6940
+  BCC_VERSION: v0.12.0
 
 
 # Default before_script for all the jobs. If you create a new job and don't want this to execute
@@ -171,6 +174,44 @@ fail_on_non_triggered_tag:
     - '[ "$CI_COMMIT_TAG" == "" -o "$CI_PIPELINE_SOURCE" != "push" ]'
 
 #
+# deps_build
+#
+#
+
+# build libbcc
+.build_libbcc_common:
+  stage: deps_build
+  needs: ["fail_on_non_triggered_tag"]
+  before_script: []
+  script:
+    - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
+    - mkdir /tmp/bcc/build
+    - cd /tmp/bcc/build
+    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib' -DCMAKE_SHARED_LINKER_FLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib'
+    - make -j 4 #"$(nproc)"
+    - make install
+    - cd /opt/libbcc
+    - rm share/bcc/introspection/bps
+    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo* lib
+    - tar cvaf /tmp/libbcc.tar.xz .
+    - $S3_CP_CMD /tmp/libbcc.tar.xz $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz
+
+build_libbcc_x64:
+  extends: .build_libbcc_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    ARCH: amd64
+
+build_libbcc_arm64:
+  extends: .build_libbcc_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
+
+
+#
 # source_test
 #
 #
@@ -178,6 +219,7 @@ fail_on_non_triggered_tag:
 # run tests for windows-64
 .run_tests_windows_base:
   stage: source_test
+  needs: ["fail_on_non_triggered_tag"]
   before_script:
     - echo "Running windows source tests"
   tags: ["runner:windows-docker", "windowsversion:1809"]
@@ -201,6 +243,7 @@ run_tests_windows-x86:
     ARCH: "x86"
 
 .run_tests_preparation: &run_tests_preparation
+  needs: ["fail_on_non_triggered_tag"]
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
     - pip install wheel
@@ -268,24 +311,25 @@ run_tests_rpm-x64-py3:
 # run tests for eBPF code
 run_tests_ebpf:
   stage: source_test
-  # TODO(processes): change this to use the generic builder image when we use the same version of Go in the
-  # system-probe and the agent, or when `system-probe.test` can receive which Go version to use as an argument.
-  # Currently this is using the ebpf image so system-probe tests run in the same  Go version used to build it (1.10).
-  # Note that this image isn't used to build the system-probe: when building it, we specify Go version to use
-  # through an argument to the system-probe.build invoke task.
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/ebpf:go1.10.1
+  needs: ["fail_on_non_triggered_tag", "build_libbcc_x64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
     - cd $SRC_PATH
     - pip3 install distro -c requirements.txt # needed for some of our invoke tasks until the builders image contain it
     - inv -e deps --verbose --dep-vendor-only
+    # Retrieve libbcc from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
+    - mkdir /opt/libbcc
+    - tar -xvf /tmp/libbcc.tar.xz -C /opt/libbcc
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
-    - inv -e system-probe.test --only-check-bpf-bytes
+    - CGO_CFLAGS='-I/opt/libbcc/include' CGO_LDFLAGS='-Wl,-rpath,/opt/libbcc/lib -L/opt/libbcc/lib' inv -e system-probe.test --only-check-bpf-bytes
 
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
   stage: source_test
+  needs: ["fail_on_non_triggered_tag"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:latest
   tags: ["runner:main", "size:large"]
   only:
@@ -309,6 +353,7 @@ run_security_scan_test:
 # check consistency of Gopkg.lock
 run_dep_check_lock:
   stage: source_test
+  needs: ["fail_on_non_triggered_tag"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   before_script:
@@ -329,7 +374,7 @@ build_dogstatsd_static-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3" ]
+  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only
@@ -342,7 +387,7 @@ build_dogstatsd-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3" ]
+  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only
@@ -355,7 +400,7 @@ build_dogstatsd_static-deb_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3" ]
+  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   variables:
     ARCH: arm64
   before_script:
@@ -374,7 +419,7 @@ build_dogstatsd-deb_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3" ]
+  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   variables:
     ARCH: arm64
   before_script:
@@ -393,7 +438,7 @@ build_puppy_agent-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3" ]
+  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only --no-checks
@@ -406,7 +451,7 @@ build_puppy_agent-deb_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3" ]
+  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   variables:
     ARCH: arm64
   before_script:
@@ -421,7 +466,7 @@ build_puppy_agent-deb_arm64:
 
 .cluster_agent-build_common: &cluster_agent-build_common
   stage: binary_build
-  needs: [ "fail_on_non_triggered_tag", "run_dep_check_lock" ]
+  needs: ["fail_on_non_triggered_tag", "run_dep_check_lock"]
   script:
     - inv -e cluster-agent.build
     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
@@ -511,6 +556,39 @@ run_dogstatsd_arm_size_test:
   script:
     - inv -e dogstatsd.size-test --skip-build
 
+.system-probe_build_common:
+  before_script:
+    # Hack to work around the cloning issue with arm runners
+    - mkdir -p $GOPATH/src/github.com/DataDog
+    - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
+    - cd $SRC_PATH
+    - inv -e deps --verbose --dep-vendor-only
+    # Retrieve libbcc from S3
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
+    - mkdir -p /opt/datadog-agent/embedded
+    - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
+  script:
+    - CGO_CFLAGS='-I/opt/datadog-agent/embedded/include' CGO_LDFLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib -L/opt/datadog-agent/embedded/lib' inv -e system-probe.build
+    - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
+
+build_system-probe-x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
+  needs: ["fail_on_non_triggered_tag", "build_libbcc_x64", "run_tests_deb-x64-py3"]
+  tags: [ "runner:main", "size:large" ]
+  extends: .system-probe_build_common
+  variables:
+    ARCH: amd64
+
+build_system-probe-arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  needs: ["fail_on_non_triggered_tag", "build_libbcc_arm64", "run_dep_check_lock"]
+  tags: ["runner:docker-arm", "platform:arm64"]
+  extends: .system-probe_build_common
+  variables:
+    ARCH: arm64
+
 #
 # package_build
 #
@@ -523,7 +601,10 @@ run_dogstatsd_arm_size_test:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe
+    - chmod 755 /tmp/system-probe
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-${PACKAGE_ARCH}.tar.xz /tmp/libbcc.tar.xz
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-agent*_${PACKAGE_ARCH}.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -543,7 +624,7 @@ agent_deb-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py2", "run_tests_deb-x64-py3"]
+  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py2", "run_tests_deb-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -563,7 +644,7 @@ agent_deb-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
+  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     CONDA_ENV: ddpy3
@@ -581,7 +662,7 @@ agent_deb-x64-a7:
 
 agent_deb-arm-a6:
   stage: package_build
-  needs: [ "fail_on_non_triggered_tag", "run_dep_check_lock"]
+  needs: ["fail_on_non_triggered_tag", "run_dep_check_lock", "build_system-probe-arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
@@ -599,7 +680,7 @@ agent_deb-arm-a6:
 
 agent_deb-arm-a7:
   stage: package_build
-  needs: [ "fail_on_non_triggered_tag", "run_dep_check_lock"]
+  needs: ["fail_on_non_triggered_tag", "run_dep_check_lock", "build_system-probe-arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
@@ -620,9 +701,10 @@ puppy_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: [ "fail_on_non_triggered_tag", "build_puppy_agent-deb_x64"]
+  needs: ["fail_on_non_triggered_tag", "build_puppy_agent-deb_x64", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+    PACKAGE_ARCH: amd64
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only --no-checks
@@ -633,7 +715,10 @@ puppy_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe
+    - chmod 755 /tmp/system-probe
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-${PACKAGE_ARCH}.tar.xz /tmp/libbcc.tar.xz
+    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
     - find $OMNIBUS_BASE_DIR/pkg -name "datadog-puppy*_amd64.deb" -exec dpkg -c {} \;
     - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb $S3_ARTIFACTS_URI/datadog-puppy_amd64.deb
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -661,7 +746,10 @@ puppy_deb-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe
+    - chmod 755 /tmp/system-probe
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-${PACKAGE_ARCH}.tar.xz /tmp/libbcc.tar.xz
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
@@ -681,11 +769,12 @@ agent_rpm-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3"]
+  needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
+    PACKAGE_ARCH: amd64
     CONDA_ENV: ddpy3
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
@@ -699,11 +788,12 @@ agent_rpm-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_rpm-x64-py3"]
+  needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
+    PACKAGE_ARCH: amd64
     CONDA_ENV: ddpy3
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
@@ -712,15 +802,16 @@ agent_rpm-x64-a7:
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_rpm
 
-  # build Agent package for rpm-x64
+  # build Agent package for rpm-arm64
 agent_rpm-arm-a6:
   stage: package_build
-  needs: [ "fail_on_non_triggered_tag", "run_dep_check_lock"]
+  needs: ["fail_on_non_triggered_tag", "run_dep_check_lock", "build_system-probe-arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
+    PACKAGE_ARCH: arm64
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
@@ -728,15 +819,16 @@ agent_rpm-arm-a6:
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_rpm
 
-# build Agent package for rpm-x64
+# build Agent package for rpm-arm64
 agent_rpm-arm-a7:
   stage: package_build
-  needs: [ "fail_on_non_triggered_tag", "run_dep_check_lock"]
+  needs: ["fail_on_non_triggered_tag", "run_dep_check_lock", "build_system-probe-arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
+    PACKAGE_ARCH: arm64
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
@@ -758,7 +850,10 @@ agent_rpm-arm-a7:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe
+    - chmod 755 /tmp/system-probe
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-${PACKAGE_ARCH}.tar.xz /tmp/libbcc.tar.xz
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR_SUSE ${USE_S3_CACHING} --skip-deps --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
     - find $OMNIBUS_BASE_DIR_SUSE/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' zypper in '{}'
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR_SUSE/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR_SUSE
@@ -779,13 +874,15 @@ agent_rpm-arm-a7:
 # build Agent package for suse-x64
 agent_suse-x64-a6:
   stage: package_build
+  needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3" ]
+  needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
+    PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
     - inv -e deps --verbose --dep-vendor-only
@@ -795,13 +892,15 @@ agent_suse-x64-a6:
 # build Agent package for suse-x64
 agent_suse-x64-a7:
   stage: package_build
+  needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: [ "fail_on_non_triggered_tag", "run_tests_rpm-x64-py3" ]
+  needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
+    PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
     - inv -e deps --verbose --dep-vendor-only
@@ -812,7 +911,7 @@ agent_suse-x64-a7:
 cf_buildpack_windows:
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: [ "fail_on_non_triggered_tag", "run_dep_check_lock"]
+  needs: ["fail_on_non_triggered_tag", "run_dep_check_lock"]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7
@@ -836,7 +935,7 @@ cf_buildpack_windows:
 
 .windows_msi_base:
   stage: package_build
-  needs: [ "fail_on_non_triggered_tag", "run_dep_check_lock"]
+  needs: ["fail_on_non_triggered_tag", "run_dep_check_lock"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   # Unavailable on gitlab < 12.3
   # timeout: 2h 00m
@@ -973,7 +1072,7 @@ dogstatsd_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
-  needs: [ "fail_on_non_triggered_tag", "build_dogstatsd-deb_x64" ]
+  needs: ["fail_on_non_triggered_tag", "build_dogstatsd-deb_x64"]
   <<: *skip_when_unwanted_on_7
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
@@ -1006,7 +1105,7 @@ dogstatsd_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
-  needs: [ "fail_on_non_triggered_tag", "build_dogstatsd-deb_x64" ]
+  needs: ["fail_on_non_triggered_tag", "build_dogstatsd-deb_x64"]
   <<: *skip_when_unwanted_on_7
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
@@ -1045,7 +1144,7 @@ dogstatsd_suse-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
-  needs: [ "fail_on_non_triggered_tag", "build_dogstatsd-deb_x64" ]
+  needs: ["fail_on_non_triggered_tag", "build_dogstatsd-deb_x64"]
   <<: *skip_when_unwanted_on_7
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
@@ -1078,7 +1177,7 @@ dogstatsd_suse-x64:
 # deploy debian packages to apt staging repo
 deploy_deb_testing-a6:
   stage: testkitchen_deploy
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-x64-a6"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1106,7 +1205,7 @@ deploy_deb_testing-a6:
 
 deploy_deb_testing-a7:
   stage: testkitchen_deploy
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-x64-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1138,7 +1237,7 @@ deploy_rpm_testing-a6:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
-  needs: [ "fail_on_non_triggered_tag", "agent_rpm-x64-a6"]
+  needs: ["fail_on_non_triggered_tag", "agent_rpm-x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1158,7 +1257,7 @@ deploy_rpm_testing-a7:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
-  needs: [ "fail_on_non_triggered_tag", "agent_rpm-x64-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_rpm-x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1179,7 +1278,7 @@ deploy_suse_rpm_testing-a6:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
-  needs: [ "fail_on_non_triggered_tag", "agent_suse-x64-a6"]
+  needs: ["fail_on_non_triggered_tag", "agent_suse-x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1199,7 +1298,7 @@ deploy_suse_rpm_testing-a7:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
-  needs: [ "fail_on_non_triggered_tag", "agent_suse-x64-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_suse-x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1220,7 +1319,7 @@ deploy_windows_testing-a6:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
-  needs: [ "fail_on_non_triggered_tag", "windows_msi_x86-a6", "windows_msi_x64-a6"]
+  needs: ["fail_on_non_triggered_tag", "windows_msi_x86-a6", "windows_msi_x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1232,7 +1331,7 @@ deploy_windows_testing-a7:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
-  needs: [ "fail_on_non_triggered_tag", "windows_msi_x86-a7", "windows_msi_x64-a7"]
+  needs: ["fail_on_non_triggered_tag", "windows_msi_x86-a7", "windows_msi_x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1372,52 +1471,52 @@ deploy_windows_testing-a7:
 .kitchen_scenario_windows_a6: &kitchen_scenario_windows_a6
   <<: *kitchen_os_windows
   <<: *kitchen_agent_a6
-  needs: [ "fail_on_non_triggered_tag", "deploy_windows_testing-a6"]
+  needs: ["fail_on_non_triggered_tag", "deploy_windows_testing-a6"]
 
 .kitchen_scenario_windows_a7: &kitchen_scenario_windows_a7
   <<: *kitchen_os_windows
   <<: *kitchen_agent_a7
-  needs: [ "fail_on_non_triggered_tag", "deploy_windows_testing-a7"]
+  needs: ["fail_on_non_triggered_tag", "deploy_windows_testing-a7"]
 
 .kitchen_scenario_centos_a6: &kitchen_scenario_centos_a6
   <<: *kitchen_os_centos
   <<: *kitchen_agent_a6
-  needs: [ "fail_on_non_triggered_tag", "deploy_rpm_testing-a6"]
+  needs: ["fail_on_non_triggered_tag", "deploy_rpm_testing-a6"]
 
 .kitchen_scenario_centos_a7: &kitchen_scenario_centos_a7
   <<: *kitchen_os_centos
   <<: *kitchen_agent_a7
-  needs: [ "fail_on_non_triggered_tag", "deploy_rpm_testing-a7"]
+  needs: ["fail_on_non_triggered_tag", "deploy_rpm_testing-a7"]
 
 .kitchen_scenario_ubuntu_a6: &kitchen_scenario_ubuntu_a6
   <<: *kitchen_os_ubuntu
   <<: *kitchen_agent_a6
-  needs: [ "fail_on_non_triggered_tag", "deploy_deb_testing-a6"]
+  needs: ["fail_on_non_triggered_tag", "deploy_deb_testing-a6"]
 
 .kitchen_scenario_ubuntu_a7: &kitchen_scenario_ubuntu_a7
   <<: *kitchen_os_ubuntu
   <<: *kitchen_agent_a7
-  needs: [ "fail_on_non_triggered_tag", "deploy_deb_testing-a7"]
+  needs: ["fail_on_non_triggered_tag", "deploy_deb_testing-a7"]
 
 .kitchen_scenario_suse_a6: &kitchen_scenario_suse_a6
   <<: *kitchen_os_suse
   <<: *kitchen_agent_a6
-  needs: [ "fail_on_non_triggered_tag", "deploy_suse_rpm_testing-a6"]
+  needs: ["fail_on_non_triggered_tag", "deploy_suse_rpm_testing-a6"]
 
 .kitchen_scenario_suse_a7: &kitchen_scenario_suse_a7
   <<: *kitchen_os_suse
   <<: *kitchen_agent_a7
-  needs: [ "fail_on_non_triggered_tag", "deploy_suse_rpm_testing-a7"]
+  needs: ["fail_on_non_triggered_tag", "deploy_suse_rpm_testing-a7"]
 
 .kitchen_scenario_debian_a6: &kitchen_scenario_debian_a6
   <<: *kitchen_os_debian
   <<: *kitchen_agent_a6
-  needs: [ "fail_on_non_triggered_tag", "deploy_deb_testing-a6"]
+  needs: ["fail_on_non_triggered_tag", "deploy_deb_testing-a6"]
 
 .kitchen_scenario_debian_a7: &kitchen_scenario_debian_a7
   <<: *kitchen_os_debian
   <<: *kitchen_agent_a7
-  needs: [ "fail_on_non_triggered_tag", "deploy_deb_testing-a7"]
+  needs: ["fail_on_non_triggered_tag", "deploy_deb_testing-a7"]
 
 
 
@@ -1911,7 +2010,7 @@ testkitchen_cleanup_azure-a7:
 build_agent6:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-x64-a6"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1923,7 +2022,7 @@ build_agent6:
 build_agent6_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-arm-a6"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1936,7 +2035,7 @@ build_agent6_arm64:
 build_agent6_jmx:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-x64-a6"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1950,7 +2049,7 @@ build_agent6_jmx:
 build_agent6_jmx_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-arm-a6"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1965,7 +2064,7 @@ build_agent6_jmx_arm64:
 build_agent6_py2py3_jmx:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-x64-a6"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a6"]
   <<: *skip_when_unwanted_on_6
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1978,7 +2077,7 @@ build_agent6_py2py3_jmx:
 build_agent7:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-x64-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -1990,7 +2089,7 @@ build_agent7:
 build_agent7_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-arm-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2003,7 +2102,7 @@ build_agent7_arm64:
 build_agent7_jmx:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-x64-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2015,7 +2114,7 @@ build_agent7_jmx:
 build_agent7_jmx_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
-  needs: [ "fail_on_non_triggered_tag", "agent_deb-arm-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a7"]
   <<: *skip_when_unwanted_on_7
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2028,7 +2127,7 @@ build_agent7_jmx_arm64:
 build_cluster_agent_amd64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
-  needs: [ "fail_on_non_triggered_tag", "cluster_agent-build_amd64"]
+  needs: ["fail_on_non_triggered_tag", "cluster_agent-build_amd64"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
@@ -2036,7 +2135,7 @@ build_cluster_agent_amd64:
 build_cluster_agent_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
-  needs: [ "fail_on_non_triggered_tag", "cluster_agent-build_arm64"]
+  needs: ["fail_on_non_triggered_tag", "cluster_agent-build_arm64"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
@@ -2045,7 +2144,7 @@ build_cluster_agent_arm64:
 build_dogstatsd_amd64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
-  needs: [ "fail_on_non_triggered_tag", "build_dogstatsd_static-deb_x64"]
+  needs: ["fail_on_non_triggered_tag", "build_dogstatsd_static-deb_x64"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
@@ -2573,9 +2672,9 @@ deploy_dsd:
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
-    - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy dsd binary to staging bucket
+# deploy puppy binary to staging bucket
 deploy_puppy:
   <<: *run_when_triggered
   stage: deploy7
@@ -2586,7 +2685,31 @@ deploy_puppy:
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/puppy/agent ./agent
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
-    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/linux/puppy/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# deploy agent windows zip to the staging bucket, currently used for cloudfoundry bosh
+deploy_datadog_agent_windows_zip:
+  <<: *run_when_triggered_on_tag_7
+  stage: deploy7
+  needs: [ "windows_msi_x64-a7"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.zip" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/bosh/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# deploy datadog agent windows binaries to staging bucket. Currently used for cloudfoundry builpack
+deploy_datadog_agent_windows_binaries_zip:
+  <<: *run_when_triggered_on_tag_7
+  stage: deploy7
+  needs: [ "cf_buildpack_windows"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "cf-windows-7.*.zip" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/buildpack/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy process agent and system-probe to staging bucket
 deploy_process_and_sysprobe:

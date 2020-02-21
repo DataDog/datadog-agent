@@ -2,15 +2,15 @@
 
 
 [[projects]]
-  digest = "1:9ab7542bc72ee9005bbd3f991c3c428979455ba790ab856bbc36017a69183d55"
+  digest = "1:f882937802f3c29b5acf7ff0464920d13df994f84e209f2f4e956703d68a109f"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "05b7bb250766177fb3d3bb9bdfd2b62f7d849e0b"
-  version = "4.24.0"
+  revision = "0ab005abaf2c6b096e7a96b52b29b707714f53ad"
+  version = "4.25.0"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -840,7 +840,7 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:1b6f213327a9343809b0328f41d7f2835a8750438292ab0898dbff1d6a60b7ad"
+  digest = "1:d113f3f920e4f5eb7890b7cb131aef30f6362ea9efbc06e5a7ca9de668e904f7"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -848,7 +848,7 @@
     "pkg/cpuonline",
   ]
   pruneopts = ""
-  revision = "a14c39bf99c7539b5578baf2449ff2e37dd35901"
+  revision = "6763fd92fd3f414961878bfc5d7a9e1ebcd360d8"
   source = "github.com/DataDog/gobpf"
 
 [[projects]]
@@ -1332,7 +1332,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "master"
   digest = "1:0b30de1a6957125af05f8dbe7dfe8843fb4aa0d87d803d3ebd83f39aed113c9a"
   name = "github.com/vishvananda/netns"
   packages = ["."]
