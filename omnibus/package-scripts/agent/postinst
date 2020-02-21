@@ -101,8 +101,10 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             else
                 echo "Labeling SELinux type for the system-probe binary."
                 if command -v semanage >/dev/null 2>&1 && command -v restorecon >/dev/null 2>&1;then
-                    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe
-                    restorecon -v $INSTALL_DIR/embedded/bin/system-probe
+                    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe && restorecon -v $INSTALL_DIR/embedded/bin/system-probe
+                    if [ "$?" != "0" ]; then
+                        echo "Could not relabel the system-probe binary with type system_probe_t."
+                    fi
                 else
                     echo "Could not set up SELinux labels for datadog-agent: semanage and/or restorecon commands not found."
                     echo "Please make sure they are installed (via the policycoreutils, policycoreutils-python and/or policycoreutils-python-utils packages), and then run:"
