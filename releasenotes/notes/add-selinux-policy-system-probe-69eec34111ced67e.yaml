@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    On debian- and rhel-based systems, system-probe is now setup so that
+    On debian- and rhel-based systems, system-probe is now set up so that
     it can run in SELinux-enabled environments.
