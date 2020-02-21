@@ -230,7 +230,7 @@ func GetHostnameData() (HostnameData, error) {
 		log.Debug("GetHostname trying EC2 metadata...")
 
 		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
-			ec2Hostname, errorMsg, err := getValidEC2Hostname(getEC2Hostname)
+			ec2Hostname, err := getValidEC2Hostname(getEC2Hostname)
 
 			if err == nil {
 				hostName = ec2Hostname
@@ -239,7 +239,7 @@ func GetHostnameData() (HostnameData, error) {
 				expErr := new(expvar.String)
 				expErr.Set(err.Error())
 				hostnameErrors.Set("aws", expErr)
-				log.Debug(errorMsg, err)
+				log.Debug(err)
 			}
 		} else {
 			err := fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance, and other providers already retrieve non-default hostnames")
@@ -252,7 +252,7 @@ func GetHostnameData() (HostnameData, error) {
 			if ec2.IsWindowsDefaultHostname(hostName) {
 				// As we are in the else clause `ec2.IsDefaultHostname(hostName)` is false. If `ec2.IsWindowsDefaultHostname(hostName)`
 				// is `true` that means `ec2_use_windows_prefix_detection` is set to false.
-				ec2Hostname, _, err := getValidEC2Hostname(getEC2Hostname)
+				ec2Hostname, err := getValidEC2Hostname(getEC2Hostname)
 
 				// Check if we get a valid hostname when enabling `ec2_use_windows_prefix_detection` and the hostnames are different.
 				if err == nil && ec2Hostname != hostName {
@@ -302,15 +302,15 @@ func isHostnameCanonicalForIntake(hostname string) bool {
 }
 
 // getValidEC2Hostname gets a valid EC2 hostname
-// Returns (hostname, error message, error)
-func getValidEC2Hostname(ec2Provider hostname.Provider) (string, string, error) {
+// Returns (hostname, error)
+func getValidEC2Hostname(ec2Provider hostname.Provider) (string, error) {
 	instanceID, err := ec2Provider()
 	if err == nil {
 		err = validate.ValidHostname(instanceID)
 		if err == nil {
-			return instanceID, "", nil
+			return instanceID, nil
 		}
-		return "", "EC2 instance ID is not a valid hostname: ", err
+		return "", fmt.Errorf("EC2 instance ID is not a valid hostname: %s", err)
 	}
-	return "", "Unable to determine hostname from EC2: ", err
+	return "", fmt.Errorf("Unable to determine hostname from EC2: %s", err)
 }
