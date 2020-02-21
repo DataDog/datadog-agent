@@ -228,29 +228,19 @@ func GetHostnameData() (HostnameData, error) {
 	// and the hostname is one of the default ones
 	if getEC2Hostname, found := hostname.ProviderCatalog["ec2"]; found {
 		log.Debug("GetHostname trying EC2 metadata...")
-		if !ecs.IsECSInstance() && ec2.IsWindowsDefaultHostname(hostName) && !config.Datadog.GetBool("ec2_use_windows_prefix_detection") {
-			// REMOVEME: This should be removed if/when the default `ec2_use_windows_prefix_detection` is set to true
-			log.Info("You may want to use the EC2 instance-id for the in-app hostname." +
-				" For more information: https://docs.datadoghq.com/ec2-use-win-prefix-detection")
-		}
+
+		originalHostname := hostName
 		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
-			instanceID, err := getEC2Hostname()
+			ec2Hostname, ec2Provider, errorMsg, err := getValidEc2Hostname(getEC2Hostname)
+
 			if err == nil {
-				err = validate.ValidHostname(instanceID)
-				if err == nil {
-					hostName = instanceID
-					provider = "aws"
-				} else {
-					expErr := new(expvar.String)
-					expErr.Set(err.Error())
-					hostnameErrors.Set("aws", expErr)
-					log.Debug("EC2 instance ID is not a valid hostname: ", err)
-				}
+				hostName = ec2Hostname
+				provider = ec2Provider
 			} else {
 				expErr := new(expvar.String)
 				expErr.Set(err.Error())
 				hostnameErrors.Set("aws", expErr)
-				log.Debug("Unable to determine hostname from EC2: ", err)
+				log.Debug(errorMsg, err)
 			}
 		} else {
 			err := fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance, and other providers already retrieve non-default hostnames")
@@ -258,6 +248,13 @@ func GetHostnameData() (HostnameData, error) {
 			expErr := new(expvar.String)
 			expErr.Set(err.Error())
 			hostnameErrors.Set("aws", expErr)
+		}
+
+		ec2Hostname, _, _, err := getValidEc2Hostname(getEC2Hostname)
+		if err == nil && hostName != ec2Hostname && ec2.IsWindowsDefaultHostname(originalHostname) {
+			// REMOVEME: This should be removed if/when the default `ec2_use_windows_prefix_detection` is set to true
+			log.Info("You may want to use the EC2 instance-id for the in-app hostname." +
+				" For more information: https://docs.datadoghq.com/ec2-use-win-prefix-detection")
 		}
 	}
 
@@ -296,4 +293,18 @@ func isHostnameCanonicalForIntake(hostname string) bool {
 		return err != nil
 	}
 	return true
+}
+
+// Gets a valid EC2 hostname
+// Returns (hostname, provider="aws", error message, error)
+func getValidEc2Hostname(ec2Provider hostname.Provider) (string, string, string, error) {
+	instanceID, err := ec2Provider()
+	if err == nil {
+		err = validate.ValidHostname(instanceID)
+		if err == nil {
+			return instanceID, "aws", "", nil
+		}
+		return "", "", "EC2 instance ID is not a valid hostname: ", err
+	}
+	return "", "", "Unable to determine hostname from EC2: ", err
 }
