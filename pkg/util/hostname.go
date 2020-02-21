@@ -229,8 +229,8 @@ func GetHostnameData() (HostnameData, error) {
 	if getEC2Hostname, found := hostname.ProviderCatalog["ec2"]; found {
 		log.Debug("GetHostname trying EC2 metadata...")
 		if !ecs.IsECSInstance() && ec2.IsWindowsDefaultHostname(hostName) && !config.Datadog.GetBool("ec2_use_windows_prefix_detection") {
-			// REMOVEME: This should be removed when the default `ec2_use_windows_prefix_detection` is set to true
-			log.Warn("You may want to use the EC2 instance-id for the in-app hostname." +
+			// REMOVEME: This should be removed if/when the default `ec2_use_windows_prefix_detection` is set to true
+			log.Info("You may want to use the EC2 instance-id for the in-app hostname." +
 				" For more information: https://docs.datadoghq.com/ec2-use-win-prefix-detection")
 		}
 		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
