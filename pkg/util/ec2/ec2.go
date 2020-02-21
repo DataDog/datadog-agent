@@ -217,6 +217,11 @@ func IsDefaultHostnameForIntake(hostname string) bool {
 	return isDefaultHostname(hostname, false)
 }
 
+// IsWindowsDefaultHostname returns whether the given hostname is a Windows default one for EC2 (starts with 'ec2amaz-')
+func IsWindowsDefaultHostname(hostname string) bool {
+	return !isDefaultHostname(hostname, false) && isDefaultHostname(hostname, true)
+}
+
 func isDefaultHostname(hostname string, useWindowsPrefix bool) bool {
 	hostname = strings.ToLower(hostname)
 	isDefault := false
