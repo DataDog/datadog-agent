@@ -2,4 +2,4 @@ enhancements:
   - |
     The agent config command output now scrubs sensitive
     data and prevents API keys, password, token, etc. from
-    appear in the console.
+    appearing in the console.
