@@ -684,6 +684,14 @@ process_config:
 	}
 }
 
+func TestComputeAPIDomain(t *testing.T) {
+	testDomain := "https://app.datadoghq.com"
+	matchDomain := "https://api.datadoghq.com"
+	apiDomain := ComputeAPIDomain(testDomain)
+
+	assert.Equal(t, apiDomain, matchDomain)
+}
+
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
 // key includes the key delimiter. Affects the config package when both secrets and multiple
 // endpoints are configured.
