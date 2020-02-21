@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func benchmarkAddBucket(bucketValue int, b *testing.B) {
+func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	checkSampler := newCheckSampler()
 
 	bucket := &metrics.HistogramBucket{
@@ -28,12 +28,12 @@ func benchmarkAddBucket(bucketValue int, b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		checkSampler.addBucket(bucket)
 		// reset bucket cache
-		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int)
+		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int64)
 		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
 	}
 }
 
-func benchmarkAddBucketWideBounds(bucketValue int, b *testing.B) {
+func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
 	checkSampler := newCheckSampler()
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
@@ -54,7 +54,7 @@ func benchmarkAddBucketWideBounds(bucketValue int, b *testing.B) {
 			checkSampler.addBucket(bucket)
 		}
 		// reset bucket cache
-		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int)
+		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int64)
 		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
 	}
 }

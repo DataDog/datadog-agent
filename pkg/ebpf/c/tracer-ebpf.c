@@ -30,6 +30,7 @@
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
 #include <uapi/linux/udp.h>
+#include <uapi/linux/tcp.h>
 
 /* Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
  */
@@ -852,6 +853,7 @@ int socket__dns_filter(struct __sk_buff* skb) {
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
     __u8 l4_proto;
     size_t ip_hdr_size;
+    size_t src_port_offset;
 
     switch (l3_proto) {
     case ETH_P_IP:
@@ -866,10 +868,18 @@ int socket__dns_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    if (l4_proto != IPPROTO_UDP)
+    switch (l4_proto) {
+    case IPPROTO_UDP:
+        src_port_offset = offsetof(struct udphdr, source);
+        break;
+    case IPPROTO_TCP:
+        src_port_offset = offsetof(struct tcphdr, source);
+        break;
+    default:
         return 0;
+    }
 
-    __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + offsetof(struct udphdr, source));
+    __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + src_port_offset);
     if (src_port != 53)
         return 0;
 

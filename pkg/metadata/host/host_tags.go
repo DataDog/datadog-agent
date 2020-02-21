@@ -53,6 +53,11 @@ func getHostTags() *tags {
 	hostTags := make([]string, 0, len(rawHostTags))
 	hostTags = appendToHostTags(hostTags, rawHostTags)
 
+	env := config.Datadog.GetString("env")
+	if env != "" {
+		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
+	}
+
 	if config.Datadog.GetBool("collect_ec2_tags") {
 		ec2Tags, err := ec2.GetTags()
 		if err != nil {
