@@ -133,6 +133,7 @@ func gracefulExit() {
 	// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 	// http://supervisord.org/subprocess.html#process-states
 	time.Sleep(5 * time.Second)
+	os.Remove(opts.pidFilePath) // defer function that does this won't be called since we do os.Exit.
 	os.Exit(0)
 }
 
