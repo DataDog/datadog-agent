@@ -689,7 +689,7 @@ func TestComputeAPIDomain(t *testing.T) {
 	matchDomain := "https://api.datadoghq.com"
 	apiDomain := ComputeAPIDomain(testDomain)
 
-	assert.Equal(t, apiDomain, matchDomain)
+	assert.Equal(t, matchDomain, apiDomain)
 }
 
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
