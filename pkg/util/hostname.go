@@ -248,7 +248,7 @@ func GetHostnameData() (HostnameData, error) {
 			expErr.Set(err.Error())
 			hostnameErrors.Set("aws", expErr)
 
-			// Display a message when enabling `ec2_use_windows_prefix_detection` makes the hostname resolution change.
+			// Display a message when enabling `ec2_use_windows_prefix_detection` would make the hostname resolution change.
 			if ec2.IsWindowsDefaultHostname(hostName) {
 				// As we are in the else clause `ec2.IsDefaultHostname(hostName)` is false. If `ec2.IsWindowsDefaultHostname(hostName)`
 				// is `true` that means `ec2_use_windows_prefix_detection` is set to false.
