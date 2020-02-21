@@ -229,7 +229,6 @@ func GetHostnameData() (HostnameData, error) {
 	if getEC2Hostname, found := hostname.ProviderCatalog["ec2"]; found {
 		log.Debug("GetHostname trying EC2 metadata...")
 
-		originalHostname := hostName
 		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
 			ec2Hostname, errorMsg, err := getValidEC2Hostname(getEC2Hostname)
 
@@ -248,13 +247,20 @@ func GetHostnameData() (HostnameData, error) {
 			expErr := new(expvar.String)
 			expErr.Set(err.Error())
 			hostnameErrors.Set("aws", expErr)
-		}
 
-		ec2Hostname, _, err := getValidEC2Hostname(getEC2Hostname)
-		if err == nil && hostName != ec2Hostname && ec2.IsWindowsDefaultHostname(originalHostname) {
-			// REMOVEME: This should be removed if/when the default `ec2_use_windows_prefix_detection` is set to true
-			log.Info("You may want to use the EC2 instance-id for the in-app hostname." +
-				" For more information: https://docs.datadoghq.com/ec2-use-win-prefix-detection")
+			// Display a message when enabling `ec2_use_windows_prefix_detection` makes the hostname resolution change.
+			if ec2.IsWindowsDefaultHostname(hostName) {
+				// As we are in the else clause `ec2.IsDefaultHostname(hostName)` is false. If `ec2.IsWindowsDefaultHostname(hostName)`
+				// is `true` that means `ec2_use_windows_prefix_detection` is set to false.
+				ec2Hostname, _, err := getValidEC2Hostname(getEC2Hostname)
+
+				// Check if we get a valid hostname when enabling `ec2_use_windows_prefix_detection`
+				if err == nil {
+					// REMOVEME: This should be removed if/when the default `ec2_use_windows_prefix_detection` is set to true
+					log.Info("The agent resolved your hostname as '%s'. You may want to use the EC2 instance-id ('%s') for the in-app hostname."+
+						" For more information: https://docs.datadoghq.com/ec2-use-win-prefix-detection", hostName, ec2Hostname)
+				}
+			}
 		}
 	}
 
