@@ -45,6 +45,7 @@ func (b *Builder) BuildStatus() Status {
 		StatusMetrics: b.getMetricsStatus(),
 		Warnings:      b.getWarnings(),
 		Errors:        b.getErrors(),
+		UseHTTP:       b.getUseHTTP(),
 	}
 }
 
@@ -53,6 +54,10 @@ func (b *Builder) BuildStatus() Status {
 // from different commands (start, stop, status).
 func (b *Builder) getIsRunning() bool {
 	return atomic.LoadInt32(b.isRunning) != 0
+}
+
+func (b *Builder) getUseHTTP() bool {
+	return b.endpoints.UseHTTP
 }
 
 func (b *Builder) getEndpoints() []string {
