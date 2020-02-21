@@ -9,7 +9,6 @@ package common
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -23,6 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 )
+
+// TransformationFunc type represents transformation applicable to byte slices
+type TransformationFunc func(rawData []byte) ([]byte, error)
 
 // ImportConfig imports the agent5 configuration into the agent6 yaml config
 func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
@@ -111,6 +113,8 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		}
 	}
 
+	tr := []TransformationFunc{relocateMinCollectionInterval}
+
 	for _, f := range files {
 		if f.IsDir() || filepath.Ext(f.Name()) != cfgExt {
 			continue
@@ -141,7 +145,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			continue
 		}
 
-		if err := copyFile(src, dst, force); err != nil {
+		if err := copyFile(src, dst, force, tr); err != nil {
 			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 		}
 
@@ -176,7 +180,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		src := filepath.Join(oldConfigDir, "conf.d", "auto_conf", f.Name())
 		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "auto_conf"+cfgExt)
 
-		if err := copyFile(src, dst, force); err != nil {
+		if err := copyFile(src, dst, force, tr); err != nil {
 			fmt.Fprintf(os.Stderr, "unable to copy %s to %s: %v\n", src, dst, err)
 			continue
 		}
@@ -215,8 +219,8 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	return nil
 }
 
-// Copy the src file to dst. File attributes won't be copied.
-func copyFile(src, dst string, overwrite bool) error {
+// Copy the src file to dst. File attributes won't be copied. Apply all TransformationFunc while copying.
+func copyFile(src, dst string, overwrite bool, transformations []TransformationFunc) error {
 	// if the file exists check whether we can overwrite
 	if _, err := os.Stat(dst); !os.IsNotExist(err) {
 		if overwrite {
@@ -230,28 +234,25 @@ func copyFile(src, dst string, overwrite bool) error {
 		}
 	}
 
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
 	// Create necessary destination directories
-	err = os.MkdirAll(filepath.Dir(dst), 0750)
+	err := os.MkdirAll(filepath.Dir(dst), 0750)
 	if err != nil {
 		return err
 	}
 
-	out, err := os.Create(dst)
+	data, err := ioutil.ReadFile(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to read file %s : %s", src, err)
 	}
-	defer out.Close()
 
-	_, err = io.Copy(out, in)
-	if err != nil {
-		return err
+	for _, transformation := range transformations {
+		data, err = transformation(data)
+		if err != nil {
+			return fmt.Errorf("unable to convert file %s : %s", src, err)
+		}
 	}
+
+	ioutil.WriteFile(dst, data, 0640)
 
 	ddGroup, errGroup := user.LookupGroup("dd-agent")
 	ddUser, errUser := user.LookupId("dd-agent")
@@ -269,18 +270,18 @@ func copyFile(src, dst string, overwrite bool) error {
 			return fmt.Errorf("Couldn't convert dd-agent user ID: %s into an int: %s", ddUser.Uid, err)
 		}
 
-		err = out.Chown(ddUID, ddGID)
+		err = os.Chown(dst, ddUID, ddGID)
 		if err != nil {
 			return fmt.Errorf("Couldn't change the file permissions for this check. Error: %s", err)
 		}
 	}
 
-	err = out.Chmod(0640)
+	err = os.Chmod(dst, 0640)
 	if err != nil {
 		return err
 	}
 
-	return out.Close()
+	return nil
 }
 
 // configTraceAgent extracts trace-agent specific info and dump to its own config file
@@ -299,4 +300,35 @@ func configTraceAgent(datadogConfPath, traceAgentConfPath string, overwrite bool
 	}
 
 	return legacy.ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath)
+}
+
+func relocateMinCollectionInterval(rawData []byte) ([]byte, error) {
+	data := make(map[interface{}]interface{})
+	if err := yaml.Unmarshal(rawData, &data); err != nil {
+		return nil, fmt.Errorf("error while unmarshalling Yaml : %v", err)
+	}
+
+	if _, ok := data["init_config"]; ok {
+		if initConfig, ok := data["init_config"].(map[interface{}]interface{}); ok {
+			if _, ok := initConfig["min_collection_interval"]; ok {
+				if minCollectionInterval, ok := initConfig["min_collection_interval"].(int); ok {
+					delete(initConfig, "min_collection_interval")
+					insertMinCollectionInterval(data, minCollectionInterval)
+				}
+			}
+		}
+	}
+	return yaml.Marshal(data)
+}
+
+func insertMinCollectionInterval(rawData map[interface{}]interface{}, interval int) {
+	if _, ok := rawData["instances"]; ok {
+		if instances, ok := rawData["instances"].([]interface{}); ok {
+			for _, rawInstance := range instances {
+				if instance, ok := rawInstance.(map[interface{}]interface{}); ok {
+					instance["min_collection_interval"] = interval
+				}
+			}
+		}
+	}
 }

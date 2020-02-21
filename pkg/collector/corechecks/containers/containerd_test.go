@@ -263,6 +263,48 @@ func TestComputeMem(t *testing.T) {
 	}
 }
 
+func TestComputeUptime(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance:  &ContainerdConfig{},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked.SetupAcceptAll()
+
+	currentTime := time.Now()
+
+	tests := []struct {
+		name     string
+		ctn      containers.Container
+		expected map[string]float64
+	}{
+		{
+			name: "Normal check",
+			ctn: containers.Container{
+				CreatedAt: currentTime.Add(-60 * time.Second),
+			},
+			expected: map[string]float64{
+				"containerd.uptime": 60.0,
+			},
+		},
+		{
+			name: "Created in the future",
+			ctn: containers.Container{
+				CreatedAt: currentTime.Add(60 * time.Second),
+			},
+			expected: map[string]float64{},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			computeUptime(mocked, test.ctn, currentTime, []string{})
+			for name, val := range test.expected {
+				mocked.AssertMetric(t, "Gauge", name, val, "", []string{})
+			}
+		})
+	}
+}
+
 // TestConvertTaskToMetrics checks the convertTasktoMetrics
 func TestConvertTaskToMetrics(t *testing.T) {
 	typeurl.Register(&cgroups.Metrics{}, "io.containerd.cgroups.v1.Metrics") // Need to register the type to be used in UnmarshalAny later on.

@@ -433,6 +433,7 @@ func TestDebugStats(t *testing.T) {
 
 func TestNoMappingsConfig(t *testing.T) {
 	datadogYaml := ``
+	getOriginTags := func() []string { return []string{} }
 
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
@@ -447,7 +448,8 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	assert.Nil(t, s.mapper)
 
-	_, err = s.parseMetricMessage([]byte("test.metric:666|g"))
+	parser := newParser()
+	_, err = s.parseMetricMessage(parser, []byte("test.metric:666|g"), getOriginTags)
 	assert.NoError(t, err)
 }
 
@@ -459,6 +461,7 @@ type MetricSample struct {
 }
 
 func TestMappingCases(t *testing.T) {
+	getOriginTags := func() []string { return []string{} }
 	scenarios := []struct {
 		name              string
 		config            string
@@ -545,21 +548,22 @@ dogstatsd_mapper_profiles:
 		t.Run(scenario.name, func(t *testing.T) {
 			config.Datadog.SetConfigType("yaml")
 			err := config.Datadog.ReadConfig(strings.NewReader(scenario.config))
-			assert.NoError(t, err)
+			assert.NoError(t, err, "Case `%s` failed. ReadConfig should not return error %v", scenario.name, err)
 
 			port, err := getAvailableUDPPort()
-			require.NoError(t, err)
+			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
 			config.Datadog.SetDefault("dogstatsd_port", port)
 
 			s, err := NewServer(nil, nil, nil, nil)
-			require.NoError(t, err)
+			require.NoError(t, err, "Case `%s` failed. NewServer should not return error %v", scenario.name, err)
 
-			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
+			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				sample, err := s.parseMetricMessage([]byte(p))
-				assert.NoError(t, err)
+				parser := newParser()
+				sample, err := s.parseMetricMessage(parser, []byte(p), getOriginTags)
+				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				actualSamples = append(actualSamples, MetricSample{Name: sample.Name, Tags: sample.Tags, Mtype: sample.Mtype, Value: sample.Value})
 			}
 			for _, sample := range scenario.expectedSamples {

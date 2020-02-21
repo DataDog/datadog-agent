@@ -256,7 +256,7 @@ def build_object_files(ctx, install=True):
 
     for d in linux_headers:
         for s in subdirs:
-            flags.extend(["-I", os.path.join(d, s)])
+            flags.extend(["-isystem", os.path.join(d, s)])
 
     cmd = "clang {flags} -o - | llc -march=bpf -filetype=obj -o '{file}'"
 

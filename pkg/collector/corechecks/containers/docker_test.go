@@ -9,6 +9,7 @@ package containers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	cmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -52,4 +53,19 @@ func TestReportIOMetrics(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(671846400), "", sdaTags)
 	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", float64(1130496), "", sdbTags)
 	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(0), "", sdbTags)
+}
+
+func TestReportUptime(t *testing.T) {
+	dockerCheck := &DockerCheck{
+		instance: &DockerConfig{},
+	}
+	mockSender := mocksender.NewMockSender(dockerCheck.ID())
+	mockSender.SetupAcceptAll()
+
+	tags := []string{"constant:tags", "container_name:dummy"}
+	currentTime := time.Now().Unix()
+
+	startTime := currentTime - 60
+	dockerCheck.reportUptime(startTime, currentTime, tags, mockSender)
+	mockSender.AssertMetric(t, "Gauge", "docker.uptime", 60.0, "", tags)
 }

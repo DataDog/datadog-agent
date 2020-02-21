@@ -125,7 +125,7 @@ func New() *AgentConfig {
 		Endpoints:  []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
 
 		BucketInterval:   time.Duration(10) * time.Second,
-		ExtraAggregators: []string{"http.status_code"},
+		ExtraAggregators: []string{"http.status_code", "version"},
 
 		ExtraSampleRate: 1.0,
 		MaxTPS:          10,

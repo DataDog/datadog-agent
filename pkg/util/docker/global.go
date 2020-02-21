@@ -30,11 +30,11 @@ func GetDockerUtil() (*DockerUtil, error) {
 	if globalDockerUtil == nil {
 		globalDockerUtil = &DockerUtil{}
 		globalDockerUtil.initRetry.SetupRetrier(&retry.Config{
-			Name:          "dockerutil",
-			AttemptMethod: globalDockerUtil.init,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "dockerutil",
+			AttemptMethod:     globalDockerUtil.init,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	if err := globalDockerUtil.initRetry.TriggerRetry(); err != nil {

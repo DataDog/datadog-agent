@@ -209,5 +209,8 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 		podModel.ContainerStatuses = append(podModel.ContainerStatuses, &cStatus)
 	}
 
+	podModel.Status = kubelet.ComputeStatus(p)
+	podModel.ConditionMessage = kubelet.GetConditionMessage(p)
+
 	return &podModel
 }
