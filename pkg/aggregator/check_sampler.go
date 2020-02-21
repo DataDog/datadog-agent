@@ -23,7 +23,7 @@ type CheckSampler struct {
 	contextResolver *ContextResolver
 	metrics         metrics.ContextMetrics
 	sketchMap       sketchMap
-	lastBucketValue map[ckey.ContextKey]int
+	lastBucketValue map[ckey.ContextKey]int64
 	lastSeenBucket  map[ckey.ContextKey]time.Time
 	bucketExpiry    time.Duration
 }
@@ -36,7 +36,7 @@ func newCheckSampler() *CheckSampler {
 		contextResolver: newContextResolver(),
 		metrics:         metrics.MakeContextMetrics(),
 		sketchMap:       make(sketchMap),
-		lastBucketValue: make(map[ckey.ContextKey]int),
+		lastBucketValue: make(map[ckey.ContextKey]int64),
 		lastSeenBucket:  make(map[ckey.ContextKey]time.Time),
 		bucketExpiry:    1 * time.Minute,
 	}
