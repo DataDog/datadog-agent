@@ -109,7 +109,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
     push: if true, run a docker push on the image
     base_image: base the docker image off this already build image (default: datadog/agent:latest)
     """
-    if image == None:
+    if image is None:
         raise Exit(message="image was not specified")
 
     with TempDir() as docker_context:
