@@ -122,7 +122,8 @@ before_script:
   except: # we have to use except since gitlab doens't handle '!=' operator
     variables:
       - $RELEASE_VERSION_6 == "nightly"
-      - $RELEASE_VERSION_6 == "" # no  RELEASE_VERSION means a nightly build for omnibus
+      - $RELEASE_VERSION_6 == "" # no RELEASE_VERSION means a nightly build for omnibus
+      - $RELEASE_VERSION_6 == "nobuild"
 
 .run_when_triggered_on_tag_7: &run_when_triggered_on_tag_7
   only:
@@ -131,7 +132,8 @@ before_script:
   except: # we have to use except since gitlab doens't handle '!=' operator
     variables:
       - $RELEASE_VERSION_7 == "nightly"
-      - $RELEASE_VERSION_7 == "" # no  RELEASE_VERSION means a nightly build for omnibus
+      - $RELEASE_VERSION_7 == "" # no RELEASE_VERSION means a nightly build for omnibus
+      - $RELEASE_VERSION_7 == "nobuild"
 
 # run job only when triggered by an external tool (ex: Jenkins) and when
 # RELEASE_VERSION_X is "nightly". In this setting we build from master and update
@@ -152,11 +154,13 @@ before_script:
   except:
     variables:
       - $RELEASE_VERSION_6 == ""
+      - $RELEASE_VERSION_6 == "nobuild"
 
 .skip_when_unwanted_on_7: &skip_when_unwanted_on_7
   except:
     variables:
       - $RELEASE_VERSION_7 == ""
+      - $RELEASE_VERSION_7 == "nobuild"
 
 # Fail if we're running a pipeline on a non-triggered tag build
 # NOTE: All jobs with 'needs' dependencies should also 'need' this to workaround a Gitlab issue: https://gitlab.com/gitlab-org/gitlab/issues/31526
@@ -165,7 +169,8 @@ fail_on_non_triggered_tag:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
   before_script:
-    - "# noop"
+    - "echo RELEASE_VERSION_6=$RELEASE_VERSION_6"
+    - "echo RELEASE_VERSION_7=$RELEASE_VERSION_7"
   script:
     - echo CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE CI_COMMIT_TAG=$CI_COMMIT_TAG
     - '[ "$CI_COMMIT_TAG" == "" -o "$CI_PIPELINE_SOURCE" != "push" ]'
