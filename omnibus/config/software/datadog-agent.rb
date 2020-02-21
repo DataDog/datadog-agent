@@ -86,6 +86,7 @@ build do
     command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
     unless windows_arch_i386?
       command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
+      command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
     end
   end
 

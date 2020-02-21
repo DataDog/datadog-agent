@@ -18,7 +18,8 @@ from . import (agent,
     rtloader,
     system_probe,
     systray,
-    trace_agent
+    trace_agent,
+    uninstallcmd
 )
 
 
@@ -65,6 +66,7 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
+ns.add_collection(uninstallcmd)
 
 ns.configure({
     'run': {
