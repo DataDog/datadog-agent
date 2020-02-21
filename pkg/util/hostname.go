@@ -231,7 +231,7 @@ func GetHostnameData() (HostnameData, error) {
 
 		originalHostname := hostName
 		if ecs.IsECSInstance() || ec2.IsDefaultHostname(hostName) {
-			ec2Hostname, ec2Provider, errorMsg, err := getValidEc2Hostname(getEC2Hostname)
+			ec2Hostname, ec2Provider, errorMsg, err := getValidEC2Hostname(getEC2Hostname)
 
 			if err == nil {
 				hostName = ec2Hostname
@@ -250,7 +250,7 @@ func GetHostnameData() (HostnameData, error) {
 			hostnameErrors.Set("aws", expErr)
 		}
 
-		ec2Hostname, _, _, err := getValidEc2Hostname(getEC2Hostname)
+		ec2Hostname, _, _, err := getValidEC2Hostname(getEC2Hostname)
 		if err == nil && hostName != ec2Hostname && ec2.IsWindowsDefaultHostname(originalHostname) {
 			// REMOVEME: This should be removed if/when the default `ec2_use_windows_prefix_detection` is set to true
 			log.Info("You may want to use the EC2 instance-id for the in-app hostname." +
@@ -295,9 +295,9 @@ func isHostnameCanonicalForIntake(hostname string) bool {
 	return true
 }
 
-// Gets a valid EC2 hostname
+// getValidEC2Hostname gets a valid EC2 hostname
 // Returns (hostname, provider="aws", error message, error)
-func getValidEc2Hostname(ec2Provider hostname.Provider) (string, string, string, error) {
+func getValidEC2Hostname(ec2Provider hostname.Provider) (string, string, string, error) {
 	instanceID, err := ec2Provider()
 	if err == nil {
 		err = validate.ValidHostname(instanceID)
