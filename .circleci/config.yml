@@ -70,7 +70,7 @@ jobs:
       - run:
           name: build rtloader
           command: |
-            inv rtloader.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
             inv rtloader.install
       - run:
           name: lint rtloader

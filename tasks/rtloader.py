@@ -48,7 +48,7 @@ def clear_cmake_cache(rtloader_path, settings):
         os.remove(cmake_cache)
 
 @task
-def build(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="x64"):
+def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="x64"):
     dev_path = get_dev_path()
 
     if cmake_options.find("-G") == -1:
@@ -78,7 +78,7 @@ def build(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch=
     if arch == "x86":
         cmake_args += " -DARCH_I386=ON"
 
-    # Perform "out of the source build" in `rtloader_build_path` folder. 
+    # Perform "out of the source build" in `rtloader_build_path` folder.
     try:
         os.makedirs(rtloader_build_path)
     except OSError as e:
@@ -94,8 +94,8 @@ def build(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch=
 def clean(ctx):
     """
     Clean up CMake's cache.
-    Necessary when the paths to some libraries found by CMake (for example Python) have changed on the system.    
-    """    
+    Necessary when the paths to some libraries found by CMake (for example Python) have changed on the system.
+    """
     dev_path = get_dev_path()
     include_path = os.path.join(dev_path, "include")
     lib_path = os.path.join(dev_path, "lib")
