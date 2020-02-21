@@ -20,7 +20,7 @@ from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS,
 from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
-from .rtloader import build as rtloader_build
+from .rtloader import make as rtloader_make
 from .rtloader import install as rtloader_install
 from .rtloader import clean as rtloader_clean
 
@@ -94,7 +94,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     """
 
     if not exclude_rtloader and not puppy:
-        rtloader_build(ctx, python_runtimes=python_runtimes)
+        rtloader_make(ctx, python_runtimes=python_runtimes)
         rtloader_install(ctx)
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
