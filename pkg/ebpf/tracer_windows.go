@@ -39,14 +39,17 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 	return nil, 0, ErrNotImplemented
 }
 
+// GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	return nil, ErrNotImplemented
 }
 
+// DebugNetworkState returns a map with the current tracer's internal state, for debugging
 func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
 	return nil, ErrNotImplemented
 }
 
+// DebugNetworkMaps returns all connections stored in the maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 	return nil, ErrNotImplemented
 }
