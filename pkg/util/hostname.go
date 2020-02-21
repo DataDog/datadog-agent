@@ -157,7 +157,7 @@ func GetHostnameData() (HostnameData, error) {
 	log.Debug("Trying to determine a reliable host name automatically...")
 
 	// if fargate we strip the hostname
-	if ecs.IsFargateInstance() {
+	if ecs.IsFargateInstance() || config.Datadog.GetBool("eks_fargate") {
 		hostnameData := saveHostnameData(cacheHostnameKey, "", "")
 		return hostnameData, nil
 	}
