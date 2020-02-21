@@ -9,8 +9,9 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
-	"regexp"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -56,6 +57,7 @@ func newForwarderHealth(keysPerDomains map[string][]string) *forwarderHealth {
 	}
 
 	fh.computeKeysPerAPIDomain(keysPerDomains)
+
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
 	apiKeyCount := 0
@@ -113,18 +115,11 @@ func (fh *forwarderHealth) healthCheckLoop() {
 // computeKeysPerAPIDomain populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
 func (fh *forwarderHealth) computeKeysPerAPIDomain(keysPerDomains map[string][]string) {
 	fh.keysPerAPIDomain = make(map[string][]string)
-	re := regexp.MustCompile("datadoghq.[a-z]*")
 	for domain, apiKeys := range keysPerDomains {
-		apiDomain := ""
-		if re.MatchString(domain) {
-			apiDomain = "https://api." + re.FindString(domain)
-		} else {
-			apiDomain = domain
-		}
+		apiDomain := config.ComputeAPIDomain(domain)
 		fh.keysPerAPIDomain[apiDomain] = append(fh.keysPerAPIDomain[apiDomain], apiKeys...)
 	}
 }
-
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]

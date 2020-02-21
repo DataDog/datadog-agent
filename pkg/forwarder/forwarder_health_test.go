@@ -36,20 +36,23 @@ func TestHasValidAPIKey(t *testing.T) {
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 }
-
 func TestComputeAPIDomains(t *testing.T) {
 	keysPerDomains := map[string][]string{
-		"https://app.datadoghq.com":   {"api_key1"},
-		"https://shouldnotchange.com": {"api_key_2"},
-		"https://app.datadoghq.eu":    {"api_key_3"},
-		"datadoghq.com":               {"api_key_4"},
-		"custom.datadoghq.com":        {"api_key_5"},
+		"https://app.datadoghq.com":    {"api_key_1"},
+		"https://app.datadoghq.eu":     {"api_key_2"},
+		"https://app.datad0g.com":      {"api_key_3"},
+		"https://app.datad0g.eu":       {"api_key_4"},
+		"https://custom.datadoghq.com": {"api_key_5"},
+		"https://nochange.com":         {"api_key_6"},
 	}
 
 	testMap := map[string][]string{
-		"https://api.datadoghq.com":   {"api_key1", "api_key_4", "api_key_5"},
-		"https://shouldnotchange.com": {"api_key_2"},
-		"https://api.datadoghq.eu":    {"api_key_3"},
+		"https://api.datadoghq.com":    {"api_key_1"},
+		"https://api.datadoghq.eu":     {"api_key_2"},
+		"https://api.datad0g.com":      {"api_key_3"},
+		"https://api.datad0g.eu":       {"api_key_4"},
+		"https://custom.datadoghq.com": {"api_key_5"},
+		"https://nochange.com":         {"api_key_6"},
 	}
 
 	fh := newForwarderHealth(keysPerDomains)
