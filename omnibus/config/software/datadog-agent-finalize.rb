@@ -116,6 +116,12 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
             command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
 
+            # The prerm and preinst scripts of the package will use this list to detect which files
+            # have been setup by the installer, this way, on removal, we'll be able to delete only files
+            # which have not been created by the package.
+            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
+            command "find . -path './embedded/lib/python*/site-packages/*' >> #{install_dir}/embedded/.installed_by_pkg.txt", cwd: install_dir
+
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"
 
@@ -171,12 +177,18 @@ build do
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
 
+            if ENV['HARDENED_RUNTIME_MAC'] == 'true'
+                hardened_runtime = '-o runtime '
+            else 
+                hardened_runtime = ''
+            end
+
             if code_signing_identity
                 # Codesign everything
-                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs codesign --force --timestamp --deep -s '#{code_signing_identity}'"
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s '#{code_signing_identity}'"
-                command "find #{install_dir}/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s '#{code_signing_identity}'"
-                command "codesign --force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
+                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'"
+                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs codesign #{hardened_runtime}--force --timestamp  --deep -s '#{code_signing_identity}'"
+                command "find #{install_dir}/bin -perm +111 -type f | xargs codesign #{hardened_runtime}--force --timestamp  --deep -s '#{code_signing_identity}'"
+                command "codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
             end
         end
     end

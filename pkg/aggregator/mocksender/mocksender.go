@@ -56,7 +56,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("Event", mock.AnythingOfType("metrics.Event")).Return()
 	m.On("HistogramBucket",
 		mock.AnythingOfType("string"),   // metric name
-		mock.AnythingOfType("int"),      // value
+		mock.AnythingOfType("int64"),    // value
 		mock.AnythingOfType("float64"),  // lower bound
 		mock.AnythingOfType("float64"),  // upper bound
 		mock.AnythingOfType("bool"),     // monotonic

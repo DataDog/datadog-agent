@@ -2,15 +2,15 @@
 
 
 [[projects]]
-  digest = "1:9ab7542bc72ee9005bbd3f991c3c428979455ba790ab856bbc36017a69183d55"
+  digest = "1:f882937802f3c29b5acf7ff0464920d13df994f84e209f2f4e956703d68a109f"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "05b7bb250766177fb3d3bb9bdfd2b62f7d849e0b"
-  version = "4.24.0"
+  revision = "0ab005abaf2c6b096e7a96b52b29b707714f53ad"
+  version = "4.25.0"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -978,6 +978,14 @@
   revision = "26cf5bb32d07aa4e8d0de15f56ce516f4641d7df"
 
 [[projects]]
+  digest = "1:5806a860cfdfba738830d14b439c6468c06960e033d5325e614d4aa363dcd03a"
+  name = "github.com/miekg/dns"
+  packages = ["."]
+  pruneopts = ""
+  revision = "6c0c4e6581f8e173cc562c8b3363ab984e4ae071"
+  version = "v1.1.27"
+
+[[projects]]
   digest = "1:6dbb0eb72090871f2e58d1e37973fe3cb8c0f45f49459398d3fc740cb30e13bd"
   name = "github.com/mitchellh/go-homedir"
   packages = ["."]
@@ -1332,7 +1340,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "master"
   digest = "1:0b30de1a6957125af05f8dbe7dfe8843fb4aa0d87d803d3ebd83f39aed113c9a"
   name = "github.com/vishvananda/netns"
   packages = ["."]
@@ -1343,7 +1350,11 @@
   branch = "master"
   digest = "1:4a4c4edf69b61bf98e98d22696aa80c4059384895920de4d5e2fe696068d5f13"
   name = "golang.org/x/crypto"
-  packages = ["ssh/terminal"]
+  packages = [
+    "ed25519",
+    "ed25519/internal/edwards25519",
+    "ssh/terminal",
+  ]
   pruneopts = ""
   revision = "227b76d455e791cb042b03e633e2f7fbcfdf74a5"
 
@@ -1375,6 +1386,7 @@
     "internal/socks",
     "internal/timeseries",
     "ipv4",
+    "ipv6",
     "proxy",
     "trace",
     "websocket",
@@ -1449,6 +1461,22 @@
   packages = ["rate"]
   pruneopts = ""
   revision = "9d24e82272b4f38b78bc8cff74fa936d31ccd8ef"
+
+[[projects]]
+  branch = "master"
+  digest = "1:2acb9761651327c7ee1cdf4b5a23903dd6c41b485f147d8bee35185984c1c6fc"
+  name = "golang.org/x/tools"
+  packages = [
+    "go/ast/astutil",
+    "go/gcexportdata",
+    "go/internal/gcimporter",
+    "go/internal/packagesdriver",
+    "go/packages",
+    "go/types/typeutil",
+    "internal/packagesinternal",
+  ]
+  pruneopts = ""
+  revision = "947cbf1911355735edc7395a97190eea60644082"
 
 [[projects]]
   digest = "1:0568e577f790e9bd0420521cff50580f9b38165a38f217ce68f55c4bbaa97066"
@@ -2015,7 +2043,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
+  digest = "0:"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
@@ -2172,6 +2200,7 @@
     "github.com/lxn/walk",
     "github.com/lxn/win",
     "github.com/mholt/archiver",
+    "github.com/miekg/dns",
     "github.com/openshift/api/quota/v1",
     "github.com/patrickmn/go-cache",
     "github.com/pkg/errors",

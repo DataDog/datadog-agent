@@ -462,7 +462,7 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	histogramBucket := <-bucketChan
 	assert.Equal(t, "my.histogram_bucket", histogramBucket.bucket.Name)
-	assert.Equal(t, 42, histogramBucket.bucket.Value)
+	assert.Equal(t, int64(42), histogramBucket.bucket.Value)
 	assert.Equal(t, 1.0, histogramBucket.bucket.LowerBound)
 	assert.Equal(t, 2.0, histogramBucket.bucket.UpperBound)
 	assert.Equal(t, true, histogramBucket.bucket.Monotonic)

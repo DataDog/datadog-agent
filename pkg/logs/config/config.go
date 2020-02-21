@@ -84,6 +84,7 @@ func BuildEndpoints() (*Endpoints, error) {
 		return buildHTTPEndpoints()
 	}
 
+	log.Warn("You are currently sending Logs to Datadog through TCP. To benefit from increased reliability and better network performances, we strongly encourage to switch over compressed HTTPS by using the logs_config.use_http and logs_config.use_compression parameters. This will become the default protocol in the Agent future version.")
 	return buildTCPEndpoints()
 }
 

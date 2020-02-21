@@ -329,11 +329,15 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     for prefix in prefixes:
         ctx.run("{} {}".format(go_cmd, prefix))
 
-
-@task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
+# hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
+@task(help={
+    'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
+    'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands"
+})
 def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base_dir=None, gem_path=None,
                   skip_deps=False, skip_sign=False, release_version="nightly", major_version='7',
-                  python_runtimes='3', omnibus_s3_cache=False, system_probe_bin=None, libbcc_tarball=None):
+                  python_runtimes='3', omnibus_s3_cache=False, hardened_runtime=False, system_probe_bin=None,
+                  libbcc_tarball=None):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -405,6 +409,8 @@ def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base
                 args['populate_s3_cache'] = " --populate-s3-cache "
             if skip_sign:
                 env['SKIP_SIGN_MAC'] = 'true'
+            if hardened_runtime:
+                env['HARDENED_RUNTIME_MAC'] = 'true'
 
             env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version, env=env)
             env['MAJOR_VERSION'] = major_version
