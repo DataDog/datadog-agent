@@ -1466,7 +1466,7 @@ api_key:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
 
-## @param clustername - string - optional
+## @param cluster_name - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:
 ## * Lowercase letters, numbers, and hyphens only.
