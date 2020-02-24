@@ -2191,10 +2191,22 @@ twistlock_scan-7:
     - scan ${SRC_AGENT}:${SRC_TAG}-7-amd64
     - scan ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64
 
+.docker_hub_variables: &docker_hub_variables
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
+  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
+  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
+  DOCKER_REGISTRY_URL: docker.io
+  SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+  SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+  SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+
 .docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v1912023-8c8dc1c-0.6.1
+  variables:
+    <<: *docker_hub_variables
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
@@ -2208,16 +2220,6 @@ twistlock_scan-7:
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_KEY_SSM_KEY --with-decryption --query "Parameter.Value" --out text > /tmp/docker.key
     - notary -d ~/.docker/trust key import /tmp/docker.key; rm /tmp/docker.key
   dependencies: [] # Don't download Gitlab artefacts
-
-.docker_hub_variables: &docker_hub_variables
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
-  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
-  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
-  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
-  DOCKER_REGISTRY_URL: docker.io
-  SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-  SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
-  SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
 
 .quay_variables: &quay_variables
   <<: *docker_hub_variables
@@ -2234,8 +2236,6 @@ dev_branch_docker_hub-a6:
   - build_agent6_jmx
   - build_agent6_py2py3_jmx
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
@@ -2249,8 +2249,6 @@ dev_branch_docker_hub-dogstatsd:
     - fail_on_non_triggered_tag
     - build_dogstatsd_amd64
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
   - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64                 datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
@@ -2262,8 +2260,6 @@ dev_branch_docker_hub-a7:
     - build_agent7
     - build_agent7_jmx
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64         datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
@@ -2279,8 +2275,6 @@ dev_branch_multiarch_docker_hub-a6:
     - build_agent6_jmx_arm64
     - build_agent6_py2py3_jmx
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
     # Platform-specific agent images
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-ARCH      --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
@@ -2306,8 +2300,6 @@ dev_branch_multiarch_docker_hub-a7:
     - build_agent7_jmx
     - build_agent7_jmx_arm64
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
     # Platform-specific agent images
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-ARCH      --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3
@@ -2323,8 +2315,6 @@ dev_branch_multiarch_docker_hub-dogstatsd:
     - fail_on_non_triggered_tag
     - build_dogstatsd_amd64
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
     # Platform-specific agent images
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
@@ -2339,8 +2329,6 @@ dev_master_docker_hub-a6:
     - build_agent6_py2py3_jmx
   only:
     - master
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:master
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:master-py2
@@ -2356,8 +2344,6 @@ dev_master_docker_hub-a7:
     - build_agent7_jmx
   only:
     - master
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64       datadog/agent-dev:master-py3
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64   datadog/agent-dev:master-py3-jmx
@@ -2369,8 +2355,6 @@ dev_master_docker_hub-dogstatsd:
     - build_dogstatsd_amd64
   only:
     - master
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64           datadog/dogstatsd-dev:master
 
@@ -2380,8 +2364,6 @@ dca_dev_branch_docker_hub:
   when: manual
   except:
     - master
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
@@ -2391,8 +2373,6 @@ dca_dev_branch_multiarch_docker_hub:
   when: manual
   except:
     - master
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_DCA}:${SRC_TAG}-ARCH --dst-template datadog/cluster-agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/cluster-agent-dev --tag ${CI_COMMIT_REF_SLUG} --template datadog/cluster-agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
@@ -2402,8 +2382,6 @@ dca_dev_master_docker_hub:
   needs: ["fail_on_non_triggered_tag", "build_cluster_agent_amd64"]
   only:
     - master
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-dev:master
 
@@ -2417,8 +2395,6 @@ dev_nightly_docker_hub-a6:
     - build_agent6
     - build_agent6_jmx
     - build_agent6_py2py3_jmx
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
@@ -2434,8 +2410,6 @@ dev_nightly_docker_hub-a7:
     - fail_on_non_triggered_tag
     - build_agent7
     - build_agent7_jmx
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64   datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
@@ -2447,8 +2421,6 @@ dev_nightly_docker_hub-dogstatsd:
   needs:
     - fail_on_non_triggered_tag
     - build_dogstatsd_amd64
-  variables:
-    <<: *docker_hub_variables
   script:
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64           datadog/dogstatsd-dev:nightly-${CI_COMMIT_SHORT_SHA}
 #
@@ -2820,8 +2792,6 @@ tag_release_6:
   <<: *run_when_triggered_on_tag_6
   stage: deploy6
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version --major-version 6)
     # Platform-specific agent images
@@ -2836,8 +2806,6 @@ tag_release_7:
   <<: *run_when_triggered_on_tag_7
   stage: deploy7
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version --major-version 7)
     # Images
@@ -2854,8 +2822,6 @@ latest_release_6:
   <<: *run_when_triggered_on_tag_6
   stage: deploy6
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version --major-version 6)
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2        --template datadog/agent-ARCH:${VERSION}
@@ -2868,8 +2834,6 @@ latest_release_7:
   <<: *run_when_triggered_on_tag_7
   stage: deploy7
   when: manual
-  variables:
-    <<: *docker_hub_variables
   script:
     - VERSION=$(inv -e agent.version --major-version 7)
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest      --template datadog/agent-ARCH:${VERSION}
