@@ -986,7 +986,7 @@ func ComputeAPIDomain(domain string) (string, error) {
 	apiDomain := ""
 	parsedDomain, err := url.Parse(domain)
 	if err != nil {
-		return "", fmt.Errorf("Could not parse %s as a URL", domain)
+		return "", fmt.Errorf("could not parse %s as a URL", domain)
 	}
 	if _, found := ddURLs[parsedDomain.Host]; found {
 		apiDomain = strings.Replace(domain, "app.", "api.", 1)
