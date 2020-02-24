@@ -23,7 +23,7 @@ pre-start script
 end script
 
 script
-  if [ -f /etc/datadog-agent/system-probe.yaml ]; then
+  if [ -f <%= etc_dir %>/system-probe.yaml ]; then
     exec <%= install_dir %>/embedded/bin/system-probe --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid
   fi
 end script
