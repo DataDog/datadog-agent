@@ -15,11 +15,14 @@ import (
 #include <windows.h>
 #include <stdint.h>
 */
+
 var (
 	kernel32    = syscall.MustLoadDLL("kernel32.dll")
 	CreateFile  = kernel32.MustFindProc("CreateFileW")
 	CloseHandle = kernel32.MustFindProc("CloseHandle")
+	// logger *log2.Logger
 )
+
 
 type Tracer struct {
 	config *Config
@@ -31,25 +34,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 func (t *Tracer) Stop() {}
 
-
-/*
-WINDOWS:
-CreateFileW(
-  LPCWSTR               lpFileName,
-  DWORD                 dwDesiredAccess,
-  DWORD                 dwShareMode,
-  LPSECURITY_ATTRIBUTES lpSecurityAttributes,
-  DWORD                 dwCreationDisposition,
-  DWORD                 dwFlagsAndAttributes,
-  HANDLE                hTemplateFile
-);
-*/
-
 func open(path string) (syscall.Handle, error) {
 	p, err := syscall.UTF16PtrFromString(path)
 	if err != nil {
 		return syscall.InvalidHandle, err
 	}
+	log.Info("Creating file...")
 	r, _, err := CreateFile.Call(uintptr(unsafe.Pointer(p)),
 		syscall.GENERIC_READ,
 		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE,
@@ -57,7 +47,9 @@ func open(path string) (syscall.Handle, error) {
 		syscall.OPEN_EXISTING,
 		syscall.FILE_FLAG_OVERLAPPED,
 		0)
+	log.Info("creating handle...")
 	h := syscall.Handle(r)
+	log.Info("Handle created")
 	if h == syscall.InvalidHandle {
 		return h, err
 	}
@@ -65,6 +57,7 @@ func open(path string) (syscall.Handle, error) {
 }
 
 func GetIoCompletionPort(handleFile syscall.Handle) (syscall.Handle, error) {
+	// logger.Print("creating io completion port")
 	iocpHandle, err := syscall.CreateIoCompletionPort(handleFile,0,0, 0)
 	if err != nil {
 		return syscall.Handle(0), err
@@ -80,20 +73,10 @@ func close(handle syscall.Handle) error {
 	return nil
 }
 
-/*
-func Encode(s string) C.LPCWSTR {
-	wstr := utf16.Encode([]rune(s))
-
-	p := C.calloc(C.size_t(len(wstr)+1), C.sizeof_uint16_t)
-	pp := (*[1 << 30]uint16)(p)
-	copy(pp[:], wstr)
-
-	return (C.LPCWSTR)(p)
-}*/
-
 func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 
 	// p, err := Encode("\\\\.\\ddfilter") // Note the subtle change here
+	log.Info("GetActiveConnections Called")
 	h, err := open("\\\\.\\ddfilter")
 	if err != nil {
 		panic(err)
@@ -103,6 +86,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 		log.Errorf("open: %v", err)
 	}
 
+	log.Info("Calling getiocompletionport")
 	iocp, err := GetIoCompletionPort(h)
 	overlapped := &syscall.Overlapped{
 		Internal:     0,
@@ -113,17 +97,20 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 	}
 	bytes := uint32(0)
 	key := uint32(0)
-	cs := syscall.GetQueuedCompletionStatus(iocp, &bytes, &key, &overlapped, 10000000)
+	log.Info("Calling getqueuedcompletionstatus")
+	cs := syscall.GetQueuedCompletionStatus(iocp, &bytes, &key, &overlapped, 5)
 	log.Info(cs)
 	log.Infof("received %d bytes\n", bytes)
+
+	rdbbuf := make([]byte, syscall.MAXIMUM_REPARSE_DATA_BUFFER_SIZE)
+	var bytesReturned uint32
+	ioctlcd := uint32(0x801)
+	err = syscall.DeviceIoControl(iocp, ioctlcd, nil, 0, &rdbbuf[0], uint32(len(rdbbuf)), &bytesReturned, nil)
+	log.Infof("Total bytes returned: %d\n", bytesReturned)
 
 	err = close(h)
 	if err != nil {
 		log.Errorf("close: %v", err)
-	}
-	err = close(h)
-	if err != nil {
-		log.Errorf("second close: %v", err)
 	}
 
 	return &Connections{
@@ -135,7 +122,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 				Source: util.AddressFromString("127.0.0.1"),
 				Dest:   util.AddressFromString("128.0.0.1"),
 				SPort:  35673,
-				DPort:  uint16(bytes),
+				DPort:  8000,
 				Type:   TCP,
 			},
 		},
