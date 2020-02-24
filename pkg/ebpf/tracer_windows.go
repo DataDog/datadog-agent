@@ -6,9 +6,7 @@ import (
 	"C"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"sync"
 	"syscall"
-	"os"
 	"unsafe"
 )
 
@@ -25,22 +23,6 @@ var (
 
 type Tracer struct {
 	config *Config
-}
-
-type I2c_client struct {
-	f *os.File
-}
-
-func Open(fname string) (c *I2c_client, err error) {
-	f, err := os.OpenFile(fname , syscall.O_RDWR, 0666)
-	if err != nil {
-		return nil, err
-	}
-	return &I2c_client{f: f}, nil
-}
-
-func (c *I2c_client) Close() (err error) {
-	return c.f.Close()
 }
 
 func NewTracer(config *Config) (*Tracer, error) {
@@ -73,13 +55,21 @@ func open(path string) (syscall.Handle, error) {
 		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE,
 		0,
 		syscall.OPEN_EXISTING,
-		syscall.FILE_ATTRIBUTE_NORMAL,
+		syscall.FILE_FLAG_OVERLAPPED,
 		0)
 	h := syscall.Handle(r)
 	if h == syscall.InvalidHandle {
 		return h, err
 	}
 	return h, nil
+}
+
+func GetIoCompletionPort(handleFile syscall.Handle) (syscall.Handle, error) {
+	iocpHandle, err := syscall.CreateIoCompletionPort(handleFile,0,0, 0)
+	if err != nil {
+		return syscall.Handle(0), err
+	}
+	return iocpHandle, nil
 }
 
 func close(handle syscall.Handle) error {
@@ -104,9 +94,6 @@ func Encode(s string) C.LPCWSTR {
 func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 
 	// p, err := Encode("\\\\.\\ddfilter") // Note the subtle change here
-	blah := C.ulong(3)
-	log.Infof("%d", blah)
-
 	h, err := open("\\\\.\\ddfilter")
 	if err != nil {
 		panic(err)
@@ -115,6 +102,21 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 	if err != nil {
 		log.Errorf("open: %v", err)
 	}
+
+	iocp, err := GetIoCompletionPort(h)
+	overlapped := &syscall.Overlapped{
+		Internal:     0,
+		InternalHigh: 0,
+		Offset:       0,
+		OffsetHigh:   0,
+		HEvent:       0,
+	}
+	bytes := uint32(0)
+	key := uint32(0)
+	cs := syscall.GetQueuedCompletionStatus(iocp, &bytes, &key, &overlapped, 10000000)
+	log.Info(cs)
+	log.Infof("received %d bytes\n", bytes)
+
 	err = close(h)
 	if err != nil {
 		log.Errorf("close: %v", err)
@@ -131,9 +133,9 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 		Conns: []ConnectionStats{
 			{
 				Source: util.AddressFromString("127.0.0.1"),
-				Dest:   util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("128.0.0.1"),
 				SPort:  35673,
-				DPort:  8000,
+				DPort:  uint16(bytes),
 				Type:   TCP,
 			},
 		},
