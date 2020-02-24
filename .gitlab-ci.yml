@@ -2611,11 +2611,11 @@ deploy_windows_tags-latest-7:
 
 # deploy android packages to a public s3 bucket when tagged
 deploy_android_tags:
-  stage: deploy6
+  stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered_on_tag_6
+  <<: *run_when_triggered_on_tag_7
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.apk" $OMNIBUS_PACKAGE_DIR s3://$ANDROID_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
