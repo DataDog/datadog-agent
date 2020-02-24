@@ -617,6 +617,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
+	// command line options
+	config.SetKnown("cmd.check.fullsketches")
+
 	setAssetFs(config)
 }
 
