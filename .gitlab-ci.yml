@@ -178,13 +178,6 @@ run_tests_windows-x64:
   variables:
     ARCH: "x64"
 
-run_tests_windows-x86:
-  # temporarily allow failure for tests
-  extends: .run_tests_windows_base
-  allow_failure: true
-  variables:
-    ARCH: "x86"
-
 .run_tests_preparation: &run_tests_preparation
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
@@ -846,16 +839,6 @@ windows_msi_x64-a7:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
 
-windows_msi_x86-a7:
-  extends: .windows_main_agent_base
-  variables:
-    ARCH: "x86"
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
-  before_script:
-    - set RELEASE_VERSION $RELEASE_VERSION_7
-  <<: *skip_when_unwanted_on_7
-
 windows_msi_x64-a6:
   extends: .windows_main_agent_base
   variables:
@@ -866,15 +849,6 @@ windows_msi_x64-a6:
     - set RELEASE_VERSION $RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
 
-windows_msi_x86-a6:
-  extends: .windows_main_agent_base
-  variables:
-    ARCH: "x86"
-    AGENT_MAJOR_VERSION: 6
-    PYTHON_RUNTIMES: '2,3'
-  before_script:
-    - set RELEASE_VERSION $RELEASE_VERSION_6
-  <<: *skip_when_unwanted_on_6
 
 .windows_puppy_agent_base:
   extends: .windows_msi_base
@@ -891,17 +865,6 @@ windows_puppy_msi_x64-a7:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
 
-windows_puppy_msi_x86-a7:
-  extends: .windows_puppy_agent_base
-  variables:
-    ARCH: "x86"
-    PYTHON_RUNTIMES: '3'
-    AGENT_MAJOR_VERSION: '7'
-  before_script:
-    - set RELEASE_VERSION $RELEASE_VERSION_7
-  <<: *skip_when_unwanted_on_7
-
-
 # build dogstatsd package for Windows
 windows_dsd_msi_x64:
   extends: .windows_msi_base
@@ -913,38 +876,6 @@ windows_dsd_msi_x64:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   
-# build Agent package for android
-agent_android_apk:
-  stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:$DATADOG_AGENT_BUILDERS
-  tags: [ "runner:main", "size:large" ]
-  variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
-  <<: *skip_when_unwanted_on_7
-  before_script:
-    - echo running android before_script
-    - cd $SRC_PATH
-    - pip install -U pip
-    - pip install -r requirements.txt
-    - inv -e deps --android --dep-vendor-only --no-checks
-    # Some Android license has changed, we have to accept the new version.
-    # But on top of that, there is a bug in sdkmanager not updating correctly
-    # the existing license, so, we have to manually accept the new license.
-    # https://issuetracker.google.com/issues/123054726
-    # The real fix will be to change the builders
-    - echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license"
-  script:
-    # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # for now do the steps manually.  Should eventually move this to an invoke
-    # task
-    - inv -e android.build --major-version 7
-    - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - cp ./bin/agent/ddagent-*-unsigned.apk $OMNIBUS_PACKAGE_DIR
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $OMNIBUS_PACKAGE_DIR
 
 # build Dogstastd package for deb-x64
 dogstatsd_deb-x64:
@@ -1195,7 +1126,7 @@ deploy_windows_testing-a6:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
-  needs: ["windows_msi_x86-a6", "windows_msi_x64-a6"]
+  needs: ["windows_msi_x64-a6"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1207,7 +1138,7 @@ deploy_windows_testing-a7:
   <<: *run_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
-  needs: ["windows_msi_x86-a7", "windows_msi_x64-a7"]
+  needs: ["windows_msi_x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -2438,17 +2369,6 @@ deploy_windows_tags-latest-7:
     # staging box can pick it up. Allow the job to skip this step if needed
     # (when building a custom beta for example).
     - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-7-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
-
-# deploy android packages to a public s3 bucket when tagged
-deploy_android_tags:
-  stage: deploy6
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  <<: *run_when_triggered_on_tag_6
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.apk" $OMNIBUS_PACKAGE_DIR s3://$ANDROID_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
 deploy_rpm-6:
