@@ -984,18 +984,16 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 // ComputeAPIDomain returns a domain to be used for API validation
 func ComputeAPIDomain(domain string) (string, error) {
 	apiDomain := ""
-	if parsedDomain, err := url.Parse(domain); err == nil {
-		if _, found := ddURLs[parsedDomain.Host]; found {
-			apiDomain = strings.Replace(domain, "app.", "api.", 1)
-		} else {
-			apiDomain = domain
-		}
-		return apiDomain, nil
-	} else {
-		return "", err
+	parsedDomain, err := url.Parse(domain)
+	if err != nil {
+		return "", fmt.Errorf("Could not parse %s as a URL", domain)
 	}
-	// if no match is found, return the original domain
-	return domain, nil
+	if _, found := ddURLs[parsedDomain.Host]; found {
+		apiDomain = strings.Replace(domain, "app.", "api.", 1)
+	} else {
+		apiDomain = domain
+	}
+	return apiDomain, nil
 }
 
 // IsContainerized returns whether the Agent is running on a Docker container
