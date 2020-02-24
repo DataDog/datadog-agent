@@ -116,9 +116,11 @@ func (fh *forwarderHealth) healthCheckLoop() {
 func (fh *forwarderHealth) computeKeysPerAPIDomain(keysPerDomains map[string][]string) {
 	fh.keysPerAPIDomain = make(map[string][]string)
 	for domain, apiKeys := range keysPerDomains {
-		if apiDomain, err := config.ComputeAPIDomain(domain); err == nil {
-			fh.keysPerAPIDomain[apiDomain] = append(fh.keysPerAPIDomain[apiDomain], apiKeys...)
+		apiDomain, err := config.ComputeAPIDomain(domain)
+		if err != nil {
+			log.Errorf("compute API domain error: %s", err)
 		}
+		fh.keysPerAPIDomain[apiDomain] = append(fh.keysPerAPIDomain[apiDomain], apiKeys...)
 	}
 }
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
