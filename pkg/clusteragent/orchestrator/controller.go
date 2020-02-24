@@ -22,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -34,6 +33,7 @@ type OrchestratorControllerContext struct {
 	StopCh                       chan struct{}
 	Hostname                     string
 	ClusterName                  string
+	ConfigPath                   string
 }
 
 type OrchestratorController struct {
@@ -43,6 +43,7 @@ type OrchestratorController struct {
 	hostName                string
 	clusterName             string
 	apiClient               api.Client
+	processConfig           *processcfg.AgentConfig
 }
 
 func StartOrchestratorController(ctx OrchestratorControllerContext) error {
@@ -54,11 +55,7 @@ func StartOrchestratorController(ctx OrchestratorControllerContext) error {
 		log.Info("orchestrator explorer enabled but no cluster name set: disabling")
 		return nil
 	}
-	orchestratorControler := newOrchestratorController(
-		ctx.UnassignedPodInformerFactory.Core().V1().Pods(),
-		ctx.Hostname,
-		ctx.ClusterName,
-	)
+	orchestratorControler := newOrchestratorController(ctx)
 
 	go orchestratorControler.Run(ctx.StopCh)
 
@@ -67,17 +64,24 @@ func StartOrchestratorController(ctx OrchestratorControllerContext) error {
 	return nil
 }
 
-func newOrchestratorController(podInformer coreinformers.PodInformer, hostName string, clusterName string) *OrchestratorController {
-	return &OrchestratorController{
+func newOrchestratorController(ctx OrchestratorControllerContext) *OrchestratorController {
+	podInformer := ctx.UnassignedPodInformerFactory.Core().V1().Pods()
+	oc := &OrchestratorController{
 		unassignedPodLister:     podInformer.Lister(),
 		unassignedPodListerSync: podInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
-		hostName:                hostName,
-		clusterName:             clusterName,
+		hostName:                ctx.Hostname,
+		clusterName:             ctx.ClusterName,
 		apiClient: api.NewClient(
 			http.Client{Timeout: 20 * time.Second, Transport: processcfg.NewDefaultTransport()},
 			30*time.Second),
 	}
+	cfg := processcfg.NewDefaultAgentConfig(true)
+	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
+		log.Infof("Error loading the process config: %s", err)
+	}
+	oc.processConfig = cfg
+	return oc
 }
 
 func (o *OrchestratorController) Run(stopCh <-chan struct{}) {
@@ -106,8 +110,7 @@ func (o *OrchestratorController) processPods() {
 		log.Infof("unassigned pod: %s %s %s", p.Name, p.Spec.NodeName, p.Status.Phase)
 	}
 
-	cfg := processcfg.NewDefaultAgentConfig(true)
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), cfg, "hostname", "clustername")
+	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "hostname", "clustername")
 	if err != nil {
 		log.Errorf("Unable to process pod list")
 		return
@@ -119,7 +122,7 @@ func (o *OrchestratorController) processPods() {
 	}
 	for _, m := range msg {
 		log.Infof("message %v", m)
-		statuses := o.apiClient.PostMessage(cfg.OrchestratorEndpoints, "/api/v1/orchestrator", m, extraHeaders)
+		statuses := o.apiClient.PostMessage(o.processConfig.OrchestratorEndpoints, "/api/v1/orchestrator", m, extraHeaders)
 		if len(statuses) > 0 {
 			log.Infof("%v", statuses)
 		}

@@ -133,8 +133,8 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	return nil
 }
 
-// Process-specific configuration
-func (a *AgentConfig) loadProcessYamlConfig(path string) error {
+// LoadProcessYamlConfig load Process-specific configuration
+func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	loadEnvVariables()
 
 	// Resolve any secrets

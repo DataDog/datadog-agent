@@ -209,6 +209,7 @@ func start(cmd *cobra.Command, args []string) error {
 			StopCh:                       stopCh,
 			Hostname:                     hostname,
 			ClusterName:                  config.Datadog.GetString("cluster_name"),
+			ConfigPath:                   confPath,
 		}
 		err = orchestrator.StartOrchestratorController(orchestratorCtx)
 		if err != nil {
