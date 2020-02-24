@@ -152,7 +152,7 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.NominatedNodeName = p.Status.NominatedNodeName
 	podModel.IP = p.Status.PodIP
 	if p.Status.StartTime != nil {
-		podModel.CreationTimestamp = p.Status.StartTime.Unix()
+		podModel.CreationTimestamp = p.ObjectMeta.CreationTimestamp.Unix()
 	}
 	podModel.RestartCount = 0
 	for _, cs := range p.Status.ContainerStatuses {
