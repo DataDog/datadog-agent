@@ -41,8 +41,6 @@ PROCESS_ONLY_TAGS = [
 LINUX_ONLY_TAGS = [
     "containerd",
     "cri",
-    "kubeapiserver",
-    "kubelet",
     "netcgo",
     "orchestrator",
 ]

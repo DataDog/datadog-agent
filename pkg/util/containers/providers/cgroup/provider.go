@@ -180,7 +180,7 @@ func (mp *provider) GetDefaultGateway() (net.IP, error) {
 	return defaultGateway()
 }
 
-// DefaultHostIPs returns the IP addresses bound to the default network interface.
+// GetDefaultHostIPs returns the IP addresses bound to the default network interface.
 // The default network interface is the one connected to the network gateway, and it is determined
 // by parsing the routing table file in the proc file system.
 func (mp *provider) GetDefaultHostIPs() ([]string, error) {
