@@ -1,6 +1,7 @@
 description "Datadog System Probe"
 
-stop on (runlevel [!2345])
+start on starting datadog-agent
+stop on (runlevel [!2345] or stopping datadog-agent)
 
 respawn
 respawn limit 10 5
@@ -22,7 +23,9 @@ pre-start script
 end script
 
 script
-  exec <%= install_dir %>/embedded/bin/system-probe --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid
+  if [ -f /etc/datadog-agent/system-probe.yaml ]; then
+    exec <%= install_dir %>/embedded/bin/system-probe --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid
+  fi
 end script
 
 post-stop script
