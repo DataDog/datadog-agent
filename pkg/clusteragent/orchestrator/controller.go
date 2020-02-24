@@ -3,17 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build kubeapiserver
+// +build kubeapiserver,orchestrator
 
 package orchestrator
 
 import (
 	"math/rand"
+	"net/http"
 	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	processcfg "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -30,12 +32,17 @@ type OrchestratorControllerContext struct {
 	UnassignedPodInformerFactory informers.SharedInformerFactory
 	Client                       kubernetes.Interface
 	StopCh                       chan struct{}
+	Hostname                     string
+	ClusterName                  string
 }
 
 type OrchestratorController struct {
 	unassignedPodLister     corelisters.PodLister
 	unassignedPodListerSync cache.InformerSynced
 	groupID                 int32
+	hostName                string
+	clusterName             string
+	apiClient               api.Client
 }
 
 func StartOrchestratorController(ctx OrchestratorControllerContext) error {
@@ -43,8 +50,14 @@ func StartOrchestratorController(ctx OrchestratorControllerContext) error {
 		log.Info("orchestrator explorer is disabled")
 		return nil
 	}
+	if ctx.ClusterName == "" {
+		log.Info("orchestrator explorer enabled but no cluster name set: disabling")
+		return nil
+	}
 	orchestratorControler := newOrchestratorController(
 		ctx.UnassignedPodInformerFactory.Core().V1().Pods(),
+		ctx.Hostname,
+		ctx.ClusterName,
 	)
 
 	go orchestratorControler.Run(ctx.StopCh)
@@ -54,11 +67,16 @@ func StartOrchestratorController(ctx OrchestratorControllerContext) error {
 	return nil
 }
 
-func newOrchestratorController(podInformer coreinformers.PodInformer) *OrchestratorController {
+func newOrchestratorController(podInformer coreinformers.PodInformer, hostName string, clusterName string) *OrchestratorController {
 	return &OrchestratorController{
 		unassignedPodLister:     podInformer.Lister(),
 		unassignedPodListerSync: podInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
+		hostName:                hostName,
+		clusterName:             clusterName,
+		apiClient: api.NewClient(
+			http.Client{Timeout: 20 * time.Second, Transport: processcfg.NewDefaultTransport()},
+			30*time.Second),
 	}
 }
 
@@ -95,7 +113,15 @@ func (o *OrchestratorController) processPods() {
 		return
 	}
 
+	extraHeaders := map[string]string{
+		"X-Dd-Hostname":       o.hostName,
+		"X-Dd-ContainerCount": "0",
+	}
 	for _, m := range msg {
 		log.Infof("message %v", m)
+		statuses := o.apiClient.PostMessage(cfg.OrchestratorEndpoints, "/api/v1/orchestrator", m, extraHeaders)
+		if len(statuses) > 0 {
+			log.Infof("%v", statuses)
+		}
 	}
 }

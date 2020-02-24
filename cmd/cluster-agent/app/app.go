@@ -207,6 +207,8 @@ func start(cmd *cobra.Command, args []string) error {
 			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
+			Hostname:                     hostname,
+			ClusterName:                  config.Datadog.GetString("cluster_name"),
 		}
 		err = orchestrator.StartOrchestratorController(orchestratorCtx)
 		if err != nil {
