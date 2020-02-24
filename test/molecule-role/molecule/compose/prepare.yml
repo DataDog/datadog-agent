@@ -2,8 +2,6 @@
 - name: Prepare Trace Java
   hosts: trace-java-demo
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Docker login
       docker_login:
