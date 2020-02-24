@@ -918,7 +918,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
 
     // get the port for the current sock
     __u16 lport = 0;
-    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + status->offset_dport + sizeof(lport));
+    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + status->offset_sport);
     lport = ntohs(lport);
 
     if (lport == 0) {
@@ -960,7 +960,7 @@ int kprobe__udpv6_destroy_sock(struct pt_regs* ctx) {
 
     // get the port for the current sock
     __u16 lport = 0;
-    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + status->offset_dport + sizeof(lport));
+    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + status->offset_sport);
     lport = ntohs(lport);
 
     if (lport == 0) {
