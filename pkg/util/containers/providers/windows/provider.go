@@ -9,6 +9,7 @@ package windows
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -79,5 +80,17 @@ func (mp *Provider) ContainerIDForPID(pid int) (string, error) {
 // to a given PID and parses them in NetworkInterface objects
 func (mp *Provider) DetectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
 	//FIXME: To be implemented for Windows containers
+	return nil, fmt.Errorf("Not implemented")
+}
+
+// GetDefaultGateway returns the default gateway used by container implementation
+func (mp *Provider) GetDefaultGateway() (net.IP, error) {
+	//FIXME: To be implemented for Windows containers
+	return nil, fmt.Errorf("Not implemented")
+}
+
+// DefaultHostIPs returns the IP addresses bound to the default network interface.
+// The default network interface is the one connected to the network gateway.
+func (mp *Provider) GetDefaultHostIPs() ([]string, error) {
 	return nil, fmt.Errorf("Not implemented")
 }

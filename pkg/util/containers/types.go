@@ -105,6 +105,8 @@ type ContainerImplementation interface {
 	DetectNetworkDestinations(pid int) ([]NetworkDestination, error)
 	GetAgentCID() (string, error)
 	ContainerIDForPID(pid int) (string, error)
+	GetDefaultGateway() (net.IP, error)
+	GetDefaultHostIPs() ([]string, error)
 
 	metrics.ContainerMetricsProvider
 }
