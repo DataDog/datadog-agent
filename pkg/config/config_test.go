@@ -687,8 +687,9 @@ process_config:
 func TestComputeAPIDomain(t *testing.T) {
 	testDomain := "https://app.datadoghq.com"
 	matchDomain := "https://api.datadoghq.com"
-	apiDomain := ComputeAPIDomain(testDomain)
+	apiDomain, err := ComputeAPIDomain(testDomain)
 
+	assert.NoError(t, err)
 	assert.Equal(t, matchDomain, apiDomain)
 }
 
