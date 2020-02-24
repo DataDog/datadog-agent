@@ -937,6 +937,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     // set the state to closed
     __u8 new_state = PORT_CLOSED;
     bpf_map_update_elem(&udp_port_bindings, &lport, &new_state, BPF_ANY);
+
     log_debug("kprobe/udp_destroy_sock: port %d marked as closed", lport);
 
     return 0;
@@ -1050,18 +1051,25 @@ int kprobe__sys_socket(struct pt_regs* ctx) {
 SEC("kretprobe/sys_socket")
 int kretprobe__sys_socket(struct pt_regs* ctx) {
     __u64 tid = bpf_get_current_pid_tgid();
-    __u8* pending = bpf_map_lookup_elem(&pending_sockets, &tid);
-    if (pending == NULL) {
+    __u8* udp_pending = bpf_map_lookup_elem(&pending_sockets, &tid);
+
+    int fd = PT_REGS_RC(ctx);
+    // move the socket to "unbound"
+    __u64 fd_and_tid = (tid << 32) | fd;
+
+    if (udp_pending == NULL) {
+        // in most cases this will be a no-op, but
+        // in the case that this is a non-UDP soccket call,
+        // and an older process with the same TID created a UDP
+        // socket with the same FD, we want to prevent
+        // subsequent calls to bind() from having an effect.
+        bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
         log_debug("kretprobe/sys_socket: socket() call finished but was not UDP\\n");
         return 0;
     }
 
-    int fd = PT_REGS_RC(ctx);
 
     bpf_map_delete_elem(&pending_sockets, &tid);
-
-    // move the socket to "unbound"
-    __u64 fd_and_tid = (tid << 32) | fd;
 
     log_debug("kretprobe/sys_socket: socket() call for UDP socket terminated, fd (%d) is now unbound tid=%d", fd, tid);
 
