@@ -50,6 +50,8 @@ var (
 		Long:  ``,
 		RunE:  getConfigValue,
 	}
+	agentConfigURLPath = "/agent/config"
+	listRuntimeURLPath = agentConfigURLPath + "/list-runtime"
 )
 
 func showRuntimeConfiguration(cmd *cobra.Command, args []string) error {
@@ -88,7 +90,7 @@ func requestConfig() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	apiConfigURL := fmt.Sprintf("https://%v:%v"+agentConfigURLPath, ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	r, err := util.DoGet(c, apiConfigURL)
 	if err != nil {
@@ -115,7 +117,7 @@ func listRuntimeConfigurableValue(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("https://%v:%v/agent/config/list-runtime", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	url := fmt.Sprintf("https://%v:%v"+listRuntimeURLPath, ipcAddress, config.Datadog.GetInt("cmd_port"))
 	r, err := util.DoGet(c, url)
 	if err != nil {
 		var errMap = make(map[string]string)
@@ -151,7 +153,7 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("https://%v:%v/agent/config/%v", ipcAddress, config.Datadog.GetInt("cmd_port"), args[0])
+	url := fmt.Sprintf("https://%v:%v"+agentConfigURLPath+"/%v", ipcAddress, config.Datadog.GetInt("cmd_port"), args[0])
 	body := fmt.Sprintf("value=%s", html.EscapeString(args[1]))
 	r, err := util.DoPost(c, url, "application/x-www-form-urlencoded", bytes.NewBuffer([]byte(body)))
 	if err != nil {
@@ -180,7 +182,7 @@ func getConfigValue(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("https://%v:%v/agent/config/%v", ipcAddress, config.Datadog.GetInt("cmd_port"), args[0])
+	url := fmt.Sprintf("https://%v:%v"+agentConfigURLPath+"/%v", ipcAddress, config.Datadog.GetInt("cmd_port"), args[0])
 	r, err := util.DoGet(c, url)
 	if err != nil {
 		var errMap = make(map[string]string)
