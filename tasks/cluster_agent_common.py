@@ -1,5 +1,5 @@
 """
-Cluster Agent tasks
+Common utilities for building Cluster Agent variants
 """
 
 import os
