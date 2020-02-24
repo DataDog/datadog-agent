@@ -5,6 +5,7 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -708,47 +709,60 @@ func TestTCPCollectionDisabled(t *testing.T) {
 
 func TestUDPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
-	tr, err := NewTracer(NewDefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
+	cfg := NewDefaultConfig()
+	cfg.BPFDebug = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
 	defer tr.Stop()
 
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+	cmd := exec.CommandContext(ctx, "testdata/simulate_udp.sh")
+	if err := cmd.Run(); err != nil {
+		t.Errorf("simulate_udp failed: %s", err)
+	}
+
 	// Create UDP Server which sends back serverMessageSize bytes
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
+	// server := NewUDPServerOnAddress("127.0.0.1:6000", func(b []byte, n int) []byte {
+	// 	return genPayload(serverMessageSize)
+	// })
 
-	doneChan := make(chan struct{})
-	server.Run(doneChan, clientMessageSize)
+	// doneChan := make(chan struct{})
+	// server.Run(doneChan, clientMessageSize)
 
-	// Connect to server
-	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
+	// // Connect to server
+	// c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// defer c.Close()
 
-	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
+	// // Write clientMessageSize to server, and read response
+	// if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+	// 	t.Fatal(err)
+	// }
 
-	c.Read(make([]byte, serverMessageSize))
+	// bs := make([]byte, serverMessageSize)
+	// _, err = c.Read(bs)
+	// require.NoError(t, err)
+
+	// doneChan <- struct{}{}
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
+	assert.Empty(t, connections)
 
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
-	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, OUTGOING, conn.Direction)
-	assert.True(t, conn.IntraHost)
+	// conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	// require.True(t, ok)
+	// assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
+	// assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
+	// assert.Equal(t, os.Getpid(), int(conn.Pid))
+	// assert.Equal(t, addrPort(server.address), int(conn.DPort))
+	// assert.Equal(t, OUTGOING, conn.Direction)
+	// assert.True(t, conn.IntraHost)
 
-	doneChan <- struct{}{}
+	// fmt.Printf("%v\n", c.RemoteAddr())
+	// conn, ok = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	// require.True(t, ok)
 }
 
 func TestUDPDisabled(t *testing.T) {
@@ -1303,8 +1317,12 @@ type UDPServer struct {
 }
 
 func NewUDPServer(onMessage func(b []byte, n int) []byte) *UDPServer {
+	return NewUDPServerOnAddress("127.0.0.1:0", onMessage)
+}
+
+func NewUDPServerOnAddress(addr string, onMessage func(b []byte, n int) []byte) *UDPServer {
 	return &UDPServer{
-		address:   "127.0.0.1:0",
+		address:   addr,
 		onMessage: onMessage,
 	}
 }

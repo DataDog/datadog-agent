@@ -176,7 +176,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	if err := udpPortMapping.ReadInitialUDPState(); err != nil {
-		return nil, fmt.Errorf("failed to read initial UDP pid->port mapping: %s")
+		return nil, fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	}
 
 	conntracker := netlink.NewNoOpConntracker()
