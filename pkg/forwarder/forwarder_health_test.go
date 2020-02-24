@@ -38,21 +38,21 @@ func TestHasValidAPIKey(t *testing.T) {
 }
 func TestComputeAPIDomains(t *testing.T) {
 	keysPerDomains := map[string][]string{
-		"https://app.datadoghq.com":    {"api_key_1"},
+		"https://app.datadoghq.com":    {"api_key_1", "api_key_1b"},
 		"https://app.datadoghq.eu":     {"api_key_2"},
-		"https://app.datad0g.com":      {"api_key_3"},
+		"https://app.datad0g.com":      {"api_key_3", "api_key_3b"},
 		"https://app.datad0g.eu":       {"api_key_4"},
 		"https://custom.datadoghq.com": {"api_key_5"},
-		"https://nochange.com":         {"api_key_6"},
+		"https://nochange.com":         {"api_key_6", "api_key_6b"},
 	}
 
 	testMap := map[string][]string{
-		"https://api.datadoghq.com":    {"api_key_1"},
+		"https://api.datadoghq.com":    {"api_key_1", "api_key_1b"},
 		"https://api.datadoghq.eu":     {"api_key_2"},
-		"https://api.datad0g.com":      {"api_key_3"},
+		"https://api.datad0g.com":      {"api_key_3", "api_key_3b"},
 		"https://api.datad0g.eu":       {"api_key_4"},
 		"https://custom.datadoghq.com": {"api_key_5"},
-		"https://nochange.com":         {"api_key_6"},
+		"https://nochange.com":         {"api_key_6", "api_key_6b"},
 	}
 
 	fh := newForwarderHealth(keysPerDomains)
