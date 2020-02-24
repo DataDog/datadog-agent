@@ -709,6 +709,9 @@ func TestComputeAPIDomain(t *testing.T) {
 		parsedDomains = append(parsedDomains, apiDomain)
 	}
 	assert.Equal(t, match, parsedDomains)
+	_, err := ComputeAPIDomain(":datadoghq.com")
+	assert.Error(t, err)
+
 }
 
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config

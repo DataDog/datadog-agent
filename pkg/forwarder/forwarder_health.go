@@ -119,8 +119,9 @@ func (fh *forwarderHealth) computeKeysPerAPIDomain(keysPerDomains map[string][]s
 		apiDomain, err := config.ComputeAPIDomain(domain)
 		if err != nil {
 			log.Errorf("compute API domain error: %s", err)
+		} else {
+			fh.keysPerAPIDomain[apiDomain] = append(fh.keysPerAPIDomain[apiDomain], apiKeys...)
 		}
-		fh.keysPerAPIDomain[apiDomain] = append(fh.keysPerAPIDomain[apiDomain], apiKeys...)
 	}
 }
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {

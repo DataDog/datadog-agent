@@ -44,6 +44,7 @@ func TestComputeAPIDomains(t *testing.T) {
 		"https://app.datad0g.eu":       {"api_key_4"},
 		"https://custom.datadoghq.com": {"api_key_5"},
 		"https://nochange.com":         {"api_key_6", "api_key_6b"},
+		":datadoghq.com":               {"api_key_7"},
 	}
 
 	testMap := map[string][]string{
