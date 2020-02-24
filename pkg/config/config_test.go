@@ -685,12 +685,30 @@ process_config:
 }
 
 func TestComputeAPIDomain(t *testing.T) {
-	testDomain := "https://app.datadoghq.com"
-	matchDomain := "https://api.datadoghq.com"
-	apiDomain, err := ComputeAPIDomain(testDomain)
+	parsedDomains := []string{}
 
-	assert.NoError(t, err)
-	assert.Equal(t, matchDomain, apiDomain)
+	domains := []string{
+		"https://app.datadoghq.com",
+		"https://app.datadoghq.eu",
+		"https://app.datad0g.com",
+		"https://app.datad0g.eu",
+		"https://custom.datadoghq.com",
+		"https://nochange.com",
+	}
+	match := []string{
+		"https://api.datadoghq.com",
+		"https://api.datadoghq.eu",
+		"https://api.datad0g.com",
+		"https://api.datad0g.eu",
+		"https://custom.datadoghq.com",
+		"https://nochange.com",
+	}
+	for _, domain := range domains {
+		apiDomain, err := ComputeAPIDomain(domain)
+		assert.NoError(t, err)
+		parsedDomains = append(parsedDomains, apiDomain)
+	}
+	assert.Equal(t, match, parsedDomains)
 }
 
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
