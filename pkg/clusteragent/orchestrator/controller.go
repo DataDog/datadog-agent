@@ -51,11 +51,11 @@ type Controller struct {
 // StartController starts the orchestrator controller
 func StartController(ctx ControllerContext) error {
 	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
-		log.Info("orchestrator explorer is disabled")
+		log.Info("Orchestrator explorer is disabled")
 		return nil
 	}
 	if ctx.ClusterName == "" {
-		log.Info("orchestrator explorer enabled but no cluster name set: disabling")
+		log.Warn("Orchestrator explorer enabled but no cluster name set: disabling")
 		return nil
 	}
 	orchestratorControler := newController(ctx)
@@ -81,7 +81,7 @@ func newController(ctx ControllerContext) *Controller {
 	}
 	cfg := processcfg.NewDefaultAgentConfig(true)
 	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
-		log.Infof("Error loading the process config: %s", err)
+		log.Errorf("Error loading the process config: %s", err)
 	}
 	oc.processConfig = cfg
 	return oc
@@ -116,8 +116,8 @@ func (o *Controller) processPods() {
 	}
 
 	extraHeaders := map[string]string{
-		"X-Dd-Hostname":       o.hostName,
-		"X-Dd-ContainerCount": "0",
+		api.HostHeader:           o.hostName,
+		api.ContainerCountHeader: "0",
 	}
 	for _, m := range msg {
 		// TODO: handle failure & retries

@@ -135,9 +135,9 @@ func (l *Collector) run(exit chan bool) {
 				}
 				for _, m := range payload.messages {
 					extraHeaders := map[string]string{
-						"X-Dd-Hostname":            l.cfg.HostName,
-						"X-Dd-Processagentversion": Version,
-						"X-Dd-ContainerCount":      strconv.Itoa(getContainerCount(m)),
+						api.HostHeader:           l.cfg.HostName,
+						api.ProcessVersionHeader: Version,
+						api.ContainerCountHeader: strconv.Itoa(getContainerCount(m)),
 					}
 					statuses := l.apiClient.PostMessage(l.endpointsForCheck(payload.name), payload.endpoint, m, extraHeaders)
 					if len(statuses) > 0 {

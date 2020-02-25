@@ -20,7 +20,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const processCheckEndpoint = "/api/v1/collector"
+const (
+	processCheckEndpoint = "/api/v1/collector"
+	// HostHeader contains the hostname of the payload
+	HostHeader = "X-Dd-Hostname"
+	// ContainerCountHeader contains the container count in the payload
+	ContainerCountHeader = "X-Dd-ContainerCount"
+	// ProcessVersionHeader hols the process agent version sending the payload
+	ProcessVersionHeader = "X-Dd-Processagentversion"
+	apiKeyHeader         = "X-Dd-APIKey"
+)
 
 // Endpoint is a single endpoint where process data will be submitted.
 type Endpoint struct {
@@ -90,7 +99,7 @@ func (c *Client) PostMessage(endpoints []Endpoint, checkPath string, m model.Mes
 	responses := make(chan postResponse)
 	for _, ep := range endpoints {
 		extraHeaders := map[string]string{
-			"X-Dd-APIKey": ep.APIKey,
+			apiKeyHeader: ep.APIKey,
 		}
 		go c.postToAPI(ep.GetCheckURL(checkPath), body, responses, headers, extraHeaders)
 	}
@@ -158,7 +167,7 @@ func (c *Client) postToAPI(url string, body []byte, responses chan postResponse,
 
 	body, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		responses <- errResponse("could not decode response body from %s: %s", url, err)
+		responses <- errResponse("could not read response body from %s: %s", url, err)
 		return
 	}
 
