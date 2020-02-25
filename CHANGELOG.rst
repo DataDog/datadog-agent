@@ -27,6 +27,8 @@ Bug Fixes
   The main setup where this happened is on ECS Fargate where the ECS auto-discovery is watching
   for new containers and the docker socket is not available from the datadog agent.
 
+- Support DNS Resolution in Network Performance Monitoring when the system-probe is not
+  running on the root network namespace.
 
 .. _Release Notes_7.17.0:
 
