@@ -18,6 +18,17 @@ import (
 	"code.cloudfoundry.org/lager"
 )
 
+// BBSCacheI is an interface for a structure that caches and automatically refreshes data from Cloud Foundry BBS API
+// it's useful mostly to be able to mock BBSCache during unit tests
+type BBSCacheI interface {
+	LastUpdated() time.Time
+	GetPollAttempts() int
+	GetPollSuccesses() int
+	GetActualLRPsFor(appGUID string) []ActualLRP
+	GetDesiredLRPs() []DesiredLRP
+	GetAllLRPs() (map[string][]ActualLRP, []DesiredLRP)
+}
+
 // BBSCache is a simple structure that caches and automatically refreshes data from Cloud Foundry BBS API
 type BBSCache struct {
 	sync.RWMutex

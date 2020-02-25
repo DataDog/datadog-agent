@@ -24,7 +24,7 @@ import (
 // CloudFoundryConfigProvider implements the Config Provider interface, it should
 // be called periodically and returns templates from Cloud Foundry BBS for AutoConf.
 type CloudFoundryConfigProvider struct {
-	bbsCache      *cloudfoundry.BBSCache
+	bbsCache      cloudfoundry.BBSCacheI
 	lastCollected time.Time
 }
 
@@ -35,7 +35,6 @@ func NewCloudFoundryConfigProvider(conf config.ConfigurationProviders) (ConfigPr
 	}
 	var err error
 
-	// NOTE: we can't use GetPollInterval in ConfigureGlobalBBSCache, as that causes import cycle
 	cfp.bbsCache, err = cloudfoundry.GetGlobalBBSCache()
 	if err != nil {
 		return nil, err
@@ -94,12 +93,12 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP cloudfoundry.De
 		if vcOk {
 			// if service is found in VCAP_SERVICES (non-container service), we will run a single check per App
 			err := cf.renderExtractedConfigs(parsedConfigs, variables, vcVal)
-			cf.assignNodeNameToNonContainerChecks(parsedConfigs, desiredLRP, actualLRPs)
 			if err != nil {
 				log.Errorf("Failed to render config for service %s of app %s: %s", adName, desiredLRP.AppGUID, err)
 			} else {
 				success = true
 			}
+			cf.assignNodeNameToNonContainerChecks(parsedConfigs, desiredLRP, actualLRPs)
 		} else if varsOk {
 			log.Errorf("Service %s for app %s has variables configured, but is not present in VCAP_SERVICES", adName, desiredLRP.AppGUID)
 		} else {

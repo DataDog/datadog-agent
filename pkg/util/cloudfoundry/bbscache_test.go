@@ -56,6 +56,12 @@ func TestBBSCache_GetActualLRPs(t *testing.T) {
 	assert.EqualValues(t, []ActualLRP{ExpectedA1, ExpectedA2}, c.GetActualLRPsFor("012345678901234567890123456789012345"))
 }
 
+func TestBBSCache_GetAllLRPs(t *testing.T) {
+	a, d := c.GetAllLRPs()
+	assert.EqualValues(t, ([]DesiredLRP{ExpectedD1}), d)
+	assert.EqualValues(t, map[string][]ActualLRP{"012345678901234567890123456789012345": {ExpectedA1, ExpectedA2}}, a)
+}
+
 // These methods follow to ensure we implement the bbs.Client API, but are in fact unused
 func (t testBBSClient) DesireTask(logger lager.Logger, guid, domain string, def *models.TaskDefinition) error {
 	panic("implement me")

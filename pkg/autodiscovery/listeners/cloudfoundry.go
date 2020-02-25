@@ -27,7 +27,7 @@ type CloudFoundryListener struct {
 	stop       chan bool
 	t          *time.Ticker
 	m          sync.RWMutex
-	bbsCache   *cloudfoundry.BBSCache
+	bbsCache   cloudfoundry.BBSCacheI
 }
 
 type CloudFoundryService struct {
@@ -128,10 +128,12 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 	aLRP := adID.GetActualLRP()
 	if aLRP == nil {
 		// non-container service
+		// NOTE: non-container services intentionally have no IPs or ports, everything is supposed to be configured
+		// through the "variables" section in the AD configuration
 		svc = &CloudFoundryService{
 			adIdentifier:   adID,
-			containerIPs:   map[string]string{}, // TODO
-			containerPorts: []ContainerPort{},   // TODO
+			containerIPs:   map[string]string{},
+			containerPorts: []ContainerPort{},
 			creationTime:   crTime,
 		}
 	} else {
