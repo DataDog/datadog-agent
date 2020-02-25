@@ -110,12 +110,12 @@ func (c *Client) PostMessage(endpoints []Endpoint, checkPath string, m model.Mes
 		case model.TypeResCollector:
 			rm := r.Body.(*model.ResCollector)
 			if len(rm.Message) > 0 {
-				log.Errorf("error in response from %s: %s", url, rm.Message)
+				log.Errorf("Error in response from %s: %s", url, rm.Message)
 			} else {
 				statuses = append(statuses, rm.Status)
 			}
 		default:
-			log.Errorf("unexpected response type from %s: %d", url, r.Header.Type)
+			log.Errorf("Unexpected response type from %s: %d", url, r.Header.Type)
 		}
 	}
 	return statuses

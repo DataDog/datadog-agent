@@ -203,7 +203,7 @@ func start(cmd *cobra.Command, args []string) error {
 			log.Errorf("Could not start controllers: %v", err)
 		}
 		// TODO: move rest of the controllers out of the apiserver package
-		orchestratorCtx := orchestrator.OrchestratorControllerContext{
+		orchestratorCtx := orchestrator.ControllerContext{
 			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
@@ -211,7 +211,7 @@ func start(cmd *cobra.Command, args []string) error {
 			ClusterName:                  config.Datadog.GetString("cluster_name"),
 			ConfigPath:                   confPath,
 		}
-		err = orchestrator.StartOrchestratorController(orchestratorCtx)
+		err = orchestrator.StartController(orchestratorCtx)
 		if err != nil {
 			log.Error("Could not start orchestrator controller")
 		}
