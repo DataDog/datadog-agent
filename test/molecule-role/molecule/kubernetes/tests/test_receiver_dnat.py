@@ -104,4 +104,4 @@ def test_dnat(host, ansible_var):
             type_name="directional_connection",
             external_id_assert_fn=lambda v: service_to_proc_id_match.findall(v))["incoming"]["ip"] == pod_server_ip
 
-    util.wait_until(wait_for_components, 30, 3)
+    util.wait_until(wait_for_components, 60, 3)
