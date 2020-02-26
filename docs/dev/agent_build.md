@@ -42,6 +42,10 @@ This is the complete list of the available components:
 * `containerd`: add support for the containerd integration
 * `kubeapiserver`: enable interaction with Kubernetes API server (required by the cluster Agent)
 
+The `datadog-agent` is not using the Go modules yet, please ensure that you
+don't have explicitly set the `GO111MODULE` environment variable to `on` while
+compiling the Agent. It must be either unset, set to `auto` or set to `off`.
+
 Please note you might need to provide some extra dependencies in your dev
 environment to build certain bits (see [development environment][dev-env]).
 

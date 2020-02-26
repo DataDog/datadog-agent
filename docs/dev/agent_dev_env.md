@@ -79,6 +79,10 @@ You must install [go](https://golang.org/doc/install) version 1.11.5 or above. M
 sure that `$GOPATH/bin` is in your `$PATH` otherwise Invoke cannot use any
 additional tool it might need.
 
+The `datadog-agent` is not using the Go modules yet, please ensure that you
+don't have explicitly set the `GO111MODULE` environment variable to `on` while
+compiling the Agent. It must be either unset, set to `auto` or set to `off`.
+
 ## Installing dependencies
 
 From the root of `datadog-agent`, run `invoke deps`. This will:
