@@ -63,8 +63,6 @@ To start working on the Agent, you can build the `master` branch:
     * Copies files from `dev/dist` to `bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/master/dev/dist/README.md` for more information.
   If you built an older version of the agent, you may have the error `make: *** No targets specified and no makefile found.  Stop.`.
   To solve the issue, you should remove `CMakeCache.txt` from `rtloader` folder with `rm rtloader/CMakeCache.txt`. 
-  
-
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 
@@ -81,3 +79,4 @@ The file `bin/agent/dist/datadog.yaml` is copied from `dev/dist/datadog.yaml` by
 
 You'll find information and help on how to contribute code to this project under
 [the `docs/dev` directory](docs/dev) of the present repo.
+
