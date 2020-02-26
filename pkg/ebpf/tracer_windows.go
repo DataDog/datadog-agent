@@ -6,16 +6,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+// Tracer struct for tracking network state and connections
 type Tracer struct {
 	config *Config
 }
 
+// NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
 	return &Tracer{}, nil
 }
 
+// Stop function stops running tracer
 func (t *Tracer) Stop() {}
 
+// GetActiveConnections returns all active connections
 func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 	return &Connections{
 		DNS: map[util.Address][]string{
