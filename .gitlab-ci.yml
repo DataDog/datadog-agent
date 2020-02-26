@@ -69,7 +69,7 @@ variables:
   USE_S3_CACHING: --omnibus-s3-cache
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
-  RELEASE_VERSION_7: nightly
+  RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2195996-580f7f3
   DATADOG_AGENT_BUILDERS: v2194239-8bba855
   DATADOG_AGENT_WINBUILDIMAGES: v2123666-a884483
@@ -133,7 +133,7 @@ before_script:
       - triggers
   except: # we have to use except since gitlab doens't handle '!=' operator
     variables:
-      - $RELEASE_VERSION_7 == "nightly"
+      - $RELEASE_VERSION_7 == "nightly-a7"
       - $RELEASE_VERSION_7 == "" # no  RELEASE_VERSION means a nightly build for omnibus
 
 # run job only when triggered by an external tool (ex: Jenkins) and when
@@ -146,7 +146,7 @@ before_script:
       - triggers
     variables:
       - $RELEASE_VERSION_6 == "nightly"
-      - $RELEASE_VERSION_7 == "nightly"
+      - $RELEASE_VERSION_7 == "nightly-a7"
 
 # run job only when triggered on nightly AND when it's a merge to master
 .run_when_triggered_on_nightly_or_master: &run_when_triggered_on_nightly_or_master
@@ -156,7 +156,7 @@ before_script:
       - master
     variables:
       - $RELEASE_VERSION_6 == "nightly"
-      - $RELEASE_VERSION_7 == "nightly"
+      - $RELEASE_VERSION_7 == "nightly-a7"
 
 # skip job only when triggered by an external tool (ex: Jenkins) and when
 # BUILD_AGENT_X is set to "no".
