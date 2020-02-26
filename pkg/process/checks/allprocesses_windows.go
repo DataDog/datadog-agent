@@ -4,16 +4,16 @@ package checks
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	cpu "github.com/DataDog/gopsutil/cpu"
 	process "github.com/DataDog/gopsutil/process"
-	"github.com/StackExchange/wmi"
+
 	"github.com/shirou/w32"
 
 	"golang.org/x/sys/windows"
@@ -45,13 +45,6 @@ type SystemProcessInformation struct {
 	PeakPagefileUsage uint64
 	PrivatePageCount  uint64
 	Reserved6         [6]uint64
-}
-
-type Win32_Process struct {
-	Name           string
-	ExecutablePath *string
-	CommandLine    *string
-	ProcessID      uint32
 }
 
 type IO_COUNTERS struct {
@@ -87,37 +80,6 @@ func getProcessIoCounters(h windows.Handle, counters *IO_COUNTERS) (err error) {
 	return nil
 }
 
-func getProcessMapFromWMI() (map[uint32]Win32_Process, error) {
-	var dst []Win32_Process
-	q := wmi.CreateQuery(&dst, "")
-	err := wmi.Query(q, &dst)
-	if err != nil {
-		return nil, err
-	}
-	if len(dst) == 0 {
-		return nil, fmt.Errorf("could not get Processes, process list is empty")
-	}
-	results := make(map[uint32]Win32_Process)
-	for _, proc := range dst {
-		results[proc.ProcessID] = proc
-	}
-	return results, nil
-}
-
-func getWin32Proc(pid uint32) (Win32_Process, error) {
-	var dst []Win32_Process
-	query := fmt.Sprintf("WHERE ProcessId = %d", pid)
-	q := wmi.CreateQuery(&dst, query)
-	err := wmi.Query(q, &dst)
-	if err != nil {
-		return Win32_Process{}, fmt.Errorf("could not get win32Proc: %s", err)
-	}
-	if len(dst) != 1 {
-		return Win32_Process{}, fmt.Errorf("could not get win32Proc: empty")
-	}
-	return dst[0], nil
-}
-
 func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess, error) {
 	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
 	if allProcsSnap == 0 {
@@ -128,32 +90,6 @@ func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess,
 	defer w32.CloseHandle(allProcsSnap)
 	var pe32 w32.PROCESSENTRY32
 	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
-
-	addNewArgs := cfg.Windows.AddNewArgs
-	interval := cfg.Windows.ArgsRefreshInterval
-	if interval == 0 {
-		if checkCount == 0 {
-			log.Warnf("invalid configuration: windows_refresh_interval was set to 0.  disabling argument collection")
-		}
-		interval = -1
-	}
-
-	if interval != -1 {
-		if checkCount%interval == 0 {
-			log.Debugf("Rebuilding process table")
-			rebuildProcessMapFromWMI()
-		}
-		if checkCount == 0 {
-			log.Infof("windows process arg tracking enabled, will be refreshed every %d checks", interval)
-			if addNewArgs {
-				log.Infof("will collect new process args immediately")
-			} else {
-				log.Warnf("will add process arguments only upon refresh")
-			}
-		}
-	} else if checkCount == 0 {
-		log.Warnf("process arguments disabled; processes will be reported without arguments")
-	}
 
 	checkCount++
 	knownPids := makePidSet()
@@ -173,28 +109,9 @@ func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess,
 			// wasn't already in the map.
 			cp = cachedProcess{}
 
-			if interval != -1 && addNewArgs {
-				proc, err := getWin32Proc(pid)
-				if err != nil {
-					log.Debugf("could not get WMI process information for pid %v: %v", pid, err)
-					continue
-				}
-
-				if err = cp.fill(&proc); err != nil {
-					log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
-					continue
-				}
-			} else {
-				if interval != -1 {
-					if !haveWarnedNoArgs {
-						log.Warnf("process arguments will be missing until next scheduled refresh")
-						haveWarnedNoArgs = true
-					}
-				}
-				if err := cp.fillFromProcEntry(&pe32); err != nil {
-					log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
-					continue
-				}
+			if err := cp.fillFromProcEntry(&pe32); err != nil {
+				log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
+				continue
 			}
 			cachedProcesses[pid] = cp
 		}
@@ -342,30 +259,6 @@ func parseCmdLineArgs(cmdline string) (res []string) {
 	return res
 }
 
-func rebuildProcessMapFromWMI() {
-	for _, p := range cachedProcesses {
-		p.close()
-	}
-	cachedProcesses = make(map[uint32]cachedProcess)
-	wmimap, err := getProcessMapFromWMI()
-	if err != nil {
-		log.Errorf("unable to get process map from WMI: %s", err)
-		return
-	}
-
-	for pid, proc := range wmimap {
-		if pid == 0 {
-			// PID 0 is System Process, will cause windows.OpenProcess to fail with ERROR_INVALID_PARAMETER.
-			continue
-		}
-		cp := cachedProcess{}
-		if err := cp.fill(&proc); err != nil {
-			continue
-		}
-		cachedProcesses[pid] = cp
-	}
-}
-
 func makePidSet() (pids map[uint32]bool) {
 	pids = make(map[uint32]bool)
 	for pid := range cachedProcesses {
@@ -382,53 +275,32 @@ type cachedProcess struct {
 	parsedArgs     []string
 }
 
-func (cp *cachedProcess) fill(proc *Win32_Process) (err error) {
-	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
-	// defined in x/sys/windows
-	cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(proc.ProcessID))
-	if err != nil {
-		log.Debugf("Couldn't open process %v %v", proc.ProcessID, err)
-		return err
-	}
-	var usererr error
-	cp.userName, usererr = getUsernameForProcess(cp.procHandle)
-	if usererr != nil {
-		log.Debugf("Couldn't get process username %v %v", proc.ProcessID, err)
-	}
-
-	cp.executablePath = *proc.ExecutablePath
-	if len(cp.executablePath) == 0 {
-		// some system processes don't give us the executable path variable.  Just
-		// give the executable name
-		cp.executablePath = proc.Name
-		log.Debugf("Setting alternate executable path (name) %d %s", proc.ProcessID, cp.executablePath)
-	}
-	cp.commandLine = *proc.CommandLine
-	var parsedargs []string
-	if len(cp.commandLine) == 0 {
-		parsedargs = append(parsedargs, cp.executablePath)
-	} else {
-		parsedargs = parseCmdLineArgs(cp.commandLine)
-	}
-	cp.parsedArgs = parsedargs
-	return
-}
-
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
 	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
+	// 0x10   is PROCESS_VM_READ
 	// defined in x/sys/windows
-	cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(pe32.Th32ProcessID))
+	cp.procHandle, err = windows.OpenProcess(0x1010, false, uint32(pe32.Th32ProcessID))
 	if err != nil {
-		log.Infof("Couldn't open process %v %v", pe32.Th32ProcessID, err)
-		return err
+		log.Debugf("Couldn't open process with PROCESS_VM_READ %v %v", pe32.Th32ProcessID, err)
+		cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(pe32.Th32ProcessID))
+		if err != nil {
+			log.Debugf("Couldn't open process %v %v", pe32.Th32ProcessID, err)
+			return err
+		}
 	}
 	var usererr error
 	cp.userName, usererr = getUsernameForProcess(cp.procHandle)
 	if usererr != nil {
 		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
-	cp.commandLine = convertWindowsString(pe32.SzExeFile[:])
-	cp.executablePath = cp.commandLine
+	var cmderr error
+	cp.executablePath = convertWindowsString(pe32.SzExeFile[:])
+	cp.commandLine, cmderr = winutil.GetCommandLineForProcess(cp.procHandle)
+	if cmderr != nil {
+		log.Debugf("Error retrieving full command line %v", cmderr)
+		cp.commandLine = cp.executablePath
+	}
+
 	var parsedargs []string
 	if len(cp.commandLine) == 0 {
 		parsedargs = append(parsedargs, cp.executablePath)
