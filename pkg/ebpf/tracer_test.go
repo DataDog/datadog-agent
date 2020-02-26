@@ -5,7 +5,6 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -715,41 +714,26 @@ func TestUDPSendAndReceive(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
-	cmd := exec.CommandContext(ctx, "testdata/simulate_udp.sh")
+	cmd := exec.Command("testdata/simulate_udp.sh")
 	if err := cmd.Run(); err != nil {
 		t.Errorf("simulate_udp failed: %s", err)
 	}
 
-	// Create UDP Server which sends back serverMessageSize bytes
-	// server := NewUDPServerOnAddress("127.0.0.1:6000", func(b []byte, n int) []byte {
-	// 	return genPayload(serverMessageSize)
-	// })
-
-	// doneChan := make(chan struct{})
-	// server.Run(doneChan, clientMessageSize)
-
-	// // Connect to server
-	// c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// defer c.Close()
-
-	// // Write clientMessageSize to server, and read response
-	// if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// bs := make([]byte, serverMessageSize)
-	// _, err = c.Read(bs)
-	// require.NoError(t, err)
-
-	// doneChan <- struct{}{}
-
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
-	assert.Empty(t, connections)
+
+	incoming := searchConnections(connections, func(cs ConnectionStats) bool {
+		return cs.SPort == 8081
+	})
+	require.Len(t, incoming, 1)
+	assert.Equal(t, INCOMING, incoming[0].Direction)
+
+	outgoing := searchConnections(connections, func(cs ConnectionStats) bool {
+		return cs.DPort == 8081
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, OUTGOING, outgoing[0].Direction)
 
 	// conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	// require.True(t, ok)
