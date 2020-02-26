@@ -190,7 +190,7 @@ func (t *Tailer) readForever() {
 					// of the tailer, stop reading
 					return
 				case isContextCanceled(err):
-					if err := t.tryRestartReader("Restarting reader for container %v after a read timeout"); err != nil {
+					if err := t.tryRestartReader("Restarting reader after a read timeout"); err != nil {
 						return
 					}
 					continue
