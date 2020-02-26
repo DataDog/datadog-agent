@@ -315,6 +315,9 @@ func Initialize(paths ...string) error {
 		C.add_python_path(rtloader, TrackedCString(p))
 	}
 
+	// Remove PYTHONPATH env var, if set, since it would be picked up by the embedded python
+	os.Unsetenv("PYTHONPATH")
+
 	// Any platform-specific initialization
 	if initializePlatform() != nil {
 		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
