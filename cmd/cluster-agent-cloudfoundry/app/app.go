@@ -228,7 +228,7 @@ func initializeBBSCache() error {
 		config.Datadog.GetString("cloud_foundry_bbs.cert_file"),
 		config.Datadog.GetString("cloud_foundry_bbs.key_file"),
 		pollInterval,
-		true,
+		false,
 	)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize BBS Cache: %s", err.Error())
@@ -238,11 +238,11 @@ func initializeBBSCache() error {
 	timer := time.NewTimer(pollInterval * 5)
 	for {
 		select {
-		case <- ticker.C:
+		case <-ticker.C:
 			if bc.LastUpdated().After(time.Time{}) {
 				return nil
 			}
-		case <- timer.C:
+		case <-timer.C:
 			ticker.Stop()
 			return fmt.Errorf("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
 		}
