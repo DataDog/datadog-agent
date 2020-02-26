@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.17.2:
+
+7.17.2
+======
+
+.. _Release Notes_7.17.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-02-26
+
+This is a Windows-only release.
+
+
+.. _Release Notes_7.17.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, fixes the Agent 7 installation causing the machine
+  to reboot if the C runtime was upgraded when in use.
+
 .. _Release Notes_7.17.1:
 
 7.17.1 / 6.17.1
@@ -27,6 +50,7 @@ Bug Fixes
   The main setup where this happened is on ECS Fargate where the ECS auto-discovery is watching
   for new containers and the docker socket is not available from the datadog agent.
 
+- Fix DNS resolution for NPM when the system-probe is running in a container on a non-host network.
 
 .. _Release Notes_7.17.0:
 
