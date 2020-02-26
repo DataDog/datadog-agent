@@ -54,9 +54,12 @@ func DefaultSources() []*LogSource {
 func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
 	var err error
-	raw := coreConfig.Datadog.GetString("logs_config.processing_rules")
-	if raw != "" {
-		err = json.Unmarshal([]byte(raw), &rules)
+	raw := coreConfig.Datadog.Get("logs_config.processing_rules")
+	if raw == nil {
+		return rules, nil
+	}
+	if s, ok := raw.(string); ok && s != "" {
+		err = json.Unmarshal([]byte(s), &rules)
 	} else {
 		err = coreConfig.Datadog.UnmarshalKey("logs_config.processing_rules", &rules)
 	}
@@ -165,9 +168,12 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 func getAdditionalEndpoints() []Endpoint {
 	var endpoints []Endpoint
 	var err error
-	raw := coreConfig.Datadog.GetString("logs_config.additional_endpoints")
-	if raw != "" {
-		err = json.Unmarshal([]byte(raw), &endpoints)
+	raw := coreConfig.Datadog.Get("logs_config.additional_endpoints")
+	if raw == nil {
+		return endpoints
+	}
+	if s, ok := raw.(string); ok && s != "" {
+		err = json.Unmarshal([]byte(s), &endpoints)
 	} else {
 		err = coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &endpoints)
 	}

@@ -63,3 +63,11 @@ extern HMODULE hDllModule;
 
 //FinalizeInstall.cpp
 UINT doFinalizeInstall(CustomActionData &data);
+
+//doUninstall.cpp
+typedef enum _uninstall_type {
+    UNINSTALL_UNINSTALL,
+    UNINSTALL_ROLLBACK
+} UNINSTALL_TYPE;
+
+UINT doUninstallAs(UNINSTALL_TYPE t);

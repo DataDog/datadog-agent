@@ -3,6 +3,7 @@ suites:
 # Install the latest release candidate using Chef
 - name: dd-agent
   run_list:
+    - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install]"
   attributes:
     apt:
