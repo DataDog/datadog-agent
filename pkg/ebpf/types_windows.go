@@ -8,6 +8,15 @@ type FilterAddress struct {
 	mask uint16
 }
 
+type FilterDirection uint32
+
+const (
+	DIRECTIONINBOUND FilterDirection = 0
+
+	// OUTGOING represents outbound connections from the host
+	DIRECTONOUTBOUND FilterDirection = 1
+)
+
 type FilterDefinition struct {
 	size uint32
 	addressFamily uint16
@@ -16,7 +25,7 @@ type FilterDefinition struct {
 	sPort uint16
 	dPort uint16
 	protocol uint16
-	direction ConnectionDirection
+	direction FilterDirection
 }
 
 type FilterPacketHeader struct {

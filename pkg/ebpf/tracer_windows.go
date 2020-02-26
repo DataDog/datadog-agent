@@ -101,6 +101,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 	}
 
 	log.Infof("Total bytes returned: %d\n", bytesReturned)
+
 	err = close(h)
 	if err != nil {
 		log.Errorf("close: %v", err)
