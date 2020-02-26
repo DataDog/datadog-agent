@@ -26,7 +26,7 @@ type CloudFoundryListener struct {
 	services   map[string]Service // maps ADIdentifiers to services
 	stop       chan bool
 	t          *time.Ticker
-	m          sync.RWMutex
+	sync.RWMutex
 	bbsCache   cloudfoundry.BBSCacheI
 }
 
