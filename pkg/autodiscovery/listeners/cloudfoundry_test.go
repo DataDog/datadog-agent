@@ -67,10 +67,10 @@ func TestCloudFoundryListener(t *testing.T) {
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
 	cfl := CloudFoundryListener{
-		bbsCache: testBBSCache,
-		t:        time.NewTicker(10 * time.Millisecond),
-		stop:     make(chan bool),
-		services: map[string]Service{},
+		bbsCache:      testBBSCache,
+		refreshTicker: time.NewTicker(10 * time.Millisecond),
+		stop:          make(chan bool),
+		services:      map[string]Service{},
 	}
 	cfl.Listen(newSvc, delSvc)
 	defer cfl.Stop()

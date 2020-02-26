@@ -57,11 +57,14 @@ once per cluster.`,
 		Use:   "version",
 		Short: "Print the version info",
 		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if flagNoColor {
 				color.NoColor = true
 			}
-			av, _ := version.Agent()
+			av, err := version.Agent()
+			if err != nil {
+				return err
+			}
 			meta := ""
 			if av.Meta != "" {
 				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
@@ -75,12 +78,12 @@ once per cluster.`,
 					color.MagentaString(serializer.AgentPayloadVersion),
 				),
 			)
+			return nil
 		},
 	}
 
 	confPath    string
 	flagNoColor bool
-	stopCh      chan struct{}
 )
 
 func init() {
@@ -181,14 +184,9 @@ func start(cmd *cobra.Command, args []string) error {
 	common.StartAutoConfig()
 
 	var clusterCheckHandler *clusterchecks.Handler
-	if config.Datadog.GetBool("cluster_checks.enabled") {
-		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err = setupClusterCheck(mainCtx)
-		if err != nil {
-			log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
-		}
-	} else {
-		log.Debug("Cluster check Autodiscovery disabled")
+	clusterCheckHandler, err = setupClusterCheck(mainCtx)
+	if err != nil {
+		log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
 	}
 
 	// Start the cmd HTTPS server
@@ -216,10 +214,6 @@ func start(cmd *cobra.Command, args []string) error {
 	// Cancel the main context to stop components
 	mainCtxCancel()
 
-	if stopCh != nil {
-		close(stopCh)
-	}
-
 	log.Info("See ya!")
 	log.Flush()
 	return nil
@@ -240,13 +234,19 @@ func initializeBBSCache() error {
 		return fmt.Errorf("Failed to initialize BBS Cache: %s", err.Error())
 	}
 	log.Info("Waiting for initial warmup of BBS Cache")
-	for currentWait := time.Second * 0; currentWait < pollInterval*3; currentWait += time.Second {
-		time.Sleep(time.Second)
-		if bc.LastUpdated().After(time.Time{}) {
-			return nil
+	ticker := time.NewTicker(time.Second)
+	timer := time.NewTimer(pollInterval * 5)
+	for {
+		select {
+		case <- ticker.C:
+			if bc.LastUpdated().After(time.Time{}) {
+				return nil
+			}
+		case <- timer.C:
+			ticker.Stop()
+			return fmt.Errorf("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
 		}
 	}
-	return fmt.Errorf("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
 }
 
 func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {

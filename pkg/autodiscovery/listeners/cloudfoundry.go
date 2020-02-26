@@ -16,18 +16,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 )
 
+func init() {
+	Register("cloudfoundry-bbs", NewCloudFoundryListener)
+}
+
 const (
 	CfServiceContainerIP = "container-ip"
 )
 
 type CloudFoundryListener struct {
-	newService chan<- Service
-	delService chan<- Service
-	services   map[string]Service // maps ADIdentifiers to services
-	stop       chan bool
-	t          *time.Ticker
 	sync.RWMutex
-	bbsCache   cloudfoundry.BBSCacheI
+	newService    chan<- Service
+	delService    chan<- Service
+	services      map[string]Service // maps ADIdentifiers to services
+	stop          chan bool
+	refreshTicker *time.Ticker
+	bbsCache      cloudfoundry.BBSCacheI
 }
 
 type CloudFoundryService struct {
@@ -40,10 +44,6 @@ type CloudFoundryService struct {
 // Make sure CloudFoundryService implements the Service interface
 var _ Service = &CloudFoundryService{}
 
-func init() {
-	Register("cloudfoundry-bbs", NewCloudFoundryListener)
-}
-
 // NewCloudFoundryListener creates a CloudFoundryListener
 func NewCloudFoundryListener() (ServiceListener, error) {
 	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
@@ -51,10 +51,10 @@ func NewCloudFoundryListener() (ServiceListener, error) {
 		return nil, err
 	}
 	return &CloudFoundryListener{
-		services: map[string]Service{},
-		stop:     make(chan bool),
-		t:        time.NewTicker(10 * time.Second),
-		bbsCache: bbsCache,
+		services:      map[string]Service{},
+		stop:          make(chan bool),
+		refreshTicker: time.NewTicker(10 * time.Second),
+		bbsCache:      bbsCache,
 	}, nil
 }
 
@@ -69,8 +69,9 @@ func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Servi
 		for {
 			select {
 			case <-l.stop:
+				l.refreshTicker.Stop()
 				return
-			case <-l.t.C:
+			case <-l.refreshTicker.C:
 				l.refreshServices(false)
 			}
 		}
@@ -105,26 +106,19 @@ func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 	}
 
 	for adID := range notSeen {
-		l.m.RLock()
+		l.Lock()
 		l.delService <- l.services[adID]
-		l.m.RUnlock()
-		l.m.Lock()
 		delete(l.services, adID)
-		l.m.Unlock()
+		l.Unlock()
 	}
 }
 
 func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, firstRun bool) *CloudFoundryService {
-	l.m.Lock()
-	defer l.m.Unlock()
+	l.Lock()
+	defer l.Unlock()
 	crTime := integration.After
 	if firstRun {
-	   crTime = integration.Before
-	}
-	if firstRun {
 		crTime = integration.Before
-	} else {
-		crTime = integration.After
 	}
 
 	var svc *CloudFoundryService

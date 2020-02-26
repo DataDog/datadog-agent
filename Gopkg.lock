@@ -2188,6 +2188,7 @@
   analyzer-version = 1
   input-imports = [
     "code.cloudfoundry.org/bbs",
+    "code.cloudfoundry.org/bbs/events",
     "code.cloudfoundry.org/bbs/models",
     "code.cloudfoundry.org/lager",
     "github.com/DataDog/agent-payload/gogen",

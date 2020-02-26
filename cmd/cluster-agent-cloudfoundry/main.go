@@ -29,8 +29,11 @@ func main() {
 	http.Handle("/metrics", telemetry.Handler())
 	go http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.Datadog.GetInt("metrics_port")), nil)
 
+	var returnCode int
 	if err := app.ClusterAgentCmd.Execute(); err != nil {
 		log.Error(err)
-		os.Exit(-1)
+		returnCode = -1
 	}
+	log.Flush()
+	os.Exit(returnCode)
 }

@@ -90,7 +90,8 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP cloudfoundry.De
 		vcVal, vcOk := desiredLRP.EnvVcapServices[adName]
 		variables, varsOk := adVal["variables"]
 		success := false
-		if vcOk {
+		switch {
+		case vcOk:
 			// if service is found in VCAP_SERVICES (non-container service), we will run a single check per App
 			err := cf.renderExtractedConfigs(parsedConfigs, variables, vcVal)
 			if err != nil {
@@ -99,13 +100,14 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP cloudfoundry.De
 				success = true
 			}
 			cf.assignNodeNameToNonContainerChecks(parsedConfigs, desiredLRP, actualLRPs)
-		} else if varsOk {
+		case varsOk:
 			log.Errorf("Service %s for app %s has variables configured, but is not present in VCAP_SERVICES", adName, desiredLRP.AppGUID)
-		} else {
+		default:
 			// if a service is not in VCAP_SERVICES and has no "variables" configured, we want to run a check per container
 			parsedConfigs = cf.expandPerContainerChecks(parsedConfigs, desiredLRP, actualLRPs, adName)
 			success = true
 		}
+
 		if success {
 			// mark all checks as cluster checks
 			for i := range parsedConfigs {
@@ -162,13 +164,13 @@ func (cf CloudFoundryConfigProvider) renderExtractedConfigs(configs []integratio
 	var vars map[string]string
 	err := json.Unmarshal(variables, &vars)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed parsing 'variables' section: %s", err.Error())
 	}
 	replaceList := []string{}
 	for varName, varPath := range vars {
 		value, err := jsonslice.Get(vcap, varPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed extracting variable '%s' from VCAP_SERVICES: %s", varName, err.Error())
 		}
 		valStr := string(value)
 		if len(valStr) > 0 {
