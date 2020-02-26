@@ -9,6 +9,7 @@ package commands
 
 import (
 	"fmt"
+	
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
