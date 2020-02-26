@@ -37,6 +37,9 @@ To build the Agent you need:
       any other platform. We recommend you use the version pinned in the requirements
       file for a smooth development/build experience.
 
+**Note:** The Datadog Agent is not using Go modules yet; the `GO111MODULE` environment
+      variable must either be unset, set to `auto` or to `off`. It must not be set to `on`.
+
 Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
 to see the available tasks.
 
@@ -47,7 +50,7 @@ To start working on the Agent, you can build the `master` branch:
 3. Install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
 4. Create a development `datadog.yaml` configuration file in `dev/dist/datadog.yaml`, containing a valid API key: `api_key: <API_KEY>`
-5. Build the agent with `invoke agent.build --build-exclude=systemd`. 
+5. Build the agent with `invoke agent.build --build-exclude=systemd`.
    By default, the Agent will be built to use Python 3 but you can select which Python version you want to use:
    - `invoke agent.build --python-runtimes 2` for Python2 only
    - `invoke agent.build --python-runtimes 3` for Python3 only
