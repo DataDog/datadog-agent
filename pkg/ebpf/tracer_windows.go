@@ -10,19 +10,11 @@ import (
 	"unsafe"
 )
 
-/*
-#cgo LDFLAGS: -luser32
-#include <windows.h>
-#include <stdint.h>
-*/
-
 var (
 	kernel32    = syscall.MustLoadDLL("kernel32.dll")
 	CreateFile  = kernel32.MustFindProc("CreateFileW")
 	CloseHandle = kernel32.MustFindProc("CloseHandle")
-	// logger *log2.Logger
 )
-
 
 // Tracer struct for tracking network state and connections
 type Tracer struct {
@@ -76,42 +68,39 @@ func close(handle syscall.Handle) error {
 	return nil
 }
 
+// Creates the IOCTLCode to be passed for DeviceIoControl syscall
+func ctl_code(device_type, function, method, access uint32) uint32 {
+	return (device_type << 16) | (access << 14) | (function << 2) | method
+}
+
+func createFilterDefinition(family uint16) FilterDefinition {
+
+	return FilterDefinition{
+		size: uint32(unsafe.Sizeof(FilterDefinition{})),
+		dst: nil,
+		sPort: 0,
+
+	}
+}
+
 // GetActiveConnections returns all active connections
 func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 
-	// p, err := Encode("\\\\.\\ddfilter") // Note the subtle change here
 	log.Info("GetActiveConnections Called")
 	h, err := open("\\\\.\\ddfilter")
 	if err != nil {
 		panic(err)
 	}
 
-	if err != nil {
-		log.Errorf("open: %v", err)
-	}
-
-	log.Info("Calling getiocompletionport")
-	iocp, err := GetIoCompletionPort(h)
-	overlapped := &syscall.Overlapped{
-		Internal:     0,
-		InternalHigh: 0,
-		Offset:       0,
-		OffsetHigh:   0,
-		HEvent:       0,
-	}
-	bytes := uint32(0)
-	key := uint32(0)
-	log.Info("Calling getqueuedcompletionstatus")
-	cs := syscall.GetQueuedCompletionStatus(iocp, &bytes, &key, &overlapped, 5)
-	log.Info(cs)
-	log.Infof("received %d bytes\n", bytes)
-
 	rdbbuf := make([]byte, syscall.MAXIMUM_REPARSE_DATA_BUFFER_SIZE)
 	var bytesReturned uint32
-	ioctlcd := uint32(0x801)
-	err = syscall.DeviceIoControl(iocp, ioctlcd, nil, 0, &rdbbuf[0], uint32(len(rdbbuf)), &bytesReturned, nil)
-	log.Infof("Total bytes returned: %d\n", bytesReturned)
+	ioctlcd := ctl_code(0x00000012, 0x801, uint32(0), uint32(0))
+	err = syscall.DeviceIoControl(h, ioctlcd, nil, 0, &rdbbuf[0], uint32(len(rdbbuf)), &bytesReturned, nil)
+	if err != nil {
+		log.Errorf("Close: %v", err)
+	}
 
+	log.Infof("Total bytes returned: %d\n", bytesReturned)
 	err = close(h)
 	if err != nil {
 		log.Errorf("close: %v", err)
@@ -153,3 +142,25 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 	return nil, ErrNotImplemented
 }
+
+/*
+	if err != nil {
+		log.Errorf("open: %v", err)
+	}
+
+	log.Info("Calling getiocompletionport")
+	iocp, err := GetIoCompletionPort(h)
+	overlapped := &syscall.Overlapped{
+		Internal:     0,
+		InternalHigh: 0,
+		Offset:       0,
+		OffsetHigh:   0,
+		HEvent:       0,
+	}
+	bytes := uint32(0)
+	key := uint32(0)
+	log.Info("Calling getqueuedcompletionstatus")
+	cs := syscall.GetQueuedCompletionStatus(iocp, &bytes, &key, &overlapped, 5)
+	log.Info(cs)
+	log.Infof("received %d bytes\n", bytes)
+*/
