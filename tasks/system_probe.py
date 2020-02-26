@@ -8,7 +8,7 @@ import tempfile
 from invoke import task
 from subprocess import check_output, CalledProcessError
 
-from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
+from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, go111module_envvar
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -27,6 +27,9 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     """
     Build the system_probe
     """
+
+    # bail out if GO111MODULE is set to on
+    go111module_envvar("system-probe.build")
 
     build_object_files(ctx, install=True)
 

@@ -5,7 +5,7 @@ import shutil
 import invoke
 from invoke import task
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, go111module_envvar
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
 from .go import deps
@@ -26,6 +26,9 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
     """
     Build the trace agent.
     """
+
+    # bail out if GO111MODULE is set to on
+    go111module_envvar("trace-agent.build")
 
     # get env prior to windows sources so we only have to set the target architecture once
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes)

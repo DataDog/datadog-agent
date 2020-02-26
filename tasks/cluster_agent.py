@@ -11,7 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
-from .utils import get_build_flags, bin_name, get_version
+from .utils import get_build_flags, bin_name, get_version, go111module_envvar
 from .utils import REPO_PATH
 from .go import deps, generate
 
@@ -34,6 +34,10 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
      Example invokation:
         inv cluster-agent.build
     """
+
+    # bail out if GO111MODULE is set to on
+    go111module_envvar("cluster-agent.build")
+
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)

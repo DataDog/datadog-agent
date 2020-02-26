@@ -14,7 +14,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var, go111module_envvar
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
 from .go import deps, generate
@@ -92,6 +92,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     Example invokation:
         inv agent.build --build-exclude=systemd
     """
+
+    # bail out if GO111MODULE is set to on
+    go111module_envvar("process-agent.build")
 
     if not exclude_rtloader and not puppy:
         rtloader_make(ctx, python_runtimes=python_runtimes)
