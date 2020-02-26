@@ -476,7 +476,7 @@ api_key:
 
   ## @param receiver_socket - string - optional
   ## Collect your traces through a Unix Domain Sockets.
-  ## It is off by default. When set, it must point to a valid sock file.
+  ## It is off by default. When set, it must point to a valid socket file.
   #
   # receiver_socket: <APM_SOCKET>
 
