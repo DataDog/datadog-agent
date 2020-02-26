@@ -117,7 +117,10 @@ func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, firstRun bool) *CloudFoundryService {
 	l.m.Lock()
 	defer l.m.Unlock()
-	var crTime integration.CreationTime
+	crTime := integration.After
+	if firstRun {
+	   crTime = integration.Before
+	}
 	if firstRun {
 		crTime = integration.Before
 	} else {
