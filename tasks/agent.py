@@ -386,7 +386,14 @@ def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base
         elif agent_binaries:
             target_project = "agent-binaries"
 
-        omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
+        omnibus = "bundle exec omnibus"
+        if sys.platform == 'win32':
+            omnibus = "bundle exec omnibus.bat"
+        elif sys.platform == 'darwin':
+            # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
+            # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
+            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
+
         cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
             "omnibus": omnibus,
