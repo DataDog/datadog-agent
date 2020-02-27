@@ -1,6 +1,6 @@
 ---
 upgrade:
   - |
-    The embedded Python will no longer use the PYTHONPATH environment
-    variable, restricting its access to the Python packages installed
-    with the Agent.
+    On Windows, the embedded Python will no longer use the PYTHONPATH
+    environment variable, restricting its access to the Python packages 
+    installed with the Agent.

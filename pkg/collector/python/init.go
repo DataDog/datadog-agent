@@ -315,8 +315,11 @@ func Initialize(paths ...string) error {
 		C.add_python_path(rtloader, TrackedCString(p))
 	}
 
-	// Remove PYTHONPATH env var, if set, since it would be picked up by the embedded python
-	os.Unsetenv("PYTHONPATH")
+	// On Windows, it's not uncommon to have a system-wide PYTHONPATH env var set.
+	// Remove it, so our embedded python doesn't try to load things from the system.
+	if runtime.GOOS == "windows" {
+		os.Unsetenv("PYTHONPATH")
+	}
 
 	// Any platform-specific initialization
 	if initializePlatform() != nil {
