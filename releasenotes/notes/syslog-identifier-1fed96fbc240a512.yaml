@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Set SyslogIdentifier to datadog-agent for systemd

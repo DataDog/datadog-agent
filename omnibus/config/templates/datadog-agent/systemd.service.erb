@@ -13,6 +13,7 @@ ExecStart=<%= install_dir %>/bin/agent/agent run -p <%= install_dir %>/run/agent
 # it is also supported to have it here.
 StartLimitInterval=10
 StartLimitBurst=5
+SyslogIdentifier=datadog-agent
 
 [Install]
 WantedBy=multi-user.target
