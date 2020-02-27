@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
