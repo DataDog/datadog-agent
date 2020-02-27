@@ -74,6 +74,10 @@ bool Three::init()
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
 
+    if (Py_SetStandardStreamEncoding("utf-8", NULL) != 0) {
+        setError("couldn't set default encoding to utf-8");
+    }
+
     Py_Initialize();
 
     if (!Py_IsInitialized()) {
