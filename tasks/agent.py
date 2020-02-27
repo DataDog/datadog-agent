@@ -386,7 +386,24 @@ def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base
         elif agent_binaries:
             target_project = "agent-binaries"
 
-        omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
+        omnibus = "bundle exec omnibus"
+        if sys.platform == 'win32':
+            omnibus = "bundle exec omnibus.bat"
+        elif sys.platform == 'darwin':
+            # HACK: On MacOS, python3 does an ugly hack to circumvent the limits imposed on processes by Apple on framework builds
+            # (which is the case when installing python3 with brew).
+            # This hack consists in setting __PYVENV_LAUNCHER__ to the location of the system python3 executable, and using
+            # it instead of argv[0] (which is set by the OS). The problem is that this variable is not unset after it's
+            # read, so it's still set in all commands launched by omnibus.
+            # In particular, it's set during the pip installation (in pip3.rb), which makes the
+            # "/opt/datadog-agent/embedded/bin/python3 setup.py install --prefix=/opt/datadog-agent/embedded" command
+            # link pip3 to the system python instead of the embedded python (since that's what the __PYVENV_LAUNCHER__ var
+            # is pointing at), bypassing the "--prefix" option and making the build fail.
+            # More info here: https://stackoverflow.com/questions/26323852/whats-the-meaning-of-pyvenv-launcher-environment-variable
+            # This might be fixed by: https://github.com/pypa/virtualenv/pull/1648, so we should check again if this hack
+            # is still needed in future releases.
+            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
+
         cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
             "omnibus": omnibus,
