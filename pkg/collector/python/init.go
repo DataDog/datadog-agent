@@ -315,12 +315,6 @@ func Initialize(paths ...string) error {
 		C.add_python_path(rtloader, TrackedCString(p))
 	}
 
-	// On Windows, it's not uncommon to have a system-wide PYTHONPATH env var set.
-	// Remove it, so our embedded python doesn't try to load things from the system.
-	if runtime.GOOS == "windows" && !config.Datadog.GetBool("windows_use_pythonpath") {
-		os.Unsetenv("PYTHONPATH")
-	}
-
 	// Any platform-specific initialization
 	if initializePlatform() != nil {
 		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
