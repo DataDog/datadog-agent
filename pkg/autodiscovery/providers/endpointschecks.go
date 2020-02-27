@@ -75,7 +75,8 @@ func (c *EndpointsChecksConfigProvider) Collect() ([]integration.Config, error) 
 	return reply.Configs, nil
 }
 
-// getNodename retrieves current node name from kubelet.
+// getNodename retrieves current node name from kubelet (if running on Kubernetes)
+// or bosh ID of current node (if running on Cloud Foundry).
 func getNodename() (string, error) {
 	if config.Datadog.GetBool("cloud_foundry") {
 		boshID := config.Datadog.GetString("bosh_id")
