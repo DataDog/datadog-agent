@@ -128,19 +128,18 @@ def _find_v6_tag(ctx, v7_tag):
 def _is_version_higher(version_1, version_2):
     if not version_2:
         return True
-    if version_1["major"] < version_2["major"]:
-        return False
-    if version_1["minor"] < version_2["minor"]:
-        return False
-    if version_1["patch"] < version_2["patch"]:
-        return False
-    if version_1["rc"] == 0:
-        return True
-    if version_2["rc"] == 0:
-        return False
-    if version_1["rc"] < version_2["rc"]:
-        return False
-    return True
+
+    for part in ["major","minor","patch"]:
+        if version_1[part] != version_2[part]:
+            return version_1[part] > version_2[part]
+
+    if version_1["rc"] == 0 or version_2["rc"] == 0:
+        return version_1["rc"] == 0
+
+    if version_1["rc"] != version_2["rc"]:
+        return version_1["rc"] > version_2["rc"]
+
+    return False
 
 
 def _create_version_dict_from_match(match):
