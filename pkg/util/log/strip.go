@@ -72,6 +72,8 @@ func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
 }
 
+// matchYAMLKeyEnding returns a regexp matching a single YAML line with a key ending by the string passed as argument.
+// The returned regexp catches only the key and not the value.
 func matchYAMLKeyEnding(ending string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s\s*:).+`, ending))
 }
