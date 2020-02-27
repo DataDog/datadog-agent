@@ -293,6 +293,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
+	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
+	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
 	config.SetKnown("dogstatsd_mapper_profiles")
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
