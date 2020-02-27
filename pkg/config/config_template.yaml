@@ -352,6 +352,12 @@ api_key:
 #
 # tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
 
+## @param windows_use_pythonpath - boolean - optional
+## Whether to honour the value of the PYTHONPATH env var when set on Windows.
+## Disabled by default, so we only load Python libraries bundled with the Agent.
+#
+# windows_use_pythonpath: false
+
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
