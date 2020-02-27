@@ -46,7 +46,7 @@ func init() {
 		Repl:  []byte(`$1 ********`),
 	}
 	tokenReplacer := Replacer{
-		Regex: matchYAMLKeyPart(`token`),
+		Regex: matchYAMLKeyEnding(`token`),
 		Hints: []string{"token"},
 		Repl:  []byte(`$1 ********`),
 	}
@@ -70,6 +70,10 @@ func matchYAMLKeyPart(part string) *regexp.Regexp {
 
 func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
+}
+
+func matchYAMLKeyEnding(ending string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s\s*:).+`, ending))
 }
 
 func matchCert() *regexp.Regexp {
