@@ -693,3 +693,9 @@ func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.Se
 		},
 	}
 }
+
+// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
+// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
+func CurrentKernelVersion() (uint32, error) {
+	return bpflib.CurrentKernelVersion()
+}
