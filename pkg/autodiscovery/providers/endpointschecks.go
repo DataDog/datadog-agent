@@ -82,7 +82,7 @@ func getNodename() (string, error) {
 		if boshID == "" {
 			return "", fmt.Errorf("cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
 		}
-		return config.Datadog.GetString("bosh_id"), nil
+		return boshID, nil
 	}
 	ku, err := kubelet.GetKubeUtil()
 	if err != nil {
