@@ -78,6 +78,11 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, err
 	}
 
+	if len(ctrList) == 0 {
+		log.Trace("no containers found")
+		return nil, nil
+	}
+
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(ctrList)
 
