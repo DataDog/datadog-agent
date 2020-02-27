@@ -1,4 +1,4 @@
-// +build linux
+// +build linux_bpf
 
 package ebpf
 
@@ -9,7 +9,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	bpflib "github.com/iovisor/gobpf/elf"
 )
 
 func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
@@ -49,10 +48,4 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCodeToString(kernelCode))
 	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missing, ", "))
 	return false, errMsg
-}
-
-// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
-// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-func CurrentKernelVersion() (uint32, error) {
-	return bpflib.CurrentKernelVersion()
 }
