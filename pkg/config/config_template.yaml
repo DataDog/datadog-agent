@@ -801,6 +801,11 @@ api_key:
 #
 # dogstatsd_mapper_cache_size: 1000
 
+## @param dogstatsd_entity_id_precedence - boolean - optional - default: false
+## Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
+#
+# dogstatsd_entity_id_precedence: false
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
 ## WARNING: Make sure that forwarded packets are regular statsd packets and not "DogStatsD" packets,
