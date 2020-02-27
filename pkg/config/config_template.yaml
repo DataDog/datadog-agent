@@ -802,7 +802,7 @@ api_key:
 # dogstatsd_mapper_cache_size: 1000
 
 ## @param dogstatsd_entity_id_precedence - boolean - optional - default: false
-## Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
+## Disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
 #
 # dogstatsd_entity_id_precedence: false
 
