@@ -49,5 +49,3 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missing, ", "))
 	return false, errMsg
 }
-
-
