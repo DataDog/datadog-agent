@@ -317,7 +317,7 @@ func Initialize(paths ...string) error {
 
 	// On Windows, it's not uncommon to have a system-wide PYTHONPATH env var set.
 	// Remove it, so our embedded python doesn't try to load things from the system.
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" && !config.Datadog.GetBool("windows_use_pythonpath") {
 		os.Unsetenv("PYTHONPATH")
 	}
 
