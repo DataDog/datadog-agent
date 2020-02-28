@@ -72,7 +72,7 @@
     <Property Id="MsiLogging" Value="iwearucmop!" />
 
     <!-- No need to restart Windows after the installation -->
-    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+    <!-- <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" /> -->
 
     <Property Id="DDAGENTUSER_NAME" />
     <Property Id="DDAGENTUSER_PASSWORD" Hidden="yes" />
@@ -454,8 +454,9 @@
 
       <!-- go ahead and always stop the services; if they're not installed (new install) it won't have any impact -->
 
+      <Custom Action='StopDDServicesImmediate' Before='CostInitialize'> </Custom>
       <!-- always stop the services, regardless of what's going on -->
-      <Custom Action='StopDDServices' After='StopServices'> </Custom>
+      <Custom Action='StopDDServices' Before='StopServices'> </Custom>
 
       <!-- only run the FinalizeInstall action on INSTALL (for now) Note this
            is from the perspective of the installer being run; on upgrade the 
@@ -540,7 +541,6 @@
       <DialogRef Id="ErrorDlg" />
       <DialogRef Id="FatalError" />
       <DialogRef Id="FilesInUse" />
-      <DialogRef Id="MsiRMFilesInUse" />
       <DialogRef Id="PrepareDlg" />
       <DialogRef Id="ProgressDlg" />
       <DialogRef Id="ResumeDlg" />
@@ -614,6 +614,7 @@
         Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
+    <CustomAction Id='StopDDServicesImmediate' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='immediate' Return='ignore' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServicesAllowStartFail' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
 
