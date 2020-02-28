@@ -135,9 +135,9 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		}
 
 		if err = getRtLoaderError(); err != nil {
-			log.Debugf("Unable to load python module - %s: %v", name, err)
+			log.Errorf("Unable to load python module - %s: %v", name, err)
 		} else {
-			log.Debugf("Unable to load python module - %s", name)
+			log.Errorf("Unable to load python module - %s", name)
 		}
 	}
 
