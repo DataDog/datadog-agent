@@ -11,10 +11,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	clusterIDCacheKey = "clusterID"
+	clusterIDFilePath = "/etc/datadog-agent/kube_cluster/id"
 )
 
 var (
@@ -116,4 +122,32 @@ func resetClusterName(data *clusterNameData) {
 // ResetClusterName resets the clustername, which allows it to be detected again. Used for tests
 func ResetClusterName() {
 	resetClusterName(defaultClusterNameData)
+}
+
+// GetClusterID looks for a fixed path where the file containing the clusterID should be
+// this file should come from a configmap, written by the cluster-agent
+// TODO: call it in the process-agent collector, and make sure it works even if the file is created late
+func GetClusterID() (string, error) {
+	cacheClusterIDKey := cache.BuildAgentKey(clusterIDCacheKey)
+	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
+		return cachedClusterID, nil
+	}
+
+	file, err := os.Open(clusterIDFilePath)
+	if err != nil {
+		return "", err
+	}
+	clusterIDBuff := make([]byte, 36)
+	count, err := file.Read(clusterIDBuff)
+	if err != nil {
+		return "", err
+	} else if count < 36 {
+		return "", fmt.Errorf("content from %s doesn't look like a UUID, ignoring it", clusterIDFilePath)
+	}
+
+	clusterID := string(clusterIDBuff)
+
+	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
+
+	return clusterID, nil
 }
