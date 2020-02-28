@@ -1374,7 +1374,7 @@ deploy_windows_testing-a7:
 # -------------
 
 .kitchen_os_windows: &kitchen_os_windows
-  before_script:
+  before_script: # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="win2008r2,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/Windows2008-R2-SP1/versions/1.0.0"
@@ -1451,12 +1451,13 @@ deploy_windows_testing-a7:
     - AZURE_LOCATION='North Central US' bash -l tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_installer: &kitchen_test_windows_installer
-  before_script: [ "# noop" ] # Override kitchen_os_windows default
-  script:
+  before_script: # Override kitchen_os_windows default with a smaller set of TEST_PLATFORMS
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
+  script:
     - AZURE_LOCATION='North Central US' bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
 
