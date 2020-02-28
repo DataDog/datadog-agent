@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	// ErrEmptyImage is returned when argument is empty
+	// ErrEmptyImage is returned when image name argument is empty
 	ErrEmptyImage = errors.New("empty image name")
 	// ErrImageIsSha256 is returned when argument is a not an image name but a sha256
 	ErrImageIsSha256 = errors.New("invalid image name (is a sha256)")
