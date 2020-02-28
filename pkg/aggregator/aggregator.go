@@ -153,7 +153,11 @@ func InitAggregator(s serializer.MetricSerializer, metricPool *metrics.MetricSam
 func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregatorInit.Do(func() {
 		aggregatorInstance = NewBufferedAggregator(s, metricPool, hostname, agentName, flushInterval)
-		go aggregatorInstance.run()
+		if flushInterval != 0 {
+			go aggregatorInstance.run()
+		} else {
+			log.Debugf("aggregator flushInterval set to %s: skipping run", flushInterval)
+		}
 	})
 
 	return aggregatorInstance
