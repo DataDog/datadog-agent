@@ -206,6 +206,7 @@ func (bc *BBSCache) readActualLRPs() (map[string][]ActualLRP, error) {
 			actualLRPs[alrp.AppGUID] = []ActualLRP{alrp}
 		}
 	}
+	log.Debugf("Successfully read %d Actual LRPs", len(actualLRPsBBS))
 	return actualLRPs, nil
 }
 
@@ -218,5 +219,6 @@ func (bc *BBSCache) readDesiredLRPs() ([]DesiredLRP, error) {
 	for i, lrp := range desiredLRPsBBS {
 		desiredLRPs[i] = DesiredLRPFromBBSModel(lrp)
 	}
+	log.Debugf("Successfully read %d Desired LRPs", len(desiredLRPsBBS))
 	return desiredLRPs, nil
 }

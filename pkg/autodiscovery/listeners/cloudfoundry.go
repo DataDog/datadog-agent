@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
@@ -79,6 +80,7 @@ func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Servi
 }
 
 func (l *CloudFoundryListener) refreshServices(firstRun bool) {
+	log.Debug("Refreshing services via CloudFoundryListener")
 	allActualLRPs, desiredLRPs := l.bbsCache.GetAllLRPs()
 
 	// if not found and running, add it
