@@ -52,17 +52,28 @@ func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve res
 		}
 	}
 
-	// Resolve sha to image repotag for orchestrators that pin the image by sha
+	// Resolve sha to image based on repotags/repodigests
 	dockerImage, err := resolve(co.Image)
 	if err != nil {
 		log.Debugf("Error resolving image %s: %s", co.Image, err)
 		return
 	}
 	tags.AddLow("docker_image", dockerImage)
+
 	imageName, shortImage, imageTag, err := containers.SplitImageName(dockerImage)
 	if err != nil {
-		log.Debugf("Cannot split %s: %s", dockerImage, err)
-		return
+		// Fallback and try to parse co.Config.Image if exists
+		if err == containers.ErrImageIsSha256 && co.Config != nil {
+			var errFallback error
+			imageName, shortImage, imageTag, errFallback = containers.SplitImageName(co.Config.Image)
+			if errFallback != nil {
+				log.Debugf("Cannot split %s: %s - fallback also failed: %s: %s ", dockerImage, err, co.Config.Image, errFallback)
+				return
+			}
+		} else {
+			log.Debugf("Cannot split %s: %s", dockerImage, err)
+			return
+		}
 	}
 	tags.AddLow("image_name", imageName)
 	tags.AddLow("short_image", shortImage)

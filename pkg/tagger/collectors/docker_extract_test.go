@@ -348,6 +348,26 @@ func TestDockerExtractImage(t *testing.T) {
 				"image_tag:latest",
 			},
 		},
+		{
+			testName: "Some Nomad Setup",
+			co: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{
+					Image: "sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358",
+				},
+				Config: &container.Config{
+					Image: "quay.io/hashicorp/cloud-consul-ama:3451-be4c56f",
+				},
+			},
+			resolveMap: map[string]string{
+				"sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358": "sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358",
+			},
+			expectedTags: []string{
+				"docker_image:sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358",
+				"image_name:quay.io/hashicorp/cloud-consul-ama",
+				"short_image:cloud-consul-ama",
+				"image_tag:3451-be4c56f",
+			},
+		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.testName), func(t *testing.T) {
 			resolve := func(image string) (string, error) { return tc.resolveMap[image], nil }
