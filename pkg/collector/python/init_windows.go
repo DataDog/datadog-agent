@@ -21,4 +21,6 @@ func initializePlatform() error {
 	if !config.Datadog.GetBool("windows_use_pythonpath") {
 		os.Unsetenv("PYTHONPATH")
 	}
+
+	return nil
 }
