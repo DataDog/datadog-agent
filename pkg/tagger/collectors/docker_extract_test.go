@@ -355,7 +355,7 @@ func TestDockerExtractImage(t *testing.T) {
 					Image: "sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358",
 				},
 				Config: &container.Config{
-					Image: "quay.io/hashicorp/cloud-consul-ama:3451-be4c56f",
+					Image: "quay.io/foo/bar:3451-be4c56f",
 				},
 			},
 			resolveMap: map[string]string{
@@ -363,8 +363,8 @@ func TestDockerExtractImage(t *testing.T) {
 			},
 			expectedTags: []string{
 				"docker_image:sha256:380b233f1574da39494e2b36e65f262214fe158af5ae7a94d026b7a4e46fa358",
-				"image_name:quay.io/hashicorp/cloud-consul-ama",
-				"short_image:cloud-consul-ama",
+				"image_name:quay.io/foo/bar",
+				"short_image:bar",
 				"image_tag:3451-be4c56f",
 			},
 		},
