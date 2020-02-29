@@ -21,11 +21,13 @@ func TestAgent(t *testing.T) {
 		ninsert int  // ninsert values are inserted before checking
 		flush   bool // flush before checking
 		reset   bool // reset befor checking
+
+		sampleRate float64 // apply this rate to the sample
 	}
 
 	setup := func(t *testing.T, tt testcase) {
 		for i := 0; i < tt.ninsert; i++ {
-			a.Insert(float64(i))
+			a.Insert(float64(i), tt.sampleRate)
 		}
 
 		if tt.reset {
@@ -65,13 +67,15 @@ func TestAgent(t *testing.T) {
 	// NOTE: these tests share the same sketch, so every test depends on the
 	// previous test.
 	for _, tt := range []testcase{
-		{binsum: 0, buf: agentBufCap - 1, ninsert: agentBufCap - 1},
-		{binsum: agentBufCap, buf: 0, ninsert: 1},
-		{binsum: agentBufCap, buf: 1, ninsert: 1},
-		{binsum: 2 * agentBufCap, buf: 1, ninsert: agentBufCap},
-		{binsum: 2*agentBufCap + 1, buf: 0, flush: true},
-		{reset: true},
-		{flush: true},
+		{binsum: 0, buf: agentBufCap - 1, ninsert: agentBufCap - 1, sampleRate: 1},
+		{binsum: agentBufCap, buf: 0, ninsert: 1, sampleRate: 1},
+		{binsum: agentBufCap, buf: 1, ninsert: 1, sampleRate: 1},
+		{binsum: 2 * agentBufCap, buf: 1, ninsert: agentBufCap, sampleRate: 1},
+		{binsum: 2*agentBufCap + 1, buf: 0, flush: true, sampleRate: 1},
+		{reset: true, sampleRate: 1},
+		{flush: true, sampleRate: 1},
+		{binsum: 20, ninsert: 2, flush: true, sampleRate: .1},
+		{binsum: 22, ninsert: 2, flush: true, sampleRate: 1},
 	} {
 		setup(t, tt)
 		check(t, tt)
@@ -100,7 +104,7 @@ func TestAgentFinish(t *testing.T) {
 			aSketch = &Agent{}
 		)
 
-		aSketch.Insert(1)
+		aSketch.Insert(1, 1)
 		finished := aSketch.Finish()
 		checkDeepCopy(aSketch, finished)
 	})

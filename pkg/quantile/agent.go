@@ -1,5 +1,9 @@
 package quantile
 
+import (
+	"math"
+)
+
 const (
 	agentBufCap = 512
 )
@@ -50,10 +54,13 @@ func (a *Agent) Reset() {
 }
 
 // Insert v into the sketch.
-func (a *Agent) Insert(v float64) {
-	a.Sketch.Basic.Insert(v)
+func (a *Agent) Insert(v float64, sampleRate float64) {
+	n := uint(math.Ceil(1 / sampleRate))
+	a.Sketch.Basic.InsertN(v, n)
 
-	a.Buf = append(a.Buf, agentConfig.key(v))
+	for i := uint(0); i < n; i++ {
+		a.Buf = append(a.Buf, agentConfig.key(v))
+	}
 	if len(a.Buf) < agentBufCap {
 		return
 	}
