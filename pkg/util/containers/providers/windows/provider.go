@@ -31,7 +31,7 @@ type Provider struct {
 }
 
 type containerBundle struct {
-	container types.Container
+	container  types.Container
 	statsCache *types.StatsJSON
 }
 
@@ -43,7 +43,7 @@ func (mp *Provider) Init(wrapper containers.DockerApiWrapper) {
 // If not successful all other calls will fail
 func (mp *Provider) Prefetch() error {
 	rawContainers, err := mp.apiWrapper.RawContainerList(types.ContainerListOptions{
-		All:     true,
+		All: true,
 	})
 	if err != nil {
 		return err
