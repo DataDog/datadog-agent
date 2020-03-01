@@ -23,6 +23,10 @@ type Provider struct {
 	cgroups map[string]*ContainerCgroup
 }
 
+func (mp *Provider) Init(wrapper containers.DockerApiWrapper) {
+	
+}
+
 // Prefetch gets data from all cgroups in one go
 // If not successful all other calls will fail
 func (mp *Provider) Prefetch() error {
