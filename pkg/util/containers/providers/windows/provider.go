@@ -46,7 +46,6 @@ func (mp *Provider) Prefetch() error {
 		All:     true,
 	})
 	if err != nil {
-		log.Infof("PREFETCH::ERROR %s", err)
 		return err
 	}
 	mp.containers = make(map[string]containerBundle)
