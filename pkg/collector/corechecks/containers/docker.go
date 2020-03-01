@@ -227,6 +227,10 @@ func (d *DockerCheck) Run() error {
 			if c.Memory.SoftMemLimit > 0 && c.Memory.SoftMemLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.soft_limit", float64(c.Memory.SoftMemLimit), "", tags)
 			}
+
+			sender.Gauge("docker.mem.private_working_set", float64(c.Memory.PrivateWorkingSet), "", tags)
+			sender.Gauge("docker.mem.commit_bytes", float64(c.Memory.CommitBytes), "", tags)
+			sender.Gauge("docker.mem.commit_peak_bytes", float64(c.Memory.CommitPeakBytes), "", tags)
 		} else {
 			log.Debugf("Empty memory metrics for container %s", c.ID[:12])
 		}
