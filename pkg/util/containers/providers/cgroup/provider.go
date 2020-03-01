@@ -24,7 +24,7 @@ type Provider struct {
 }
 
 func (mp *Provider) Init(wrapper containers.DockerApiWrapper) {
-	
+
 }
 
 // Prefetch gets data from all cgroups in one go
