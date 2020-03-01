@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"github.com/docker/docker/api/types"
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -93,9 +94,21 @@ type NetworkDestination struct {
 	Mask      uint64
 }
 
+// This is absolutely not the place for this interface
+// TODO: Fixme, put me in a package that is shared between the providers and docker
+type DockerApiWrapper interface {
+	GetContainerStats(containerID string) (*types.StatsJSON, error)
+	RawContainerList(options types.ContainerListOptions) ([]types.Container, error)
+	Inspect(id string, withSize bool) (types.ContainerJSON, error)
+}
+
 // ContainerImplementation is a generic interface that defines a common interface across
 // different container implementation (Linux cgroup, windows containers, etc.)
 type ContainerImplementation interface {
+
+	// TODO: Fixme, we probably don't want every provider to depend on the docker API
+	Init(wrapper DockerApiWrapper)
+
 	// Asks provider to fetch data from system APIs in bulk
 	// It's be required to call it before any other function
 	Prefetch() error

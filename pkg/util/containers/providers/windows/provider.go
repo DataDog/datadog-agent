@@ -8,89 +8,250 @@
 package windows
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/docker/docker/api/types"
 	"net"
+	"os/exec"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/Microsoft/hcsshim"
 )
 
 // Provider is a Windows implementation of the ContainerImplementation interface
 type Provider struct {
+	apiWrapper containers.DockerApiWrapper
+	containers map[string]containerBundle
+}
+
+type containerBundle struct {
+	container types.Container
+	statsCache *types.StatsJSON
+}
+
+func (mp *Provider) Init(wrapper containers.DockerApiWrapper) {
+	mp.apiWrapper = wrapper
 }
 
 // Prefetch gets data from all cgroups in one go
 // If not successful all other calls will fail
 func (mp *Provider) Prefetch() error {
-	//FIXME: To be implemented for Windows containers
+	rawContainers, err := mp.apiWrapper.RawContainerList(types.ContainerListOptions{
+		All:     true,
+	})
+	if err != nil {
+		log.Infof("PREFETCH::ERROR %s", err)
+		return err
+	}
+	mp.containers = make(map[string]containerBundle)
+	for _, container := range rawContainers {
+		mp.containers[container.ID] = containerBundle{
+			container: container,
+		}
+	}
 	return nil
 }
 
 // ContainerExists returns true if a cgroup exists for this containerID
 func (mp *Provider) ContainerExists(containerID string) bool {
-	//FIXME: To be implemented for Windows containers
-	return true
+	_, exists := mp.containers[containerID]
+	return exists
 }
 
 // GetContainerStartTime returns container start time
 func (mp *Provider) GetContainerStartTime(containerID string) (int64, error) {
-	//FIXME: To be implemented for Windows containers
-	return 1581512596, nil
+	_, exists := mp.containers[containerID]
+	if !exists {
+		return 0, fmt.Errorf("container not found")
+	}
+
+	cjson, err := mp.apiWrapper.Inspect(containerID, false)
+	if err != nil {
+		return 0, err
+	}
+
+	t, err := time.Parse(time.RFC3339, cjson.State.StartedAt)
+	if err != nil {
+		return 0, err
+	}
+
+	return t.Unix(), nil
+}
+
+func (mp *Provider) getContainerStats(containerID string) (*types.StatsJSON, error) {
+	containerBundle, exists := mp.containers[containerID]
+	if !exists {
+		return nil, fmt.Errorf("container not found")
+	}
+	if containerBundle.statsCache == nil {
+		stats, err := mp.apiWrapper.GetContainerStats(containerID)
+		if err != nil {
+			return nil, err
+		}
+		containerBundle.statsCache = stats
+	}
+	return containerBundle.statsCache, nil
 }
 
 // GetContainerMetrics returns CPU, IO and Memory metrics
 func (mp *Provider) GetContainerMetrics(containerID string) (*metrics.ContainerMetrics, error) {
-	//FIXME: To be implemented for Windows containers
-	metrics := metrics.ContainerMetrics{
-		CPU: &metrics.ContainerCPUStats{
-			User:   10,
-			System: 10,
-		},
-		Memory: &metrics.ContainerMemStats{},
-		IO:     &metrics.ContainerIOStats{},
+	stats, err := mp.getContainerStats(containerID)
+	if err != nil {
+		return nil, err
 	}
-	return &metrics, nil
+	containerMetrics := metrics.ContainerMetrics{
+		CPU: &metrics.ContainerCPUStats{
+			System:     stats.CPUStats.CPUUsage.UsageInKernelmode,
+			User:       stats.CPUStats.CPUUsage.UsageInUsermode,
+			UsageTotal: float64(stats.CPUStats.CPUUsage.TotalUsage),
+		},
+		Memory: &metrics.ContainerMemStats{
+			PrivateWorkingSet: stats.MemoryStats.PrivateWorkingSet,
+			CommitBytes:       stats.MemoryStats.Commit,
+			CommitPeakBytes:   stats.MemoryStats.CommitPeak,
+		},
+		IO: &metrics.ContainerIOStats{
+			ReadBytes:  stats.StorageStats.ReadSizeBytes,
+			WriteBytes: stats.StorageStats.WriteSizeBytes,
+		},
+	}
+	return &containerMetrics, nil
 }
 
 // GetContainerLimits returns CPU, Thread and Memory limits
 func (mp *Provider) GetContainerLimits(containerID string) (*metrics.ContainerLimits, error) {
-	//FIXME: To be implemented for Windows containers
-	return nil, fmt.Errorf("Not implemented")
+	// FIXME: Figure out a way to extract limits from Job Objects in the Windows Kernel
+	return nil, fmt.Errorf("not supported on windows")
 }
 
 // GetNetworkMetrics return network metrics for all PIDs in container
 func (mp *Provider) GetNetworkMetrics(containerID string, networks map[string]string) (metrics.ContainerNetStats, error) {
-	//FIXME: To be implemented for Windows containers
-	return nil, fmt.Errorf("Not implemented")
+	stats, err := mp.getContainerStats(containerID)
+	if err != nil {
+		return nil, err
+	}
+
+	netStats := metrics.ContainerNetStats{}
+	for ifaceName, netStat := range stats.Networks {
+		var stat *metrics.InterfaceNetStats
+		if nw, ok := networks[ifaceName]; ok {
+			stat = &metrics.InterfaceNetStats{NetworkName: nw}
+		} else {
+			stat = &metrics.InterfaceNetStats{NetworkName: ifaceName}
+		}
+		stat.BytesRcvd = netStat.RxBytes
+		stat.BytesSent = netStat.TxBytes
+		stat.PacketsRcvd = netStat.RxPackets
+		stat.PacketsSent = netStat.TxPackets
+	}
+	return netStats, nil
 }
 
 // GetAgentCID returns the container ID where the current agent is running
 func (mp *Provider) GetAgentCID() (string, error) {
-	//FIXME: To be implemented for Windows containers
-	return "", fmt.Errorf("Not implemented")
+	_, err := hcsshim.GetContainers(hcsshim.ComputeSystemQuery{})
+	if err == nil {
+		// If we can't get access to the HCS system, that means we're probably inside a container
+		// or that the host OS doesn't support containers. Let's check the entry point.
+		for _, containerBundle := range mp.containers {
+			cjson, err := mp.apiWrapper.Inspect(containerBundle.container.ID, false)
+			if err != nil {
+				_ = log.Warnf("Could not inspect %s: %s", containerBundle.container.ID, err)
+			} else {
+				// Official Windows Agent Docker image use the agent.exe as the entry point
+				if cjson.Path == "C:/Program Files/Datadog/Datadog Agent/bin/agent.exe" {
+					return cjson.ID, nil
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("the agent doesn't appear to be running inside a container: %s", err)
 }
 
 // ContainerIDForPID return ContainerID for a given pid
 func (mp *Provider) ContainerIDForPID(pid int) (string, error) {
-	//FIXME: To be implemented for Windows containers
-	return "", fmt.Errorf("Not implemented")
+	// FIXME: Figure out how to list PIDs from containers on Windows
+	return "", fmt.Errorf("not supported on windows")
 }
 
 // DetectNetworkDestinations lists all the networks available
 // to a given PID and parses them in NetworkInterface objects
 func (mp *Provider) DetectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
-	//FIXME: To be implemented for Windows containers
-	return nil, fmt.Errorf("Not implemented")
+	// FIXME: TODO
+	return nil, fmt.Errorf("not yet implemented")
 }
 
 // GetDefaultGateway returns the default gateway used by container implementation
 func (mp *Provider) GetDefaultGateway() (net.IP, error) {
-	//FIXME: To be implemented for Windows containers
-	return nil, fmt.Errorf("Not implemented")
+	fields, err := defaultGatewayFields()
+	if err != nil {
+		return nil, err
+	}
+	return net.ParseIP(fields[2]), nil
 }
 
 // DefaultHostIPs returns the IP addresses bound to the default network interface.
 // The default network interface is the one connected to the network gateway.
 func (mp *Provider) GetDefaultHostIPs() ([]string, error) {
-	return nil, fmt.Errorf("Not implemented")
+	fields, err := defaultGatewayFields()
+	if err != nil {
+		return nil, err
+	}
+	//
+	return []string{fields[3]}, nil
+}
+
+// Output from route print 0.0.0.0:
+//
+// λ route print 0.0.0.0
+//===========================================================================
+//Interface List
+// 17...00 1c 42 86 10 92 ......Intel(R) 82574L Gigabit Network Connection
+// 16...bc 9a 78 56 34 12 ......Bluetooth Device (Personal Area Network)
+//  1...........................Software Loopback Interface 1
+// 24...00 15 5d 2c 6f c0 ......Hyper-V Virtual Ethernet Adapter #2
+//===========================================================================
+//
+//IPv4 Route Table
+//===========================================================================
+//Active Routes:
+//Network Destination        Netmask          Gateway       Interface  Metric
+//          0.0.0.0          0.0.0.0      10.211.55.1      10.211.55.4     25
+//===========================================================================
+//Persistent Routes:
+//  Network Address          Netmask  Gateway Address  Metric
+//          0.0.0.0          0.0.0.0      172.21.96.1  Default
+//===========================================================================
+//
+//IPv6 Route Table
+//===========================================================================
+//Active Routes:
+//  None
+//Persistent Routes:
+//  None
+//
+// We are interested in the Gateway and Interface fields of the Active Routes,
+// so this method returns any line that has 5 fields with the first one being
+// 0.0.0.0
+func defaultGatewayFields() ([]string, error) {
+	routeCmd := exec.Command("route", "print", "0.0.0.0")
+	routeCmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	output, err := routeCmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) == 5 && fields[0] == "0.0.0.0" {
+			return fields, nil
+		}
+	}
+	return nil, fmt.Errorf("couldn't retrieve default gateway information")
 }

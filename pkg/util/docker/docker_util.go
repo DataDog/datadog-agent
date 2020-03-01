@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -77,6 +78,8 @@ func (d *DockerUtil) init() error {
 	d.imageNameBySha = make(map[string]string)
 	d.lastInvalidate = time.Now()
 	d.eventState = newEventStreamState()
+
+	providers.ContainerImpl.Init(d)
 
 	return nil
 }
@@ -276,4 +279,19 @@ func (d *DockerUtil) AllContainerLabels() (map[string]map[string]string, error) 
 	}
 
 	return labelMap, nil
+}
+
+func (d *DockerUtil) GetContainerStats(containerID string) (*types.StatsJSON, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
+	stats, err := d.cli.ContainerStats(ctx, containerID, false)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
+	}
+	containerStats := &types.StatsJSON{}
+	err = json.NewDecoder(stats.Body).Decode(&containerStats)
+	if err != nil {
+		return nil, fmt.Errorf("error listing containers: %s", err)
+	}
+	return containerStats, nil
 }

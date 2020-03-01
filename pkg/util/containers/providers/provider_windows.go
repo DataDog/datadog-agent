@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 )
 
-// ContainerImpl provides a ContainerImplementation for Linux builds
+// ContainerImpl provides a ContainerImplementation for Windows builds
 var ContainerImpl containers.ContainerImplementation
 
 func init() {
