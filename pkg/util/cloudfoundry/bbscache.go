@@ -8,6 +8,7 @@
 package cloudfoundry
 
 import (
+	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
@@ -32,6 +33,7 @@ type BBSCacheI interface {
 // BBSCache is a simple structure that caches and automatically refreshes data from Cloud Foundry BBS API
 type BBSCache struct {
 	sync.RWMutex
+	cancelContext      context.Context
 	configured         bool
 	bbsAPIClient       bbs.Client
 	bbsAPIClientLogger lager.Logger
@@ -50,7 +52,7 @@ var (
 )
 
 // ConfigureGlobalBBSCache configures the global instance of BBSCache from provided config
-func ConfigureGlobalBBSCache(bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, testing bool) (*BBSCache, error) {
+func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, testing bool) (*BBSCache, error) {
 	globalBBSCacheLock.Lock()
 	defer globalBBSCacheLock.Unlock()
 	var err error
@@ -60,7 +62,6 @@ func ConfigureGlobalBBSCache(bbsURL, cafile, certfile, keyfile string, pollInter
 	}
 
 	globalBBSCache.configured = true
-	// TODO: how do we stop the cache (some channel?)
 	clientConfig := bbs.ClientConfig{
 		URL:                    bbsURL,
 		IsTLS:                  true,
@@ -82,6 +83,7 @@ func ConfigureGlobalBBSCache(bbsURL, cafile, certfile, keyfile string, pollInter
 	globalBBSCache.bbsAPIClientLogger = lager.NewLogger("bbs")
 	globalBBSCache.pollInterval = pollInterval
 	globalBBSCache.lastUpdated = time.Time{} // zero time
+	globalBBSCache.cancelContext = ctx
 	if err != nil {
 		return nil, err
 	}
@@ -148,6 +150,9 @@ func (bc *BBSCache) start() {
 		select {
 		case <-dataRefreshTicker.C:
 			bc.readData()
+		case <-bc.cancelContext.Done():
+			dataRefreshTicker.Stop()
+			return
 		}
 	}
 }

@@ -144,8 +144,7 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 		ports := []ContainerPort{}
 		for _, p := range aLRP.Ports {
 			ports = append(ports, ContainerPort{
-				// TODO: because of how configresolver.getPort works, we can't use e.g. port_8080, so we use port_p8080
-				// can we change that logic?
+				// NOTE: because of how configresolver.getPort works, we can't use e.g. port_8080, so we use port_p8080
 				Name: fmt.Sprintf("p%d", p),
 				Port: int(p),
 			})

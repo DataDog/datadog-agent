@@ -1485,7 +1485,7 @@ api_key:
 #######################################################
 
 ## @param cloud_foundry_bbs - custom object - optional
-## This section configures how Cluster Agent accesses BBS API to gather information
+## This section configures how the Cluster Agent accesses BBS API to gather information
 ## necessary for autodiscovery on BBS-based Cloud Foundry deployments.
 #
 # cloud_foundry_bbs:

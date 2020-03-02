@@ -42,14 +42,14 @@ var (
 		Use:   "datadog-cluster-agent-cloudfoundry [command]",
 		Short: "Datadog Cluster Agent for Cloud Foundry at your service.",
 		Long: `
-Datadog Cluster Agent for Cloud Foundry takes care of running checks that need run only
+Datadog Cluster Agent for Cloud Foundry takes care of running checks that need to run only
 once per cluster.`,
 	}
 
 	startCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Start the Cluster Agent for Cloud Foundry",
-		Long:  `Runs Datadog Cluster agent for Cloud Foundry in the foreground`,
+		Long:  `Runs Datadog Cluster Agent for Cloud Foundry in the foreground`,
 		RunE:  start,
 	}
 
@@ -87,7 +87,7 @@ once per cluster.`,
 )
 
 func init() {
-	// attach the command to the root
+	// attach the commands to the root
 	ClusterAgentCmd.AddCommand(startCmd)
 	ClusterAgentCmd.AddCommand(versionCmd)
 	ClusterAgentCmd.AddCommand(commands.GetClusterChecksCobraCmd(&flagNoColor, &confPath, loggerName))
@@ -173,7 +173,7 @@ func start(cmd *cobra.Command, args []string) error {
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 
 	// initialize BBS Cache before starting provider/listener
-	err = initializeBBSCache()
+	err = initializeBBSCache(mainCtx)
 	if err != nil {
 		return err
 	}
@@ -219,10 +219,11 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func initializeBBSCache() error {
+func initializeBBSCache(ctx context.Context) error {
 	pollInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_bbs.poll_interval"))
 	// NOTE: we can't use GetPollInterval in ConfigureGlobalBBSCache, as that causes import cycle
 	bc, err := cloudfoundry.ConfigureGlobalBBSCache(
+		ctx,
 		config.Datadog.GetString("cloud_foundry_bbs.url"),
 		config.Datadog.GetString("cloud_foundry_bbs.ca_file"),
 		config.Datadog.GetString("cloud_foundry_bbs.cert_file"),

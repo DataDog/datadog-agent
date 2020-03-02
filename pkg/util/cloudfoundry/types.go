@@ -10,9 +10,9 @@ package cloudfoundry
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"code.cloudfoundry.org/bbs/models"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -150,7 +150,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 			}
 		}
 		if len(envAD) > 0 {
-			// TODO: find out if there might be more different AD env variables in all actions (I think not)
+			// NOTE: it seems there can't be more different AD env variables in all actions
 			break
 		}
 	}

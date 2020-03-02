@@ -102,7 +102,18 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP cloudfoundry.De
 			}
 			cf.assignNodeNameToNonContainerChecks(parsedConfigs, desiredLRP, actualLRPs)
 		case varsOk:
-			log.Errorf("Service %s for app %s has variables configured, but is not present in VCAP_SERVICES", adName, desiredLRP.AppGUID)
+			allSvcs := make([]string, 0, len(desiredLRP.EnvVcapServices))
+			for s := range desiredLRP.EnvVcapServices {
+				allSvcs = append(allSvcs, s)
+			}
+			allSvcsStr := strings.Join(allSvcs, ", ")
+			if allSvcsStr == "" {
+				allSvcsStr = "no services found"
+			}
+			log.Errorf(
+				"Service %s for app %s has variables configured, but is not present in VCAP_SERVICES (found services: %s)",
+				adName, desiredLRP.AppGUID, allSvcsStr,
+			)
 		default:
 			// if a service is not in VCAP_SERVICES and has no "variables" configured, we want to run a check per container
 			parsedConfigs = cf.expandPerContainerChecks(parsedConfigs, desiredLRP, actualLRPs, adName)
@@ -113,6 +124,7 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP cloudfoundry.De
 			// mark all checks as cluster checks
 			for i := range parsedConfigs {
 				parsedConfigs[i].ClusterCheck = true
+				parsedConfigs[i].Entity = parsedConfigs[i].ADIdentifiers[0]
 			}
 			allConfigs = append(allConfigs, parsedConfigs...)
 		}
@@ -142,7 +154,6 @@ func (cf CloudFoundryConfigProvider) expandPerContainerChecks(
 			newCfg := integration.Config{
 				ADIdentifiers: []string{cloudfoundry.NewADContainerIdentifier(desiredLRP, svcName, aLRP).String()},
 				ClusterCheck:  cfg.ClusterCheck,
-				Entity:        cfg.Entity, // TODO: should we modify this as well as ADIdentifiers?
 				InitConfig:    cfg.InitConfig,
 				Instances:     cfg.Instances,
 				LogsConfig:    cfg.LogsConfig,
@@ -161,7 +172,6 @@ func (cf CloudFoundryConfigProvider) expandPerContainerChecks(
 }
 
 func (cf CloudFoundryConfigProvider) renderExtractedConfigs(configs []integration.Config, variables json.RawMessage, vcap []byte) error {
-	// TODO: validate variable names are sane?
 	var vars map[string]string
 	err := json.Unmarshal(variables, &vars)
 	if err != nil {

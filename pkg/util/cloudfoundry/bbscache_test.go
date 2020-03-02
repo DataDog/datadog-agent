@@ -8,6 +8,7 @@
 package cloudfoundry
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -32,7 +33,9 @@ func (t testBBSClient) DesiredLRPs(lager.Logger, models.DesiredLRPFilter) ([]*mo
 var c *BBSCache
 
 func TestMain(m *testing.M) {
-	c, _ = ConfigureGlobalBBSCache("url", "", "", "", time.Second, true)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, true)
 	c.bbsAPIClient = testBBSClient{}
 	for range []int{0, 1} {
 		if c.GetPollSuccesses() == 0 {
@@ -62,7 +65,7 @@ func TestBBSCache_GetAllLRPs(t *testing.T) {
 	assert.EqualValues(t, map[string][]ActualLRP{"012345678901234567890123456789012345": {ExpectedA1, ExpectedA2}}, a)
 }
 
-// These methods follow to ensure we implement the bbs.Client API, but are in fact unused
+// These methods ensure we implement the bbs.Client API, but are in fact unused by our functionality
 func (t testBBSClient) DesireTask(logger lager.Logger, guid, domain string, def *models.TaskDefinition) error {
 	panic("implement me")
 }

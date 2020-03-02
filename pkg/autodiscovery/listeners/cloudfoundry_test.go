@@ -381,8 +381,8 @@ func TestCloudFoundryListener(t *testing.T) {
 			},
 		},
 	} {
-		// NOTE: we don't use t.Run here, since the executions are chained (every tc is expected to delete some services
-		// created by the previous tc), so once something is wrong, we just fail the whole test case
+		// NOTE: we don't use t.Run here, since the executions are chained (every test case is expected to delete some
+		// services created by the previous test case), so once something is wrong, we just fail the whole test case
 		testBBSCache.Lock()
 		testBBSCache.ActualLRPs = tc.aLRP
 		testBBSCache.DesiredLRPs = tc.dLRP
