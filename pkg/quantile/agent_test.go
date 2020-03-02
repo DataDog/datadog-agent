@@ -1,6 +1,7 @@
 package quantile
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -77,6 +78,7 @@ func TestAgent(t *testing.T) {
 		{binsum: 20, ninsert: 2, flush: true, sampleRate: .1},
 		{binsum: 22, ninsert: 2, flush: true, sampleRate: 1},
 	} {
+		fmt.Println(tt.binsum)
 		setup(t, tt)
 		check(t, tt)
 	}

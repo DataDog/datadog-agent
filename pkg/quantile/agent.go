@@ -55,16 +55,23 @@ func (a *Agent) Reset() {
 
 // Insert v into the sketch.
 func (a *Agent) Insert(v float64, sampleRate float64) {
-	n := uint(math.Ceil(1 / sampleRate))
-	a.Sketch.Basic.InsertN(v, n)
+	k := agentConfig.key(v)
+	if sampleRate == 1 {
+		a.Sketch.Basic.Insert(v)
+		a.Buf = append(a.Buf, k)
 
-	for i := uint(0); i < n; i++ {
-		a.Buf = append(a.Buf, agentConfig.key(v))
+		if len(a.Buf) < agentBufCap {
+			return
+		}
+	} else {
+		n := uint(math.Ceil(1 / sampleRate))
+		a.Sketch.Basic.InsertN(v, n)
+		kc := KeyCount{
+			k: k,
+			n: n,
+		}
+		a.CountBuf = append(a.CountBuf, kc)
 	}
-	if len(a.Buf) < agentBufCap {
-		return
-	}
-
 	a.flush()
 }
 
