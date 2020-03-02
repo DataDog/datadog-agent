@@ -79,7 +79,7 @@ func (f *FakeDCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigR
 	return f.EndpointsCheckConfigs, f.EndpointsCheckConfigsErr
 }
 
-func (f *FakeDCAClient) GetAllCFAppsMetadata() (map[string][]string, error) {
+func (f *FakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
 	panic("implement me")
 }
 

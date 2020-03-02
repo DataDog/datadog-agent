@@ -53,7 +53,7 @@ func (fakeGardenUtil) GetGardenContainers() ([]garden.Container, error) {
 	}, nil
 }
 
-func (fakeDCAClient) GetAllCFAppsMetadata() (map[string][]string, error) {
+func (fakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
 	return expectedFullTags, nil
 }
 
@@ -63,11 +63,11 @@ func TestGardenCollector_extractTags(t *testing.T) {
 		dcaClient:           fakeDCAClient{},
 		clusterAgentEnabled: true,
 	}
-	tags, _ := collector.extractTags()
+	tags, _ := collector.extractTags("cell123")
 	assert.Equal(t, expectedFullTags, tags)
 
 	collector.clusterAgentEnabled = false
-	tags, _ = collector.extractTags()
+	tags, _ = collector.extractTags("cell123")
 	assert.Equal(t, expectedIDTags, tags)
 }
 

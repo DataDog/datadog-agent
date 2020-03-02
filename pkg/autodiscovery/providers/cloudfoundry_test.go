@@ -51,7 +51,7 @@ func (b bbsCacheFake) GetAllLRPs() (map[string][]cloudfoundry.ActualLRP, map[str
 	return b.ActualLRPs, b.DesiredLRPs
 }
 
-func (b bbsCacheFake) ExtractTags() map[string][]string {
+func (b bbsCacheFake) ExtractTags(nodename string) map[string][]string {
 	panic("implement me")
 }
 

@@ -58,7 +58,7 @@ var BBSModelA2 = models.ActualLRP{
 		ProcessGuid: "0123456789012345678901234567890123456789",
 	},
 	ActualLRPInstanceKey: models.ActualLRPInstanceKey{
-		CellId:       "cell123",
+		CellId:       "cell1234",
 		InstanceGuid: "0123456789012345679",
 	},
 	State: "RUNNING",
@@ -66,7 +66,7 @@ var BBSModelA2 = models.ActualLRP{
 
 var ExpectedA2 = ActualLRP{
 	AppGUID:      "012345678901234567890123456789012345",
-	CellID:       "cell123",
+	CellID:       "cell1234",
 	ContainerIP:  "1.2.3.5",
 	Index:        3,
 	Ports:        []uint32{1234, 5678},

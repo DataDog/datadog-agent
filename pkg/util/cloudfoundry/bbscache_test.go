@@ -68,6 +68,9 @@ func TestBBSCache_ExtractTags(t *testing.T) {
 			"app_instance_index:4",
 			"app_instance_guid:0123456789012345678",
 		},
+	}
+	assert.Equal(t, expectedTags, c.ExtractTags("cell123"))
+	expectedTags = map[string][]string{
 		"0123456789012345679": {
 			"container_name:name_of_the_app_3",
 			"app_name:name_of_the_app",
@@ -76,7 +79,7 @@ func TestBBSCache_ExtractTags(t *testing.T) {
 			"app_instance_guid:0123456789012345679",
 		},
 	}
-	assert.Equal(t, expectedTags, c.ExtractTags())
+	assert.Equal(t, expectedTags, c.ExtractTags("cell1234"))
 }
 
 func TestBBSCache_GetActualLRPsFor(t *testing.T) {
