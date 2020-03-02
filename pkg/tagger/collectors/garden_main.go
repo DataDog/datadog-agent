@@ -69,7 +69,7 @@ func (c *GardenCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 func (c *GardenCollector) Pull() error {
 	var tagsByInstanceGUID map[string][]string
 	var tagInfo []*TagInfo
-	tagsByInstanceGUID, err := c.extractTags()
+	tagsByInstanceGUID, err := c.extractTags(config.Datadog.GetString("bosh_id"))
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (c *GardenCollector) Pull() error {
 // Fetch gets the tags for a specific entity
 func (c *GardenCollector) Fetch(entity string) ([]string, []string, []string, error) {
 	_, cid := containers.SplitEntityName(entity)
-	tagsByInstanceGUID, err := c.extractTags()
+	tagsByInstanceGUID, err := c.extractTags(config.Datadog.GetString("bosh_id"))
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}

@@ -36,30 +36,32 @@ func Install(r *mux.Router, sc clusteragent.ServerContext) {
 	r.HandleFunc("/tags/pod/{nodeName}", getPodMetadataForNode).Methods("GET")
 	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
 	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
-	r.HandleFunc("/tags/cf/apps", getAllCFAppsMetadata).Methods("GET")
+	r.HandleFunc("/tags/cf/apps/{nodeName}", getCFAppsMetadataForNode).Methods("GET")
 	installClusterCheckEndpoints(r, sc)
 	installEndpointsCheckEndpoints(r, sc)
 }
 
-// getCFAppMetadata is only used when the node agent hits the DCA for the list of cloudfoundry applications tags
+// getAllCFAppsMetadata is only used when the node agent hits the DCA for the list of cloudfoundry applications tags
 // It return a list of tags for each application that can be directly used in the tagger
-func getAllCFAppsMetadata(w http.ResponseWriter, r *http.Request) {
+func getCFAppsMetadataForNode(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	nodename := vars["nodename"]
 	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
 	if err != nil {
 		log.Errorf("Could not retrieve BBS cache: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		apiRequests.Inc("getCFAppMetadata", strconv.Itoa(http.StatusInternalServerError))
+		apiRequests.Inc("getCFAppsMetadataForNode", strconv.Itoa(http.StatusInternalServerError))
 		return
 	}
 
-	tags := bbsCache.ExtractTags()
+	tags := bbsCache.ExtractTags(nodename)
 
 	tagsBytes, err := json.Marshal(tags)
 	if err != nil {
 		log.Errorf("Could not process tags for CF applications: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
-			"getAllCFAppsMetadata",
+			"getCFAppsMetadataForNode",
 			strconv.Itoa(http.StatusInternalServerError),
 		)
 		return
@@ -68,7 +70,7 @@ func getAllCFAppsMetadata(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write(tagsBytes)
 		apiRequests.Inc(
-			"getAllCFAppsMetadata",
+			"getCFAppsMetadataForNode",
 			strconv.Itoa(http.StatusOK),
 		)
 		return

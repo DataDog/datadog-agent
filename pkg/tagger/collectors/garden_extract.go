@@ -6,9 +6,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (c *GardenCollector) extractTags() (tagsByInstanceGUID map[string][]string, err error) {
+func (c *GardenCollector) extractTags(nodename string) (tagsByInstanceGUID map[string][]string, err error) {
 	if c.clusterAgentEnabled {
-		tagsByInstanceGUID, err = c.dcaClient.GetAllCFAppsMetadata()
+		tagsByInstanceGUID, err = c.dcaClient.GetCFAppsMetadataForNode(nodename)
 		if err != nil {
 			return tagsByInstanceGUID, err
 		}

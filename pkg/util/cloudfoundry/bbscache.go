@@ -32,7 +32,7 @@ type BBSCacheI interface {
 	GetActualLRPsFor(appGUID string) []ActualLRP
 	GetDesiredLRPFor(appGUID string) DesiredLRP
 	GetAllLRPs() (map[string][]ActualLRP, map[string]DesiredLRP)
-	ExtractTags() map[string][]string
+	ExtractTags(nodename string) map[string][]string
 }
 
 // BBSCache is a simple structure that caches and automatically refreshes data from Cloud Foundry BBS API
@@ -253,8 +253,9 @@ func (bc *BBSCache) readDesiredLRPs() (map[string]DesiredLRP, error) {
 	return desiredLRPs, nil
 }
 
-// ExtractTags extract all the container tags for each app in the cache an returns a mapping of tags by instance GUID
-func (bc *BBSCache) ExtractTags() map[string][]string {
+// ExtractTags extract all the container tags for each app in the cache running on the specified node
+// and returns a mapping of tags by instance GUID
+func (bc *BBSCache) ExtractTags(nodename string) map[string][]string {
 	tags := map[string][]string{}
 	alrps, dlrps := bc.GetAllLRPs()
 	for appGUID, dlrp := range dlrps {
@@ -270,12 +271,15 @@ func (bc *BBSCache) ExtractTags() map[string][]string {
 			continue
 		}
 		for _, alrp := range alrpsForApp {
-			tags[alrp.InstanceGUID] = []string{
-				fmt.Sprintf("container_name:%s_%d", appName, alrp.Index),
-				fmt.Sprintf("app_name:%s", appName),
-				fmt.Sprintf("app_guid:%s", appGUID),
-				fmt.Sprintf("app_instance_index:%d", alrp.Index),
-				fmt.Sprintf("app_instance_guid:%s", alrp.InstanceGUID),
+			// Only give tags for apps running on the specified node
+			if alrp.CellID == nodename {
+				tags[alrp.InstanceGUID] = []string{
+					fmt.Sprintf("container_name:%s_%d", appName, alrp.Index),
+					fmt.Sprintf("app_name:%s", appName),
+					fmt.Sprintf("app_guid:%s", appGUID),
+					fmt.Sprintf("app_instance_index:%d", alrp.Index),
+					fmt.Sprintf("app_instance_guid:%s", alrp.InstanceGUID),
+				}
 			}
 		}
 	}

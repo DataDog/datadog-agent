@@ -50,7 +50,7 @@ type DCAClientInterface interface {
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
-	GetAllCFAppsMetadata() (map[string][]string, error)
+	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
 
 	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
 	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
@@ -271,13 +271,13 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 }
 
 // GetAllCFAppsMetadata returns the CF application tags from the Cluster Agent.
-func (c *DCAClient) GetAllCFAppsMetadata() (map[string][]string, error) {
+func (c *DCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
 	const dcaCFAppsMeta = "api/v1/tags/cf/apps"
 	var err error
 	var tags map[string][]string
 
-	// https://host:port/api/v1/tags/cf/apps
-	rawURL := fmt.Sprintf("%s/%s", c.clusterAgentAPIEndpoint, dcaCFAppsMeta)
+	// https://host:port/api/v1/tags/cf/apps/{nodename}
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaCFAppsMeta, nodename)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
