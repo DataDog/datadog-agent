@@ -569,6 +569,11 @@ run_dogstatsd_arm_size_test:
 
 .system-probe_build_common:
   before_script:
+    # HACK: install gimme so we can build with go 1.10.1
+    - apt-get install -y wget
+    - wget -O /bin/gimme https://raw.githubusercontent.com/travis-ci/gimme/master/gimme
+    - chmod +x /bin/gimme
+
     # Hack to work around the cloning issue with arm runners
     - mkdir -p $GOPATH/src/github.com/DataDog
     - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
@@ -578,8 +583,9 @@ run_dogstatsd_arm_size_test:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
     - mkdir -p /opt/datadog-agent/embedded
     - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
+
   script:
-    - CGO_CFLAGS='-I/opt/datadog-agent/embedded/include' CGO_LDFLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib -L/opt/datadog-agent/embedded/lib' inv -e system-probe.build
+    - CGO_CFLAGS='-I/opt/datadog-agent/embedded/include' CGO_LDFLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib -L/opt/datadog-agent/embedded/lib' inv -e system-probe.build --go-version=1.10.1
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
 
 build_system-probe-x64:
