@@ -53,9 +53,8 @@ func (c *GardenCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 				log.Errorf("Permanent failure in communication with the cluster agent")
 			}
 			return NoCollection, errDCA
-		} else {
-			c.clusterAgentEnabled = true
 		}
+		c.clusterAgentEnabled = true
 	}
 
 	c.infoOut = out

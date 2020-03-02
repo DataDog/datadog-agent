@@ -270,7 +270,7 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	return labels, err
 }
 
-// GetAllCFAppsMetadata returns the CF application tags from the Cluster Agent.
+// GetCFAppsMetadataForNode returns the CF application tags from the Cluster Agent.
 func (c *DCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
 	const dcaCFAppsMeta = "api/v1/tags/cf/apps"
 	var err error
