@@ -45,7 +45,7 @@ func Install(r *mux.Router, sc clusteragent.ServerContext) {
 // It return a list of tags for each application that can be directly used in the tagger
 func getCFAppsMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	nodename := vars["nodename"]
+	nodename := vars["nodeName"]
 	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
 	if err != nil {
 		log.Errorf("Could not retrieve BBS cache: %v", err)
