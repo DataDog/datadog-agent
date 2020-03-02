@@ -6,10 +6,3 @@ package ebpf
 func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
 	return true, ""
 }
-
-// CurrentKernelVersion returns the current kernel version of the OS
-func CurrentKernelVersion() (uint32, error) {
-	return 1, nil
-}
-
-// TODO determine if we will keep this function^. Also, add an error that will not cause failure to set up system probe

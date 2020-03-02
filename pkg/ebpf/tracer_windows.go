@@ -57,3 +57,8 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 	return nil, ErrNotImplemented
 }
+
+// CurrentKernelVersion is not implemented on this OS for Tracer
+func CurrentKernelVersion() (uint32, error) {
+	return 0, ErrNotImplemented
+}
