@@ -2,8 +2,28 @@
 
 package ebpf
 
+/*
+typedef struct _stats
+{
+    volatile long Read_calls;		//! number of read calls to the driver
+    volatile long Read_bytes;
+    volatile long Read_calls_outstanding;
+    volatile long Read_calls_completed;
+    volatile long Read_calls_cancelled;
+    volatile long Read_packets_skipped;
+    volatile long Write_calls;	//! number of write calls to the driver
+    volatile long Write_bytes;
+    volatile long Ioctl_calls;	//! number of ioctl calls to the driver
+} STATS;
+
+typedef struct driver_stats
+{
+    STATS		Total;		//! stats since the driver was started
+    STATS		Handle;		//! stats for the file handle in question
+} DRIVER_STATS;
+*/
+import "C"
 import (
-	"C"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"syscall"
@@ -53,7 +73,7 @@ func open(path string) (syscall.Handle, error) {
 
 func GetIoCompletionPort(handleFile syscall.Handle) (syscall.Handle, error) {
 	// logger.Print("creating io completion port")
-	iocpHandle, err := syscall.CreateIoCompletionPort(handleFile,0,0, 0)
+	iocpHandle, err := syscall.CreateIoCompletionPort(handleFile, 0, 0, 0)
 	if err != nil {
 		return syscall.Handle(0), err
 	}
@@ -73,13 +93,12 @@ func ctl_code(device_type, function, method, access uint32) uint32 {
 	return (device_type << 16) | (access << 14) | (function << 2) | method
 }
 
-func createFilterDefinition(family uint16) FilterDefinition {
-
+func createFilterDefinition(family uint16, direction FilterDirection, dPort uint16) FilterDefinition {
 	return FilterDefinition{
-		size: uint32(unsafe.Sizeof(FilterDefinition{})),
-		dst: nil,
-		sPort: 0,
-
+		size:          uint32(unsafe.Sizeof(FilterDefinition{})),
+		addressFamily: family,
+		dPort:         dPort,
+		direction:     direction,
 	}
 }
 
@@ -92,20 +111,48 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 		panic(err)
 	}
 
-	rdbbuf := make([]byte, syscall.MAXIMUM_REPARSE_DATA_BUFFER_SIZE)
-	var bytesReturned uint32
+	var (
+		bytesReturned uint32
+		stats C.struct_driver_stats
+	)
+	rdbbuf := make([]byte, C.sizeof_struct_driver_stats)
 	ioctlcd := ctl_code(0x00000012, 0x801, uint32(0), uint32(0))
 	err = syscall.DeviceIoControl(h, ioctlcd, nil, 0, &rdbbuf[0], uint32(len(rdbbuf)), &bytesReturned, nil)
 	if err != nil {
-		log.Errorf("Close: %v", err)
+		log.Errorf("Error from DeviceIoControl: %v", err)
 	}
 
 	log.Infof("Total bytes returned: %d\n", bytesReturned)
+	log.Infof("Printing rdbbuf: %+v\n", rdbbuf)
+	stats = *(*C.struct_driver_stats)(unsafe.Pointer(&rdbbuf[0]))
 
-	err = close(h)
+	log.Infof("Printing stats: %+v\n", stats)
+
 	if err != nil {
-		log.Errorf("close: %v", err)
+		log.Errorf("Error reading: %v", err)
 	}
+
+	//log.Infof("Trying to print pointer thingy: %+v\n", *(*C.struct_driver_stats)(unsafe.Pointer(&rdbbuf[0])))
+
+	//AF_INET is defined as 2
+	// fdOutbound := createFilterDefinition(2, DIRECTIONOUTBOUND, 80)
+	// fdInbound := createFilterDefinition(2, DIRECTIONINBOUND, 80)
+	// ioctlcd = ctl_code(0x00000012, 0x803, uint32(0), uint32(0))
+	// err = syscall.DeviceIoControl(h, ioctlcd, (*byte)(unsafe.Pointer(&fdOutbound)), uint32(unsafe.Sizeof(FilterDefinition{})), nil, 0, nil, nil)
+
+	// if err != nil {
+	// 	log.Errorf("Close: %v", err)
+	// }
+
+	// var buf = make([]byte, 256)
+	// bufSize := uint32(256)
+	// syscall.ReadFile(h, buf, &bufSize,nil)
+	// log.Infof("Total bytes in buf: %d\n", len(buf))
+
+	// err = close(h)
+	// if err != nil {
+	//	log.Errorf("close: %v", err)
+	// }
 
 	return &Connections{
 		DNS: map[util.Address][]string{
