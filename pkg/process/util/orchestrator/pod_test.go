@@ -103,24 +103,26 @@ func TestExtractPodMessage(t *testing.T) {
 					Containers: []v1.Container{{}, {}},
 				},
 			}, expected: model.Pod{
-				Name:              "pod",
-				Namespace:         "namespace",
-				Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
-				CreationTimestamp: 1389744000,
+				Metadata: &model.Metadata{
+					Name:              "pod",
+					Namespace:         "namespace",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+					CreationTimestamp: 1389744000,
+					Labels:            []string{"label:foo"},
+					Annotations:       []string{"annotation:bar"},
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Name: "test-controller",
+							Kind: "replicaset",
+							Uid:  "1234567890",
+						},
+					},
+				},
 				Phase:             "Running",
 				NominatedNodeName: "nominated",
 				NodeName:          "node",
 				RestartCount:      42,
-				Labels:            []string{"label:foo"},
-				Annotations:       []string{"annotation:bar"},
 				Status:            "chillin",
-				OwnerReferences: []*model.OwnerReference{
-					{
-						Name: "test-controller",
-						Kind: "replicaset",
-						Uid:  "1234567890",
-					},
-				},
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						State:        "Running",
@@ -145,7 +147,7 @@ func TestExtractPodMessage(t *testing.T) {
 				},
 			},
 		},
-		"empty pod": {input: v1.Pod{}, expected: model.Pod{}},
+		"empty pod": {input: v1.Pod{}, expected: model.Pod{Metadata: &model.Metadata{}}},
 		"partial pod": {
 			input: v1.Pod{
 				Status: v1.PodStatus{
@@ -188,15 +190,17 @@ func TestExtractPodMessage(t *testing.T) {
 					},
 				},
 			}, expected: model.Pod{
-				Name:         "pod",
-				Namespace:    "namespace",
-				RestartCount: 10,
-				OwnerReferences: []*model.OwnerReference{
-					{
-						Uid: "1234567890",
+				Metadata: &model.Metadata{
+					Name:      "pod",
+					Namespace: "namespace",
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Uid: "1234567890",
+						},
 					},
 				},
-				Status: "chillin",
+				RestartCount: 10,
+				Status:       "chillin",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						Name:        "fooName",

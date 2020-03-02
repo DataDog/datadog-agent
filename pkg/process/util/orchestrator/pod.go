@@ -116,24 +116,30 @@ func chunkPods(pods []*model.Pod, chunks, perChunk int) [][]*model.Pod {
 // extractPodMessage extracts pod info into the proto model
 func extractPodMessage(p *v1.Pod) *model.Pod {
 	// pod medatadata
-	podModel := model.Pod{
+	podMetadata := model.Metadata{
 		Name:      p.Name,
 		Namespace: p.Namespace,
 		Uid:       string(p.UID),
 	}
+	if !p.ObjectMeta.CreationTimestamp.IsZero() {
+		podMetadata.CreationTimestamp = p.ObjectMeta.CreationTimestamp.Unix()
+	}
+	if !p.ObjectMeta.DeletionTimestamp.IsZero() {
+		podMetadata.DeletionTimestamp = p.ObjectMeta.DeletionTimestamp.Unix()
+	}
 	if len(p.Annotations) > 0 {
-		podModel.Annotations = make([]string, len(p.Annotations))
+		podMetadata.Annotations = make([]string, len(p.Annotations))
 		i := 0
 		for k, v := range p.Annotations {
-			podModel.Annotations[i] = k + ":" + v
+			podMetadata.Annotations[i] = k + ":" + v
 			i++
 		}
 	}
 	if len(p.Labels) > 0 {
-		podModel.Labels = make([]string, len(p.Labels))
+		podMetadata.Labels = make([]string, len(p.Labels))
 		i := 0
 		for k, v := range p.Labels {
-			podModel.Labels[i] = k + ":" + v
+			podMetadata.Labels[i] = k + ":" + v
 			i++
 		}
 	}
@@ -143,7 +149,10 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 			Uid:  string(o.UID),
 			Kind: o.Kind,
 		}
-		podModel.OwnerReferences = append(podModel.OwnerReferences, &owner)
+		podMetadata.OwnerReferences = append(podMetadata.OwnerReferences, &owner)
+	}
+	podModel := model.Pod{
+		Metadata: &podMetadata,
 	}
 	// pod spec
 	podModel.NodeName = p.Spec.NodeName
@@ -151,9 +160,6 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.Phase = string(p.Status.Phase)
 	podModel.NominatedNodeName = p.Status.NominatedNodeName
 	podModel.IP = p.Status.PodIP
-	if p.Status.StartTime != nil {
-		podModel.CreationTimestamp = p.ObjectMeta.CreationTimestamp.Unix()
-	}
 	podModel.RestartCount = 0
 	for _, cs := range p.Status.ContainerStatuses {
 		podModel.RestartCount += cs.RestartCount
