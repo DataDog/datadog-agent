@@ -232,7 +232,7 @@ func initializeBBSCache(ctx context.Context) error {
 		false,
 	)
 	if err != nil {
-		return fmt.Errorf("Failed to initialize BBS Cache: %s", err.Error())
+		return fmt.Errorf("failed to initialize BBS Cache: %s", err.Error())
 	}
 	log.Info("Waiting for initial warmup of BBS Cache")
 	ticker := time.NewTicker(time.Second)

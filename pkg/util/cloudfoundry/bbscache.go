@@ -10,13 +10,14 @@ package cloudfoundry
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
 	"time"
 
 	"code.cloudfoundry.org/bbs"
 	"code.cloudfoundry.org/bbs/models"
 	"code.cloudfoundry.org/lager"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // BBSCacheI is an interface for a structure that caches and automatically refreshes data from Cloud Foundry BBS API
@@ -96,7 +97,7 @@ func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyf
 // GetGlobalBBSCache returns the global instance of BBSCache (or error if the instance is not configured yet)
 func GetGlobalBBSCache() (*BBSCache, error) {
 	if !globalBBSCache.configured {
-		return nil, fmt.Errorf("Global BBS Cache not configured")
+		return nil, fmt.Errorf("global BBS Cache not configured")
 	}
 	return globalBBSCache, nil
 }
