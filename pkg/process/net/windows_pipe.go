@@ -7,7 +7,7 @@ import (
 	"net"
 )
 
-// Windows Pipe Listener for communicating with Probe
+// WindowsPipeListener for communicating with Probe
 type WindowsPipeListener struct {
 	conn     net.Listener
 	pipePath string
