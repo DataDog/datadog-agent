@@ -6,8 +6,3 @@ package ebpf
 func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
 	return true, ""
 }
-
-// CurrentKernelVersion is not implemented on non-linux systems
-func CurrentKernelVersion() (uint32, error) {
-	return 0, ErrNotImplemented
-}

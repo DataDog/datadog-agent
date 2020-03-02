@@ -165,3 +165,8 @@ func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 	log.Info(cs)
 	log.Infof("received %d bytes\n", bytes)
 */
+
+// CurrentKernelVersion is not implemented on this OS for Tracer
+func CurrentKernelVersion() (uint32, error) {
+	return 0, ErrNotImplemented
+}

@@ -55,7 +55,9 @@ func linuxKernelVersionCode(major, minor, patch uint32) uint32 {
 // along with some context on why it's not supported
 func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
 	currentKernelCode, err := CurrentKernelVersion()
-	if err != nil {
+	if err == ErrNotImplemented {
+		log.Infof("Could not detect OS, will assume supported.")
+	} else if err != nil {
 		return false, fmt.Sprintf("could not get kernel version: %s", err)
 	}
 
