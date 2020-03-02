@@ -41,7 +41,7 @@ func Install(r *mux.Router, sc clusteragent.ServerContext) {
 	installEndpointsCheckEndpoints(r, sc)
 }
 
-// getAllCFAppsMetadata is only used when the node agent hits the DCA for the list of cloudfoundry applications tags
+// getCFAppsMetadataForNode is only used when the node agent hits the DCA for the list of cloudfoundry applications tags
 // It return a list of tags for each application that can be directly used in the tagger
 func getCFAppsMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
