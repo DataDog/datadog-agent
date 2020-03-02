@@ -49,13 +49,10 @@ func (c *GardenCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 		if errDCA != nil {
 			log.Errorf("Could not initialise the communication with the cluster agent: %s", errDCA.Error())
 			// continue to retry while we can
-			if retry.IsErrWillRetry(errDCA) {
-				return NoCollection, errDCA
-			}
-			if retry.IsErrPermaFail(errDCA) && !config.Datadog.GetBool("cluster_agent.tagging_fallback") {
+			if retry.IsErrPermaFail(errDCA) {
 				log.Errorf("Permanent failure in communication with the cluster agent")
-				return NoCollection, errDCA
 			}
+			return NoCollection, errDCA
 		} else {
 			c.clusterAgentEnabled = true
 		}

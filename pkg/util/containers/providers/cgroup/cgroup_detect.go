@@ -24,6 +24,7 @@ import (
 )
 
 var (
+	// cloudfoundry garden container have IDs in the form aaaaaaaa-bbbb-cccc-dddd-eeee
 	containerRe = regexp.MustCompile("[0-9a-f]{64}|[0-9a-f]{8}(-[0-9a-f]{4}){4}")
 	// ErrMissingTarget is an error set when a cgroup target is missing.
 	ErrMissingTarget = errors.New("Missing cgroup target")
