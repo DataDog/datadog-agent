@@ -75,6 +75,9 @@ if osx?
   blacklist_packages.push(/^lxml==/)
   # Blacklist ibm_was, which depends on lxml
   blacklist_folders.push('ibm_was')
+
+  # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
+  blacklist_folders.push('aerospike')
 end
 
 if arm?
