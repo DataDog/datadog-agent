@@ -122,20 +122,20 @@ func openDriverFile(path string) (syscall.Handle, error) {
 	return h, nil
 }
 
-func GetIoCompletionPort(handleFile syscall.Handle) (syscall.Handle, error) {
-	iocpHandle, err := syscall.CreateIoCompletionPort(handleFile, 0, 0, 0)
-	if err != nil {
-		return syscall.Handle(0), err
-	}
-	return iocpHandle, nil
-}
-
 func closeDriverFile(handle syscall.Handle) error {
 	r, _, err := CloseHandle.Call(uintptr(handle))
 	if r == 0 {
 		return err
 	}
 	return nil
+}
+
+func getIoCompletionPort(handleFile syscall.Handle) (syscall.Handle, error) {
+	iocpHandle, err := syscall.CreateIoCompletionPort(handleFile, 0, 0, 0)
+	if err != nil {
+		return syscall.Handle(0), err
+	}
+	return iocpHandle, nil
 }
 
 // Creates the IOCTLCode to be passed for DeviceIoControl syscall
