@@ -64,7 +64,7 @@ func init() {
 // Tracer struct for tracking network state and connections
 type Tracer struct {
 	config       *Config
-	DriverHandle syscall.Handle
+	driverHandle syscall.Handle
 }
 
 // NewTracer returns an initialized tracer struct
@@ -73,9 +73,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s : %s", "Could not create driver handle", err)
 	}
-	return &Tracer{
-		DriverHandle: handle,
-	}, nil
+	tr := &Tracer{
+		driverHandle: handle,
+	}
+	go tr.expvarStats()
+	return tr, nil
 }
 
 func (t *Tracer) expvarStats() {
@@ -169,7 +171,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	if t.DriverHandle == syscall.InvalidHandle {
+	if t.driverHandle == syscall.InvalidHandle {
 		return nil, fmt.Errorf("Problem with handle cannot get stats.")
 	}
 
@@ -180,7 +182,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		ioctlcd       = ctl_code(NETWORK_DEVICE_TYPE_CTL_CODE, DDFILTER_IOCTL_GETSTATS, uint32(0), uint32(0))
 	)
 
-	err := syscall.DeviceIoControl(t.DriverHandle, ioctlcd, nil, 0, &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	err := syscall.DeviceIoControl(t.driverHandle, ioctlcd, nil, 0, &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
 		log.Errorf("Error reading Stats with DeviceIoControl: %v", err)
 	}
@@ -188,25 +190,25 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	stats = *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
 
 	return map[string]interface{}{
-		"driver_total_stats": map[string]C.long{
-			"read_calls":             stats.Total.Read_calls,
-			"read_bytes":             stats.Total.Read_bytes,
-			"read_calls_outstanding": stats.Total.Read_calls_outstanding,
-			"read_calls_cancelled":   stats.Total.Read_calls_cancelled,
-			"read_packets_skipped":   stats.Total.Read_packets_skipped,
-			"write_calls":            stats.Total.Write_calls,
-			"write_bytes":            stats.Total.Write_bytes,
-			"ioctl_calls":            stats.Total.Ioctl_calls,
+		"driver_total_stats": map[string]int64{
+			"read_calls":             int64(stats.Total.Read_calls),
+			"read_bytes":             int64(stats.Total.Read_bytes),
+			"read_calls_outstanding": int64(stats.Total.Read_calls_outstanding),
+			"read_calls_cancelled":   int64(stats.Total.Read_calls_cancelled),
+			"read_packets_skipped":   int64(stats.Total.Read_packets_skipped),
+			"write_calls":            int64(stats.Total.Write_calls),
+			"write_bytes":            int64(stats.Total.Write_bytes),
+			"ioctl_calls":            int64(stats.Total.Ioctl_calls),
 		},
-		"driver_handle_stats": map[string]C.long{
-			"read_calls":             stats.Handle.Read_calls,
-			"read_bytes":             stats.Handle.Read_bytes,
-			"read_calls_outstanding": stats.Handle.Read_calls_outstanding,
-			"read_calls_cancelled":   stats.Handle.Read_calls_cancelled,
-			"read_packets_skipped":   stats.Handle.Read_packets_skipped,
-			"write_calls":            stats.Handle.Write_calls,
-			"write_bytes":            stats.Handle.Write_bytes,
-			"ioctl_calls":            stats.Handle.Ioctl_calls,
+		"driver_handle_stats": map[string]int64{
+			"read_calls":             int64(stats.Handle.Read_calls),
+			"read_bytes":             int64(stats.Handle.Read_bytes),
+			"read_calls_outstanding": int64(stats.Handle.Read_calls_outstanding),
+			"read_calls_cancelled":   int64(stats.Handle.Read_calls_cancelled),
+			"read_packets_skipped":   int64(stats.Handle.Read_packets_skipped),
+			"write_calls":            int64(stats.Handle.Write_calls),
+			"write_bytes":            int64(stats.Handle.Write_bytes),
+			"ioctl_calls":            int64(stats.Handle.Ioctl_calls),
 		},
 	}, nil
 }
