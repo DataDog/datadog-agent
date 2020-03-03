@@ -3,8 +3,6 @@
 package tracer
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -14,11 +12,7 @@ import (
 //go:generate go run ../../ebpf/bytecode/runtime/integrity.go ../../ebpf/bytecode/build/runtime/tracer.c ../../ebpf/bytecode/runtime/tracer.go runtime
 
 func getRuntimeCompiledTracer(config *config.Config) (runtime.CompiledOutput, error) {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		runtime.Tracer.SetRuntimeCompilationFailure()
-		return nil, fmt.Errorf("unable to get kernel version: %w", err)
-	}
+	kv, _ := kernel.HostVersion()
 	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)
 
 	var cflags []string

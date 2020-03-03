@@ -31,8 +31,6 @@ var (
 	}
 )
 
-var CompilationEnabled = false
-
 type CompiledOutput interface {
 	io.Reader
 	io.ReaderAt
@@ -41,20 +39,23 @@ type CompiledOutput interface {
 
 // RuntimeAsset represents an asset that needs its content integrity checked at runtime
 type RuntimeAsset struct {
-	filename string
-	hash     string
-
-	// Telemetry
-	compilationSuccess  int64
-	compilationFailure  int64
-	compilationDuration int64
+	filename  string
+	hash      string
+	telemetry Telemetry
 }
 
 func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
-	return &RuntimeAsset{
-		filename: filename,
-		hash:     hash,
+	asset := &RuntimeAsset{
+		filename:  filename,
+		hash:      hash,
+		telemetry: newNoOpTelemetry(),
 	}
+
+	if filename == "tracer.c" || filename == "runtime-security.c" {
+		asset.telemetry = newCompilationTelemetry()
+	}
+
+	return asset
 }
 
 // Verify reads the asset in the provided directory and verifies the content hash matches what is expected.
@@ -82,25 +83,28 @@ func (a *RuntimeAsset) Verify(dir string) (io.Reader, string, error) {
 
 // Compile compiles the runtime asset if necessary and returns the resulting file.
 func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOutput, error) {
+	telemetry := getCompilationTelemetry(a.telemetry)
+	telemetry.enabled = true
 	start := time.Now()
 	defer func() {
-		a.compilationDuration = time.Since(start).Nanoseconds()
+		telemetry.duration = time.Since(start).Nanoseconds()
+		a.telemetry = telemetry
 	}()
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
-		a.compilationFailure = 1
+		telemetry.result = KernelVersionErr
 		return nil, fmt.Errorf("unable to get kernel version: %w", err)
 	}
 
 	inputReader, hash, err := a.Verify(config.BPFDir)
 	if err != nil {
-		a.compilationFailure = 1
+		telemetry.result = VerificationError
 		return nil, fmt.Errorf("error reading input file: %s", err)
 	}
 
 	if err := os.MkdirAll(config.RuntimeCompilerOutputDir, 0755); err != nil {
-		a.compilationFailure = 1
+		telemetry.result = OutputDirErr
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
 	}
 
@@ -115,46 +119,33 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 	outputFile := filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("%s-%d-%s-%s.o", baseName, kv, hash, flagHash))
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
-			a.compilationFailure = 1
+			telemetry.result = OutputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
 		comp, err := compiler.NewEBPFCompiler(config.KernelHeadersDirs, config.BPFDebug)
 		if err != nil {
-			a.compilationFailure = 1
+			telemetry.result = NewCompilerErr
 			return nil, fmt.Errorf("failed to create compiler: %w", err)
 		}
 		defer comp.Close()
 
 		if err := comp.CompileToObjectFile(inputReader, outputFile, flags); err != nil {
-			a.compilationFailure = 1
+			telemetry.result = CompilationErr
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", a.filename, err)
 		}
 	}
 
 	out, err := os.Open(outputFile)
 	if err == nil {
-		a.compilationSuccess = 1
+		telemetry.result = Success
 	} else {
-		a.compilationFailure = 1
+		telemetry.result = ResultReadErr
 	}
 	return out, err
 }
 
-func (a *RuntimeAsset) SetRuntimeCompilationFailure() {
-	a.compilationFailure = 1
-}
-
-func (a *RuntimeAsset) GetCompilerStats() map[string]int64 {
-	stats := make(map[string]int64)
-	if CompilationEnabled {
-		stats["compiler_enabled"] = 1
-		stats["compilation_success"] = a.compilationSuccess
-		stats["compilation_failure"] = a.compilationFailure
-		stats["compilation_duration"] = a.compilationDuration
-	} else {
-		stats["compiler_enabled"] = 0
-	}
-	return stats
+func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
+	return a.telemetry.Get()
 }
 
 func hashFlags(flags []string) string {

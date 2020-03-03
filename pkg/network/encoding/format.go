@@ -110,8 +110,7 @@ func FormatTracerTelemetry(tel *network.TracerTelemetry) *model.NetworkTracerTel
 
 	t := &model.NetworkTracerTelemetry{}
 	t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
-	t.RuntimeCompilationSuccess = tel.RuntimeCompilationSuccess
-	t.RuntimeCompilationFailure = tel.RuntimeCompilationFailure
+	t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
 	t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
 	return t
 }

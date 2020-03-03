@@ -123,7 +123,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	runtimeTracer := false
 	var buf bytecode.AssetReader
 	if config.EnableRuntimeCompiler {
-		runtime.CompilationEnabled = true
 		buf, err = getRuntimeCompiledTracer(config)
 		if err != nil {
 			if !config.AllowPrecompiledFallback {
@@ -623,18 +622,15 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 func (t *Tracer) getTracerTelemetry() *network.TracerTelemetry {
 	tm := &network.TracerTelemetry{}
 
-	compilerStats := runtime.Tracer.GetCompilerStats()
-	if ce, ok := compilerStats["compiler_enabled"]; ok {
-		tm.RuntimeCompilationEnabled = ce
+	compilationStats := runtime.Tracer.GetTelemetry()
+	if enabled, ok := compilationStats["compilation_enabled"]; ok {
+		tm.RuntimeCompilationEnabled = enabled == 1
 	}
-	if cs, ok := compilerStats["compilation_success"]; ok {
-		tm.RuntimeCompilationSuccess = cs
+	if result, ok := compilationStats["compilation_result"]; ok {
+		tm.RuntimeCompilationResult = int32(result)
 	}
-	if cf, ok := compilerStats["compilation_failure"]; ok {
-		tm.RuntimeCompilationFailure = cf
-	}
-	if cd, ok := compilerStats["compilation_duration"]; ok {
-		tm.RuntimeCompilationDuration = cd
+	if duration, ok := compilationStats["compilation_duration"]; ok {
+		tm.RuntimeCompilationDuration = duration
 	}
 
 	return tm
@@ -876,7 +872,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"ebpf":     t.getEbpfTelemetry(),
 		"kprobes":  ddebpf.GetProbeStats(),
 		"dns":      t.reverseDNS.GetStats(),
-		"compiler": runtime.Tracer.GetCompilerStats(),
+		"compiler": runtime.Tracer.GetTelemetry(),
 	}
 
 	if t.httpMonitor != nil {

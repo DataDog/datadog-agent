@@ -101,9 +101,8 @@ type ConnectionsTelemetry struct {
 
 // TracerTelemetry stores telemetry from the system probe
 type TracerTelemetry struct {
-	RuntimeCompilationEnabled  int64
-	RuntimeCompilationSuccess  int64
-	RuntimeCompilationFailure  int64
+	RuntimeCompilationEnabled  bool
+	RuntimeCompilationResult   int32
 	RuntimeCompilationDuration int64
 }
 
