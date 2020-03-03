@@ -79,7 +79,7 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 
 	// config map exists, use its content or update it if the content doesn't look right
 	clusterID, found := cm.Data["id"]
-	if found == true && len([]byte(clusterID)) == 36 {
+	if found && len([]byte(clusterID)) == 36 {
 		return clusterID, nil
 	}
 
