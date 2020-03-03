@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=servercore:ltsc2019
+ARG BASE_IMAGE=servercore:1803
 
 FROM mcr.microsoft.com/windows/${BASE_IMAGE}
 
@@ -9,6 +9,12 @@ RUN msiexec /i datadog-agent-7-latest.amd64.msi /qn
 
 EXPOSE 8125/udp 8126/tcp
 
-ENTRYPOINT ["C:/Program Files/Datadog/Datadog Agent/bin/agent.exe"]
+# Config file is choosen at runtime by the entrypoint script
+RUN del C:/ProgramData/Datadog/datadog.yaml
+COPY entrypoint.ps1 .
+ADD entrypoint-ps1 ./entrypoint-ps1
+COPY datadog*.yaml C:/ProgramData/Datadog
+
+ENTRYPOINT ["powershell", "./entrypoint.ps1"]
 
 CMD ["run"]
