@@ -98,6 +98,59 @@ func TestMissingUnitNamesShouldRaiseError(t *testing.T) {
 	assert.EqualError(t, err, expectedErrorMsg)
 }
 
+func TestInvalidSubStateMappingName(t *testing.T) {
+	check := SystemdCheck{}
+	rawInstanceConfig := []byte(`
+unit_names:
+- foo
+substate_status_mapping:
+  bar:
+    exited: critical
+    running: ok
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+
+	expectedErrorMsg := "instance config specifies a custom substate mapping for unit 'bar' but this unit is not monitored. Please add 'bar' to 'unit_names'"
+	assert.EqualError(t, err, expectedErrorMsg)
+}
+
+func TestInvalidSubStateMapping(t *testing.T) {
+	check := SystemdCheck{}
+	rawInstanceConfig := []byte(`
+unit_names:
+- foo
+substate_status_mapping:
+  foo:
+    running: ok
+    exited: invalid_name
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+
+	expectedErrorMsg := "Status 'invalid_name' for unit 'foo' in 'substate_status_mapping' is invalid. It should be one of 'ok, warning, critical, unknown'"
+	assert.EqualError(t, err, expectedErrorMsg)
+}
+
+func TestValidSubStateMapping(t *testing.T) {
+	check := SystemdCheck{}
+	rawInstanceConfig := []byte(`
+unit_names:
+- foo
+- bar
+- baz
+substate_status_mapping:
+  foo:
+    running: ok
+    exited: warning
+    mounted: unknown
+  bar:
+    exited: critical
+    plugged: ok
+    running: ok
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+}
+
 func TestPrivateSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
 	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
@@ -615,7 +668,71 @@ unit_names:
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
 
-func TestGetServiceCheckStatus(t *testing.T) {
+func TestServiceCheckUnitStateCustomMapping(t *testing.T) {
+	rawInstanceConfig := []byte(`
+unit_names:
+ - unit1.service
+ - unit2.service
+substate_status_mapping:
+  unit1.service:
+    running: ok
+    exited: critical
+  unit2.service:
+    running: ok
+    exited: critical
+`)
+
+	stats := createDefaultMockSystemdStats()
+	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{
+		{Name: "unit1.service", SubState: "running"},
+		{Name: "unit2.service", SubState: "exited"},
+		{Name: "unit3.service", SubState: "running"},
+	}, nil)
+	stats.On("UnixNow").Return(int64(1000 * 1000))
+
+	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, dbusTypeMap[typeService]).Return(map[string]interface{}{
+		"CPUUsageNSec":  uint64(1),
+		"MemoryCurrent": uint64(1),
+		"TasksCurrent":  uint64(1),
+	}, nil)
+
+	stats.On("GetUnitTypeProperties", mock.Anything, "unit1.service", dbusTypeMap[typeUnit]).Return(map[string]interface{}{
+		"ActiveEnterTimestamp": uint64(100),
+	}, nil)
+	stats.On("GetUnitTypeProperties", mock.Anything, "unit2.service", dbusTypeMap[typeUnit]).Return(map[string]interface{}{
+		"ActiveEnterTimestamp": uint64(200),
+	}, nil)
+
+	check := SystemdCheck{stats: stats}
+	check.Configure(rawInstanceConfig, nil, "test")
+
+	// setup expectation
+	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	// run
+	check.Run()
+
+	// assertions
+	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
+
+	tags := []string{"unit:unit1.service"}
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckOK, "", tags, "")
+
+	tags = []string{"unit:unit2.service"}
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckCritical, "", tags, "")
+
+	tags = []string{"unit:unit3.service"}
+	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckCritical, "", tags, "")
+
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 4)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestGetServiceCheckStatusDefaultMapping(t *testing.T) {
 	data := []struct {
 		activeState    string
 		expectedStatus metrics.ServiceCheckStatus
@@ -627,9 +744,36 @@ func TestGetServiceCheckStatus(t *testing.T) {
 		{"deactivating", metrics.ServiceCheckUnknown},
 		{"does not exist", metrics.ServiceCheckUnknown},
 	}
+
 	for _, d := range data {
 		t.Run(fmt.Sprintf("expected mapping from %s to %s", d.activeState, d.expectedStatus), func(t *testing.T) {
-			assert.Equal(t, d.expectedStatus, getServiceCheckStatus(d.activeState))
+			assert.Equal(t, d.expectedStatus, getServiceCheckStatus(d.activeState, serviceCheckStateMapping))
+		})
+	}
+}
+
+func TestGetServiceCheckStatusCustomMapping(t *testing.T) {
+	mapping := map[string]string{
+		"foo": "critical",
+		"bar": "ok",
+		"baz": "warning",
+		"sth": "unknown",
+	}
+
+	data := []struct {
+		subState       string
+		expectedStatus metrics.ServiceCheckStatus
+	}{
+		{"foo", metrics.ServiceCheckCritical},
+		{"bar", metrics.ServiceCheckOK},
+		{"baz", metrics.ServiceCheckWarning},
+		{"sth", metrics.ServiceCheckUnknown},
+		{"xyz", metrics.ServiceCheckUnknown},
+	}
+
+	for _, d := range data {
+		t.Run(fmt.Sprintf("expected mapping from %s to %s", d.subState, d.expectedStatus), func(t *testing.T) {
+			assert.Equal(t, d.expectedStatus, getServiceCheckStatus(d.subState, mapping))
 		})
 	}
 }

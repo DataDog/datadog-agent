@@ -14,7 +14,30 @@ instances:
     ## using Docker Agent (https://docs.datadoghq.com/agent/docker/).
     ##
     # private_socket: <PATH_TO_SYSTEMD_PRIVATE_SOCKET>
-    
+
+    ## @param substate_status_mapping - object - optional
+    ## Custom mapping of systemd substate for the 'systemd.unit.state' service check status.
+    ## By default this service checks reports OK when the unit state is 'active'.
+    ## In some specific cases it is useful to look at the unit sub-state instead in order to report
+    ## a more meaningful status. Such a case includes units that are expected to be always running
+    ## but the systemd reported state and sub-state is 'active (exited)'. The provided example will send a
+    ## CRITICAL service check in that situation.
+    ## Valid statuses are 'ok', 'warning', 'critical', and 'unknown'. If the substate is not mapped,
+    ## the service check status will report 'unknown'.
+    #
+    # substate_status_mapping:
+    #   <UNIT_NAME_1>:
+    #     running: ok
+    #     exited: critical
+    #   <UNIT_NAME_2>:
+    #     plugged: ok
+    #     mounted: ok
+    #     running: ok
+    #     exited: critical
+    #     stopped: critical
+
+
+
     ## @param tags  - list of key:value elements - optional
     ## List of tags to attach to every metric, event, and service check emitted
     ## by this integration.

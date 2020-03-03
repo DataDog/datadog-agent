@@ -108,6 +108,21 @@ var metricConfigs = map[string][]metricConfigItem{
 
 var unitActiveStates = []string{"active", "activating", "inactive", "deactivating", "failed"}
 
+var validServiceCheckStatus = []string{
+	"ok",
+	"warning",
+	"critical",
+	"unknown",
+}
+
+var serviceCheckStateMapping = map[string]string{
+	"active":       "ok",
+	"inactive":     "critical",
+	"failed":       "critical",
+	"activating":   "unknown",
+	"deactivating": "unknown",
+}
+
 var systemdStatusMapping = map[string]metrics.ServiceCheckStatus{
 	"initializing": metrics.ServiceCheckUnknown,
 	"starting":     metrics.ServiceCheckUnknown,
@@ -123,10 +138,12 @@ type SystemdCheck struct {
 	stats  systemdStats
 	config systemdConfig
 }
+type unitSubstateMapping = map[string]string
 
 type systemdInstanceConfig struct {
-	PrivateSocket string   `yaml:"private_socket"`
-	UnitNames     []string `yaml:"unit_names"`
+	PrivateSocket         string                         `yaml:"private_socket"`
+	UnitNames             []string                       `yaml:"unit_names"`
+	SubstateStatusMapping map[string]unitSubstateMapping `yaml:"substate_status_mapping"`
 }
 
 type systemdInitConfig struct{}
@@ -289,7 +306,15 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 		}
 		monitoredCount++
 		tags := []string{"unit:" + unit.Name}
-		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState), "", tags, "")
+
+		state := unit.SubState
+		mapping, ok := c.config.instance.SubstateStatusMapping[unit.Name]
+		if !ok {
+			// User did not provide a custom mapping for this unit
+			state = unit.ActiveState
+			mapping = serviceCheckStateMapping
+		}
+		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(state, mapping), "", tags, "")
 
 		c.submitBasicUnitMetrics(sender, conn, unit, tags)
 		c.submitPropertyMetricsAsGauge(sender, conn, unit, tags)
@@ -439,14 +464,18 @@ func getPropertyBool(properties map[string]interface{}, propertyName string) (bo
 	return propValue, nil
 }
 
-func getServiceCheckStatus(activeState string) metrics.ServiceCheckStatus {
-	switch activeState {
-	case "active":
-		return metrics.ServiceCheckOK
-	case "inactive", "failed":
-		return metrics.ServiceCheckCritical
-	case "activating", "deactivating":
+func getServiceCheckStatus(state string, substateMapping map[string]string) metrics.ServiceCheckStatus {
+	mappedServiceCheckStatus, ok := substateMapping[state]
+	if !ok {
 		return metrics.ServiceCheckUnknown
+	}
+	switch strings.ToLower(mappedServiceCheckStatus) {
+	case "ok":
+		return metrics.ServiceCheckOK
+	case "warning":
+		return metrics.ServiceCheckWarning
+	case "critical":
+		return metrics.ServiceCheckCritical
 	}
 	return metrics.ServiceCheckUnknown
 }
@@ -455,6 +484,15 @@ func getServiceCheckStatus(activeState string) metrics.ServiceCheckStatus {
 func (c *SystemdCheck) isMonitored(unitName string) bool {
 	for _, name := range c.config.instance.UnitNames {
 		if name == unitName {
+			return true
+		}
+	}
+	return false
+}
+
+func isValidServiceCheckStatus(serviceCheckStatus string) bool {
+	for _, validStatus := range validServiceCheckStatus {
+		if strings.EqualFold(serviceCheckStatus, validStatus) {
 			return true
 		}
 	}
@@ -478,6 +516,20 @@ func (c *SystemdCheck) Configure(rawInstance integration.Data, rawInitConfig int
 
 	if len(c.config.instance.UnitNames) == 0 {
 		return fmt.Errorf("instance config `unit_names` must not be empty")
+	}
+
+	for unitNameInMapping := range c.config.instance.SubstateStatusMapping {
+		if !c.isMonitored(unitNameInMapping) {
+			return fmt.Errorf("instance config specifies a custom substate mapping for unit '%s' but this unit is not monitored. Please add '%s' to 'unit_names'", unitNameInMapping, unitNameInMapping)
+		}
+	}
+
+	for unitName, unitMapping := range c.config.instance.SubstateStatusMapping {
+		for _, serviceCheckStatus := range unitMapping {
+			if !isValidServiceCheckStatus(serviceCheckStatus) {
+				return fmt.Errorf("Status '%s' for unit '%s' in 'substate_status_mapping' is invalid. It should be one of '%s'", serviceCheckStatus, unitName, strings.Join(validServiceCheckStatus, ", "))
+			}
+		}
 	}
 
 	return nil
