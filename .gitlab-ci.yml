@@ -2141,7 +2141,7 @@ build_agent7_windows:
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.msi ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.msi
-    - docker build $BUILD_ARG --pull --file $BUILD_CONTEXT/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}
+    - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - docker push ${TARGET_TAG}
 
 # build the cluster-agent image
