@@ -126,7 +126,6 @@ func ResetClusterName() {
 
 // GetClusterID looks for a fixed path where the file containing the clusterID should be
 // this file should come from a configmap, written by the cluster-agent
-// TODO: call it in the process-agent collector, and make sure it works even if the file is created late
 func GetClusterID() (string, error) {
 	cacheClusterIDKey := cache.BuildAgentKey(clusterIDCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
