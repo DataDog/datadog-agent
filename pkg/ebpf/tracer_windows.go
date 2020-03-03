@@ -26,12 +26,12 @@ import "C"
 import (
 	"expvar"
 	"fmt"
-	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -44,12 +44,12 @@ const (
 
 	// https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/specifying-device-types
 	NETWORK_DEVICE_TYPE_CTL_CODE = 0x00000012
+
+	// Number of buffers to be used with the IOCompletionPort
+	TOTAL_READ_BUFFERS = 10
 )
 
 var (
-	kernel32        = syscall.MustLoadDLL("kernel32.dll")
-	CreateFile      = kernel32.MustFindProc("CreateFileW")
-	CloseHandle     = kernel32.MustFindProc("CloseHandle")
 	expvarEndpoints map[string]*expvar.Map
 	expvarTypes     = []string{"driver_total_stats", "driver_handle_stats"}
 )
@@ -64,7 +64,7 @@ func init() {
 // Tracer struct for tracking network state and connections
 type Tracer struct {
 	config       *Config
-	driverHandle syscall.Handle
+	driverHandle windows.Handle
 }
 
 // NewTracer returns an initialized tracer struct
@@ -102,40 +102,40 @@ func (t *Tracer) expvarStats() {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {}
 
-func openDriverFile(path string) (syscall.Handle, error) {
-	p, err := syscall.UTF16PtrFromString(path)
+func openDriverFile(path string) (windows.Handle, error) {
+	p, err := windows.UTF16PtrFromString(path)
 	if err != nil {
-		return syscall.InvalidHandle, err
+		return windows.InvalidHandle, err
 	}
 	log.Debug("Creating Driver File...")
-	r, _, err := CreateFile.Call(uintptr(unsafe.Pointer(p)),
-		syscall.GENERIC_READ,
-		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE,
-		0,
-		syscall.OPEN_EXISTING,
-		syscall.FILE_FLAG_OVERLAPPED,
-		0)
+	r, err := windows.CreateFile(p,
+		windows.GENERIC_READ | windows.GENERIC_WRITE,
+		windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE,
+		nil,
+		windows.OPEN_EXISTING,
+		windows.FILE_FLAG_OVERLAPPED,
+		windows.Handle(0))
 	log.Debug("Creating Driver Handle...")
-	h := syscall.Handle(r)
-	if h == syscall.InvalidHandle {
+	h := windows.Handle(r)
+	if h == windows.InvalidHandle {
 		return h, err
 	}
 	log.Info("Connected to driver and handle created")
 	return h, nil
 }
 
-func closeDriverFile(handle syscall.Handle) error {
-	r, _, err := CloseHandle.Call(uintptr(handle))
-	if r == 0 {
+func closeDriverFile(handle windows.Handle) error {
+	err := windows.CloseHandle(handle)
+	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func getIoCompletionPort(handleFile syscall.Handle) (syscall.Handle, error) {
-	iocpHandle, err := syscall.CreateIoCompletionPort(handleFile, 0, 0, 0)
+func getIoCompletionPort(handleFile windows.Handle) (windows.Handle, error) {
+	iocpHandle, err := windows.CreateIoCompletionPort(handleFile, 0, 0, 0)
 	if err != nil {
-		return syscall.Handle(0), err
+		return windows.Handle(0), err
 	}
 	return iocpHandle, nil
 }
@@ -171,7 +171,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	if t.driverHandle == syscall.InvalidHandle {
+	if t.driverHandle == windows.InvalidHandle {
 		return nil, fmt.Errorf("Problem with handle cannot get stats.")
 	}
 
@@ -182,7 +182,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		ioctlcd       = ctl_code(NETWORK_DEVICE_TYPE_CTL_CODE, DDFILTER_IOCTL_GETSTATS, uint32(0), uint32(0))
 	)
 
-	err := syscall.DeviceIoControl(t.driverHandle, ioctlcd, nil, 0, &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	err := windows.DeviceIoControl(t.driverHandle, ioctlcd, nil, 0, &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
 		log.Errorf("Error reading Stats with DeviceIoControl: %v", err)
 	}
