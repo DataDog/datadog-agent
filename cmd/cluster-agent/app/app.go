@@ -268,14 +268,12 @@ func start(cmd *cobra.Command, args []string) error {
 	// this must be a UUID, and ideally be stable for the lifetime of a cluster
 	// so we store it in a configmap that we try and read before generating a new one.
 	cacheClusterIDKey := cache.BuildAgentKey(clustername.ClusterIDCacheKey)
-	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); !found {
-		coreClient := apiCl.Cl.CoreV1.(*corev1.CoreV1Client)
-		clusterID, err := common.GetOrCreateClusterID(coreClient)
-		if err != nil {
-			log.Errorf("Failed to generate or retrieve the cluster ID")
-		} else {
-			cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
-		}
+	coreClient := apiCl.Cl.CoreV1.(*corev1.CoreV1Client)
+	clusterID, err := common.GetOrCreateClusterID(coreClient)
+	if err != nil {
+		log.Errorf("Failed to generate or retrieve the cluster ID")
+	} else {
+		cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 	}
 
 	// Block here until we receive the interrupt signal
