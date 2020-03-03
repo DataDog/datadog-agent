@@ -117,7 +117,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                         echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
                     fi
                 else
-                    echo "Couldn’t load system-probe policy (missing selinux utilities)"
+                    echo "Couldn’t load system-probe policy (missing selinux utilities)."
                     echo "To be able to run system-probe on your host, please install or update the"
                     echo "selinux-policy-default and policycoreutils-python-utils packages."
                     echo "Then run the following commands, or reinstall datadog-agent:"
