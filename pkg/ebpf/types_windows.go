@@ -2,41 +2,53 @@
 
 package ebpf
 
-type FilterAddress struct {
-	addressFamily uint16
-	addr [16]byte
-	mask uint16
-}
-
-type FilterDirection uint32
+import "syscall"
 
 const (
-	DIRECTIONINBOUND FilterDirection = 0
-
-	// OUTGOING represents outbound connections from the host
-	DIRECTONOUTBOUND FilterDirection = 1
+	FILTER_DIRECTION_INBOUND  = uint32(0)
+	FILTER_DIRECTION_OUTBOUND = uint32(1)
 )
 
+type FilterAddress struct {
+	addressFamily  uint16
+	v4_address     [4]byte
+	v6_address_pad [12]byte
+	mask           uint16
+}
+
 type FilterDefinition struct {
-	size uint32
+	bufferSize    uint32
 	addressFamily uint16
-	src FilterAddress
-	dst FilterAddress
-	sPort uint16
-	dPort uint16
-	protocol uint16
-	direction FilterDirection
+	srcAddr       FilterAddress
+	dstAddr       FilterAddress
+	sPort         uint16
+	dPort         uint16
+	protocol      uint16
+	direction     uint32
 }
 
 type FilterPacketHeader struct {
-	size uint32
-	skippedSinceLast uint32
-	filterID uint64
-	direction uint32
-	pkt []byte
-	pltSize int
-	addressFamily uint16
+	/*
+		C struct:
+		{
+		    ULONG		sz;		                //! size of packet header, including this field
+		    ULONG       skippedSinceLast;
+		    UINT64          filterId;
+		    ULONG		direction;              //! direction of packet
+		    unsigned char*		pkt;	        //! pointer to packet itself (L3 header)
+		    size_t		pktSize;                //! size of packet
 
+		    unsigned short		af;		        //! address family of packet
+
+		    // data follows
+		}
+	*/
+	rawData [38]byte
+}
+
+type ReadBuffer struct {
+	ol   syscall.Overlapped
+	data [128]byte
 }
 
 /*
