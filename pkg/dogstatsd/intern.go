@@ -1,5 +1,9 @@
 package dogstatsd
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
 // stringInterner is a string cache providing a longer life for strings,
 // helping to avoid GC runs because they're re-used many times instead of
 // created every time.
@@ -30,6 +34,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	}
 	if len(i.strings) >= i.maxSize {
 		i.strings = make(map[string]string)
+		log.Trace("clearing the string interner cache")
 	}
 	s := string(key)
 	i.strings[s] = s
