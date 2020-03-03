@@ -2135,12 +2135,12 @@ build_agent7_windows:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
-    BUILD_ARG: --build-arg BASE_IMAGE=servercore:1809
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/windows/servercore:1809
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
-    - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.msi ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.msi
+    - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - docker push ${TARGET_TAG}
 
