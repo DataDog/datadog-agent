@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix logs status page section showing port '0' being used when using the
+    default HTTPS URL. The status page now show 443.
