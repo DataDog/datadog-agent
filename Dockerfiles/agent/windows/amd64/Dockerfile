@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=servercore:1803
+ARG BASE_IMAGE=servercore:1809
 
 FROM mcr.microsoft.com/windows/${BASE_IMAGE}
 
