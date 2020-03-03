@@ -6,6 +6,8 @@
 package clustername
 
 import (
+	"fmt"
+	"os"
 	"regexp"
 	"sync"
 
@@ -129,24 +131,31 @@ func ResetClusterName() {
 func GetClusterID() (string, error) {
 	cacheClusterIDKey := cache.BuildAgentKey(clusterIDCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
-		return cachedClusterID, nil
+		return cachedClusterID.(string), nil
 	}
 
-	file, err := os.Open(clusterIDFilePath)
+	clusterID, err := readClusterIDFile(clusterIDFilePath)
 	if err != nil {
 		return "", err
 	}
-	clusterIDBuff := make([]byte, 36)
-	count, err := file.Read(clusterIDBuff)
+
+	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
+	return clusterID, nil
+}
+
+func readClusterIDFile(path string) (string, error) {
+	buf := make([]byte, 36)
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+
+	count, err := f.Read(buf)
 	if err != nil {
 		return "", err
 	} else if count < 36 {
-		return "", fmt.Errorf("content from %s doesn't look like a UUID, ignoring it", clusterIDFilePath)
+		return "", fmt.Errorf("content from %s doesn't look like a UUID, ignoring it", path)
 	}
 
-	clusterID := string(clusterIDBuff)
-
-	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
-
-	return clusterID, nil
+	return string(buf), nil
 }

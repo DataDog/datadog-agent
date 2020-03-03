@@ -6,6 +6,7 @@
 package clustername
 
 import (
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,4 +51,31 @@ func TestGetClusterName(t *testing.T) {
 		freshData = newClusterNameData()
 		assert.Equal(t, "", getClusterName(freshData))
 	}
+}
+
+func TestReadClusterIDFile(t *testing.T) {
+	tmpFile, err := ioutil.TempFile("", "cluster-id")
+
+	// missing file
+	cid, err := readClusterIDFile("/tmp/cluster-id-missing-file")
+	assert.Empty(t, cid)
+	assert.NotNil(t, err)
+
+	tooShortCID := "foo"
+	_, err = tmpFile.WriteString(tooShortCID)
+	cid, err = readClusterIDFile(tmpFile.Name())
+	assert.Empty(t, cid)
+	assert.NotNil(t, err)
+
+	validCID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
+	_, err = tmpFile.WriteString(validCID)
+	cid, err = readClusterIDFile(tmpFile.Name())
+	assert.Equal(t, validCID, cid)
+	assert.Nil(t, err)
+
+	tooLongCID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
+	_, err = tmpFile.WriteString(tooLongCID)
+	cid, err = readClusterIDFile(tmpFile.Name())
+	assert.Empty(t, cid)
+	assert.NotNil(t, err)
 }

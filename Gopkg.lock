@@ -2260,6 +2260,7 @@
     "github.com/google/gopacket",
     "github.com/google/gopacket/afpacket",
     "github.com/google/gopacket/layers",
+    "github.com/google/uuid",
     "github.com/gorilla/mux",
     "github.com/hashicorp/consul/api",
     "github.com/hashicorp/golang-lru",
