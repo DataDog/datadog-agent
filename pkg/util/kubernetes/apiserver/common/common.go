@@ -54,7 +54,7 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 
 	cm, err := coreClient.ConfigMaps(myNS).Get(defaultClusterIDMap, metav1.GetOptions{})
 	if err != nil {
-		if errors.IsNotFound(err) == false {
+		if !errors.IsNotFound(err) {
 			log.Errorf("Cannot retrieve ConfigMap %s/%s: %s", myNS, defaultClusterIDMap, err)
 			return "", err
 		}
