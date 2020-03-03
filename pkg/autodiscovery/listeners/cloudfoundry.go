@@ -81,6 +81,9 @@ func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Servi
 
 func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 	log.Debug("Refreshing services via CloudFoundryListener")
+	// make sure that we can't have two simultaneous runs of this function
+	l.Lock()
+	defer l.Unlock()
 	allActualLRPs, desiredLRPs := l.bbsCache.GetAllLRPs()
 
 	// if not found and running, add it
@@ -108,16 +111,12 @@ func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 	}
 
 	for adID := range notSeen {
-		l.Lock()
 		l.delService <- l.services[adID]
 		delete(l.services, adID)
-		l.Unlock()
 	}
 }
 
 func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, firstRun bool) *CloudFoundryService {
-	l.Lock()
-	defer l.Unlock()
 	crTime := integration.After
 	if firstRun {
 		crTime = integration.Before

@@ -35,8 +35,7 @@ func NewCloudFoundryConfigProvider(conf config.ConfigurationProviders) (ConfigPr
 	}
 	var err error
 
-	cfp.bbsCache, err = cloudfoundry.GetGlobalBBSCache()
-	if err != nil {
+	if cfp.bbsCache, err = cloudfoundry.GetGlobalBBSCache(); err != nil {
 		return nil, err
 	}
 	return cfp, nil

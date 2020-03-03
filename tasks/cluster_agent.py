@@ -10,7 +10,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
-from .cluster_agent_common import build_common, clean_common, refresh_assets_common, version_common
+from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from .go import deps
 
 # constants

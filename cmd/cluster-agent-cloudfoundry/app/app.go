@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/commands"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent/commands"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -46,11 +46,11 @@ Datadog Cluster Agent for Cloud Foundry takes care of running checks that need t
 once per cluster.`,
 	}
 
-	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "Start the Cluster Agent for Cloud Foundry",
+	runCmd = &cobra.Command{
+		Use:   "run",
+		Short: "Run the Cluster Agent for Cloud Foundry",
 		Long:  `Runs Datadog Cluster Agent for Cloud Foundry in the foreground`,
-		RunE:  start,
+		RunE:  run,
 	}
 
 	versionCmd = &cobra.Command{
@@ -88,7 +88,7 @@ once per cluster.`,
 
 func init() {
 	// attach the commands to the root
-	ClusterAgentCmd.AddCommand(startCmd)
+	ClusterAgentCmd.AddCommand(runCmd)
 	ClusterAgentCmd.AddCommand(versionCmd)
 	ClusterAgentCmd.AddCommand(commands.GetClusterChecksCobraCmd(&flagNoColor, &confPath, loggerName))
 	ClusterAgentCmd.AddCommand(commands.GetConfigCheckCobraCmd(&flagNoColor, &confPath, loggerName))
@@ -97,7 +97,7 @@ func init() {
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 }
 
-func start(cmd *cobra.Command, args []string) error {
+func run(cmd *cobra.Command, args []string) error {
 	// we'll search for a config file named `datadog-cluster.yaml`
 	config.Datadog.SetConfigName("datadog-cluster")
 	err := common.SetupConfig(confPath)
