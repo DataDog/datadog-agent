@@ -20,13 +20,13 @@ import (
 
 // Allows to pass the dockerutil resolving method to
 // dockerExtractImage while using a mock for tests
-type resolveHook func(image string) (string, error)
+type resolveHook func(co types.ContainerJSON) (string, error)
 
 // extractFromInspect extract tags for a container inspect JSON
 func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, []string, error) {
 	tags := utils.NewTagList()
 
-	dockerExtractImage(tags, co, c.dockerUtil.ResolveImageName)
+	dockerExtractImage(tags, co, c.dockerUtil.ResolveImageNameFromContainer)
 	dockerExtractLabels(tags, co.Config.Labels, c.labelsAsTags)
 	dockerExtractEnvironmentVariables(tags, co.Config.Env, c.envAsTags)
 
@@ -53,7 +53,7 @@ func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve res
 	}
 
 	// Resolve sha to image repotag for orchestrators that pin the image by sha
-	dockerImage, err := resolve(co.Image)
+	dockerImage, err := resolve(co)
 	if err != nil {
 		log.Debugf("Error resolving image %s: %s", co.Image, err)
 		return

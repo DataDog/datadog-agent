@@ -350,7 +350,7 @@ func TestDockerExtractImage(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.testName), func(t *testing.T) {
-			resolve := func(image string) (string, error) { return tc.resolveMap[image], nil }
+			resolve := func(co types.ContainerJSON) (string, error) { return tc.resolveMap[image], nil }
 			tags := utils.NewTagList()
 			dockerExtractImage(tags, tc.co, resolve)
 			low, _, _ := tags.Compute()

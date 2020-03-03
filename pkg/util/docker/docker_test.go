@@ -95,6 +95,56 @@ func TestResolveImageName(t *testing.T) {
 	}
 }
 
+func TestResolveImageNameFromContainer(t *testing.T) {
+	imageName := "datadog/docker-dd-agent:latest"
+	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
+	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"
+
+	assert := assert.New(t)
+	globalDockerUtil = &DockerUtil{
+		cfg:            &Config{CollectNetwork: false},
+		cli:            nil,
+		imageNameBySha: make(map[string]string),
+	}
+	globalDockerUtil.imageNameBySha[imageWithShaTag] = imageName
+	globalDockerUtil.imageNameBySha[imageSha] = imageName
+	for i, tc := range []struct {
+		input    types.ContainerJSON
+		expected string
+	}{
+		{
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: ""},
+				Config:            &container.Config{Image: "myapp"},
+			},
+			expected: "",
+		}, {
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: imageName},
+				Config:            &container.Config{Image: "myapp"},
+			},
+			expected: imageName,
+		}, {
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: imageWithShaTag},
+				Config:            &container.Config{Image: "myapp"},
+			},
+			expected: imageName,
+		}, {
+			input: types.ContainerJSON{
+				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
+				Config:            &container.Config{Image: "myapp"},
+			},
+			expected: imageName,
+		},
+	} {
+		name, err := globalDockerUtil.ResolveImageNameFromContainer(tc.input)
+		assert.Equal(tc.expected, name, "test %s failed", i)
+		assert.Nil(err, "test %s failed", i)
+
+	}
+}
+
 func TestParseECSContainerNetworkAddresses(t *testing.T) {
 
 	for i, tc := range []struct {
