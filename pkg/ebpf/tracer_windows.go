@@ -3,66 +3,6 @@
 package ebpf
 
 /*
-typedef struct in6_addr {
-  union {
-    unsigned char Byte[16];
-    unsigned short Word[8];
-  } U;
-} IN6_ADDR;
-
-struct in_addr {
-  union {
-    struct {
-      unsigned char S_b1;
-      unsigned char S_b2;
-      unsigned char S_b3;
-      unsigned char S_b4;
-    } S_un_b;
-    struct {
-      unsigned short S_w1;
-      unsigned short S_w2;
-    } S_un_w;
-    unsigned long S_addr;
-  } S_un;
-} IN_ADDR;
-
-typedef struct _filterAddress
-{
-// _filterAddress defines an address to be matched, if supplied.
-// it can be ipv4 or ipv6 but not both.
-// supplying 0 for the address family means _any_ address (v4 or v6)
-	unsigned short af; //! AF_INET, AF_INET6 or 0
-	union
-	{
-		struct in6_addr         V6_address;
-		struct in_addr          V4_address;
-	}u;
-	unsigned short mask; // number of mask bits.
-} FILTER_ADDRESS;
-
-typedef enum
-{
-	DIRECTION_INBOUND = 0,
-	DIRECTION_OUTBOUND = 1
-} FILTER_DIRECTION;
-
-typedef struct _filterDefinition
-{
-	unsigned long Size;         //! size of this structure
-
-//  if supplied, the source and destination address must have the same address family.
-//  if both source and destination are applied, then the match for this filter
-//  is a logical AND, i.e. the source and destination both match.
-	unsigned short Af;     //! address family to filter
-
-	FILTER_ADDRESS  SourceAddress;
-	FILTER_ADDRESS  DestAddress;
-	unsigned short SourcePort;
-	unsigned short DestinationPort;
-	unsigned short Protocol;
-	FILTER_DIRECTION    Direction;
-} FILTER_DEFINITION;
-
 typedef struct _stats
 {
     long Read_calls;		//! number of read calls to the driver
@@ -84,26 +24,42 @@ typedef struct driver_stats
 */
 import "C"
 import (
+	"expvar"
 	"fmt"
+	"syscall"
+	"time"
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"syscall"
-	"unsafe"
 )
 
 const (
-	DRIVERFILE                            = "\\\\.\\ddfilter"
+	DRIVERFILE = `\\.\ddfilter`
+
+	// https://github.com/DataDog/datadog-windows-filter/blob/master/include/ddfilterapi.h
 	DDFILTER_IOCTL_GETSTATS               = 0x801
 	DDFILTER_IOCTL_SIMULATE_COMPLETE_READ = 0x802
 	DDFILTER_IOCTL_SET_FILTER             = 0x803
-	NETWORK_DEVICE_TYPE_CTL_CODE          = 0x00000012
+
+	// https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/specifying-device-types
+	NETWORK_DEVICE_TYPE_CTL_CODE = 0x00000012
 )
 
 var (
-	kernel32    = syscall.MustLoadDLL("kernel32.dll")
-	CreateFile  = kernel32.MustFindProc("CreateFileW")
-	CloseHandle = kernel32.MustFindProc("CloseHandle")
+	kernel32        = syscall.MustLoadDLL("kernel32.dll")
+	CreateFile      = kernel32.MustFindProc("CreateFileW")
+	CloseHandle     = kernel32.MustFindProc("CloseHandle")
+	expvarEndpoints map[string]*expvar.Map
+	expvarTypes     = []string{"driver_total_stats", "driver_handle_stats"}
 )
+
+func init() {
+	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
+	for _, name := range expvarTypes {
+		expvarEndpoints[name] = expvar.NewMap(name)
+	}
+}
 
 // Tracer struct for tracking network state and connections
 type Tracer struct {
@@ -115,11 +71,30 @@ type Tracer struct {
 func NewTracer(config *Config) (*Tracer, error) {
 	handle, err := openDriverFile(DRIVERFILE)
 	if err != nil {
-		return nil, fmt.Errorf("%s : %s", "Could not open driver file", err)
+		return nil, fmt.Errorf("%s : %s", "Could not create driver handle", err)
 	}
 	return &Tracer{
 		DriverHandle: handle,
 	}, nil
+}
+
+func (t *Tracer) expvarStats() {
+	ticker := time.NewTicker(5 * time.Second)
+	// starts running the body immediately instead waiting for the first tick
+	for ; true; <-ticker.C {
+		stats, err := t.GetStats()
+		if err != nil {
+			continue
+		}
+
+		for name, stat := range stats {
+			for metric, val := range stat.(map[string]int64) {
+				currVal := &expvar.Int{}
+				currVal.Set(val)
+				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+			}
+		}
+	}
 }
 
 // Stop function stops running tracer
@@ -130,7 +105,7 @@ func openDriverFile(path string) (syscall.Handle, error) {
 	if err != nil {
 		return syscall.InvalidHandle, err
 	}
-	log.Info("Creating file...")
+	log.Debug("Creating Driver File...")
 	r, _, err := CreateFile.Call(uintptr(unsafe.Pointer(p)),
 		syscall.GENERIC_READ,
 		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE,
@@ -138,12 +113,12 @@ func openDriverFile(path string) (syscall.Handle, error) {
 		syscall.OPEN_EXISTING,
 		syscall.FILE_FLAG_OVERLAPPED,
 		0)
-	log.Info("creating handle...")
+	log.Debug("Creating Driver Handle...")
 	h := syscall.Handle(r)
-	log.Info("Handle created")
 	if h == syscall.InvalidHandle {
 		return h, err
 	}
+	log.Info("Connected to driver and handle created")
 	return h, nil
 }
 
@@ -168,15 +143,6 @@ func ctl_code(device_type, function, method, access uint32) uint32 {
 	return (device_type << 16) | (access << 14) | (function << 2) | method
 }
 
-func createFilterDefinition(family uint16, direction FilterDirection, dPort uint16) FilterDefinition {
-	return FilterDefinition{
-		size:          uint32(unsafe.Sizeof(FilterDefinition{})),
-		addressFamily: family,
-		dPort:         dPort,
-		direction:     direction,
-	}
-}
-
 // GetActiveConnections returns all active connections
 func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 	return &Connections{
@@ -186,7 +152,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 		Conns: []ConnectionStats{
 			{
 				Source: util.AddressFromString("127.0.0.1"),
-				Dest:   util.AddressFromString("128.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.1"),
 				SPort:  35673,
 				DPort:  8000,
 				Type:   TCP,
@@ -203,6 +169,10 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
+	if t.DriverHandle == syscall.InvalidHandle {
+		return nil, fmt.Errorf("Problem with handle cannot get stats.")
+	}
+
 	var (
 		bytesReturned uint32
 		stats         C.struct_driver_stats
@@ -212,31 +182,31 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 
 	err := syscall.DeviceIoControl(t.DriverHandle, ioctlcd, nil, 0, &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
-		log.Errorf("Error reading stats with DeviceIoControl: %v", err)
+		log.Errorf("Error reading Stats with DeviceIoControl: %v", err)
 	}
 
 	stats = *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
+
 	return map[string]interface{}{
-		"BytesReturned" : bytesReturned,
-		"TotalStats": map[string]C.long{
-			"Read_calls":             stats.Total.Read_calls,
-			"Read_bytes":             stats.Total.Read_bytes,
-			"Read_calls_outstanding": stats.Total.Read_calls_outstanding, // Skipped connections (e.g. Local DNS requests)
-			"Read_calls_cancelled":   stats.Total.Read_calls_cancelled,
-			"Read_packets_skipped":   stats.Total.Read_packets_skipped,
-			"Write_calls":            stats.Total.Write_calls,
-			"Write_bytes":            stats.Total.Write_bytes,
-			"Ioctl_calls":            stats.Total.Ioctl_calls,
+		"driver_total_stats": map[string]C.long{
+			"read_calls":             stats.Total.Read_calls,
+			"read_bytes":             stats.Total.Read_bytes,
+			"read_calls_outstanding": stats.Total.Read_calls_outstanding,
+			"read_calls_cancelled":   stats.Total.Read_calls_cancelled,
+			"read_packets_skipped":   stats.Total.Read_packets_skipped,
+			"write_calls":            stats.Total.Write_calls,
+			"write_bytes":            stats.Total.Write_bytes,
+			"ioctl_calls":            stats.Total.Ioctl_calls,
 		},
-		"HandleStats": map[string]C.long{
-			"Read_calls":             stats.Handle.Read_calls,
-			"Read_bytes":             stats.Handle.Read_bytes,
-			"Read_calls_outstanding": stats.Handle.Read_calls_outstanding, // Skipped connections (e.g. Local DNS requests)
-			"Read_calls_cancelled":   stats.Handle.Read_calls_cancelled,
-			"Read_packets_skipped":   stats.Handle.Read_packets_skipped,
-			"Write_calls":            stats.Handle.Write_calls,
-			"Write_bytes":            stats.Handle.Write_bytes,
-			"Ioctl_calls":            stats.Handle.Ioctl_calls,
+		"driver_handle_stats": map[string]C.long{
+			"read_calls":             stats.Handle.Read_calls,
+			"read_bytes":             stats.Handle.Read_bytes,
+			"read_calls_outstanding": stats.Handle.Read_calls_outstanding,
+			"read_calls_cancelled":   stats.Handle.Read_calls_cancelled,
+			"read_packets_skipped":   stats.Handle.Read_packets_skipped,
+			"write_calls":            stats.Handle.Write_calls,
+			"write_bytes":            stats.Handle.Write_bytes,
+			"ioctl_calls":            stats.Handle.Ioctl_calls,
 		},
 	}, nil
 }
