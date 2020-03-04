@@ -104,7 +104,7 @@ func getEntityForPID(pid int32) (string, error) {
 // entityForPID returns the entity ID for a given PID. It can return
 // errNoContainerMatch if no match is found for the PID.
 func entityForPID(pid int32) (string, error) {
-	cID, err := providers.ContainerImpl.ContainerIDForPID(int(pid))
+	cID, err := providers.ContainerImpl().ContainerIDForPID(int(pid))
 	if err != nil {
 		return "", err
 	}
