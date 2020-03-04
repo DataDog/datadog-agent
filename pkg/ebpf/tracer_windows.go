@@ -45,9 +45,6 @@ const (
 
 	// https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/specifying-device-types
 	NETWORK_DEVICE_TYPE_CTL_CODE = 0x00000012
-
-	// Number of buffers to be used with the IOCompletionPort
-	TOTAL_READ_BUFFERS = 10
 )
 
 var (
