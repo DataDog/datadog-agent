@@ -77,7 +77,7 @@ var metricConfigs = map[string][]metricConfigItem{
 			metricName:         "systemd.service.task_count",
 			propertyName:       "TasksCurrent",
 			accountingProperty: "TasksAccounting",
-			optional:     true,
+			optional:           true,
 		},
 		{
 			// only present from systemd v235
