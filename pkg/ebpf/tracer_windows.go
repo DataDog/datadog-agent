@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	DRIVERFILE = `\\.\ddfilter`
+	driverFile = `\\.\ddfilter`
 
 	// https://github.com/DataDog/datadog-windows-filter/blob/master/include/ddfilterapi.h
 	DDFILTER_IOCTL_GETSTATS               = 0x801
@@ -70,7 +70,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	handle, err := openDriverFile(DRIVERFILE)
+	handle, err := openDriverFile(driverFile)
 	if err != nil {
 		return nil, fmt.Errorf("%s : %s", "Could not create driver handle", err)
 	}
