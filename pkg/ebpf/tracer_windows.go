@@ -84,7 +84,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	// starts running the body immediately instead waiting for the first tick
-	for range ticker.C  {
+	for range ticker.C {
 		stats, err := t.GetStats()
 		if err != nil {
 			continue
@@ -108,29 +108,23 @@ func openDriverFile(path string) (windows.Handle, error) {
 	if err != nil {
 		return windows.InvalidHandle, err
 	}
-	log.Debug("Creating Driver File...")
-	r, err := windows.CreateFile(p,
-		windows.GENERIC_READ | windows.GENERIC_WRITE,
-		windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE,
+	log.Debug("Creating Driver handle...")
+	h, err := windows.CreateFile(p,
+		windows.GENERIC_READ|windows.GENERIC_WRITE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
 		nil,
 		windows.OPEN_EXISTING,
 		windows.FILE_FLAG_OVERLAPPED,
 		windows.Handle(0))
-	log.Debug("Creating Driver Handle...")
-	h := windows.Handle(r)
-	if h == windows.InvalidHandle {
-		return h, err
+	if err != nil {
+		return windows.InvalidHandle, err
 	}
 	log.Info("Connected to driver and handle created")
 	return h, nil
 }
 
 func closeDriverFile(handle windows.Handle) error {
-	err := windows.CloseHandle(handle)
-	if err != nil {
-		return err
-	}
-	return nil
+	return windows.CloseHandle(handle)
 }
 
 func getIoCompletionPort(handleFile windows.Handle) (windows.Handle, error) {
@@ -172,10 +166,6 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	if t.driverHandle == windows.InvalidHandle {
-		return nil, fmt.Errorf("Problem with handle cannot get stats.")
-	}
-
 	var (
 		bytesReturned uint32
 		stats         C.struct_driver_stats
@@ -185,7 +175,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 
 	err := windows.DeviceIoControl(t.driverHandle, ioctlcd, nil, 0, &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
-		log.Errorf("Error reading Stats with DeviceIoControl: %v", err)
+		return nil, fmt.Errorf("Error reading Stats with DeviceIoControl: %v", err)
 	}
 
 	stats = *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
