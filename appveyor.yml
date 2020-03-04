@@ -40,9 +40,9 @@ install:
   - ps: '& 7z -o"c:\tmp\golangci-lint\" x c:\tmp\golangci-lint.zip'
   - move "c:\tmp\golangci-lint\golangci-lint-%GOLANGCI_LINT_VERSION%-windows-amd64\golangci-lint.exe" %GOROOT%\bin
 cache:
-  - '%GOPATH%\bin'
-  - '%LOCALAPPDATA%\pip\Cache'
-  - '%GOPATH%\src\github.com\DataDog\datadog-agent\vendor'
+  #- '%GOPATH%\bin'
+  #- '%LOCALAPPDATA%\pip\Cache'
+  #- '%GOPATH%\src\github.com\DataDog\datadog-agent\vendor'
 
 build: off
 
