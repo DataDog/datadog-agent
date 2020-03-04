@@ -16,29 +16,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 )
 
-// Provider is a Cgroup implementation of the ContainerImplementation interface
-type Provider struct {
+// provider is a Cgroup implementation of the ContainerImplementation interface
+type provider struct {
 	cgroups map[string]*ContainerCgroup
+}
+
+func init() {
+	providers.Register(&provider{})
 }
 
 // Prefetch gets data from all cgroups in one go
 // If not successful all other calls will fail
-func (mp *Provider) Prefetch() error {
+func (mp *provider) Prefetch() error {
 	var err error
 	mp.cgroups, err = scrapeAllCgroups()
 	return err
 }
 
 // ContainerExists returns true if a cgroup exists for this containerID
-func (mp *Provider) ContainerExists(containerID string) bool {
+func (mp *provider) ContainerExists(containerID string) bool {
 	_, err := mp.getCgroup(containerID)
 	return err == nil
 }
 
 // GetContainerStartTime returns container start time
-func (mp *Provider) GetContainerStartTime(containerID string) (int64, error) {
+func (mp *provider) GetContainerStartTime(containerID string) (int64, error) {
 	cg, err := mp.getCgroup(containerID)
 	if err != nil {
 		return 0, err
@@ -53,7 +58,7 @@ func (mp *Provider) GetContainerStartTime(containerID string) (int64, error) {
 }
 
 // GetContainerMetrics returns CPU, IO and Memory metrics
-func (mp *Provider) GetContainerMetrics(containerID string) (*metrics.ContainerMetrics, error) {
+func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerMetrics, error) {
 	cg, err := mp.getCgroup(containerID)
 	if err != nil {
 		return nil, err
@@ -97,7 +102,7 @@ func (mp *Provider) GetContainerMetrics(containerID string) (*metrics.ContainerM
 }
 
 // GetContainerLimits returns CPU, Thread and Memory limits
-func (mp *Provider) GetContainerLimits(containerID string) (*metrics.ContainerLimits, error) {
+func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLimits, error) {
 	cg, err := mp.getCgroup(containerID)
 	if err != nil {
 		return nil, err
@@ -121,7 +126,7 @@ func (mp *Provider) GetContainerLimits(containerID string) (*metrics.ContainerLi
 }
 
 // GetNetworkMetrics return network metrics for all PIDs in container
-func (mp *Provider) GetNetworkMetrics(containerID string, networks map[string]string) (metrics.ContainerNetStats, error) {
+func (mp *provider) GetNetworkMetrics(containerID string, networks map[string]string) (metrics.ContainerNetStats, error) {
 	cg, ok := mp.cgroups[containerID]
 	if !ok || cg == nil {
 		return nil, fmt.Errorf("Cgroup not found for container: %s", containerID[:12])
@@ -140,7 +145,7 @@ func (mp *Provider) GetNetworkMetrics(containerID string, networks map[string]st
 }
 
 // GetAgentCID returns the container ID where the current agent is running
-func (mp *Provider) GetAgentCID() (string, error) {
+func (mp *provider) GetAgentCID() (string, error) {
 	prefix := config.Datadog.GetString("container_cgroup_prefix")
 	cID, _, err := readCgroupsForPath("/proc/self/cgroup", prefix)
 	if err != nil {
@@ -155,7 +160,7 @@ func (mp *Provider) GetAgentCID() (string, error) {
 //
 // Matching is tested for docker on known cgroup variations, and
 // containerd / cri-o default Kubernetes cgroups
-func (mp *Provider) ContainerIDForPID(pid int) (string, error) {
+func (mp *provider) ContainerIDForPID(pid int) (string, error) {
 	cgPath := hostProc(strconv.Itoa(pid), "cgroup")
 	prefix := config.Datadog.GetString("container_cgroup_prefix")
 
@@ -166,23 +171,23 @@ func (mp *Provider) ContainerIDForPID(pid int) (string, error) {
 
 // DetectNetworkDestinations lists all the networks available
 // to a given PID and parses them in NetworkInterface objects
-func (mp *Provider) DetectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
+func (mp *provider) DetectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
 	return detectNetworkDestinations(pid)
 }
 
 // GetDefaultGateway returns the default gateway used by container implementation
-func (mp *Provider) GetDefaultGateway() (net.IP, error) {
+func (mp *provider) GetDefaultGateway() (net.IP, error) {
 	return defaultGateway()
 }
 
 // DefaultHostIPs returns the IP addresses bound to the default network interface.
 // The default network interface is the one connected to the network gateway, and it is determined
 // by parsing the routing table file in the proc file system.
-func (mp *Provider) GetDefaultHostIPs() ([]string, error) {
+func (mp *provider) GetDefaultHostIPs() ([]string, error) {
 	return defaultHostIPs()
 }
 
-func (mp *Provider) getCgroup(containerID string) (*ContainerCgroup, error) {
+func (mp *provider) getCgroup(containerID string) (*ContainerCgroup, error) {
 	cg, ok := mp.cgroups[containerID]
 	if !ok || cg == nil {
 		return nil, fmt.Errorf("Cgroup not found for container: %s", containerID[:12])

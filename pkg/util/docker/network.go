@@ -101,7 +101,7 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 		interfaces[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))
 	}
 
-	destinations, err := providers.ContainerImpl.DetectNetworkDestinations(pid)
+	destinations, err := providers.ContainerImpl().DetectNetworkDestinations(pid)
 	if err != nil {
 		log.Warnf("Cannot list interfaces for container id %s: %s, skipping", containerID, err)
 		return nil
@@ -144,7 +144,7 @@ func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
 // To get this info in an optimal way, consider calling util.GetAgentNetworkMode	func GetContainerNetworkMode(cid string) (string, error) {
 // instead to benefit from the cache
 func GetAgentContainerNetworkMode() (string, error) {
-	agentCID, _ := providers.ContainerImpl.GetAgentCID()
+	agentCID, _ := providers.ContainerImpl().GetAgentCID()
 	return GetContainerNetworkMode(agentCID)
 }
 

@@ -13,10 +13,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 )
 
 // Provider is a Windows implementation of the ContainerImplementation interface
-type Provider struct {
+type provider struct {
+}
+
+func init() {
+	providers.Register(&provider{})
 }
 
 // Prefetch gets data from all cgroups in one go

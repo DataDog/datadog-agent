@@ -44,7 +44,7 @@ func getDockerHostIPsUncached() []string {
 	providers := []hostIPProvider{
 		{"config", getHostIPsFromConfig},
 		{"ec2 metadata endpoint", ec2.GetLocalIPv4},
-		{"container provider", providers.ContainerImpl.GetDefaultHostIPs},
+		{"container provider", providers.ContainerImpl().GetDefaultHostIPs},
 	}
 
 	return tryProviders(providers)
