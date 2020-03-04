@@ -10,8 +10,6 @@ package common
 import (
 	"io/ioutil"
 
-	"github.com/google/uuid"
-
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,6 +45,17 @@ func GetMyNamespace() string {
 	return "default"
 }
 
+// GetKubernetesServiceUID returns the UID of the default/kubernetes service
+// from the cluster. We use it as the cluster ID so that even if the configmap is removed
+// the new one should get the same ID.
+func GetKubernetesServiceUID(coreClient corev1.CoreV1Interface) (string, error) {
+	svc, err := coreClient.Services("default").Get("kubernetes", metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return string(svc.UID), nil
+}
+
 // GetOrCreateClusterID generates a cluster ID and persists it to a ConfigMap.
 // It first checks if the CM exists, in which case it uses the ID it contains
 // It thus requires get, create, and update perms on configmaps in the cluster-agent's namespace
@@ -54,7 +63,7 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 	cacheClusterIDKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
 	x, found := cache.Cache.Get(cacheClusterIDKey)
 	if found {
-		return x.(string)
+		return x.(string), nil
 	}
 
 	myNS := GetMyNamespace()
@@ -66,7 +75,11 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 			return "", err
 		}
 		// the config map doesn't exist yet, generate a UUID and persist it
-		clusterID := uuid.New().String()
+		clusterID, err := GetKubernetesServiceUID(coreClient)
+		if err != nil {
+			log.Errorf("Failed getting the default/kubernetes service: %v", err)
+			return "", err
+		}
 		cm = &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      defaultClusterIDMap,
@@ -93,7 +106,11 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 	}
 
 	log.Warnf("Content of ConfigMap %s/%s doesn't look like a cluster ID, updating it", myNS, defaultClusterIDMap)
-	clusterID = uuid.New().String()
+	clusterID, err = GetKubernetesServiceUID(coreClient)
+	if err != nil {
+		log.Errorf("Failed getting the default/kubernetes service: %v", err)
+		return "", err
+	}
 	cm.Data["id"] = clusterID
 	_, err = coreClient.ConfigMaps(myNS).Update(cm)
 	if err != nil {
