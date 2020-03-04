@@ -118,6 +118,25 @@ func GetAuthTokenFilepath() string {
 // Requires that the config has been set up before calling
 func FetchAuthToken() (string, error) {
 	authTokenFile := GetAuthTokenFilepath()
+	// Read the token
+	authTokenRaw, e := ioutil.ReadFile(authTokenFile)
+	if e != nil {
+		return "", fmt.Errorf("unable to read authentication token file: " + e.Error())
+	}
+
+	// Do some basic validation
+	authToken := string(authTokenRaw)
+	if len(authToken) < authTokenMinimalLen {
+		return "", fmt.Errorf("invalid authentication token: must be at least %d characters in length", authTokenMinimalLen)
+	}
+
+	return authToken, nil
+}
+
+// CreateOrFetchToken gets the authentication token from the auth token file & creates one if it doesn't exist
+// Requires that the config has been set up before calling
+func CreateOrFetchToken() (string, error) {
+	authTokenFile := GetAuthTokenFilepath()
 
 	// Create a new token if it doesn't exist
 	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) {
@@ -134,20 +153,7 @@ func FetchAuthToken() (string, error) {
 		}
 		log.Infof("Saved a new authentication token to %s", authTokenFile)
 	}
-
-	// Read the token
-	authTokenRaw, e := ioutil.ReadFile(authTokenFile)
-	if e != nil {
-		return "", fmt.Errorf("unable to access authentication token file: " + e.Error())
-	}
-
-	// Do some basic validation
-	authToken := string(authTokenRaw)
-	if len(authToken) < authTokenMinimalLen {
-		return "", fmt.Errorf("invalid authentication token: must be at least %d characters in length", authTokenMinimalLen)
-	}
-
-	return authToken, nil
+	return FetchAuthToken()
 }
 
 // DeleteAuthToken removes auth_token file (test clean up)
