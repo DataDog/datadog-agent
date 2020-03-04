@@ -20,7 +20,7 @@ import (
 // GetAgentContainerUTSMode provides the UTS mode of the Agent container
 // To get this info in an optimal way, consider calling util.GetAgentUTSMode instead to benefit from the cache
 func GetAgentContainerUTSMode() (containers.UTSMode, error) {
-	agentCID, _ := providers.ContainerImpl.GetAgentCID()
+	agentCID, _ := providers.ContainerImpl().GetAgentCID()
 	return GetContainerUTSMode(agentCID)
 }
 

@@ -251,7 +251,7 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 
 // InspectSelf returns the inspect content of the container the current agent is running in
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	cID, err := providers.ContainerImpl.GetAgentCID()
+	cID, err := providers.ContainerImpl().GetAgentCID()
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}

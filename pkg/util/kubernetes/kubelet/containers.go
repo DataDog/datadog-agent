@@ -25,7 +25,7 @@ func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 		return nil, fmt.Errorf("could not get pod list: %s", err)
 	}
 
-	err = providers.ContainerImpl.Prefetch()
+	err = providers.ContainerImpl().Prefetch()
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch container metrics: %s", err)
 	}
@@ -46,8 +46,8 @@ func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 				// Skip nil containers
 				continue
 			}
-			if !providers.ContainerImpl.ContainerExists(container.ID) {
-				log.Debugf("No ContainerImplementation found for container %s in pod %s, skipping", container.ID, pod.Metadata.Name)
+			if !providers.ContainerImpl().ContainerExists(container.ID) {
+				log.Debugf("No ContainerImpl()ementation found for container %s in pod %s, skipping", container.ID, pod.Metadata.Name)
 				continue
 			}
 			ctrList = append(ctrList, container)
@@ -69,34 +69,34 @@ func (ku *KubeUtil) UpdateContainerMetrics(ctrList []*containers.Container) erro
 	return nil
 }
 
-// getContainerMetrics calls a ContainerImplementation, caller should always call Prefetch() before
+// getContainerMetrics calls a ContainerImpl()ementation, caller should always call Prefetch() before
 func (ku *KubeUtil) getContainerDetails(ctn *containers.Container) {
 	var err error
-	ctn.StartedAt, err = providers.ContainerImpl.GetContainerStartTime(ctn.ID)
+	ctn.StartedAt, err = providers.ContainerImpl().GetContainerStartTime(ctn.ID)
 	if err != nil {
-		log.Debugf("ContainerImplementation cannot get StartTime for container %s, err: %s", ctn.ID[:12], err)
+		log.Debugf("ContainerImpl()ementation cannot get StartTime for container %s, err: %s", ctn.ID[:12], err)
 		return
 	}
 
 	var limits *metrics.ContainerLimits
-	limits, err = providers.ContainerImpl.GetContainerLimits(ctn.ID)
+	limits, err = providers.ContainerImpl().GetContainerLimits(ctn.ID)
 	if err != nil {
-		log.Debugf("ContainerImplementation cannot get limits for container %s, err: %s", ctn.ID[:12], err)
+		log.Debugf("ContainerImpl()ementation cannot get limits for container %s, err: %s", ctn.ID[:12], err)
 		return
 	}
 	ctn.SetLimits(limits)
 }
 
-// getContainerMetrics calls a ContainerImplementation, calling function should always call Prefetch() before
+// getContainerMetrics calls a ContainerImpl()ementation, calling function should always call Prefetch() before
 func (ku *KubeUtil) getContainerMetrics(ctn *containers.Container) {
-	metrics, err := providers.ContainerImpl.GetContainerMetrics(ctn.ID)
+	metrics, err := providers.ContainerImpl().GetContainerMetrics(ctn.ID)
 	if err != nil {
 		log.Debugf("MetricsProvider cannot get metrics for container %s, err: %s", ctn.ID[:12], err)
 		return
 	}
 	ctn.SetMetrics(metrics)
 
-	networkMetrics, err := providers.ContainerImpl.GetNetworkMetrics(ctn.ID, nil)
+	networkMetrics, err := providers.ContainerImpl().GetNetworkMetrics(ctn.ID, nil)
 	if err != nil {
 		log.Debugf("Cannot get network stats for container %s: %s", ctn.ID, err)
 		return
