@@ -75,8 +75,13 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	var syslog bool
 	var useTLS bool
 
-	if _, found := seelog.LogLevelFromString(logLevel); !found {
-		return fmt.Errorf("unknown log level: %s", logLevel)
+	seelogLogLevel := strings.ToLower(logLevel)
+	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
+		seelogLogLevel = "warn"
+	}
+
+	if _, found := seelog.LogLevelFromString(seelogLogLevel); !found {
+		return fmt.Errorf("unknown log level: %s", seelogLogLevel)
 	}
 
 	if syslogURI != "" { // non-blank uri enables syslog
@@ -94,11 +99,6 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 				InsecureSkipVerify: Datadog.GetBool("syslog_tls_verify"),
 			}
 		}
-	}
-
-	seelogLogLevel := strings.ToLower(logLevel)
-	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
-		seelogLogLevel = "warn"
 	}
 
 	formatID := "common"
