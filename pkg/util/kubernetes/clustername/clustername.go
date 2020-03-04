@@ -21,7 +21,8 @@ import (
 )
 
 const (
-	clusterIDCacheKey = "clusterID"
+	// ClusterIDCacheKey is the key name for the cluster id in the agent in-mem cache
+	ClusterIDCacheKey = "clusterID"
 	clusterIDFilePath = "/etc/datadog-agent/kube_cluster/id"
 )
 
@@ -126,10 +127,11 @@ func ResetClusterName() {
 	resetClusterName(defaultClusterNameData)
 }
 
-// GetClusterID looks for a fixed path where the file containing the clusterID should be
-// this file should come from a configmap, written by the cluster-agent
+// GetClusterID looks for a fixed path where the file containing the clusterID should be.
+// This file should come from a configmap, written by the cluster-agent.
+// This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
 func GetClusterID() (string, error) {
-	cacheClusterIDKey := cache.BuildAgentKey(clusterIDCacheKey)
+	cacheClusterIDKey := cache.BuildAgentKey(ClusterIDCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
 		return cachedClusterID.(string), nil
 	}
@@ -144,7 +146,9 @@ func GetClusterID() (string, error) {
 }
 
 func readClusterIDFile(path string) (string, error) {
-	buf := make([]byte, 36)
+	// one byte too large, so we can check that we've read all of the file and its len==36
+	// (and not that we stopped reading at pos 36 because the buffer is too small)
+	buf := make([]byte, 37)
 	f, err := os.Open(path)
 	if err != nil {
 		return "", err
@@ -153,9 +157,9 @@ func readClusterIDFile(path string) (string, error) {
 	count, err := f.Read(buf)
 	if err != nil {
 		return "", err
-	} else if count < 36 {
+	} else if count != 36 {
 		return "", fmt.Errorf("content from %s doesn't look like a UUID, ignoring it", path)
 	}
 
-	return string(buf), nil
+	return string(buf[:36]), nil
 }

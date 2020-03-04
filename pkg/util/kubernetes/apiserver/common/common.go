@@ -60,7 +60,7 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 		}
 		// the config map doesn't exist yet, generate a UUID and persist it
 		clusterID := uuid.New().String()
-		cm := &v1.ConfigMap{
+		cm = &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      defaultClusterIDMap,
 				Namespace: myNS,

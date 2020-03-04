@@ -54,7 +54,7 @@ func TestGetClusterName(t *testing.T) {
 }
 
 func TestReadClusterIDFile(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "cluster-id")
+	tmpFile, _ := ioutil.TempFile("", "cluster-id")
 
 	// missing file
 	cid, err := readClusterIDFile("/tmp/cluster-id-missing-file")
@@ -62,19 +62,19 @@ func TestReadClusterIDFile(t *testing.T) {
 	assert.NotNil(t, err)
 
 	tooShortCID := "foo"
-	_, err = tmpFile.WriteString(tooShortCID)
+	tmpFile.WriteString(tooShortCID)
 	cid, err = readClusterIDFile(tmpFile.Name())
 	assert.Empty(t, cid)
 	assert.NotNil(t, err)
 
 	validCID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
-	_, err = tmpFile.WriteString(validCID)
+	tmpFile.WriteAt([]byte(validCID), 0)
 	cid, err = readClusterIDFile(tmpFile.Name())
 	assert.Equal(t, validCID, cid)
 	assert.Nil(t, err)
 
-	tooLongCID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
-	_, err = tmpFile.WriteString(tooLongCID)
+	tooLongCID := "d801b2b1-4811-11ea-8618-121d4d0938a44444444"
+	tmpFile.WriteAt([]byte(tooLongCID), 0)
 	cid, err = readClusterIDFile(tmpFile.Name())
 	assert.Empty(t, cid)
 	assert.NotNil(t, err)

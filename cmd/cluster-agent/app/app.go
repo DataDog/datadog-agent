@@ -38,8 +38,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -268,8 +269,8 @@ func start(cmd *cobra.Command, args []string) error {
 	// this must be a UUID, and ideally be stable for the lifetime of a cluster
 	// so we store it in a configmap that we try and read before generating a new one.
 	cacheClusterIDKey := cache.BuildAgentKey(clustername.ClusterIDCacheKey)
-	coreClient := apiCl.Cl.CoreV1.(*corev1.CoreV1Client)
-	clusterID, err := common.GetOrCreateClusterID(coreClient)
+	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+	clusterID, err := apicommon.GetOrCreateClusterID(coreClient)
 	if err != nil {
 		log.Errorf("Failed to generate or retrieve the cluster ID")
 	} else {
