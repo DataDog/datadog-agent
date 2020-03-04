@@ -3,7 +3,7 @@
 package ebpf
 
 /*
-// https://github.com/DataDog/datadog-windows-filter/blob/master/include/ddfilterapi.h#L29
+//! https://github.com/DataDog/datadog-windows-filter/blob/master/include/ddfilterapi.h#L29
 typedef struct _stats
 {
     long Read_calls;		//! number of read calls to the driver
