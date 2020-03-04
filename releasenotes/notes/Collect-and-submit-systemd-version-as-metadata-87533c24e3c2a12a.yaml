@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    The systemd core check now collects and submit the systemd version as check metadata.
+    The systemd core check now collects and submits the systemd version as check metadata.
