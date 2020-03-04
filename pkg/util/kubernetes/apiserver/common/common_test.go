@@ -24,20 +24,12 @@ func TestGetOrCreateClusterID(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
 			UID:             "226430c6-5e57-11ea-91d5-42010a8400c6",
-			Annotations: map[string]string{
-				"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
-				"ad.datadoghq.com/service.init_configs": "[{}]",
-				"ad.datadoghq.com/service.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
-			},
-			Name:      "kubernetes",
-			Namespace: "default",
+			Name:            "kubernetes",
+			Namespace:       "default",
 		},
 		Spec: corev1.ServiceSpec{
 			ClusterIP: "10.0.0.1",
-			Ports: []corev1.ServicePort{
-				{Name: "test1", Port: 123},
-				{Name: "test2", Port: 126},
-			},
+			Ports:     []corev1.ServicePort{},
 		},
 	}
 	client.Services("default").Create(&kSvc)
