@@ -127,14 +127,6 @@ func closeDriverFile(handle windows.Handle) error {
 	return windows.CloseHandle(handle)
 }
 
-func getIoCompletionPort(handleFile windows.Handle) (windows.Handle, error) {
-	iocpHandle, err := windows.CreateIoCompletionPort(handleFile, 0, 0, 0)
-	if err != nil {
-		return windows.Handle(0), err
-	}
-	return iocpHandle, nil
-}
-
 // Creates the IOCTLCode to be passed for DeviceIoControl syscall
 func ctl_code(device_type, function, method, access uint32) uint32 {
 	return (device_type << 16) | (access << 14) | (function << 2) | method
