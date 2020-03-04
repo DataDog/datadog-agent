@@ -11,32 +11,33 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types"
 	"net"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/Microsoft/hcsshim"
 )
-
-// Provider is a Windows implementation of the ContainerImplementation interface
-type Provider struct {
-	apiWrapper containers.DockerApiWrapper
-	containers map[string]containerBundle
-}
 
 type containerBundle struct {
 	container  types.Container
 	statsCache *types.StatsJSON
 }
 
-func (mp *Provider) Init(wrapper containers.DockerApiWrapper) {
-	mp.apiWrapper = wrapper
+// Provider is a Windows implementation of the ContainerImplementation interface
+type provider struct {
+	containers map[string]containerBundle
+}
+
+func init() {
+	providers.Register(&provider{})
 }
 
 // Prefetch gets data from all cgroups in one go
