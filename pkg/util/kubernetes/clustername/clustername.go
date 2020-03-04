@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	clusterIDFilePath = "/etc/datadog-agent/kube_cluster/id"
+	clusterIDEnv = "DD_KUBERNETES_CLUSTER_ID"
 )
 
 var (
@@ -125,8 +125,8 @@ func ResetClusterName() {
 	resetClusterName(defaultClusterNameData)
 }
 
-// GetClusterID looks for a fixed path where the file containing the clusterID should be.
-// This file should come from a configmap, written by the cluster-agent.
+// GetClusterID looks for an env variable which should contain the cluster ID.
+// This varible should come from a configmap, created by the cluster-agent.
 // This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
 func GetClusterID() (string, error) {
 	cacheClusterIDKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
@@ -134,30 +134,15 @@ func GetClusterID() (string, error) {
 		return cachedClusterID.(string), nil
 	}
 
-	clusterID, err := readClusterIDFile(clusterIDFilePath)
-	if err != nil {
+	clusterID, found := os.LookupEnv(clusterIDEnv)
+	if !found {
+		err := fmt.Errorf("Cluster ID env variable %s is missing, kubernetes cluster cannot be identified", clusterIDEnv)
+		return "", err
+	} else if len(clusterID) != 36 {
+		err := fmt.Errorf("Unexpected value %s for env variable %s, ignoring it", clusterID, clusterIDEnv)
 		return "", err
 	}
 
 	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 	return clusterID, nil
-}
-
-func readClusterIDFile(path string) (string, error) {
-	// one byte too large, so we can check that we've read all of the file and its len==36
-	// (and not that we stopped reading at pos 36 because the buffer is too small)
-	buf := make([]byte, 37)
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-
-	count, err := f.Read(buf)
-	if err != nil {
-		return "", err
-	} else if count != 36 {
-		return "", fmt.Errorf("content from %s doesn't look like a UUID, ignoring it", path)
-	}
-
-	return string(buf[:36]), nil
 }
