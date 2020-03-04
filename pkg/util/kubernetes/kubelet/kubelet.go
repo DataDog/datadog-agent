@@ -488,7 +488,7 @@ func (ku *KubeUtil) GetRawMetrics() ([]byte, error) {
 
 // IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
 func (ku *KubeUtil) IsAgentHostNetwork() (bool, error) {
-	cid, err := providers.ContainerImpl.GetAgentCID()
+	cid, err := providers.ContainerImpl().GetAgentCID()
 	if err != nil {
 		return false, err
 	}

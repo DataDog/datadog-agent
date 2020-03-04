@@ -41,7 +41,7 @@ func detectAgentV1URL() (string, error) {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
-		gw, err := providers.ContainerImpl.GetDefaultGateway()
+		gw, err := providers.ContainerImpl().GetDefaultGateway()
 		if err != nil {
 			log.Debugf("Could not get docker default gateway: %s", err)
 		}

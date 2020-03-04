@@ -11,22 +11,24 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/docker/docker/api/types"
 	"net"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/Microsoft/hcsshim"
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/Microsoft/hcsshim"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Provider is a Windows implementation of the ContainerImplementation interface
-type Provider struct {
-	apiWrapper containers.DockerApiWrapper
+// provider is a Windows implementation of the ContainerImplementation interface
+type provider struct {
 	containers map[string]containerBundle
 }
 
@@ -35,14 +37,19 @@ type containerBundle struct {
 	statsCache *types.StatsJSON
 }
 
-func (mp *Provider) Init(wrapper containers.DockerApiWrapper) {
-	mp.apiWrapper = wrapper
+func init() {
+	providers.Register(&provider{})
 }
 
 // Prefetch gets data from all cgroups in one go
 // If not successful all other calls will fail
-func (mp *Provider) Prefetch() error {
-	rawContainers, err := mp.apiWrapper.RawContainerList(types.ContainerListOptions{
+func (mp *provider) Prefetch() error {
+	dockerUtil, err := docker.GetDockerUtil()
+	if err == nil {
+		return err
+	}
+
+	rawContainers, err := dockerUtil.RawContainerList(types.ContainerListOptions{
 		All: true,
 	})
 	if err != nil {
@@ -58,19 +65,24 @@ func (mp *Provider) Prefetch() error {
 }
 
 // ContainerExists returns true if a cgroup exists for this containerID
-func (mp *Provider) ContainerExists(containerID string) bool {
+func (mp *provider) ContainerExists(containerID string) bool {
 	_, exists := mp.containers[containerID]
 	return exists
 }
 
 // GetContainerStartTime returns container start time
-func (mp *Provider) GetContainerStartTime(containerID string) (int64, error) {
+func (mp *provider) GetContainerStartTime(containerID string) (int64, error) {
+	dockerUtil, err := docker.GetDockerUtil()
+	if err == nil {
+		return 0, err
+	}
+
 	_, exists := mp.containers[containerID]
 	if !exists {
 		return 0, fmt.Errorf("container not found")
 	}
 
-	cjson, err := mp.apiWrapper.Inspect(containerID, false)
+	cjson, err := dockerUtil.Inspect(containerID, false)
 	if err != nil {
 		return 0, err
 	}
@@ -83,13 +95,19 @@ func (mp *Provider) GetContainerStartTime(containerID string) (int64, error) {
 	return t.Unix(), nil
 }
 
-func (mp *Provider) getContainerStats(containerID string) (*types.StatsJSON, error) {
+func (mp *provider) getContainerStats(containerID string) (*types.StatsJSON, error) {
+	dockerUtil, err := docker.GetDockerUtil()
+	if err == nil {
+		return nil, err
+	}
+
 	containerBundle, exists := mp.containers[containerID]
 	if !exists {
 		return nil, fmt.Errorf("container not found")
 	}
+
 	if containerBundle.statsCache == nil {
-		stats, err := mp.apiWrapper.GetContainerStats(containerID)
+		stats, err := dockerUtil.GetContainerStats(containerID)
 		if err != nil {
 			return nil, err
 		}
@@ -99,7 +117,7 @@ func (mp *Provider) getContainerStats(containerID string) (*types.StatsJSON, err
 }
 
 // GetContainerMetrics returns CPU, IO and Memory metrics
-func (mp *Provider) GetContainerMetrics(containerID string) (*metrics.ContainerMetrics, error) {
+func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerMetrics, error) {
 	stats, err := mp.getContainerStats(containerID)
 	if err != nil {
 		return nil, err
@@ -124,13 +142,13 @@ func (mp *Provider) GetContainerMetrics(containerID string) (*metrics.ContainerM
 }
 
 // GetContainerLimits returns CPU, Thread and Memory limits
-func (mp *Provider) GetContainerLimits(containerID string) (*metrics.ContainerLimits, error) {
+func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLimits, error) {
 	// FIXME: Figure out a way to extract limits from Job Objects in the Windows Kernel
 	return nil, fmt.Errorf("not supported on windows")
 }
 
 // GetNetworkMetrics return network metrics for all PIDs in container
-func (mp *Provider) GetNetworkMetrics(containerID string, networks map[string]string) (metrics.ContainerNetStats, error) {
+func (mp *provider) GetNetworkMetrics(containerID string, networks map[string]string) (metrics.ContainerNetStats, error) {
 	stats, err := mp.getContainerStats(containerID)
 	if err != nil {
 		return nil, err
@@ -153,13 +171,18 @@ func (mp *Provider) GetNetworkMetrics(containerID string, networks map[string]st
 }
 
 // GetAgentCID returns the container ID where the current agent is running
-func (mp *Provider) GetAgentCID() (string, error) {
+func (mp *provider) GetAgentCID() (string, error) {
+	dockerUtil, err := docker.GetDockerUtil()
+	if err == nil {
+		return nil, err
+	}
+
 	_, err := hcsshim.GetContainers(hcsshim.ComputeSystemQuery{})
 	if err == nil {
 		// If we can't get access to the HCS system, that means we're probably inside a container
 		// or that the host OS doesn't support containers. Let's check the entry point.
 		for _, containerBundle := range mp.containers {
-			cjson, err := mp.apiWrapper.Inspect(containerBundle.container.ID, false)
+			cjson, err := dockerUtil.Inspect(containerBundle.container.ID, false)
 			if err != nil {
 				_ = log.Warnf("Could not inspect %s: %s", containerBundle.container.ID, err)
 			} else {
@@ -174,20 +197,20 @@ func (mp *Provider) GetAgentCID() (string, error) {
 }
 
 // ContainerIDForPID return ContainerID for a given pid
-func (mp *Provider) ContainerIDForPID(pid int) (string, error) {
+func (mp *provider) ContainerIDForPID(pid int) (string, error) {
 	// FIXME: Figure out how to list PIDs from containers on Windows
 	return "", fmt.Errorf("not supported on windows")
 }
 
 // DetectNetworkDestinations lists all the networks available
 // to a given PID and parses them in NetworkInterface objects
-func (mp *Provider) DetectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
+func (mp *provider) DetectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
 	// FIXME: TODO
 	return nil, fmt.Errorf("not yet implemented")
 }
 
 // GetDefaultGateway returns the default gateway used by container implementation
-func (mp *Provider) GetDefaultGateway() (net.IP, error) {
+func (mp *provider) GetDefaultGateway() (net.IP, error) {
 	fields, err := defaultGatewayFields()
 	if err != nil {
 		return nil, err
@@ -197,7 +220,7 @@ func (mp *Provider) GetDefaultGateway() (net.IP, error) {
 
 // DefaultHostIPs returns the IP addresses bound to the default network interface.
 // The default network interface is the one connected to the network gateway.
-func (mp *Provider) GetDefaultHostIPs() ([]string, error) {
+func (mp *provider) GetDefaultHostIPs() ([]string, error) {
 	fields, err := defaultGatewayFields()
 	if err != nil {
 		return nil, err
