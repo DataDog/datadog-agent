@@ -177,36 +177,25 @@ func ResolveSourcesWithState(newSources, stateSources HostnameMap) (HostnameMap,
 		}
 
 		h := newH
-		if stage.reliable {
-			if newOk {
-				if newH != stateH {
-					stateChange = true
-				}
-			} else {
-				if stateOk {
-					stateChange = true
-					log.Warnf("Reliable source %s no longer configured", stage.provider)
-				}
+
+		if newOk {
+			if newH != stateH {
+				stateChange = true
+			}
+		} else {
+			if stage.reliable {
+				stateChange = true
+				log.Warnf("Reliable source %s no longer configured", stage.provider)
 
 				// reliable source did not resolve thus it does not apply
 				continue
-			}
-		} else {
-			if newOk {
-				if newH != stateH {
-					stateChange = true
-				}
 			} else {
-				if stateOk {
-					// here we should always use stored state - an unreliable source failed
-					h = stateH
-					log.Info("an unreliable source %s did not resolve a hostname as expected, using stored state: %s",
-						stage.provider, stateH)
-				} else {
-					// resolution stage did not resolve as expected
-					continue
-				}
+				// here we should always use stored state - an unreliable source failed
+				h = stateH
+				log.Info("an unreliable source %s did not resolve a hostname as expected, using stored state: %s",
+					stage.provider, stateH)
 			}
+
 		}
 
 		resolvedSources[stage.provider] = h
@@ -403,7 +392,6 @@ func GetLiveHostnameSources() (HostnameMap, error) {
 			ec2Hostname, err := getValidEC2Hostname(getEC2Hostname)
 
 			if err == nil {
-				provider = "aws"
 				hostnames["aws"] = ec2Hostname
 			} else {
 				expErr := new(expvar.String)
