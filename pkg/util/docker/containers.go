@@ -135,29 +135,29 @@ func (d *DockerUtil) UpdateContainerMetrics(cList []*containers.Container) error
 	return nil
 }
 
-// getContainerMetrics calls a ContainerImpl()ementation, caller should always call Prefetch() before
+// getContainerMetrics calls a ContainerImplementation, caller should always call Prefetch() before
 func (d *DockerUtil) getContainerDetails(ctn *containers.Container) {
 	var err error
 	ctn.StartedAt, err = providers.ContainerImpl().GetContainerStartTime(ctn.ID)
 	if err != nil {
-		log.Debugf("ContainerImpl()ementation cannot get StartTime for container %s, err: %s", ctn.ID[:12], err)
+		log.Debugf("ContainerImplementation cannot get StartTime for container %s, err: %s", ctn.ID[:12], err)
 		return
 	}
 
 	var limits *metrics.ContainerLimits
 	limits, err = providers.ContainerImpl().GetContainerLimits(ctn.ID)
 	if err != nil {
-		log.Debugf("ContainerImpl()ementation cannot get limits for container %s, err: %s", ctn.ID[:12], err)
+		log.Debugf("ContainerImplementation cannot get limits for container %s, err: %s", ctn.ID[:12], err)
 		return
 	}
 	ctn.SetLimits(limits)
 }
 
-// getContainerMetrics calls a ContainerImpl()ementation, caller should always call Prefetch() before
+// getContainerMetrics calls a ContainerImplementation, caller should always call Prefetch() before
 func (d *DockerUtil) getContainerMetrics(ctn *containers.Container) {
 	metrics, err := providers.ContainerImpl().GetContainerMetrics(ctn.ID)
 	if err != nil {
-		log.Debugf("ContainerImpl()ementation cannot get metrics for container %s, err: %s", ctn.ID[:12], err)
+		log.Debugf("ContainerImplementation cannot get metrics for container %s, err: %s", ctn.ID[:12], err)
 		return
 	}
 	ctn.SetMetrics(metrics)

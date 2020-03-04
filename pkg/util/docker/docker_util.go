@@ -79,8 +79,6 @@ func (d *DockerUtil) init() error {
 	d.lastInvalidate = time.Now()
 	d.eventState = newEventStreamState()
 
-	providers.ContainerImpl.Init(d)
-
 	return nil
 }
 
