@@ -45,7 +45,7 @@ func init() {
 // If not successful all other calls will fail
 func (mp *provider) Prefetch() error {
 	dockerUtil, err := docker.GetDockerUtil()
-	if err == nil {
+	if err != nil {
 		return err
 	}
 
@@ -73,7 +73,7 @@ func (mp *provider) ContainerExists(containerID string) bool {
 // GetContainerStartTime returns container start time
 func (mp *provider) GetContainerStartTime(containerID string) (int64, error) {
 	dockerUtil, err := docker.GetDockerUtil()
-	if err == nil {
+	if err != nil {
 		return 0, err
 	}
 
@@ -97,7 +97,7 @@ func (mp *provider) GetContainerStartTime(containerID string) (int64, error) {
 
 func (mp *provider) getContainerStats(containerID string) (*types.StatsJSON, error) {
 	dockerUtil, err := docker.GetDockerUtil()
-	if err == nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -173,11 +173,11 @@ func (mp *provider) GetNetworkMetrics(containerID string, networks map[string]st
 // GetAgentCID returns the container ID where the current agent is running
 func (mp *provider) GetAgentCID() (string, error) {
 	dockerUtil, err := docker.GetDockerUtil()
-	if err == nil {
-		return nil, err
+	if err != nil {
+		return "", err
 	}
 
-	_, err := hcsshim.GetContainers(hcsshim.ComputeSystemQuery{})
+	_, err = hcsshim.GetContainers(hcsshim.ComputeSystemQuery{})
 	if err == nil {
 		// If we can't get access to the HCS system, that means we're probably inside a container
 		// or that the host OS doesn't support containers. Let's check the entry point.

@@ -25,7 +25,7 @@ func ContainerImpl() containers.ContainerImplementation {
 
 // Register allows to set a ContainerImplementation
 func Register(impl containers.ContainerImplementation) {
-	if containerImpl != nil {
+	if containerImpl == nil {
 		containerImpl = impl
 	} else {
 		log.Critical("Trying to set multiple ContainerImplementation")
