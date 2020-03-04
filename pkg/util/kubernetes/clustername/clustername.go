@@ -21,8 +21,6 @@ import (
 )
 
 const (
-	// ClusterIDCacheKey is the key name for the cluster id in the agent in-mem cache
-	ClusterIDCacheKey = "clusterID"
 	clusterIDFilePath = "/etc/datadog-agent/kube_cluster/id"
 )
 
@@ -131,7 +129,7 @@ func ResetClusterName() {
 // This file should come from a configmap, written by the cluster-agent.
 // This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
 func GetClusterID() (string, error) {
-	cacheClusterIDKey := cache.BuildAgentKey(ClusterIDCacheKey)
+	cacheClusterIDKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
 		return cachedClusterID.(string), nil
 	}

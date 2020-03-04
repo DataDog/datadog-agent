@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,6 +51,12 @@ func GetMyNamespace() string {
 // It first checks if the CM exists, in which case it uses the ID it contains
 // It thus requires get, create, and update perms on configmaps in the cluster-agent's namespace
 func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
+	cacheClusterIDKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
+	x, found := cache.Cache.Get(cacheClusterIDKey)
+	if found {
+		return x.(string)
+	}
+
 	myNS := GetMyNamespace()
 
 	cm, err := coreClient.ConfigMaps(myNS).Get(defaultClusterIDMap, metav1.GetOptions{})
@@ -74,12 +81,14 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 			log.Errorf("Cannot create ConfigMap %s/%s: %s", myNS, defaultClusterIDMap, err)
 			return "", err
 		}
+		cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 		return clusterID, nil
 	}
 
 	// config map exists, use its content or update it if the content doesn't look right
 	clusterID, found := cm.Data["id"]
 	if found && len([]byte(clusterID)) == 36 {
+		cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 		return clusterID, nil
 	}
 
@@ -91,5 +100,6 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 		log.Errorf("Failed to update ConfigMap %s/%s with correct cluster ID: %s", myNS, defaultClusterIDMap, err)
 		return "", err
 	}
+	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 	return clusterID, nil
 }
