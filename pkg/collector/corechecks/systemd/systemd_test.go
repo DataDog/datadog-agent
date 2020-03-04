@@ -122,11 +122,11 @@ unit_names:
 substate_status_mapping:
   foo:
     running: ok
-    exited: invalid_name
+    exited: Critical
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
-	expectedErrorMsg := "Status 'invalid_name' for unit 'foo' in 'substate_status_mapping' is invalid. It should be one of 'ok, warning, critical, unknown'"
+	expectedErrorMsg := "Status 'Critical' for unit 'foo' in 'substate_status_mapping' is invalid. It should be one of 'ok, warning, critical, unknown'"
 	assert.EqualError(t, err, expectedErrorMsg)
 }
 
@@ -720,15 +720,18 @@ substate_status_mapping:
 	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, metrics.ServiceCheckOK, "", []string(nil), mock.Anything)
 
 	tags := []string{"unit:unit1.service"}
-	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckOK, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckUnknown, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitSubStateServiceCheck, metrics.ServiceCheckOK, "", tags, "")
 
 	tags = []string{"unit:unit2.service"}
-	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckCritical, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckUnknown, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitSubStateServiceCheck, metrics.ServiceCheckCritical, "", tags, "")
 
 	tags = []string{"unit:unit3.service"}
-	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckCritical, "", tags, "")
+	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, metrics.ServiceCheckUnknown, "", tags, "")
+	mockSender.AssertNotCalled(t, "ServiceCheck", unitSubStateServiceCheck, metrics.ServiceCheckCritical, "", tags, "")
 
-	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 4)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 6)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
 

@@ -34,9 +34,10 @@ const (
 	typeService = "service"
 	typeSocket  = "socket"
 
-	canConnectServiceCheck  = "systemd.can_connect"
-	systemStateServiceCheck = "systemd.system.state"
-	unitStateServiceCheck   = "systemd.unit.state"
+	canConnectServiceCheck   = "systemd.can_connect"
+	systemStateServiceCheck  = "systemd.system.state"
+	unitStateServiceCheck    = "systemd.unit.state"
+	unitSubStateServiceCheck = "systemd.unit.substate"
 )
 
 var dbusTypeMap = map[string]string{
@@ -307,14 +308,13 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 		monitoredCount++
 		tags := []string{"unit:" + unit.Name}
 
-		state := unit.SubState
-		mapping, ok := c.config.instance.SubstateStatusMapping[unit.Name]
-		if !ok {
-			// User did not provide a custom mapping for this unit
-			state = unit.ActiveState
-			mapping = serviceCheckStateMapping
+		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState, serviceCheckStateMapping), "", tags, "")
+
+		subStateMapping, ok := c.config.instance.SubstateStatusMapping[unit.Name]
+		if ok {
+			// User provided a custom mapping for this unit. Submit the systemd.unit.substate service check based on that
+			sender.ServiceCheck(unitSubStateServiceCheck, getServiceCheckStatus(unit.SubState, subStateMapping), "", tags, "")
 		}
-		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(state, mapping), "", tags, "")
 
 		c.submitBasicUnitMetrics(sender, conn, unit, tags)
 		c.submitPropertyMetricsAsGauge(sender, conn, unit, tags)
