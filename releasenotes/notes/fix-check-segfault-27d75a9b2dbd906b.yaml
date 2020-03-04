@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix 'check' command segfault when running for more than 1 hour (which could
-    happen when using the '-b' option to set breakpoint).

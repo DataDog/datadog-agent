@@ -54,6 +54,9 @@ var (
 	profileMemoryVerbose string
 )
 
+// Make the check cmd aggregator never flush by setting a very high interval
+const checkCmdFlushInterval = time.Hour
+
 func init() {
 	AgentCmd.AddCommand(checkCmd)
 
@@ -125,8 +128,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		s := serializer.NewSerializer(common.Forwarder)
-		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, nil, hostname, "agent", 0)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, nil, hostname, "agent", checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 		if config.Datadog.GetBool("inventories_enabled") {
