@@ -74,6 +74,7 @@ variables:
   DATADOG_AGENT_BUILDERS: v2235609-1baad87
   DATADOG_AGENT_WINBUILDIMAGES: v2123666-a884483
   DATADOG_AGENT_ARMBUILDIMAGES: v2195996-580f7f3
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2233068-8d1298b
   BCC_VERSION: v0.12.0
 
 
@@ -569,11 +570,6 @@ run_dogstatsd_arm_size_test:
 
 .system-probe_build_common:
   before_script:
-    # HACK: install gimme so we can build with go 1.10.1
-    - apt-get install -y wget
-    - wget -O /bin/gimme https://raw.githubusercontent.com/travis-ci/gimme/master/gimme
-    - chmod +x /bin/gimme
-
     # Hack to work around the cloning issue with arm runners
     - mkdir -p $GOPATH/src/github.com/DataDog
     - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
@@ -590,7 +586,7 @@ run_dogstatsd_arm_size_test:
 
 build_system-probe-x64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["fail_on_non_triggered_tag", "build_libbcc_x64", "run_tests_deb-x64-py3"]
   tags: [ "runner:main", "size:large" ]
   extends: .system-probe_build_common
@@ -599,7 +595,7 @@ build_system-probe-x64:
 
 build_system-probe-arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["fail_on_non_triggered_tag", "build_libbcc_arm64", "run_dep_check_lock"]
   tags: ["runner:docker-arm", "platform:arm64"]
   extends: .system-probe_build_common
