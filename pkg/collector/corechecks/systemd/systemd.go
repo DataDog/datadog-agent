@@ -281,7 +281,7 @@ func (c *SystemdCheck) getSystemBusSocketConnection() (*dbus.Conn, error) {
 func (c *SystemdCheck) submitVersion(conn *dbus.Conn) {
 	version, err := c.stats.GetVersion(conn)
 	if err != nil {
-		log.Debugf("Error collection version from the systemd: %v", err)
+		log.Debugf("Error collecting version from the systemd: %v", err)
 		return
 	}
 	checkID := string(c.ID())
