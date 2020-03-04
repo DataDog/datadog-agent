@@ -285,8 +285,8 @@ func (c *SystemdCheck) submitVersion(conn *dbus.Conn) {
 		return
 	}
 	checkID := string(c.ID())
+	log.Debugf("Submit version %v for checkID %v", version, checkID)
 	inventories.SetCheckMetadata(checkID, "version.raw", version)
-	log.Debugf("Submitted version %v for checkID %v", version, checkID)
 }
 
 func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
