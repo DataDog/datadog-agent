@@ -25,6 +25,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1173,7 +1174,7 @@ func searchConnections(c *Connections, predicate func(ConnectionStats) bool) []C
 
 func addrMatches(addr net.Addr, host string, port uint16) bool {
 	addrUrl := url.URL{Scheme: addr.Network(), Host: addr.String()}
-
+	fmt.Printf("Hostname: %s, host: %s, Port: %s, port: %s\n", addrUrl.Hostname(), host, addrUrl.Port(), strconv.Itoa(int(port)))
 	return addrUrl.Hostname() == host && addrUrl.Port() == strconv.Itoa(int(port))
 }
 
@@ -1480,4 +1481,99 @@ func teardown(t *testing.T) {
 		fmt.Printf("teardown command output: %s", string(out))
 		t.Errorf("error tearing down: %s", err)
 	}
+}
+
+var domainsToAddresses map[string]string = map[string]string{
+	"google.com.": "1.2.3.4",
+}
+
+type handler struct{}
+func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+	msg := dns.Msg{}
+	msg.SetReply(r)
+	fmt.Println("Returning on response")
+	switch r.Question[0].Qtype {
+	case dns.TypeA:
+		msg.Authoritative = true
+		domain := msg.Question[0].Name
+		address, ok := domainsToAddresses[domain]
+		if ok {
+			msg.Answer = append(msg.Answer, &dns.A{
+				Hdr: dns.RR_Header{ Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60 },
+				A: net.ParseIP(address),
+			})
+		}
+	}
+	w.WriteMsg(&msg)
+}
+
+func TestDNSStats(t *testing.T) {
+	config := NewDefaultConfig()
+	config.CollectLocalDNS = true
+	tr, err := NewTracer(config)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm up state
+	_ = getConnections(t, tr)
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 53}
+	srv := &dns.Server{Addr: dnsServerAddr.String(), Net: "udp"}
+	srv.Handler = &handler{}
+
+	waitLock := sync.Mutex{}
+	waitLock.Lock()
+	srv.NotifyStartedFunc = waitLock.Unlock
+	defer srv.Shutdown()
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			t.Fatalf("Failed to set udp listener %s\n", err.Error())
+		}
+	}()
+
+	// Wait for the server to be ready
+	waitLock.Lock()
+
+	queryMsg := new(dns.Msg)
+	queryMsg.SetQuestion(dns.Fqdn("google.com"), dns.TypeA)
+	queryMsg.RecursionDesired = true
+
+	// config, _ := dns.ClientConfigFromFile("/etc/resolv.conf")
+	// dnsHost := net.JoinHostPort(config.Servers[0], config.Port)
+	// dnsHost := net.JoinHostPort(testServerIP, testServerPort)
+
+	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port:7777}
+	localAddrDialer := &net.Dialer{
+		LocalAddr: dnsClientAddr,
+	}
+
+	dnsClient := dns.Client{Net: "udp", Dialer: localAddrDialer}
+	fmt.Printf("Client queryMsg size: %d\n", queryMsg.Len())
+	// replyMsg, _, err := dnsClient.Exchange(queryMsg, dnsHost)
+	replyMsg, _, err := dnsClient.Exchange(queryMsg, dnsServerAddr.String())
+
+	if err != nil {
+		t.Fatalf("Failed to get dns response %s\n", err.Error())
+	}
+
+	var destIP = ""
+	for _, r := range replyMsg.Answer {
+		if aRecord, ok := r.(*dns.A); ok {
+			if dns.NumField(aRecord) >= 1 {
+				destIP = dns.Field(aRecord, 1)
+				fmt.Println(destIP)
+			}
+		}
+	}
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
+	require.True(t, ok)
+
+	assert.Equal(t, queryMsg.Len(), int(conn.MonotonicSentBytes))
+	assert.Equal(t, replyMsg.Len(), int(conn.MonotonicRecvBytes))
+	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
+	assert.Equal(t, NONE, conn.Direction)
+	assert.True(t, conn.IntraHost)
 }

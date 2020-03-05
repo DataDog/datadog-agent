@@ -31,6 +31,7 @@ type SocketFilterSnooper struct {
 	source *packetSource
 	parser *dnsParser
 	cache  *reverseDNSCache
+	stats  *dnsStats
 	exit   chan struct{}
 	wg     sync.WaitGroup
 
@@ -69,6 +70,7 @@ func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter) (*Sock
 		source:      packetSrc,
 		parser:      newDNSParser(),
 		cache:       cache,
+		stats:		 newDNSStats(),
 		translation: new(translation),
 		exit:        make(chan struct{}),
 	}
