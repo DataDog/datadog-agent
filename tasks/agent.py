@@ -412,6 +412,10 @@ def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base
                 env['SIGN_PFX'] = "{}".format(pfxfile)
                 env['SIGN_PFX_PW'] = "{}".format(pfxpass)
 
+            if sys.platform == 'darwin':
+                # Target MacOS 10.12
+                env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
+
             if omnibus_s3_cache:
                 args['populate_s3_cache'] = " --populate-s3-cache "
             if skip_sign:
