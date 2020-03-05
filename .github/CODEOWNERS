@@ -21,6 +21,7 @@
 /cmd/agent/install*.sh                  @DataDog/agent-platform
 /cmd/agent/version.h                    @DataDog/agent-platform
 /cmd/cluster-agent/                     @DataDog/container-integrations
+/cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integration-tools-and-libraries
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
 /cmd/system-probe/                      @DataDog/networks
