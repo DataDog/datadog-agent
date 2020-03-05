@@ -6,11 +6,13 @@
 package app
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -44,11 +46,19 @@ var configCheckCommand = &cobra.Command{
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err
 		}
-
+		var b bytes.Buffer
+		color.Output = &b
 		err = flare.GetConfigCheck(color.Output, withDebug)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to get config: %v", err)
 		}
+
+		scrubbed, err := log.CredentialsCleanerBytes(b.Bytes())
+		if err != nil {
+			return fmt.Errorf("unable to scrub sensitive data configcheck output: %v", err)
+		}
+
+		fmt.Println(string(scrubbed))
 		return nil
 	},
 }
