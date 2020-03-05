@@ -53,7 +53,7 @@ func (cf CloudFoundryConfigProvider) IsUpToDate() (bool, error) {
 
 // Collect collects AD config templates from all relevant BBS API information
 func (cf CloudFoundryConfigProvider) Collect() ([]integration.Config, error) {
-	log.Debugf("Collecting configs via the CloudFoundryProvider")
+	log.Debug("Collecting configs via the CloudFoundryProvider")
 	cf.lastCollected = time.Now()
 	allActualLRPs, desiredLRPs := cf.bbsCache.GetAllLRPs()
 	allConfigs := []integration.Config{}
