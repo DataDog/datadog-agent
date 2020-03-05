@@ -4,12 +4,10 @@ package ebpf
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/pkg/errors"
-	"strconv"
 )
 
 const maxIPBufferSize = 200
@@ -20,14 +18,14 @@ var (
 )
 
 type dnsParser struct {
-	decoder *gopacket.DecodingLayerParser
-	layers  []gopacket.LayerType
+	decoder     *gopacket.DecodingLayerParser
+	layers      []gopacket.LayerType
 	ipv4Payload *layers.IPv4
 	ipv6Payload *layers.IPv6
-	udpPayload *layers.UDP
-	tcpPayload *tcpWithDNSSupport
-	payload *layers.DNS
-	dnsStats map[string]int
+	udpPayload  *layers.UDP
+	tcpPayload  *tcpWithDNSSupport
+	dnsPayload  *layers.DNS
+	dnsStats    map[string]int
 }
 
 func newDNSParser() *dnsParser {
@@ -35,19 +33,15 @@ func newDNSParser() *dnsParser {
 	ipv6Payload := &layers.IPv6{}
 	udpPayload := &layers.UDP{}
 	tcpPayload := &tcpWithDNSSupport{}
-	payload := &layers.DNS{}
+	dnsPayload := &layers.DNS{}
 
 	stack := []gopacket.DecodingLayer{
 		&layers.Ethernet{},
-		// &layers.IPv4{},
-		// &layers.IPv6{},
-		// &layers.UDP{},
 		ipv4Payload,
 		ipv6Payload,
 		udpPayload,
 		tcpPayload,
-		// &tcpWithDNSSupport{},
-		payload,
+		dnsPayload,
 	}
 
 	return &dnsParser{
@@ -56,55 +50,48 @@ func newDNSParser() *dnsParser {
 		ipv6Payload: ipv6Payload,
 		udpPayload: udpPayload,
 		tcpPayload: tcpPayload,
-		payload: payload,
+		dnsPayload: dnsPayload,
 		dnsStats: make(map[string]int),
 	}
 }
 
-func (p *dnsParser) ParseInto(data []byte, t *translation) error {
+func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *connKey) (error, uint16) {
 	err := p.decoder.DecodeLayers(data, &p.layers)
 
 	if p.decoder.Truncated {
-		return errTruncated
+		return errTruncated, 0
 	}
 
 	if err != nil {
-		return err
+		return err, 0
 	}
-	var srcIP, dstIP, srcPort, dstPort string
 
-	var connectionType = ""
-	var id = ""
+	// If there is a DNS layer then it would be the last layer
+	if p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
+		return skippedPayload, 0
+	}
+
+	if err := p.parseAnswerInto(p.dnsPayload, t) ; err != nil {
+		return err, 0
+	}
+
 	for _, layer := range p.layers {
-		// fmt.Println(layer)
-		if layer == layers.LayerTypeIPv4 {
-			srcIP = p.ipv4Payload.SrcIP.String()
-			dstIP = p.ipv4Payload.DstIP.String()
-			id = strconv.Itoa(int(p.ipv4Payload.Id))
-		}
-		if layer == layers.LayerTypeTCP {
-			srcPort = p.tcpPayload.SrcPort.String()
-			dstPort = p.tcpPayload.DstPort.String()
-			connectionType = "TCP"
-		}
-		if layer == layers.LayerTypeUDP {
-			srcPort = p.udpPayload.SrcPort.String()
-			dstPort = p.udpPayload.DstPort.String()
-			connectionType = "UDP"
-		}
-		if layer == layers.LayerTypeDNS {
-			err := p.parseAnswerInto(p.payload, t)
-			if err != nil {
-				return err
-			}
-			key := fmt.Sprintf("%s:%s:%s:%s", srcIP, srcPort, dstIP, dstPort)
-			fmt.Printf("%s ID:%s Source %s:%s   Destination %s:%s\n", connectionType, id, srcIP, srcPort, dstIP, dstPort)
-			p.dnsStats[key] += 1
-			// fmt.Println(p.dnsStats)
+		switch layer {
+		case layers.LayerTypeIPv4:
+			cKey.serverIP = util.AddressFromNetIP(p.ipv4Payload.SrcIP)
+			cKey.queryIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
+		case layers.LayerTypeIPv6:
+			cKey.serverIP = util.AddressFromNetIP(p.ipv6Payload.SrcIP)
+			cKey.queryIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
+		case layers.LayerTypeUDP:
+			cKey.queryPort = uint16(p.udpPayload.DstPort)
+			cKey.protocol = UDP
+		case layers.LayerTypeTCP:
+			cKey.queryPort = uint16(p.tcpPayload.DstPort)
+			cKey.protocol = TCP
 		}
 	}
-
-	return skippedPayload
+	return nil, p.dnsPayload.ID
 }
 
 // source: https://github.com/weaveworks/scope
@@ -131,8 +118,6 @@ func (p *dnsParser) parseAnswerInto(dns *layers.DNS, t *translation) error {
 	p.extractIPsInto(alias, domainQueried, dns.Answers, t)
 	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
 	t.dns = string(domainQueried)
-	fmt.Println(t.dns)
-	fmt.Printf("DNS ID: %d", dns.ID)
 	return nil
 }
 
@@ -156,7 +141,7 @@ func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.D
 		if bytes.Equal(domainQueried, record.Name) ||
 			(alias != nil && bytes.Equal(alias, record.Name)) {
 			t.add(util.AddressFromNetIP(record.IP))
-			fmt.Println(util.AddressFromNetIP(record.IP))
+			// fmt.Println(util.AddressFromNetIP(record.IP))
 		}
 	}
 }

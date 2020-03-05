@@ -5,6 +5,7 @@ package ebpf
 import (
 	bpflib "github.com/iovisor/gobpf/elf"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -77,6 +78,21 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	require.NoError(t, err)
 
 	checkSnooping(t, destIP, reverseDNS)
+
+	queryIP, queryPortStr, err := net.SplitHostPort(conn.LocalAddr().String())
+	require.NoError(t, err)
+
+	queryPort, err:= strconv.ParseUint(queryPortStr, 10, 16)
+	require.NoError(t, err)
+
+	cKey := connKey{
+		serverIP: util.AddressFromString(destIP),
+		queryIP: util.AddressFromString(queryIP),
+		queryPort: uint16(queryPort),
+		protocol:UDP,
+	}
+	dnsStats := reverseDNS.stats.Get(cKey)
+	assert.Equal(t, 1, dnsStats.replies)
 }
 
 func TestDNSOverTCPSnooping(t *testing.T) {

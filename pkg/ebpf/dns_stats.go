@@ -1,6 +1,7 @@
 package ebpf
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"sync"
 )
@@ -13,7 +14,7 @@ type info struct {
 type connKey struct {
 	serverIP  util.Address
 	queryIP   util.Address
-	queryPort int32
+	queryPort uint16
 	protocol  ConnectionType
 }
 
@@ -31,4 +32,17 @@ func newDNSStats() *dnsStats {
 func (d *dnsStats) IncrementReplyCount(key connKey, transactionID uint16) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
+	dnsInfo := d.metrics[key]
+	dnsInfo.replies++
+	d.metrics[key] = dnsInfo
+	fmt.Println("Incremented")
+	fmt.Println(key)
+}
+
+func (d *dnsStats) Get(key connKey) info {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+	fmt.Println(key)
+	fmt.Println(d.metrics[key])
+	return d.metrics[key]
 }
