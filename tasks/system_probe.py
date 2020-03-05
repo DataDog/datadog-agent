@@ -119,7 +119,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     if not skip_object_files:
         build_object_files(ctx, install=False)
 
-    pkg = os.path.join(REPO_PATH, "pkg", "ebpf", "...")
+    pkg = "./pkg/ebpf/..."
 
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']
