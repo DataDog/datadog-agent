@@ -60,13 +60,6 @@ var (
 	filterVersionBuf = makeFilterVersionBuffer(DD_FILTER_VERSION)
 )
 
-// Create a buffer that Driver will use to verify proper versions are communicating
-func makeFilterVersionBuffer(ver uint32) []byte {
-	buf := make([]byte, C.sizeof_uint64_t)
-	binary.LittleEndian.PutUint64(buf, uint64(0xDDFD)<<32|uint64(ver))
-	return buf
-}
-
 func init() {
 	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
 	for _, name := range expvarTypes {
@@ -140,8 +133,15 @@ func closeDriverFile(handle windows.Handle) error {
 }
 
 // Creates the IOCTLCode to be passed for DeviceIoControl syscall
-func ctl_code(device_type, function, method, access uint32) uint32 {
+func ctlCode(device_type, function, method, access uint32) uint32 {
 	return (device_type << 16) | (access << 14) | (function << 2) | method
+}
+
+// Creates a buffer that Driver will use to verify proper versions are communicating
+func makeFilterVersionBuffer(ver uint32) []byte {
+	buf := make([]byte, C.sizeof_uint64_t)
+	binary.LittleEndian.PutUint64(buf, uint64(0xDDFD)<<32|uint64(ver))
+	return buf
 }
 
 // GetActiveConnections returns all active connections
@@ -174,7 +174,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		bytesReturned uint32
 		stats         C.struct_driver_stats
 		statbuf       = make([]byte, C.sizeof_struct_driver_stats)
-		ioctlcd       = ctl_code(NETWORK_DEVICE_TYPE_CTL_CODE, DDFILTER_IOCTL_GETSTATS, uint32(0), uint32(0))
+		ioctlcd       = ctlCode(NETWORK_DEVICE_TYPE_CTL_CODE, DDFILTER_IOCTL_GETSTATS, uint32(0), uint32(0))
 	)
 
 	err := windows.DeviceIoControl(t.driverHandle, ioctlcd, &filterVersionBuf[0], uint32(len(filterVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
