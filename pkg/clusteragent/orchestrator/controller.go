@@ -29,6 +29,7 @@ import (
 
 // ControllerContext holds necessary context for the controller
 type ControllerContext struct {
+	IsLeaderFunc                 func() bool
 	UnassignedPodInformerFactory informers.SharedInformerFactory
 	Client                       kubernetes.Interface
 	StopCh                       chan struct{}
@@ -46,6 +47,7 @@ type Controller struct {
 	clusterName             string
 	apiClient               api.Client
 	processConfig           *processcfg.AgentConfig
+	IsLeaderFunc            func() bool
 }
 
 // StartController starts the orchestrator controller
@@ -78,6 +80,7 @@ func newController(ctx ControllerContext) *Controller {
 		apiClient: api.NewClient(
 			http.Client{Timeout: 20 * time.Second, Transport: processcfg.NewDefaultTransport()},
 			30*time.Second),
+		IsLeaderFunc: ctx.IsLeaderFunc,
 	}
 	cfg := processcfg.NewDefaultAgentConfig(true)
 	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
@@ -102,6 +105,9 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 }
 
 func (o *Controller) processPods() {
+	if !o.IsLeaderFunc() {
+		return
+	}
 	podList, err := o.unassignedPodLister.List(labels.Everything())
 
 	if err != nil {

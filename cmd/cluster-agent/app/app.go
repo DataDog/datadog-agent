@@ -204,6 +204,7 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 		// TODO: move rest of the controllers out of the apiserver package
 		orchestratorCtx := orchestrator.ControllerContext{
+			IsLeaderFunc:                 le.IsLeader,
 			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
