@@ -48,8 +48,7 @@ if ohai["platform"] != "windows"
                           "--with-universal-archs=intel",
                           "--enable-shared",
                           "--without-gcc",
-                          "CC=clang",
-                          "MACOSX_DEPLOYMENT_TARGET=10.12")
+                          "CC=clang")
   elsif linux?
     python_configure.push("--enable-unicode=ucs4",
                           "--enable-shared")
