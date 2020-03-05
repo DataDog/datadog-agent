@@ -12,7 +12,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
 from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version
 from .utils import REPO_PATH
 
