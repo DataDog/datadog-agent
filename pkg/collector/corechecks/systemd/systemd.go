@@ -59,6 +59,7 @@ var metricConfigs = map[string][]metricConfigItem{
 	typeService: {
 		{
 			// only present from systemd v220
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L5571-L5576
 			metricName:         "systemd.service.cpu_time_consumed",
 			propertyName:       "CPUUsageNSec",
 			accountingProperty: "CPUAccounting",
@@ -70,12 +71,17 @@ var metricConfigs = map[string][]metricConfigItem{
 			accountingProperty: "MemoryAccounting",
 		},
 		{
+			// only present from systemd v227
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L4980-L4984
+			// https://montecristosoftware.eu/matteo/systemd/commit/03a7b521e3ffb7f5d153d90480ba5d4bc29d1e8f#6e0729ff5b041f3624fb339e9484dbfad911e297_799_823
 			metricName:         "systemd.service.task_count",
 			propertyName:       "TasksCurrent",
 			accountingProperty: "TasksAccounting",
+			optional:           true,
 		},
 		{
 			// only present from systemd v235
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L3027-L3029
 			metricName:   "systemd.service.restart_count",
 			propertyName: "NRestarts",
 			optional:     true,
@@ -92,6 +98,7 @@ var metricConfigs = map[string][]metricConfigItem{
 		},
 		{
 			// only present from systemd v239
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L2256-L2258
 			metricName:   "systemd.socket.connection_refused_count",
 			propertyName: "NRefused",
 			optional:     true,
