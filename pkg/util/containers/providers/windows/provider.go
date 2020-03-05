@@ -4,6 +4,7 @@
 // Copyright 2017-2020 Datadog, Inmetrics.
 
 // +build windows
+// +build docker
 
 package windows
 
