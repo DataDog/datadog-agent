@@ -3,6 +3,7 @@
 package ebpf
 
 /*
+#include <stdint.h>
 //! https://github.com/DataDog/datadog-windows-filter/blob/master/include/ddfilterapi.h#L29
 typedef struct _stats
 {
@@ -15,16 +16,19 @@ typedef struct _stats
     long Write_calls;	//! number of write calls to the driver
     long Write_bytes;
     long Ioctl_calls;	//! number of ioctl calls to the driver
+	long Padding; //! only necessary with an odd number of stats.
 } STATS;
 
 typedef struct driver_stats
 {
+    uint64_t    FilterVersion;
     STATS		Total;		//! stats since the driver was started
     STATS		Handle;		//! stats for the file handle in question
 } DRIVER_STATS;
 */
 import "C"
 import (
+	"encoding/binary"
 	"expvar"
 	"fmt"
 	"time"
@@ -45,12 +49,23 @@ const (
 
 	// https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/specifying-device-types
 	NETWORK_DEVICE_TYPE_CTL_CODE = 0x00000012
+
+	// TODO: Link to definition when in master
+	DD_FILTER_VERSION = uint32(0x01)
 )
 
 var (
-	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"driver_total_stats", "driver_handle_stats"}
+	expvarEndpoints  map[string]*expvar.Map
+	expvarTypes      = []string{"driver_total_stats", "driver_handle_stats"}
+	filterVersionBuf = makeFilterVersionBuffer(DD_FILTER_VERSION)
 )
+
+// Create a buffer that Driver will use to verify proper versions are communicating
+func makeFilterVersionBuffer(ver uint32) []byte {
+	buf := make([]byte, C.sizeof_uint64_t)
+	binary.LittleEndian.PutUint64(buf, uint64(0xDDFD)<<32|uint64(ver))
+	return buf
+}
 
 func init() {
 	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
@@ -162,13 +177,12 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		ioctlcd       = ctl_code(NETWORK_DEVICE_TYPE_CTL_CODE, DDFILTER_IOCTL_GETSTATS, uint32(0), uint32(0))
 	)
 
-	err := windows.DeviceIoControl(t.driverHandle, ioctlcd, nil, 0, &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	err := windows.DeviceIoControl(t.driverHandle, ioctlcd, &filterVersionBuf[0], uint32(len(filterVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading Stats with DeviceIoControl: %v", err)
 	}
 
 	stats = *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
-
 	return map[string]interface{}{
 		"driver_total_stats": map[string]int64{
 			"read_calls":             int64(stats.Total.Read_calls),
