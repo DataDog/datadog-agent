@@ -7,16 +7,14 @@ import glob
 import os
 import shutil
 import sys
-import distro
 from distutils.dir_util import copy_tree
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
+from .build_tags import get_build_tags, get_default_build_tags, get_distro_exclude_tags, LINUX_ONLY_TAGS
 from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
@@ -108,12 +106,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
-    # remove all tags that are only available on debian distributions
-    distname = distro.id().lower()
-    if distname not in REDHAT_DEBIAN_SUSE_DIST:
-        for ex in REDHAT_DEBIAN_SUSE_ONLY_TAGS:
-            if ex not in build_exclude:
-                build_exclude.append(ex)
+    # remove all tags that are not available for current distro
+    build_exclude.extend(get_distro_exclude_tags())
 
     if sys.platform == 'win32':
         py_runtime_var = get_win_py_runtime_var(python_runtimes)
@@ -411,6 +405,10 @@ def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base
                 # hack for now.  Remove `sign_windows, and set sign_pfx`
                 env['SIGN_PFX'] = "{}".format(pfxfile)
                 env['SIGN_PFX_PW'] = "{}".format(pfxpass)
+
+            if sys.platform == 'darwin':
+                # Target MacOS 10.12
+                env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
 
             if omnibus_s3_cache:
                 args['populate_s3_cache'] = " --populate-s3-cache "

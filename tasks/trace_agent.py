@@ -7,7 +7,7 @@ from invoke import task
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
 from .go import deps
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
