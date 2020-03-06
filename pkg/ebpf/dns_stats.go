@@ -6,7 +6,7 @@ import (
 )
 
 type dnsStats struct {
-	replies uint32
+	replies           uint32
 	lastTransactionID uint16
 }
 

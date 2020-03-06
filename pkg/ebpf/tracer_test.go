@@ -1500,7 +1500,7 @@ func TestDNSStats(t *testing.T) {
 	dummyConn.Close()
 	localAddr := dummyConn.LocalAddr().(*net.UDPAddr)
 
-	dnsClientAddr := &net.UDPAddr{IP: localAddr.IP, Port:7777}
+	dnsClientAddr := &net.UDPAddr{IP: localAddr.IP, Port: 7777}
 	localAddrDialer := &net.Dialer{
 		LocalAddr: dnsClientAddr,
 	}

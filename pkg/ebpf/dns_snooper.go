@@ -218,7 +218,6 @@ func (s *SocketFilterSnooper) getCachedTranslation() *translation {
 	return t
 }
 
-
 // packetSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type packetSource struct {
 	*afpacket.TPacket

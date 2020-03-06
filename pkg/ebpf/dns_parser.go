@@ -45,13 +45,13 @@ func newDNSParser() *dnsParser {
 	}
 
 	return &dnsParser{
-		decoder: gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, stack...),
+		decoder:     gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, stack...),
 		ipv4Payload: ipv4Payload,
 		ipv6Payload: ipv6Payload,
-		udpPayload: udpPayload,
-		tcpPayload: tcpPayload,
-		dnsPayload: dnsPayload,
-		dnsStats: make(map[string]int),
+		udpPayload:  udpPayload,
+		tcpPayload:  tcpPayload,
+		dnsPayload:  dnsPayload,
+		dnsStats:    make(map[string]int),
 	}
 }
 
@@ -71,7 +71,7 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *connKey) (uint1
 		return 0, skippedPayload
 	}
 
-	if err := p.parseAnswerInto(p.dnsPayload, t) ; err != nil {
+	if err := p.parseAnswerInto(p.dnsPayload, t); err != nil {
 		return 0, err
 	}
 

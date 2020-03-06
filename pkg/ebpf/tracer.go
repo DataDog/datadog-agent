@@ -409,10 +409,10 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 				if conn.DPort == 53 {
 					key := connKey{
-						serverIP:conn.Dest,
-						queryIP:conn.Source,
-						queryPort:conn.SPort,
-						protocol:conn.Type,
+						serverIP:  conn.Dest,
+						queryIP:   conn.Source,
+						queryPort: conn.SPort,
+						protocol:  conn.Type,
 					}
 					dnsStats := t.reverseDNS.GetDNSStats(key)
 					conn.DNSReplyCount = dnsStats.replies

@@ -80,7 +80,6 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	checkSnooping(t, destIP, reverseDNS)
 }
 
-
 // Get preferred outbound ip of this machine
 func GetOutboundIP(t *testing.T) net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
@@ -134,9 +133,9 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 
 	key := connKey{
 		queryPort: uint16(queryPort),
-		queryIP: util.AddressFromString(queryIP),
-		serverIP: util.AddressFromString(serverAddress),
-		protocol:TCP,
+		queryIP:   util.AddressFromString(queryIP),
+		serverIP:  util.AddressFromString(serverAddress),
+		protocol:  TCP,
 	}
 	assert.Equal(t, uint32(1), reverseDNS.GetDNSStats(key).replies)
 }
