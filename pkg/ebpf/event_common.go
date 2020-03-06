@@ -107,6 +107,7 @@ type ConnectionStats struct {
 	Direction     ConnectionDirection
 	IPTranslation *netlink.IPTranslation
 	IntraHost     bool
+	DNSReplyCount uint32
 }
 
 func (c ConnectionStats) String() string {

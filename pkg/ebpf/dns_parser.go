@@ -55,24 +55,24 @@ func newDNSParser() *dnsParser {
 	}
 }
 
-func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *connKey) (error, uint16) {
+func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *connKey) (uint16, error) {
 	err := p.decoder.DecodeLayers(data, &p.layers)
 
 	if p.decoder.Truncated {
-		return errTruncated, 0
+		return 0, errTruncated
 	}
 
 	if err != nil {
-		return err, 0
+		return 0, err
 	}
 
 	// If there is a DNS layer then it would be the last layer
 	if p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
-		return skippedPayload, 0
+		return 0, skippedPayload
 	}
 
 	if err := p.parseAnswerInto(p.dnsPayload, t) ; err != nil {
-		return err, 0
+		return 0, err
 	}
 
 	for _, layer := range p.layers {
@@ -91,7 +91,7 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *connKey) (error
 			cKey.protocol = TCP
 		}
 	}
-	return nil, p.dnsPayload.ID
+	return p.dnsPayload.ID, nil
 }
 
 // source: https://github.com/weaveworks/scope
@@ -141,7 +141,6 @@ func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.D
 		if bytes.Equal(domainQueried, record.Name) ||
 			(alias != nil && bytes.Equal(alias, record.Name)) {
 			t.add(util.AddressFromNetIP(record.IP))
-			// fmt.Println(util.AddressFromNetIP(record.IP))
 		}
 	}
 }

@@ -1174,7 +1174,6 @@ func searchConnections(c *Connections, predicate func(ConnectionStats) bool) []C
 
 func addrMatches(addr net.Addr, host string, port uint16) bool {
 	addrUrl := url.URL{Scheme: addr.Network(), Host: addr.String()}
-	fmt.Printf("Hostname: %s, host: %s, Port: %s, port: %s\n", addrUrl.Hostname(), host, addrUrl.Port(), strconv.Itoa(int(port)))
 	return addrUrl.Hostname() == host && addrUrl.Port() == strconv.Itoa(int(port))
 }
 
@@ -1485,13 +1484,14 @@ func teardown(t *testing.T) {
 
 var domainsToAddresses map[string]string = map[string]string{
 	"google.com.": "1.2.3.4",
+	"golang.org": "1.2.3.4",
 }
 
 type handler struct{}
 func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	msg := dns.Msg{}
 	msg.SetReply(r)
-	fmt.Println("Returning on response")
+	// fmt.Println("Returning on response")
 	switch r.Question[0].Qtype {
 	case dns.TypeA:
 		msg.Authoritative = true
@@ -1538,33 +1538,19 @@ func TestDNSStats(t *testing.T) {
 	queryMsg.SetQuestion(dns.Fqdn("google.com"), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
-	// config, _ := dns.ClientConfigFromFile("/etc/resolv.conf")
-	// dnsHost := net.JoinHostPort(config.Servers[0], config.Port)
-	// dnsHost := net.JoinHostPort(testServerIP, testServerPort)
-
 	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port:7777}
 	localAddrDialer := &net.Dialer{
 		LocalAddr: dnsClientAddr,
 	}
 
 	dnsClient := dns.Client{Net: "udp", Dialer: localAddrDialer}
-	fmt.Printf("Client queryMsg size: %d\n", queryMsg.Len())
-	// replyMsg, _, err := dnsClient.Exchange(queryMsg, dnsHost)
 	replyMsg, _, err := dnsClient.Exchange(queryMsg, dnsServerAddr.String())
 
 	if err != nil {
 		t.Fatalf("Failed to get dns response %s\n", err.Error())
 	}
 
-	var destIP = ""
-	for _, r := range replyMsg.Answer {
-		if aRecord, ok := r.(*dns.A); ok {
-			if dns.NumField(aRecord) >= 1 {
-				destIP = dns.Field(aRecord, 1)
-				fmt.Println(destIP)
-			}
-		}
-	}
+	time.Sleep(time.Second * 1)
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
@@ -1576,4 +1562,5 @@ func TestDNSStats(t *testing.T) {
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 	assert.Equal(t, NONE, conn.Direction)
 	assert.True(t, conn.IntraHost)
+	assert.Equal(t, uint32(1), conn.DNSReplyCount)
 }

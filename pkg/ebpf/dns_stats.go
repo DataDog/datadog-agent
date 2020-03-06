@@ -1,13 +1,12 @@
 package ebpf
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"sync"
 )
 
-type info struct {
-	replies int64
+type dnsStats struct {
+	replies uint32
 	lastTransactionID uint16
 }
 
@@ -18,31 +17,31 @@ type connKey struct {
 	protocol  ConnectionType
 }
 
-type dnsStats struct {
-	mux  sync.Mutex
-	metrics map[connKey]info
+type dnsBookkeeper struct {
+	mux   sync.Mutex
+	stats map[connKey]dnsStats
 }
 
-func newDNSStats() *dnsStats {
-	return &dnsStats{
-		metrics: make(map[connKey]info),
+func newDNSBookkeeper() *dnsBookkeeper {
+	return &dnsBookkeeper{
+		stats: make(map[connKey]dnsStats),
 	}
 }
 
-func (d *dnsStats) IncrementReplyCount(key connKey, transactionID uint16) {
+func (d *dnsBookkeeper) IncrementReplyCount(key connKey, transactionID uint16) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	dnsInfo := d.metrics[key]
-	dnsInfo.replies++
-	d.metrics[key] = dnsInfo
-	fmt.Println("Incremented")
-	fmt.Println(key)
+	stats := d.stats[key]
+	if stats.lastTransactionID == transactionID {
+		return
+	}
+	stats.replies++
+	stats.lastTransactionID = transactionID
+	d.stats[key] = stats
 }
 
-func (d *dnsStats) Get(key connKey) info {
+func (d *dnsBookkeeper) Get(key connKey) dnsStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	fmt.Println(key)
-	fmt.Println(d.metrics[key])
-	return d.metrics[key]
+	return d.stats[key]
 }

@@ -28,12 +28,12 @@ var _ ReverseDNS = &SocketFilterSnooper{}
 
 // SocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type SocketFilterSnooper struct {
-	source *packetSource
-	parser *dnsParser
-	cache  *reverseDNSCache
-	stats  *dnsStats
-	exit   chan struct{}
-	wg     sync.WaitGroup
+	source     *packetSource
+	parser     *dnsParser
+	cache      *reverseDNSCache
+	bookkeeper *dnsBookkeeper
+	exit       chan struct{}
+	wg         sync.WaitGroup
 
 	// cache translation object to avoid allocations
 	translation *translation
@@ -70,7 +70,7 @@ func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter) (*Sock
 		source:      packetSrc,
 		parser:      newDNSParser(),
 		cache:       cache,
-		stats:		 newDNSStats(),
+		bookkeeper:  newDNSBookkeeper(),
 		translation: new(translation),
 		exit:        make(chan struct{}),
 	}
@@ -95,6 +95,10 @@ func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter) (*Sock
 // Resolve IPs to DNS addresses
 func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Address][]string {
 	return s.cache.Get(connections, time.Now())
+}
+
+func (s *SocketFilterSnooper) GetDNSStats(key connKey) dnsStats {
+	return s.bookkeeper.Get(key)
 }
 
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
@@ -124,7 +128,7 @@ func (s *SocketFilterSnooper) Close() {
 func (s *SocketFilterSnooper) processPacket(data []byte) {
 	t := s.getCachedTranslation()
 	cKey := connKey{}
-	err, dnsTransactionID := s.parser.ParseInto(data, t, &cKey)
+	dnsTransactionID, err := s.parser.ParseInto(data, t, &cKey)
 	if err != nil {
 		switch err {
 		case skippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
@@ -136,8 +140,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 		}
 		return
 	}
-	fmt.Println(dnsTransactionID)
-	s.stats.IncrementReplyCount(cKey, dnsTransactionID)
+	s.bookkeeper.IncrementReplyCount(cKey, dnsTransactionID)
 	s.cache.Add(t, time.Now())
 }
 
@@ -214,6 +217,7 @@ func (s *SocketFilterSnooper) getCachedTranslation() *translation {
 
 	return t
 }
+
 
 // packetSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type packetSource struct {

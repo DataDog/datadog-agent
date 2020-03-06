@@ -350,7 +350,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
 func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, uint64, error) {
-	fmt.Println("Mehedi")
 	mp, err := t.getMap(connMap)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error retrieving the bpf %s map: %s", connMap, err)
@@ -409,12 +408,17 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 					conn.DPort,
 					process.ConnectionType(conn.Type),
 				)
-				fmt.Println("=============")
-				fmt.Println(conn.Source)
-				fmt.Println(conn.SPort)
-				fmt.Println(conn.Dest)
-				fmt.Println(conn.DPort)
-				fmt.Println("=============")
+
+				if conn.DPort == 53 {
+					key := connKey{
+						serverIP:conn.Dest,
+						queryIP:conn.Source,
+						queryPort:conn.SPort,
+						protocol:conn.Type,
+					}
+					dnsStats := t.reverseDNS.GetDNSStats(key)
+					conn.DNSReplyCount = dnsStats.replies
+				}
 
 				active = append(active, conn)
 			}

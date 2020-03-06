@@ -4,8 +4,8 @@ package ebpf
 
 import (
 	bpflib "github.com/iovisor/gobpf/elf"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"net"
-	"strconv"
 	"testing"
 	"time"
 
@@ -78,21 +78,19 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	require.NoError(t, err)
 
 	checkSnooping(t, destIP, reverseDNS)
+}
 
-	queryIP, queryPortStr, err := net.SplitHostPort(conn.LocalAddr().String())
-	require.NoError(t, err)
 
-	queryPort, err:= strconv.ParseUint(queryPortStr, 10, 16)
-	require.NoError(t, err)
-
-	cKey := connKey{
-		serverIP: util.AddressFromString(destIP),
-		queryIP: util.AddressFromString(queryIP),
-		queryPort: uint16(queryPort),
-		protocol:UDP,
+// Get preferred outbound ip of this machine
+func GetOutboundIP(t *testing.T) net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
 	}
-	dnsStats := reverseDNS.stats.Get(cKey)
-	assert.Equal(t, 1, dnsStats.replies)
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }
 
 func TestDNSOverTCPSnooping(t *testing.T) {
@@ -109,10 +107,22 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	msg.RecursionDesired = true
 
 	config, err := mdns.ClientConfigFromFile("/etc/resolv.conf")
+	// serverAddress := config.Servers[0]
+	serverAddress := "8.8.8.8"
 	require.NoError(t, err)
-	dnsHost := net.JoinHostPort(config.Servers[0], config.Port)
+	dnsHost := net.JoinHostPort(serverAddress, config.Port)
 
-	dnsClient := mdns.Client{Net: "tcp"}
+	// queryIP := "127.0.0.1"
+	queryIP := GetOutboundIP(t).String()
+	rand.Seed(time.Now().UnixNano())
+	queryPort := rand.IntnRange(10000, 30000)
+	dnsClientAddr := &net.TCPAddr{IP: net.ParseIP(queryIP), Port: queryPort}
+	localAddrDialer := &net.Dialer{
+		LocalAddr: dnsClientAddr,
+	}
+
+	dnsClient := mdns.Client{Net: "tcp", Dialer: localAddrDialer}
+
 	rep, _, _ := dnsClient.Exchange(msg, dnsHost)
 	require.NotNil(t, rep)
 	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
@@ -124,6 +134,14 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 		destIP := mdns.Field(aRecord, 1)
 		checkSnooping(t, destIP, reverseDNS)
 	}
+
+	key := connKey{
+		queryPort: uint16(queryPort),
+		queryIP: util.AddressFromString(queryIP),
+		serverIP: util.AddressFromString(serverAddress),
+		protocol:TCP,
+	}
+	assert.Equal(t, uint32(1), reverseDNS.GetDNSStats(key).replies)
 }
 
 func TestParsingError(t *testing.T) {
