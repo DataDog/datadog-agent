@@ -3,7 +3,7 @@
 package ebpf
 
 /*
-//! Defines the objects used to comminucate with the driver as well as its control codes
+//! Defines the objects used to communicate with the driver as well as its control codes
 #include "c/ddfilterapi.h"
 
 //! These includes are needed to use constants defined in the ddfilterapi
