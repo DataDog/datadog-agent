@@ -343,7 +343,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 
 	conns := t.state.Connections(clientID, latestTime, latestConns)
 	names := t.reverseDNS.Resolve(conns)
-	fmt.Println(len(conns))
 	return &Connections{Conns: conns, DNS: names}, nil
 }
 
@@ -397,7 +396,6 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 			conn.Direction = t.determineConnectionDirection(&conn)
 
 			if t.shouldSkipConnection(&conn) {
-				fmt.Println("Skipping connection")
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active

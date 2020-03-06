@@ -1482,31 +1482,6 @@ func teardown(t *testing.T) {
 	}
 }
 
-var domainsToAddresses map[string]string = map[string]string{
-	"google.com.": "1.2.3.4",
-	"golang.org": "1.2.3.4",
-}
-
-type handler struct{}
-func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	msg := dns.Msg{}
-	msg.SetReply(r)
-	// fmt.Println("Returning on response")
-	switch r.Question[0].Qtype {
-	case dns.TypeA:
-		msg.Authoritative = true
-		domain := msg.Question[0].Name
-		address, ok := domainsToAddresses[domain]
-		if ok {
-			msg.Answer = append(msg.Answer, &dns.A{
-				Hdr: dns.RR_Header{ Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60 },
-				A: net.ParseIP(address),
-			})
-		}
-	}
-	w.WriteMsg(&msg)
-}
-
 func TestDNSStats(t *testing.T) {
 	config := NewDefaultConfig()
 	config.CollectLocalDNS = true
@@ -1514,53 +1489,41 @@ func TestDNSStats(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Warm up state
-	_ = getConnections(t, tr)
-	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 53}
-	srv := &dns.Server{Addr: dnsServerAddr.String(), Net: "udp"}
-	srv.Handler = &handler{}
-
-	waitLock := sync.Mutex{}
-	waitLock.Lock()
-	srv.NotifyStartedFunc = waitLock.Unlock
-	defer srv.Shutdown()
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			t.Fatalf("Failed to set udp listener %s\n", err.Error())
-		}
-	}()
-
-	// Wait for the server to be ready
-	waitLock.Lock()
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53}
 
 	queryMsg := new(dns.Msg)
 	queryMsg.SetQuestion(dns.Fqdn("google.com"), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
-	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port:7777}
+	dummyConn, err := net.Dial("udp", "8.8.8.8:80")
+	require.NoError(t, err)
+	dummyConn.Close()
+	localAddr := dummyConn.LocalAddr().(*net.UDPAddr)
+
+	dnsClientAddr := &net.UDPAddr{IP: localAddr.IP, Port:7777}
 	localAddrDialer := &net.Dialer{
 		LocalAddr: dnsClientAddr,
 	}
 
 	dnsClient := dns.Client{Net: "udp", Dialer: localAddrDialer}
-	replyMsg, _, err := dnsClient.Exchange(queryMsg, dnsServerAddr.String())
+	_, _, err = dnsClient.Exchange(queryMsg, dnsServerAddr.String())
 
 	if err != nil {
 		t.Fatalf("Failed to get dns response %s\n", err.Error())
 	}
 
-	time.Sleep(time.Second * 1)
+	// Allow the DNS reply to be process in the snooper
+	time.Sleep(time.Millisecond * 500)
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
 	require.True(t, ok)
 
 	assert.Equal(t, queryMsg.Len(), int(conn.MonotonicSentBytes))
-	assert.Equal(t, replyMsg.Len(), int(conn.MonotonicRecvBytes))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 	assert.Equal(t, NONE, conn.Direction)
-	assert.True(t, conn.IntraHost)
+
+	// DNS Stats
 	assert.Equal(t, uint32(1), conn.DNSReplyCount)
 }

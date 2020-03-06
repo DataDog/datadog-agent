@@ -87,9 +87,7 @@ func GetOutboundIP(t *testing.T) net.IP {
 	if err != nil {
 	}
 	defer conn.Close()
-
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
-
 	return localAddr.IP
 }
 
@@ -112,7 +110,6 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	require.NoError(t, err)
 	dnsHost := net.JoinHostPort(serverAddress, config.Port)
 
-	// queryIP := "127.0.0.1"
 	queryIP := GetOutboundIP(t).String()
 	rand.Seed(time.Now().UnixNano())
 	queryPort := rand.IntnRange(10000, 30000)
