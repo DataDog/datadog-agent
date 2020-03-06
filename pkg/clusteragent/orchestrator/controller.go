@@ -60,9 +60,9 @@ func StartController(ctx ControllerContext) error {
 		log.Warn("Orchestrator explorer enabled but no cluster name set: disabling")
 		return nil
 	}
-	orchestratorControler := newController(ctx)
+	orchestratorController := newController(ctx)
 
-	go orchestratorControler.Run(ctx.StopCh)
+	go orchestratorController.Run(ctx.StopCh)
 
 	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
 
@@ -115,9 +115,10 @@ func (o *Controller) processPods() {
 		return
 	}
 
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "hostname", "clustername")
+	// we send an empty hostname for unassigned pods
+	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName)
 	if err != nil {
-		log.Errorf("Unable to process pod list")
+		log.Errorf("Unable to process pod list: %v", err)
 		return
 	}
 

@@ -214,7 +214,7 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 		err = orchestrator.StartController(orchestratorCtx)
 		if err != nil {
-			log.Error("Could not start orchestrator controller")
+			log.Errorf("Could not start orchestrator controller: %v", err)
 		}
 	}
 
