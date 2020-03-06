@@ -5,5 +5,5 @@
 
 // +build windows
 
-// We need a file in this package as it's referenced by a file with +build windows only
+// We need a file in this package as it's referenced by a file built on windows
 package windows
