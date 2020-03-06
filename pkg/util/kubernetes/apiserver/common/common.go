@@ -45,11 +45,11 @@ func GetMyNamespace() string {
 	return "default"
 }
 
-// GetKubernetesServiceUID returns the UID of the default/kubernetes service
-// from the cluster. We use it as the cluster ID so that even if the configmap is removed
+// GetKubeSystemUID returns the UID of the kube-system namespace from the cluster
+// We use it as the cluster ID so that even if the configmap is removed
 // the new one should get the same ID.
-func GetKubernetesServiceUID(coreClient corev1.CoreV1Interface) (string, error) {
-	svc, err := coreClient.Services("default").Get("kubernetes", metav1.GetOptions{})
+func GetKubeSystemUID(coreClient corev1.CoreV1Interface) (string, error) {
+	svc, err := coreClient.Namespaces().Get("kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -75,9 +75,9 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 			return "", err
 		}
 		// the config map doesn't exist yet, generate a UUID and persist it
-		clusterID, err := GetKubernetesServiceUID(coreClient)
+		clusterID, err := GetKubeSystemUID(coreClient)
 		if err != nil {
-			log.Errorf("Failed getting the default/kubernetes service: %v", err)
+			log.Errorf("Failed getting the kube-system namespace: %v", err)
 			return "", err
 		}
 		cm = &v1.ConfigMap{
@@ -106,9 +106,9 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 	}
 
 	log.Warnf("Content of ConfigMap %s/%s doesn't look like a cluster ID, updating it", myNS, defaultClusterIDMap)
-	clusterID, err = GetKubernetesServiceUID(coreClient)
+	clusterID, err = GetKubeSystemUID(coreClient)
 	if err != nil {
-		log.Errorf("Failed getting the default/kubernetes service: %v", err)
+		log.Errorf("Failed getting the kube-system namespace: %v", err)
 		return "", err
 	}
 	cm.Data["id"] = clusterID
