@@ -55,7 +55,7 @@ func ConvertWindowsString(winput []uint8) string {
 // uint16 (unicode)
 func ConvertWindowsString16(winput []uint16) string {
 	var retstring string
-	for i := 0; i < len(winput); i += 1 {
+	for i := 0; i < len(winput); i++ {
 		dbyte := winput[i]
 		if dbyte == 0 {
 			break
