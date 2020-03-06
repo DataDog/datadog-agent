@@ -205,6 +205,12 @@ def build_object_files(ctx, install=True):
     set install to False to disable replacing the assets
     """
 
+    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently, and result in us not building a
+    # new .o file
+    print("checking for clang executable...")
+    ctx.run("which clang")
+    print("found clang")
+
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
     if os.path.isdir(centos_headers_dir):
