@@ -4,26 +4,29 @@ kind: Kustomization
 bases:
 - ../../base
 
+namespace: local-test
+
 configMapGenerator:
 - name: sts-agent-config
   behavior: merge
   literals:
      - STS_API_KEY=API_KEY
-     - STS_STS_URL=https://stac-0000-kubernetes-demo.test.stackstate.io/receiver/stsAgent
-     - STS_PROCESS_AGENT_URL=https://stac-0000-kubernetes-demo.test.stackstate.io/receiver/stsAgent
-     - STS_APM_URL=https://stac-0000-kubernetes-demo.test.stackstate.io/receiver/stsAgent
+     - STS_STS_URL=http://34.254.41.209:7077/stsAgent
+     - STS_PROCESS_AGENT_URL=http://34.254.41.209:7077/stsAgent
+     - STS_APM_URL=http://34.254.41.209:7077/stsAgent
      - STS_CLUSTER_NAME=stackstate-demo-cluster
 - name: sts-clusteragent-config
   behavior: merge
   literals:
      - STS_API_KEY=API_KEY
-     - STS_STS_URL=https://stac-0000-kubernetes-demo.test.stackstate.io/receiver/stsAgent
+     - STS_STS_URL=http://34.254.41.209:7077/stsAgent
      - STS_CLUSTER_NAME=stackstate-demo-cluster
-# - name: sts-agent-config
-#   env: config.env
 
-# config.env
-# STS_API_KEY=SOMEOTHER2
+images:
+  - name: docker.io/stackstate/stackstate-agent-2-test
+    newTag: stac-7969-k8s-metrics
+  - name: docker.io/stackstate/stackstate-cluster-agent-test
+    newTag: stac-7969-k8s-metrics
 
 secretGenerator:
 - name: stackstate-auth-token
