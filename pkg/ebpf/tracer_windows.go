@@ -3,28 +3,12 @@
 package ebpf
 
 /*
-#include <stdint.h>
-//! https://github.com/DataDog/datadog-windows-filter/blob/master/include/ddfilterapi.h#L29
-typedef struct _stats
-{
-    long Read_calls;		//! number of read calls to the driver
-    long Read_bytes;
-    long Read_calls_outstanding;
-    long Read_calls_completed;
-    long Read_calls_cancelled;
-    long Read_packets_skipped;
-    long Write_calls;	//! number of write calls to the driver
-    long Write_bytes;
-    long Ioctl_calls;	//! number of ioctl calls to the driver
-	long Padding; //! only necessary with an odd number of stats.
-} STATS;
+//! Defines the objects used to comminucate with the driver as well as its control codes
+#include "c/ddfilterapi.h"
 
-typedef struct driver_stats
-{
-    uint64_t    FilterVersion;
-    STATS		Total;		//! stats since the driver was started
-    STATS		Handle;		//! stats for the file handle in question
-} DRIVER_STATS;
+//! These includes are needed to use constants defined in the ddfilterapi
+#include <WinDef.h>
+#include <WinIoCtl.h>
 */
 import "C"
 import (
@@ -36,28 +20,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"golang.org/x/sys/windows"
 )
 
 const (
 	driverFile = `\\.\ddfilter`
-
-	// https://github.com/DataDog/datadog-windows-filter/blob/master/include/ddfilterapi.h
-	DDFILTER_IOCTL_GETSTATS               = 0x801
-	DDFILTER_IOCTL_SIMULATE_COMPLETE_READ = 0x802
-	DDFILTER_IOCTL_SET_FILTER             = 0x803
-
-	// https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/specifying-device-types
-	NETWORK_DEVICE_TYPE_CTL_CODE = 0x00000012
-
-	// TODO: Link to definition when in master
-	DD_FILTER_VERSION = uint32(0x01)
 )
 
 var (
-	expvarEndpoints  map[string]*expvar.Map
-	expvarTypes      = []string{"driver_total_stats", "driver_handle_stats"}
-	filterVersionBuf = makeFilterVersionBuffer(DD_FILTER_VERSION)
+	expvarEndpoints map[string]*expvar.Map
+	expvarTypes     = []string{"driver_total_stats", "driver_handle_stats"}
+
+	// Buffer holding datadog driver filterapi (ddfilterapi) signature to ensure consistency with driver.
+	ddAPIVersionBuf = makeDDAPIVersionBuffer(C.DD_FILTER_SIGNATURE)
 )
 
 func init() {
@@ -79,9 +55,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s : %s", "Could not create driver handle", err)
 	}
+
 	tr := &Tracer{
 		driverHandle: handle,
 	}
+
 	go tr.expvarStats()
 	return tr, nil
 }
@@ -132,15 +110,11 @@ func closeDriverFile(handle windows.Handle) error {
 	return windows.CloseHandle(handle)
 }
 
-// Creates the IOCTLCode to be passed for DeviceIoControl syscall
-func ctlCode(device_type, function, method, access uint32) uint32 {
-	return (device_type << 16) | (access << 14) | (function << 2) | method
-}
-
-// Creates a buffer that Driver will use to verify proper versions are communicating
-func makeFilterVersionBuffer(ver uint32) []byte {
+// We create a buffer because the system calls we make need a *byte which is not
+// possible with const value
+func makeDDAPIVersionBuffer(signature uint64) []byte {
 	buf := make([]byte, C.sizeof_uint64_t)
-	binary.LittleEndian.PutUint64(buf, uint64(0xDDFD)<<32|uint64(ver))
+	binary.LittleEndian.PutUint64(buf, signature)
 	return buf
 }
 
@@ -172,37 +146,35 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	var (
 		bytesReturned uint32
-		stats         C.struct_driver_stats
 		statbuf       = make([]byte, C.sizeof_struct_driver_stats)
-		ioctlcd       = ctlCode(NETWORK_DEVICE_TYPE_CTL_CODE, DDFILTER_IOCTL_GETSTATS, uint32(0), uint32(0))
 	)
 
-	err := windows.DeviceIoControl(t.driverHandle, ioctlcd, &filterVersionBuf[0], uint32(len(filterVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	err := windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_GETSTATS, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Error reading Stats with DeviceIoControl: %v", err)
+		return nil, fmt.Errorf("error reading Stats with DeviceIoControl: %v", err)
 	}
 
-	stats = *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
+	stats := *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
 	return map[string]interface{}{
 		"driver_total_stats": map[string]int64{
-			"read_calls":             int64(stats.Total.Read_calls),
-			"read_bytes":             int64(stats.Total.Read_bytes),
-			"read_calls_outstanding": int64(stats.Total.Read_calls_outstanding),
-			"read_calls_cancelled":   int64(stats.Total.Read_calls_cancelled),
-			"read_packets_skipped":   int64(stats.Total.Read_packets_skipped),
-			"write_calls":            int64(stats.Total.Write_calls),
-			"write_bytes":            int64(stats.Total.Write_bytes),
-			"ioctl_calls":            int64(stats.Total.Ioctl_calls),
+			"read_calls":             int64(stats.total.read_calls),
+			"read_bytes":             int64(stats.total.read_bytes),
+			"read_calls_outstanding": int64(stats.total.read_calls_outstanding),
+			"read_calls_cancelled":   int64(stats.total.read_calls_cancelled),
+			"read_packets_skipped":   int64(stats.total.read_packets_skipped),
+			"write_calls":            int64(stats.total.write_calls),
+			"write_bytes":            int64(stats.total.write_bytes),
+			"ioctl_calls":            int64(stats.total.ioctl_calls),
 		},
 		"driver_handle_stats": map[string]int64{
-			"read_calls":             int64(stats.Handle.Read_calls),
-			"read_bytes":             int64(stats.Handle.Read_bytes),
-			"read_calls_outstanding": int64(stats.Handle.Read_calls_outstanding),
-			"read_calls_cancelled":   int64(stats.Handle.Read_calls_cancelled),
-			"read_packets_skipped":   int64(stats.Handle.Read_packets_skipped),
-			"write_calls":            int64(stats.Handle.Write_calls),
-			"write_bytes":            int64(stats.Handle.Write_bytes),
-			"ioctl_calls":            int64(stats.Handle.Ioctl_calls),
+			"read_calls":             int64(stats.handle.read_calls),
+			"read_bytes":             int64(stats.handle.read_bytes),
+			"read_calls_outstanding": int64(stats.handle.read_calls_outstanding),
+			"read_calls_cancelled":   int64(stats.handle.read_calls_cancelled),
+			"read_packets_skipped":   int64(stats.handle.read_packets_skipped),
+			"write_calls":            int64(stats.handle.write_calls),
+			"write_bytes":            int64(stats.handle.write_bytes),
+			"ioctl_calls":            int64(stats.handle.ioctl_calls),
 		},
 	}, nil
 }
