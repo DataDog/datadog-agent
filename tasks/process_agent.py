@@ -9,7 +9,7 @@ from invoke import task
 from invoke.exceptions import Exit
 from subprocess import check_output
 
-from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only, go111module_envvar
+from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only, check_go111module_envvar
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
@@ -24,7 +24,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     """
 
     # bail out if GO111MODULE is set to on
-    go111module_envvar("process-agent.build")
+    check_go111module_envvar("process-agent.build")
 
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes)
 

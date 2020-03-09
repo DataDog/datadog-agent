@@ -281,7 +281,7 @@ def load_release_versions(ctx, target_version):
             return {str(k):str(v) for k, v in versions[target_version].items()}
     raise Exception("Could not find '{}' version in release.json".format(target_version))
 
-def go111module_envvar(command):
+def check_go111module_envvar(command):
     """
     Test if the GO111MODULE environment variable is set to on; if so, stop
     the build because the Datadog Agent can't be built with go modules.

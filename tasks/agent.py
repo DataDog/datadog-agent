@@ -12,7 +12,7 @@ from distutils.dir_util import copy_tree
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var, go111module_envvar
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var, check_go111module_envvar
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, get_distro_exclude_tags, LINUX_ONLY_TAGS
 from .go import deps, generate
@@ -92,7 +92,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     """
 
     # bail out if GO111MODULE is set to on
-    go111module_envvar("agent.build")
+    check_go111module_envvar("agent.build")
 
     if not exclude_rtloader and not puppy:
         rtloader_make(ctx, python_runtimes=python_runtimes)

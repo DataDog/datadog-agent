@@ -13,7 +13,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
-from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version
+from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version, check_go111module_envvar
 from .utils import REPO_PATH
 
 from .go import deps
@@ -44,7 +44,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     bin_path = DOGSTATSD_BIN_PATH
 
     # bail out if GO111MODULE is set to on
-    go111module_envvar("dogstatsd.build")
+    check_go111module_envvar("dogstatsd.build")
 
     # generate windows resources
     if sys.platform == 'win32':
