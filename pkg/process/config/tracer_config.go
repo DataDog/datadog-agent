@@ -7,12 +7,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // SysProbeConfigFromConfig returns a valid tracer-bpf config sourced from our agent config
-func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
-	tracerConfig := ebpf.NewDefaultConfig()
+func SysProbeConfigFromConfig(cfg *AgentConfig) *network.Config {
+	tracerConfig := network.NewDefaultConfig()
 
 	if !isIPv6EnabledOnHost() {
 		tracerConfig.CollectIPv6Conns = false

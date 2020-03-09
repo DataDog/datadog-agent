@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
@@ -29,7 +29,7 @@ var inactivityLogDuration = 10 * time.Minute
 type SystemProbe struct {
 	cfg *config.AgentConfig
 
-	tracer *ebpf.Tracer
+	tracer *network.Tracer
 	conn   net.Conn
 }
 
@@ -37,13 +37,13 @@ type SystemProbe struct {
 // system probe
 func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	// Checking whether the current OS + kernel version is supported by the tracer
-	if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
+	if supported, msg := network.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
 		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
 
-	t, err := ebpf.NewTracer(config.SysProbeConfigFromConfig(cfg))
+	t, err := network.NewTracer(config.SysProbeConfigFromConfig(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -161,14 +161,14 @@ func logRequests(client string, count uint64, connectionsCount int, start time.T
 }
 
 func getClientID(req *http.Request) string {
-	var clientID = ebpf.DEBUGCLIENT
+	var clientID = network.DEBUGCLIENT
 	if rawCID := req.URL.Query().Get("client_id"); rawCID != "" {
 		clientID = rawCID
 	}
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *ebpf.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
