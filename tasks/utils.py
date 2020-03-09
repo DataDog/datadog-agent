@@ -292,4 +292,4 @@ def check_go111module_envvar(command):
         print("The Datadog Agent is not using Go modules yet and can't be built with Go modules enabled.")
         print("Please unset the environment variable or call the invoke task with GO111MODULE set to off. E.g.")
         print("\tGO111MODULE=off invoke " + command)
-        raise invoke.exceptions.Exit(code=-1, message="<the error message to print>")
+        raise invoke.exceptions.Exit(code=-1, message="The Datadog Agent is not compatible with Go modules yet, GO111MODULE should not be set to 'on'.")
