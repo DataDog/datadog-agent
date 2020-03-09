@@ -282,12 +282,14 @@ def load_release_versions(ctx, target_version):
     raise Exception("Could not find '{}' version in release.json".format(target_version))
 
 def go111module_envvar(command):
-    # tests if the GO111MODULE environment variable is set to on; if yes, stops
-    # the build because the Datadog Agent can't be built with go modules.
+    """
+    Test if the GO111MODULE environment variable is set to on; if so, stop
+    the build because the Datadog Agent can't be built with go modules.
+    """
 
     if os.environ.get("GO111MODULE") != None and os.environ.get("GO111MODULE") == "on":
         print("The environment variable GO111MODULE is set to 'on' in your environment.")
         print("The Datadog Agent is not using Go modules yet and can't be built with Go modules enabled.")
         print("Please unset the environment variable or call the invoke task with GO111MODULE set to off. E.g.")
         print("\tGO111MODULE=off invoke " + command)
-        sys.exit(-1)
+        raise invoke.exceptions.Exit(code=-1, message="<the error message to print>")
