@@ -209,9 +209,11 @@ func (d *DockerCheck) Run() error {
 
 			if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
-				if c.Memory.HierarchicalMemoryLimit != 0 {
-					sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
-				}
+				sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
+			} else if c.MemLimit > 0 && c.Memory.CommitBytes > 0 {
+				// On Windows the mem limit is in container limits
+				sender.Gauge("docker.mem.limit", float64(c.MemLimit), "", tags)
+				sender.Gauge("docker.mem.in_use", float64(c.Memory.CommitBytes)/float64(c.MemLimit), "", tags)
 			}
 
 			sender.Gauge("docker.mem.failed_count", float64(c.Memory.MemFailCnt), "", tags)
@@ -228,9 +230,15 @@ func (d *DockerCheck) Run() error {
 				sender.Gauge("docker.mem.soft_limit", float64(c.Memory.SoftMemLimit), "", tags)
 			}
 
-			sender.Gauge("docker.mem.private_working_set", float64(c.Memory.PrivateWorkingSet), "", tags)
-			sender.Gauge("docker.mem.commit_bytes", float64(c.Memory.CommitBytes), "", tags)
-			sender.Gauge("docker.mem.commit_peak_bytes", float64(c.Memory.CommitPeakBytes), "", tags)
+			if c.Memory.PrivateWorkingSet > 0 {
+				sender.Gauge("docker.mem.private_working_set", float64(c.Memory.PrivateWorkingSet), "", tags)
+			}
+			if c.Memory.CommitBytes > 0 {
+				sender.Gauge("docker.mem.commit_bytes", float64(c.Memory.CommitBytes), "", tags)
+			}
+			if c.Memory.CommitPeakBytes > 0 {
+				sender.Gauge("docker.mem.commit_peak_bytes", float64(c.Memory.CommitPeakBytes), "", tags)
+			}
 		} else {
 			log.Debugf("Empty memory metrics for container %s", c.ID[:12])
 		}
