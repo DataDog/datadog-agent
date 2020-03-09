@@ -60,6 +60,7 @@ func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string)
 func getSyscallPrefix() (string, error) {
 
 	syscallPrefixes := []string{
+		"__sys_",
 		"sys_",
 		"__x64_sys_",
 		"__x32_compat_sys_",
@@ -80,7 +81,7 @@ func getSyscallPrefix() (string, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		for _, prefix := range syscallPrefixes {
-			if strings.HasSuffix(line, " "+prefix+"bpf") {
+			if strings.HasSuffix(line, " "+prefix+"socket") {
 				return prefix, nil
 			}
 		}
@@ -101,10 +102,6 @@ func fixSyscallName(prefix string, name KProbeName) string {
 	// see get_syscall_fname in bcc
 
 	parts := strings.Split(string(name), "/")
-	if len(parts) != 2 {
-		panic("cannot convert!")
-	}
-
 	probeType := parts[0]
 	rawName := strings.TrimPrefix(parts[1], "sys_")
 

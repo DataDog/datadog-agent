@@ -149,8 +149,10 @@ func NewTracer(config *Config) (*Tracer, error) {
 				}
 			}
 
-			if probeName == SysSocket || probeName == SysBind || probeName == SysSocketRet {
-				m.SetKprobeForSection(string(probeName), fixSyscallName(prefix, probeName))
+			if isSysCall(probeName) {
+				fixedName := fixSyscallName(prefix, probeName)
+				log.Debugf("attaching section %s to %s", string(probeName), fixedName)
+				m.SetKprobeForSection(string(probeName), fixedName)
 			}
 
 			if err = m.EnableKprobe(string(probeName), maxActive); err != nil {
@@ -711,4 +713,12 @@ func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.Se
 // That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
 func CurrentKernelVersion() (uint32, error) {
 	return bpflib.CurrentKernelVersion()
+}
+
+func isSysCall(name KProbeName) bool {
+	parts := strings.Split(string(name), "/")
+	if len(parts) != 2 {
+		return false
+	}
+	return strings.HasPrefix(parts[1], "sys_")
 }

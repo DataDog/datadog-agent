@@ -1056,14 +1056,14 @@ int kretprobe__sys_socket(struct pt_regs* ctx) {
         // socket with the same FD, we want to prevent
         // subsequent calls to bind() from having an effect.
         bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
-        log_debug("kretprobe/sys_socket: socket() call finished but was not UDP\\n");
+        log_debug("kretprobe/sys_socket: socket() call finished but was not UDP\n");
         return 0;
     }
 
 
     bpf_map_delete_elem(&pending_sockets, &tid);
 
-    log_debug("kretprobe/sys_socket: socket() call for UDP socket terminated, fd (%d) is now unbound tid=%d", fd, tid);
+    log_debug("kretprobe/sys_socket: socket() call for UDP socket terminated, fd (%d) is now unbound tid=%d\n", fd, tid);
 
     __u64 v = 1;
     bpf_map_update_elem(&unbound_sockets, &fd_and_tid, &v, BPF_ANY);

@@ -18,7 +18,7 @@ sleep_echo() {
 }
 
 server() {
-	sleep_echo "goodbye world" | nc -u -l "$PORT"
+	sleep_echo "goodbye world" | nc -u -l "$LOCALHOST" "$PORT"
 	echo "server done"
 }
 server &
