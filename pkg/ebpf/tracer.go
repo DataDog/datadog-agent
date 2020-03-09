@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -81,13 +82,12 @@ const (
 	defaultClosedChannelSize = 500
 )
 
-// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
-// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-func CurrentKernelVersion() (uint32, error) {
-	return bpflib.CurrentKernelVersion()
-}
-
 func NewTracer(config *Config) (*Tracer, error) {
+	// make sure debugfs is mounted
+	if mounted, msg := util.IsDebugfsMounted(); !mounted {
+		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
+	}
+
 	m, err := readBPFModule(config.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
@@ -692,4 +692,10 @@ func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.Se
 			Disabled: !enableSocketFilter,
 		},
 	}
+}
+
+// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
+// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
+func CurrentKernelVersion() (uint32, error) {
+	return bpflib.CurrentKernelVersion()
 }

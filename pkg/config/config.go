@@ -119,6 +119,8 @@ func init() {
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	initConfig(Datadog)
+	// Configuration settings that can be changed at runtime
+	initRuntimeSettings()
 }
 
 // initConfig initializes the config defaults on a config
@@ -177,6 +179,9 @@ func initConfig(config Config) {
 	// NOTE: linter is notoriously slow, in the absence of a better solution we
 	//       can only increase this timeout value. Linting operation is async.
 	config.BindEnvAndSetDefault("python3_linter_timeout", 120)
+
+	// Whether to honour the value of PYTHONPATH, if set, on Windows. On other OSes we always do.
+	config.BindEnvAndSetDefault("windows_use_pythonpath", false)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -293,6 +298,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
+	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
+	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
 	config.SetKnown("dogstatsd_mapper_profiles")
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")

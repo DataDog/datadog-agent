@@ -51,6 +51,11 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		return nil, err
 	}
 
+	if len(ctrList) == 0 {
+		log.Trace("no containers found")
+		return nil, nil
+	}
+
 	// End check early if this is our first run.
 	if r.lastRates == nil {
 		r.lastRates = util.ExtractContainerRateMetric(ctrList)

@@ -44,7 +44,6 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     }
 
     goenv = {}
-    # TODO: this is a temporary workaround. system probe had issues when built with go 1.11 and 1.12
     if go_version:
         lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:
@@ -122,7 +121,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     if not skip_object_files:
         build_object_files(ctx, install=False)
 
-    pkg = os.path.join(REPO_PATH, "pkg", "ebpf", "...")
+    pkg = "./pkg/ebpf/..."
 
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']

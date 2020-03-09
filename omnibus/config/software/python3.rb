@@ -19,7 +19,8 @@ if ohai["platform"] != "windows"
   relative_path "Python-#{version}"
 
   python_configure = ["./configure",
-                      "--prefix=#{install_dir}/embedded"]
+                      "--prefix=#{install_dir}/embedded",
+                      "--with-ssl=#{install_dir}/embedded"]
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",

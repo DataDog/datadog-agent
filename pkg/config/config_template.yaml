@@ -352,6 +352,12 @@ api_key:
 #
 # tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
 
+## @param windows_use_pythonpath - boolean - optional
+## Whether to honour the value of the PYTHONPATH env var when set on Windows.
+## Disabled by default, so we only load Python libraries bundled with the Agent.
+#
+# windows_use_pythonpath: false
+
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
@@ -800,6 +806,11 @@ api_key:
 ## Size of the cache (max number of mapping results) used by Dogstatsd mapping feature.
 #
 # dogstatsd_mapper_cache_size: 1000
+
+## @param dogstatsd_entity_id_precedence - boolean - optional - default: false
+## Disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
+#
+# dogstatsd_entity_id_precedence: false
 
 ## @param statsd_forward_host - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.

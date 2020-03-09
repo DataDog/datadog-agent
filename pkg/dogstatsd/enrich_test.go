@@ -22,7 +22,7 @@ func parseAndEnrichMetricMessage(message []byte, namespace string, namespaceBlac
 	if err != nil {
 		return metrics.MetricSample{}, err
 	}
-	return enrichMetricSample(parsed, namespace, namespaceBlacklist, defaultHostname, returnEmptyTags), nil
+	return enrichMetricSample(parsed, namespace, namespaceBlacklist, defaultHostname, returnEmptyTags, true), nil
 }
 
 func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (*metrics.ServiceCheck, error) {
@@ -31,7 +31,7 @@ func parseAndEnrichServiceCheckMessage(message []byte, defaultHostname string) (
 	if err != nil {
 		return nil, err
 	}
-	return enrichServiceCheck(parsed, defaultHostname, returnEmptyTags), nil
+	return enrichServiceCheck(parsed, defaultHostname, returnEmptyTags, true), nil
 }
 
 func parseAndEnrichEventMessage(message []byte, defaultHostname string) (*metrics.Event, error) {
@@ -40,7 +40,7 @@ func parseAndEnrichEventMessage(message []byte, defaultHostname string) (*metric
 	if err != nil {
 		return nil, err
 	}
-	return enrichEvent(parsed, defaultHostname, returnEmptyTags), nil
+	return enrichEvent(parsed, defaultHostname, returnEmptyTags, true), nil
 }
 
 func TestConvertParseGauge(t *testing.T) {
@@ -784,9 +784,10 @@ func Test_enrichTags(t *testing.T) {
 	emptyTagsList := func() []string { return []string{} }
 
 	type args struct {
-		tags            []string
-		defaultHostname string
-		originTagsFunc  func() []string
+		tags                       []string
+		defaultHostname            string
+		originTagsFunc             func() []string
+		entityIDPrecendenceEnabled bool
 	}
 	tests := []struct {
 		name  string
@@ -797,8 +798,9 @@ func Test_enrichTags(t *testing.T) {
 		{
 			name: "empty tags, host=foo",
 			args: args{
-				defaultHostname: "foo",
-				originTagsFunc:  emptyTagsList,
+				defaultHostname:            "foo",
+				originTagsFunc:             emptyTagsList,
+				entityIDPrecendenceEnabled: true,
 			},
 			want:  nil,
 			want1: "foo",
@@ -806,9 +808,10 @@ func Test_enrichTags(t *testing.T) {
 		{
 			name: "entityId not present, host=foo, should return origin tags",
 			args: args{
-				tags:            []string{"env:prod"},
-				defaultHostname: "foo",
-				originTagsFunc:  func() []string { return []string{"mytag:bar"} },
+				tags:                       []string{"env:prod"},
+				defaultHostname:            "foo",
+				originTagsFunc:             func() []string { return []string{"mytag:bar"} },
+				entityIDPrecendenceEnabled: true,
 			},
 			want:  []string{"env:prod", "mytag:bar"},
 			want1: "foo",
@@ -816,9 +819,10 @@ func Test_enrichTags(t *testing.T) {
 		{
 			name: "entityId present, host=foo, should not return origin tags",
 			args: args{
-				tags:            []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
-				defaultHostname: "foo",
-				originTagsFunc:  func() []string { return []string{"mytag:bar"} },
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
+				defaultHostname:            "foo",
+				originTagsFunc:             func() []string { return []string{"mytag:bar"} },
+				entityIDPrecendenceEnabled: true,
 			},
 			want:  []string{"env:prod"},
 			want1: "foo",
@@ -826,17 +830,29 @@ func Test_enrichTags(t *testing.T) {
 		{
 			name: "entityId=none present, host=foo, should not call the originTagsFunc()",
 			args: args{
-				tags:            []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "none")},
-				defaultHostname: "foo",
-				originTagsFunc:  func() []string { panic("oups") },
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "none")},
+				defaultHostname:            "foo",
+				originTagsFunc:             func() []string { panic("oups") },
+				entityIDPrecendenceEnabled: true,
 			},
 			want:  []string{"env:prod"},
+			want1: "foo",
+		},
+		{
+			name: "entityId=42 present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			args: args{
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42")},
+				defaultHostname:            "foo",
+				originTagsFunc:             func() []string { return []string{"cluster:bar"} },
+				entityIDPrecendenceEnabled: false,
+			},
+			want:  []string{"env:prod", "cluster:bar"},
 			want1: "foo",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := enrichTags(tt.args.tags, tt.args.defaultHostname, tt.args.originTagsFunc)
+			got, got1 := enrichTags(tt.args.tags, tt.args.defaultHostname, tt.args.originTagsFunc, tt.args.entityIDPrecendenceEnabled)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("enrichTags() got = %v, want %v", got, tt.want)
 			}
