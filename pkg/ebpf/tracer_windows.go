@@ -15,26 +15,41 @@ import (
 	"encoding/binary"
 	"expvar"
 	"fmt"
+	"net"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/windows"
 )
 
 const (
 	driverFile = `\\.\ddfilter`
+
+	// Number of buffers to use with the IOCompletion port to communicate with the driver
+	totalReadBuffers = 32
 )
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"driver_total_stats", "driver_handle_stats"}
+	expvarTypes     = []string{"driver_total_stats", "driver_handle_stats", "packet_count"}
 
 	// Buffer holding datadog driver filterapi (ddfilterapi) signature to ensure consistency with driver.
 	ddAPIVersionBuf = makeDDAPIVersionBuffer(C.DD_FILTER_SIGNATURE)
 )
+
+// Creates a buffer that Driver will use to verify proper versions are communicating
+// We create a buffer because the system calls we make need a *byte which is not
+// possible with const value
+func makeDDAPIVersionBuffer(signature uint64) []byte {
+	buf := make([]byte, C.sizeof_uint64_t)
+	binary.LittleEndian.PutUint64(buf, signature)
+	return buf
+}
 
 func init() {
 	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
@@ -47,22 +62,49 @@ func init() {
 type Tracer struct {
 	config       *Config
 	driverHandle windows.Handle
+	iocp         windows.Handle
+	bufs         []readBuffer
+	packetCount  int64
 }
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
 	handle, err := openDriverFile(driverFile)
 	if err != nil {
-		return nil, fmt.Errorf("%s : %s", "Could not create driver handle", err)
+		return nil, fmt.Errorf("%s : %s", "could not create driver handle", err)
+	}
+
+	// Create IO Completion port that we'll use to communicate with the driver
+	iocp, err := windows.CreateIoCompletionPort(handle, windows.Handle(0), 0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create IO completion port %v", err)
 	}
 
 	tr := &Tracer{
 		driverHandle: handle,
+		iocp:         iocp,
+		bufs:         make([]readBuffer, totalReadBuffers),
 	}
 
+	// Set the packet filters that will determine what we pull from the driver
+	err = tr.prepareDriverFilters()
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup packet filters on the driver: %v", err)
+	}
+
+	// Prepare the read buffers that will be used to send packets from kernel to user space
+	err = tr.prepareReadBuffers()
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare ReadBuffers: %v", err)
+	}
+
+	tr.initPacketPolling()
 	go tr.expvarStats()
 	return tr, nil
 }
+
+// Stop function stops running tracer
+func (t *Tracer) Stop() {}
 
 func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
@@ -83,39 +125,93 @@ func (t *Tracer) expvarStats() {
 	}
 }
 
-// Stop function stops running tracer
-func (t *Tracer) Stop() {}
+func (t *Tracer) prepareDriverFilters() (err error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		log.Error("Error getting interfaces: %v\n", err.Error())
+		return
+	}
 
-func openDriverFile(path string) (windows.Handle, error) {
-	p, err := windows.UTF16PtrFromString(path)
-	if err != nil {
-		return windows.InvalidHandle, err
+	var (
+		fd_incoming C.struct__filterDefinition
+		fd_outgoing C.struct__filterDefinition
+	)
+
+	fd_incoming.filterVersion = C.DD_FILTER_SIGNATURE
+	fd_incoming.size = C.sizeof_struct__filterDefinition
+	fd_incoming.direction = C.DIRECTION_INBOUND
+	fd_incoming.af = windows.AF_INET
+
+	fd_outgoing.filterVersion = C.DD_FILTER_SIGNATURE
+	fd_outgoing.size = C.sizeof_struct__filterDefinition
+	fd_outgoing.direction = C.DIRECTION_INBOUND
+	fd_outgoing.af = windows.AF_INET
+
+	for _, i := range ifaces {
+		log.Debugf("Setting filter for interface: %s [%+v]", i.Name, i)
+
+		fd_incoming.v4InterfaceIndex = (C.ulonglong)(i.Index)
+		fd_outgoing.v4InterfaceIndex = (C.ulonglong)(i.Index)
+
+		var id uint64
+
+		err = windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd_incoming)), uint32(unsafe.Sizeof(fd_incoming)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
+		if err != nil {
+			log.Error("Failed to set filter: %v\n", err.Error())
+			continue
+		}
+
+		err = windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd_outgoing)), uint32(unsafe.Sizeof(fd_outgoing)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
+		if err != nil {
+			log.Error("Failed to set filter: %v\n", err.Error())
+			continue
+		}
 	}
-	log.Debug("Creating Driver handle...")
-	h, err := windows.CreateFile(p,
-		windows.GENERIC_READ|windows.GENERIC_WRITE,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
-		nil,
-		windows.OPEN_EXISTING,
-		windows.FILE_FLAG_OVERLAPPED,
-		windows.Handle(0))
-	if err != nil {
-		return windows.InvalidHandle, err
-	}
-	log.Info("Connected to driver and handle created")
-	return h, nil
+	return nil
 }
 
-func closeDriverFile(handle windows.Handle) error {
-	return windows.CloseHandle(handle)
+// Add buffers to Tracer object. Even though the windows API will actually
+// keep the buffers, add it to the tracer so that golang doesn't garbage collect
+// the buffers out from under us
+func (t *Tracer) prepareReadBuffers() (err error) {
+	for i := 0; i < totalReadBuffers; i++ {
+		err = windows.ReadFile(t.driverHandle, t.bufs[i].data[:], nil, &t.bufs[i].ol)
+		if err != nil {
+			if err != windows.ERROR_IO_PENDING {
+				fmt.Printf("failed to initiate readfile %v\n", err)
+				windows.CloseHandle(t.iocp)
+				t.iocp = windows.Handle(0)
+				t.bufs = nil
+				return
+			}
+		}
+	}
+	err = nil
+	return
 }
 
-// We create a buffer because the system calls we make need a *byte which is not
-// possible with const value
-func makeDDAPIVersionBuffer(signature uint64) []byte {
-	buf := make([]byte, C.sizeof_uint64_t)
-	binary.LittleEndian.PutUint64(buf, signature)
-	return buf
+func (t *Tracer) initPacketPolling() (err error) {
+	log.Infof("Ran initPacketPolling")
+	go func() {
+		var (
+			bytes uint32
+			key   uint32
+			ol    *windows.Overlapped
+		)
+
+		for {
+			err := windows.GetQueuedCompletionStatus(t.iocp, &bytes, &key, &ol, windows.INFINITE)
+			if err == nil {
+				var buf *readBuffer
+				buf = (*readBuffer)(unsafe.Pointer(ol))
+				log.Infof("Received %v bytes\n", bytes)
+				buf.printPacket()
+				atomic.AddInt64(&t.packetCount, 1)
+				windows.ReadFile(t.driverHandle, buf.data[:], nil, &(buf.ol))
+			}
+		}
+	}()
+	return
 }
 
 // GetActiveConnections returns all active connections
@@ -155,7 +251,11 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	}
 
 	stats := *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
+	packetCount := atomic.LoadInt64(&t.packetCount)
 	return map[string]interface{}{
+		"packet_count": map[string]int64{
+			"count": packetCount,
+		},
 		"driver_total_stats": map[string]int64{
 			"read_calls":             int64(stats.total.read_calls),
 			"read_bytes":             int64(stats.total.read_bytes),
@@ -192,4 +292,43 @@ func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 // CurrentKernelVersion is not implemented on this OS for Tracer
 func CurrentKernelVersion() (uint32, error) {
 	return 0, ErrNotImplemented
+}
+
+// readBuffer is the buffer to pass into ReadFile system call to pull out packets
+type readBuffer struct {
+	ol   windows.Overlapped
+	data [128]byte
+}
+
+func (rb *readBuffer) printPacket() {
+	var header ipv4.Header
+	var pheader C.struct_filterPacketHeader
+	dataStart := unsafe.Sizeof(pheader)
+	log.Infof("data start is %d\n", dataStart)
+	header.Parse(rb.data[dataStart:])
+	log.Infof(" %v    ==>>    %v", header.Src.String(), header.Dst.String())
+}
+
+func openDriverFile(path string) (windows.Handle, error) {
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return windows.InvalidHandle, err
+	}
+	log.Debug("Creating Driver handle...")
+	h, err := windows.CreateFile(p,
+		windows.GENERIC_READ|windows.GENERIC_WRITE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
+		nil,
+		windows.OPEN_EXISTING,
+		windows.FILE_FLAG_OVERLAPPED,
+		windows.Handle(0))
+	if err != nil {
+		return windows.InvalidHandle, err
+	}
+	log.Info("Connected to driver and handle created")
+	return h, nil
+}
+
+func closeDriverFile(handle windows.Handle) error {
+	return windows.CloseHandle(handle)
 }

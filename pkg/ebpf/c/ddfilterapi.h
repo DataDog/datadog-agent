@@ -88,6 +88,9 @@ typedef struct _filterAddress
 #define    DIRECTION_INBOUND    ((uint64_t)0)
 #define    DIRECTION_OUTBOUND   ((uint64_t)1)
 
+#define     FILTER_LAYER_IPPACKET       ((uint64_t) 0)
+#define     FILTER_LAYER_TRANSPORT      ((uint64_t) 1)
+
 typedef struct _filterDefinition
 {
     uint64_t filterVersion;
@@ -99,6 +102,7 @@ typedef struct _filterDefinition
      if both source and destination are applied, then the match for this filter
      is a logical AND, i.e. the source and destination both match.
      */
+    uint64_t        filterLayer; //! which filter layer to apply
     uint64_t          af;     //! address family to filter
 
     FILTER_ADDRESS  sourceAddress;
@@ -107,6 +111,8 @@ typedef struct _filterDefinition
     uint64_t        destinationPort;
     uint64_t        protocol;
     uint64_t        direction;
+    uint64_t        v4InterfaceIndex;
+    uint64_t        v6InterfaceIndex;
 } FILTER_DEFINITION;
 
 /*!
@@ -124,6 +130,7 @@ typedef struct filterPacketHeader
     uint64_t		direction;              //! direction of packet
     uint64_t		pktSize;                //! size of packet
     uint64_t		af;		                //! address family of packet
+    uint64_t        ownerPid;
 
     // data follows
 } PACKET_HEADER, *PPACKET_HEADER;
