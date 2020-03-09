@@ -41,7 +41,6 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     }
 
     goenv = {}
-    # TODO: this is a temporary workaround. system probe had issues when built with go 1.11 and 1.12
     if go_version:
         lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:

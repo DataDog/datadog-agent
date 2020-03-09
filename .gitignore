@@ -95,6 +95,10 @@ dogstatsd-msg.h
 
 #visual studio files
 *.aps
+omnibus/resources/agent/msi/cal/packages/
+tools/windows/install-help/cal/packages/
+[Dd]ebug/
+[Rr]elease/
 
 # ebpf object files
 pkg/ebpf/c/*.o
