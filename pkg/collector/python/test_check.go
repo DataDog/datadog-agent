@@ -295,11 +295,11 @@ func testConfigure(t *testing.T) {
 
 	C.get_check_return = 1
 	C.get_check_check = &C.rtloader_pyobject_t{}
-	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"), "test")
+	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
-	assert.Equal(t, "aaa", C.GoString(C.get_check_init_config))
+	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_init_config))
 	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_instance))
 	assert.Equal(t, string(c.id), C.GoString(C.get_check_check_id))
 	assert.Equal(t, "fake_check", C.GoString(C.get_check_check_name))
@@ -323,18 +323,18 @@ func testConfigureDeprecated(t *testing.T) {
 	C.get_check_return = 0
 	C.get_check_deprecated_check = &C.rtloader_pyobject_t{}
 	C.get_check_deprecated_return = 1
-	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("aaa"), "test")
+	err := c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, c.class, C.get_check_py_class)
-	assert.Equal(t, "aaa", C.GoString(C.get_check_init_config))
+	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_init_config))
 	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_instance))
 	assert.Equal(t, string(c.id), C.GoString(C.get_check_check_id))
 	assert.Equal(t, "fake_check", C.GoString(C.get_check_check_name))
 	assert.Nil(t, C.get_check_check)
 
 	assert.Equal(t, c.class, C.get_check_deprecated_py_class)
-	assert.Equal(t, "aaa", C.GoString(C.get_check_deprecated_init_config))
+	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_deprecated_init_config))
 	assert.Equal(t, "{\"val\": 21}", C.GoString(C.get_check_deprecated_instance))
 	assert.Equal(t, string(c.id), C.GoString(C.get_check_deprecated_check_id))
 	assert.Equal(t, "fake_check", C.GoString(C.get_check_deprecated_check_name))

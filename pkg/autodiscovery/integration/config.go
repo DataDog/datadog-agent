@@ -39,8 +39,8 @@ const (
 // Config is a generic container for configuration files
 type Config struct {
 	Name                    string       `json:"check_name"`                // the name of the check
-	Instances               []Data       `json:"instances"`                 // array of Yaml configurations
-	InitConfig              Data         `json:"init_config"`               // the init_config in Yaml (python check only)
+	Instances               []Data       `json:"instances"`                 // the list of instances in Yaml
+	InitConfig              Data         `json:"init_config"`               // the init_config in Yaml
 	MetricConfig            Data         `json:"metric_config"`             // the metric config in Yaml (jmx check only)
 	LogsConfig              Data         `json:"logs"`                      // the logs config in Yaml (logs-agent only)
 	ADIdentifiers           []string     `json:"ad_identifiers"`            // the list of AutoDiscovery identifiers (optional)
@@ -59,8 +59,14 @@ type CommonInstanceConfig struct {
 	MinCollectionInterval int      `yaml:"min_collection_interval"`
 	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
 	Tags                  []string `yaml:"tags"`
+	Service               string   `yaml:"service"`
 	Name                  string   `yaml:"name"`
 	Namespace             string   `yaml:"namespace"`
+}
+
+// CommonGlobalConfig holds the reserved fields for the yaml init_config data
+type CommonGlobalConfig struct {
+	Service string `yaml:"service"`
 }
 
 // Equal determines whether the passed config is the same

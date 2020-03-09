@@ -4,6 +4,7 @@ suites:
 # candidate
 - name: dd-agent-upgrade-agent7
   run_list:
+    - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install]"
     - "recipe[dd-agent-upgrade]"
   attributes:
@@ -14,7 +15,7 @@ suites:
       agent_major_version: 7
       api_key: <%= api_key %>
     dd-agent-install:
-      windows_agent_url: https://s3.amazonaws.com/ddagent-windows-stable/
+      windows_agent_url: https://ddagent-windows-stable.s3.amazonaws.com/
       windows_agent_filename: datadog-agent-7-latest.amd64
     dd-agent-upgrade:
       add_new_repo: true

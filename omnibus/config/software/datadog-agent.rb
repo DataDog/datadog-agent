@@ -38,6 +38,8 @@ build do
         "Python2_ROOT_DIR" => "#{install_dir}/embedded",
         "Python3_ROOT_DIR" => "#{install_dir}/embedded",
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+        "CGO_CFLAGS" => "-I#{install_dir}/embedded/include",
+        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     }
     major_version_arg = "$MAJOR_VERSION"
     py_runtimes_arg = "$PY_RUNTIMES"
@@ -56,14 +58,14 @@ build do
   # we assume the go deps are already installed before running omnibus
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "inv -e rtloader.build --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
+    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
     command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
-    command "inv -e agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform}", env: env
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rtloader-root=#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/rtloader --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform}", env: env
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild --no-development --arch #{platform}", env: env
   else
-    command "inv -e rtloader.build --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
-    command "inv -e agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded", env: env
   end
 
   if osx?
@@ -84,6 +86,7 @@ build do
     command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
     unless windows_arch_i386?
       command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
+      command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
     end
   end
 
@@ -115,19 +118,15 @@ build do
 
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
   else
-    # TODO(processes): change this to be ebpf:latest when we move to go1.12.x on the agent
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --go-version=1.10.1", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
-
-  # Build the system-probe
-  if linux?
-    command "invoke -e system-probe.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --go-version=1.10.1", :env => env
-    copy 'bin/system-probe/system-probe', "#{install_dir}/embedded/bin"
-    block { File.chmod(0755, "#{install_dir}/embedded/bin/system-probe") }
+  # Add SELinux policy for system-probe
+  if debian? || redhat?
+    mkdir "#{conf_dir}/selinux"
+    command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
   end
-
 
   if linux?
     if debian?

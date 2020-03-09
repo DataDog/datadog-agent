@@ -16,14 +16,16 @@ from . import (agent,
     pylauncher,
     release,
     rtloader,
+    selinux,
     system_probe,
     systray,
-    trace_agent
+    trace_agent,
+    uninstallcmd
 )
 
 
 from .go import fmt, lint, vet, cyclo, golangci_lint, deps, lint_licenses, reset, generate
-from .test import test, integration_tests, lint_teamassignment, lint_releasenote, lint_milestone, lint_filenames, e2e_tests, make_kitchen_gitlab_yml
+from .test import test, integration_tests, lint_teamassignment, lint_releasenote, lint_milestone, lint_filenames, e2e_tests, make_kitchen_gitlab_yml, check_gitlab_broken_dependencies
 from .build_tags import audit_tag_impact
 
 # the root namespace
@@ -47,6 +49,7 @@ ns.add_task(lint_filenames)
 ns.add_task(audit_tag_impact)
 ns.add_task(e2e_tests)
 ns.add_task(make_kitchen_gitlab_yml)
+ns.add_task(check_gitlab_broken_dependencies)
 ns.add_task(generate)
 
 # add namespaced tasks to the root
@@ -60,11 +63,13 @@ ns.add_collection(trace_agent)
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
 ns.add_collection(pylauncher)
+ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
+ns.add_collection(uninstallcmd)
 
 ns.configure({
     'run': {

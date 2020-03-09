@@ -119,6 +119,8 @@ func init() {
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	initConfig(Datadog)
+	// Configuration settings that can be changed at runtime
+	initRuntimeSettings()
 }
 
 // initConfig initializes the config defaults on a config
@@ -132,6 +134,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("tags", []string{})
+	config.BindEnv("env")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
@@ -176,6 +179,9 @@ func initConfig(config Config) {
 	// NOTE: linter is notoriously slow, in the absence of a better solution we
 	//       can only increase this timeout value. Linting operation is async.
 	config.BindEnvAndSetDefault("python3_linter_timeout", 120)
+
+	// Whether to honour the value of PYTHONPATH, if set, on Windows. On other OSes we always do.
+	config.BindEnvAndSetDefault("windows_use_pythonpath", false)
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
@@ -234,6 +240,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
+	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
@@ -253,6 +260,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
 
 	// Forwarder
+	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 30)
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -289,6 +297,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
+	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
+	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
 	config.SetKnown("dogstatsd_mapper_profiles")
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
@@ -404,7 +415,7 @@ func initConfig(config Config) {
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
 	// since some of them require custom parsing algorithms. DO NOT add environment variable
 	// bindings here, add them there instead.
-	if runtime.GOARCH == "386" {
+	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
 		// so that there aren't messages in the log about failing to start.
 		config.BindEnvAndSetDefault("apm_config.enabled", false)
@@ -457,7 +468,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
-	config.SetKnown("logs_config.additional_endpoints")
+	config.BindEnv("logs_config.additional_endpoints")
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -506,6 +517,7 @@ func initConfig(config Config) {
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
+	config.SetKnown("telemetry.checks")
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
@@ -513,7 +525,6 @@ func initConfig(config Config) {
 	config.SetKnown("config_providers")
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
-	config.SetKnown("additional_endpoints.*")
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
@@ -768,6 +779,7 @@ func load(config Config, origin string, loadSecret bool) error {
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
+	trimTrailingSlashFromURLS(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -812,6 +824,47 @@ func ResolveSecrets(config Config, origin string) error {
 // Avoid log ingestion breaking because of a newline in the API key
 func sanitizeAPIKey(config Config) {
 	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
+}
+
+//trimTrailingSlashFromURLS trims any forward slashes from the end of various config URL's (site, dd_url, and various additional endpoints)
+func trimTrailingSlashFromURLS(config Config) error {
+	var urls = []string{
+		"site",
+		"dd_url",
+	}
+	var additionalEndpointSelectors = []string{
+		"additional_endpoints",
+		"apm_config.additional_endpoints",
+		"process_config.additional_endpoints",
+	}
+
+	for _, domain := range urls {
+		key := config.GetString(domain)
+		if key == "" {
+			continue
+		}
+		config.Set(domain, strings.TrimRight(key, "/"))
+	}
+
+	for _, es := range additionalEndpointSelectors {
+		additionalEndpoints := make(map[string][]string)
+		sanitizedAdditionalEndpoints := make(map[string][]string)
+
+		err := config.UnmarshalKey(es, &additionalEndpoints)
+
+		if err != nil {
+			return err
+		}
+		for domain, keys := range additionalEndpoints {
+			if domain == "" {
+				continue
+			}
+			domain = strings.TrimRight(domain, "/")
+			sanitizedAdditionalEndpoints[domain] = keys
+		}
+		config.Set(es, sanitizedAdditionalEndpoints)
+	}
+	return nil
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
@@ -889,12 +942,7 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 		},
 	}
 
-	var additionalEndpoints map[string][]string
-	err = config.UnmarshalKey("additional_endpoints", &additionalEndpoints)
-	if err != nil {
-		return keysPerDomain, err
-	}
-
+	additionalEndpoints := config.GetStringMapStringSlice("additional_endpoints")
 	// merge additional endpoints into keysPerDomain
 	for domain, apiKeys := range additionalEndpoints {
 

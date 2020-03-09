@@ -8,13 +8,11 @@ package traceutil
 import "github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 const (
-	// TraceMetricsKey is a tag key which, if set to true,
-	// ensures all statistics are computed for this span.
-	// [FIXME] *not implemented yet*
-	TraceMetricsKey = "datadog.trace_metrics"
-
 	// This is a special metric, it's 1 if the span is top-level, 0 if not.
 	topLevelKey = "_top_level"
+
+	// measuredKey is a special metric flag that marks a span for trace metrics calculation.
+	measuredKey = "_dd.measured"
 )
 
 // HasTopLevel returns true if span is top-level.
@@ -22,9 +20,9 @@ func HasTopLevel(s *pb.Span) bool {
 	return s.Metrics[topLevelKey] == 1
 }
 
-// HasForceMetrics returns true if statistics computation should be forced for this span.
-func HasForceMetrics(s *pb.Span) bool {
-	return s.Meta[TraceMetricsKey] == "true"
+// IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
+func IsMeasured(s *pb.Span) bool {
+	return s.Metrics[measuredKey] == 1
 }
 
 // SetTopLevel sets the top-level attribute of the span.

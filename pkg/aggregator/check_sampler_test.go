@@ -210,20 +210,21 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 
 	checkSampler.commit(12349.0)
 	_, flushed := checkSampler.flush()
+	assert.Equal(t, 1, len(flushed))
 
 	expSketch := &quantile.Sketch{}
 	// linear interpolated values
 	expSketch.Insert(quantile.Default(), 10.0, 12.5, 15.0, 17.5)
 
-	assert.Equal(t, 1, len(flushed))
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
+	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
 		ContextKey: generateContextKey(bucket1),
-	}, flushed[0])
+	}, flushed[0], .03)
 
 	bucket2 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -246,14 +247,15 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	expSketch.Insert(quantile.Default(), 10.0, 15.0)
 
 	assert.Equal(t, 1, len(flushed))
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
+	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
 		ContextKey: generateContextKey(bucket1),
-	}, flushed[0])
+	}, flushed[0], .03)
 
 	// garbage collection
 	time.Sleep(11 * time.Millisecond)
@@ -278,50 +280,18 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 
 	checkSampler.commit(12349.0)
 	_, flushed := checkSampler.flush()
+	assert.Equal(t, 1, len(flushed))
 
 	expSketch := &quantile.Sketch{}
 	expSketch.InsertMany(quantile.Default(), []float64{9000.0, 9000.0, 9000.0, 9000.0})
 
-	assert.Equal(t, 1, len(flushed))
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
+	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
+	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
 		Tags: []string{"foo", "bar"},
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
 		ContextKey: generateContextKey(bucket1),
-	}, flushed[0])
-}
-
-func TestCheckHistogramBucketInterpolationGranularity(t *testing.T) {
-	checkSampler := newCheckSampler()
-	checkSampler.bucketExpiry = 10 * time.Millisecond
-	// we should have 2 groups of 2 values
-	checkSampler.interpolationGranularity = 2
-
-	bucket1 := &metrics.HistogramBucket{
-		Name:       "my.histogram",
-		Value:      4.0,
-		LowerBound: 10.0,
-		UpperBound: 20.0,
-		Tags:       []string{"foo", "bar"},
-		Timestamp:  12345.0,
-	}
-	checkSampler.addBucket(bucket1)
-
-	checkSampler.commit(12349.0)
-	_, flushed := checkSampler.flush()
-
-	expSketch := &quantile.Sketch{}
-	expSketch.InsertMany(quantile.Default(), []float64{10.0, 10.0, 15.0, 15.0})
-
-	assert.Equal(t, 1, len(flushed))
-	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: []string{"foo", "bar"},
-		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
-		},
-		ContextKey: generateContextKey(bucket1),
-	}, flushed[0])
+	}, flushed[0], .03)
 }

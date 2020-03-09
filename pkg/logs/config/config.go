@@ -54,9 +54,12 @@ func DefaultSources() []*LogSource {
 func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
 	var err error
-	raw := coreConfig.Datadog.GetString("logs_config.processing_rules")
-	if raw != "" {
-		err = json.Unmarshal([]byte(raw), &rules)
+	raw := coreConfig.Datadog.Get("logs_config.processing_rules")
+	if raw == nil {
+		return rules, nil
+	}
+	if s, ok := raw.(string); ok && s != "" {
+		err = json.Unmarshal([]byte(s), &rules)
 	} else {
 		err = coreConfig.Datadog.UnmarshalKey("logs_config.processing_rules", &rules)
 	}
@@ -84,6 +87,7 @@ func BuildEndpoints() (*Endpoints, error) {
 		return buildHTTPEndpoints()
 	}
 
+	log.Warn("You are currently sending Logs to Datadog through TCP. To benefit from increased reliability and better network performances, we strongly encourage to switch over compressed HTTPS by using the logs_config.use_http and logs_config.use_compression parameters. This will become the default protocol in the Agent future version.")
 	return buildTCPEndpoints()
 }
 
@@ -122,16 +126,11 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 
-	var additionals []Endpoint
-	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
-	if err != nil {
-		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
-	}
+	additionals := getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
 	}
-
 	return NewEndpoints(main, additionals, useProto, false, 0), nil
 }
 
@@ -156,11 +155,7 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
 	}
 
-	var additionals []Endpoint
-	err := coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &additionals)
-	if err != nil {
-		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
-	}
+	additionals := getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 	}
@@ -168,6 +163,24 @@ func buildHTTPEndpoints() (*Endpoints, error) {
 	batchWait := batchWait(coreConfig.Datadog)
 
 	return NewEndpoints(main, additionals, false, true, batchWait), nil
+}
+
+func getAdditionalEndpoints() []Endpoint {
+	var endpoints []Endpoint
+	var err error
+	raw := coreConfig.Datadog.Get("logs_config.additional_endpoints")
+	if raw == nil {
+		return endpoints
+	}
+	if s, ok := raw.(string); ok && s != "" {
+		err = json.Unmarshal([]byte(s), &endpoints)
+	} else {
+		err = coreConfig.Datadog.UnmarshalKey("logs_config.additional_endpoints", &endpoints)
+	}
+	if err != nil {
+		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
+	}
+	return endpoints
 }
 
 func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
