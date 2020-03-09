@@ -155,8 +155,23 @@ func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerM
 
 // GetContainerLimits returns CPU, Thread and Memory limits
 func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLimits, error) {
-	// FIXME: Figure out a way to extract limits from Job Objects in the Windows Kernel
-	return nil, fmt.Errorf("not supported on windows")
+	dockerUtil, err := docker.GetDockerUtil()
+	if err != nil {
+		return nil, err
+	}
+
+	cjson, err := dockerUtil.Inspect(containerID, false)
+	if err != nil {
+		return nil, err
+	}
+
+	containerLimits := metrics.ContainerLimits{
+		CPULimit:    float64(cjson.HostConfig.CPUQuota),
+		MemLimit:    uint64(cjson.HostConfig.Memory),
+		//ThreadLimit: 0, // Unknown ?
+	}
+
+	return &containerLimits, nil
 }
 
 // GetNetworkMetrics return network metrics for all PIDs in container
