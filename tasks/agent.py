@@ -92,7 +92,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     """
 
     # bail out if GO111MODULE is set to on
-    go111module_envvar("process-agent.build")
+    go111module_envvar("agent.build")
 
     if not exclude_rtloader and not puppy:
         rtloader_make(ctx, python_runtimes=python_runtimes)
