@@ -202,6 +202,7 @@ fail_on_non_triggered_tag:
     - make -j 4 #"$(nproc)"
     - make install
     - cd /opt/libbcc
+    - chmod go-rwx lib/libbcc*
     - rm share/bcc/introspection/bps
     - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo* lib
     - tar cvaf /tmp/libbcc.tar.xz .
