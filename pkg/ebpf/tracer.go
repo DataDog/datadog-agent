@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -133,6 +134,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes := config.EnabledKProbes(pre410Kernel)
 
+	prefix, err := getSyscallPrefix()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get syscall prefix: %v", err)
+	}
+
 	for k := range m.IterKprobes() {
 		probeName := KProbeName(k.Name)
 		if _, ok := enabledProbes[probeName]; ok {
@@ -142,6 +148,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 					return nil, fmt.Errorf("could not update kprobe \"%s\" to \"%s\" : %s", k.Name, string(override), err)
 				}
 			}
+
+			if probeName == SysSocket || probeName == SysBind || probeName == SysSocketRet {
+				m.SetKprobeForSection(string(probeName), fixSyscallName(prefix, probeName))
+			}
+
 			if err = m.EnableKprobe(string(probeName), maxActive); err != nil {
 				return nil, fmt.Errorf("could not enable kprobe(%s): %s", k.Name, err)
 			}
