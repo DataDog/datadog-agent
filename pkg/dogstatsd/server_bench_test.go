@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func mockAggregator(pool *metrics.MetricSamplePool) (chan []metrics.MetricSample, chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+func mockAggregator() (chan []metrics.MetricSample, chan []*metrics.Event, chan []*metrics.ServiceCheck) {
 	bufferedMetricIn := make(chan []metrics.MetricSample, 100)
 	bufferedServiceCheckIn := make(chan []*metrics.ServiceCheck, 100)
 	bufferedEventIn := make(chan []*metrics.Event, 100)
@@ -30,7 +30,7 @@ func mockAggregator(pool *metrics.MetricSamplePool) (chan []metrics.MetricSample
 			case _ = <-bufferedEventIn:
 				break
 			case sampleBatch := <-bufferedMetricIn:
-				pool.PutBatch(sampleBatch)
+				metrics.GlobalMetricSamplePool.PutBatch(sampleBatch)
 			}
 		}
 	}()
@@ -50,13 +50,12 @@ func BenchmarkParsePackets(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	pool := metrics.NewMetricSamplePool(16)
-	sampleOut, eventOut, scOut := mockAggregator(pool)
-	s, _ := NewServer(pool, sampleOut, eventOut, scOut)
+	sampleOut, eventOut, scOut := mockAggregator()
+	s, _ := NewServer(sampleOut, eventOut, scOut)
 	defer s.Stop()
 
 	b.RunParallel(func(pb *testing.PB) {
-		batcher := newBatcher(pool, sampleOut, eventOut, scOut)
+		batcher := newBatcher(sampleOut, eventOut, scOut)
 		parser := newParser()
 		// 32 packets of 20 samples
 		rawPacket := buildPacketConent(20 * 32)
@@ -105,12 +104,11 @@ func BenchmarkMapperControl(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	pool := metrics.NewMetricSamplePool(16)
-	sampleOut, eventOut, scOut := mockAggregator(pool)
-	s, _ := NewServer(pool, sampleOut, eventOut, scOut)
+	sampleOut, eventOut, scOut := mockAggregator()
+	s, _ := NewServer(sampleOut, eventOut, scOut)
 	defer s.Stop()
 
-	batcher := newBatcher(pool, sampleOut, eventOut, scOut)
+	batcher := newBatcher(sampleOut, eventOut, scOut)
 	parser := newParser()
 
 	for n := 0; n < b.N; n++ {

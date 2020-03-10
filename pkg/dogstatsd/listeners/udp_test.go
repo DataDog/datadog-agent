@@ -22,7 +22,7 @@ import (
 var packetPoolUDP = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 
 func TestNewUDPListener(t *testing.T) {
-	s, err := NewUDPListener(nil, packetPoolUDP)
+	s, err := NewUDPListener(nil)
 	assert.NotNil(t, s)
 	assert.Nil(t, err)
 
@@ -34,7 +34,7 @@ func TestStartStopUDPListener(t *testing.T) {
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	s, err := NewUDPListener(nil, packetPoolUDP)
+	s, err := NewUDPListener(nil)
 	require.NotNil(t, s)
 
 	assert.Nil(t, err)
@@ -65,7 +65,7 @@ func TestUDPNonLocal(t *testing.T) {
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", true)
-	s, err := NewUDPListener(nil, packetPoolUDP)
+	s, err := NewUDPListener(nil)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -89,7 +89,7 @@ func TestUDPLocalOnly(t *testing.T) {
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	s, err := NewUDPListener(nil, packetPoolUDP)
+	s, err := NewUDPListener(nil)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -118,7 +118,7 @@ func TestUDPReceive(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	packetChannel := make(chan Packets)
-	s, err := NewUDPListener(packetChannel, packetPoolUDP)
+	s, err := NewUDPListener(packetChannel)
 	require.NotNil(t, s)
 	assert.Nil(t, err)
 

@@ -7,16 +7,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func buildPacketBuffer(buffersSize int) (*packetBuffer, chan Packets) {
-	pool := NewPacketPool(buffersSize)
+func buildPacketAssembler(buffersSize int) (*packetAssembler, chan Packets) {
 	out := make(chan Packets, 16)
 	psb := newPacketsBuffer(1, 1*time.Hour, out)
-	pb := newPacketBuffer(pool, 100*time.Millisecond, psb)
+	pb := newPacketAssembler(100*time.Millisecond, psb)
 	return pb, out
 }
 
 func TestPacketBufferTimeout(t *testing.T) {
-	pb, out := buildPacketBuffer(16)
+	pb, out := buildPacketAssembler(16)
 	message := []byte("test")
 
 	pb.addMessage(message)
@@ -27,7 +26,7 @@ func TestPacketBufferTimeout(t *testing.T) {
 }
 
 func TestPacketBufferMerge(t *testing.T) {
-	pb, out := buildPacketBuffer(16)
+	pb, out := buildPacketAssembler(16)
 	message1 := []byte("test1")
 	message2 := []byte("test2")
 
@@ -40,7 +39,7 @@ func TestPacketBufferMerge(t *testing.T) {
 }
 
 func TestPacketBufferMergeMaxSize(t *testing.T) {
-	pb, out := buildPacketBuffer(16)
+	pb, out := buildPacketAssembler(16)
 	message1 := []byte("12345678")
 	message2 := []byte("1234567")
 
@@ -53,7 +52,7 @@ func TestPacketBufferMergeMaxSize(t *testing.T) {
 }
 
 func TestPacketBufferOverflow(t *testing.T) {
-	pb, out := buildPacketBuffer(16)
+	pb, out := buildPacketAssembler(16)
 	message1 := []byte("12345678")
 	message2 := []byte("12345678")
 
@@ -69,7 +68,7 @@ func TestPacketBufferOverflow(t *testing.T) {
 }
 
 func TestPacketBufferMergePlusOverflow(t *testing.T) {
-	pb, out := buildPacketBuffer(16)
+	pb, out := buildPacketAssembler(16)
 	message1 := []byte("12345678")
 	message2 := []byte("1234567")
 	message3 := []byte("1")
@@ -87,7 +86,7 @@ func TestPacketBufferMergePlusOverflow(t *testing.T) {
 }
 
 func TestPacketBufferEmpty(t *testing.T) {
-	pb, out := buildPacketBuffer(16)
+	pb, out := buildPacketAssembler(16)
 	message1 := []byte("")
 	message2 := []byte("test2")
 
@@ -100,7 +99,7 @@ func TestPacketBufferEmpty(t *testing.T) {
 }
 
 func TestPacketBufferEmptySecond(t *testing.T) {
-	pb, out := buildPacketBuffer(16)
+	pb, out := buildPacketAssembler(16)
 	message1 := []byte("test1")
 	message2 := []byte("")
 
