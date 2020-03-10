@@ -1,5 +1,17 @@
 # StackState Agent v2 releases
 
+## 2.2.0 (2020-03-09)
+
+**Features**
+
+- SCOM check [(STAC-7551)](https://stackstate.atlassian.net/browse/STAC-7551) provides support to visualize the systems monitored by SCOM.
+    * Gathers Topology from your SCOM management pack and allows visualization of your monitored systems components and the relations between them.
+    * Monitoring of your SCOM (as well as systems monitored  by SCOM), including health statuses of all your components.
+
+**Improvements**
+
+- Metrics produced by the Kubernetes Agent Checks now produce a cluster name tag as part of the metric. [(STAC-8095)](https://stackstate.atlassian.net/browse/STAC-8095)
+
 ## 2.1.0 (2020-02-11)
 
 **Features**

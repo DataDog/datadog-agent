@@ -24,9 +24,9 @@ configMapGenerator:
 
 images:
   - name: docker.io/stackstate/stackstate-agent-2-test
-    newTag: stac-7969-k8s-metrics
+    newTag: master
   - name: docker.io/stackstate/stackstate-cluster-agent-test
-    newTag: stac-7969-k8s-metrics
+    newTag: master
 
 secretGenerator:
 - name: stackstate-auth-token
