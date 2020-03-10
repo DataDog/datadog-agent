@@ -98,7 +98,9 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("failed to prepare ReadBuffers: %v", err)
 	}
 
-	tr.initPacketPolling()
+	// TODO: Determine failure condition for not setting filter
+	// TODO: I.e., one or more, all fail? I.E., at what point do we not create a tracer
+	err = tr.initPacketPolling()
 	go tr.expvarStats()
 	return tr, nil
 }
@@ -126,11 +128,17 @@ func (t *Tracer) expvarStats() {
 }
 
 // NewDDAPIFilter returns a filter we can apply to the driver
-func NewDDAPIFilter(direction C.uint64_t, af C.uint64_t) (fd C.struct__filterDefinition) {
+func NewDDAPIFilter(direction C.uint64_t, isIPV4 bool) (fd C.struct__filterDefinition) {
 	fd.filterVersion = C.DD_FILTER_SIGNATURE
 	fd.size = C.sizeof_struct__filterDefinition
 	fd.direction = direction
-	fd.af = af
+
+	if isIPV4 {
+		fd.af = windows.AF_INET
+	} else {
+		fd.af = windows.AF_INET6
+	}
+
 	return fd
 }
 
@@ -138,7 +146,7 @@ func (t *Tracer) setFilter(fd C.struct__filterDefinition) (err error) {
 	var id int64
 	err = windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd)), uint32(unsafe.Sizeof(fd)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
 	if err != nil {
-		return log.Error("Failed to set filter: %v\n", err.Error())
+		return log.Error("Failed to set filter: %s\n", err.Error())
 	}
 	return
 }
@@ -146,13 +154,13 @@ func (t *Tracer) setFilter(fd C.struct__filterDefinition) (err error) {
 func (t *Tracer) prepareDriverFilters() (err error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		log.Error("Error getting interfaces: %v\n", err.Error())
+		log.Error("Error getting interfaces: %s\n", err.Error())
 		return
 	}
 	// Filter for incoming traffic
-	fdIncoming := NewDDAPIFilter(C.DIRECTION_INBOUND, 0)
+	fdIncoming := NewDDAPIFilter(C.DIRECTION_INBOUND, true)
 	// Filter for outgoing traffic
-	fdOutgoing := NewDDAPIFilter(C.DIRECTION_OUTBOUND, 0)
+	fdOutgoing := NewDDAPIFilter(C.DIRECTION_OUTBOUND, true)
 
 	for _, i := range ifaces {
 		log.Debugf("Setting filter for interface: %s [%+v]", i.Name, i)
