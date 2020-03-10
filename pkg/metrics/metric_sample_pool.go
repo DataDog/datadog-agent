@@ -5,6 +5,8 @@ import (
 )
 
 var (
+	// GlobalMetricSamplePool is a pool to avoid allocation while
+	// manipulating MetricSample.
 	GlobalMetricSamplePool = NewMetricSamplePool(32)
 )
 

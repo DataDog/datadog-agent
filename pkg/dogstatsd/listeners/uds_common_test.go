@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var packetPoolUDS = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
-
 func testFileExistsNewUDSListener(t *testing.T, socketPath string) {
 	_, err := os.Create(socketPath)
 	assert.Nil(t, err)

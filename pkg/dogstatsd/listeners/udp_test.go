@@ -19,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var packetPoolUDP = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
-
 func TestNewUDPListener(t *testing.T) {
 	s, err := NewUDPListener(nil)
 	assert.NotNil(t, s)

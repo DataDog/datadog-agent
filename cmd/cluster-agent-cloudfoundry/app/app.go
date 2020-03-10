@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build kubeapiserver
-
 package app
 
 import (
@@ -12,20 +10,17 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes/scheme"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/record"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/commands"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -35,8 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -47,61 +40,65 @@ const loggerName config.LoggerName = "CLUSTER"
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
-		Use:   "datadog-cluster-agent [command]",
-		Short: "Datadog Cluster Agent at your service.",
+		Use:   "datadog-cluster-agent-cloudfoundry [command]",
+		Short: "Datadog Cluster Agent for Cloud Foundry at your service.",
 		Long: `
-Datadog Cluster Agent takes care of running checks that need run only once per cluster.
-It also exposes an API for other Datadog agents that provides them with cluster-level
-metadata for their metrics.`,
+Datadog Cluster Agent for Cloud Foundry takes care of running checks that need to run only
+once per cluster.`,
 	}
 
-	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "Start the Cluster Agent",
-		Long:  `Runs Datadog Cluster agent in the foreground`,
-		RunE:  start,
+	runCmd = &cobra.Command{
+		Use:   "run",
+		Short: "Run the Cluster Agent for Cloud Foundry",
+		Long:  `Runs Datadog Cluster Agent for Cloud Foundry in the foreground`,
+		RunE:  run,
 	}
 
 	versionCmd = &cobra.Command{
 		Use:   "version",
 		Short: "Print the version info",
 		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if flagNoColor {
 				color.NoColor = true
 			}
-			av, _ := version.Agent()
+			av, err := version.Agent()
+			if err != nil {
+				return err
+			}
 			meta := ""
 			if av.Meta != "" {
 				meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
 			}
 			fmt.Fprintln(
 				color.Output,
-				fmt.Sprintf("Cluster agent %s %s- Commit: '%s' - Serialization version: %s",
+				fmt.Sprintf("Cluster agent for Cloud Foundry %s %s- Commit: '%s' - Serialization version: %s",
 					color.BlueString(av.GetNumberAndPre()),
 					meta,
 					color.GreenString(version.Commit),
 					color.MagentaString(serializer.AgentPayloadVersion),
 				),
 			)
+			return nil
 		},
 	}
 
 	confPath    string
 	flagNoColor bool
-	stopCh      chan struct{}
 )
 
 func init() {
-	// attach the command to the root
-	ClusterAgentCmd.AddCommand(startCmd)
+	// attach the commands to the root
+	ClusterAgentCmd.AddCommand(runCmd)
 	ClusterAgentCmd.AddCommand(versionCmd)
+	ClusterAgentCmd.AddCommand(commands.GetClusterChecksCobraCmd(&flagNoColor, &confPath, loggerName))
+	ClusterAgentCmd.AddCommand(commands.GetConfigCheckCobraCmd(&flagNoColor, &confPath, loggerName))
 
 	ClusterAgentCmd.PersistentFlags().StringVarP(&confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	ClusterAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 }
 
-func start(cmd *cobra.Command, args []string) error {
+func run(cmd *cobra.Command, args []string) error {
 	// we'll search for a config file named `datadog-cluster.yaml`
 	config.Datadog.SetConfigName("datadog-cluster")
 	err := common.SetupConfig(confPath)
@@ -172,54 +169,25 @@ func start(cmd *cobra.Command, args []string) error {
 
 	log.Infof("Datadog Cluster Agent is now running.")
 
-	apiCl, err := apiserver.GetAPIClient() // make sure we can connect to the apiserver
-	if err != nil {
-		log.Errorf("Could not connect to the apiserver: %v", err)
-	} else {
-		le, err := leaderelection.GetLeaderEngine()
-		if err != nil {
-			return err
-		}
-
-		// Create event recorder
-		eventBroadcaster := record.NewBroadcaster()
-		eventBroadcaster.StartLogging(log.Infof)
-		eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
-		eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
-
-		stopCh := make(chan struct{})
-		ctx := apiserver.ControllerContext{
-			InformerFactory:    apiCl.InformerFactory,
-			WPAClient:          apiCl.WPAClient,
-			WPAInformerFactory: apiCl.WPAInformerFactory,
-			Client:             apiCl.Cl,
-			LeaderElector:      le,
-			EventRecorder:      eventRecorder,
-			StopCh:             stopCh,
-		}
-
-		if err := apiserver.StartControllers(ctx); err != nil {
-			log.Errorf("Could not start controllers: %v", err)
-		}
-	}
-
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+
+	// initialize BBS Cache before starting provider/listener
+	err = initializeBBSCache(mainCtx)
+	if err != nil {
+		return err
+	}
+
 	// create and setup the Autoconfig instance
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
 	var clusterCheckHandler *clusterchecks.Handler
-	if config.Datadog.GetBool("cluster_checks.enabled") {
-		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err = setupClusterCheck(mainCtx)
-		if err != nil {
-			log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
-		}
-	} else {
-		log.Debug("Cluster check Autodiscovery disabled")
+	clusterCheckHandler, err = setupClusterCheck(mainCtx)
+	if err != nil {
+		log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
 	}
 
 	// Start the cmd HTTPS server
@@ -230,21 +198,6 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	if err = api.StartServer(sc); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
-	}
-
-	wg := sync.WaitGroup{}
-	// Autoscaler Controller Process
-	if config.Datadog.GetBool("external_metrics_provider.enabled") {
-		// Start the k8s custom metrics server. This is a blocking call
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			errServ := custommetrics.RunServer(mainCtx)
-			if errServ != nil {
-				log.Errorf("Error in the External Metrics API Server: %v", errServ)
-			}
-		}()
 	}
 
 	// Block here until we receive the interrupt signal
@@ -261,16 +214,41 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
-	// wait for the External Metrics Server to stop properly
-	wg.Wait()
-
-	if stopCh != nil {
-		close(stopCh)
-	}
 
 	log.Info("See ya!")
 	log.Flush()
 	return nil
+}
+
+func initializeBBSCache(ctx context.Context) error {
+	pollInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_bbs.poll_interval"))
+	// NOTE: we can't use GetPollInterval in ConfigureGlobalBBSCache, as that causes import cycle
+	bc, err := cloudfoundry.ConfigureGlobalBBSCache(
+		ctx,
+		config.Datadog.GetString("cloud_foundry_bbs.url"),
+		config.Datadog.GetString("cloud_foundry_bbs.ca_file"),
+		config.Datadog.GetString("cloud_foundry_bbs.cert_file"),
+		config.Datadog.GetString("cloud_foundry_bbs.key_file"),
+		pollInterval,
+		false,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize BBS Cache: %s", err.Error())
+	}
+	log.Info("Waiting for initial warmup of BBS Cache")
+	ticker := time.NewTicker(time.Second)
+	timer := time.NewTimer(pollInterval * 5)
+	for {
+		select {
+		case <-ticker.C:
+			if bc.LastUpdated().After(time.Time{}) {
+				return nil
+			}
+		case <-timer.C:
+			ticker.Stop()
+			return fmt.Errorf("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
+		}
+	}
 }
 
 func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {

@@ -177,7 +177,6 @@ func StopDefaultAggregator() {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	metricPool             *metrics.MetricSamplePool
 	bufferedMetricIn       chan []metrics.MetricSample
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
 	bufferedEventIn        chan []*metrics.Event
@@ -619,9 +618,13 @@ func (agg *BufferedAggregator) Stop() {
 
 func (agg *BufferedAggregator) run() {
 	if agg.TickerChan == nil {
-		flushPeriod := agg.flushInterval
-		agg.TickerChan = time.NewTicker(flushPeriod).C
+		if agg.flushInterval != 0 {
+			agg.TickerChan = time.NewTicker(agg.flushInterval).C
+		} else {
+			log.Debugf("aggregator flushInterval set to 0: aggregator won't flush data")
+		}
 	}
+
 	for {
 		select {
 		case <-agg.stopChan:
