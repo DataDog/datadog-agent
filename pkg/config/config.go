@@ -396,6 +396,13 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
 
+	// Cloud Foundry BBS
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.poll_interval", 15)
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
+
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)

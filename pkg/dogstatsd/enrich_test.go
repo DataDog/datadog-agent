@@ -817,6 +817,17 @@ func Test_enrichTags(t *testing.T) {
 			want1: "foo",
 		},
 		{
+			name: "entityId not present, host=foo, empty tags list, should return origin tags",
+			args: args{
+				tags:                       nil,
+				defaultHostname:            "foo",
+				originTagsFunc:             func() []string { return []string{"mytag:bar"} },
+				entityIDPrecendenceEnabled: true,
+			},
+			want:  []string{"mytag:bar"},
+			want1: "foo",
+		},
+		{
 			name: "entityId present, host=foo, should not return origin tags",
 			args: args{
 				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},

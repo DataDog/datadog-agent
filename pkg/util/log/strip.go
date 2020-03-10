@@ -37,7 +37,7 @@ func init() {
 		Repl:  []byte(`***********************************$1`),
 	}
 	uriPasswordReplacer := Replacer{
-		Regex: regexp.MustCompile(`([A-Za-z]+\:\/\/|\b)([A-Za-z0-9_]+)\:([^\s-]+)\@`),
+		Regex: regexp.MustCompile(`([A-Za-z]+\:\/\/|\b)([A-Za-z0-9_]+)\:([^\s]+)\@`),
 		Repl:  []byte(`$1$2:********@`),
 	}
 	passwordReplacer := Replacer{
