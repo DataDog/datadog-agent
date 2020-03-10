@@ -1,0 +1,8 @@
+enhancements:
+  - |
+    Log configurations now accept a new parameter that allows
+    to specify whether a log shall be tailed from the beginning
+    or the end. It aims to allow whole log collection, including
+    events that may occur before the agent first start. The
+    parameter is named ``start_position`` and it can be set to
+    ``end`` or ``beginning``, the default value is ``end``.
