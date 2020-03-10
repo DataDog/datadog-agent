@@ -2998,7 +2998,6 @@ pupernetes-tags-7:
 
 notify-on-success:
   extends: .slack-notifier-base
-  before_script: ["# noop"]
   only:
     - master
     - triggers
