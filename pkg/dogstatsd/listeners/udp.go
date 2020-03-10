@@ -40,14 +40,14 @@ func init() {
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn          net.PacketConn
-	packetsBuffer *packetsBuffer
-	packetBuffer  *packetBuffer
-	buffer        []byte
+	conn            net.PacketConn
+	packetsBuffer   *packetsBuffer
+	packetAssembler *packetAssembler
+	buffer          []byte
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListener, error) {
+func NewUDPListener(packetOut chan Packets) (*UDPListener, error) {
 	var conn net.PacketConn
 	var err error
 	var url string
@@ -77,13 +77,13 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 
 	buffer := make([]byte, bufferSize)
 	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
-	packetBuffer := newPacketBuffer(packetPool, flushTimeout, packetsBuffer)
+	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer)
 
 	listener := &UDPListener{
-		conn:          conn,
-		packetsBuffer: packetsBuffer,
-		packetBuffer:  packetBuffer,
-		buffer:        buffer,
+		conn:            conn,
+		packetsBuffer:   packetsBuffer,
+		packetAssembler: packetAssembler,
+		buffer:          buffer,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -111,14 +111,14 @@ func (l *UDPListener) Listen() {
 		udpBytes.Add(int64(n))
 		tlmUDPPacketsBytes.Add(float64(n))
 
-		// packetBuffer merges multiple packets together and sends them when its buffer is full
-		l.packetBuffer.addMessage(l.buffer[:n])
+		// packetAssembler merges multiple packets together and sends them when its buffer is full
+		l.packetAssembler.addMessage(l.buffer[:n])
 	}
 }
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
-	l.packetBuffer.close()
+	l.packetAssembler.close()
 	l.packetsBuffer.close()
 	l.conn.Close()
 }

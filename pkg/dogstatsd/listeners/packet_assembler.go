@@ -12,31 +12,29 @@ import (
 
 const messageSeparator = byte('\n')
 
-// packetBuffer merges multiple incoming datagrams into one "Packet" object to
+// packetAssembler merges multiple incoming datagrams into one "Packet" object to
 // save space and make number of message in a single "Packet" more predictable
-type packetBuffer struct {
+type packetAssembler struct {
 	packet        *Packet
 	packetLength  int
-	pool          *PacketPool
 	packetsBuffer *packetsBuffer
 	flushTimer    *time.Ticker
 	closeChannel  chan struct{}
 	sync.Mutex
 }
 
-func newPacketBuffer(pool *PacketPool, flushTimer time.Duration, packetsBuffer *packetsBuffer) *packetBuffer {
-	packetBuffer := &packetBuffer{
-		packet:        pool.Get(),
-		pool:          pool,
+func newPacketAssembler(flushTimer time.Duration, packetsBuffer *packetsBuffer) *packetAssembler {
+	packetAssembler := &packetAssembler{
+		packet:        GlobalPacketPool.Get(),
 		packetsBuffer: packetsBuffer,
 		flushTimer:    time.NewTicker(flushTimer),
 		closeChannel:  make(chan struct{}),
 	}
-	go packetBuffer.flushLoop()
-	return packetBuffer
+	go packetAssembler.flushLoop()
+	return packetAssembler
 }
 
-func (p *packetBuffer) flushLoop() {
+func (p *packetAssembler) flushLoop() {
 	for {
 		select {
 		case <-p.flushTimer.C:
@@ -49,7 +47,7 @@ func (p *packetBuffer) flushLoop() {
 	}
 }
 
-func (p *packetBuffer) addMessage(message []byte) {
+func (p *packetAssembler) addMessage(message []byte) {
 	p.Lock()
 	if p.packetLength == 0 {
 		p.packetLength = copy(p.packet.buffer, message)
@@ -64,17 +62,17 @@ func (p *packetBuffer) addMessage(message []byte) {
 	p.Unlock()
 }
 
-func (p *packetBuffer) flush() {
+func (p *packetAssembler) flush() {
 	if p.packetLength == 0 {
 		return
 	}
 	p.packet.Contents = p.packet.buffer[:p.packetLength]
 	p.packetsBuffer.append(p.packet)
-	p.packet = p.pool.Get()
+	p.packet = GlobalPacketPool.Get()
 	p.packetLength = 0
 }
 
-func (p *packetBuffer) close() {
+func (p *packetAssembler) close() {
 	p.Lock()
 	close(p.closeChannel)
 	p.Unlock()

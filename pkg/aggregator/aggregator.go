@@ -145,14 +145,14 @@ func init() {
 }
 
 // InitAggregator returns the Singleton instance
-func InitAggregator(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string) *BufferedAggregator {
-	return InitAggregatorWithFlushInterval(s, metricPool, hostname, agentName, DefaultFlushInterval)
+func InitAggregator(s serializer.MetricSerializer, hostname, agentName string) *BufferedAggregator {
+	return InitAggregatorWithFlushInterval(s, hostname, agentName, DefaultFlushInterval)
 }
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
-func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = NewBufferedAggregator(s, metricPool, hostname, agentName, flushInterval)
+		aggregatorInstance = NewBufferedAggregator(s, hostname, agentName, flushInterval)
 		go aggregatorInstance.run()
 	})
 
@@ -206,11 +206,10 @@ type BufferedAggregator struct {
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, metricPool *metrics.MetricSamplePool, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 
 	aggregator := &BufferedAggregator{
-		metricPool:             metricPool,
 		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
 		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
 		bufferedEventIn:        make(chan []*metrics.Event, bufferSize),
@@ -654,13 +653,13 @@ func (agg *BufferedAggregator) run() {
 			aggregatorServiceCheck.Add(1)
 			tlmProcessed.Inc("service_checks")
 			agg.addServiceCheck(serviceCheck)
-		case metrics := <-agg.bufferedMetricIn:
-			aggregatorDogstatsdMetricSample.Add(int64(len(metrics)))
-			tlmProcessed.Add(float64(len(metrics)), "dogstatsd_metrics")
-			for i := 0; i < len(metrics); i++ {
-				agg.addSample(&metrics[i], timeNowNano())
+		case ms := <-agg.bufferedMetricIn:
+			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
+			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			for i := 0; i < len(ms); i++ {
+				agg.addSample(&ms[i], timeNowNano())
 			}
-			agg.metricPool.PutBatch(metrics)
+			metrics.GlobalMetricSamplePool.PutBatch(ms)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
 			tlmProcessed.Add(float64(len(serviceChecks)), "service_checks")

@@ -50,13 +50,12 @@ func init() {
 type UDSListener struct {
 	conn            *net.UnixConn
 	packetsBuffer   *packetsBuffer
-	packetPool      *PacketPool
 	oobPool         *sync.Pool // For origin detection ancilary data
 	OriginDetection bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListener, error) {
+func NewUDSListener(packetOut chan Packets) (*UDSListener, error) {
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
 
@@ -105,7 +104,6 @@ func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListene
 
 	listener := &UDSListener{
 		OriginDetection: originDetection,
-		packetPool:      packetPool,
 		conn:            conn,
 		packetsBuffer: newPacketsBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
@@ -130,7 +128,7 @@ func (l *UDSListener) Listen() {
 	for {
 		var n int
 		var err error
-		packet := l.packetPool.Get()
+		packet := GlobalPacketPool.Get()
 		udsPackets.Add(1)
 		if l.OriginDetection {
 			// Read datagram + credentials in ancilary data

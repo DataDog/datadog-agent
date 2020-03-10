@@ -12,16 +12,14 @@ type batcher struct {
 	events        []*metrics.Event
 	serviceChecks []*metrics.ServiceCheck
 
-	samplePool      *metrics.MetricSamplePool
 	sampleOut       chan<- []metrics.MetricSample
 	eventOut        chan<- []*metrics.Event
 	serviceCheckOut chan<- []*metrics.ServiceCheck
 }
 
-func newBatcher(samplePool *metrics.MetricSamplePool, sampleOut chan<- []metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) *batcher {
+func newBatcher(sampleOut chan<- []metrics.MetricSample, eventOut chan<- []*metrics.Event, serviceCheckOut chan<- []*metrics.ServiceCheck) *batcher {
 	return &batcher{
-		samples:         samplePool.GetBatch(),
-		samplePool:      samplePool,
+		samples:         metrics.GlobalMetricSamplePool.GetBatch(),
 		sampleOut:       sampleOut,
 		eventOut:        eventOut,
 		serviceCheckOut: serviceCheckOut,
@@ -48,7 +46,7 @@ func (b *batcher) flushSamples() {
 	if b.samplesCount > 0 {
 		b.sampleOut <- b.samples[:b.samplesCount]
 		b.samplesCount = 0
-		b.samples = b.samplePool.GetBatch()
+		b.samples = metrics.GlobalMetricSamplePool.GetBatch()
 	}
 }
 

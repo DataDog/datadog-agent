@@ -47,7 +47,7 @@ func TestNewServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(metrics.NewMetricSamplePool(16), nil, nil, nil)
+	s, err := NewServer(nil, nil, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 	assert.NotNil(t, s)
@@ -59,7 +59,7 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(metrics.NewMetricSamplePool(16), nil, nil, nil)
+	s, err := NewServer(nil, nil, nil)
 	require.NoError(t, err, "cannot start DSD")
 	s.Stop()
 
@@ -86,7 +86,7 @@ func TestUDPReceive(t *testing.T) {
 	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -283,7 +283,7 @@ func TestUDPForward(t *testing.T) {
 	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -320,7 +320,7 @@ func TestHistToDist(t *testing.T) {
 	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -360,7 +360,7 @@ func TestExtraTags(t *testing.T) {
 	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -389,7 +389,7 @@ func TestDebugStats(t *testing.T) {
 	metricOut := make(chan []metrics.MetricSample)
 	eventOut := make(chan []*metrics.Event)
 	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -443,7 +443,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	err = config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
 	require.NoError(t, err)
 
-	s, err := NewServer(nil, nil, nil, nil)
+	s, err := NewServer(nil, nil, nil)
 	require.NoError(t, err, "cannot start DSD")
 
 	assert.Nil(t, s.mapper)
@@ -554,7 +554,7 @@ dogstatsd_mapper_profiles:
 			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
 			config.Datadog.SetDefault("dogstatsd_port", port)
 
-			s, err := NewServer(nil, nil, nil, nil)
+			s, err := NewServer(nil, nil, nil)
 			require.NoError(t, err, "Case `%s` failed. NewServer should not return error %v", scenario.name, err)
 
 			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)

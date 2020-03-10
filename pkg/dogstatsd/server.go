@@ -54,15 +54,23 @@ func init() {
 
 // Server represent a Dogstatsd server
 type Server struct {
-	listeners                 []listeners.StatsdListener
-	packetsIn                 chan listeners.Packets
-	samplePool                *metrics.MetricSamplePool
-	samplesOut                chan<- []metrics.MetricSample
-	eventsOut                 chan<- []*metrics.Event
-	servicesCheckOut          chan<- []*metrics.ServiceCheck
+	// listeners are the instanciated socket listener (UDS or UDP or both)
+	listeners []listeners.StatsdListener
+
+	packetsIn chan listeners.Packets
+
+	// samplesOut is a reference to the channel of the aggregator in order
+	// to send the metrics directly to the aggregator.
+	samplesOut chan<- []metrics.MetricSample
+	// eventsOut is a reference to the channel of the aggregator in order
+	// to send the evnts directly to the aggregator.
+	eventsOut chan<- []*metrics.Event
+	// servicesCheckOut is a reference to the channel of the aggregator in order
+	// to send the service checks directly to the aggregator.
+	servicesCheckOut chan<- []*metrics.ServiceCheck
+
 	Statistics                *util.Stats
 	Started                   bool
-	packetPool                *listeners.PacketPool
 	stopChan                  chan bool
 	health                    *health.Handle
 	metricPrefix              string
@@ -87,7 +95,7 @@ type metricStat struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics.MetricSample, eventsOut chan<- []*metrics.Event, servicesCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
+func NewServer(samplesOut chan<- []metrics.MetricSample, eventsOut chan<- []*metrics.Event, servicesCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -106,12 +114,11 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 	}
 
 	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
-	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, packetPool)
+		unixListener, err := listeners.NewUDSListener(packetsChannel)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -119,7 +126,7 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 		}
 	}
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, packetPool)
+		udpListener, err := listeners.NewUDPListener(packetsChannel)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -153,13 +160,11 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 	s := &Server{
 		Started:                   true,
 		Statistics:                stats,
-		samplePool:                samplePool,
 		packetsIn:                 packetsChannel,
 		samplesOut:                samplesOut,
 		eventsOut:                 eventsOut,
 		servicesCheckOut:          servicesCheckOut,
 		listeners:                 tmpListeners,
-		packetPool:                packetPool,
 		stopChan:                  make(chan bool),
 		health:                    health.Register("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
@@ -174,15 +179,14 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 	}
 
+	// packets forwarding
+	// ----------------------
+
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
 	forwardPort := config.Datadog.GetInt("statsd_forward_port")
-
 	if forwardHost != "" && forwardPort != 0 {
-
 		forwardAddress := fmt.Sprintf("%s:%d", forwardHost, forwardPort)
-
 		con, err := net.Dial("udp", forwardAddress)
-
 		if err != nil {
 			log.Warnf("Could not connect to statsd forward host : %s", err)
 		} else {
@@ -191,7 +195,13 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 		}
 	}
 
+	// start the workers processing the packets read on the socket
+	// ----------------------
+
 	s.handleMessages()
+
+	// map some metric name
+	// ----------------------
 
 	cacheSize := config.Datadog.GetInt("dogstatsd_mapper_cache_size")
 
@@ -250,7 +260,7 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 }
 
 func (s *Server) worker() {
-	batcher := newBatcher(s.samplePool, s.samplesOut, s.eventsOut, s.servicesCheckOut)
+	batcher := newBatcher(s.samplesOut, s.eventsOut, s.servicesCheckOut)
 	parser := newParser()
 	for {
 		select {
@@ -327,7 +337,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 				}
 			}
 		}
-		s.packetPool.Put(packet)
+		listeners.GlobalPacketPool.Put(packet)
 	}
 	batcher.flush()
 }

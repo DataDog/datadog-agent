@@ -4,6 +4,10 @@ import (
 	"sync"
 )
 
+var (
+	GlobalMetricSamplePool = NewMetricSamplePool(32)
+)
+
 // MetricSamplePool is a pool of metrics sample
 type MetricSamplePool struct {
 	pool *sync.Pool
