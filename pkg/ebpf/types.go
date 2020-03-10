@@ -66,6 +66,9 @@ const (
 
 	// SysBind is the kprobe the bind() syscall.
 	SysBind KProbeName = "kprobe/sys_bind"
+
+	// SysBindRet is the kretprobe for bind().
+	SysBindRet KProbeName = "kretprobe/sys_bind"
 )
 
 // bpfMapName stores the name of the BPF maps storing statistics and other info

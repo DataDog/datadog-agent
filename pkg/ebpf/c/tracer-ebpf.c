@@ -1011,6 +1011,12 @@ int kprobe__sys_bind(struct pt_regs* ctx) {
     return 0;
 }
 
+SEC("kretprobe/sys_bind")
+int kretprobe__sys_bind(struct pt_regs* ctx) {
+  log_debug("kretprobe/bind:\n");
+  return 0;
+}
+
 // used for capturing UDP sockets that are bound
 SEC("kprobe/sys_socket")
 int kprobe__sys_socket(struct pt_regs* ctx) {

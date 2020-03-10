@@ -127,6 +127,7 @@ func (c *Config) EnabledKProbes(pre410Kernel bool) map[KProbeName]struct{} {
 		enabled[SysSocket] = struct{}{}
 		enabled[SysSocketRet] = struct{}{}
 		enabled[SysBind] = struct{}{}
+		enabled[SysBindRet] = struct{}{}
 		enabled[UDPDestroySock] = struct{}{}
 		enabled[UDPDestroySockV6] = struct{}{}
 
