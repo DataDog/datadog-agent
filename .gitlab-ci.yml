@@ -3016,6 +3016,29 @@ pupernetes-tags-7:
   - VERSION=$(inv -e agent.version --major-version 7)
   - inv -e e2e-tests --image=datadog/agent:${VERSION}
 
+notify-on-success:
+  extends: .slack-notifier-base
+  before_script: ["# noop"]
+  only:
+    - master
+    - triggers
+  script: |
+    BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
+    COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
+
+    AUTHOR=$(git show -s --format="%an" HEAD)
+
+    # Only ping on pushes to master (== merged PRs)
+    if [ "$CI_PIPELINE_SOURCE" = "push" ]; then
+      MESSAGE_TEXT=":host-green: :merged: Merge pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    else
+      MESSAGE_TEXT=":host-green: :jenkinsparty: Triggered pipeline <$BUILD_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
+    fi
+    postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
+  when: on_success
+
 notify-on-failure:
   extends: .slack-notifier.on-failure
   before_script: ["# noop"]
