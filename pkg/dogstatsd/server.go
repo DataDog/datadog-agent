@@ -59,7 +59,6 @@ type Server struct {
 
 	packetsIn chan listeners.Packets
 
-	samplePool *metrics.MetricSamplePool
 	// samplesOut is a reference to the channel of the aggregator in order
 	// to send the metrics directly to the aggregator.
 	samplesOut chan<- []metrics.MetricSample
@@ -96,7 +95,7 @@ type metricStat struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics.MetricSample, eventsOut chan<- []*metrics.Event, servicesCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
+func NewServer(samplesOut chan<- []metrics.MetricSample, eventsOut chan<- []*metrics.Event, servicesCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -161,7 +160,6 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 	s := &Server{
 		Started:                   true,
 		Statistics:                stats,
-		samplePool:                samplePool,
 		packetsIn:                 packetsChannel,
 		samplesOut:                samplesOut,
 		eventsOut:                 eventsOut,
@@ -262,7 +260,7 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 }
 
 func (s *Server) worker() {
-	batcher := newBatcher(s.samplePool, s.samplesOut, s.eventsOut, s.servicesCheckOut)
+	batcher := newBatcher(s.samplesOut, s.eventsOut, s.servicesCheckOut)
 	parser := newParser()
 	for {
 		select {
