@@ -130,7 +130,7 @@ func NewDefaultForwarder(keysPerDomains map[string][]string) *DefaultForwarder {
 		domainForwarders: map[string]*domainForwarder{},
 		keysPerDomains:   map[string][]string{},
 		internalState:    Stopped,
-		healthChecker:    &forwarderHealth{keysPerDomains: keysPerDomains},
+		healthChecker:    newForwarderHealth(keysPerDomains),
 	}
 	numWorkers := config.Datadog.GetInt("forwarder_num_workers")
 	retryQueueMaxSize := config.Datadog.GetInt("forwarder_retry_queue_max_size")

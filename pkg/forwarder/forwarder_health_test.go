@@ -29,28 +29,36 @@ func TestHasValidAPIKey(t *testing.T) {
 		ts2.URL: {"key3"},
 	}
 
-	fh := forwarderHealth{keysPerDomains: keysPerDomains}
-	fh.init()
+	fh := newForwarderHealth(keysPerDomains)
 	assert.True(t, fh.hasValidAPIKey())
 
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key1"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 }
-
-func TestComputeDomainsURL(t *testing.T) {
+func TestComputeAPIDomains(t *testing.T) {
 	keysPerDomains := map[string][]string{
-		"https://app.datadoghq.com": {"api_key1"},
+		"https://app.datadoghq.com":    {"api_key_1", "api_key_1b"},
+		"https://app.datadoghq.eu":     {"api_key_2"},
+		"https://app.datad0g.com":      {"api_key_3", "api_key_3b"},
+		"https://app.datad0g.eu":       {"api_key_4"},
+		"https://custom.datadoghq.com": {"api_key_5"},
+		"https://nochange.com":         {"api_key_6", "api_key_6b"},
+		":datadoghq.com":               {"api_key_7"},
 	}
 
 	testMap := map[string][]string{
-		"https://api.datadoghq.com": {"api_key1"},
+		"https://api.datadoghq.com":    {"api_key_1", "api_key_1b"},
+		"https://api.datadoghq.eu":     {"api_key_2"},
+		"https://api.datad0g.com":      {"api_key_3", "api_key_3b"},
+		"https://api.datad0g.eu":       {"api_key_4"},
+		"https://custom.datadoghq.com": {"api_key_5"},
+		"https://nochange.com":         {"api_key_6", "api_key_6b"},
 	}
 
-	fh := forwarderHealth{keysPerDomains: keysPerDomains}
-	fh.init()
+	fh := newForwarderHealth(keysPerDomains)
 
-	assert.Equal(t, fh.keysPerAPIEndpoint, testMap)
+	assert.Equal(t, fh.keysPerAPIDomain, testMap)
 }
 
 func TestHasValidAPIKeyErrors(t *testing.T) {
@@ -70,14 +78,12 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	defer ts1.Close()
 	defer ts2.Close()
 
-	keysPerAPIEndpoint := map[string][]string{
+	keysPerDomains := map[string][]string{
 		ts1.URL: {"api_key1", "api_key2"},
 		ts2.URL: {"key3"},
 	}
 
-	fh := forwarderHealth{}
-	fh.init()
-	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
+	fh := newForwarderHealth(keysPerDomains)
 	assert.True(t, fh.hasValidAPIKey())
 
 	assert.Equal(t, &apiKeyInvalid, apiKeyStatus.Get("API key ending with _key1"))

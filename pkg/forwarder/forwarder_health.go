@@ -9,8 +9,9 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
-	"regexp"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -42,25 +43,25 @@ func initForwarderHealthExpvars() {
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
 // unhealthy if the API keys are not longer valid
 type forwarderHealth struct {
-	health             *health.Handle
-	stop               chan bool
-	stopped            chan struct{}
-	timeout            time.Duration
-	keysPerDomains     map[string][]string
-	keysPerAPIEndpoint map[string][]string
+	health           *health.Handle
+	stop             chan bool
+	stopped          chan struct{}
+	timeout          time.Duration
+	keysPerAPIDomain map[string][]string
 }
 
-func (fh *forwarderHealth) init() {
-	fh.stop = make(chan bool, 1)
-	fh.stopped = make(chan struct{})
+func newForwarderHealth(keysPerDomains map[string][]string) *forwarderHealth {
+	fh := forwarderHealth{
+		stop:    make(chan bool, 1),
+		stopped: make(chan struct{}),
+	}
 
-	fh.keysPerAPIEndpoint = make(map[string][]string)
-	fh.computeDomainsURL()
+	fh.computeKeysPerAPIDomain(keysPerDomains)
 
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
 	apiKeyCount := 0
-	for _, apiKeys := range fh.keysPerDomains {
+	for _, apiKeys := range keysPerDomains {
 		apiKeyCount += len(apiKeys)
 	}
 
@@ -68,11 +69,11 @@ func (fh *forwarderHealth) init() {
 	if apiKeyCount != 0 {
 		fh.timeout /= time.Duration(apiKeyCount)
 	}
+	return &fh
 }
 
 func (fh *forwarderHealth) Start() {
 	fh.health = health.Register("forwarder")
-	fh.init()
 	go fh.healthCheckLoop()
 }
 
@@ -111,20 +112,18 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	}
 }
 
-// computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
-func (fh *forwarderHealth) computeDomainsURL() {
-	for domain, apiKeys := range fh.keysPerDomains {
-		apiDomain := ""
-		re := regexp.MustCompile("datadoghq.[a-z]*")
-		if re.MatchString(domain) {
-			apiDomain = "https://api." + re.FindString(domain)
+// computeKeysPerAPIDomain populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
+func (fh *forwarderHealth) computeKeysPerAPIDomain(keysPerDomains map[string][]string) {
+	fh.keysPerAPIDomain = make(map[string][]string)
+	for domain, apiKeys := range keysPerDomains {
+		apiDomain, err := config.ComputeAPIDomain(domain)
+		if err != nil {
+			log.Errorf("compute API domain error: %s", err)
 		} else {
-			apiDomain = domain
+			fh.keysPerAPIDomain[apiDomain] = append(fh.keysPerAPIDomain[apiDomain], apiKeys...)
 		}
-		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], apiKeys...)
 	}
 }
-
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
@@ -175,7 +174,7 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 	validKey := false
 	apiError := false
 
-	for domain, apiKeys := range fh.keysPerAPIEndpoint {
+	for domain, apiKeys := range fh.keysPerAPIDomain {
 		for _, apiKey := range apiKeys {
 			v, err := fh.validateAPIKey(apiKey, domain)
 			if err != nil {

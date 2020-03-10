@@ -700,6 +700,36 @@ process_config:
 	}
 }
 
+func TestComputeAPIDomain(t *testing.T) {
+	parsedDomains := []string{}
+
+	domains := []string{
+		"https://app.datadoghq.com",
+		"https://app.datadoghq.eu",
+		"https://app.datad0g.com",
+		"https://app.datad0g.eu",
+		"https://custom.datadoghq.com",
+		"https://nochange.com",
+	}
+	match := []string{
+		"https://api.datadoghq.com",
+		"https://api.datadoghq.eu",
+		"https://api.datad0g.com",
+		"https://api.datad0g.eu",
+		"https://custom.datadoghq.com",
+		"https://nochange.com",
+	}
+	for _, domain := range domains {
+		apiDomain, err := ComputeAPIDomain(domain)
+		assert.NoError(t, err)
+		parsedDomains = append(parsedDomains, apiDomain)
+	}
+	assert.Equal(t, match, parsedDomains)
+	_, err := ComputeAPIDomain(":datadoghq.com")
+	assert.Error(t, err)
+
+}
+
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
 // key includes the key delimiter. Affects the config package when both secrets and multiple
 // endpoints are configured.

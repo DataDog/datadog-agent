@@ -984,6 +984,21 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 	return keysPerDomain, nil
 }
 
+// ComputeAPIDomain returns a domain to be used for API validation
+func ComputeAPIDomain(domain string) (string, error) {
+	apiDomain := ""
+	parsedDomain, err := url.Parse(domain)
+	if err != nil {
+		return "", fmt.Errorf("could not parse %s as a URL", domain)
+	}
+	if _, found := ddURLs[parsedDomain.Host]; found {
+		apiDomain = strings.Replace(domain, "app.", "api.", 1)
+	} else {
+		apiDomain = domain
+	}
+	return apiDomain, nil
+}
+
 // IsContainerized returns whether the Agent is running on a Docker container
 func IsContainerized() bool {
 	return os.Getenv("DOCKER_DD_AGENT") != ""
