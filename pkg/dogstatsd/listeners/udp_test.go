@@ -109,6 +109,8 @@ func TestUDPLocalOnly(t *testing.T) {
 }
 
 func TestUDPReceive(t *testing.T) {
+	GlobalPacketPool = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
 	port, err := getAvailableUDPPort()

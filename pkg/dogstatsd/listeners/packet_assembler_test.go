@@ -8,6 +8,7 @@ import (
 )
 
 func buildPacketAssembler(buffersSize int) (*packetAssembler, chan Packets) {
+	GlobalPacketPool = NewPacketPool(16)
 	out := make(chan Packets, 16)
 	psb := newPacketsBuffer(1, 1*time.Hour, out)
 	pb := newPacketAssembler(100*time.Millisecond, psb)
