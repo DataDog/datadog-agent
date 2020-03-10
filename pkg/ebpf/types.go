@@ -49,9 +49,6 @@ const (
 	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock KProbeName = "kprobe/udp_destroy_sock"
 
-	// UDPDestroySockV6 traces the udpv6_destroy_sock() function
-	UDPDestroySockV6 KProbeName = "kprobe/udpv6_destroy_sock"
-
 	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
 	TCPRetransmit KProbeName = "kprobe/tcp_retransmit_skb"
 

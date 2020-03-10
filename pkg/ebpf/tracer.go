@@ -380,7 +380,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 	closedUDPPortBindings, err := t.populatePortMapping(udpPortMp, t.udpPortMapping)
 	if err != nil {
-		return nil, fmt.Errorf("error populating UDP port mapping: %s", portMapping)
+		return nil, 0, fmt.Errorf("error populating UDP port mapping: %s", err)
 	}
 
 	// Iterate through all key-value pairs in map

@@ -949,47 +949,6 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/udpv6_destroy_sock")
-int kprobe__udpv6_destroy_sock(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-
-    if (sk == NULL) {
-        log_debug("ERR(udpv6_destroy_sock): socket is null \n");
-        return 0;
-    }
-
-    // get tracer status and return early if we are still offset-guessing
-    u64 zero = 0;
-    tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
-        return 0;
-    }
-
-    // get the port for the current sock
-    __u16 lport = 0;
-    bpf_probe_read(&lport, sizeof(lport), ((char*)sk) + status->offset_sport);
-    lport = ntohs(lport);
-
-    if (lport == 0) {
-        log_debug("ERR(udpv6_destroy_sock): lport is 0 \n");
-        return 0;
-    }
-
-    // decide if the port is bound, if not, do nothing
-    __u8* state = bpf_map_lookup_elem(&udp_port_bindings, &lport);
-    if (state == NULL) {
-        log_debug("kprobe/udpv6_destroy_sock: sock was not listening, will drop event");
-        return 0;
-    }
-
-    // set the state to closed
-    __u8 new_state = PORT_CLOSED;
-    bpf_map_update_elem(&udp_port_bindings, &lport, &new_state, BPF_ANY);
-    log_debug("kprobe/udpv6_destroy_sock: port %d marked as closed", lport);
-
-    return 0;
-}
-
 SEC("kprobe/sys_bind")
 int kprobe__sys_bind(struct pt_regs* ctx) {
 
