@@ -125,46 +125,50 @@ func (t *Tracer) expvarStats() {
 	}
 }
 
+// NewDDAPIFilter returns a filter we can apply to the driver
+func NewDDAPIFilter(direction C.uint64_t, af C.uint64_t) (fd C.struct__filterDefinition) {
+	fd.filterVersion = C.DD_FILTER_SIGNATURE
+	fd.size = C.sizeof_struct__filterDefinition
+	fd.direction = direction
+	fd.af = af
+	return fd
+}
+
+func (t *Tracer) setFilter(fd C.struct__filterDefinition) (err error) {
+	var id int64
+	err = windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd)), uint32(unsafe.Sizeof(fd)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
+	if err != nil {
+		return log.Error("Failed to set filter: %v\n", err.Error())
+	}
+	return
+}
+
 func (t *Tracer) prepareDriverFilters() (err error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		log.Error("Error getting interfaces: %v\n", err.Error())
 		return
 	}
-
-	var (
-		fd_incoming C.struct__filterDefinition
-		fd_outgoing C.struct__filterDefinition
-	)
-
-	fd_incoming.filterVersion = C.DD_FILTER_SIGNATURE
-	fd_incoming.size = C.sizeof_struct__filterDefinition
-	fd_incoming.direction = C.DIRECTION_INBOUND
-	fd_incoming.af = windows.AF_INET
-
-	fd_outgoing.filterVersion = C.DD_FILTER_SIGNATURE
-	fd_outgoing.size = C.sizeof_struct__filterDefinition
-	fd_outgoing.direction = C.DIRECTION_INBOUND
-	fd_outgoing.af = windows.AF_INET
+	// Filter for incoming traffic
+	fdIncoming := NewDDAPIFilter(C.DIRECTION_INBOUND, 0)
+	// Filter for outgoing traffic
+	fdOutgoing := NewDDAPIFilter(C.DIRECTION_OUTBOUND, 0)
 
 	for _, i := range ifaces {
 		log.Debugf("Setting filter for interface: %s [%+v]", i.Name, i)
 
-		fd_incoming.v4InterfaceIndex = (C.ulonglong)(i.Index)
-		fd_outgoing.v4InterfaceIndex = (C.ulonglong)(i.Index)
+		// We use the same config for every interface, so just update the interface
+		// to which interface we are applying by setting the interface index
+		fdIncoming.v4InterfaceIndex = (C.ulonglong)(i.Index)
+		fdOutgoing.v4InterfaceIndex = (C.ulonglong)(i.Index)
 
-		var id uint64
-
-		err = windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd_incoming)), uint32(unsafe.Sizeof(fd_incoming)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
+		err = t.setFilter(fdIncoming)
 		if err != nil {
-			log.Error("Failed to set filter: %v\n", err.Error())
-			continue
+			log.Warnf("Failed to set incoming filter %v: %v\n", i, err.Error())
 		}
-
-		err = windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd_outgoing)), uint32(unsafe.Sizeof(fd_outgoing)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
+		err = t.setFilter(fdOutgoing)
 		if err != nil {
-			log.Error("Failed to set filter: %v\n", err.Error())
-			continue
+			log.Warnf("Failed to set outgoing filter for interface %v: %v\n", i, err.Error())
 		}
 	}
 	return nil
@@ -191,7 +195,7 @@ func (t *Tracer) prepareReadBuffers() (err error) {
 }
 
 func (t *Tracer) initPacketPolling() (err error) {
-	log.Infof("Ran initPacketPolling")
+	log.Debugf("Started packet polling")
 	go func() {
 		var (
 			bytes uint32
@@ -204,7 +208,6 @@ func (t *Tracer) initPacketPolling() (err error) {
 			if err == nil {
 				var buf *readBuffer
 				buf = (*readBuffer)(unsafe.Pointer(ol))
-				log.Infof("Received %v bytes\n", bytes)
 				buf.printPacket()
 				atomic.AddInt64(&t.packetCount, 1)
 				windows.ReadFile(t.driverHandle, buf.data[:], nil, &(buf.ol))
