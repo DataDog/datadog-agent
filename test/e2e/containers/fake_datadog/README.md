@@ -195,5 +195,6 @@ kubectl apply -f fake-datadog.yaml
   env:
     ...
     - name: DD_DD_URL
-      value: "http://fake-datadog.default.svc.cluster.local"
+      # if you deployed the service & deployment in a separate namespace, add `.<NAMESPACE>.svc.cluster.local
+      value: "http://fake-datadog"
 ```
