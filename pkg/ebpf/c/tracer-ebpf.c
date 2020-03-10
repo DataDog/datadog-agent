@@ -150,6 +150,20 @@ struct bpf_map_def SEC("maps/pending_sockets") pending_sockets = {
     .namespace = "",
 };
 
+/* Similar to pending_sockets this is used for capturing state between the call and return of the bind() system call.
+ *
+ * Keys: the PId returned by bpf_get_current_pid_tgid()
+ * Values: the args of the bind call  being instrumented.
+ */
+struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(bind_syscall_args_t),
+    .max_entries = 8192,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This is written to in the kretprobe for sys_socket to keep track of
  * sockets that were created, but have not yet been bound to a port with
  * sys_bind.
@@ -999,21 +1013,48 @@ int kprobe__sys_bind(struct pt_regs* ctx) {
     // sockaddr is part of the syscall ABI, so we can hardcode the offset of 2 to find the port.
     u16 sin_port = 0;
     bpf_probe_read(&sin_port, sizeof(u16), (char*)addr + 2);
-
     sin_port = ntohs(sin_port);
 
-    // mark the port as listening
-    __u8 port_state = PORT_LISTENING;
-    bpf_map_update_elem(&udp_port_bindings, &sin_port, &port_state, BPF_ANY);
+    // write to pending_binds to the retprobe knows we can mark this as binding.
+    bind_syscall_args_t args = {};
+    args.fd = fd;
+    args.port = sin_port;
 
-    log_debug("kprobe/sys_bind: found a listening UDP port=%d fd=%d tid=%d\n", sin_port, fd, tid);
+    bpf_map_update_elem(&pending_bind, &tid, &args, BPF_ANY);
+    log_debug("kprobe/sys_bind: started a bind on UDP port=%d fd=%d tid=%d\n", sin_port, fd, tid);
+
+
 
     return 0;
 }
 
 SEC("kretprobe/sys_bind")
 int kretprobe__sys_bind(struct pt_regs* ctx) {
-  log_debug("kretprobe/bind:\n");
+  __u64 tid = bpf_get_current_pid_tgid();
+  int ret = PT_REGS_RC(ctx);
+
+  // bail if this bind() is not one we're instrumenting
+  bind_syscall_args_t *args;
+  args = bpf_map_lookup_elem(&pending_bind, &tid);
+
+  log_debug("kretprobe/bind: for tid %d and return value: %d\n");
+
+  if (args == NULL) {
+    log_debug("kretprobe/bind: was not a UDP bind, will not process\n");
+    return 0;
+  }
+
+  if (ret != 0) {
+    log_debug("kretprobe/bind: return %d for tid %d\n", tid, ret);
+    return 0;
+  }
+
+
+  __u16 sin_port = args->port;
+  __u8 port_state = PORT_LISTENING;
+  bpf_map_update_elem(&udp_port_bindings, &sin_port, &port_state, BPF_ANY);
+  log_debug("kretprobe/bind: bound UDP port  %d\n", sin_port);
+
   return 0;
 }
 
