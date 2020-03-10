@@ -8,6 +8,7 @@ from . import (agent,
     android,
     bench,
     cluster_agent,
+    cluster_agent_cloudfoundry,
     customaction,
     docker,
     dogstatsd,
@@ -56,6 +57,7 @@ ns.add_task(generate)
 ns.add_collection(agent)
 ns.add_collection(android)
 ns.add_collection(cluster_agent)
+ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(customaction)
 ns.add_collection(installcmd)
 ns.add_collection(bench)
