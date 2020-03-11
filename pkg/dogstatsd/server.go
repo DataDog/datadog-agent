@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
@@ -56,19 +57,11 @@ func init() {
 type Server struct {
 	// listeners are the instanciated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
+	// aggregator is a pointer to the aggregator that the dogstatsd daemon
+	// will send the the metrics samples, events and service checks to.
+	aggregator *aggregator.BufferedAggregator
 
-	packetsIn chan listeners.Packets
-
-	// samplesOut is a reference to the channel of the aggregator in order
-	// to send the metrics directly to the aggregator.
-	samplesOut chan<- []metrics.MetricSample
-	// eventsOut is a reference to the channel of the aggregator in order
-	// to send the evnts directly to the aggregator.
-	eventsOut chan<- []*metrics.Event
-	// servicesCheckOut is a reference to the channel of the aggregator in order
-	// to send the service checks directly to the aggregator.
-	servicesCheckOut chan<- []*metrics.ServiceCheck
-
+	packetsIn                 chan listeners.Packets
 	Statistics                *util.Stats
 	Started                   bool
 	stopChan                  chan bool
@@ -95,7 +88,7 @@ type metricStat struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(samplesOut chan<- []metrics.MetricSample, eventsOut chan<- []*metrics.Event, servicesCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
+func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -161,9 +154,7 @@ func NewServer(samplesOut chan<- []metrics.MetricSample, eventsOut chan<- []*met
 		Started:                   true,
 		Statistics:                stats,
 		packetsIn:                 packetsChannel,
-		samplesOut:                samplesOut,
-		eventsOut:                 eventsOut,
-		servicesCheckOut:          servicesCheckOut,
+		aggregator:                aggregator,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
 		health:                    health.Register("dogstatsd-main"),
@@ -260,7 +251,11 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 }
 
 func (s *Server) worker() {
-	batcher := newBatcher(s.samplesOut, s.eventsOut, s.servicesCheckOut)
+	// the batcher will be responsible of batching a few samples / events / service
+	// checks and it will automatically forward them to the aggregator, meaning that
+	// the flushing logic to the aggreagtor is actually in the batcher.
+	batcher := newBatcher(s.aggregator)
+
 	parser := newParser()
 	for {
 		select {

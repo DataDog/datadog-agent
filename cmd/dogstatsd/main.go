@@ -204,8 +204,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
-	sampleC, eventC, serviceCheckC := aggregatorInstance.GetBufferedChannels()
-	statsd, err = dogstatsd.NewServer(sampleC, eventC, serviceCheckC)
+	statsd, err = dogstatsd.NewServer(aggregatorInstance)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
