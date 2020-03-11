@@ -1,6 +1,11 @@
 $ErrorActionPreference = "Stop"
 Trap { Write-Host "Error in install.ps1: $_" }
 
+Invoke-WebRequest -OutFile jre-11.0.6.zip https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.6%2B10/OpenJDK11U-jre_x64_windows_hotspot_11.0.6_10.zip
+Expand-Archive -Path jre-11.0.6.zip -DestinationPath C:/
+Remove-Item jre-11.0.6.zip
+Move-Item C:/jdk-11.0.6+10-jre/ C:/java
+
 Expand-Archive datadog-agent-7-latest.amd64.zip
 Remove-Item datadog-agent-7-latest.amd64.zip
 
