@@ -6,11 +6,8 @@
 package config
 
 import (
-	"io/ioutil"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -66,14 +63,12 @@ func TestRuntimeSettings(t *testing.T) {
 func TestLogLevel(t *testing.T) {
 	cleanRuntimeSetting()
 	setupConf()
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(ioutil.Discard, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupDatadogLogger(l, "debug")
+	SetupLogger("TEST", "debug", "", "", true, true, true)
 
 	ll := logLevelRuntimeSetting("log_level")
 	assert.Equal(t, "log_level", ll.Name())
 
-	err = ll.Set("off")
+	err := ll.Set("off")
 	assert.Nil(t, err)
 
 	v, err := ll.Get()
@@ -82,7 +77,7 @@ func TestLogLevel(t *testing.T) {
 
 	err = ll.Set("invalid")
 	assert.NotNil(t, err)
-	assert.Equal(t, "bad log level", err.Error())
+	assert.Equal(t, "declared minlevel not found: invalid", err.Error())
 
 	v, err = ll.Get()
 	assert.Equal(t, "off", v)

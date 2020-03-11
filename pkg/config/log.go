@@ -27,6 +27,8 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 
 var syslogTLSConfig *tls.Config
 
+var seelogConfig *SeelogConfig
+
 // BuildCommonFormat returns the log common format seelog string
 func BuildCommonFormat(loggerName LoggerName) string {
 	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat, loggerName)
@@ -84,6 +86,11 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		return fmt.Errorf("unknown log level: %s", seelogLogLevel)
 	}
 
+	formatID := "common"
+	if jsonFormat {
+		formatID = "json"
+	}
+
 	if syslogURI != "" { // non-blank uri enables syslog
 		syslog = true
 
@@ -101,55 +108,23 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		}
 	}
 
-	formatID := "common"
-	if jsonFormat {
-		formatID = "json"
-	}
-
-	configTemplate := `<seelog>`
-	configTemplate += fmt.Sprintf(`<outputs formatid="%s">`, formatID)
-
-	if logToConsole {
-		configTemplate += `<console />`
-	}
-	if logFile != "" {
-		configTemplate += fmt.Sprintf(`<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="%d" />`, logFile, Datadog.GetSizeInBytes("log_file_max_size"), Datadog.GetInt("log_file_max_rolls"))
-	}
+	seelogConfig = NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, BuildJSONFormat(loggerName), BuildCommonFormat(loggerName), syslogRFC)
+	seelogConfig.enableConsoleLog(logToConsole)
+	seelogConfig.enableFileLogging(logFile, Datadog.GetSizeInBytes("log_file_max_size"), uint(Datadog.GetInt("log_file_max_rolls")))
 	if syslog {
-		var syslogTemplate string
-		if syslogURI != "" {
-			syslogTemplate = fmt.Sprintf(
-				`<custom name="syslog" formatid="syslog-%s" data-uri="%s" data-tls="%v" />`,
-				formatID,
-				syslogURI,
-				useTLS,
-			)
-		} else {
-			syslogTemplate = fmt.Sprintf(`<custom name="syslog" formatid="syslog-%s" />`, formatID)
-		}
-		configTemplate += syslogTemplate
+		seelogConfig.configureSyslog(syslogURI, useTLS)
 	}
 
-	configTemplate += fmt.Sprintf(`</outputs>
-	<formats>
-		<format id="json" format="%s"/>
-		<format id="common" format="%s"/>
-		<format id="syslog-json" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(syslogRFC)+`){&quot;agent&quot;:&quot;%s&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="syslog-common" format="%%CustomSyslogHeader(20,`+strconv.FormatBool(syslogRFC)+`) %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n" />
-	</formats>
-</seelog>`,
-		BuildJSONFormat(loggerName),
-		BuildCommonFormat(loggerName),
-		strings.ToLower(string(loggerName)),
-		loggerName,
-	)
+	configTemplate, err := seelogConfig.render()
+	if err != nil {
+		return err
+	}
 
 	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
 	if err != nil {
 		return err
 	}
 	seelog.ReplaceLogger(logger)
-
 	log.SetupDatadogLogger(logger, seelogLogLevel)
 	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
 	return nil
@@ -348,6 +323,22 @@ func extractShortPathFromFullPath(fullPath string) string {
 	// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
 	slices := strings.Split(fullPath, "-agent/")
 	return slices[len(slices)-1]
+}
+
+func changeSeelogLevel(level string) error {
+	seelogConfig.setLogLevel(level)
+	configTemplate, err := seelogConfig.render()
+	if err != nil {
+		return err
+	}
+
+	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
+	if err != nil {
+		return err
+	}
+	seelog.ReplaceLogger(logger)
+	log.SetupDatadogLogger(logger, level)
+	return nil
 }
 
 func init() {

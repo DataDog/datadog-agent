@@ -30,7 +30,7 @@ func (l logLevelRuntimeSetting) Get() (interface{}, error) {
 
 func (l logLevelRuntimeSetting) Set(v interface{}) error {
 	logLevel := v.(string)
-	err := log.ChangeLogLevel(logLevel)
+	err := changeSeelogLevel(logLevel)
 	if err != nil {
 		return err
 	}
