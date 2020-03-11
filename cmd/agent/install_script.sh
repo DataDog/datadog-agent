@@ -37,7 +37,7 @@ with the contents of ddagent-install.log and we'll do our very best to help you
 solve your problem.\n\033[0m\n" "$ERROR_MESSAGE"
 }
 trap on_error ERR
-
+# shellcheck disable=SC2153
 if [ -n "$DD_HOSTNAME" ]; then
     dd_hostname=$DD_HOSTNAME
 fi
@@ -61,6 +61,7 @@ if [ -n "$DD_HOST_TAGS" ]; then
     host_tags=$DD_HOST_TAGS
 fi
 
+# shellcheck disable=SC2153
 if [ -n "$REPO_URL" ]; then
   repo_url=$REPO_URL
 else
@@ -76,7 +77,7 @@ fi
 dd_agent_major_version=6
 # shellcheck disable=SC2153
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
-  if [ "$DD_AGENT_MAJOR_VERSION" != "6" -a "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
+  if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
     echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
     exit 1;
   fi
@@ -286,7 +287,7 @@ else
     $sudo_cmd cp $CONF.example $CONF
   fi
   if [ "$apikey" ]; then
-    printf "\033[34m\n* Adding your API key to the Agent configuration: $CONF\n\033[0m\n"
+    printf "\033[34m\n* Adding your API key to the Agent configuration: %s\n\033[0m\n" "$CONF"
     $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' $CONF"
   else
     # If the import script failed for any reason, we might end here also in case
@@ -311,7 +312,7 @@ else
   fi
   if [ "$host_tags" ]; then
       printf "\033[34m\n* Adding your HOST TAGS to the Agent configuration: %s\n\033[0m\n" "$CONF"
-      formatted_host_tags="['"$( echo "$host_tags" | sed "s/,/','/g" )"']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
+      formatted_host_tags="['""$( echo "$host_tags" | sed "s/,/','/g" )""']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
       $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $CONF"
   fi
   $sudo_cmd chown dd-agent:dd-agent $CONF

@@ -30,6 +30,7 @@ if [ -n "$DD_SITE" ]; then
 fi
 
 dd_agent_major_version=6
+# shellcheck disable=SC2153
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
     echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
