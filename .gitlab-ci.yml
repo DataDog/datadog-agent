@@ -363,6 +363,15 @@ run_dep_check_lock:
     # Print a message and fail if dep check fails
     - dep check --skip-vendor || (echo "Gopkg.lock is out of sync with Gopkg.toml and project imports. Please run 'inv deps' and commit the change on Gopkg.lock." && false)
 
+run_shell_script_lint:
+  stage: source_test
+  needs: ["fail_on_non_triggered_tag"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/mars_jenkins_scripts:$DATADOG_AGENT_BUILDERS
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - shellcheck --version
+    # TODO: lower to the 'info' level, which for example detects uses of globbing where it may be dangerous to do so
+    - shellcheck --severity=info --shell=bash ./cmd/*.sh ./cmd/**/*.sh
 #
 # binary_build
 #
