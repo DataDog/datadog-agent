@@ -40,7 +40,7 @@ func init() {
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn            net.PacketConn
+	conn            *net.UDPConn
 	packetsBuffer   *packetsBuffer
 	packetAssembler *packetAssembler
 	buffer          []byte
@@ -48,7 +48,6 @@ type UDPListener struct {
 
 // NewUDPListener returns an idle UDP Statsd listener
 func NewUDPListener(packetOut chan Packets) (*UDPListener, error) {
-	var conn net.PacketConn
 	var err error
 	var url string
 
@@ -59,10 +58,14 @@ func NewUDPListener(packetOut chan Packets) (*UDPListener, error) {
 		url = net.JoinHostPort(config.Datadog.GetString("bind_host"), config.Datadog.GetString("dogstatsd_port"))
 	}
 
-	conn, err = net.ListenPacket("udp", url)
+	addr, err := net.ResolveUDPAddr("udp", url)
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve udp addr: %s", err)
+	}
+	conn, err := net.ListenUDP("udp", addr)
 
 	if rcvbuf := config.Datadog.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
-		if err := conn.(*net.UDPConn).SetReadBuffer(rcvbuf); err != nil {
+		if err := conn.SetReadBuffer(rcvbuf); err != nil {
 			return nil, fmt.Errorf("could not set socket rcvbuf: %s", err)
 		}
 	}
