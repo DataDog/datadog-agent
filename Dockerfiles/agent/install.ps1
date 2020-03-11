@@ -6,8 +6,6 @@ if ("$env:WITH_JMX" -ne "false") {
     Expand-Archive -Path jre-11.0.6.zip -DestinationPath C:/
     Remove-Item jre-11.0.6.zip
     Move-Item C:/jdk-11.0.6+10-jre/ C:/java
-    setx PATH "$env:PATH;C:\java\bin"
-    java -version
 }
 
 Expand-Archive datadog-agent-7-latest.amd64.zip
