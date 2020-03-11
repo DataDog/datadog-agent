@@ -166,8 +166,8 @@ func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLi
 	}
 
 	containerLimits := metrics.ContainerLimits{
-		CPULimit:    float64(cjson.HostConfig.NanoCPUs),
-		MemLimit:    uint64(cjson.HostConfig.Memory),
+		CPULimit: float64(cjson.HostConfig.NanoCPUs),
+		MemLimit: uint64(cjson.HostConfig.Memory),
 		//ThreadLimit: 0, // Unknown ?
 	}
 
