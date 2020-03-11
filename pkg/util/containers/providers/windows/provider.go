@@ -12,6 +12,8 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
+	"golang.org/x/sys/windows"
 	"net"
 	"os/exec"
 	"strings"
@@ -35,7 +37,9 @@ type containerBundle struct {
 
 // Provider is a Windows implementation of the ContainerImplementation interface
 type provider struct {
-	containers map[string]containerBundle
+	containers     map[string]containerBundle
+	interfaceTable map[uint32]iphelper.MIB_IFROW
+	routingTable   []iphelper.MIB_IPFORWARDROW
 }
 
 func init() {
@@ -49,7 +53,6 @@ func (mp *provider) Prefetch() error {
 	if err != nil {
 		return err
 	}
-
 	rawContainers, err := dockerUtil.RawContainerList(types.ContainerListOptions{
 		All: true,
 	})
@@ -61,6 +64,14 @@ func (mp *provider) Prefetch() error {
 		mp.containers[container.ID] = containerBundle{
 			container: container,
 		}
+	}
+	mp.routingTable, err = iphelper.GetIPv4RouteTable()
+	if err != nil {
+		return err
+	}
+	mp.interfaceTable, err = iphelper.GetIFTable()
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -206,8 +217,18 @@ func (mp *provider) ContainerIDForPID(pid int) (string, error) {
 // DetectNetworkDestinations lists all the networks available
 // to a given PID and parses them in NetworkInterface objects
 func (mp *provider) DetectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
-	// FIXME: TODO
-	return nil, fmt.Errorf("not yet implemented")
+	// TODO: Filter by PID
+	netDestinations := make([]containers.NetworkDestination, 0)
+	for _, row := range mp.routingTable {
+		itf := mp.interfaceTable[row.DwForwardIfIndex]
+		netDest := containers.NetworkDestination{
+			Interface: windows.UTF16ToString(itf.WszName[:]),
+			Subnet:    uint64(row.DwForwardDest),
+			Mask:      uint64(row.DwForwardMask),
+		}
+		netDestinations = append(netDestinations, netDest)
+	}
+	return netDestinations, nil
 }
 
 // GetDefaultGateway returns the default gateway used by container implementation
