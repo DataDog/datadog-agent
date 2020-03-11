@@ -167,6 +167,8 @@ func (mp *provider) GetNetworkMetrics(containerID string, networks map[string]st
 		stat.BytesSent = netStat.TxBytes
 		stat.PacketsRcvd = netStat.RxPackets
 		stat.PacketsSent = netStat.TxPackets
+
+		netStats = append(netStats, stat)
 	}
 	return netStats, nil
 }
