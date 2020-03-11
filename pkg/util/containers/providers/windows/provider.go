@@ -37,9 +37,7 @@ type containerBundle struct {
 
 // Provider is a Windows implementation of the ContainerImplementation interface
 type provider struct {
-	containers     map[string]containerBundle
-	interfaceTable map[uint32]iphelper.MIB_IFROW
-	routingTable   []iphelper.MIB_IPFORWARDROW
+	containers map[string]containerBundle
 }
 
 func init() {
@@ -64,14 +62,6 @@ func (mp *provider) Prefetch() error {
 		mp.containers[container.ID] = containerBundle{
 			container: container,
 		}
-	}
-	mp.routingTable, err = iphelper.GetIPv4RouteTable()
-	if err != nil {
-		return err
-	}
-	mp.interfaceTable, err = iphelper.GetIFTable()
-	if err != nil {
-		return err
 	}
 	return nil
 }
@@ -218,9 +208,17 @@ func (mp *provider) ContainerIDForPID(pid int) (string, error) {
 // to a given PID and parses them in NetworkInterface objects
 func (mp *provider) DetectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
 	// TODO: Filter by PID
+	routingTable, err := iphelper.GetIPv4RouteTable()
+	if err != nil {
+		return nil, err
+	}
+	interfaceTable, err := iphelper.GetIFTable()
+	if err != nil {
+		return nil, err
+	}
 	netDestinations := make([]containers.NetworkDestination, 0)
-	for _, row := range mp.routingTable {
-		itf := mp.interfaceTable[row.DwForwardIfIndex]
+	for _, row := range routingTable {
+		itf := interfaceTable[row.DwForwardIfIndex]
 		netDest := containers.NetworkDestination{
 			Interface: windows.UTF16ToString(itf.WszName[:]),
 			Subnet:    uint64(row.DwForwardDest),
