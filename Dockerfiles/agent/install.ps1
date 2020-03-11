@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+Trap { Write-Host "Error in install.ps1: $_" }
 
 Expand-Archive datadog-agent-7-latest.amd64.zip
 Remove-Item datadog-agent-7-latest.amd64.zip
