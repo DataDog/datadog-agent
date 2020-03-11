@@ -4,6 +4,7 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 // +build !windows
+// +build clusterchecks
 
 //go:generate go run ../../pkg/config/render_config.go dcacf ../../pkg/config/config_template.yaml ../../cloudfoundry.yaml
 
