@@ -8,6 +8,8 @@ FROM ${BASE_IMAGE}
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
+USER ContainerAdministrator
+
 COPY datadog-agent-7-latest.amd64.zip install.ps1 ./
 RUN powershell ./install.ps1
 
