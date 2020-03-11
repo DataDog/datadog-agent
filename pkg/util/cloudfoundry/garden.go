@@ -50,7 +50,7 @@ func GetGardenUtil() (*GardenUtil, error) {
 		})
 	}
 	if err := globalGardenUtil.retrier.TriggerRetry(); err != nil {
-		log.Debugf("could not initiate connection to garden server %s using network %s: %s", address, network, err)
+		log.Debugf("Could not initiate connection to garden server %s using network %s: %s", address, network, err)
 		return nil, err
 	}
 	return globalGardenUtil, nil

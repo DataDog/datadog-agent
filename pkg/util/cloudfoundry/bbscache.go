@@ -26,10 +26,10 @@ type BBSCacheI interface {
 	LastUpdated() time.Time
 	GetPollAttempts() int
 	GetPollSuccesses() int
-	GetActualLRPFor(instanceGUID string) ActualLRP
-	GetActualLRPsFor(appGUID string) []ActualLRP
-	GetDesiredLRPFor(appGUID string) DesiredLRP
-	GetAllLRPs() (map[string][]ActualLRP, map[string]DesiredLRP)
+	GetActualLRPsForApp(appGUID string) ([]*ActualLRP, error)
+	GetActualLRPsForCell(cellID string) ([]*ActualLRP, error)
+	GetDesiredLRPFor(appGUID string) (DesiredLRP, error)
+	GetAllLRPs() (map[string][]*ActualLRP, map[string]*DesiredLRP)
 	ExtractTags(nodename string) map[string][]string
 }
 
@@ -44,10 +44,10 @@ type BBSCache struct {
 	pollAttempts       int
 	pollSuccesses      int
 	// maps Desired LRPs' AppGUID to list of ActualLRPs (IOW this is list of running containers per app)
-	actualLRPs              map[string][]ActualLRP
-	actualLRPByInstanceGUID map[string]*ActualLRP
-	desiredLRPs             map[string]DesiredLRP
-	lastUpdated             time.Time
+	actualLRPsByAppGUID map[string][]*ActualLRP
+	actualLRPsByCellID  map[string][]*ActualLRP
+	desiredLRPs         map[string]*DesiredLRP
+	lastUpdated         time.Time
 }
 
 var (
@@ -126,38 +126,41 @@ func (bc *BBSCache) GetPollSuccesses() int {
 	return bc.pollSuccesses
 }
 
-// GetActualLRPFor returns the App GUID associated to an instance GUID
-func (bc *BBSCache) GetActualLRPFor(instanceGUID string) ActualLRP {
+// GetActualLRPsForApp returns slice of pointers to ActualLRP objects for given App GUID
+func (bc *BBSCache) GetActualLRPsForApp(appGUID string) ([]*ActualLRP, error) {
 	bc.RLock()
 	defer bc.RUnlock()
-	if val, ok := bc.actualLRPByInstanceGUID[instanceGUID]; ok {
-		return *val
+	if val, ok := bc.actualLRPsByAppGUID[appGUID]; ok {
+		return val, nil
 	}
-	return ActualLRP{}
+	return []*ActualLRP{}, fmt.Errorf("actual LRPs for app %s not found", appGUID)
 }
 
-// GetActualLRPsFor returns slice of ActualLRP objects for given App GUID
-func (bc *BBSCache) GetActualLRPsFor(appGUID string) []ActualLRP {
+// GetActualLRPsForCell returns slice of pointers to ActualLRP objects for given App GUID
+func (bc *BBSCache) GetActualLRPsForCell(cellID string) ([]*ActualLRP, error) {
 	bc.RLock()
 	defer bc.RUnlock()
-	if val, ok := bc.actualLRPs[appGUID]; ok {
-		return val
+	if val, ok := bc.actualLRPsByCellID[cellID]; ok {
+		return val, nil
 	}
-	return []ActualLRP{}
+	return []*ActualLRP{}, fmt.Errorf("actual LRPs for app %s not found", cellID)
 }
 
 // GetDesiredLRPFor returns DesiredLRP for a specific app GUID
-func (bc *BBSCache) GetDesiredLRPFor(appGUID string) DesiredLRP {
+func (bc *BBSCache) GetDesiredLRPFor(appGUID string) (DesiredLRP, error) {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.desiredLRPs[appGUID]
+	if val, ok := bc.desiredLRPs[appGUID]; ok {
+		return *val, nil
+	}
+	return DesiredLRP{}, fmt.Errorf("desired LRP for app %s not found", appGUID)
 }
 
 // GetAllLRPs returns all Actual LRPs (in mapping {appGuid: []ActualLRP}) and all Desired LRPs
-func (bc *BBSCache) GetAllLRPs() (map[string][]ActualLRP, map[string]DesiredLRP) {
+func (bc *BBSCache) GetAllLRPs() (map[string][]*ActualLRP, map[string]*DesiredLRP) {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.actualLRPs, bc.desiredLRPs
+	return bc.actualLRPsByAppGUID, bc.desiredLRPs
 }
 
 func (bc *BBSCache) start() {
@@ -180,15 +183,15 @@ func (bc *BBSCache) readData() {
 	bc.pollAttempts++
 	bc.Unlock()
 	var wg sync.WaitGroup
-	var actualLRPs map[string][]ActualLRP
-	var actualLRPByInstanceGUID map[string]*ActualLRP
-	var desiredLRPs map[string]DesiredLRP
+	var actualLRPsByAppGUID map[string][]*ActualLRP
+	var actualLRPsByCellID map[string][]*ActualLRP
+	var desiredLRPs map[string]*DesiredLRP
 	var errActual, errDesired error
 
 	wg.Add(2)
 
 	go func() {
-		actualLRPs, actualLRPByInstanceGUID, errActual = bc.readActualLRPs()
+		actualLRPsByAppGUID, actualLRPsByCellID, errActual = bc.readActualLRPs()
 		wg.Done()
 	}()
 	go func() {
@@ -209,43 +212,51 @@ func (bc *BBSCache) readData() {
 	bc.Lock()
 	defer bc.Unlock()
 	log.Debug("Data from BBS API read successfully, refreshing the cache")
-	bc.actualLRPs = actualLRPs
-	bc.actualLRPByInstanceGUID = actualLRPByInstanceGUID
+	bc.actualLRPsByAppGUID = actualLRPsByAppGUID
+	bc.actualLRPsByCellID = actualLRPsByCellID
 	bc.desiredLRPs = desiredLRPs
 	bc.lastUpdated = time.Now()
 	bc.pollSuccesses++
 }
 
-func (bc *BBSCache) readActualLRPs() (map[string][]ActualLRP, map[string]*ActualLRP, error) {
-	actualLRPs := map[string][]ActualLRP{}
-	actualLRPByInstanceGUID := map[string]*ActualLRP{}
+func (bc *BBSCache) readActualLRPs() (map[string][]*ActualLRP, map[string][]*ActualLRP, error) {
+	actualLRPsByAppGUID := map[string][]*ActualLRP{}
+	actualLRPsByCellID := map[string][]*ActualLRP{}
 	actualLRPsBBS, err := bc.bbsAPIClient.ActualLRPs(bc.bbsAPIClientLogger, models.ActualLRPFilter{})
 	if err != nil {
-		return actualLRPs, actualLRPByInstanceGUID, err
+		return actualLRPsByAppGUID, actualLRPsByCellID, err
 	}
 	for _, lrp := range actualLRPsBBS {
 		alrp := ActualLRPFromBBSModel(lrp)
-		if lrpList, ok := actualLRPs[alrp.AppGUID]; ok {
-			actualLRPs[alrp.AppGUID] = append(lrpList, alrp)
-			actualLRPByInstanceGUID[alrp.InstanceGUID] = &actualLRPs[alrp.AppGUID][len(lrpList)]
+		if _, ok := actualLRPsByAppGUID[alrp.AppGUID]; ok {
+			actualLRPsByAppGUID[alrp.AppGUID] = append(actualLRPsByAppGUID[alrp.AppGUID], &alrp)
+			if _, ok := actualLRPsByCellID[alrp.CellID]; ok {
+				actualLRPsByCellID[alrp.CellID] = append(actualLRPsByCellID[alrp.CellID], &alrp)
+			} else {
+				actualLRPsByCellID[alrp.CellID] = []*ActualLRP{&alrp}
+			}
 		} else {
-			actualLRPs[alrp.AppGUID] = []ActualLRP{alrp}
-			actualLRPByInstanceGUID[alrp.InstanceGUID] = &actualLRPs[alrp.AppGUID][0]
+			actualLRPsByAppGUID[alrp.AppGUID] = []*ActualLRP{&alrp}
+			if _, ok := actualLRPsByCellID[alrp.CellID]; ok {
+				actualLRPsByCellID[alrp.CellID] = append(actualLRPsByCellID[alrp.CellID], &alrp)
+			} else {
+				actualLRPsByCellID[alrp.CellID] = []*ActualLRP{&alrp}
+			}
 		}
 	}
 	log.Debugf("Successfully read %d Actual LRPs", len(actualLRPsBBS))
-	return actualLRPs, actualLRPByInstanceGUID, nil
+	return actualLRPsByAppGUID, actualLRPsByCellID, nil
 }
 
-func (bc *BBSCache) readDesiredLRPs() (map[string]DesiredLRP, error) {
+func (bc *BBSCache) readDesiredLRPs() (map[string]*DesiredLRP, error) {
 	desiredLRPsBBS, err := bc.bbsAPIClient.DesiredLRPs(bc.bbsAPIClientLogger, models.DesiredLRPFilter{})
 	if err != nil {
-		return map[string]DesiredLRP{}, err
+		return map[string]*DesiredLRP{}, err
 	}
-	desiredLRPs := make(map[string]DesiredLRP, len(desiredLRPsBBS))
+	desiredLRPs := make(map[string]*DesiredLRP, len(desiredLRPsBBS))
 	for _, lrp := range desiredLRPsBBS {
 		desiredLRP := DesiredLRPFromBBSModel(lrp)
-		desiredLRPs[desiredLRP.AppGUID] = desiredLRP
+		desiredLRPs[desiredLRP.AppGUID] = &desiredLRP
 	}
 	log.Debugf("Successfully read %d Desired LRPs", len(desiredLRPsBBS))
 	return desiredLRPs, nil
@@ -255,30 +266,28 @@ func (bc *BBSCache) readDesiredLRPs() (map[string]DesiredLRP, error) {
 // and returns a mapping of tags by instance GUID
 func (bc *BBSCache) ExtractTags(nodename string) map[string][]string {
 	tags := map[string][]string{}
-	alrps, dlrps := bc.GetAllLRPs()
-	for appGUID, dlrp := range dlrps {
-		alrpsForApp, ok := alrps[appGUID]
-		if !ok {
-			log.Debugf("Could not find actual LRPs for app GUID %s", appGUID)
+	alrps, err := bc.GetActualLRPsForCell(nodename)
+	if err != nil {
+		log.Debug("Could not find actual LRPs for cell %s", nodename)
+	}
+	for _, alrp := range alrps {
+		dlrp, err := bc.GetDesiredLRPFor(alrp.AppGUID)
+		if err != nil {
+			log.Debugf("Could not find actual LRPs for app GUID %s", alrp.AppGUID)
 			continue
 		}
 		vcApp := dlrp.EnvVcapApplication
 		appName, ok := vcApp["application_name"]
 		if !ok {
-			log.Debugf("Could not find application_name of app %s", appGUID)
+			log.Debugf("Could not find application_name of app %s", alrp.AppGUID)
 			continue
 		}
-		for _, alrp := range alrpsForApp {
-			// Only give tags for apps running on the specified node
-			if alrp.CellID == nodename {
-				tags[alrp.InstanceGUID] = []string{
-					fmt.Sprintf("container_name:%s_%d", appName, alrp.Index),
-					fmt.Sprintf("app_name:%s", appName),
-					fmt.Sprintf("app_guid:%s", appGUID),
-					fmt.Sprintf("app_instance_index:%d", alrp.Index),
-					fmt.Sprintf("app_instance_guid:%s", alrp.InstanceGUID),
-				}
-			}
+		tags[alrp.InstanceGUID] = []string{
+			fmt.Sprintf("container_name:%s_%d", appName, alrp.Index),
+			fmt.Sprintf("app_name:%s", appName),
+			fmt.Sprintf("app_guid:%s", alrp.AppGUID),
+			fmt.Sprintf("app_instance_index:%d", alrp.Index),
+			fmt.Sprintf("app_instance_guid:%s", alrp.InstanceGUID),
 		}
 	}
 	return tags

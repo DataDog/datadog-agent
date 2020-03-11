@@ -71,6 +71,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 	}
 	for _, container := range cList {
 		if container.State != containers.ContainerActiveState {
+			log.Debugf("Container %s not in state %s, skipping", container.ID[:12], containers.ContainerActiveState)
 			continue
 		}
 		cgroup, ok := cgByContainer[container.ID]
@@ -93,6 +94,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 func (gu *GardenUtil) UpdateContainerMetrics(cList []*containers.Container) error {
 	for _, container := range cList {
 		if container.State != containers.ContainerActiveState {
+			log.Debugf("Container %s not in state %s, skipping", container.ID[:12], containers.ContainerActiveState)
 			continue
 		}
 

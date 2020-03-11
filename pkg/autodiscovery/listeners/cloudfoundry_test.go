@@ -23,9 +23,9 @@ import (
 type bbsCacheFake struct {
 	sync.RWMutex
 	Updated                 time.Time
-	ActualLRPs              map[string][]cloudfoundry.ActualLRP
+	ActualLRPs              map[string][]*cloudfoundry.ActualLRP
 	ActualLRPByInstanceGUID map[string]*cloudfoundry.ActualLRP
-	DesiredLRPs             map[string]cloudfoundry.DesiredLRP
+	DesiredLRPs             map[string]*cloudfoundry.DesiredLRP
 }
 
 func (b *bbsCacheFake) LastUpdated() time.Time {
@@ -42,19 +42,19 @@ func (b *bbsCacheFake) GetPollSuccesses() int {
 	panic("implement me")
 }
 
-func (b *bbsCacheFake) GetActualLRPsFor(appGUID string) []cloudfoundry.ActualLRP {
+func (b *bbsCacheFake) GetActualLRPsForApp(appGUID string) ([]*cloudfoundry.ActualLRP, error) {
 	panic("implement me")
 }
 
-func (b *bbsCacheFake) GetActualLRPFor(instanceGUID string) cloudfoundry.ActualLRP {
+func (b *bbsCacheFake) GetActualLRPsForCell(cellID string) ([]*cloudfoundry.ActualLRP, error) {
 	panic("implement me")
 }
 
-func (b *bbsCacheFake) GetDesiredLRPFor(appGUID string) cloudfoundry.DesiredLRP {
+func (b *bbsCacheFake) GetDesiredLRPFor(appGUID string) (cloudfoundry.DesiredLRP, error) {
 	panic("implement me")
 }
 
-func (b *bbsCacheFake) GetAllLRPs() (map[string][]cloudfoundry.ActualLRP, map[string]cloudfoundry.DesiredLRP) {
+func (b *bbsCacheFake) GetAllLRPs() (map[string][]*cloudfoundry.ActualLRP, map[string]*cloudfoundry.DesiredLRP) {
 	b.RLock()
 	defer b.RUnlock()
 	return b.ActualLRPs, b.DesiredLRPs
@@ -80,17 +80,17 @@ func TestCloudFoundryListener(t *testing.T) {
 	defer cfl.Stop()
 
 	for _, tc := range []struct {
-		aLRP   map[string][]cloudfoundry.ActualLRP
-		dLRP   map[string]cloudfoundry.DesiredLRP
+		aLRP   map[string][]*cloudfoundry.ActualLRP
+		dLRP   map[string]*cloudfoundry.DesiredLRP
 		expNew map[string]Service
 		expDel map[string]Service
 	}{
 		{
 			// inputs with no AD_DATADOGHQ_COM set up => no services
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {AppGUID: "appguid1", ProcessGUID: "processguid1"},
 			},
 			expNew: map[string]Service{},
@@ -98,10 +98,10 @@ func TestCloudFoundryListener(t *testing.T) {
 		},
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, but no containers of the app exist
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"differentappguid": {
 					AppGUID:     "differentappguid",
 					ProcessGUID: "processguid1",
@@ -117,7 +117,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		},
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, 1 container exists for the app
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1": {
 					{
 						AppGUID:     "appguid1",
@@ -139,7 +139,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					},
 				},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
@@ -161,8 +161,8 @@ func TestCloudFoundryListener(t *testing.T) {
 		},
 		{
 			// now the service created above should be deleted
-			aLRP:   map[string][]cloudfoundry.ActualLRP{},
-			dLRP:   map[string]cloudfoundry.DesiredLRP{},
+			aLRP:   map[string][]*cloudfoundry.ActualLRP{},
+			dLRP:   map[string]*cloudfoundry.DesiredLRP{},
 			expNew: map[string]Service{},
 			expDel: map[string]Service{
 				"processguid1/flask-app/0": &CloudFoundryService{
@@ -174,10 +174,10 @@ func TestCloudFoundryListener(t *testing.T) {
 		},
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for non-containers, no container exists for the app
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"differentappguid1": {{AppGUID: "differentappguid1", CellID: "cellX", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {
 					AppGUID:     "myappguid1",
 					ProcessGUID: "myprocessguid1",
@@ -202,7 +202,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		{
 			// complex test with three apps, one having no AD configuration, two having different configurations
 			// for both container and non-container services (plus also a non-running container)
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1": {
 					{
 						AppGUID:     "appguid1",
@@ -266,7 +266,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					},
 				},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",

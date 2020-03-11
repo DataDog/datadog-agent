@@ -19,8 +19,8 @@ import (
 
 type bbsCacheFake struct {
 	Updated     time.Time
-	ActualLRPs  map[string][]cloudfoundry.ActualLRP
-	DesiredLRPs map[string]cloudfoundry.DesiredLRP
+	ActualLRPs  map[string][]*cloudfoundry.ActualLRP
+	DesiredLRPs map[string]*cloudfoundry.DesiredLRP
 }
 
 func (b bbsCacheFake) LastUpdated() time.Time {
@@ -35,19 +35,19 @@ func (b bbsCacheFake) GetPollSuccesses() int {
 	panic("implement me")
 }
 
-func (b bbsCacheFake) GetActualLRPFor(instanceGUID string) cloudfoundry.ActualLRP {
+func (b bbsCacheFake) GetActualLRPsForCell(cellID string) ([]*cloudfoundry.ActualLRP, error) {
 	panic("implement me")
 }
 
-func (b bbsCacheFake) GetActualLRPsFor(appGUID string) []cloudfoundry.ActualLRP {
+func (b bbsCacheFake) GetActualLRPsForApp(appGUID string) ([]*cloudfoundry.ActualLRP, error) {
 	panic("implement me")
 }
 
-func (b bbsCacheFake) GetDesiredLRPFor(appGUID string) cloudfoundry.DesiredLRP {
+func (b bbsCacheFake) GetDesiredLRPFor(appGUID string) (cloudfoundry.DesiredLRP, error) {
 	panic("implement me")
 }
 
-func (b bbsCacheFake) GetAllLRPs() (map[string][]cloudfoundry.ActualLRP, map[string]cloudfoundry.DesiredLRP) {
+func (b bbsCacheFake) GetAllLRPs() (map[string][]*cloudfoundry.ActualLRP, map[string]*cloudfoundry.DesiredLRP) {
 	return b.ActualLRPs, b.DesiredLRPs
 }
 
@@ -82,24 +82,24 @@ func TestCloudFoundryConfigProvider_String(t *testing.T) {
 func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 	for _, tc := range []struct {
 		tc       string
-		aLRP     map[string][]cloudfoundry.ActualLRP
-		dLRP     map[string]cloudfoundry.DesiredLRP
+		aLRP     map[string][]*cloudfoundry.ActualLRP
+		dLRP     map[string]*cloudfoundry.DesiredLRP
 		expected []integration.Config
 	}{
 		{
 			// empty inputs => no configs
 			tc:       "empty_inputs",
-			aLRP:     map[string][]cloudfoundry.ActualLRP{},
-			dLRP:     map[string]cloudfoundry.DesiredLRP{},
+			aLRP:     map[string][]*cloudfoundry.ActualLRP{},
+			dLRP:     map[string]*cloudfoundry.DesiredLRP{},
 			expected: []integration.Config{},
 		},
 		{
 			// inputs with no AD_DATADOGHQ_COM set up => no configs
 			tc: "no_ad_config",
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {AppGUID: "appguid1", ProcessGUID: "processguid1"},
 			},
 			expected: []integration.Config{},
@@ -107,10 +107,10 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, but no containers of the app exist
 			tc: "ad_config_present_but_no_containers_running",
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"differentappguid": {
 					AppGUID:     "differentappguid",
 					ProcessGUID: "processguid1",
@@ -126,11 +126,11 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, 1 container exists for the app
 			tc: "ad_config_present_1_container_running",
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1":          {{AppGUID: "appguid1", CellID: "cellX", Index: 0}},
 				"differentappguid1": {{AppGUID: "differentappguid1", CellID: "cellY", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
@@ -156,11 +156,11 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, 2 containers exist for the app
 			tc: "ad_config_present_2_containers_running",
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1":          {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 				"differentappguid1": {{AppGUID: "differentappguid1", CellID: "cellZ", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
@@ -195,10 +195,10 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for non-containers, no container exists for the app
 			tc: "ad_config_present_for_non_container_no_container_running",
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"differentappguid1": {{AppGUID: "differentappguid1", CellID: "cellX", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
@@ -227,10 +227,10 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 			// inputs with AD_DATADOGHQ_COM containing config only for non-containers, 1 container exists for the app
 			// NOTE: the only difference here is that the NodeName for the check should be the same as CellID of the container
 			tc: "ad_config_present_for_non_container_1_container_running",
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",
@@ -258,12 +258,12 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 		{
 			// complex test with three apps, one having no AD configuration, two having different configurations for both container and non-container services
 			tc: "complex",
-			aLRP: map[string][]cloudfoundry.ActualLRP{
+			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"appguid1": {{AppGUID: "appguid1", CellID: "cellX", Index: 0}, {AppGUID: "appguid1", CellID: "cellY", Index: 1}},
 				"appguid2": {{AppGUID: "appguid2", CellID: "cellY", Index: 0}, {AppGUID: "appguid2", CellID: "cellZ", Index: 1}},
 				"appguid3": {{AppGUID: "appguid3", CellID: "cellZ", Index: 0}, {AppGUID: "appguid3", CellID: "cellZ", Index: 1}},
 			},
-			dLRP: map[string]cloudfoundry.DesiredLRP{
+			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"appguid1": {
 					AppGUID:     "appguid1",
 					ProcessGUID: "processguid1",

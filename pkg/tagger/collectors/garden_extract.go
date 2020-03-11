@@ -13,7 +13,7 @@ func (c *GardenCollector) extractTags(nodename string) (tagsByInstanceGUID map[s
 			return tagsByInstanceGUID, err
 		}
 	} else {
-		log.Debugf("Cluster agent not enabled or misconfigured, tagging CF app with container id only")
+		log.Debug("Cluster agent not enabled or misconfigured, tagging CF app with container id only")
 		gardenContainers, err := c.gardenUtil.GetGardenContainers()
 		if err != nil {
 			return tagsByInstanceGUID, fmt.Errorf("cannot get container list from local garden API: %v", err)

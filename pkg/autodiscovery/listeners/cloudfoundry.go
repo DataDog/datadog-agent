@@ -162,21 +162,21 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 	return svc
 }
 
-func (l *CloudFoundryListener) getAllADIdentifiers(desiredLRPs map[string]cloudfoundry.DesiredLRP, actualLRPs map[string][]cloudfoundry.ActualLRP) []cloudfoundry.ADIdentifier {
+func (l *CloudFoundryListener) getAllADIdentifiers(desiredLRPs map[string]*cloudfoundry.DesiredLRP, actualLRPs map[string][]*cloudfoundry.ActualLRP) []cloudfoundry.ADIdentifier {
 	ret := []cloudfoundry.ADIdentifier{}
 	for _, dLRP := range desiredLRPs {
 		for adName := range dLRP.EnvAD {
 			if _, ok := dLRP.EnvVcapServices[adName]; ok {
 				// if it's in VCAP_SERVICES, it's a non-container service and we want one instance per App
-				ret = append(ret, cloudfoundry.NewADNonContainerIdentifier(dLRP, adName))
+				ret = append(ret, cloudfoundry.NewADNonContainerIdentifier(*dLRP, adName))
 			} else {
 				// if it's not in VCAP_SERVICES, it's a container service and we want one instance per container
 				aLRPs, ok := actualLRPs[dLRP.AppGUID]
 				if !ok {
-					aLRPs = []cloudfoundry.ActualLRP{}
+					aLRPs = []*cloudfoundry.ActualLRP{}
 				}
 				for _, aLRP := range aLRPs {
-					ret = append(ret, cloudfoundry.NewADContainerIdentifier(dLRP, adName, aLRP))
+					ret = append(ret, cloudfoundry.NewADContainerIdentifier(*dLRP, adName, *aLRP))
 				}
 			}
 		}

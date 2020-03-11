@@ -50,7 +50,7 @@ func (c *GardenCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 			log.Errorf("Could not initialise the communication with the cluster agent: %s", errDCA.Error())
 			// continue to retry while we can
 			if retry.IsErrPermaFail(errDCA) {
-				log.Errorf("Permanent failure in communication with the cluster agent")
+				log.Error("Permanent failure in communication with the cluster agent")
 			}
 			return NoCollection, errDCA
 		}
