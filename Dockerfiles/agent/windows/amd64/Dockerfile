@@ -15,7 +15,6 @@ USER ContainerAdministrator
 COPY datadog-agent-7-latest.amd64.zip install.ps1 ./
 RUN powershell ./install.ps1
 
-ENV PATH="C:\java\bin;${PATH}"
 RUN if "%WITH_JMX%" == "false" (echo WITH_JMX not set, JRE not installed) else (java -version)
 
 EXPOSE 8125/udp 8126/tcp
