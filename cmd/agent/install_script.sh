@@ -7,19 +7,11 @@
 
 set -e
 logfile="ddagent-install.log"
-gist_request=/tmp/agent-gist-request.tmp
-gist_response=/tmp/agent-gist-response.tmp
 
 LEGACY_ETCDIR="/etc/dd-agent"
 LEGACY_CONF="$LEGACY_ETCDIR/datadog.conf"
 ETCDIR="/etc/datadog-agent"
 CONF="$ETCDIR/datadog.yaml"
-
-if [ $(command -v curl) ]; then
-    dl_cmd="curl -f"
-else
-    dl_cmd="wget --quiet"
-fi
 
 # Set up a named pipe for logging
 npipe=/tmp/$$.tmp
@@ -29,11 +21,11 @@ mknod $npipe p
 tee <$npipe $logfile &
 exec 1>&-
 exec 1>$npipe 2>&1
-trap "rm -f $npipe" EXIT
+trap 'rm -f $npipe' EXIT
 
 
 function on_error() {
-    printf "\033[31m$ERROR_MESSAGE
+    printf "\033[31m%s
 It looks like you hit an issue when trying to install the Agent.
 
 Troubleshooting and basic usage information for the Agent are available at:
@@ -42,7 +34,7 @@ Troubleshooting and basic usage information for the Agent are available at:
 
 If you're still having problems, please send an email to support@datadoghq.com
 with the contents of ddagent-install.log and we'll do our very best to help you
-solve your problem.\n\033[0m\n"
+solve your problem.\n\033[0m\n" "$ERROR_MESSAGE"
 }
 trap on_error ERR
 
@@ -59,6 +51,7 @@ if [ -n "$DD_API_KEY" ]; then
 fi
 
 no_start=
+# shellcheck disable=SC2153
 if [ -n "$DD_INSTALL_ONLY" ]; then
     no_start=true
 fi
@@ -75,11 +68,13 @@ else
 fi
 
 dd_upgrade=
+# shellcheck disable=SC2153
 if [ -n "$DD_UPGRADE" ]; then
   dd_upgrade=$DD_UPGRADE
 fi
 
 dd_agent_major_version=6
+# shellcheck disable=SC2153
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   if [ "$DD_AGENT_MAJOR_VERSION" != "6" -a "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
     echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
@@ -91,8 +86,9 @@ else
 fi
 
 dd_agent_dist_channel=stable
+# shellcheck disable=SC2153
 if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
-  if [ "$DD_AGENT_DIST_CHANNEL" != "stable" -a "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
+  if [ "$DD_AGENT_DIST_CHANNEL" != "stable" ] && [ "$DD_AGENT_DIST_CHANNEL" != "beta" ]; then
     echo "DD_AGENT_DIST_CHANNEL must be either 'stable' or 'beta'. Current value: $DD_AGENT_DIST_CHANNEL"
     exit 1;
   fi
@@ -106,9 +102,9 @@ if [ -n "$DD_KEYSERVER" ]; then
   keyserver="$DD_KEYSERVER"
 fi
 
-if [ ! $apikey ]; then
+if [ ! "$apikey" ]; then
   # if it's an upgrade, then we will use the transition script
-  if [ ! $dd_upgrade ]; then
+  if [ ! "$dd_upgrade" ]; then
     printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
     exit 1;
   fi
@@ -119,48 +115,48 @@ fi
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
-if [ $DISTRIBUTION = "Darwin" ]; then
+if [ "$DISTRIBUTION" = "Darwin" ]; then
     printf "\033[31mThis script does not support installing on the Mac.
 
 Please use the 1-step script available at https://app.datadoghq.com/account/settings#agent/mac.\033[0m\n"
     exit 1;
 
-elif [ -f /etc/debian_version -o "$DISTRIBUTION" == "Debian" -o "$DISTRIBUTION" == "Ubuntu" ]; then
+elif [ -f /etc/debian_version ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
     OS="Debian"
-elif [ -f /etc/redhat-release -o "$DISTRIBUTION" == "RedHat" -o "$DISTRIBUTION" == "CentOS" -o "$DISTRIBUTION" == "Amazon" ]; then
+elif [ -f /etc/redhat-release ] || [ "$DISTRIBUTION" == "RedHat" ] || [ "$DISTRIBUTION" == "CentOS" ] || [ "$DISTRIBUTION" == "Amazon" ]; then
     OS="RedHat"
 # Some newer distros like Amazon may not have a redhat-release file
-elif [ -f /etc/system-release -o "$DISTRIBUTION" == "Amazon" ]; then
+elif [ -f /etc/system-release ] || [ "$DISTRIBUTION" == "Amazon" ]; then
     OS="RedHat"
 # Arista is based off of Fedora14/18 but do not have /etc/redhat-release
-elif [ -f /etc/Eos-release -o "$DISTRIBUTION" == "Arista" ]; then
+elif [ -f /etc/Eos-release ] || [ "$DISTRIBUTION" == "Arista" ]; then
     OS="RedHat"
 # openSUSE and SUSE use /etc/SuSE-release or /etc/os-release
-elif [ -f /etc/SuSE-release -o "$DISTRIBUTION" == "SUSE" -o "$DISTRIBUTION" == "openSUSE" ]; then
+elif [ -f /etc/SuSE-release ] || [ "$DISTRIBUTION" == "SUSE" ] || [ "$DISTRIBUTION" == "openSUSE" ]; then
     OS="SUSE"
 fi
 
 # Root user detection
-if [ $(echo "$UID") = "0" ]; then
+if [ "$(echo "$UID")" = "0" ]; then
     sudo_cmd=''
 else
     sudo_cmd='sudo'
 fi
 
 # Install the necessary package sources
-if [ $OS = "RedHat" ]; then
+if [ "$OS" = "RedHat" ]; then
     echo -e "\033[34m\n* Installing YUM sources for Datadog\n\033[0m"
 
     UNAME_M=$(uname -m)
-    if [ "$UNAME_M"  == "i686" -o "$UNAME_M"  == "i386" -o "$UNAME_M"  == "x86" ]; then
+    if [ "$UNAME_M" == "i686" ] || [ "$UNAME_M" == "i386" ] || [ "$UNAME_M" == "x86" ]; then
         ARCHI="i386"
-    elif [ "$UNAME_M"  == "aarch64" ]; then
+    elif [ "$UNAME_M" == "aarch64" ]; then
         ARCHI="aarch64"
     else
         ARCHI="x86_64"
     fi
 
-    if [ $dd_agent_major_version -eq 7 ]; then
+    if [ "$dd_agent_major_version" -eq 7 ]; then
       gpgkeys="https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public"
     else
       gpgkeys="https://yum.${repo_url}/DATADOG_RPM_KEY.public\n       https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public"
@@ -181,7 +177,7 @@ if [ $OS = "RedHat" ]; then
 
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag datadog-agent || $sudo_cmd yum -y install $dnf_flag datadog-agent
 
-elif [ $OS = "Debian" ]; then
+elif [ "$OS" = "Debian" ]; then
 
     printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
@@ -194,7 +190,7 @@ elif [ $OS = "Debian" ]; then
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
     $sudo_cmd sh -c "echo 'deb https://apt.${repo_url}/ ${dd_agent_dist_channel} ${dd_agent_major_version}' > /etc/apt/sources.list.d/datadog.list"
-    $sudo_cmd apt-key adv --recv-keys --keyserver ${keyserver} A2923DFF56EDA6E76E55E492D3A80E30382E94DE
+    $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" A2923DFF56EDA6E76E55E492D3A80E30382E94DE
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
@@ -214,9 +210,9 @@ If the cause is unclear, please contact Datadog support.
 "
     $sudo_cmd apt-get install -y --force-yes datadog-agent
     ERROR_MESSAGE=""
-elif [ $OS = "SUSE" ]; then
+elif [ "$OS" = "SUSE" ]; then
   UNAME_M=$(uname -m)
-  if [ "$UNAME_M"  == "i686" -o "$UNAME_M"  == "i386" -o "$UNAME_M"  == "x86" ]; then
+  if [ "$UNAME_M"  == "i686" ] || [ "$UNAME_M"  == "i386" ] || [ "$UNAME_M"  == "x86" ]; then
       printf "\033[31mThe Datadog Agent installer is only available for 64 bit SUSE Enterprise machines.\033[0m\n"
       exit;
   elif [ "$UNAME_M"  == "aarch64" ]; then
@@ -233,20 +229,20 @@ elif [ $OS = "SUSE" ]; then
   echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
   if [ "$SUSE11" == "yes" ]; then
     # SUSE 11 special case
-    if [ $dd_agent_major_version -lt 7 ]; then
+    if [ "$dd_agent_major_version" -lt 7 ]; then
       $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public https://yum.${repo_url}/DATADOG_RPM_KEY.public
       $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY.public
     fi
     $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
     $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public
   else
-    if [ $dd_agent_major_version -lt 7 ]; then
+    if [ "$dd_agent_major_version" -lt 7 ]; then
       $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY.public
     fi
     $sudo_cmd rpm --import https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public
   fi
 
-  if [ $dd_agent_major_version -eq 7 ]; then
+  if [ "$dd_agent_major_version" -eq 7 ]; then
     gpgkeys="https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public"
   else
     gpgkeys="https://yum.${repo_url}/DATADOG_RPM_KEY.public\n       https://yum.${repo_url}/DATADOG_RPM_KEY_E09422B3.public"
@@ -269,11 +265,11 @@ Please follow the instructions on the Agent setup page:
     exit;
 fi
 
-if [ $dd_upgrade ]; then
+if [ "$dd_upgrade" ]; then
   if [ -e $LEGACY_CONF ]; then
     # try to import the config file from the previous version
     icmd="datadog-agent import $LEGACY_ETCDIR $ETCDIR"
-    $sudo_cmd $icmd || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
+    $sudo_cmd "$icmd" || printf "\033[31mAutomatic import failed, you can still try to manually run: %s\n\033[0m\n" "$icmd"
     # fix file owner and permissions since the script moves around some files
     $sudo_cmd chown -R dd-agent:dd-agent $ETCDIR
     $sudo_cmd find $ETCDIR/ -type f -exec chmod 640 {} \;
@@ -283,13 +279,13 @@ if [ $dd_upgrade ]; then
 fi
 
 # Set the configuration
-if [ -e $CONF -a -z "$dd_upgrade" ]; then
+if [ -e $CONF ] && [ -z "$dd_upgrade" ]; then
   printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
 else
   if [ ! -e $CONF ]; then
     $sudo_cmd cp $CONF.example $CONF
   fi
-  if [ $apikey ]; then
+  if [ "$apikey" ]; then
     printf "\033[34m\n* Adding your API key to the Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' $CONF"
   else
@@ -301,22 +297,22 @@ else
       no_start=true
     fi
   fi
-  if [ $site ]; then
-    printf "\033[34m\n* Setting SITE in the Agent configuration: $CONF\n\033[0m\n"
+  if [ "$site" ]; then
+    printf "\033[34m\n* Setting SITE in the Agent configuration: %s\n\033[0m\n" "$CONF"
     $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $CONF"
   fi
   if [ -n "$DD_URL" ]; then
-    printf "\033[34m\n* Setting DD_URL in the Agent configuration: $CONF\n\033[0m\n"
+    printf "\033[34m\n* Setting DD_URL in the Agent configuration: %s\n\033[0m\n" "$CONF"
     $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $CONF"
   fi
-  if [ $dd_hostname ]; then
-    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: $CONF\n\033[0m\n"
+  if [ "$dd_hostname" ]; then
+    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: %s\n\033[0m\n" "$CONF"
     $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $dd_hostname/' $CONF"
   fi
-  if [ $host_tags ]; then
-      printf "\033[34m\n* Adding your HOST TAGS to the Agent configuration: $CONF\n\033[0m\n"
+  if [ "$host_tags" ]; then
+      printf "\033[34m\n* Adding your HOST TAGS to the Agent configuration: %s\n\033[0m\n" "$CONF"
       formatted_host_tags="['"$( echo "$host_tags" | sed "s/,/','/g" )"']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
-      $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: "$formatted_host_tags"/\" $CONF"
+      $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $CONF"
   fi
   $sudo_cmd chown dd-agent:dd-agent $CONF
   $sudo_cmd chmod 640 $CONF
@@ -354,14 +350,14 @@ if [ $no_start ]; then
 will not be started. You will have to do it manually using the following
 command:
 
-    $start_instructions
+    %s
 
-\033[0m\n"
+\033[0m\n" "$start_instructions"
     exit
 fi
 
 printf "\033[34m* Starting the Agent...\n\033[0m\n"
-eval $restart_cmd
+eval "$restart_cmd"
 
 
 # Metrics are submitted, echo some instructions and exit
@@ -372,10 +368,10 @@ background and submit metrics to Datadog.
 
 If you ever want to stop the Agent, run:
 
-    $stop_instructions
+    %s
 
 And to run it again run:
 
-    $start_instructions
+    %s
 
-\033[0m"
+\033[0m" "$stop_instructions" "$start_instructions"

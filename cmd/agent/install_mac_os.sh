@@ -5,17 +5,17 @@
 
 # Datadog Agent install script for macOS.
 set -e
-logfile=ddagent-install.log
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 
 dd_upgrade=
+# shellcheck disable=SC2153
 if [ -n "$DD_UPGRADE" ]; then
     dd_upgrade=$DD_UPGRADE
 fi
 
 # Root user detection
-if [ $(echo "$UID") = "0" ]; then
+if [ "$(echo "$UID")" = "0" ]; then
     sudo_cmd=''
 else
     sudo_cmd='sudo'
@@ -31,7 +31,7 @@ fi
 
 dd_agent_major_version=6
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
-  if [ "$DD_AGENT_MAJOR_VERSION" != "6" -a "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
+  if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
     echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
     exit 1;
   fi
@@ -46,16 +46,16 @@ if [ "$dd_agent_major_version" = "7" ]; then
 fi
 dmg_url="$dmg_base_url/$dmg_remote_file"
 
-if [ $dd_upgrade ]; then
+if [ "$dd_upgrade" ]; then
     if [ ! -f /opt/datadog-agent/etc/datadog.conf ]; then
         printf "\033[31mDD_UPGRADE set but no config was found at /opt/datadog-agent/etc/datadog.conf.\033[0m\n"
         exit 1;
     fi
 fi
 
-if [ ! $apikey ]; then
+if [ ! "$apikey" ]; then
     # if it's an upgrade, then we will use the transition script
-    if [ ! $dd_upgrade ]; then
+    if [ ! "$dd_upgrade" ]; then
         printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
         exit 1;
     fi
@@ -76,20 +76,22 @@ fi
 #   and $SUDO_USER contains the user which launched the sudo command.
 # The following block covers both cases so that we have tbe username we want in the real_user variable.
 real_user=`if [ "$SUDO_USER" ]; then
-  echo $SUDO_USER
+  echo "$SUDO_USER"
 else
-  echo $USER
+  echo "$USER"
 fi`
 
-export TMPDIR=`sudo -u $real_user getconf DARWIN_USER_TEMP_DIR`
+TMPDIR=`sudo -u "$real_user" getconf DARWIN_USER_TEMP_DIR`
+export TMPDIR
+
 cmd_real_user="sudo -Eu $real_user"
 
 # In order to install with the right user
 rm -f /tmp/datadog-install-user
-echo $real_user > /tmp/datadog-install-user
+echo "$real_user" > /tmp/datadog-install-user
 
 function on_error() {
-    printf "\033[31m$ERROR_MESSAGE
+    printf "\033[31m%s
 It looks like you hit an issue when trying to install the Agent.
 
 Troubleshooting and basic usage information for the Agent are available at:
@@ -98,7 +100,7 @@ Troubleshooting and basic usage information for the Agent are available at:
 
 If you're still having problems, please send an email to support@datadoghq.com
 with the contents of ddagent-install.log and we'll do our very best to help you
-solve your problem.\n\033[0m\n"
+solve your problem.\n\033[0m\n" "$ERROR_MESSAGE"
 }
 trap on_error ERR
 
@@ -109,12 +111,12 @@ cmd_launchctl="$cmd_real_user launchctl"
 function new_config() {
     # Check for vanilla OS X sed or GNU sed
     i_cmd="-i ''"
-    if [ $(sed --version 2>/dev/null | grep -c "GNU") -ne 0 ]; then i_cmd="-i"; fi
+    if [ "$(sed --version 2>/dev/null | grep -c "GNU")" -ne 0 ]; then i_cmd="-i"; fi
     $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"/opt/datadog-agent/etc/datadog.yaml\""
-    if [ $site ]; then
+    if [ "$site" ]; then
         $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"/opt/datadog-agent/etc/datadog.yaml\""
     fi
-    $sudo_cmd chown $real_user:admin "/opt/datadog-agent/etc/datadog.yaml"
+    $sudo_cmd chown "$real_user":admin "/opt/datadog-agent/etc/datadog.yaml"
     $sudo_cmd chmod 640 /opt/datadog-agent/etc/datadog.yaml
 }
 
@@ -132,13 +134,13 @@ $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "\033[34m\n    - Mounting the DMG installer...\n\033[0m"
 $sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" >/dev/null
 printf "\033[34m\n    - Unpacking and copying files (this usually takes about a minute) ...\n\033[0m"
-cd / && $sudo_cmd /usr/sbin/installer -pkg `find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null` -target / >/dev/null
+cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
 printf "\033[34m\n    - Unmounting the DMG installer ...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 
 # Set the configuration
-if egrep 'api_key:( APIKEY)?$' "/opt/datadog-agent/etc/datadog.yaml" > /dev/null 2>&1; then
-    if [ $dd_upgrade ]; then
+if grep -E 'api_key:( APIKEY)?$' "/opt/datadog-agent/etc/datadog.yaml" > /dev/null 2>&1; then
+    if [ "$dd_upgrade" ]; then
         import_config
     else
         new_config
