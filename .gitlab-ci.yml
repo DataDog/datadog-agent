@@ -371,7 +371,7 @@ run_shell_script_lint:
   script:
     - shellcheck --version
     # TODO: lower to the 'info' level, which for example detects uses of globbing where it may be dangerous to do so
-    - shellcheck --severity=info --shell=bash ./cmd/*.sh ./cmd/**/*.sh
+    - shellcheck --severity=info --shell=bash ./cmd/**/*.sh
 #
 # binary_build
 #
