@@ -2135,7 +2135,7 @@ build_agent7_windows:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/windows/servercore:1809
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/windows/servercore:1809 --build-arg WITH_JMX=true
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
