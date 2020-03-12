@@ -239,7 +239,7 @@ func (t *Tracer) setFilter(fd C.struct__filterDefinition) (err error) {
 	var id int64
 	err = windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd)), uint32(unsafe.Sizeof(fd)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
 	if err != nil {
-		return log.Error("Failed to set filter: %s\n", err.Error())
+		return log.Errorf("Failed to set filter: %s\n", err.Error())
 	}
 	return
 }
@@ -257,7 +257,7 @@ func createFiltersForInterface(iface net.Interface) (filters []C.struct__filterD
 func (t *Tracer) prepareDriverFilters() (err error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		log.Error("Error getting interfaces: %s\n", err.Error())
+		log.Errorf("Error getting interfaces: %s\n", err.Error())
 		return
 	}
 
@@ -267,7 +267,7 @@ func (t *Tracer) prepareDriverFilters() (err error) {
 		for _, filter := range createFiltersForInterface(i) {
 			err = t.setFilter(filter)
 			if err != nil {
-				log.Warnf("Failed to set filter [%+v] on interface [%+v]\n", filter, i, err.Error())
+				log.Warnf("Failed to set filter [%+v] on interface [%+v]: %s\n", filter, i, err.Error())
 			}
 		}
 	}
