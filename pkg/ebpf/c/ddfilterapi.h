@@ -5,9 +5,13 @@
 typedef unsigned long long  uint64_t;
 #endif
 
+// For usage when building with the tracer
+#ifndef _MSC_VER
+typedef long LONG;
+#endif
+
 // this type doesn't seem to be defined anyway
 typedef unsigned char       uint8_t;
-typedef long LONG;
 
 // Define a version signature so that the driver won't load out of date structures, etc.
 #define DD_FILTER_VERSION       0x01

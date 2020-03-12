@@ -127,81 +127,6 @@ func (t *Tracer) expvarStats() {
 	}
 }
 
-// NewDDAPIFilter returns a filter we can apply to the driver
-func NewDDAPIFilter(direction C.uint64_t, isIPV4 bool) (fd C.struct__filterDefinition) {
-	fd.filterVersion = C.DD_FILTER_SIGNATURE
-	fd.size = C.sizeof_struct__filterDefinition
-	fd.direction = direction
-
-	if isIPV4 {
-		fd.af = windows.AF_INET
-	} else {
-		fd.af = windows.AF_INET6
-	}
-
-	return fd
-}
-
-func (t *Tracer) setFilter(fd C.struct__filterDefinition) (err error) {
-	var id int64
-	err = windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd)), uint32(unsafe.Sizeof(fd)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
-	if err != nil {
-		return log.Error("Failed to set filter: %s\n", err.Error())
-	}
-	return
-}
-
-func (t *Tracer) prepareDriverFilters() (err error) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		log.Error("Error getting interfaces: %s\n", err.Error())
-		return
-	}
-	// Filter for incoming traffic
-	fdIncoming := NewDDAPIFilter(C.DIRECTION_INBOUND, true)
-	// Filter for outgoing traffic
-	fdOutgoing := NewDDAPIFilter(C.DIRECTION_OUTBOUND, true)
-
-	for _, i := range ifaces {
-		log.Debugf("Setting filter for interface: %s [%+v]", i.Name, i)
-
-		// We use the same config for every interface, so just update the interface
-		// to which interface we are applying by setting the interface index
-		fdIncoming.v4InterfaceIndex = (C.ulonglong)(i.Index)
-		fdOutgoing.v4InterfaceIndex = (C.ulonglong)(i.Index)
-
-		err = t.setFilter(fdIncoming)
-		if err != nil {
-			log.Warnf("Failed to set incoming filter %v: %v\n", i, err.Error())
-		}
-		err = t.setFilter(fdOutgoing)
-		if err != nil {
-			log.Warnf("Failed to set outgoing filter for interface %v: %v\n", i, err.Error())
-		}
-	}
-	return nil
-}
-
-// Add buffers to Tracer object. Even though the windows API will actually
-// keep the buffers, add it to the tracer so that golang doesn't garbage collect
-// the buffers out from under us
-func (t *Tracer) prepareReadBuffers() (err error) {
-	for i := 0; i < totalReadBuffers; i++ {
-		err = windows.ReadFile(t.driverHandle, t.bufs[i].data[:], nil, &t.bufs[i].ol)
-		if err != nil {
-			if err != windows.ERROR_IO_PENDING {
-				fmt.Printf("failed to initiate readfile %v\n", err)
-				windows.CloseHandle(t.iocp)
-				t.iocp = windows.Handle(0)
-				t.bufs = nil
-				return
-			}
-		}
-	}
-	err = nil
-	return
-}
-
 func (t *Tracer) initPacketPolling() (err error) {
 	log.Debugf("Started packet polling")
 	go func() {
@@ -288,6 +213,82 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 			"ioctl_calls":            int64(stats.handle.ioctl_calls),
 		},
 	}, nil
+}
+
+// NewDDAPIFilter returns a filter we can apply to the driver
+func newDDAPIFilter(direction C.uint64_t, ifaceIndex int, isIPV4 bool) (fd C.struct__filterDefinition) {
+	fd.filterVersion = C.DD_FILTER_SIGNATURE
+	fd.size = C.sizeof_struct__filterDefinition
+	fd.direction = direction
+
+	if isIPV4 {
+		fd.af = windows.AF_INET
+		fd.v4InterfaceIndex = (C.ulonglong)(ifaceIndex)
+	} else {
+		fd.af = windows.AF_INET6
+		fd.v6InterfaceIndex = (C.ulonglong)(ifaceIndex)
+	}
+
+	return fd
+}
+
+func (t *Tracer) setFilter(fd C.struct__filterDefinition) (err error) {
+	var id int64
+	err = windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd)), uint32(unsafe.Sizeof(fd)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
+	if err != nil {
+		return log.Error("Failed to set filter: %s\n", err.Error())
+	}
+	return
+}
+
+// To capture all traffic for an interface, we create an inbound/outbound traffic filter
+// for both IPV4 and IPV6 traffic going to that interface
+func createFiltersForInterface(iface net.Interface) (filters []C.struct__filterDefinition) {
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, iface.Index, true))
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, iface.Index, true))
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, iface.Index, false))
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, iface.Index, false))
+	return
+}
+
+func (t *Tracer) prepareDriverFilters() (err error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		log.Error("Error getting interfaces: %s\n", err.Error())
+		return
+	}
+
+	for _, i := range ifaces {
+		log.Debugf("Setting filters for interface: %s [%+v]", i.Name, i)
+
+		for _, filter := range createFiltersForInterface(i) {
+			err = t.setFilter(filter)
+			if err != nil {
+				log.Warnf("Failed to set filter [%+v] on interface [%+v]\n", filter, i, err.Error())
+			}
+		}
+	}
+	return nil
+}
+
+// Add buffers to Tracer object. Even though the windows API will actually
+// keep the buffers, add it to the tracer so that golang doesn't garbage collect
+// the buffers out from under us
+func (t *Tracer) prepareReadBuffers() (err error) {
+	for i := 0; i < totalReadBuffers; i++ {
+		err = windows.ReadFile(t.driverHandle, t.bufs[i].data[:], nil, &t.bufs[i].ol)
+		if err != nil {
+			if err != windows.ERROR_IO_PENDING {
+				fmt.Printf("failed to initiate readfile %v\n", err)
+				windows.CloseHandle(t.iocp)
+				t.iocp = windows.Handle(0)
+				t.bufs = nil
+				return
+			}
+		}
+	}
+	err = nil
+	return
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging
