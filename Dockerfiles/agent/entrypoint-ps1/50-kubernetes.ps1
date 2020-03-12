@@ -14,3 +14,7 @@ if (-not (Test-Path C:\ProgramData\Datadog\datadog.yaml)) {
    }
 }
 
+# Enable kubernetes integrations (don't fail if integration absent)
+if (-not (Test-Path C:\ProgramData\Datadog\conf.d\kubelet.d\conf.yaml.default)) {
+    cp C:\ProgramData\Datadog\conf.d\kubelet.d\conf.yaml.example C:\ProgramData\Datadog\conf.d\kubelet.d\conf.yaml.default 
+}
