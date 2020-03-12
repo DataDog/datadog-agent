@@ -744,7 +744,16 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 	ips, hostnames := getKubeletHostFromConfig(ctx, mockConfig.GetString("kubernetes_kubelet_host"))
 	assert.Equal(suite.T(), ips, []string{"127.0.0.1"})
 	// 127.0.0.1 is aliased to kubernetes.docker.internal by Docker for Windows
-	assert.Condition(suite.T(), func() bool { return hostnames[0] == "localhost" || hostnames[0] == "kubernetes.docker.internal." })
+	assert.Condition(suite.T(), func() bool {
+		if len(hostnames) > 0 {
+			return hostnames[0] == "localhost" || hostnames[0] == "kubernetes.docker.internal."
+		}
+		// On Windows (AppVeyor), "127.0.0.1" resolves to nothing
+		if runtime.GOOS == "windows" {
+			return true
+		}
+		return false
+	})
 
 	// when kubernetes_kubelet_host is not set
 	mockConfig.Set("kubernetes_kubelet_host", "")
