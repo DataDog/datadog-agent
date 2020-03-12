@@ -87,6 +87,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	// Set the packet filters that will determine what we pull from the driver
+	// TODO: Determine failure condition for not setting filter
+	// TODO: I.e., one or more, all fail? I.E., at what point do we not create a tracer
 	err = tr.prepareDriverFilters()
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup packet filters on the driver: %v", err)
@@ -98,9 +100,10 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("failed to prepare ReadBuffers: %v", err)
 	}
 
-	// TODO: Determine failure condition for not setting filter
-	// TODO: I.e., one or more, all fail? I.E., at what point do we not create a tracer
 	err = tr.initPacketPolling()
+	if err != nil {
+		log.Warnf("issue polling packets from driver")
+	}
 	go tr.expvarStats()
 	return tr, nil
 }
