@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,7 +45,12 @@ func TestTracerExpvar(t *testing.T) {
 	<-time.After(time.Second)
 
 	expected := map[string][]string{
-		"conntrack": {"NoopConntracker"},
+		"conntrack": {
+			"Expires",
+			"MissedRegisters",
+			"ShortTermBufferSize",
+			"StateSize",
+		},
 		"state": {
 			"UnorderedConns",
 			"ConnDropped",
@@ -63,22 +69,25 @@ func TestTracerExpvar(t *testing.T) {
 			"TcpSentMiscounts",
 		},
 		"dns": {
-			"Lookups",
-			"Resolved",
-			"Ips",
 			"Added",
-			"Expired",
-			"PacketsCaptured",
-			"PacketsProcessed",
-			"PacketsDropped",
-			"SocketPolls",
 			"DecodingErrors",
+			"Expired",
+			"Ips",
+			"Lookups",
+			"PacketsCaptured",
+			"PacketsDropped",
+			"PacketsProcessed",
+			"Resolved",
+			"SocketPolls",
+			"TruncatedPackets",
 		},
 		"kprobes": {
 			"PtcpCleanupRbufHits",
 			"PtcpCleanupRbufMisses",
 			"PtcpCloseHits",
 			"PtcpCloseMisses",
+			"PtcpGetInfoHits",
+			"PtcpGetInfoMisses",
 			"PtcpRetransmitSkbHits",
 			"PtcpRetransmitSkbMisses",
 			"PtcpSendmsgHits",
@@ -91,18 +100,8 @@ func TestTracerExpvar(t *testing.T) {
 			"PudpRecvmsgMisses",
 			"PudpSendmsgHits",
 			"PudpSendmsgMisses",
-			"RInetCskAcceptHits",
-			"RInetCskAcceptMisses",
-			"RTcpSendmsgHits",
-			"RTcpSendmsgMisses",
-			"RTcpVConnectHits",
-			"RTcpVConnectMisses",
-			"RUdpRecvmsgHits",
-			"RUdpRecvmsgMisses",
 			"RinetCskAcceptHits",
 			"RinetCskAcceptMisses",
-			"RtcpSendmsgHits",
-			"RtcpSendmsgMisses",
 			"RtcpVConnectHits",
 			"RtcpVConnectMisses",
 			"RudpRecvmsgHits",
@@ -113,10 +112,15 @@ func TestTracerExpvar(t *testing.T) {
 	for _, et := range expvarTypes {
 		expvar := map[string]float64{}
 		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
-		assert.Len(t, expvar, len(expected[et]))
-		for _, name := range expected[et] {
-			assert.Contains(t, expvar, name)
+
+		actual := make([]string, 0, len(expvar))
+		for k, _ := range expvar {
+			actual = append(actual, k)
 		}
+
+		sort.Strings(expected[et])
+		sort.Strings(actual)
+		assert.Equal(t, expected[et], actual, "the %s expvars didn't match their spec (see diff)")
 	}
 }
 
