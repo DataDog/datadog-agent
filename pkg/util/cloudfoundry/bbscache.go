@@ -53,41 +53,41 @@ var (
 )
 
 // ConfigureGlobalBBSCache configures the global instance of BBSCache from provided config
-func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, testing bool) (*BBSCache, error) {
+func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, testing bbs.Client) (*BBSCache, error) {
 	globalBBSCacheLock.Lock()
 	defer globalBBSCacheLock.Unlock()
-	var err error
 
 	if globalBBSCache.configured {
 		return globalBBSCache, nil
 	}
 
 	globalBBSCache.configured = true
-	clientConfig := bbs.ClientConfig{
-		URL:                    bbsURL,
-		IsTLS:                  true,
-		CAFile:                 cafile,
-		CertFile:               certfile,
-		KeyFile:                keyfile,
-		ClientSessionCacheSize: 0,
-		MaxIdleConnsPerHost:    0,
-		InsecureSkipVerify:     false,
-		Retries:                10,
-		RequestTimeout:         5 * time.Second,
-	}
-	if testing {
-		clientConfig.InsecureSkipVerify = true
-		clientConfig.IsTLS = false
+	if testing != nil {
+		globalBBSCache.bbsAPIClient = testing
+	} else {
+		clientConfig := bbs.ClientConfig{
+			URL:                    bbsURL,
+			IsTLS:                  true,
+			CAFile:                 cafile,
+			CertFile:               certfile,
+			KeyFile:                keyfile,
+			ClientSessionCacheSize: 0,
+			MaxIdleConnsPerHost:    0,
+			InsecureSkipVerify:     false,
+			Retries:                10,
+			RequestTimeout:         5 * time.Second,
+		}
+		var err error
+		globalBBSCache.bbsAPIClient, err = bbs.NewClientWithConfig(clientConfig)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	globalBBSCache.bbsAPIClient, err = bbs.NewClientWithConfig(clientConfig)
 	globalBBSCache.bbsAPIClientLogger = lager.NewLogger("bbs")
 	globalBBSCache.pollInterval = pollInterval
 	globalBBSCache.lastUpdated = time.Time{} // zero time
 	globalBBSCache.cancelContext = ctx
-	if err != nil {
-		return nil, err
-	}
 
 	go globalBBSCache.start()
 

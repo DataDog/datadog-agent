@@ -35,8 +35,7 @@ var c *BBSCache
 func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	c, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, true)
-	c.bbsAPIClient = testBBSClient{}
+	c, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, &testBBSClient{})
 	for range []int{0, 1} {
 		if c.GetPollSuccesses() == 0 {
 			time.Sleep(time.Second)
