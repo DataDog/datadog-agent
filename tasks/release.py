@@ -237,7 +237,8 @@ def _save_release_json(release_json, list_major_versions, highest_version, integ
             new_release_json[key] = value
 
     with open("release.json", "w") as release_json_stream:
-        json.dump(new_release_json, release_json_stream, indent=4, sort_keys=False)
+        # Note, no space after the comma
+        json.dump(new_release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
 
 
 @task
