@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type bbsCacheFake struct {
@@ -390,12 +391,9 @@ func TestCloudFoundryListener(t *testing.T) {
 
 		time.Sleep(50 * time.Millisecond)
 		// we have to fail now, otherwise we might get blocked trying to read from the channel
-		if !assert.Equal(t, len(tc.expNew), len(newSvc)) {
-			t.FailNow()
-		}
-		if !assert.Equal(t, len(tc.expDel), len(delSvc)) {
-			t.FailNow()
-		}
+		require.Equal(t, len(tc.expNew), len(newSvc))
+		require.Equal(t, len(tc.expDel), len(delSvc))
+
 		for range tc.expNew {
 			s := (<-newSvc).(*CloudFoundryService)
 			adID, err := s.GetADIdentifiers()
