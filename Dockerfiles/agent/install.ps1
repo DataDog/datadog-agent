@@ -10,3 +10,8 @@ Move-Item "Datadog Agent" "C:/Program Files/Datadog/"
 
 New-Item -ItemType directory -Path 'C:/ProgramData/Datadog' 
 Move-Item "C:/Program Files/Datadog/Datadog Agent/EXAMPLECONFSLOCATION" "C:/ProgramData/Datadog/conf.d"
+
+# Register as a service
+New-Service -Name "datadogagent" -StartupType "Manual" -BinaryPathName "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe"
+New-Service -Name "datadog-process-agent" -StartupType "Manual" -BinaryPathName "C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe"
+New-Service -Name "datadog-trace-agent" -StartupType "Manual" -BinaryPathName "C:\Program Files\Datadog\Datadog Agent\bin\agent\trace-agent.exe"
