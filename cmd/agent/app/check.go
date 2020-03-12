@@ -41,6 +41,7 @@ var (
 	logLevel             string
 	formatJSON           bool
 	breakPoint           string
+	fullSketches         bool
 	profileMemory        bool
 	profileMemoryDir     string
 	profileMemoryFrames  string
@@ -65,6 +66,8 @@ func init() {
 	checkCmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	checkCmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
 	checkCmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
+	checkCmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
+	config.Datadog.BindPFlag("cmd.check.fullsketches", checkCmd.Flags().Lookup("full-sketches"))
 
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(&profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
