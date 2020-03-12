@@ -231,7 +231,7 @@ func initializeBBSCache(ctx context.Context) error {
 		config.Datadog.GetString("cloud_foundry_bbs.cert_file"),
 		config.Datadog.GetString("cloud_foundry_bbs.key_file"),
 		pollInterval,
-		false,
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize BBS Cache: %s", err.Error())

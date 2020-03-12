@@ -388,7 +388,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		testBBSCache.DesiredLRPs = tc.dLRP
 		testBBSCache.Unlock()
 
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 		// we have to fail now, otherwise we might get blocked trying to read from the channel
 		if !assert.Equal(t, len(tc.expNew), len(newSvc)) {
 			t.FailNow()
