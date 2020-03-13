@@ -6,6 +6,7 @@ import datetime
 import os
 import shutil
 import sys
+import yaml
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -53,6 +54,8 @@ MISSPELL_IGNORED_TARGETS = [
 GO_GENERATE_TARGETS = [
     "./pkg/status"
 ]
+
+GOLANGCI_FILE = ".golangci.yml"
 
 @task
 def fmt(ctx, targets, fail_on_fmt=False):
@@ -162,7 +165,7 @@ def cyclo(ctx, targets, limit=15):
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, skip_dirs=None):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
@@ -175,11 +178,17 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         targets = targets.split(',')
 
     tags = build_tags or get_default_build_tags()
+    skip_dirs = skip_dirs or _get_default_skip_dirs()
+
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
         print("running golangci on {}".format(target))
-        ctx.run("golangci-lint run -c .golangci.yml --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)), env=env)
+        ctx.run("golangci-lint run -c .golangci.yml --build-tags '{}' --skip-dirs '{}' {}".format(
+            " ".join(tags),
+            skip_dirs,
+            "{}/...".format(target)
+        ),env=env)
 
     # golangci exits with status 1 when it finds an issue, if we're here
     # everything went smooth
@@ -381,3 +390,13 @@ def generate(ctx):
     """
     ctx.run("go generate " + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")
+
+
+def _get_default_skip_dirs(file_path=GOLANGCI_FILE):
+    """
+    Return a comma separated string of directories that should be skipped by golangci_lint.
+    Values are read from the golangci configuration file.
+    """
+    with open(file_path) as f:
+        skipped_dirs = yaml.load(f, Loader=yaml.FullLoader).get("skip-dirs", ["/dev/null"])
+        return ",".join(skipped_dirs)

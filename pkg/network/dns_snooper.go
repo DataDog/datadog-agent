@@ -123,7 +123,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 	t := s.getCachedTranslation()
 	if err := s.parser.ParseInto(data, t); err != nil {
 		switch err {
-		case skippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
+		case errSkippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
 			atomic.AddInt64(&s.truncatedPkts, 1)
 		default:

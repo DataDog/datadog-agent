@@ -14,8 +14,8 @@ import (
 const maxIPBufferSize = 200
 
 var (
-	errTruncated   = errors.New("the packet is truncated")
-	skippedPayload = errors.New("the packet does not contain relevant DNS response")
+	errTruncated      = errors.New("the packet is truncated")
+	errSkippedPayload = errors.New("the packet does not contain relevant DNS response")
 )
 
 type dnsParser struct {
@@ -59,18 +59,18 @@ func (p *dnsParser) ParseInto(data []byte, t *translation) error {
 		}
 	}
 
-	return skippedPayload
+	return errSkippedPayload
 }
 
 // source: https://github.com/weaveworks/scope
 func (p *dnsParser) parseAnswerInto(dns *layers.DNS, t *translation) error {
 	// Only consider responses to singleton, A-record questions
 	if !dns.QR || dns.ResponseCode != 0 || len(dns.Questions) != 1 {
-		return skippedPayload
+		return errSkippedPayload
 	}
 	question := dns.Questions[0]
 	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
-		return skippedPayload
+		return errSkippedPayload
 	}
 
 	var alias []byte

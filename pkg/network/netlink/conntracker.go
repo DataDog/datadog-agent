@@ -79,7 +79,6 @@ type realConntracker struct {
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
 
-	statsTicker   *time.Ticker
 	compactTicker *time.Ticker
 	stats         struct {
 		gets                 int64

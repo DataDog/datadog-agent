@@ -3,16 +3,17 @@ run:
     - cmd/agent/app/reloadcheck.go # ignore unused command for now
     - cmd/agent/app/listchecks.go  # ignore unused command for now
     - pkg/util/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
-  skip-dirs:
-    # ignore test helper
-    - pkg/util/testutil
 
-    # TODO APM
-    - pkg/trace
-    # TODO metrics-aggregation
-    - pkg/quantile
-    # TODO burrito
-    - pkg/ebpf
+# this is not nested under `run` as we manually load this part of the YAML
+skip-dirs:
+  # ignore test helper
+  - pkg/util/testutil
+  # TODO APM
+  - pkg/trace
+  # TODO metrics-aggregation
+  - pkg/quantile
+  # We run the linter separately for pkg/network via `inv -e system-probe.lint`
+  - pkg/network
 
 issues:
   exclude:

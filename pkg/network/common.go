@@ -138,14 +138,6 @@ func isRHEL(platform string) bool {
 	return strings.Contains(p, "redhat") || strings.Contains(p, "red hat") || strings.Contains(p, "rhel")
 }
 
-func isRHELOrCentOS() (bool, error) {
-	platform, err := util.GetPlatform()
-	if err != nil {
-		return false, err
-	}
-	return isCentOS(platform) || isRHEL(platform), nil
-}
-
 // isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
 func isPre410Kernel(currentKernelCode uint32) bool {
 	return currentKernelCode < stringToKernelCode("4.1.0")

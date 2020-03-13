@@ -1,3 +1,5 @@
+// +build linux_bpf
+
 package network
 
 import "fmt"

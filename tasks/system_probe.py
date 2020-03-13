@@ -10,6 +10,7 @@ from subprocess import check_output, CalledProcessError
 
 from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, check_go111module_envvar
 from .build_tags import get_default_build_tags
+from .go import golangci_lint
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
@@ -135,6 +136,14 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
 
     ctx.run(cmd.format(path=path, bpf_tag=BPF_TAG, pkg=pkg))
 
+@task
+def lint(ctx):
+    """
+    Run golangci linter on pkg/network
+    """
+    build_tags = get_default_build_tags() + [BPF_TAG]
+    skip_dirs = "/dev/null" # overrides what is in .golangci.yaml
+    golangci_lint(ctx, targets="./pkg/network", build_tags=build_tags, skip_dirs=skip_dirs)
 
 @task
 def nettop(ctx, incremental_build=False):
