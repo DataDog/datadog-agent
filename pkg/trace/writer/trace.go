@@ -7,6 +7,7 @@ package writer
 
 import (
 	"compress/gzip"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -221,12 +222,11 @@ func (w *TraceWriter) flush() {
 			// Avoid an allocation when only one endpoint is configured.
 			payloadsArr := [1]*payload{p}
 			payloads = payloadsArr[:]
-			w.senders[0].Push(p)
 		} else {
 			// If there is more than one sender then we need to create a payload clone for each
 			// one because pooling is managed at the per-sender level so we need separate payloads
 			// for each sender to avoid double-put pooling bugs.
-			payloads := make([]*payload, 0, len(w.senders))
+			payloads = make([]*payload, 0, len(w.senders))
 			for i := range w.senders {
 				p := p
 				if i != 0 {
@@ -234,6 +234,7 @@ func (w *TraceWriter) flush() {
 				}
 				payloads = append(payloads, p)
 			}
+			fmt.Println("HMM", len(payloads))
 		}
 		for i, sender := range w.senders {
 			sender.Push(payloads[i])
