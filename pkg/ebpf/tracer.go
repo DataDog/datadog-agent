@@ -343,6 +343,21 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 
 	conns := t.state.Connections(clientID, latestTime, latestConns)
 	names := t.reverseDNS.Resolve(conns)
+
+	for _, conn := range conns {
+		fmt.Println("Deciding whether to call getStats")
+		fmt.Println(conn.DPort)
+		if conn.DPort == 53 {
+			key := connKey{
+				serverIP:  conn.Dest,
+				queryIP:   conn.Source,
+				queryPort: conn.SPort,
+				protocol:  conn.Type,
+			}
+			dnsStats := t.reverseDNS.GetDNSStats(key)
+			conn.DNSReplyCount = dnsStats.replies
+		}
+	}
 	return &Connections{Conns: conns, DNS: names}, nil
 }
 
@@ -397,6 +412,12 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
+				fmt.Println("Skipping connection")
+				fmt.Println(conn.Source)
+				fmt.Println(conn.SPort)
+				fmt.Println(conn.Dest)
+				fmt.Println(conn.DPort)
+				fmt.Println(conn.Type)
 			} else {
 				// lookup conntrack in for active
 				conn.IPTranslation = t.conntracker.GetTranslationForConn(
@@ -406,8 +427,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 					conn.DPort,
 					process.ConnectionType(conn.Type),
 				)
-
-				if conn.DPort == 53 {
+				/*if conn.DPort == 53 {
 					key := connKey{
 						serverIP:  conn.Dest,
 						queryIP:   conn.Source,
@@ -416,7 +436,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 					}
 					dnsStats := t.reverseDNS.GetDNSStats(key)
 					conn.DNSReplyCount = dnsStats.replies
-				}
+				}*/
 
 				active = append(active, conn)
 			}

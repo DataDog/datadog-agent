@@ -25,7 +25,6 @@ type dnsParser struct {
 	udpPayload  *layers.UDP
 	tcpPayload  *tcpWithDNSSupport
 	dnsPayload  *layers.DNS
-	dnsStats    map[string]int
 }
 
 func newDNSParser() *dnsParser {
@@ -51,7 +50,6 @@ func newDNSParser() *dnsParser {
 		udpPayload:  udpPayload,
 		tcpPayload:  tcpPayload,
 		dnsPayload:  dnsPayload,
-		dnsStats:    make(map[string]int),
 	}
 }
 
@@ -118,6 +116,7 @@ func (p *dnsParser) parseAnswerInto(dns *layers.DNS, t *translation) error {
 	p.extractIPsInto(alias, domainQueried, dns.Answers, t)
 	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
 	t.dns = string(domainQueried)
+
 	return nil
 }
 

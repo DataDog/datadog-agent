@@ -17,7 +17,7 @@ func (nullReverseDNS) Resolve(_ []ConnectionStats) map[util.Address][]string {
 }
 
 func (nullReverseDNS) GetDNSStats(_ connKey) dnsStats {
-	return dnsStats{replies:0, lastTransactionID: 0}
+	return dnsStats{replies: 0, lastTransactionID: 0}
 }
 
 func (nullReverseDNS) GetStats() map[string]int64 {

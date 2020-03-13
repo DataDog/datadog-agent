@@ -1174,6 +1174,7 @@ func searchConnections(c *Connections, predicate func(ConnectionStats) bool) []C
 
 func addrMatches(addr net.Addr, host string, port uint16) bool {
 	addrUrl := url.URL{Scheme: addr.Network(), Host: addr.String()}
+
 	return addrUrl.Hostname() == host && addrUrl.Port() == strconv.Itoa(int(port))
 }
 
@@ -1492,7 +1493,7 @@ func TestDNSStats(t *testing.T) {
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53}
 
 	queryMsg := new(dns.Msg)
-	queryMsg.SetQuestion(dns.Fqdn("google.com"), dns.TypeA)
+	queryMsg.SetQuestion(dns.Fqdn("golang.org"), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
 	dummyConn, err := net.Dial("udp", "8.8.8.8:80")
@@ -1512,8 +1513,9 @@ func TestDNSStats(t *testing.T) {
 		t.Fatalf("Failed to get dns response %s\n", err.Error())
 	}
 
-	// Allow the DNS reply to be process in the snooper
+	// Allow the DNS reply to be processed in the snooper
 	time.Sleep(time.Millisecond * 500)
+
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)

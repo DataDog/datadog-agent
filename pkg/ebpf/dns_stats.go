@@ -1,6 +1,7 @@
 package ebpf
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"sync"
 )
@@ -32,11 +33,16 @@ func (d *dnsBookkeeper) IncrementReplyCount(key connKey, transactionID uint16) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	stats := d.stats[key]
+
+	// For local DNS traffic, sometimes the same reply packet gets processed by the
+	// snooper multiple times. This check avoids double counting in that scenario.
 	if stats.lastTransactionID == transactionID {
 		return
 	}
 	stats.replies++
 	stats.lastTransactionID = transactionID
+	fmt.Println("Incremented for")
+	fmt.Println(key)
 	d.stats[key] = stats
 }
 

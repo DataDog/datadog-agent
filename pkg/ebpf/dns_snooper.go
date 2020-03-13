@@ -98,6 +98,8 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 }
 
 func (s *SocketFilterSnooper) GetDNSStats(key connKey) dnsStats {
+	fmt.Println("Checking to see if there is any info")
+	fmt.Println(key)
 	return s.bookkeeper.Get(key)
 }
 
@@ -129,6 +131,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 	t := s.getCachedTranslation()
 	cKey := connKey{}
 	dnsTransactionID, err := s.parser.ParseInto(data, t, &cKey)
+	fmt.Println("Snooper has received a packet")
 	if err != nil {
 		switch err {
 		case skippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
@@ -140,6 +143,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 		}
 		return
 	}
+	fmt.Println("Snooper has received a valid DNS reply packet")
 	s.bookkeeper.IncrementReplyCount(cKey, dnsTransactionID)
 	s.cache.Add(t, time.Now())
 }

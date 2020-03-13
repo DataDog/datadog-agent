@@ -2,15 +2,15 @@
 
 
 [[projects]]
-  digest = "1:f882937802f3c29b5acf7ff0464920d13df994f84e209f2f4e956703d68a109f"
+  branch = "mehedi.bakht/add-dns-metric"
+  digest = "1:78f5a0f7dd23059614d8af520d28ba06485219f1014f34b8aafc8a50e7c51cae"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "0ab005abaf2c6b096e7a96b52b29b707714f53ad"
-  version = "4.25.0"
+  revision = "9f225a2daa5165d942210a171075d90cfe95a599"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -2043,7 +2043,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "0:"
+  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
@@ -2253,6 +2253,7 @@
     "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/apimachinery/pkg/util/errors",
+    "k8s.io/apimachinery/pkg/util/rand",
     "k8s.io/apimachinery/pkg/util/sets",
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/apimachinery/pkg/watch",

@@ -80,11 +80,10 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	checkSnooping(t, destIP, reverseDNS)
 }
 
-// Get preferred outbound ip of this machine
+// Get the preferred outbound IP of this machine
 func GetOutboundIP(t *testing.T) net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-	}
+	require.NoError(t, err)
 	defer conn.Close()
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 	return localAddr.IP
@@ -104,9 +103,8 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	msg.RecursionDesired = true
 
 	config, err := mdns.ClientConfigFromFile("/etc/resolv.conf")
-	// serverAddress := config.Servers[0]
-	serverAddress := "8.8.8.8"
 	require.NoError(t, err)
+	serverAddress := "8.8.8.8"
 	dnsHost := net.JoinHostPort(serverAddress, config.Port)
 
 	queryIP := GetOutboundIP(t).String()
