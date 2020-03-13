@@ -326,6 +326,7 @@ func extractShortPathFromFullPath(fullPath string) string {
 }
 
 func changeSeelogLevel(level string) error {
+	// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
 	seelogConfig.setLogLevel(level)
 	configTemplate, err := seelogConfig.render()
 	if err != nil {
@@ -337,8 +338,9 @@ func changeSeelogLevel(level string) error {
 		return err
 	}
 	seelog.ReplaceLogger(logger)
-	log.SetupDatadogLogger(logger, level)
-	return nil
+
+	// We wire the new logger with the Datadog logic
+	return log.ChangeLogLevel(logger, level)
 }
 
 func init() {
