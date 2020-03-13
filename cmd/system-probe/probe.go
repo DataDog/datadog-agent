@@ -106,7 +106,7 @@ func (nt *SystemProbe) Run() {
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
-		stats, err := nt.tracer.DebugNetworkState(getClientID(req))
+		stats, err := nt.tracer.DebugState(getClientID(req))
 		if err != nil {
 			log.Errorf("unable to retrieve tracer stats: %s", err)
 			w.WriteHeader(500)

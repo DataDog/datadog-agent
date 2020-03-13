@@ -23,8 +23,8 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	return nil, ErrNotImplemented
 }
 
-// DebugNetworkState is not implemented on this OS for Tracer
-func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
+// DebugState is not implemented on this OS for Tracer
+func (t *Tracer) DebugState(clientID string) (map[string]interface{}, error) {
 	return nil, ErrNotImplemented
 }
 

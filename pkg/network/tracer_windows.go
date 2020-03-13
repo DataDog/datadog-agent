@@ -179,8 +179,8 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	}, nil
 }
 
-// DebugNetworkState returns a map with the current tracer's internal state, for debugging
-func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
+// DebugState returns a map with the current tracer's internal state, for debugging
+func (t *Tracer) DebugState(clientID string) (map[string]interface{}, error) {
 	return nil, ErrNotImplemented
 }
 
