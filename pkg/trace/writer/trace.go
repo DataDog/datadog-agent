@@ -216,13 +216,16 @@ func (w *TraceWriter) flush() {
 		gzipw.Write(b)
 		gzipw.Close()
 
+		var payloads []*payload
 		if len(w.senders) == 1 {
+			// Avoid an allocation when only one endpoint is configured.
+			payloadsArr := [1]*payload{p}
+			payloads = payloadsArr[:]
 			w.senders[0].Push(p)
 		} else {
 			// If there is more than one sender then we need to create a payload clone for each
-			// one because we can't make multiple HTTP requests that share the same underyling
-			// io.Reader for the body. In addition, pooling is managed at the per-sender level
-			// so we need separate payloads for each sender to avoid double-put pooling bugs.
+			// one because pooling is managed at the per-sender level so we need separate payloads
+			// for each sender to avoid double-put pooling bugs.
 			payloads := make([]*payload, 0, len(w.senders))
 			for i := range w.senders {
 				p := p
@@ -231,11 +234,10 @@ func (w *TraceWriter) flush() {
 				}
 				payloads = append(payloads, p)
 			}
-			for i, sender := range w.senders {
-				sender.Push(payloads[i])
-			}
 		}
-
+		for i, sender := range w.senders {
+			sender.Push(payloads[i])
+		}
 	}()
 }
 
