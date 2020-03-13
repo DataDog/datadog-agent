@@ -170,7 +170,7 @@ def cfmt(ctx):
     sedCmd = r"sed -i 's/__attribute__((always_inline)) /__attribute__((always_inline))\
 /g' {file}"
 
-    files = glob.glob("pkg/ebpf/c/*.[c,h]")
+    files = glob.glob("pkg/network/bytecode/c/*.[c,h]")
 
     for file in files:
         ctx.run(fmtCmd.format(file=file))

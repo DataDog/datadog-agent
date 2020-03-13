@@ -4,7 +4,7 @@ package net
 
 import (
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // RemoteSysProbeUtil is not supported
@@ -22,7 +22,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 
 // GetConnections is not supported
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
-	return nil, ebpf.ErrNotImplemented
+	return nil, network.ErrNotImplemented
 }
 
 // ShouldLogTracerUtilError is not supported

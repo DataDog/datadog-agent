@@ -7,7 +7,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -72,7 +72,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	conns, err := c.getConnections()
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+		if err == network.ErrNotImplemented || err == ErrTracerStillNotInitialized {
 			return nil, nil
 		}
 		return nil, err
