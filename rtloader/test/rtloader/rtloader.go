@@ -1,10 +1,6 @@
 package testrtloader
 
 /*
-#cgo CFLAGS: -I../../include -I../../common
-#cgo !windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -ldl -lstdc++
-#cgo windows LDFLAGS: -L../../rtloader/ -ldatadog-agent-rtloader -lstdc++ -static
-
 #include "rtloader_mem.h"
 #include "datadog_agent_rtloader.h"
 */

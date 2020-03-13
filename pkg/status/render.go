@@ -12,15 +12,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
+	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var (
-	fmap = Fmap()
-)
+var fmap = Textfmap()
 
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatStatus(data []byte) (string, error) {
@@ -132,7 +130,7 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
 	stats := make(map[string]interface{})
 	stats["JMXStatus"] = jmxStats
-	renderStatusTemplate(w, "/jmxfetch.tmpl", jmxStats)
+	renderStatusTemplate(w, "/jmxfetch.tmpl", stats)
 }
 
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {

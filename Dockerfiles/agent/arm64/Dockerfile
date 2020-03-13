@@ -12,7 +12,7 @@ COPY datadog-agent*_arm64.deb /
 WORKDIR /output
 
 # Get s6-overlay and check gpg signature
-ENV S6_VERSION v1.21.2.2
+ENV S6_VERSION v1.22.1.0
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-aarch64.tar.gz /output/s6.tgz
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-aarch64.tar.gz.sig /tmp/s6.tgz.sig
 RUN apt-get update \

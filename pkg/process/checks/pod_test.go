@@ -112,6 +112,7 @@ func TestExtractPodMessage(t *testing.T) {
 				RestartCount:      42,
 				Labels:            []string{"label:foo"},
 				Annotations:       []string{"annotation:bar"},
+				Status:            "chillin",
 				OwnerReferences: []*model.OwnerReference{
 					{
 						Name: "test-controller",
@@ -194,6 +195,7 @@ func TestExtractPodMessage(t *testing.T) {
 						Uid: "1234567890",
 					},
 				},
+				Status: "chillin",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						Name:        "fooName",

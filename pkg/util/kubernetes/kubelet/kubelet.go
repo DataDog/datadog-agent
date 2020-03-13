@@ -102,11 +102,11 @@ func GetKubeUtil() (KubeUtilInterface, error) {
 	if globalKubeUtil == nil {
 		globalKubeUtil = newKubeUtil()
 		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{
-			Name:          "kubeutil",
-			AttemptMethod: globalKubeUtil.init,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "kubeutil",
+			AttemptMethod:     globalKubeUtil.init,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	err := globalKubeUtil.initRetry.TriggerRetry()

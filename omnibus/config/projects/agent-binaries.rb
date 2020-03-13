@@ -5,8 +5,8 @@
 
 require "./lib/ostools.rb"
 
-name 'cf-windows'
-package_name 'cf-windows'
+name 'agent-binaries'
+package_name 'agent-binaries'
 
 homepage 'http://www.datadoghq.com'
 

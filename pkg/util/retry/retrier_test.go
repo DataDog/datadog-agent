@@ -76,6 +76,37 @@ func TestSetup(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			// Backoff no initial delay
+			config: &Config{
+				Name:          "mocked",
+				AttemptMethod: mocked.Attempt,
+				Strategy:      Backoff,
+				MaxRetryDelay: 1 * time.Minute,
+			},
+			err: errors.New("Backoff strategy needs a non-zero InitialRetryDelay"),
+		},
+		{
+			// Backoff no maximal delay
+			config: &Config{
+				Name:              "mocked",
+				AttemptMethod:     mocked.Attempt,
+				Strategy:          Backoff,
+				InitialRetryDelay: 1 * time.Second,
+			},
+			err: errors.New("Backoff strategy needs a non-zero MaxRetryDelay"),
+		},
+		{
+			// Backoff OK
+			config: &Config{
+				Name:              "mocked",
+				AttemptMethod:     mocked.Attempt,
+				Strategy:          Backoff,
+				InitialRetryDelay: 1 * time.Second,
+				MaxRetryDelay:     1 * time.Minute,
+			},
+			err: nil,
+		},
 	} {
 		t.Logf("test case %d", nb)
 		err := mocked.SetupRetrier(tc.config)
@@ -202,4 +233,84 @@ func TestRetryDelayRecover(t *testing.T) {
 	mocked.On("Attempt").Return(nil)
 	err = mocked.TriggerRetry()
 	assert.Nil(t, err)
+}
+
+func TestBackoff(t *testing.T) {
+	now := time.Now()
+	initialRetryDelay := 10 * time.Millisecond
+	maxRetryDelay := 50 * time.Millisecond
+	mocked := &DummyLogic{}
+	config := &Config{
+		Name:              "mocked",
+		AttemptMethod:     mocked.Attempt,
+		Strategy:          Backoff,
+		InitialRetryDelay: initialRetryDelay,
+		MaxRetryDelay:     maxRetryDelay,
+		now:               func() time.Time { return now },
+	}
+	err := mocked.SetupRetrier(config)
+	assert.Nil(t, err)
+
+	// First call will trigger an attempt
+	mocked.On("Attempt").Return(errors.New("nope")).Once()
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	expectedNext := now.Add(initialRetryDelay)
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+
+	// Call before time expiration
+	now = now.Add(initialRetryDelay - 1*time.Millisecond)
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+
+	// Second call will double the sleep period
+	now = now.Add(1 * time.Millisecond)
+	mocked.On("Attempt").Return(errors.New("nope")).Once()
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	expectedNext = now.Add(2 * initialRetryDelay)
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+
+	// Call before time expiration
+	now = now.Add(2*initialRetryDelay - 1*time.Millisecond)
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+
+	// Third call will quadruple the sleep period
+	now = now.Add(1 * time.Millisecond)
+	mocked.On("Attempt").Return(errors.New("nope")).Once()
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	expectedNext = now.Add(4 * initialRetryDelay)
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+
+	// Call before time expiration
+	now = now.Add(4*initialRetryDelay - 1*time.Millisecond)
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+
+	// Fourth call will hit the maximum sleep period
+	now = now.Add(1 * time.Millisecond)
+	mocked.On("Attempt").Return(errors.New("nope")).Once()
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	expectedNext = now.Add(maxRetryDelay)
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+
+	// Call before time expiration
+	now = now.Add(maxRetryDelay - 1*time.Millisecond)
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
+
+	// Fifth call will hit the maximum sleep period
+	now = now.Add(1 * time.Millisecond)
+	mocked.On("Attempt").Return(errors.New("nope")).Once()
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	expectedNext = now.Add(maxRetryDelay)
+	assert.WithinDuration(t, expectedNext, mocked.NextRetry(), time.Millisecond)
 }

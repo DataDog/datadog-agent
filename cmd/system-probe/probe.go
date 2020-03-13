@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -42,11 +41,6 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
-	// make sure debugfs is mounted
-	if mounted, msg := util.IsDebugfsMounted(); !mounted {
-		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
-	}
-
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
 
 	t, err := ebpf.NewTracer(config.SysProbeConfigFromConfig(cfg))
@@ -54,8 +48,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
-	// Setting up the unix socket
-	uds, err := net.NewUDSListener(cfg)
+	conn, err := net.NewListener(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +56,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	return &SystemProbe{
 		tracer: t,
 		cfg:    cfg,
-		conn:   uds,
+		conn:   conn,
 	}, nil
 }
 

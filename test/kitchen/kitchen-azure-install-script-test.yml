@@ -3,6 +3,7 @@ suites:
 # Installs the latest release candidate using the install script
 - name: dd-agent-install-script
   run_list:
+    - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install-script]"
   attributes:
     apt:

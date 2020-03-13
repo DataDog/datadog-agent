@@ -16,11 +16,19 @@ func uptimeSampler() (uint64, error) {
 }
 
 func TestUptimeCheckLinux(t *testing.T) {
+	// we have to init the mocked sender here before fileHandleCheck.Configure(...)
+	// (and append it to the aggregator, which is automatically done in NewMockSender)
+	// because the FinalizeCheckServiceTag is called in Configure.
+	// Hopefully, the check ID is an empty string while running unit tests;
+	mock := mocksender.NewMockSender("")
+	mock.On("FinalizeCheckServiceTag").Return()
+
 	uptime = uptimeSampler
 	uptimeCheck := new(UptimeCheck)
 	uptimeCheck.Configure(nil, nil, "test")
 
-	mock := mocksender.NewMockSender(uptimeCheck.ID())
+	// reset the check ID for the sake of correctness
+	mocksender.SetSender(mock, uptimeCheck.ID())
 
 	mock.On("Gauge", "system.uptime", 555.0, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)

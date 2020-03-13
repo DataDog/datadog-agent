@@ -8,6 +8,7 @@ package agentchecks
 import (
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
@@ -55,6 +56,15 @@ func GetPayload() *Payload {
 		}
 		status := []interface{}{
 			check, check, "initialization", "ERROR", string(jsonErrs),
+		}
+		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
+	}
+
+	configErrors := autodiscovery.GetConfigErrors()
+
+	for check, e := range configErrors {
+		status := []interface{}{
+			check, check, "initialization", "ERROR", e,
 		}
 		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}

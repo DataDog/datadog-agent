@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Upgrade ``pip-tools`` and ``wheel`` dependencies for Python 2.

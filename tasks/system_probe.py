@@ -8,7 +8,7 @@ import tempfile
 from invoke import task
 from subprocess import check_output, CalledProcessError
 
-from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
+from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, check_go111module_envvar
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -28,6 +28,9 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     Build the system_probe
     """
 
+    # bail out if GO111MODULE is set to on
+    check_go111module_envvar("system-probe.build")
+
     build_object_files(ctx, install=True)
 
     # TODO use pkg/version for this
@@ -41,7 +44,6 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     }
 
     goenv = {}
-    # TODO: this is a temporary workaround. system probe had issues when built with go 1.11 and 1.12
     if go_version:
         lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:
@@ -119,7 +121,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     if not skip_object_files:
         build_object_files(ctx, install=False)
 
-    pkg = os.path.join(REPO_PATH, "pkg", "ebpf", "...")
+    pkg = "./pkg/ebpf/..."
 
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']
@@ -205,6 +207,12 @@ def build_object_files(ctx, install=True):
     set install to False to disable replacing the assets
     """
 
+    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently, and result in us not building a
+    # new .o file
+    print("checking for clang executable...")
+    ctx.run("which clang")
+    print("found clang")
+
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
     if os.path.isdir(centos_headers_dir):
@@ -256,7 +264,7 @@ def build_object_files(ctx, install=True):
 
     for d in linux_headers:
         for s in subdirs:
-            flags.extend(["-I", os.path.join(d, s)])
+            flags.extend(["-isystem", os.path.join(d, s)])
 
     cmd = "clang {flags} -o - | llc -march=bpf -filetype=obj -o '{file}'"
 

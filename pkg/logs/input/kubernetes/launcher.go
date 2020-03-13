@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,8 +21,9 @@ import (
 )
 
 const (
-	basePath   = "/var/log/pods"
-	anyLogFile = "*.log"
+	basePath      = "/var/log/pods"
+	anyLogFile    = "*.log"
+	anyV19LogFile = "%s_*.log"
 )
 
 var errCollectAllDisabled = fmt.Errorf("%s disabled", config.ContainerCollectAll)
@@ -55,10 +55,6 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 		kubeutil:           kubeutil,
 		collectAll:         collectAll,
 	}
-	err = launcher.setup()
-	if err != nil {
-		return nil, err
-	}
 	launcher.addedServices = services.GetAllAddedServices()
 	launcher.removedServices = services.GetAllRemovedServices()
 	return launcher, nil
@@ -70,13 +66,6 @@ func isIntegrationAvailable() bool {
 	}
 
 	return true
-}
-
-// setup initializes the pod watcher and the tagger.
-func (l *Launcher) setup() error {
-	// initialize the tagger to collect container tags
-	tagger.Init()
-	return nil
 }
 
 // Start starts the launcher
@@ -237,14 +226,38 @@ func (l *Launcher) getSourceName(pod *kubelet.Pod, container kubelet.ContainerSt
 // getPath returns a wildcard matching with any logs file of container in pod.
 func (l *Launcher) getPath(basePath string, pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	// the pattern for container logs is different depending on the version of Kubernetes
-	// so we need to try both format,
-	// until v1.13 it was `/var/log/pods/{pod_uid}/{container_name}/{n}.log`,
+	// so we need to try three possbile formats
+	// until v1.9 it was `/var/log/pods/{pod_uid}/{container_name_n}.log`,
+	// v.1.10 to v1.13 it was `/var/log/pods/{pod_uid}/{container_name}/{n}.log`,
 	// since v1.14 it is `/var/log/pods/{pod_namespace}_{pod_name}_{pod_uid}/{container_name}/{n}.log`.
 	// see: https://github.com/kubernetes/kubernetes/pull/74441 for more information.
 	oldDirectory := filepath.Join(basePath, l.getPodDirectoryUntil1_13(pod))
 	if _, err := os.Stat(oldDirectory); err == nil {
-		return filepath.Join(oldDirectory, container.Name, anyLogFile)
+		v110Dir := filepath.Join(oldDirectory, container.Name)
+		_, err := os.Stat(v110Dir)
+		if err == nil {
+			log.Debugf("Logs path found for container %s, v1.13 >= kubernetes version >= v1.10", container.Name)
+			return filepath.Join(v110Dir, anyLogFile)
+		}
+		if !os.IsNotExist(err) {
+			log.Debugf("Cannot get file info for %s: %v", v110Dir, err)
+		}
+
+		v19Files := filepath.Join(oldDirectory, fmt.Sprintf(anyV19LogFile, container.Name))
+		files, err := filepath.Glob(v19Files)
+		if err == nil && len(files) > 0 {
+			log.Debugf("Logs path found for container %s, kubernetes version <= v1.9", container.Name)
+			return v19Files
+		}
+		if err != nil {
+			log.Debugf("Cannot get file info for %s: %v", v19Files, err)
+		}
+		if len(files) == 0 {
+			log.Debugf("Files matching %s not found", v19Files)
+		}
 	}
+
+	log.Debugf("Using the latest kubernetes logs path for container %s", container.Name)
 	return filepath.Join(basePath, l.getPodDirectorySince1_14(pod), container.Name, anyLogFile)
 }
 

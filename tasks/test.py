@@ -46,7 +46,7 @@ DEFAULT_TEST_TARGETS = [
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     verbose=False, race=False, profile=False, fail_on_fmt=False,
     rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0, major_version='7',
-    python_runtimes='3', timeout=120, arch="x64", cache=True):
+    python_runtimes='3', timeout=120, arch="x64", cache=True, skip_linters=False):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -72,27 +72,31 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
-    print("--- Linting filenames:")
-    lint_filenames(ctx)
-    print("--- Linting licenses:")
-    lint_licenses(ctx)
     print("--- go generating:")
     generate(ctx)
 
-    # Until all packages whitelisted in .golangci.yml are fixed and remove
-    # from the 'skip-dirs' list we need to keep using the old functions that
-    # lint without build flags (linting some file is better than no linting).
-    print("--- Vetting and linting (legacy):")
-    vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
-    fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
-    lint(ctx, targets=tool_targets)
-    misspell(ctx, targets=tool_targets)
-    ineffassign(ctx, targets=tool_targets)
+    if skip_linters:
+        print("--- [skipping linters]")
+    else:
+        print("--- Linting filenames:")
+        lint_filenames(ctx)
+        print("--- Linting licenses:")
+        lint_licenses(ctx)
 
-    # for now we only run golangci_lint on Unix as the Windows env need more work
-    if sys.platform != 'win32':
-        print("--- golangci_lint:")
-        golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+        # Until all packages whitelisted in .golangci.yml are fixed and removed
+        # from the 'skip-dirs' list we need to keep using the old functions that
+        # lint without build flags (linting some file is better than no linting).
+        print("--- Vetting and linting (legacy):")
+        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+        fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
+        lint(ctx, targets=tool_targets)
+        misspell(ctx, targets=tool_targets)
+        ineffassign(ctx, targets=tool_targets)
+
+        # for now we only run golangci_lint on Unix as the Windows env need more work
+        if sys.platform != 'win32':
+            print("--- golangci_lint:")
+            golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
@@ -400,3 +404,24 @@ def make_kitchen_gitlab_yml(ctx):
 
     with open('.gitlab-ci.yml', 'w') as f:
         documents = yaml.dump(data, f, default_style='"')
+
+@task
+def check_gitlab_broken_dependencies(ctx):
+    """
+    Checks that a gitlab job doesn't depend on (need) other jobs that will be excluded from the build,
+    since this would make gitlab fail when triggering a pipeline with those jobs excluded.
+    """
+    with open('.gitlab-ci.yml') as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+
+    def is_unwanted(job, version):
+        e = job.get('except',{})
+        return isinstance(e, dict) and '$RELEASE_VERSION_{} == ""'.format(version) in e.get('variables',{})
+
+    for version in [6,7]:
+        for k,v in data.items():
+            if isinstance(v, dict) and not is_unwanted(v, version) and "needs" in v:
+                needed = v['needs']
+                for need in needed:
+                    if is_unwanted(data[need], version):
+                        print("{} needs on {} but it won't be built for A{}".format(k, need, version))
