@@ -27,6 +27,19 @@ func TestExtractShortPathFromFullPath(t *testing.T) {
 	assert.Equal(t, "cmd/agent/collector.go", extractShortPathFromFullPath("/home/jenkins/workspace/process-agent-build-ddagent/go/src/github.com/DataDog/datadog-process-agent/cmd/agent/collector.go"))
 }
 
+func TestSeelogConfig(t *testing.T) {
+	cfg := NewSeelogConfig("TEST", "off", "common", "", "", false)
+	cfg.enableConsoleLog(true)
+	cfg.enableFileLogging("/dev/null", 123, 456)
+
+	seelogConfigStr, err := cfg.render()
+	assert.Nil(t, err)
+
+	logger, err := seelog.LoggerFromConfigAsString(seelogConfigStr)
+	assert.Nil(t, err)
+	assert.NotNil(t, logger)
+}
+
 func benchmarkLogFormat(logFormat string, b *testing.B) {
 	var buff bytes.Buffer
 	w := bufio.NewWriter(&buff)

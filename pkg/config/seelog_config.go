@@ -28,11 +28,10 @@ const seelogConfigurationTemplate = `
 	<formats>
 		<format id="json" format="{{.jsonFormat}}"/>
 		<format id="common" format="{{.commonFormat}}"/>
-		<format id="syslog-json" format="%%CustomSyslogHeader(20,{{.syslogRFC}}){&quot;agent&quot;:&quot;{{.loggerNameLowerCase}}&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
-		<format id="syslog-common" format="%%CustomSyslogHeader(20,{{.syslogRFC}}) {{.loggerName}} | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n" />
+		<format id="syslog-json" format="%CustomSyslogHeader(20,{{.syslogRFC}}){&quot;agent&quot;:&quot;{{.loggerName | ToLower}}&quot;,&quot;level&quot;:&quot;%LEVEL&quot;,&quot;relfile&quot;:&quot;%ShortFilePath&quot;,&quot;line&quot;:&quot;%Line&quot;,&quot;msg&quot;:&quot;%Msg&quot;}%n"/>
+        <format id="syslog-common" format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{.loggerName}} | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg%n" />
 	</formats>
-</seelog>
-`
+</seelog>`
 
 func (c *SeelogConfig) setValue(k string, v interface{}) {
 	c.m.Lock()
@@ -43,7 +42,11 @@ func (c *SeelogConfig) setValue(k string, v interface{}) {
 func (c *SeelogConfig) render() (string, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
-	tmpl, err := template.New("seelog_config").Parse(seelogConfigurationTemplate)
+	funcMap := template.FuncMap{
+		"ToLower": strings.ToLower,
+	}
+
+	tmpl, err := template.New("seelog_config").Funcs(funcMap).Parse(seelogConfigurationTemplate)
 	if err != nil {
 		return "", err
 	}
@@ -80,7 +83,6 @@ func (c *SeelogConfig) configureSyslog(syslogURI string, usetTLS bool) {
 func NewSeelogConfig(name, level, format, jsonFormat, commonFormat string, syslogRFC bool) *SeelogConfig {
 	c := &SeelogConfig{settings: make(map[string]interface{})}
 	c.settings["loggerName"] = name
-	c.settings["loggerNameLowerCase"] = strings.ToLower(name)
 	c.settings["format"] = format
 	c.settings["syslogRFC"] = syslogRFC
 	c.settings["jsonFormat"] = jsonFormat
