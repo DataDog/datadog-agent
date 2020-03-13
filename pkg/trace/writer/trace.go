@@ -7,7 +7,6 @@ package writer
 
 import (
 	"compress/gzip"
-	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -234,7 +233,6 @@ func (w *TraceWriter) flush() {
 				}
 				payloads = append(payloads, p)
 			}
-			fmt.Println("HMM", len(payloads))
 		}
 		for i, sender := range w.senders {
 			sender.Push(payloads[i])
