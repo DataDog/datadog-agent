@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"io/ioutil"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -49,6 +50,60 @@ func TestTraceWriter(t *testing.T) {
 		// One payload flushes due to overflowing the threshold, and the second one
 		// because of stop.
 		assert.Equal(t, 2, srv.Accepted())
+		payloadsContain(t, srv.Payloads(), testSpans)
+	})
+}
+
+func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
+	var (
+		srv = newTestServer()
+		cfg = &config.AgentConfig{
+			Hostname:   testHostname,
+			DefaultEnv: testEnv,
+			Endpoints: []*config.Endpoint{
+				{
+					APIKey: "123",
+					Host:   srv.URL,
+				},
+				{
+					APIKey: "123",
+					Host:   srv.URL,
+				},
+			},
+			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		}
+		numWorkers      = 100
+		numOpsPerWorker = 100
+	)
+
+	t.Run("ok", func(t *testing.T) {
+		testSpans := []*SampledSpans{
+			randomSampledSpans(20, 8),
+			randomSampledSpans(10, 0),
+			randomSampledSpans(40, 5),
+		}
+		in := make(chan *SampledSpans)
+		tw := NewTraceWriter(cfg, in)
+		go tw.Run()
+
+		var wg sync.WaitGroup
+		for i := 0; i < numWorkers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < numOpsPerWorker; j++ {
+					for _, ss := range testSpans {
+						in <- ss
+					}
+				}
+			}()
+		}
+
+		wg.Wait()
+		tw.Stop()
+		// One payload flushes due to overflowing the threshold, and the second one
+		// because of stop.
+		assert.Equal(t, 186, srv.Accepted())
 		payloadsContain(t, srv.Payloads(), testSpans)
 	})
 }

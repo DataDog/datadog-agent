@@ -351,6 +351,15 @@ func newPayload(headers map[string]string) *payload {
 	return p
 }
 
+func (p *payload) clone() *payload {
+	clone := ppool.Get().(*payload)
+	// Don't clone the headers since they don't get mutated.
+	clone.headers = p.headers
+	clone.body.Reset()
+	clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes()))
+	return clone
+}
+
 // httpRequest returns an HTTP request based on the payload, targeting the given URL.
 func (p *payload) httpRequest(url *url.URL) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodPost, url.String(), bytes.NewReader(p.body.Bytes()))

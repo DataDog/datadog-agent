@@ -182,13 +182,13 @@ func (w *TraceWriter) flush() {
 	defer w.resetBuffer()
 
 	log.Debugf("Serializing %d traces and %d APM events.", len(w.traces), len(w.events))
-	payload := pb.TracePayload{
+	tracePayload := pb.TracePayload{
 		HostName:     w.hostname,
 		Env:          w.env,
 		Traces:       w.traces,
 		Transactions: w.events,
 	}
-	b, err := proto.Marshal(&payload)
+	b, err := proto.Marshal(&tracePayload)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return
@@ -216,9 +216,26 @@ func (w *TraceWriter) flush() {
 		gzipw.Write(b)
 		gzipw.Close()
 
-		for _, sender := range w.senders {
-			sender.Push(p)
+		if len(w.senders) == 1 {
+			w.senders[0].Push(p)
+		} else {
+			// If there is more than one sender then we need to create a payload clone for each
+			// one because we can't make multiple HTTP requests that share the same underyling
+			// io.Reader for the body. In addition, pooling is managed at the per-sender level
+			// so we need separate payloads for each sender to avoid double-put pooling bugs.
+			payloads := make([]*payload, 0, len(w.senders))
+			for i := range w.senders {
+				p := p
+				if i != 0 {
+					p = p.clone()
+				}
+				payloads = append(payloads, p)
+			}
+			for i, sender := range w.senders {
+				sender.Push(payloads[i])
+			}
 		}
+
 	}()
 }
 
