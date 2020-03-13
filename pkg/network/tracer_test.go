@@ -114,7 +114,7 @@ func TestTracerExpvar(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
 
 		actual := make([]string, 0, len(expvar))
-		for k, _ := range expvar {
+		for k := range expvar {
 			actual = append(actual, k)
 		}
 
