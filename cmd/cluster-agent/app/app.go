@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/webhook"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -230,6 +231,10 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	if err = api.StartServer(sc); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
+	}
+
+	if err = webhook.StartServer(sc); err != nil {
+		return log.Errorf("Error while starting admission webhook server, exiting: %v", err)
 	}
 
 	wg := sync.WaitGroup{}

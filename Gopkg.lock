@@ -1332,7 +1332,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "master"
   digest = "1:0b30de1a6957125af05f8dbe7dfe8843fb4aa0d87d803d3ebd83f39aed113c9a"
   name = "github.com/vishvananda/netns"
   packages = ["."]
@@ -2211,6 +2210,7 @@
     "google.golang.org/grpc",
     "gopkg.in/yaml.v2",
     "gopkg.in/zorkian/go-datadog-api.v2",
+    "k8s.io/api/admission/v1beta1",
     "k8s.io/api/autoscaling/v2beta1",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/equality",
@@ -2246,6 +2246,7 @@
     "k8s.io/client-go/tools/record",
     "k8s.io/client-go/util/workqueue",
     "k8s.io/cri-api/pkg/apis/runtime/v1alpha2",
+    "k8s.io/klog",
     "k8s.io/kubernetes/pkg/kubelet/remote/fake",
     "k8s.io/metrics/pkg/apis/custom_metrics",
     "k8s.io/metrics/pkg/apis/external_metrics",
