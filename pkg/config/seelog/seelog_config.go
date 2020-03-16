@@ -7,13 +7,13 @@ package seelog
 
 import (
 	"bytes"
+	"html/template"
 	"strings"
 	"sync"
-	"text/template"
 )
 
-// SeelogConfig abstracts seelog XML configuration definition
-type SeelogConfig struct {
+// Config abstracts seelog XML configuration definition
+type Config struct {
 	settings map[string]interface{}
 	sync.Mutex
 }
@@ -21,32 +21,31 @@ type SeelogConfig struct {
 const seelogConfigurationTemplate = `
 <seelog minlevel="{{.logLevel}}">
 	<outputs formatid="{{.format}}">
-    {{if .consoleLoggingEnabled   }}<console />{{end}}
-    {{if .logfile                 }}<rollingfile type="size" filename="{{.logfile}}" maxsize="{{.maxsize}}" maxrolls="{{.maxrolls}}" />{{end}}
-	{{if .syslogURI               }}<custom name="syslog" formatid="syslog-{{.format}}" data-uri="{{.syslogURI}}" data-tls="{{.syslogUseTLS}}" />{{end}}
+		{{if .consoleLoggingEnabled}}<console />{{end}}
+		{{if .logfile              }}<rollingfile type="size" filename="{{.logfile}}" maxsize="{{.maxsize}}" maxrolls="{{.maxrolls}}" />{{end}}
+		{{if .syslogURI            }}<custom name="syslog" formatid="syslog-{{.format}}" data-uri="{{.syslogURI}}" data-tls="{{.syslogUseTLS}}" />{{end}}
 	</outputs>
 	<formats>
-		<format id="json" format="{{.jsonFormat}}"/>
-		<format id="common" format="{{.commonFormat}}"/>
-		<format id="syslog-json" format="%CustomSyslogHeader(20,{{.syslogRFC}}){&quot;agent&quot;:&quot;{{.loggerName | ToLower}}&quot;,&quot;level&quot;:&quot;%LEVEL&quot;,&quot;relfile&quot;:&quot;%ShortFilePath&quot;,&quot;line&quot;:&quot;%Line&quot;,&quot;msg&quot;:&quot;%Msg&quot;}%n"/>
-        <format id="syslog-common" format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{.loggerName}} | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg%n" />
+		<format id="json"          format="{{.jsonFormat}}"/>
+		<format id="common"        format="{{.commonFormat}}"/>
+		<format id="syslog-json"   format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{getJSONSyslogFormat .loggerName}}"/>
+		<format id="syslog-common" format="%CustomSyslogHeader(20,{{.syslogRFC}}) {{.loggerName}} | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg%n" />
 	</formats>
 </seelog>`
 
-func (c *SeelogConfig) setValue(k string, v interface{}) {
+func (c *Config) setValue(k string, v interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	c.settings[k] = v
 }
 
 // Render generates a string containing a valid seelog XML configuration
-func (c *SeelogConfig) Render() (string, error) {
+func (c *Config) Render() (string, error) {
 	c.Lock()
 	defer c.Unlock()
 	funcMap := template.FuncMap{
-		"ToLower": strings.ToLower,
+		"getJSONSyslogFormat": getJSONSyslogFormat,
 	}
-
 	tmpl, err := template.New("seelog_config").Funcs(funcMap).Parse(seelogConfigurationTemplate)
 	if err != nil {
 		return "", err
@@ -56,18 +55,22 @@ func (c *SeelogConfig) Render() (string, error) {
 	return b.String(), err
 }
 
+func getJSONSyslogFormat(name string) string {
+	return `{"agent":"` + strings.ToLower(name) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"}%n`
+}
+
 // EnableConsoleLog sets enable or disable console logging depending on the parameter value
-func (c *SeelogConfig) EnableConsoleLog(v bool) {
+func (c *Config) EnableConsoleLog(v bool) {
 	c.setValue("consoleLoggingEnabled", v)
 }
 
 // SetLogLevel configures the loglevel
-func (c *SeelogConfig) SetLogLevel(l string) {
+func (c *Config) SetLogLevel(l string) {
 	c.setValue("logLevel", l)
 }
 
 // EnableFileLogging enables and configures file logging if the filename is not empty
-func (c *SeelogConfig) EnableFileLogging(f string, maxsize, maxrolls uint) {
+func (c *Config) EnableFileLogging(f string, maxsize, maxrolls uint) {
 	c.Lock()
 	defer c.Unlock()
 	c.settings["logfile"] = f
@@ -76,17 +79,17 @@ func (c *SeelogConfig) EnableFileLogging(f string, maxsize, maxrolls uint) {
 }
 
 // ConfigureSyslog enables and configures syslog if the syslogURI it not an empty string
-func (c *SeelogConfig) ConfigureSyslog(syslogURI string, usetTLS bool) {
+func (c *Config) ConfigureSyslog(syslogURI string, usetTLS bool) {
 	c.Lock()
 	defer c.Unlock()
-	c.settings["syslogURI"] = syslogURI
+	c.settings["syslogURI"] = template.URL(syslogURI)
 	c.settings["syslogUseTLS"] = usetTLS
 
 }
 
 // NewSeelogConfig returns a SeelogConfig filled with correct parameters
-func NewSeelogConfig(name, level, format, jsonFormat, commonFormat string, syslogRFC bool) *SeelogConfig {
-	c := &SeelogConfig{settings: make(map[string]interface{})}
+func NewSeelogConfig(name, level, format, jsonFormat, commonFormat string, syslogRFC bool) *Config {
+	c := &Config{settings: make(map[string]interface{})}
 	c.settings["loggerName"] = name
 	c.settings["format"] = format
 	c.settings["syslogRFC"] = syslogRFC

@@ -28,7 +28,7 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 
 var syslogTLSConfig *tls.Config
 
-var seelogConfig *seelogCfg.SeelogConfig
+var seelogConfig *seelogCfg.Config
 
 // buildCommonFormat returns the log common format seelog string
 func buildCommonFormat(loggerName LoggerName) string {
@@ -44,7 +44,7 @@ func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
 // buildJSONFormat returns the log JSON format seelog string
 func buildJSONFormat(loggerName LoggerName) string {
 	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter)
-	return fmt.Sprintf("{&quot;agent&quot;:&quot;%s&quot;,&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:%%QuoteMsg}%%n", strings.ToLower(string(loggerName)), logDateFormat)
+	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg}%%n`, strings.ToLower(string(loggerName)), logDateFormat)
 }
 
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
