@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,8 +28,11 @@ func internalTrueBeforeTimeout(t *testing.T, require bool, frequency, timeout ti
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	r := make(chan bool, 1)
+	var wg sync.WaitGroup
+	wg.Add(1)
 
 	go func() {
+		defer wg.Done()
 		// Try once immediately
 		r <- condition()
 
@@ -64,6 +68,7 @@ func internalTrueBeforeTimeout(t *testing.T, require bool, frequency, timeout ti
 				assert.Fail(t, "Timeout waiting for condition to happen, function never returned")
 			}
 			if require {
+				wg.Wait()
 				t.FailNow()
 			}
 			return
