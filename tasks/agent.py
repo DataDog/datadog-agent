@@ -107,17 +107,17 @@ def apply_branding(ctx):
                   "./cmd/agent/common/common_windows.go")
     # cmd/agent/common/main_windows.go
     do_sed_rename(ctx, 's|"programdata\\\\\\\\datadog"|"programdata\\\\\\\\stackstate"|g',
-                  "./cmd/agent/common/main_windows.go")
+                  "./cmd/dogstatsd/main_windows.go")
     do_sed_rename(ctx, 's|"ProgramData\\\\\\\\datadog"|"ProgramData\\\\\\\\StackState"|g',
-                  "./cmd/agent/common/main_windows.go")
+                  "./cmd/dogstatsd/main_windows.go")
     do_sed_rename(ctx, 's|"Datadog"|"Stackstate"|g',
-                  "./cmd/agent/common/main_windows.go")
+                  "./cmd/dogstatsd/main_windows.go")
     do_sed_rename(ctx, 's|"ProgramData\\\\\\\\DataDog"|"ProgramData\\\\\\\\StackState"|g',
-                  "./cmd/agent/common/main_windows.go")
+                  "./cmd/dogstatsd/main_windows.go")
     do_sed_rename(ctx, 's|"SOFTWARE\\\\DataDog\\\\"|"SOFTWARE\\\\\StackState\\\\"|g',
-                  "./cmd/agent/common/main_windows.go")
+                  "./cmd/dogstatsd/main_windows.go")
     do_sed_rename(ctx, 's|"datadog.conf"|"stackstate.conf"|g',
-                  "./cmd/agent/common/main_windows.go")
+                  "./cmd/dogstatsd/main_windows.go")
     # systray.go
     do_sed_rename(ctx, 's|"programdata\\\\\\\\datadog"|"programdata\\\\\\\\stackstate"|g',
                   "./cmd/systray/systray.go")
