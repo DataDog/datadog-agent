@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type bbsCacheFake struct {
@@ -390,12 +389,13 @@ func TestCloudFoundryListener(t *testing.T) {
 		testBBSCache.DesiredLRPs = tc.dLRP
 		testBBSCache.Unlock()
 
-		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
-			require.Equal(t, len(tc.expNew), len(newSvc))
-			return true
-		})
 		// we have to fail now, otherwise we might get blocked trying to read from the channel
-		require.Equal(t, len(tc.expDel), len(delSvc))
+		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
+			return len(tc.expNew) == len(newSvc)
+		})
+		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
+			return len(tc.expDel) == len(delSvc)
+		})
 
 		for range tc.expNew {
 			s := (<-newSvc).(*CloudFoundryService)

@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -20,19 +19,19 @@ func AssertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, con
 // RequireTrueBeforeTimeout is the same as AssertTrueBeforeTimeout, but it calls
 // t.failNow() if the condition function times out.
 func RequireTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) {
-	internalTrueBeforeTimeout(t, true, frequency, timeout, condition)
+	result := internalTrueBeforeTimeout(t, true, frequency, timeout, condition)
+	if !result {
+		t.FailNow()
+	}
 }
 
-func internalTrueBeforeTimeout(t *testing.T, require bool, frequency, timeout time.Duration, condition func() bool) {
+func internalTrueBeforeTimeout(t *testing.T, require bool, frequency, timeout time.Duration, condition func() bool) bool {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	r := make(chan bool, 1)
-	var wg sync.WaitGroup
-	wg.Add(1)
 
 	go func() {
-		defer wg.Done()
 		// Try once immediately
 		r <- condition()
 
@@ -58,7 +57,7 @@ func internalTrueBeforeTimeout(t *testing.T, require bool, frequency, timeout ti
 		select {
 		case ok := <-r:
 			if ok {
-				return
+				return ok
 			}
 			ranOnce = true
 		case <-ctx.Done():
@@ -67,11 +66,7 @@ func internalTrueBeforeTimeout(t *testing.T, require bool, frequency, timeout ti
 			} else {
 				assert.Fail(t, "Timeout waiting for condition to happen, function never returned")
 			}
-			if require {
-				wg.Wait()
-				t.FailNow()
-			}
-			return
+			return false
 		}
 	}
 }
