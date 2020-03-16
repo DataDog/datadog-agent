@@ -225,3 +225,6 @@ def do_go_rename(ctx, rename, at):
 
 def do_sed_rename(ctx, rename, at):
     ctx.run("sed -i '{}' {}".format(rename, at))
+
+def do_sed_rename_quoted(ctx, rename, at):
+    ctx.run("sed -i \"{}\" {}".format(rename, at))
