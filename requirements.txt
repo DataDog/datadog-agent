@@ -3,6 +3,6 @@ invoke==1.0.0
 reno==2.9.2
 docker==3.0.1
 requests==2.20.1
-PyYAML==5.1
+PyYAML==5.3
 toml==0.9.4
 distro==1.4.0
