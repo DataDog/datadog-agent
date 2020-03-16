@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 )
@@ -27,10 +28,10 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 
 var syslogTLSConfig *tls.Config
 
-var seelogConfig *SeelogConfig
+var seelogConfig *seelogCfg.SeelogConfig
 
-// BuildCommonFormat returns the log common format seelog string
-func BuildCommonFormat(loggerName LoggerName) string {
+// buildCommonFormat returns the log common format seelog string
+func buildCommonFormat(loggerName LoggerName) string {
 	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat, loggerName)
 }
 
@@ -40,8 +41,8 @@ func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
 	}
 }
 
-// BuildJSONFormat returns the log JSON format seelog string
-func BuildJSONFormat(loggerName LoggerName) string {
+// buildJSONFormat returns the log JSON format seelog string
+func buildJSONFormat(loggerName LoggerName) string {
 	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter)
 	return fmt.Sprintf("{&quot;agent&quot;:&quot;%s&quot;,&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%ShortFilePath&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:%%QuoteMsg}%%n", strings.ToLower(string(loggerName)), logDateFormat)
 }
@@ -74,9 +75,6 @@ func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
 func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	var syslog bool
-	var useTLS bool
-
 	seelogLogLevel := strings.ToLower(logLevel)
 	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
 		seelogLogLevel = "warn"
@@ -91,14 +89,16 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		formatID = "json"
 	}
 
-	if syslogURI != "" { // non-blank uri enables syslog
-		syslog = true
+	seelogConfig = seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, buildJSONFormat(loggerName), buildCommonFormat(loggerName), syslogRFC)
+	seelogConfig.EnableConsoleLog(logToConsole)
+	seelogConfig.EnableFileLogging(logFile, Datadog.GetSizeInBytes("log_file_max_size"), uint(Datadog.GetInt("log_file_max_rolls")))
 
+	if syslogURI != "" { // non-blank uri enables syslog
 		syslogTLSKeyPair, err := getSyslogTLSKeyPair()
 		if err != nil {
 			return err
 		}
-
+		var useTLS bool
 		if syslogTLSKeyPair != nil {
 			useTLS = true
 			syslogTLSConfig = &tls.Config{
@@ -106,16 +106,10 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 				InsecureSkipVerify: Datadog.GetBool("syslog_tls_verify"),
 			}
 		}
+		seelogConfig.ConfigureSyslog(syslogURI, useTLS)
 	}
 
-	seelogConfig = NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, BuildJSONFormat(loggerName), BuildCommonFormat(loggerName), syslogRFC)
-	seelogConfig.enableConsoleLog(logToConsole)
-	seelogConfig.enableFileLogging(logFile, Datadog.GetSizeInBytes("log_file_max_size"), uint(Datadog.GetInt("log_file_max_rolls")))
-	if syslog {
-		seelogConfig.configureSyslog(syslogURI, useTLS)
-	}
-
-	configTemplate, err := seelogConfig.render()
+	configTemplate, err := seelogConfig.Render()
 	if err != nil {
 		return err
 	}
@@ -325,10 +319,10 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return slices[len(slices)-1]
 }
 
-func changeSeelogLevel(level string) error {
+func changeLogLevel(level string) error {
 	// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
-	seelogConfig.setLogLevel(level)
-	configTemplate, err := seelogConfig.render()
+	seelogConfig.SetLogLevel(level)
+	configTemplate, err := seelogConfig.Render()
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package config
+package seelog
 
 import (
 	"bytes"
@@ -12,10 +12,10 @@ import (
 	"text/template"
 )
 
-// SeelogConfig abstract seelog XML configuration definition
+// SeelogConfig abstracts seelog XML configuration definition
 type SeelogConfig struct {
 	settings map[string]interface{}
-	m        sync.Mutex
+	sync.Mutex
 }
 
 const seelogConfigurationTemplate = `
@@ -34,14 +34,15 @@ const seelogConfigurationTemplate = `
 </seelog>`
 
 func (c *SeelogConfig) setValue(k string, v interface{}) {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.Lock()
+	defer c.Unlock()
 	c.settings[k] = v
 }
 
-func (c *SeelogConfig) render() (string, error) {
-	c.m.Lock()
-	defer c.m.Unlock()
+// Render generates a string containing a valid seelog XML configuration
+func (c *SeelogConfig) Render() (string, error) {
+	c.Lock()
+	defer c.Unlock()
 	funcMap := template.FuncMap{
 		"ToLower": strings.ToLower,
 	}
@@ -55,31 +56,35 @@ func (c *SeelogConfig) render() (string, error) {
 	return b.String(), err
 }
 
-func (c *SeelogConfig) enableConsoleLog(v bool) {
+// EnableConsoleLog sets enable or disable console logging depending on the parameter value
+func (c *SeelogConfig) EnableConsoleLog(v bool) {
 	c.setValue("consoleLoggingEnabled", v)
 }
 
-func (c *SeelogConfig) setLogLevel(l string) {
+// SetLogLevel configures the loglevel
+func (c *SeelogConfig) SetLogLevel(l string) {
 	c.setValue("logLevel", l)
 }
 
-func (c *SeelogConfig) enableFileLogging(f string, maxsize, maxrolls uint) {
-	c.m.Lock()
-	defer c.m.Unlock()
+// EnableFileLogging enables and configures file logging if the filename is not empty
+func (c *SeelogConfig) EnableFileLogging(f string, maxsize, maxrolls uint) {
+	c.Lock()
+	defer c.Unlock()
 	c.settings["logfile"] = f
 	c.settings["maxsize"] = maxsize
 	c.settings["maxrolls"] = maxrolls
 }
 
-func (c *SeelogConfig) configureSyslog(syslogURI string, usetTLS bool) {
-	c.m.Lock()
-	defer c.m.Unlock()
+// ConfigureSyslog enables and configures syslog if the syslogURI it not an empty string
+func (c *SeelogConfig) ConfigureSyslog(syslogURI string, usetTLS bool) {
+	c.Lock()
+	defer c.Unlock()
 	c.settings["syslogURI"] = syslogURI
 	c.settings["syslogUseTLS"] = usetTLS
 
 }
 
-// NewSeelogConfig return a SeelogConfig filled with correct parameters
+// NewSeelogConfig returns a SeelogConfig filled with correct parameters
 func NewSeelogConfig(name, level, format, jsonFormat, commonFormat string, syslogRFC bool) *SeelogConfig {
 	c := &SeelogConfig{settings: make(map[string]interface{})}
 	c.settings["loggerName"] = name

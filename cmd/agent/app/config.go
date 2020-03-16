@@ -70,11 +70,7 @@ func setupConfig() error {
 		return err
 	}
 
-	err = util.SetAuthToken()
-	if err != nil {
-		return err
-	}
-	return nil
+	return util.SetAuthToken()
 }
 
 func showRuntimeConfiguration(cmd *cobra.Command, args []string) error {

@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"testing"
 
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,11 +29,11 @@ func TestExtractShortPathFromFullPath(t *testing.T) {
 }
 
 func TestSeelogConfig(t *testing.T) {
-	cfg := NewSeelogConfig("TEST", "off", "common", "", "", false)
-	cfg.enableConsoleLog(true)
-	cfg.enableFileLogging("/dev/null", 123, 456)
+	cfg := seelogCfg.NewSeelogConfig("TEST", "off", "common", "", "", false)
+	cfg.EnableConsoleLog(true)
+	cfg.EnableFileLogging("/dev/null", 123, 456)
 
-	seelogConfigStr, err := cfg.render()
+	seelogConfigStr, err := cfg.Render()
 	assert.Nil(t, err)
 
 	logger, err := seelog.LoggerFromConfigAsString(seelogConfigStr)
