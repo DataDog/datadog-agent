@@ -27,7 +27,7 @@ type WebhookServer struct {
 	server *http.Server
 }
 
-var port = 5007
+var port = 5004
 
 
 // StartServer creates the router and starts the HTTP server
