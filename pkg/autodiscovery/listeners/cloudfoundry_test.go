@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -389,9 +390,11 @@ func TestCloudFoundryListener(t *testing.T) {
 		testBBSCache.DesiredLRPs = tc.dLRP
 		testBBSCache.Unlock()
 
-		time.Sleep(50 * time.Millisecond)
+		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
+			require.Equal(t, len(tc.expNew), len(newSvc))
+			return true
+		})
 		// we have to fail now, otherwise we might get blocked trying to read from the channel
-		require.Equal(t, len(tc.expNew), len(newSvc))
 		require.Equal(t, len(tc.expDel), len(delSvc))
 
 		for range tc.expNew {

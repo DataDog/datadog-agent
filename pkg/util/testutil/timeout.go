@@ -13,6 +13,14 @@ import (
 // Condition is evaluated in a goroutine to avoid tests hanging if a system
 // is deadlocked.
 func AssertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) {
+	internalTrueBeforeTimeout(t, false, frequency, timeout, condition)
+}
+
+func RequireTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) {
+	internalTrueBeforeTimeout(t, true, frequency, timeout, condition)
+}
+
+func internalTrueBeforeTimeout(t *testing.T, require bool, frequency, timeout time.Duration, condition func() bool) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -52,6 +60,9 @@ func AssertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, con
 				assert.Fail(t, "Timeout waiting for condition to happen, function returned false")
 			} else {
 				assert.Fail(t, "Timeout waiting for condition to happen, function never returned")
+			}
+			if require {
+				t.FailNow()
 			}
 			return
 		}
