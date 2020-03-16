@@ -64,6 +64,13 @@ var (
 		RunE:  doJmxListWithMetrics,
 	}
 
+	jmxListWithRateMetricsCmd = &cobra.Command{
+		Use:   "with-rate-metrics",
+		Short: "List attributes and metrics data that match at least one of your instances configuration, including rates and counters.",
+		Long:  ``,
+		RunE:  doJmxListWithRateMetrics,
+	}
+
 	jmxListLimitedCmd = &cobra.Command{
 		Use:   "limited",
 		Short: "List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.",
@@ -97,7 +104,7 @@ func init() {
 	jmxCmd.AddCommand(jmxCollectCmd)
 
 	//attach list commands to list root
-	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd, jmxListWithMetricsCmd)
+	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd, jmxListWithMetricsCmd, jmxListWithRateMetricsCmd)
 
 	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
 	jmxCollectCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
@@ -120,6 +127,10 @@ func doJmxListMatching(cmd *cobra.Command, args []string) error {
 
 func doJmxListWithMetrics(cmd *cobra.Command, args []string) error {
 	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterConsole, nil)
+}
+
+func doJmxListWithRateMetrics(cmd *cobra.Command, args []string) error {
+	return RunJmxCommand("list_with_rate_metrics", jmxfetch.ReporterConsole, nil)
 }
 
 func doJmxListLimited(cmd *cobra.Command, args []string) error {
@@ -206,6 +217,18 @@ func RunJmxListWithMetrics() error {
 		fmt.Println(a...)
 	}
 	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJSON, out)
+}
+
+
+// RunJmxListWithRateMetrics runs the JMX command with "with-rate-metrics", reporting
+// the data as a JSON on the console. It is used by the `check jmx --rate` cli command
+// of the Agent.
+func RunJmxListWithRateMetrics() error {
+	// don't pollute the JSON with the log pattern.
+	out := func(a ...interface{}) {
+		fmt.Println(a...)
+	}
+	return RunJmxCommand("list_with_rate_metrics", jmxfetch.ReporterJSON, out)
 }
 
 func loadConfigs(runner *jmxfetch.JMXFetch) {
