@@ -23,6 +23,9 @@ const (
 
 	// generationLength must be greater than compactInterval to ensure we have  multiple compactions per generation
 	generationLength = compactInterval + time.Minute
+
+	// netlink socket buffer size in bytes
+	netlinkBufferSize = 1024 * 1024
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -128,6 +131,7 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open delete NFCT")
 	}
+	setSocketBufferSize(netlinkBufferSize, nfctDel.Con)
 
 	ctr := &realConntracker{
 		nfct:                 nfct,
