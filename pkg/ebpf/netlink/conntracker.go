@@ -344,6 +344,8 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 		atomic.AddInt64(&ctr.stats.missedRegisters, 1)
 	}
 
+	log.Tracef("unregistered %s", conDebug(c))
+
 	return 0
 }
 
