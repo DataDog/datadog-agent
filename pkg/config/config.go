@@ -153,7 +153,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
-	config.BindEnvAndSetDefault("cluster_agent.webhook_port", 5004)
+	config.BindEnvAndSetDefault("cluster_agent.admissioncontroller_port", 5004)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
@@ -363,9 +363,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	config.BindEnvAndSetDefault("cluster_agent.tagging_fallback", false)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
-	config.BindEnvAndSetDefault("cluster_agent.webhook.tls_cert_file", "/certs/tls.crt")
-	config.BindEnvAndSetDefault("cluster_agent.webhook.tls_key_file", "/certs/tls.key")
-	config.BindEnvAndSetDefault("cluster_agent.webhook.generate_tls_certificate", false)
+	config.BindEnvAndSetDefault("cluster_agent.admission_controller.tls_cert_file", "/etc/datadog-agent/admission-controller-certificate/cert.pem")
+	config.BindEnvAndSetDefault("cluster_agent.admission_controller.tls_key_file", "/etc/datadog-agent/admission-controller-certificate/key.pem")
 
 	// Metadata endpoints
 

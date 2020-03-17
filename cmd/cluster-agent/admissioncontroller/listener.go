@@ -1,4 +1,4 @@
-package webhook
+package admissioncontroller
 
 import (
 	"encoding/json"
@@ -14,9 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/kubernetes/pkg/apis/core/v1"
 
-	"k8s.io/klog"
-
-	"github.com/Datadog/mutating-env-webhook-poc/jsonpatch"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admissioncontroller/jsonpatch"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -51,13 +50,13 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		klog.Errorf("contentType=%s, expect application/json", contentType)
+		log.Errorf("contentType=%v, expect application/json", contentType)
 		return
 	}
 
-	klog.V(2).Info(fmt.Sprintf("handling request: %s", body))
+	log.Debug("Admission controller request body: %v", body)
 
-	// The AdmissionReview that was sent to the webhook
+	// The AdmissionReview that was sent to the admissioncontroller
 	requestedAdmissionReview := v1beta1.AdmissionReview{}
 
 	// The AdmissionReview that will be returned
@@ -65,7 +64,7 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 
 	deserializer := codecs.UniversalDeserializer()
 	if _, _, err := deserializer.Decode(body, nil, &requestedAdmissionReview); err != nil {
-		klog.Error(err)
+		log.Error(err)
 		responseAdmissionReview.Response = toAdmissionResponse(err)
 	} else {
 		// pass to admitFunc
@@ -75,14 +74,14 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	// Return the same UID
 	responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 
-	klog.V(2).Info(fmt.Sprintf("sending response: %v", responseAdmissionReview.Response))
+	log.Debug("Admission controller response: %v", responseAdmissionReview.Response)
 
 	respBytes, err := json.Marshal(responseAdmissionReview)
 	if err != nil {
-		klog.Error(err)
+		log.Error(err)
 	}
 	if _, err := w.Write(respBytes); err != nil {
-		klog.Error(err)
+		log.Error(err)
 	}
 }
 
@@ -98,10 +97,9 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 }
 
 func mutatePods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	klog.Info("mutating pods")
 	podResource := metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	if ar.Request.Resource != podResource {
-		klog.Errorf("expect resource to be %s, got %v", podResource, ar.Request.Resource)
+		log.Errorf("expect resource to be %s, got %v", podResource, ar.Request.Resource)
 
 		return &v1beta1.AdmissionResponse{Allowed: true}
 	}
@@ -110,18 +108,12 @@ func mutatePods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	pod := corev1.Pod{}
 	deserializer := codecs.UniversalDeserializer()
 	if _, _, err := deserializer.Decode(raw, nil, &pod); err != nil {
-		klog.Error(err)
+		log.Error(err)
 		return toAdmissionResponse(err)
 	}
 
 	patch, _ := mutatePod(pod)
-	klog.Infof("jsonPath: %v", patch)
-
-	reviewResponse := mutateResponse(patch)
-
-	klog.Infof("reviewResponse: %v", reviewResponse)
-
-	return reviewResponse
+	return mutateResponse(patch)
 }
 
 func mutateResponse(patch jsonpatch.Patch) *v1beta1.AdmissionResponse {
@@ -139,16 +131,12 @@ func mutateResponse(patch jsonpatch.Patch) *v1beta1.AdmissionResponse {
 func getEnvMutator() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
-			Name: "DD_AGENT_HOST_2",
+			Name: "DD_AGENT_HOST",
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{
 					FieldPath: "status.hostIP",
 				},
 			},
-		},
-		{
-			Name:  "DEV_TEST_VERSION_2",
-			Value: version,
 		},
 	}
 }

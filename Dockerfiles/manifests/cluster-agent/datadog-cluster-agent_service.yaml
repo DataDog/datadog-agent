@@ -11,6 +11,6 @@ spec:
     name: api
   - port: 5004 # K8S Admission Webhooks: has to be the same as the one exposed in the DCA.
     protocol: TCP
-    name: webhook
+    name: admissioncontroller
   selector:
     app: datadog-cluster-agent
