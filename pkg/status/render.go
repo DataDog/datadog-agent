@@ -130,7 +130,7 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
 	stats := make(map[string]interface{})
 	stats["JMXStatus"] = jmxStats
-	renderStatusTemplate(w, "/jmxfetch.tmpl", jmxStats)
+	renderStatusTemplate(w, "/jmxfetch.tmpl", stats)
 }
 
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {

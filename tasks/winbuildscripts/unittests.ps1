@@ -15,11 +15,11 @@ if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
 & go get gopkg.in/yaml.v2
-& inv -e rtloader.build --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
+& inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
 $err = $LASTEXITCODE
 Write-Host Build result is $err
 if($err -ne 0){
-    Write-Host -ForegroundColor Red "rtloader build failed $err"
+    Write-Host -ForegroundColor Red "rtloader make failed $err"
     [Environment]::Exit($err)
 }
 
@@ -30,7 +30,7 @@ if($err -ne 0){
 # Write-Host Format result is $err
 
 # if($err -ne 0){
-#   Write-Host -ForegroundColor Red "format build failed $err"
+#   Write-Host -ForegroundColor Red "rtloader format failed $err"
 #   [Environment]::Exit($err)
 # }
 

@@ -28,6 +28,7 @@ agentmsg.h
 datadog.yaml
 system-probe.yaml
 dogstatsd.yaml
+cloudfoundry.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
 
@@ -95,6 +96,10 @@ dogstatsd-msg.h
 
 #visual studio files
 *.aps
+omnibus/resources/agent/msi/cal/packages/
+tools/windows/install-help/cal/packages/
+[Dd]ebug/
+[Rr]elease/
 
 # ebpf object files
 pkg/ebpf/c/*.o

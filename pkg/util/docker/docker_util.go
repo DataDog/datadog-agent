@@ -204,6 +204,7 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 			sp := strings.SplitN(r.RepoDigests[0], "@", 2)
 			d.imageNameBySha[image] = sp[0]
 		} else {
+			log.Debugf("No information in image/inspect to resolve: %s", image)
 			d.imageNameBySha[image] = image
 		}
 	}

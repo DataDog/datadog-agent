@@ -7,6 +7,7 @@ if ohai["platform"] != "windows"
   dependency "ncurses"
   dependency "zlib"
   dependency "openssl"
+  dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
@@ -18,7 +19,8 @@ if ohai["platform"] != "windows"
   relative_path "Python-#{version}"
 
   python_configure = ["./configure",
-                      "--prefix=#{install_dir}/embedded"]
+                      "--prefix=#{install_dir}/embedded",
+                      "--with-ssl=#{install_dir}/embedded"]
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",
@@ -43,6 +45,8 @@ if ohai["platform"] != "windows"
             {
               "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe",
               "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+              "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
+              "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
             }
           end
     command python_configure.join(" "), :env => env

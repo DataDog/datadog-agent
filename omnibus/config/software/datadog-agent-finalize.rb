@@ -97,6 +97,11 @@ build do
             move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
 
+            # Move SELinux policy
+            if debian? || redhat?
+              move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
+            end
+
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "/etc/datadog-agent/checks.d"
@@ -177,12 +182,18 @@ build do
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
 
+            if ENV['HARDENED_RUNTIME_MAC'] == 'true'
+                hardened_runtime = '-o runtime '
+            else 
+                hardened_runtime = ''
+            end
+
             if code_signing_identity
                 # Codesign everything
-                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs codesign --force --timestamp --deep -s '#{code_signing_identity}'"
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s '#{code_signing_identity}'"
-                command "find #{install_dir}/bin -perm +111 -type f | xargs codesign --force --timestamp  --deep -s '#{code_signing_identity}'"
-                command "codesign --force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
+                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'"
+                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs codesign #{hardened_runtime}--force --timestamp  --deep -s '#{code_signing_identity}'"
+                command "find #{install_dir}/bin -perm +111 -type f | xargs codesign #{hardened_runtime}--force --timestamp  --deep -s '#{code_signing_identity}'"
+                command "codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
             end
         end
     end

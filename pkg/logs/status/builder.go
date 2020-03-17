@@ -74,12 +74,25 @@ func (b *Builder) formatEndpoint(endpoint config.Endpoint, prefix string) string
 	if endpoint.UseCompression {
 		compression = "compressed"
 	}
+
+	host := endpoint.Host
+	port := endpoint.Port
+
 	var protocol string
 	if b.endpoints.UseHTTP {
 		if endpoint.UseSSL {
 			protocol = "HTTPS"
+			if port == 0 {
+				port = 443 // use default port
+			}
 		} else {
 			protocol = "HTTP"
+			// this case technically can't happens. In order to
+			// disable SSL, user have to use a custom URL and
+			// specify the port manually.
+			if port == 0 {
+				port = 80 // use default port
+			}
 		}
 	} else {
 		if endpoint.UseSSL {
@@ -88,8 +101,6 @@ func (b *Builder) formatEndpoint(endpoint config.Endpoint, prefix string) string
 			protocol = "TCP"
 		}
 	}
-	host := endpoint.Host
-	port := endpoint.Port
 	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
 }
 

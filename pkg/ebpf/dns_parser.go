@@ -4,7 +4,6 @@ package ebpf
 
 import (
 	"bytes"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -13,7 +12,10 @@ import (
 
 const maxIPBufferSize = 200
 
-var errDNSParsing = errors.New("error parsing DNS payload")
+var (
+	errTruncated   = errors.New("the packet is truncated")
+	skippedPayload = errors.New("the packet does not contain relevant DNS response")
+)
 
 type dnsParser struct {
 	decoder *gopacket.DecodingLayerParser
@@ -29,6 +31,7 @@ func newDNSParser() *dnsParser {
 		&layers.IPv4{},
 		&layers.IPv6{},
 		&layers.UDP{},
+		&tcpWithDNSSupport{},
 		payload,
 	}
 
@@ -40,8 +43,13 @@ func newDNSParser() *dnsParser {
 
 func (p *dnsParser) ParseInto(data []byte, t *translation) error {
 	err := p.decoder.DecodeLayers(data, &p.layers)
-	if err != nil || p.decoder.Truncated {
-		return nil
+
+	if p.decoder.Truncated {
+		return errTruncated
+	}
+
+	if err != nil {
+		return err
 	}
 
 	for _, layer := range p.layers {
@@ -50,18 +58,18 @@ func (p *dnsParser) ParseInto(data []byte, t *translation) error {
 		}
 	}
 
-	return nil
+	return skippedPayload
 }
 
 // source: https://github.com/weaveworks/scope
 func (p *dnsParser) parseAnswerInto(dns *layers.DNS, t *translation) error {
 	// Only consider responses to singleton, A-record questions
 	if !dns.QR || dns.ResponseCode != 0 || len(dns.Questions) != 1 {
-		return errDNSParsing
+		return skippedPayload
 	}
 	question := dns.Questions[0]
 	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
-		return errDNSParsing
+		return skippedPayload
 	}
 
 	var alias []byte

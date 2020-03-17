@@ -1,3 +1,5 @@
+// +build linux
+
 package net
 
 import (
@@ -15,8 +17,8 @@ type UDSListener struct {
 	socketPath string
 }
 
-// NewUDSListener returns an idle UDSListener
-func NewUDSListener(cfg *config.AgentConfig) (*UDSListener, error) {
+// NewListener returns an idle UDSListener
+func NewListener(cfg *config.AgentConfig) (*UDSListener, error) {
 	if len(cfg.SystemProbeSocketPath) == 0 {
 		return nil, fmt.Errorf("uds: empty socket path provided")
 	}
