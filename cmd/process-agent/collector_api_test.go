@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+
 	"github.com/DataDog/agent-payload/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -23,22 +25,32 @@ func TestSendMessage(t *testing.T) {
 	defer ep.stop()
 
 	cfg := config.NewDefaultAgentConfig(false)
-	cfg.APIEndpoints = []config.APIEndpoint{{APIKey: "apiKey", Endpoint: addr}}
+	cfg.APIEndpoints = []api.Endpoint{{APIKey: "apiKey", Endpoint: addr}}
 	cfg.HostName = "test-host"
+
+	exit := make(chan bool)
 
 	c, err := NewCollector(cfg)
 	require.NoError(t, err)
+
+	go c.run(exit)
+	defer func() { close(exit) }()
 
 	m := &process.CollectorConnections{
 		HostName: cfg.HostName,
 		GroupId:  1,
 	}
-	c.postMessage("/api/v1/collector", "connections", m)
+
+	c.send <- checkPayload{
+		endpoint: "/api/v1/collector",
+		name:     "connections",
+		messages: []process.MessageBody{m},
+	}
 
 	req := <-ep.Requests
 
-	assert.Equal(t, cfg.HostName, req.headers.Get("X-Dd-Hostname"))
-	assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("X-Dd-Apikey"))
+	assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
+	assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get(api.APIKeyHeader))
 
 	reqBody, err := process.DecodeMessage(req.body)
 	require.NoError(t, err)
@@ -56,11 +68,16 @@ func TestSendContainerMessage(t *testing.T) {
 	defer ep.stop()
 
 	cfg := config.NewDefaultAgentConfig(false)
-	cfg.APIEndpoints = []config.APIEndpoint{{APIKey: "apiKey", Endpoint: addr}}
+	cfg.APIEndpoints = []api.Endpoint{{APIKey: "apiKey", Endpoint: addr}}
 	cfg.HostName = "test-host"
+
+	exit := make(chan bool)
 
 	c, err := NewCollector(cfg)
 	require.NoError(t, err)
+
+	go c.run(exit)
+	defer func() { close(exit) }()
 
 	m := &process.CollectorContainer{
 		HostName: cfg.HostName,
@@ -69,13 +86,18 @@ func TestSendContainerMessage(t *testing.T) {
 			{Id: "1", Name: "foo"},
 		},
 	}
-	c.postMessage("/api/v1/collector", "container", m)
+
+	c.send <- checkPayload{
+		endpoint: "/api/v1/collector",
+		name:     "container",
+		messages: []process.MessageBody{m},
+	}
 
 	req := <-ep.Requests
 
-	assert.Equal(t, cfg.HostName, req.headers.Get("X-Dd-Hostname"))
-	assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("X-Dd-Apikey"))
-	assert.Equal(t, "1", req.headers.Get("X-Dd-Containercount"))
+	assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
+	assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get(api.APIKeyHeader))
+	assert.Equal(t, "1", req.headers.Get(api.ContainerCountHeader))
 
 	reqBody, err := process.DecodeMessage(req.body)
 	require.NoError(t, err)
