@@ -122,7 +122,7 @@ var ExpectedD1 = DesiredLRP{
 	AppGUID:            "012345678901234567890123456789012345",
 	EnvAD:              ADConfig{"xxx": {}},
 	EnvVcapServices:    map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
-	EnvVcapApplication: map[string]interface{}{"application_name": "name_of_the_app"},
+	EnvVcapApplication: map[string]string{"application_name": "name_of_the_app"},
 	ProcessGUID:        "0123456789012345678901234567890123456789",
 }
 

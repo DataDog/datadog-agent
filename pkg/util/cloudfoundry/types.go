@@ -25,6 +25,12 @@ const (
 	EnvVcapApplicationName = "VCAP_APPLICATION"
 	// ActualLrpStateRunning is the value for the running state o LRP
 	ActualLrpStateRunning = "RUNNING"
+	// ApplicationNameKey is the name of the key containing the app name in the env var VCAP_APPLICATION
+	ApplicationNameKey = "application_name"
+)
+
+var (
+	envVcapApplicationKeys = []string{ApplicationNameKey}
 )
 
 // ADConfig represents the structure of ADConfig in AD_DATADOGHQ_COM environment variable
@@ -87,7 +93,7 @@ type DesiredLRP struct {
 	AppGUID            string
 	EnvAD              ADConfig
 	EnvVcapServices    map[string][]byte
-	EnvVcapApplication map[string]interface{}
+	EnvVcapApplication map[string]string
 	ProcessGUID        string
 }
 
@@ -114,7 +120,7 @@ func ActualLRPFromBBSModel(bbsLRP *models.ActualLRP) ActualLRP {
 func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 	envAD := ADConfig{}
 	envVS := map[string][]byte{}
-	envVA := map[string]interface{}{}
+	envVA := map[string]string{}
 	actionEnvs := [][]*models.EnvironmentVariable{}
 	appGUID := appGUIDFromProcessGUID(bbsLRP.ProcessGuid)
 	// Actions are a nested structure, e.g parallel action might contain two serial actions etc
@@ -220,18 +226,32 @@ func getVcapServicesMap(vcap, appGUID string) (map[string][]byte, error) {
 	return ret, nil
 }
 
-func getVcapApplicationMap(vcap string) (map[string]interface{}, error) {
+func getVcapApplicationMap(vcap string) (map[string]string, error) {
 	// VCAP_APPLICATION describes the application
 	// e.g. {"application_id": "...", "application_name": "...", ...
 	var vcMap map[string]interface{}
+	var res = make(map[string]string)
 	if vcap == "" {
-		return vcMap, nil
+		return res, nil
 	}
 
 	err := json.Unmarshal([]byte(vcap), &vcMap)
 	if err != nil {
-		return vcMap, err
+		return res, err
 	}
 
-	return vcMap, nil
+	// Keep only needed keys
+	for _, key := range envVcapApplicationKeys {
+		val, ok := vcMap[key]
+		if !ok {
+			return res, fmt.Errorf("could not find key %s in VCAP_APPLICATION env var", key)
+		}
+		valString, ok := val.(string)
+		if !ok {
+			return res, fmt.Errorf("could not parse the value of %s as a string", key)
+		}
+		res[key] = valString
+	}
+
+	return res, nil
 }

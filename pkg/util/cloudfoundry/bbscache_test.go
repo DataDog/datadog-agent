@@ -62,7 +62,7 @@ func TestBBSCache_GetActualLRPsForCell(t *testing.T) {
 	assert.EqualValues(t, []*ActualLRP{&ExpectedA2}, alrp)
 }
 
-func TestBBSCache_ExtractTags(t *testing.T) {
+func TestBBSCache_GetTagsForNode(t *testing.T) {
 	expectedTags := map[string][]string{
 		"0123456789012345678": {
 			"container_name:name_of_the_app_4",
@@ -72,7 +72,9 @@ func TestBBSCache_ExtractTags(t *testing.T) {
 			"app_instance_guid:0123456789012345678",
 		},
 	}
-	assert.Equal(t, expectedTags, c.ExtractTags("cell123"))
+	tags, err := c.GetTagsForNode("cell123")
+	assert.Nil(t, err)
+	assert.Equal(t, expectedTags, tags)
 	expectedTags = map[string][]string{
 		"0123456789012345679": {
 			"container_name:name_of_the_app_3",
@@ -82,7 +84,9 @@ func TestBBSCache_ExtractTags(t *testing.T) {
 			"app_instance_guid:0123456789012345679",
 		},
 	}
-	assert.Equal(t, expectedTags, c.ExtractTags("cell1234"))
+	tags, err = c.GetTagsForNode("cell1234")
+	assert.Nil(t, err)
+	assert.Equal(t, expectedTags, tags)
 }
 
 func TestBBSCache_GetActualLRPsForApp(t *testing.T) {

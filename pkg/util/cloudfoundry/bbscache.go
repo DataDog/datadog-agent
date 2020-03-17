@@ -30,7 +30,7 @@ type BBSCacheI interface {
 	GetActualLRPsForCell(cellID string) ([]*ActualLRP, error)
 	GetDesiredLRPFor(appGUID string) (DesiredLRP, error)
 	GetAllLRPs() (map[string][]*ActualLRP, map[string]*DesiredLRP)
-	ExtractTags(nodename string) map[string][]string
+	GetTagsForNode(nodename string) (map[string][]string, error)
 }
 
 // BBSCache is a simple structure that caches and automatically refreshes data from Cloud Foundry BBS API
@@ -47,6 +47,7 @@ type BBSCache struct {
 	actualLRPsByAppGUID map[string][]*ActualLRP
 	actualLRPsByCellID  map[string][]*ActualLRP
 	desiredLRPs         map[string]*DesiredLRP
+	tagsByCellID        map[string]map[string][]string
 	lastUpdated         time.Time
 }
 
@@ -143,7 +144,7 @@ func (bc *BBSCache) GetActualLRPsForCell(cellID string) ([]*ActualLRP, error) {
 	if val, ok := bc.actualLRPsByCellID[cellID]; ok {
 		return val, nil
 	}
-	return []*ActualLRP{}, fmt.Errorf("actual LRPs for app %s not found", cellID)
+	return []*ActualLRP{}, fmt.Errorf("actual LRPs for cell %s not found", cellID)
 }
 
 // GetDesiredLRPFor returns DesiredLRP for a specific app GUID
@@ -161,6 +162,16 @@ func (bc *BBSCache) GetAllLRPs() (map[string][]*ActualLRP, map[string]*DesiredLR
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.actualLRPsByAppGUID, bc.desiredLRPs
+}
+
+// GetTagsForNode returns tags for all container running on specified node
+func (bc *BBSCache) GetTagsForNode(nodename string) (map[string][]string, error) {
+	bc.RLock()
+	defer bc.RUnlock()
+	if tags, ok := bc.tagsByCellID[nodename]; ok {
+		return tags, nil
+	}
+	return map[string][]string{}, fmt.Errorf("could not find tags for node %s", nodename)
 }
 
 func (bc *BBSCache) start() {
@@ -215,6 +226,11 @@ func (bc *BBSCache) readData() {
 	bc.actualLRPsByAppGUID = actualLRPsByAppGUID
 	bc.actualLRPsByCellID = actualLRPsByCellID
 	bc.desiredLRPs = desiredLRPs
+	tagsByCellID := map[string]map[string][]string{}
+	for cellID, alrps := range actualLRPsByCellID {
+		tagsByCellID[cellID] = bc.extractNodeTags(alrps, desiredLRPs)
+	}
+	bc.tagsByCellID = tagsByCellID
 	bc.lastUpdated = time.Now()
 	bc.pollSuccesses++
 }
@@ -230,18 +246,13 @@ func (bc *BBSCache) readActualLRPs() (map[string][]*ActualLRP, map[string][]*Act
 		alrp := ActualLRPFromBBSModel(lrp)
 		if _, ok := actualLRPsByAppGUID[alrp.AppGUID]; ok {
 			actualLRPsByAppGUID[alrp.AppGUID] = append(actualLRPsByAppGUID[alrp.AppGUID], &alrp)
-			if _, ok := actualLRPsByCellID[alrp.CellID]; ok {
-				actualLRPsByCellID[alrp.CellID] = append(actualLRPsByCellID[alrp.CellID], &alrp)
-			} else {
-				actualLRPsByCellID[alrp.CellID] = []*ActualLRP{&alrp}
-			}
 		} else {
 			actualLRPsByAppGUID[alrp.AppGUID] = []*ActualLRP{&alrp}
-			if _, ok := actualLRPsByCellID[alrp.CellID]; ok {
-				actualLRPsByCellID[alrp.CellID] = append(actualLRPsByCellID[alrp.CellID], &alrp)
-			} else {
-				actualLRPsByCellID[alrp.CellID] = []*ActualLRP{&alrp}
-			}
+		}
+		if _, ok := actualLRPsByCellID[alrp.CellID]; ok {
+			actualLRPsByCellID[alrp.CellID] = append(actualLRPsByCellID[alrp.CellID], &alrp)
+		} else {
+			actualLRPsByCellID[alrp.CellID] = []*ActualLRP{&alrp}
 		}
 	}
 	log.Debugf("Successfully read %d Actual LRPs", len(actualLRPsBBS))
@@ -262,32 +273,28 @@ func (bc *BBSCache) readDesiredLRPs() (map[string]*DesiredLRP, error) {
 	return desiredLRPs, nil
 }
 
-// ExtractTags extract all the container tags for each app in the cache running on the specified node
+// extractNodeTags extract all the container tags for each app in nodeActualLRPs
 // and returns a mapping of tags by instance GUID
-func (bc *BBSCache) ExtractTags(nodename string) map[string][]string {
+func (bc *BBSCache) extractNodeTags(nodeActualLRPs []*ActualLRP, desiredLRPsByAppGUID map[string]*DesiredLRP) map[string][]string {
 	tags := map[string][]string{}
-	alrps, err := bc.GetActualLRPsForCell(nodename)
-	if err != nil {
-		log.Debug("Could not find actual LRPs for cell %s", nodename)
-	}
-	for _, alrp := range alrps {
-		dlrp, err := bc.GetDesiredLRPFor(alrp.AppGUID)
-		if err != nil {
-			log.Debugf("Could not find actual LRPs for app GUID %s", alrp.AppGUID)
+	for _, alrp := range nodeActualLRPs {
+		dlrp, ok := desiredLRPsByAppGUID[alrp.AppGUID]
+		if !ok {
+			log.Debugf("Could not find desired LRP for app GUID %s", alrp.AppGUID)
 			continue
 		}
 		vcApp := dlrp.EnvVcapApplication
-		appName, ok := vcApp["application_name"]
+		appName, ok := vcApp[ApplicationNameKey]
 		if !ok {
 			log.Debugf("Could not find application_name of app %s", alrp.AppGUID)
 			continue
 		}
 		tags[alrp.InstanceGUID] = []string{
-			fmt.Sprintf("container_name:%s_%d", appName, alrp.Index),
-			fmt.Sprintf("app_name:%s", appName),
-			fmt.Sprintf("app_guid:%s", alrp.AppGUID),
-			fmt.Sprintf("app_instance_index:%d", alrp.Index),
-			fmt.Sprintf("app_instance_guid:%s", alrp.InstanceGUID),
+			fmt.Sprintf("%s:%s_%d", ContainerNameTagKey, appName, alrp.Index),
+			fmt.Sprintf("%s:%s", AppNameTagKey, appName),
+			fmt.Sprintf("%s:%s", AppGUIDTagKey, alrp.AppGUID),
+			fmt.Sprintf("%s:%d", AppInstanceIndexTagKey, alrp.Index),
+			fmt.Sprintf("%s:%s", AppInstanceGUIDTagKey, alrp.InstanceGUID),
 		}
 	}
 	return tags

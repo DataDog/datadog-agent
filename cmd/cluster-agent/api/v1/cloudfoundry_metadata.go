@@ -27,7 +27,16 @@ func getCFAppsMetadataForNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tags := bbsCache.ExtractTags(nodename)
+	tags, err := bbsCache.GetTagsForNode(nodename)
+	if err != nil {
+		log.Errorf("Error getting tags for node %s: %v", nodename, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc(
+			"getCFAppsMetadataForNode",
+			strconv.Itoa(http.StatusInternalServerError),
+		)
+		return
+	}
 
 	tagsBytes, err := json.Marshal(tags)
 	if err != nil {

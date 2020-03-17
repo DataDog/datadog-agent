@@ -13,6 +13,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
+const (
+	// ContainerNameTagKey tag key for container tags
+	ContainerNameTagKey = "container_name"
+	// AppInstanceGUIDTagKey tag key for container tags
+	AppInstanceGUIDTagKey = "app_instance_guid"
+	// AppNameTagKey tag key for container tags
+	AppNameTagKey = "app_name"
+	// AppInstanceIndexTagKey tag key for container tags
+	AppInstanceIndexTagKey = "app_instance_index"
+	// AppGUIDTagKey tag key for container tags
+	AppGUIDTagKey = "app_guid"
+)
+
 var (
 	globalGardenUtil     *GardenUtil
 	globalGardenUtilLock sync.Mutex

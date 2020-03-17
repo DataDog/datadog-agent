@@ -3,6 +3,7 @@ package collectors
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,8 +22,8 @@ func (c *GardenCollector) extractTags(nodename string) (tagsByInstanceGUID map[s
 		tagsByInstanceGUID = make(map[string][]string, len(gardenContainers))
 		for _, gardenContainer := range gardenContainers {
 			tagsByInstanceGUID[gardenContainer.Handle()] = []string{
-				fmt.Sprintf("container_name:%s", gardenContainer.Handle()),
-				fmt.Sprintf("app_instance_guid:%s", gardenContainer.Handle()),
+				fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, gardenContainer.Handle()),
+				fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, gardenContainer.Handle()),
 			}
 		}
 	}
