@@ -130,6 +130,9 @@ func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerM
 			UsageTotal: float64(stats.CPUStats.CPUUsage.TotalUsage),
 		},
 		Memory: &metrics.ContainerMemStats{
+			// Send private working set as RSS even if it does not exactly match
+			// since most dashboards expect this metric to be present
+			RSS:               stats.MemoryStats.PrivateWorkingSet,
 			PrivateWorkingSet: stats.MemoryStats.PrivateWorkingSet,
 			CommitBytes:       stats.MemoryStats.Commit,
 			CommitPeakBytes:   stats.MemoryStats.CommitPeak,
