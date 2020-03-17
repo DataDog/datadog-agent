@@ -31,6 +31,7 @@ type CloudFoundryListener struct {
 	delService    chan<- Service
 	services      map[string]Service // maps ADIdentifiers to services
 	stop          chan bool
+	refreshCount  int64
 	refreshTicker *time.Ticker
 	bbsCache      cloudfoundry.BBSCacheI
 }
@@ -79,11 +80,18 @@ func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Servi
 	}()
 }
 
+func (l *CloudFoundryListener) GetRefreshCount() int64 {
+	l.RLock()
+	defer l.RUnlock()
+	return l.refreshCount
+}
+
 func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 	log.Debug("Refreshing services via CloudFoundryListener")
 	// make sure that we can't have two simultaneous runs of this function
 	l.Lock()
 	defer l.Unlock()
+	l.refreshCount++
 	allActualLRPs, desiredLRPs := l.bbsCache.GetAllLRPs()
 
 	// if not found and running, add it

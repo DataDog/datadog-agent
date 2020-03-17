@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type bbsCacheFake struct {
@@ -65,6 +66,7 @@ func (b *bbsCacheFake) GetAllLRPs() (map[string][]cloudfoundry.ActualLRP, []clou
 var testBBSCache *bbsCacheFake = &bbsCacheFake{}
 
 func TestCloudFoundryListener(t *testing.T) {
+	var lastRefreshCount int64 = 0
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
 	cfl := CloudFoundryListener{
@@ -389,13 +391,15 @@ func TestCloudFoundryListener(t *testing.T) {
 		testBBSCache.DesiredLRPs = tc.dLRP
 		testBBSCache.Unlock()
 
+		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
+			// wait until at least one listener refresh loop passes
+			return cfl.GetRefreshCount() > lastRefreshCount
+		})
+		lastRefreshCount = cfl.GetRefreshCount()
+
 		// we have to fail now, otherwise we might get blocked trying to read from the channel
-		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
-			return len(tc.expNew) == len(newSvc)
-		})
-		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
-			return len(tc.expDel) == len(delSvc)
-		})
+		require.Equal(t, len(tc.expNew), len(newSvc))
+		require.Equal(t, len(tc.expDel), len(delSvc))
 
 		for range tc.expNew {
 			s := (<-newSvc).(*CloudFoundryService)
