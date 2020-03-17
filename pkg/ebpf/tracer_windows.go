@@ -6,6 +6,7 @@ import (
 	"C"
 	"expvar"
 	"fmt"
+	"golang.org/x/net/ipv4"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -23,7 +24,7 @@ const (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"driver_total_stats", "driver_handle_stats", "packet_count"}
+	expvarTypes     = []string{"driver_stats", "packet_count"}
 )
 
 func init() {
@@ -36,14 +37,14 @@ func init() {
 // Tracer struct for tracking network state and connections
 type Tracer struct {
 	config           *Config
-	driverController *DriverController
+	driverController *DriverInterface
 	bufs             []readBuffer
 	packetCount      int64
 }
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	dc, err := NewDriverController()
+	dc, err := NewDriverInterface()
 	if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller", err)
 	}
@@ -53,7 +54,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		bufs:             make([]readBuffer, totalReadBuffers),
 	}
 
-	// We want tracer to own the buffers, but the DriverController to make the calls to set them up
+	// We want tracer to own the buffers, but the DriverInterface to make the calls to set them up
 	tr.bufs, err = dc.prepareReadBuffers(tr.bufs)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing driver's read buffers")
@@ -100,13 +101,13 @@ func (t *Tracer) initPacketPolling() (err error) {
 		)
 
 		for {
-			err := windows.GetQueuedCompletionStatus(t.iocp, &bytes, &key, &ol, windows.INFINITE)
+			err := windows.GetQueuedCompletionStatus(t.driverController.iocp, &bytes, &key, &ol, windows.INFINITE)
 			if err == nil {
 				var buf *readBuffer
 				buf = (*readBuffer)(unsafe.Pointer(ol))
 				buf.printPacket()
 				atomic.AddInt64(&t.packetCount, 1)
-				windows.ReadFile(t.driverHandle, buf.data[:], nil, &(buf.ol))
+				windows.ReadFile(t.driverController.driverHandle, buf.data[:], nil, &(buf.ol))
 			}
 		}
 	}()
@@ -139,42 +140,20 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	var (
-		bytesReturned uint32
-		statbuf       = make([]byte, C.sizeof_struct_driver_stats)
-	)
 
-	err := windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_GETSTATS, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	packetCount := atomic.LoadInt64(&t.packetCount)
+
+	driverStats, err := t.driverController.getStats()
 	if err != nil {
-		return nil, fmt.Errorf("error reading Stats with DeviceIoControl: %v", err)
+		log.Errorf("not printing driver stats: %v", err)
 	}
 
-	stats := *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
-	packetCount := atomic.LoadInt64(&t.packetCount)
 	return map[string]interface{}{
 		"packet_count": map[string]int64{
 			"count": packetCount,
 		},
-		"driver_total_stats": map[string]int64{
-			"read_calls":             int64(stats.total.read_calls),
-			"read_bytes":             int64(stats.total.read_bytes),
-			"read_calls_outstanding": int64(stats.total.read_calls_outstanding),
-			"read_calls_cancelled":   int64(stats.total.read_calls_cancelled),
-			"read_packets_skipped":   int64(stats.total.read_packets_skipped),
-			"write_calls":            int64(stats.total.write_calls),
-			"write_bytes":            int64(stats.total.write_bytes),
-			"ioctl_calls":            int64(stats.total.ioctl_calls),
-		},
-		"driver_handle_stats": map[string]int64{
-			"read_calls":             int64(stats.handle.read_calls),
-			"read_bytes":             int64(stats.handle.read_bytes),
-			"read_calls_outstanding": int64(stats.handle.read_calls_outstanding),
-			"read_calls_cancelled":   int64(stats.handle.read_calls_cancelled),
-			"read_packets_skipped":   int64(stats.handle.read_packets_skipped),
-			"write_calls":            int64(stats.handle.write_calls),
-			"write_bytes":            int64(stats.handle.write_bytes),
-			"ioctl_calls":            int64(stats.handle.ioctl_calls),
-		},
+		"driver_total_stats":  driverStats["driver_total_stats"],
+		"driver_handle_stats": driverStats["driver_handle_stats"],
 	}, nil
 }
 
@@ -191,4 +170,19 @@ func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 // CurrentKernelVersion is not implemented on this OS for Tracer
 func CurrentKernelVersion() (uint32, error) {
 	return 0, ErrNotImplemented
+}
+
+// readBuffer is the buffer to pass into ReadFile system call to pull out packets
+type readBuffer struct {
+	ol   windows.Overlapped
+	data [128]byte
+}
+
+func (rb *readBuffer) printPacket() {
+	var header ipv4.Header
+	var pheader C.struct_filterPacketHeader
+	dataStart := unsafe.Sizeof(pheader)
+	log.Infof("data start is %d\n", dataStart)
+	header.Parse(rb.data[dataStart:])
+	log.Infof(" %v    ==>>    %v", header.Src.String(), header.Dst.String())
 }

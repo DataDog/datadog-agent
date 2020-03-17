@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/windows"
 )
 
@@ -41,14 +40,16 @@ func makeDDAPIVersionBuffer(signature uint64) []byte {
 	return buf
 }
 
-type DriverController struct {
+// DriverInterface holds all necessary information for interacting with the windows driver
+type DriverInterface struct {
 	driverHandle windows.Handle
 	iocp         windows.Handle
 	path         string
 }
 
-func NewDriverController() (*DriverController, error) {
-	dc := &DriverController{
+// NewDriverInterface returns a DriverInterface struct for interacting with the driver
+func NewDriverInterface() (*DriverInterface, error) {
+	dc := &DriverInterface{
 		path: driverFile,
 	}
 
@@ -77,7 +78,8 @@ func NewDriverController() (*DriverController, error) {
 	return dc, nil
 }
 
-func (dc *DriverController) NewDriverHandle() (windows.Handle, error) {
+// NewDriverHandle creates a new driver handle attached to the windows driver
+func (dc *DriverInterface) NewDriverHandle() (windows.Handle, error) {
 	p, err := windows.UTF16PtrFromString(dc.path)
 	if err != nil {
 		return windows.InvalidHandle, err
@@ -97,14 +99,15 @@ func (dc *DriverController) NewDriverHandle() (windows.Handle, error) {
 	return h, nil
 }
 
-func (dc *DriverController) CloseDriverHandle(handle windows.Handle) error {
+// CloseDriverHandle closes an open handle on the driver
+func (dc *DriverInterface) CloseDriverHandle(handle windows.Handle) error {
 	return windows.CloseHandle(handle)
 }
 
 // Add buffers to Tracer object. Even though the windows API will actually
 // keep the buffers, add it to the tracer so that golang doesn't garbage collect
 // the buffers out from under us
-func (dc *DriverController) prepareReadBuffers(bufs []readBuffer) ([]readBuffer, error) {
+func (dc *DriverInterface) prepareReadBuffers(bufs []readBuffer) ([]readBuffer, error) {
 	for i := 0; i < totalReadBuffers; i++ {
 		err := windows.ReadFile(dc.driverHandle, bufs[i].data[:], nil, &bufs[i].ol)
 		if err != nil {
@@ -120,7 +123,7 @@ func (dc *DriverController) prepareReadBuffers(bufs []readBuffer) ([]readBuffer,
 	return bufs, nil
 }
 
-func (dc *DriverController) prepareDriverFilters() (err error) {
+func (dc *DriverInterface) prepareDriverFilters() (err error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		log.Errorf("Error getting interfaces: %s\n", err.Error())
@@ -167,7 +170,7 @@ func newDDAPIFilter(direction C.uint64_t, ifaceIndex int, isIPV4 bool) (fd C.str
 	return fd
 }
 
-func (dc *DriverController) setFilter(fd C.struct__filterDefinition) (err error) {
+func (dc *DriverInterface) setFilter(fd C.struct__filterDefinition) (err error) {
 	var id int64
 	err = windows.DeviceIoControl(dc.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd)), uint32(unsafe.Sizeof(fd)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
 	if err != nil {
@@ -176,17 +179,38 @@ func (dc *DriverController) setFilter(fd C.struct__filterDefinition) (err error)
 	return
 }
 
-// readBuffer is the buffer to pass into ReadFile system call to pull out packets
-type readBuffer struct {
-	ol   windows.Overlapped
-	data [128]byte
-}
+func (dc *DriverInterface) getStats() (map[string]interface{}, error) {
+	var (
+		bytesReturned uint32
+		statbuf       = make([]byte, C.sizeof_struct_driver_stats)
+	)
 
-func (rb *readBuffer) printPacket() {
-	var header ipv4.Header
-	var pheader C.struct_filterPacketHeader
-	dataStart := unsafe.Sizeof(pheader)
-	log.Infof("data start is %d\n", dataStart)
-	header.Parse(rb.data[dataStart:])
-	log.Infof(" %v    ==>>    %v", header.Src.String(), header.Dst.String())
+	err := windows.DeviceIoControl(dc.driverHandle, C.DDFILTER_IOCTL_GETSTATS, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error reading driver stats with DeviceIoControl: %v", err)
+	}
+
+	stats := *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
+	return map[string]interface{}{
+		"driver_total_stats": map[string]int64{
+			"read_calls":             int64(stats.total.read_calls),
+			"read_bytes":             int64(stats.total.read_bytes),
+			"read_calls_outstanding": int64(stats.total.read_calls_outstanding),
+			"read_calls_cancelled":   int64(stats.total.read_calls_cancelled),
+			"read_packets_skipped":   int64(stats.total.read_packets_skipped),
+			"write_calls":            int64(stats.total.write_calls),
+			"write_bytes":            int64(stats.total.write_bytes),
+			"ioctl_calls":            int64(stats.total.ioctl_calls),
+		},
+		"driver_handle_stats": map[string]int64{
+			"read_calls":             int64(stats.handle.read_calls),
+			"read_bytes":             int64(stats.handle.read_bytes),
+			"read_calls_outstanding": int64(stats.handle.read_calls_outstanding),
+			"read_calls_cancelled":   int64(stats.handle.read_calls_cancelled),
+			"read_packets_skipped":   int64(stats.handle.read_packets_skipped),
+			"write_calls":            int64(stats.handle.write_calls),
+			"write_bytes":            int64(stats.handle.write_bytes),
+			"ioctl_calls":            int64(stats.handle.ioctl_calls),
+		},
+	}, nil
 }
