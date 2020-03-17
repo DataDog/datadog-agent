@@ -44,7 +44,7 @@ func (c *Config) Render() (string, error) {
 	c.Lock()
 	defer c.Unlock()
 	funcMap := template.FuncMap{
-		// This function will be called by the html/template engine that will perform HTML escaping of quotes caracters in the output string
+		// This function will be called by the html/template engine that will perform HTML escaping of quotes characters in the output string
 		"getJSONSyslogFormat": func(name string) string {
 			return `{"agent":"` + strings.ToLower(name) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"}%n`
 		},
