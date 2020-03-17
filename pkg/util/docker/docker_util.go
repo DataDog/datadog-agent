@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -195,9 +196,11 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 
 		// Try RepoTags first and fall back to RepoDigest otherwise.
 		if len(r.RepoTags) > 0 {
+			sort.Strings(r.RepoTags)
 			d.imageNameBySha[image] = r.RepoTags[0]
 		} else if len(r.RepoDigests) > 0 {
 			// Digests formatted like quay.io/foo/bar@sha256:hash
+			sort.Strings(r.RepoDigests)
 			sp := strings.SplitN(r.RepoDigests[0], "@", 2)
 			d.imageNameBySha[image] = sp[0]
 		} else {
@@ -231,34 +234,39 @@ func (d *DockerUtil) ResolveImageNameFromContainer(co types.ContainerJSON) (stri
 			d.imageNameBySha[image] = image
 		}
 
-		// Try RepoTags first and fall back to RepoDigest otherwise.
-		if len(r.RepoTags) == 1 {
-			d.imageNameBySha[image] = r.RepoTags[0]
-		} else if len(r.RepoTags) > 1 {
-			// If one of the RepoTags is the tag used to run the image, then set that
-			// as the image tag. Otherwise, use the first one (random)
-			configImage := co.Config.Image
-			var imageTag string
-			for _, t := range r.RepoTags {
-				if t == configImage {
-					imageTag = t
-					break
-				}
-			}
-			if imageTag != "" {
-				d.imageNameBySha[image] = imageTag
-			} else {
-				d.imageNameBySha[image] = r.RepoTags[0]
-			}
-		} else if len(r.RepoDigests) > 0 {
-			// Digests formatted like quay.io/foo/bar@sha256:hash
-			sp := strings.SplitN(r.RepoDigests[0], "@", 2)
-			d.imageNameBySha[image] = sp[0]
-		} else {
-			d.imageNameBySha[image] = image
+		imageName := getBestImageName(r, co.Config.Image)
+		if imageName != "" {
+			d.imageNameBySha[image] = imageName
 		}
 	}
 	return d.imageNameBySha[image], nil
+}
+
+func getBestImageName(r types.ImageInspect, configImage string) string {
+	var imageName string
+	// Try RepoTags first and fall back to RepoDigest otherwise.
+	if len(r.RepoTags) == 1 {
+		imageName = r.RepoTags[0]
+	} else if len(r.RepoTags) > 1 {
+		// If one of the RepoTags is the tag used to run the image, then set that
+		// as the image tag. Otherwise, use the first one (random)
+		for _, t := range r.RepoTags {
+			if t == configImage {
+				imageName = t
+				break
+			}
+		}
+		if imageName == "" {
+			sort.Strings(r.RepoTags)
+			imageName = r.RepoTags[0]
+		}
+	} else if len(r.RepoDigests) > 0 {
+		// Digests formatted like quay.io/foo/bar@sha256:hash
+		sort.Strings(r.RepoDigests)
+		sp := strings.SplitN(r.RepoDigests[0], "@", 2)
+		imageName = sp[0]
+	}
+	return imageName
 }
 
 // Inspect returns a docker inspect object for a given container ID.
