@@ -9,4 +9,4 @@
 fixes:
   - |
     On Debian and Ubuntu-based systems, remove system-probe SELinux policy
-    to prevent install crashes.
+    to prevent install failures.
