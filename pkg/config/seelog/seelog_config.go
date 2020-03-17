@@ -44,7 +44,10 @@ func (c *Config) Render() (string, error) {
 	c.Lock()
 	defer c.Unlock()
 	funcMap := template.FuncMap{
-		"getJSONSyslogFormat": getJSONSyslogFormat,
+		// This function will be called by the html/template engine that will perform HTML escaping of quotes caracters in the output string
+		"getJSONSyslogFormat": func(name string) string {
+			return `{"agent":"` + strings.ToLower(name) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"}%n`
+		},
 	}
 	tmpl, err := template.New("seelog_config").Funcs(funcMap).Parse(seelogConfigurationTemplate)
 	if err != nil {
@@ -53,10 +56,6 @@ func (c *Config) Render() (string, error) {
 	b := &bytes.Buffer{}
 	err = tmpl.Execute(b, c.settings)
 	return b.String(), err
-}
-
-func getJSONSyslogFormat(name string) string {
-	return `{"agent":"` + strings.ToLower(name) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"}%n`
 }
 
 // EnableConsoleLog sets enable or disable console logging depending on the parameter value
