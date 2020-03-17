@@ -19,8 +19,7 @@ func AssertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, con
 // RequireTrueBeforeTimeout is the same as AssertTrueBeforeTimeout, but it calls
 // t.failNow() if the condition function times out.
 func RequireTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) {
-	result := internalTrueBeforeTimeout(t, true, frequency, timeout, condition)
-	if !result {
+	if !internalTrueBeforeTimeout(t, true, frequency, timeout, condition) {
 		t.FailNow()
 	}
 }
