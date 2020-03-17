@@ -76,6 +76,7 @@ variables:
   DATADOG_AGENT_ARMBUILDIMAGES: v2274709-e2557c3
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2274709-e2557c3
   BCC_VERSION: v0.12.0
+  SYSTEM_PROBE_GO_VERSION: 1.13.8
 
 #
 # Trigger conditions
@@ -567,7 +568,7 @@ run_dogstatsd_arm_size_test:
     - tar -xvf /tmp/libbcc.tar.xz -C /opt/datadog-agent/embedded
 
   script:
-    - CGO_CFLAGS='-I/opt/datadog-agent/embedded/include' CGO_LDFLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib -L/opt/datadog-agent/embedded/lib' inv -e system-probe.build
+    - CGO_CFLAGS='-I/opt/datadog-agent/embedded/include' CGO_LDFLAGS='-Wl,-rpath,/opt/datadog-agent/embedded/lib -L/opt/datadog-agent/embedded/lib' inv -e system-probe.build --go-version=$SYSTEM_PROBE_GO_VERSION
     - inv -e system-probe.test --only-check-bpf-bytes
     - $S3_CP_CMD $SRC_PATH/$SYSTEM_PROBE_BINARIES_DIR/system-probe $S3_ARTIFACTS_URI/system-probe.$ARCH
 
