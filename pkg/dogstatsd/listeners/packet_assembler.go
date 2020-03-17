@@ -15,8 +15,9 @@ const messageSeparator = byte('\n')
 // packetAssembler merges multiple incoming datagrams into one "Packet" object to
 // save space and make number of message in a single "Packet" more predictable
 type packetAssembler struct {
-	packet        *Packet
-	packetLength  int
+	packet       *Packet
+	packetLength int
+	// assembled packets are pushed into this buffer
 	packetsBuffer *packetsBuffer
 	flushTimer    *time.Ticker
 	closeChannel  chan struct{}
