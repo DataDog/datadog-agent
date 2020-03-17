@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -200,6 +201,20 @@ func start(cmd *cobra.Command, args []string) error {
 
 		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
+		}
+		// TODO: move rest of the controllers out of the apiserver package
+		orchestratorCtx := orchestrator.ControllerContext{
+			IsLeaderFunc:                 le.IsLeader,
+			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
+			Client:                       apiCl.Cl,
+			StopCh:                       stopCh,
+			Hostname:                     hostname,
+			ClusterName:                  config.Datadog.GetString("cluster_name"),
+			ConfigPath:                   confPath,
+		}
+		err = orchestrator.StartController(orchestratorCtx)
+		if err != nil {
+			log.Errorf("Could not start orchestrator controller: %v", err)
 		}
 	}
 
