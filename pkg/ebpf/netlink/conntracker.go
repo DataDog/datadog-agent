@@ -19,10 +19,10 @@ import (
 const (
 	initializationTimeout = time.Second * 10
 
-	compactInterval = time.Minute * 3
+	compactInterval = time.Minute
 
-	// generationLength must be greater than compactInterval to ensure we have  multiple compactions per generation
-	generationLength = compactInterval + time.Minute
+	// generationLength must be greater than compactInterval to ensure we have multiple compactions per generation
+	generationLength = compactInterval + 30*time.Second
 
 	// netlink socket buffer size in bytes
 	netlinkBufferSize = 1024 * 1024
