@@ -196,6 +196,7 @@ func (l *Collector) postMessage(checkPath string, checkName string, m model.Mess
 		}, Body: m})
 	if err != nil {
 		log.Errorf("Unable to encode message: %s", err)
+		return
 	}
 
 	containerCount := getContainerCount(m)
