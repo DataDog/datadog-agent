@@ -85,7 +85,6 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 // toAdmissionResponse is a helper function to create an AdmissionResponse
 // with an embedded error
 func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {

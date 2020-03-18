@@ -24,9 +24,9 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admissioncontroller"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admissioncontroller"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"

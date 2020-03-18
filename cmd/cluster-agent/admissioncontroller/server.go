@@ -43,7 +43,7 @@ func StartServer(sc clusteragent.ServerContext) error {
 	port := config.Datadog.GetInt("cluster_agent.admissioncontroller_port")
 	whsvr := &WebhookServer{
 		server: &http.Server{
-			Addr: fmt.Sprintf(":%v", port),
+			Addr:      fmt.Sprintf(":%v", port),
 			TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},
 		},
 	}
