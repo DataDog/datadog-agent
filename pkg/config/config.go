@@ -44,8 +44,8 @@ const (
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
 
-	// ClusterIDCacheKey is the key name for the cluster id in the agent in-mem cache
-	ClusterIDCacheKey = "clusterID"
+	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
+	ClusterIDCacheKey = "orchestratorClusterID"
 )
 
 var overrideVars = make(map[string]interface{})
