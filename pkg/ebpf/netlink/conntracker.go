@@ -13,16 +13,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
+	"github.com/mdlayher/netlink"
 	"github.com/pkg/errors"
 )
 
 const (
 	initializationTimeout = time.Second * 10
 
-	compactInterval = time.Minute * 3
+	compactInterval = time.Minute
 
-	// generationLength must be greater than compactInterval to ensure we have  multiple compactions per generation
-	generationLength = compactInterval + time.Minute
+	// generationLength must be greater than compactInterval to ensure we have multiple compactions per generation
+	generationLength = compactInterval + 30*time.Second
+
+	// netlink socket buffer size in bytes
+	netlinkBufferSize = 1024 * 1024
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -127,6 +131,19 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	nfctDel, err := ct.Open(&ct.Config{ReadTimeout: 10 * time.Millisecond, NetNS: netns, Logger: logger})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open delete NFCT")
+	}
+
+	// Some times the conntrack flushes are larger the socket recv buffer capacity.
+	// This ensures that in case of buffer overrun the `recvmsg` call will *not*
+	// receive an ENOBUF which is currently not handled properly by go-conntrack.
+	// In that case expiration of entries will be handled by enforcing TTLs in the cache.
+	nfctDel.Con.SetOption(netlink.NoENOBUFS, true)
+
+	if err := setSocketBufferSize(netlinkBufferSize, nfctDel.Con); err != nil {
+		log.Errorf("error setting rcv buffer size for delete netlink socket: %s", err)
+	}
+	if size, err := getSocketBufferSize(nfctDel.Con); err == nil {
+		log.Debugf("rcv buffer size for delete netlink socket is %d bytes", size)
 	}
 
 	ctr := &realConntracker{
@@ -343,6 +360,8 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 		log.Debugf("missed register event for: %s", conDebug(c))
 		atomic.AddInt64(&ctr.stats.missedRegisters, 1)
 	}
+
+	log.Tracef("unregistered %s", conDebug(c))
 
 	return 0
 }

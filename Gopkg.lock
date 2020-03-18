@@ -2199,6 +2199,7 @@
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",
     "github.com/lxn/walk",
     "github.com/lxn/win",
+    "github.com/mdlayher/netlink",
     "github.com/mholt/archiver",
     "github.com/miekg/dns",
     "github.com/openshift/api/quota/v1",
