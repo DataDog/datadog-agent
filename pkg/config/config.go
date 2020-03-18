@@ -396,6 +396,13 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
 
+	// Cloud Foundry BBS
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.poll_interval", 15)
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
+
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
@@ -625,6 +632,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
+	// command line options
+	config.SetKnown("cmd.check.fullsketches")
+
 	setAssetFs(config)
 }
 
@@ -779,7 +789,6 @@ func load(config Config, origin string, loadSecret bool) error {
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
-	trimTrailingSlashFromURLS(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -824,47 +833,6 @@ func ResolveSecrets(config Config, origin string) error {
 // Avoid log ingestion breaking because of a newline in the API key
 func sanitizeAPIKey(config Config) {
 	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
-}
-
-//trimTrailingSlashFromURLS trims any forward slashes from the end of various config URL's (site, dd_url, and various additional endpoints)
-func trimTrailingSlashFromURLS(config Config) error {
-	var urls = []string{
-		"site",
-		"dd_url",
-	}
-	var additionalEndpointSelectors = []string{
-		"additional_endpoints",
-		"apm_config.additional_endpoints",
-		"process_config.additional_endpoints",
-	}
-
-	for _, domain := range urls {
-		key := config.GetString(domain)
-		if key == "" {
-			continue
-		}
-		config.Set(domain, strings.TrimRight(key, "/"))
-	}
-
-	for _, es := range additionalEndpointSelectors {
-		additionalEndpoints := make(map[string][]string)
-		sanitizedAdditionalEndpoints := make(map[string][]string)
-
-		err := config.UnmarshalKey(es, &additionalEndpoints)
-
-		if err != nil {
-			return err
-		}
-		for domain, keys := range additionalEndpoints {
-			if domain == "" {
-				continue
-			}
-			domain = strings.TrimRight(domain, "/")
-			sanitizedAdditionalEndpoints[domain] = keys
-		}
-		config.Set(es, sanitizedAdditionalEndpoints)
-	}
-	return nil
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`

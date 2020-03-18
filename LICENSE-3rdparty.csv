@@ -158,6 +158,14 @@ core,github.com/tinylib/msgp,MIT
 core,sigs.k8s.io/structured-merge-diff,Apache-2.0
 core,sigs.k8s.io/controller-runtime,Apache-2.0
 core,github.com/grpc-ecosystem/go-grpc-prometheus,Apache-2.0
+core,github.com/vito/go-sse,Apache-2.0
+core,code.cloudfoundry.org/cfhttp,Apache-2.0
+core,github.com/bhmj/jsonslice,MIT
+core,code.cloudfoundry.org/lager,Apache-2.0
+core,code.cloudfoundry.org/bbs,Apache-2.0
+core,github.com/tedsuo/rata,MIT
+core,github.com/bmizerany/pat,MIT
+core,code.cloudfoundry.org/tlsconfig,Apache-2.0
 process,github.com/DataDog/gopsutil,BSD-3-Clause
 network,github.com/iovisor/gobpf,Apache-2.0
 network,github.com/florianl/go-conntrack,MIT

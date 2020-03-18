@@ -259,7 +259,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointEmpty() {
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmpty() {
 	mockConfig.Set("cluster_agent.auth_token", "")
 
-	_, err := security.GetClusterAgentAuthToken()
+	_, err := security.CreateOrGetClusterAgentAuthToken()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
