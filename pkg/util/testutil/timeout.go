@@ -14,19 +14,19 @@ import (
 // is deadlocked.
 func AssertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) {
 	t.Helper()
-	internalTrueBeforeTimeout(t, frequency, timeout, condition)
+	assertTrueBeforeTimeout(t, frequency, timeout, condition)
 }
 
 // RequireTrueBeforeTimeout is the same as AssertTrueBeforeTimeout, but it calls
 // t.failNow() if the condition function times out.
 func RequireTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) {
 	t.Helper()
-	if !internalTrueBeforeTimeout(t, frequency, timeout, condition) {
+	if !assertTrueBeforeTimeout(t, frequency, timeout, condition) {
 		t.FailNow()
 	}
 }
 
-func internalTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) bool {
+func assertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	r := make(chan bool, 1)
