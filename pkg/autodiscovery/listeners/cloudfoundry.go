@@ -10,6 +10,7 @@ package listeners
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -80,18 +81,12 @@ func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Servi
 	}()
 }
 
-func (l *CloudFoundryListener) GetRefreshCount() int64 {
-	l.RLock()
-	defer l.RUnlock()
-	return l.refreshCount
-}
-
 func (l *CloudFoundryListener) refreshServices(firstRun bool) {
 	log.Debug("Refreshing services via CloudFoundryListener")
 	// make sure that we can't have two simultaneous runs of this function
 	l.Lock()
 	defer l.Unlock()
-	l.refreshCount++
+	atomic.AddInt64(&l.refreshCount, 1)
 	allActualLRPs, desiredLRPs := l.bbsCache.GetAllLRPs()
 
 	// if not found and running, add it
