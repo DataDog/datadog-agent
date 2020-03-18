@@ -57,6 +57,10 @@ typedef struct _stats
 
     volatile LONG		ioctl_calls;	//! number of ioctl calls to the driver
     volatile LONG       padding;        // only necessary with an odd number of stats.
+    volatile LONG       packets_processed; // number of packets through the driver
+    volatile LONG       packets_queued;     // number of packets transferred to the internal queue
+    volatile LONG       packets_reported; // number of packets sent up
+    volatile LONG       packets_pended;     // packets that had to be queued rather than send directly
 
 } STATS;
 
@@ -131,10 +135,8 @@ typedef struct filterPacketHeader
     uint64_t		sz;		                //! size of packet header, including this field
     uint64_t        skippedSinceLast;
     uint64_t        filterId;
-    uint64_t		direction;              //! direction of packet
     uint64_t		pktSize;                //! size of packet
-    uint64_t		af;		                //! address family of packet
-    uint64_t        ownerPid;
+    uint64_t        numPackets;             //! number of packets in buffer
 
     // data follows
 } PACKET_HEADER, *PPACKET_HEADER;

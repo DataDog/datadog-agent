@@ -2,8 +2,11 @@
 
 package ebpf
 
+/*
+#include "c/ddfilterapi.h"
+*/
+import "C"
 import (
-	"C"
 	"expvar"
 	"fmt"
 	"golang.org/x/net/ipv4"
@@ -24,7 +27,7 @@ const (
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"driver_stats", "packet_count"}
+	expvarTypes     = []string{"driver_total_stats", "driver_handle_stats", "packet_count"}
 )
 
 func init() {
@@ -105,8 +108,8 @@ func (t *Tracer) initPacketPolling() (err error) {
 			if err == nil {
 				var buf *readBuffer
 				buf = (*readBuffer)(unsafe.Pointer(ol))
-				buf.printPacket()
-				atomic.AddInt64(&t.packetCount, 1)
+				numPackets := printPacket(*buf, bytes)
+				atomic.AddInt64(&t.packetCount, numPackets)
 				windows.ReadFile(t.driverController.driverHandle, buf.data[:], nil, &(buf.ol))
 			}
 		}
@@ -140,9 +143,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-
 	packetCount := atomic.LoadInt64(&t.packetCount)
-
 	driverStats, err := t.driverController.getStats()
 	if err != nil {
 		log.Errorf("not printing driver stats: %v", err)
@@ -178,11 +179,19 @@ type readBuffer struct {
 	data [128]byte
 }
 
-func (rb *readBuffer) printPacket() {
+func printPacket(buf readBuffer, bytes uint32) int64 {
 	var header ipv4.Header
-	var pheader C.struct_filterPacketHeader
-	dataStart := unsafe.Sizeof(pheader)
-	log.Infof("data start is %d\n", dataStart)
-	header.Parse(rb.data[dataStart:])
-	log.Infof(" %v    ==>>    %v", header.Src.String(), header.Dst.String())
+	var packet_header C.struct_filterPacketHeader
+
+	dataStart := uint32(unsafe.Sizeof(packet_header))
+	pheader := *(*C.struct_filterPacketHeader)(unsafe.Pointer(&(buf.data[0])))
+
+	log.Debugf("Contains %v packets \n", pheader.numPackets)
+
+	for i := uint64(0); i < uint64(pheader.numPackets) && dataStart < bytes; i++ {
+		header.Parse(buf.data[dataStart:])
+		dataStart += 128
+	}
+	return int64(pheader.numPackets)
+
 }

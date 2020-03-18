@@ -200,7 +200,10 @@ func (dc *DriverInterface) getStats() (map[string]interface{}, error) {
 			"read_packets_skipped":   int64(stats.total.read_packets_skipped),
 			"write_calls":            int64(stats.total.write_calls),
 			"write_bytes":            int64(stats.total.write_bytes),
-			"ioctl_calls":            int64(stats.total.ioctl_calls),
+			"packets_processed":      int64(stats.total.packets_processed),
+			"packets_queued":         int64(stats.total.packets_queued),
+			"packets_reported":       int64(stats.total.packets_reported),
+			"packets_pended":         int64(stats.total.packets_pended),
 		},
 		"driver_handle_stats": map[string]int64{
 			"read_calls":             int64(stats.handle.read_calls),
@@ -211,6 +214,10 @@ func (dc *DriverInterface) getStats() (map[string]interface{}, error) {
 			"write_calls":            int64(stats.handle.write_calls),
 			"write_bytes":            int64(stats.handle.write_bytes),
 			"ioctl_calls":            int64(stats.handle.ioctl_calls),
+			"packets_processed":      int64(stats.handle.packets_processed),
+			"packets_queued":         int64(stats.handle.packets_queued),
+			"packets_reported":       int64(stats.handle.packets_reported),
+			"packets_pended":         int64(stats.handle.packets_pended),
 		},
 	}, nil
 }
