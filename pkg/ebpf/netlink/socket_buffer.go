@@ -5,7 +5,6 @@ package netlink
 import (
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mdlayher/netlink"
 )
 
@@ -13,35 +12,48 @@ import (
 // We use this custom function as oposed to netlink.Conn.SetReadBuffer because you can only
 // set a value higher than /proc/sys/net/core/rmem_default (which is around 200kb for most systems)
 // if you use SO_RCVBUFFORCE with CAP_NET_ADMIN (https://linux.die.net/man/7/socket).
-func setSocketBufferSize(sizeInBytes int, c *netlink.Conn) {
+func setSocketBufferSize(sizeInBytes int, c *netlink.Conn) error {
 	rawConn, err := c.SyscallConn()
 	if err != nil {
-		log.Warnf("error obtaining raw_conn %s", err)
-		return
+		return err
 	}
 
+	var syscallErr error
 	ctrlErr := rawConn.Control(func(fd uintptr) {
-		err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUFFORCE, sizeInBytes)
-		if err != nil {
-			log.Warnf("error executing setsockopt: %s", err)
-		}
+		syscallErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUFFORCE, sizeInBytes)
 	})
 
 	if ctrlErr != nil {
-		log.Warnf("error executing executing socket operation: %s", ctrlErr)
+		return ctrlErr
+	}
+	if syscallErr != nil {
+		return syscallErr
 	}
 
-	ctrlErr = rawConn.Control(func(fd uintptr) {
-		value, err := syscall.GetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF)
-		if err != nil {
-			log.Warnf("error executing getsockopt: %s", err)
-			return
-		}
+	return nil
+}
 
-		log.Infof("netlink socket rcvbuf size is %d bytes", value)
+// getSocketBufferSize in bytes (rcvbuf)
+func getSocketBufferSize(c *netlink.Conn) (int, error) {
+	rawConn, err := c.SyscallConn()
+	if err != nil {
+		return 0, err
+	}
+
+	var (
+		syscallErr error
+		bufferSize int
+	)
+	ctrlErr := rawConn.Control(func(fd uintptr) {
+		bufferSize, syscallErr = syscall.GetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF)
 	})
 
 	if ctrlErr != nil {
-		log.Warnf("error executing executing socket operation: %s", ctrlErr)
+		return 0, ctrlErr
 	}
+	if syscallErr != nil {
+		return 0, syscallErr
+	}
+
+	return bufferSize, nil
 }

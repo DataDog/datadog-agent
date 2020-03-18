@@ -131,7 +131,12 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open delete NFCT")
 	}
-	setSocketBufferSize(netlinkBufferSize, nfctDel.Con)
+	if err := setSocketBufferSize(netlinkBufferSize, nfctDel.Con); err != nil {
+		log.Errorf("error setting rcv buffer size for delete netlink socket: %s", err)
+	}
+	if size, err := getSocketBufferSize(nfctDel.Con); err == nil {
+		log.Debugf("rcv buffer size for delete netlink socket is %d bytes", size)
+	}
 
 	ctr := &realConntracker{
 		nfct:                 nfct,
