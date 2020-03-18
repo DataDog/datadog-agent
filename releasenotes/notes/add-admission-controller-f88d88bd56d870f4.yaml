@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Create server endpoint in cluster agent kubernetes admission controller
