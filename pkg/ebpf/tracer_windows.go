@@ -37,6 +37,12 @@ func init() {
 	}
 }
 
+// readBuffer is the buffer to pass into ReadFile system call to pull out packets
+type readBuffer struct {
+	ol   windows.Overlapped
+	data [128]byte
+}
+
 // Tracer struct for tracking network state and connections
 type Tracer struct {
 	config           *Config
@@ -171,12 +177,6 @@ func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
 // CurrentKernelVersion is not implemented on this OS for Tracer
 func CurrentKernelVersion() (uint32, error) {
 	return 0, ErrNotImplemented
-}
-
-// readBuffer is the buffer to pass into ReadFile system call to pull out packets
-type readBuffer struct {
-	ol   windows.Overlapped
-	data [128]byte
 }
 
 func printPacket(buf readBuffer, bytes uint32) int64 {
