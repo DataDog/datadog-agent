@@ -177,7 +177,6 @@ func StopDefaultAggregator() {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	metricPool             *metrics.MetricSamplePool
 	bufferedMetricIn       chan []metrics.MetricSample
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
 	bufferedEventIn        chan []*metrics.Event

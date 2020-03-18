@@ -5,6 +5,8 @@ import (
 )
 
 var (
+	// GlobalMetricSamplePool is a pool of slices of metric sample to avoid allocations.
+	// Used by the Dogstatsd Batcher.
 	GlobalMetricSamplePool = NewMetricSamplePool(32)
 )
 
