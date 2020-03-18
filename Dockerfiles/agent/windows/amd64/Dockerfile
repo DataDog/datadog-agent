@@ -21,4 +21,4 @@ COPY datadog*.yaml C:/ProgramData/Datadog/
 
 ENTRYPOINT ["pwsh", "./entrypoint.ps1"]
 
-CMD ["run"]
+CMD ["C:/Program Files/Datadog/Datadog Agent/bin/agent.exe", "run"]

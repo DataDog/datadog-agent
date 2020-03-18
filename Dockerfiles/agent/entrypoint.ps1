@@ -6,4 +6,6 @@ Get-ChildItem 'entrypoint-ps1' | ForEach-Object {
 	}
 }
 
-return & "C:/Program Files/Datadog/Datadog Agent/bin/agent.exe" $args
+$agent = $args[0]
+$agentArgs = $args | Select-Object -Skip 1
+return & $agent $agentArgs
