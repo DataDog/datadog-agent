@@ -181,9 +181,9 @@ type readBuffer struct {
 
 func printPacket(buf readBuffer, bytes uint32) int64 {
 	var header ipv4.Header
-	var packet_header C.struct_filterPacketHeader
+	var packetHeader C.struct_filterPacketHeader
 
-	dataStart := uint32(unsafe.Sizeof(packet_header))
+	dataStart := uint32(unsafe.Sizeof(packetHeader))
 	pheader := *(*C.struct_filterPacketHeader)(unsafe.Pointer(&(buf.data[0])))
 
 	log.Debugf("Contains %v packets \n", pheader.numPackets)
