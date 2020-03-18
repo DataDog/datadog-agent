@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
+	"github.com/mdlayher/netlink"
 	"github.com/pkg/errors"
 )
 
@@ -131,6 +132,13 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open delete NFCT")
 	}
+
+	// Some times the conntrack flushes are larger the socket recv buffer capacity.
+	// This ensures that in case of buffer overrun the `recvmsg` call will *not*
+	// receive an ENOBUF which is currently not handled properly by go-conntrack.
+	// In that case expiration of entries will be handled by enforcing TTLs in the cache.
+	nfctDel.Con.SetOption(netlink.NoENOBUFS, true)
+
 	if err := setSocketBufferSize(netlinkBufferSize, nfctDel.Con); err != nil {
 		log.Errorf("error setting rcv buffer size for delete netlink socket: %s", err)
 	}
