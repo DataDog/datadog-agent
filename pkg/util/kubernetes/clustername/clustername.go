@@ -126,7 +126,7 @@ func ResetClusterName() {
 }
 
 // GetClusterID looks for an env variable which should contain the cluster ID.
-// This varible should come from a configmap, created by the cluster-agent.
+// This variable should come from a configmap, created by the cluster-agent.
 // This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
 func GetClusterID() (string, error) {
 	cacheClusterIDKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
