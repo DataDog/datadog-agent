@@ -124,11 +124,18 @@ func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerM
 	if err != nil {
 		return nil, err
 	}
+	// 100's of nanoseconds to jiffy
+	kernel := stats.CPUStats.CPUUsage.UsageInKernelmode / 1e5
+	total := stats.CPUStats.CPUUsage.TotalUsage / 1e5
+	user := total - kernel
+	if user < 0 {
+		user = 0
+	}
 	containerMetrics := metrics.ContainerMetrics{
 		CPU: &metrics.ContainerCPUStats{
-			System:     stats.CPUStats.CPUUsage.UsageInKernelmode,
-			User:       stats.CPUStats.CPUUsage.UsageInUsermode,
-			UsageTotal: float64(stats.CPUStats.CPUUsage.TotalUsage),
+			User:       user,
+			System:     kernel,
+			UsageTotal: float64(total),
 		},
 		Memory: &metrics.ContainerMemStats{
 			// Send private working set as RSS even if it does not exactly match
