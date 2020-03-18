@@ -13,7 +13,8 @@ import (
 // getLogger creates a log.Logger which forwards logs to the agent's logging package at DEBUG leve.
 // Returns nil if the agent loggers level is above DEBUG.
 func getLogger() *log.Logger {
-	if level := strings.ToUpper(config.Datadog.GetString("log_level")); level != "DEBUG" {
+	level := strings.ToUpper(config.Datadog.GetString("log_level"))
+	if level != "DEBUG" && level != "TRACE" {
 		return nil
 	}
 
