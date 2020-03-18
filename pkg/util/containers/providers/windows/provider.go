@@ -125,8 +125,8 @@ func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerM
 		return nil, err
 	}
 	// 100's of nanoseconds to jiffy
-	kernel := stats.CPUStats.CPUUsage.UsageInKernelmode / 1e5 / uint64(stats.NumProcs)
-	total := stats.CPUStats.CPUUsage.TotalUsage / 1e5 / uint64(stats.NumProcs)
+	kernel := stats.CPUStats.CPUUsage.UsageInKernelmode / 1e5
+	total := stats.CPUStats.CPUUsage.TotalUsage / 1e5
 	user := total - kernel
 	if user < 0 {
 		user = 0
