@@ -62,8 +62,7 @@ func Validate(w http.ResponseWriter, r *http.Request) error {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
-		err = fmt.Errorf("" +
-			"no session token provided1")
+		err = fmt.Errorf("no session token provided")
 		http.Error(w, err.Error(), 401)
 		return err
 	}
@@ -91,7 +90,7 @@ func ValidateDCARequest(w http.ResponseWriter, r *http.Request) error {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
-		err = fmt.Errorf("no session token provided2")
+		err = fmt.Errorf("no session token provided")
 		http.Error(w, err.Error(), 401)
 		return err
 	}
