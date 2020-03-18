@@ -10,7 +10,6 @@ package listeners
 import (
 	"encoding/json"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -394,9 +393,13 @@ func TestCloudFoundryListener(t *testing.T) {
 
 		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
 			// wait until at least one listener refresh loop passes
-			return atomic.LoadInt64(&cfl.refreshCount) > lastRefreshCount
+			cfl.RLock()
+			defer cfl.RUnlock()
+			return cfl.refreshCount > lastRefreshCount
 		})
-		lastRefreshCount = atomic.LoadInt64(&cfl.refreshCount)
+		cfl.RLock()
+		lastRefreshCount = cfl.refreshCount
+		cfl.RUnlock()
 
 		// we have to fail now, otherwise we might get blocked trying to read from the channel
 		require.Equal(t, len(tc.expNew), len(newSvc))
