@@ -40,15 +40,16 @@ func StartServer(sc clusteragent.ServerContext) error {
 		log.Errorf("Failed to load key pair: %v", err)
 	}
 
+	port := config.Datadog.GetInt("cluster_agent.admissioncontroller_port")
 	whsvr := &WebhookServer{
 		server: &http.Server{
-			Addr:      fmt.Sprintf(":%v",  config.Datadog.GetInt("cluster_agent.admissioncontroller_port")),
+			Addr: fmt.Sprintf(":%v", port),
 			TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},
 		},
 	}
 
 	// define http server and server handler
-	log.Info("Listening on admission controller endpoint")
+	log.Infof("Listening on admission controller endpoint, port %v", port)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mutate", whsvr.serve)
 	mux.HandleFunc("/status", whsvr.status)

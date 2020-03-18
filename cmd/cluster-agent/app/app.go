@@ -234,8 +234,12 @@ func start(cmd *cobra.Command, args []string) error {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
-	if err = admissioncontroller.StartServer(sc); err != nil {
-		return log.Errorf("Error while starting  admission controller server, exiting: %v", err)
+	if config.Datadog.GetBool("cluster_agent.admission_controller.enabled") {
+		log.Info("Starting admission controller server")
+
+		if err = admissioncontroller.StartServer(sc); err != nil {
+			return log.Errorf("Error while starting admission controller server, exiting: %v", err)
+		}
 	}
 
 	wg := sync.WaitGroup{}

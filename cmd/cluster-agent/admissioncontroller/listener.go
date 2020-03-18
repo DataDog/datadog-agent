@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/kubernetes/pkg/apis/core/v1"
 
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admissioncontroller/jsonpatch"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/jsonpatch"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

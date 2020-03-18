@@ -363,6 +363,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	config.BindEnvAndSetDefault("cluster_agent.tagging_fallback", false)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
+	config.BindEnvAndSetDefault("cluster_agent.admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.admission_controller.tls_cert_file", "/etc/datadog-agent/admission-controller-certificate/cert.pem")
 	config.BindEnvAndSetDefault("cluster_agent.admission_controller.tls_key_file", "/etc/datadog-agent/admission-controller-certificate/key.pem")
 
