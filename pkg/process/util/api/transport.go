@@ -28,8 +28,8 @@ const (
 	ContainerCountHeader = "X-Dd-ContainerCount"
 	// ProcessVersionHeader holds the process agent version sending the payload
 	ProcessVersionHeader = "X-Dd-Processagentversion"
-	// ClusterIDHeader contains the Kubernetes cluster ID of this agent
-	ClusterIDHeader = "X-Dd-Clusterid"
+	// ClusterIDHeader contains the orchestrator cluster ID of this agent
+	ClusterIDHeader = "X-Dd-Orchestrator-ClusterID"
 	apiKeyHeader    = "X-Dd-APIKey"
 )
 

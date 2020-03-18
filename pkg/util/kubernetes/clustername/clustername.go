@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	clusterIDEnv = "DD_KUBERNETES_CLUSTER_ID"
+	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
 )
 
 var (
