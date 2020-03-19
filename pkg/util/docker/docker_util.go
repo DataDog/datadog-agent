@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -17,14 +18,13 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -84,29 +84,11 @@ func (d *DockerUtil) init() error {
 
 // connectToDocker connects to docker and negotiates the API version
 func connectToDocker(ctx context.Context) (*client.Client, error) {
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
 	}
-	clientVersion := cli.ClientVersion()
-	cli.UpdateClientVersion("") // Hit unversionned endpoint first
-
-	// TODO: remove this logic when "client.NegotiateAPIVersion" function is released by moby/docker
-	v, err := cli.ServerVersion(ctx)
-	if err != nil || v.APIVersion == "" {
-		return nil, fmt.Errorf("could not determine docker server API version: %s", err)
-	}
-	serverVersion := v.APIVersion
-
-	if versions.LessThan(serverVersion, clientVersion) {
-		log.Debugf("Docker server APIVersion ('%s') is lower than the client ('%s'): using version from the server",
-			serverVersion, clientVersion)
-		cli.UpdateClientVersion(serverVersion)
-	} else {
-		cli.UpdateClientVersion(clientVersion)
-	}
-
-	log.Debugf("Successfully connected to Docker server version %s", v.Version)
+	log.Debugf("Successfully connected to Docker server")
 
 	return cli, nil
 }
@@ -311,22 +293,12 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 
 // InspectSelf returns the inspect content of the container the current agent is running in
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	cID, err := GetAgentCID()
+	cID, err := providers.ContainerImpl().GetAgentCID()
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}
 
 	return d.Inspect(cID, false)
-}
-
-// GetAgentCID returns the container ID where the current agent is running
-func GetAgentCID() (string, error) {
-	prefix := config.Datadog.GetString("container_cgroup_prefix")
-	cID, _, err := metrics.ReadCgroupsForPath("/proc/self/cgroup", prefix)
-	if err != nil {
-		return "", err
-	}
-	return cID, err
 }
 
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns
@@ -349,4 +321,19 @@ func (d *DockerUtil) AllContainerLabels() (map[string]map[string]string, error) 
 	}
 
 	return labelMap, nil
+}
+
+func (d *DockerUtil) GetContainerStats(containerID string) (*types.StatsJSON, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
+	stats, err := d.cli.ContainerStats(ctx, containerID, false)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
+	}
+	containerStats := &types.StatsJSON{}
+	err = json.NewDecoder(stats.Body).Decode(&containerStats)
+	if err != nil {
+		return nil, fmt.Errorf("error listing containers: %s", err)
+	}
+	return containerStats, nil
 }

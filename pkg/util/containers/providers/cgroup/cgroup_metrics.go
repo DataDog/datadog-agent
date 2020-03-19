@@ -5,7 +5,7 @@
 
 // +build linux
 
-package metrics
+package cgroup
 
 import (
 	"bufio"
@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,8 +26,8 @@ const NanoToUserHZDivisor float64 = 1e9 / 100
 
 // Mem returns the memory statistics for a Cgroup. If the cgroup file is not
 // available then we return an empty stats file.
-func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
-	ret := &CgroupMemStat{ContainerID: c.ContainerID}
+func (c ContainerCgroup) Mem() (*metrics.ContainerMemStats, error) {
+	ret := &metrics.ContainerMemStats{}
 	statfile := c.cgroupFilePath("memory", "memory.stat")
 
 	f, err := os.Open(statfile)
@@ -180,8 +181,8 @@ func (c ContainerCgroup) SoftMemLimit() (uint64, error) {
 
 // CPU returns the CPU status for this cgroup instance
 // If the cgroup file does not exist then we just log debug return nothing.
-func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {
-	ret := &CgroupTimesStat{ContainerID: c.ContainerID}
+func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
+	ret := &metrics.ContainerCPUStats{}
 	statfile := c.cgroupFilePath("cpuacct", "cpuacct.stat")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
@@ -313,9 +314,8 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 // 252:0 Async 58945536
 // 252:0 Total 58945536
 //
-func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
-	ret := &CgroupIOStat{
-		ContainerID:      c.ContainerID,
+func (c ContainerCgroup) IO() (*metrics.ContainerIOStats, error) {
+	ret := &metrics.ContainerIOStats{
 		DeviceReadBytes:  make(map[string]uint64),
 		DeviceWriteBytes: make(map[string]uint64),
 	}
@@ -368,6 +368,18 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 	if err := scanner.Err(); err != nil {
 		return ret, fmt.Errorf("error reading %s: %s", statfile, err)
 	}
+
+	var fileDescCount uint64
+	for _, pid := range c.Pids {
+		fdCount, err := GetFileDescriptorLen(int(pid))
+		if err != nil {
+			log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, c.ContainerID[:12], err)
+			continue
+		}
+		fileDescCount += uint64(fdCount)
+	}
+	ret.OpenFiles = fileDescCount
+
 	return ret, nil
 }
 

@@ -10,6 +10,9 @@ package common
 
 import (
 	"path/filepath"
+
+	// Init packages
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 )
 
 const (
