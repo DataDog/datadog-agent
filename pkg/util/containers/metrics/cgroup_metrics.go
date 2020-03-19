@@ -228,32 +228,45 @@ func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {
 	return ret, nil
 }
 
-// CPUNrThrottled returns the number of times the cgroup has been
-// throttle/limited because of CPU quota / limit
+// CPUThrottled returns the cgroup CPU quota throttle statistics
 // If the cgroup file does not exist then we just log debug and return 0.
-func (c ContainerCgroup) CPUNrThrottled() (uint64, error) {
+func (c ContainerCgroup) CPUThrottled() (*CgroupThrottleStat, error) {
+	ret := &CgroupThrottleStat{ContainerID: c.ContainerID}
 	statfile := c.cgroupFilePath("cpu", "cpu.stat")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", statfile)
-		return 0, nil
+		return ret, nil
 	} else if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		fields := strings.Split(scanner.Text(), " ")
+		if fields[0] == "nr_periods" {
+			value, err := strconv.ParseUint(fields[1], 10, 64)
+			if err == nil {
+				ret.NrPeriods = value
+			}
+		}
 		if fields[0] == "nr_throttled" {
 			value, err := strconv.ParseUint(fields[1], 10, 64)
-			if err != nil {
-				return 0, err
+			if err == nil {
+				ret.NrThrottled = value
 			}
-			return value, nil
+		}
+		if fields[0] == "throttled_time" {
+			value, err := strconv.ParseUint(fields[1], 10, 64)
+			if err == nil {
+				ret.ThrottledTime = value
+			}
 		}
 	}
-	log.Debugf("Missing nr_throttled line in %s", statfile)
-	return 0, nil
+	if err := scanner.Err(); err != nil {
+		return ret, fmt.Errorf("error reading %s: %s", statfile, err)
+	}
+	return ret, nil
 }
 
 // CPULimit would show CPU limit for this cgroup.

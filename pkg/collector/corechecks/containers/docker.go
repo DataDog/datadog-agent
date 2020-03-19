@@ -193,9 +193,23 @@ func (d *DockerCheck) Run() error {
 			sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
 			sender.Rate("docker.cpu.usage", c.CPU.UsageTotal, "", tags)
 			sender.Gauge("docker.cpu.shares", float64(c.CPU.Shares), "", tags)
-			sender.Rate("docker.cpu.throttled", float64(c.CPUNrThrottled), "", tags)
 		} else {
 			log.Debugf("Empty CPU metrics for container %s", c.ID[:12])
+		}
+		if c.CPUThrottled != nil {
+			sender.Rate("docker.cpu.throttled", float64(c.CPUThrottled.NrThrottled), "", tags) // legacy
+
+			sender.Rate("docker.cpu.cfs.periods.total", float64(c.CPUThrottled.NrPeriods), "", tags)
+			sender.Rate("docker.cpu.cfs.throttled.periods", float64(c.CPUThrottled.NrThrottled), "", tags)
+			sender.Rate("docker.cpu.cfs.throttled.seconds", float64(c.CPUThrottled.ThrottledTime)/1e9, "", tags)
+
+			throttlePct := float64(0)
+			if c.CPUThrottled.NrThrottled > 0 {
+				throttlePct = float64(c.CPUThrottled.NrThrottled) / float64(c.CPUThrottled.NrPeriods)
+			}
+			sender.Gauge("docker.cpu.cfs.throttled.pct", float64(throttlePct), "", tags)
+		} else {
+			log.Debugf("Empty CPU CFS throttling metrics for container %s", c.ID[:12])
 		}
 		if c.Memory != nil {
 			sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)

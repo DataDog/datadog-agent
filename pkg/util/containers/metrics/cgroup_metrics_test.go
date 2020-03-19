@@ -40,7 +40,7 @@ func TestCPU(t *testing.T) {
 	assert.InDelta(t, timeStat.UsageTotal, 91526.6418275, 0.0000001)
 }
 
-func TestCPUNrThrottled(t *testing.T) {
+func TestCPUThrottled(t *testing.T) {
 	tempFolder, err := newTempFolder("cpu-throttled")
 	assert.Nil(t, err)
 	defer tempFolder.removeAll()
@@ -48,26 +48,32 @@ func TestCPUNrThrottled(t *testing.T) {
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
 
 	// No file
-	value, err := cgroup.CPUNrThrottled()
+	throttledStats, err := cgroup.CPUThrottled()
 	assert.Nil(t, err)
-	assert.Equal(t, value, uint64(0))
+	assert.Equal(t, throttledStats.NrThrottled, uint64(0))
+	assert.Equal(t, throttledStats.NrPeriods, uint64(0))
+	assert.Equal(t, throttledStats.ThrottledTime, uint64(0))
 
 	// Invalid file
 	tempFolder.add("cpu/cpu.stat", "200")
-	_, err = cgroup.CPUNrThrottled()
+	throttledStats, err = cgroup.CPUThrottled()
 	assert.Nil(t, err)
-	assert.Equal(t, value, uint64(0))
+	assert.Equal(t, throttledStats.NrThrottled, uint64(0))
+	assert.Equal(t, throttledStats.NrPeriods, uint64(0))
+	assert.Equal(t, throttledStats.ThrottledTime, uint64(0))
 
 	// Valid file
 	cpuStats := dummyCgroupStat{
-		"nr_periods":     0,
+		"nr_periods":     20,
 		"nr_throttled":   10,
 		"throttled_time": 18327,
 	}
 	tempFolder.add("cpu/cpu.stat", cpuStats.String())
-	value, err = cgroup.CPUNrThrottled()
+	throttledStats, err = cgroup.CPUThrottled()
 	assert.Nil(t, err)
-	assert.Equal(t, value, uint64(10))
+	assert.Equal(t, throttledStats.NrThrottled, uint64(10))
+	assert.Equal(t, throttledStats.NrPeriods, uint64(20))
+	assert.Equal(t, throttledStats.ThrottledTime, uint64(18327))
 }
 
 func TestMemLimit(t *testing.T) {

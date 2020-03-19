@@ -72,20 +72,20 @@ type Container struct {
 	Pids     []int32
 	Excluded bool
 
-	CPULimit       float64
-	SoftMemLimit   uint64
-	KernMemUsage   uint64
-	MemLimit       uint64
-	MemFailCnt     uint64
-	CPUNrThrottled uint64
-	CPU            *metrics.CgroupTimesStat
-	Memory         *metrics.CgroupMemStat
-	IO             *metrics.CgroupIOStat
-	Network        metrics.ContainerNetStats
-	AddressList    []NetworkAddress
-	StartedAt      int64
-	ThreadCount    uint64
-	ThreadLimit    uint64
+	CPULimit     float64
+	SoftMemLimit uint64
+	KernMemUsage uint64
+	MemLimit     uint64
+	MemFailCnt   uint64
+	CPU          *metrics.CgroupTimesStat
+	CPUThrottled *metrics.CgroupThrottleStat
+	Memory       *metrics.CgroupMemStat
+	IO           *metrics.CgroupIOStat
+	Network      metrics.ContainerNetStats
+	AddressList  []NetworkAddress
+	StartedAt    int64
+	ThreadCount  uint64
+	ThreadLimit  uint64
 
 	// For internal use only
 	cgroup *metrics.ContainerCgroup
