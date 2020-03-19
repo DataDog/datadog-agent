@@ -30,7 +30,7 @@ type WebhookServer struct {
 }
 
 // StartServer creates the router and starts the HTTP server
-// TODO Also I don't think providing the clusteragent.ServerContext as parameter is useful here. Providing the mainCtx context.Context can be more useful to have gracefull stop of the webhook
+// TODO Also I don't think providing the clusteragent.ServerContext as parameter is useful here. Providing the mainCtx context.Context can be more useful to have graceful stop of the webhook
 // TODO I think it is not useful to use the sc clusteragent.ServerContext here, but instead we can use a ctx context.Context. thank to context.Context it will be possible to close the listener when the channel behind the ctx.Done() is closed
 func StartServer(sc clusteragent.ServerContext) error {
 	certFile := config.Datadog.GetString("cluster_agent.admission_controller.tls_cert_file")
