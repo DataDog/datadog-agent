@@ -57,8 +57,8 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	checks := []check.Check{}
 
-	// should be three valid instances
-	assert.Len(t, cfgs, 4)
+	// should be four valid instances
+	assert.Len(t, cfgs, 5)
 	for _, cfg := range cfgs {
 		loadedChecks, err := jl.Load(cfg)
 		assert.Nil(t, err)
