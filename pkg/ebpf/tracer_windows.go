@@ -55,7 +55,7 @@ type Tracer struct {
 func NewTracer(config *Config) (*Tracer, error) {
 	dc, err := NewDriverInterface()
 	if err != nil {
-		return nil, fmt.Errorf("could not create windows driver controller", err)
+		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
 
 	tr := &Tracer{
@@ -66,12 +66,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 	// We want tracer to own the buffers, but the DriverInterface to make the calls to set them up
 	tr.bufs, err = dc.prepareReadBuffers(tr.bufs)
 	if err != nil {
-		return nil, fmt.Errorf("error preparing driver's read buffers")
+		return nil, fmt.Errorf("error preparing driver's read buffers: %v", err)
 	}
 
 	err = tr.initPacketPolling()
 	if err != nil {
-		log.Warnf("issue polling packets from driver")
+		log.Warnf("issue polling packets from driver: %v", err)
 	}
 	go tr.expvarStats()
 	return tr, nil
