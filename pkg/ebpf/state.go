@@ -28,6 +28,9 @@ type NetworkState interface {
 	// StoreClosedConnection stores a new closed connection
 	StoreClosedConnection(conn ConnectionStats)
 
+	// StoreDNSStats stores latest DNS stats for all clients
+	StoreDNSStats(key dnsKey, dns dnsStats)
+
 	// RemoveClient stops tracking stateful data for a given client
 	RemoveClient(clientID string)
 
@@ -50,6 +53,7 @@ type telemetry struct {
 	connDropped        int64
 	statsResets        int64
 	timeSyncCollisions int64
+	dnsStatsDropped    int64
 }
 
 type stats struct {
@@ -63,6 +67,7 @@ type client struct {
 
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
+	dnsStats          map[dnsKey]dnsStats
 }
 
 type networkState struct {
@@ -78,22 +83,29 @@ type networkState struct {
 	clientExpiry   time.Duration
 	maxClosedConns int
 	maxClientStats int
+	maxDNSStats    int
 }
 
 // NewDefaultNetworkState creates a new network state with default settings
 func NewDefaultNetworkState() NetworkState {
 	defaultC := NewDefaultConfig()
-	return NewNetworkState(defaultC.ClientStateExpiry, defaultC.MaxClosedConnectionsBuffered, defaultC.MaxConnectionsStateBuffered)
+	return NewNetworkState(
+		defaultC.ClientStateExpiry,
+		defaultC.MaxClosedConnectionsBuffered,
+		defaultC.MaxConnectionsStateBuffered,
+		defaultC.MaxDNSStatsBufferred,
+	)
 }
 
 // NewNetworkState creates a new network state
-func NewNetworkState(clientExpiry time.Duration, maxClosedConns, maxClientStats int) NetworkState {
+func NewNetworkState(clientExpiry time.Duration, maxClosedConns, maxClientStats, maxDNSStats int) NetworkState {
 	return &networkState{
 		clients:        map[string]*client{},
 		telemetry:      telemetry{},
 		clientExpiry:   clientExpiry,
 		maxClosedConns: maxClosedConns,
 		maxClientStats: maxClientStats,
+		maxDNSStats:    maxDNSStats,
 		buf:            &bytes.Buffer{},
 	}
 }
@@ -157,6 +169,23 @@ func (ns *networkState) Connections(id string, latestTime uint64, latestConns []
 	ns.clients[id].closedConnections = map[string]ConnectionStats{}
 	ns.determineConnectionIntraHost(conns)
 
+	for i := range conns {
+		conn := &conns[i]
+		if conn.DPort == 53 {
+			key := dnsKey{
+				serverIP:   conn.Dest,
+				clientIP:   conn.Source,
+				clientPort: conn.SPort,
+				protocol:   conn.Type,
+			}
+			if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
+				conn.DNSReplyCount = dnsStats.replies
+			}
+		}
+	}
+	// flush the DNS stats
+	ns.clients[id].dnsStats = make(map[dnsKey]dnsStats)
+
 	return conns
 }
 
@@ -210,6 +239,25 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 	}
 }
 
+// StoreDNSStats stores latest DNS stats for all clients
+func (ns *networkState) StoreDNSStats(key dnsKey, dns dnsStats) {
+	ns.Lock()
+	defer ns.Unlock()
+
+	for _, client := range ns.clients {
+		// If we've seen DNS stats for this key already, lets combine the two
+		if prev, ok := client.dnsStats[key]; ok {
+			prev.replies += dns.replies
+			client.dnsStats[key] = prev
+		} else if len(client.dnsStats) >= ns.maxDNSStats {
+			ns.telemetry.dnsStatsDropped++
+			continue
+		} else {
+			client.dnsStats[key] = dns
+		}
+	}
+}
+
 // newClient creates a new client and returns true if the given client already exists
 func (ns *networkState) newClient(clientID string) (*client, bool) {
 	if c, ok := ns.clients[clientID]; ok {
@@ -220,6 +268,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		lastFetch:         time.Now(),
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
+		dnsStats:          map[dnsKey]dnsStats{},
 	}
 	ns.clients[clientID] = c
 	return c, false
@@ -384,11 +433,12 @@ func (ns *networkState) RemoveConnections(keys []string) {
 
 	// Flush log line if any metric is non zero
 	if ns.telemetry.unorderedConns > 0 || ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.timeSyncCollisions > 0 {
-		log.Warnf("state telemetry: [%d unordered conns] [%d stats stats_resets] [%d connections dropped due to stats] [%d closed connections dropped] [%d time sync collisions]",
+		log.Warnf("state telemetry: [%d unordered conns] [%d stats stats_resets] [%d connections dropped due to stats] [%d closed connections dropped] [%d dns stats dropped] [%d time sync collisions]",
 			ns.telemetry.unorderedConns,
 			ns.telemetry.statsResets,
-			ns.telemetry.closedConnDropped,
 			ns.telemetry.connDropped,
+			ns.telemetry.closedConnDropped,
+			ns.telemetry.dnsStatsDropped,
 			ns.telemetry.timeSyncCollisions)
 	}
 
@@ -417,6 +467,7 @@ func (ns *networkState) GetStats() map[string]interface{} {
 			"closed_conn_dropped":  ns.telemetry.closedConnDropped,
 			"conn_dropped":         ns.telemetry.connDropped,
 			"time_sync_collisions": ns.telemetry.timeSyncCollisions,
+			"dns_stats_dropped":    ns.telemetry.dnsStatsDropped,
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,

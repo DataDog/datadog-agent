@@ -1,53 +1,62 @@
 package ebpf
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"sync"
 )
 
 type dnsStats struct {
-	replies           uint32
+	replies uint32
+	// More stats like latency, error, etc. will be added here later
+}
+
+type dnsData struct {
+	stats             dnsStats
 	lastTransactionID uint16
 }
 
-type connKey struct {
-	serverIP  util.Address
-	queryIP   util.Address
-	queryPort uint16
-	protocol  ConnectionType
+type dnsKey struct {
+	serverIP   util.Address
+	clientIP   util.Address
+	clientPort uint16
+	protocol   ConnectionType
 }
 
-type dnsBookkeeper struct {
-	mux   sync.Mutex
-	stats map[connKey]dnsStats
+type dnsStatKeeper struct {
+	mux  sync.Mutex
+	data map[dnsKey]dnsData
 }
 
-func newDNSBookkeeper() *dnsBookkeeper {
-	return &dnsBookkeeper{
-		stats: make(map[connKey]dnsStats),
+func newDNSStatkeeper() *dnsStatKeeper {
+	return &dnsStatKeeper{
+		data: make(map[dnsKey]dnsData),
 	}
 }
 
-func (d *dnsBookkeeper) IncrementReplyCount(key connKey, transactionID uint16) {
+func (d *dnsStatKeeper) IncrementReplyCount(key dnsKey, transactionID uint16) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	stats := d.stats[key]
+	dnsData := d.data[key]
 
 	// For local DNS traffic, sometimes the same reply packet gets processed by the
 	// snooper multiple times. This check avoids double counting in that scenario.
-	if stats.lastTransactionID == transactionID {
+	if dnsData.lastTransactionID == transactionID {
 		return
 	}
-	stats.replies++
-	stats.lastTransactionID = transactionID
-	fmt.Println("Incremented for")
-	fmt.Println(key)
-	d.stats[key] = stats
+
+	dnsData.stats.replies++
+	dnsData.lastTransactionID = transactionID
+	d.data[key] = dnsData
 }
 
-func (d *dnsBookkeeper) Get(key connKey) dnsStats {
+func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]dnsStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	return d.stats[key]
+	allStats := make(map[dnsKey]dnsStats, len(d.data))
+	for k, v := range d.data {
+		allStats[k] = v.stats
+	}
+
+	d.data = make(map[dnsKey]dnsData)
+	return allStats
 }

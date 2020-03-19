@@ -53,7 +53,7 @@ func newDNSParser() *dnsParser {
 	}
 }
 
-func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *connKey) (uint16, error) {
+func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *dnsKey) (uint16, error) {
 	err := p.decoder.DecodeLayers(data, &p.layers)
 
 	if p.decoder.Truncated {
@@ -77,15 +77,15 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *connKey) (uint1
 		switch layer {
 		case layers.LayerTypeIPv4:
 			cKey.serverIP = util.AddressFromNetIP(p.ipv4Payload.SrcIP)
-			cKey.queryIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
+			cKey.clientIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
 		case layers.LayerTypeIPv6:
 			cKey.serverIP = util.AddressFromNetIP(p.ipv6Payload.SrcIP)
-			cKey.queryIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
+			cKey.clientIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
 		case layers.LayerTypeUDP:
-			cKey.queryPort = uint16(p.udpPayload.DstPort)
+			cKey.clientPort = uint16(p.udpPayload.DstPort)
 			cKey.protocol = UDP
 		case layers.LayerTypeTCP:
-			cKey.queryPort = uint16(p.tcpPayload.DstPort)
+			cKey.clientPort = uint16(p.tcpPayload.DstPort)
 			cKey.protocol = TCP
 		}
 	}

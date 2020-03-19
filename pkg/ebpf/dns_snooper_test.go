@@ -129,13 +129,15 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 		checkSnooping(t, destIP, reverseDNS)
 	}
 
-	key := connKey{
-		queryPort: uint16(queryPort),
-		queryIP:   util.AddressFromString(queryIP),
-		serverIP:  util.AddressFromString(serverAddress),
-		protocol:  TCP,
+	key := dnsKey{
+		clientPort: uint16(queryPort),
+		clientIP:    util.AddressFromString(queryIP),
+		serverIP:   util.AddressFromString(serverAddress),
+		protocol:   TCP,
 	}
-	assert.Equal(t, uint32(1), reverseDNS.GetDNSStats(key).replies)
+	allStats := reverseDNS.GetDNSStats()
+	require.Equal(t, 1, len(allStats))
+	assert.Equal(t, uint32(1), allStats[key].replies)
 }
 
 func TestParsingError(t *testing.T) {

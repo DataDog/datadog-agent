@@ -176,7 +176,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	state := NewNetworkState(config.ClientStateExpiry, config.MaxClosedConnectionsBuffered, config.MaxConnectionsStateBuffered)
+	state := NewNetworkState(
+		config.ClientStateExpiry,
+		config.MaxClosedConnectionsBuffered,
+		config.MaxConnectionsStateBuffered,
+		config.MaxDNSStatsBufferred,
+	)
 
 	tr := &Tracer{
 		m:              m,
@@ -341,23 +346,15 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
+	for key, dnsStats := range t.reverseDNS.GetDNSStats() {
+		if !t.config.CollectLocalDNS && key.serverIP.IsLoopback() {
+			continue
+		}
+		t.state.StoreDNSStats(key, dnsStats)
+	}
 	conns := t.state.Connections(clientID, latestTime, latestConns)
 	names := t.reverseDNS.Resolve(conns)
 
-	for _, conn := range conns {
-		fmt.Println("Deciding whether to call getStats")
-		fmt.Println(conn.DPort)
-		if conn.DPort == 53 {
-			key := connKey{
-				serverIP:  conn.Dest,
-				queryIP:   conn.Source,
-				queryPort: conn.SPort,
-				protocol:  conn.Type,
-			}
-			dnsStats := t.reverseDNS.GetDNSStats(key)
-			conn.DNSReplyCount = dnsStats.replies
-		}
-	}
 	return &Connections{Conns: conns, DNS: names}, nil
 }
 
@@ -427,16 +424,6 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 					conn.DPort,
 					process.ConnectionType(conn.Type),
 				)
-				/*if conn.DPort == 53 {
-					key := connKey{
-						serverIP:  conn.Dest,
-						queryIP:   conn.Source,
-						queryPort: conn.SPort,
-						protocol:  conn.Type,
-					}
-					dnsStats := t.reverseDNS.GetDNSStats(key)
-					conn.DNSReplyCount = dnsStats.replies
-				}*/
 
 				active = append(active, conn)
 			}
