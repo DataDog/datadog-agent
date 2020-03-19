@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
 	"github.com/docker/docker/pkg/sysinfo"
 	"golang.org/x/sys/windows"
+	"math"
 	"net"
 	"os/exec"
 	"strings"
@@ -172,7 +173,7 @@ func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLi
 	} else if cjson.HostConfig.CPUPercent > 0 {
 		cpuMax = float64(cjson.HostConfig.CPUPercent)
 	} else if cjson.HostConfig.CPUCount > 0 {
-		cpuMax = float64(cjson.HostConfig.CPUCount) / float64(sysinfo.NumCPU()) * 100
+		cpuMax = math.Min(float64(cjson.HostConfig.CPUCount), float64(sysinfo.NumCPU())) / float64(sysinfo.NumCPU()) * 100
 	}
 	containerLimits := metrics.ContainerLimits{
 		CPULimit: cpuMax,
