@@ -50,11 +50,11 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		log.Errorf("contentType=%v, expect application/json", contentType)
+		log.Errorf("contentType=%s, expect application/json", contentType)
 		return
 	}
 
-	log.Debug("Admission controller request body: %v", body)
+	log.Debug("admission controller request body: %v", body)
 
 	// The AdmissionReview that was sent to the admissioncontroller
 	requestedAdmissionReview := v1beta1.AdmissionReview{}
@@ -74,19 +74,22 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	// Return the same UID
 	responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 
-	log.Debug("Admission controller response: %v", responseAdmissionReview.Response)
+	log.Debug("admission controller response: %v", responseAdmissionReview.Response)
 
 	respBytes, err := json.Marshal(responseAdmissionReview)
 	if err != nil {
 		log.Error(err)
+		// TODO w.WriteHeader(http.StatusInternalServerError)
 	}
 	if _, err := w.Write(respBytes); err != nil {
 		log.Error(err)
+		// TODO w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
 // toAdmissionResponse is a helper function to create an AdmissionResponse
 // with an embedded error
+// TODO newAdmissionResponseError
 func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 	return &v1beta1.AdmissionResponse{
 		Result: &metav1.Status{
@@ -95,8 +98,9 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 	}
 }
 
+// TODO looking at this function implementation, at this point, we don't know if the AdmissionReview is for a Pod or another kind of resource. So I think we can rename this function to handleAdmissionReview()
 func mutatePods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	podResource := metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	podResource := metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"} // TODO this instance of podResource can be const and define outside this function
 	if ar.Request.Resource != podResource {
 		log.Errorf("expect resource to be %s, got %v", podResource, ar.Request.Resource)
 
@@ -112,11 +116,23 @@ func mutatePods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	}
 
 	patch, _ := mutatePod(pod)
+
+	// TODO I think we can have a more generic approach in this function.
+	// 	var response *admissionv1beta1.AdmissionResponse
+	//     switch {
+	//     case ar.Request.Resource == podResource:
+	//         response = handlePodRequest(ar.Request.Object.Raw)
+	//     default:
+	//         log.Errorf("resource %v not supported", ar.Request.Resource)
+	//         response = &admissionv1beta1.AdmissionResponse{Allowed: true}
+	//     }
+	//     return response
+
 	return mutateResponse(patch)
 }
 
 func mutateResponse(patch jsonpatch.Patch) *v1beta1.AdmissionResponse {
-	bs, _ := json.Marshal(patch)
+	bs, _ := json.Marshal(patch) // TODO error check
 	patchType := v1beta1.PatchTypeJSONPatch
 	return &v1beta1.AdmissionResponse{
 		Allowed:   true,
