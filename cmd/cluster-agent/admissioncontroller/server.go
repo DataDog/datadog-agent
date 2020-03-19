@@ -20,10 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	version string
-)
-
 // WebhookServer represents the http server for our admission controller
 type WebhookServer struct {
 	server *http.Server
