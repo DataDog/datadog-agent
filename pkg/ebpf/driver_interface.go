@@ -115,7 +115,6 @@ func (dc *DriverInterface) prepareReadBuffers(bufs []readBuffer) ([]readBuffer, 
 				fmt.Printf("failed to initiate readfile %v\n", err)
 				windows.CloseHandle(dc.iocp)
 				dc.iocp = windows.Handle(0)
-				bufs = nil
 				return nil, err
 			}
 		}
