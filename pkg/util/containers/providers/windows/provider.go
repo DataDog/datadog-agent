@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
+	"github.com/docker/docker/pkg/sysinfo"
 	"golang.org/x/sys/windows"
 	"net"
 	"os/exec"
@@ -165,8 +166,16 @@ func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLi
 		return nil, err
 	}
 
+	var cpuMax float64 = 0
+	if cjson.HostConfig.NanoCPUs > 0 {
+		cpuMax = float64(cjson.HostConfig.NanoCPUs) / 1e9 / float64(sysinfo.NumCPU()) * 100
+	} else if cjson.HostConfig.CPUPercent > 0 {
+		cpuMax = float64(cjson.HostConfig.CPUPercent)
+	} else if cjson.HostConfig.CPUCount > 0 {
+		cpuMax = float64(cjson.HostConfig.CPUCount) / float64(sysinfo.NumCPU()) * 100
+	}
 	containerLimits := metrics.ContainerLimits{
-		CPULimit: float64(cjson.HostConfig.NanoCPUs),
+		CPULimit: cpuMax,
 		MemLimit: uint64(cjson.HostConfig.Memory),
 		//ThreadLimit: 0, // Unknown ?
 	}
