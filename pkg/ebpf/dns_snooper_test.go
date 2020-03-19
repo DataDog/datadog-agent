@@ -4,7 +4,7 @@ package ebpf
 
 import (
 	bpflib "github.com/iovisor/gobpf/elf"
-	"k8s.io/apimachinery/pkg/util/rand"
+	"math/rand"
 	"net"
 	"testing"
 	"time"
@@ -131,7 +131,7 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 
 	key := dnsKey{
 		clientPort: uint16(queryPort),
-		clientIP:    util.AddressFromString(queryIP),
+		clientIP:   util.AddressFromString(queryIP),
 		serverIP:   util.AddressFromString(serverAddress),
 		protocol:   TCP,
 	}
