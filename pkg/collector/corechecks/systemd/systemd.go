@@ -310,8 +310,7 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 
 		sender.ServiceCheck(unitStateServiceCheck, getServiceCheckStatus(unit.ActiveState, serviceCheckStateMapping), "", tags, "")
 
-		subStateMapping, ok := c.config.instance.SubstateStatusMapping[unit.Name]
-		if ok {
+		if subStateMapping, found := c.config.instance.SubstateStatusMapping[unit.Name]; found {
 			// User provided a custom mapping for this unit. Submit the systemd.unit.substate service check based on that
 			sender.ServiceCheck(unitSubStateServiceCheck, getServiceCheckStatus(unit.SubState, subStateMapping), "", tags, "")
 		}
@@ -465,11 +464,7 @@ func getPropertyBool(properties map[string]interface{}, propertyName string) (bo
 }
 
 func getServiceCheckStatus(state string, substateMapping map[string]string) metrics.ServiceCheckStatus {
-	mappedServiceCheckStatus, ok := substateMapping[state]
-	if !ok {
-		return metrics.ServiceCheckUnknown
-	}
-	switch mappedServiceCheckStatus {
+	switch substateMapping[state] {
 	case "ok":
 		return metrics.ServiceCheckOK
 	case "warning":
