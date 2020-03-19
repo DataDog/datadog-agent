@@ -1,5 +1,11 @@
 # StackState Agent v2 releases
 
+## 2.2.1 (2020-03-18)
+
+**Bugs**
+
+- Fix out of memory issue for vsphere check due to unicode data in topology [(STAC-8113)](https://stackstate.atlassian.net/browse/STAC-8113)
+
 ## 2.2.0 (2020-03-09)
 
 **Features**
@@ -7,6 +13,9 @@
 - SCOM check [(STAC-7551)](https://stackstate.atlassian.net/browse/STAC-7551) provides support to visualize the systems monitored by SCOM.
     * Gathers Topology from your SCOM management pack and allows visualization of your monitored systems components and the relations between them.
     * Monitoring of your SCOM (as well as systems monitored  by SCOM), including health statuses of all your components.
+
+- Vsphere Check [(STAC-7516)](https://stackstate.atlassian.net/browse/STAC-7516) used to create a near real time synchronization with VMWare VSphere VCenter.
+    * Gathers Topology from your Vsphere instance and allows visualization of your monitored systems components and the relations between them.
 
 **Improvements**
 
