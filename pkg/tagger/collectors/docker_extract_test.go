@@ -228,6 +228,103 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedOrch: []string{},
 			expectedHigh: []string{},
 		},
+		{
+			testName: "Standard tags in labels",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Labels: map[string]string{
+						"com.datadoghq.ad.service": "redis",
+						"com.datadoghq.ad.env":     "dev",
+						"com.datadoghq.ad.version": "0.0.1",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+			},
+			expectedOrch: []string{},
+			expectedHigh: []string{},
+		},
+		{
+			testName: "Standard tags in env variables",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{
+						"DD_SERVICE=redis",
+						"DD_ENV=dev",
+						"DD_VERSION=0.0.1",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+			},
+			expectedOrch: []string{},
+			expectedHigh: []string{},
+		},
+		{
+			testName: "Same standard tags from labels and env variables => no duplicates",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{
+						"DD_SERVICE=redis",
+						"DD_ENV=dev",
+						"DD_VERSION=0.0.1",
+					},
+					Labels: map[string]string{
+						"com.datadoghq.ad.service": "redis",
+						"com.datadoghq.ad.env":     "dev",
+						"com.datadoghq.ad.version": "0.0.1",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+			},
+			expectedOrch: []string{},
+			expectedHigh: []string{},
+		},
+		{
+			testName: "Different standard tags from labels and env variables => no override",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{
+						"DD_SERVICE=redis",
+						"DD_ENV=dev",
+						"DD_VERSION=0.0.1",
+					},
+					Labels: map[string]string{
+						"com.datadoghq.ad.service": "redis-db",
+						"com.datadoghq.ad.env":     "staging",
+						"com.datadoghq.ad.version": "0.0.2",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"service:redis",
+				"env:dev",
+				"version:0.0.1",
+				"service:redis-db",
+				"env:staging",
+				"version:0.0.2",
+			},
+			expectedOrch: []string{},
+			expectedHigh: []string{},
+		},
 	}
 
 	dc := &DockerCollector{}
