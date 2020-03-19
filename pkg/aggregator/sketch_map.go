@@ -35,12 +35,16 @@ func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64) bool {
 	return true
 }
 
-func (m sketchMap) insertN(ts int64, ck ckey.ContextKey, v float64, n uint) bool {
-	if math.IsInf(v, 0) || math.IsNaN(v) {
+func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, lower float64, upper float64, count uint) bool {
+	if math.IsInf(lower, 0) || math.IsNaN(lower) {
 		return false
 	}
 
-	m.getOrCreate(ts, ck).InsertN(v, n)
+	if math.IsInf(upper, 0) || math.IsNaN(upper) {
+		return false
+	}
+
+	m.getOrCreate(ts, ck).InsertInterpolate(lower, upper, count)
 	return true
 }
 

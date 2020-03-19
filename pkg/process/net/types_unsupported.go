@@ -1,4 +1,4 @@
-// +build !linux
+// +build !linux,!windows
 
 package net
 
@@ -7,25 +7,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-// RemoteSysProbeUtil is only implemented on linux
+// RemoteSysProbeUtil is not supported
 type RemoteSysProbeUtil struct{}
 
-// SetSystemProbeSocketPath is only implemented on linux
+// SetSystemProbeSocketPath is not supported
 func SetSystemProbeSocketPath(_ string) {
 	// no-op
 }
 
-// GetRemoteSystemProbeUtil is only implemented on linux
+// GetRemoteSystemProbeUtil is not supported
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 	return &RemoteSysProbeUtil{}, nil
 }
 
-// GetConnections is only implemented on linux
+// GetConnections is not supported
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
-// ShouldLogTracerUtilError is only implemented on linux
+// ShouldLogTracerUtilError is not supported
 func ShouldLogTracerUtilError() bool {
 	return false
 }

@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux,kubelet,orchestrator
+// +build orchestrator
 
-package checks
+package orchestrator
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -102,23 +103,26 @@ func TestExtractPodMessage(t *testing.T) {
 					Containers: []v1.Container{{}, {}},
 				},
 			}, expected: model.Pod{
-				Name:              "pod",
-				Namespace:         "namespace",
-				Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
-				CreationTimestamp: 1389744000,
+				Metadata: &model.Metadata{
+					Name:              "pod",
+					Namespace:         "namespace",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+					CreationTimestamp: 1389744000,
+					Labels:            []string{"label:foo"},
+					Annotations:       []string{"annotation:bar"},
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Name: "test-controller",
+							Kind: "replicaset",
+							Uid:  "1234567890",
+						},
+					},
+				},
 				Phase:             "Running",
 				NominatedNodeName: "nominated",
 				NodeName:          "node",
 				RestartCount:      42,
-				Labels:            []string{"label:foo"},
-				Annotations:       []string{"annotation:bar"},
-				OwnerReferences: []*model.OwnerReference{
-					{
-						Name: "test-controller",
-						Kind: "replicaset",
-						Uid:  "1234567890",
-					},
-				},
+				Status:            "chillin",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						State:        "Running",
@@ -143,7 +147,7 @@ func TestExtractPodMessage(t *testing.T) {
 				},
 			},
 		},
-		"empty pod": {input: v1.Pod{}, expected: model.Pod{}},
+		"empty pod": {input: v1.Pod{}, expected: model.Pod{Metadata: &model.Metadata{}}},
 		"partial pod": {
 			input: v1.Pod{
 				Status: v1.PodStatus{
@@ -186,14 +190,17 @@ func TestExtractPodMessage(t *testing.T) {
 					},
 				},
 			}, expected: model.Pod{
-				Name:         "pod",
-				Namespace:    "namespace",
-				RestartCount: 10,
-				OwnerReferences: []*model.OwnerReference{
-					{
-						Uid: "1234567890",
+				Metadata: &model.Metadata{
+					Name:      "pod",
+					Namespace: "namespace",
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Uid: "1234567890",
+						},
 					},
 				},
+				RestartCount: 10,
+				Status:       "chillin",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						Name:        "fooName",
@@ -267,6 +274,135 @@ func TestScrubContainer(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			scrubContainer(&tc.input, cfg)
 			assert.Equal(t, tc.expected, tc.input)
+		})
+	}
+}
+
+func TestComputeStatus(t *testing.T) {
+	for nb, tc := range []struct {
+		pod    *v1.Pod
+		status string
+	}{
+		{
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: "Running",
+				},
+			},
+			status: "Running",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: "Succeeded",
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							State: v1.ContainerState{
+								Terminated: &v1.ContainerStateTerminated{
+									Reason: "Completed",
+								},
+							},
+						},
+					},
+				},
+			},
+			status: "Completed",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: "Failed",
+					InitContainerStatuses: []v1.ContainerStatus{
+						{
+							State: v1.ContainerState{
+								Terminated: &v1.ContainerStateTerminated{
+									Reason:   "Error",
+									ExitCode: 52,
+								},
+							},
+						},
+					},
+				},
+			},
+			status: "Init:Error",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: "Running",
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							State: v1.ContainerState{
+								Waiting: &v1.ContainerStateWaiting{
+									Reason: "CrashLoopBackoff",
+								},
+							},
+						},
+					},
+				},
+			},
+			status: "CrashLoopBackoff",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {
+			assert.EqualValues(t, tc.status, ComputeStatus(tc.pod))
+		})
+	}
+}
+
+func TestGetConditionMessage(t *testing.T) {
+	for nb, tc := range []struct {
+		pod     *v1.Pod
+		message string
+	}{
+		{
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{
+						{
+							Type:    v1.PodScheduled,
+							Status:  v1.ConditionFalse,
+							Message: "foo",
+						},
+					},
+				},
+			},
+			message: "foo",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{
+						{
+							Type:    v1.PodScheduled,
+							Status:  v1.ConditionFalse,
+							Message: "foo",
+						}, {
+							Type:    v1.PodInitialized,
+							Status:  v1.ConditionFalse,
+							Message: "bar",
+						},
+					},
+				},
+			},
+			message: "foo",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{
+						{
+							Type:    v1.PodScheduled,
+							Status:  v1.ConditionTrue,
+							Message: "foo",
+						}, {
+							Type:    v1.PodInitialized,
+							Status:  v1.ConditionFalse,
+							Message: "bar",
+						},
+					},
+				},
+			},
+			message: "bar",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {
+			assert.EqualValues(t, tc.message, GetConditionMessage(tc.pod))
 		})
 	}
 }

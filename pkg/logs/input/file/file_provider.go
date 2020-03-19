@@ -152,8 +152,27 @@ func (p *Provider) searchFiles(pattern string, source *config.LogSource) ([]*Fil
 	sort.SliceStable(paths, func(i, j int) bool {
 		return filepath.Base(paths[i]) > filepath.Base(paths[j])
 	})
+
+	// Resolve excluded path(s)
+	excludedPaths := make(map[string]int)
+	for _, excludePattern := range source.Config.ExcludePaths {
+		excludedGlob, err := filepath.Glob(excludePattern)
+		if err != nil {
+			return nil, fmt.Errorf("malformed exclusion pattern: %s, %s", excludePattern, err)
+		}
+		for _, excludedPath := range excludedGlob {
+			log.Debugf("Adding excluded path: %s", excludedPath)
+			excludedPaths[excludedPath]++
+			if excludedPaths[excludedPath] > 1 {
+				log.Debugf("Overlapping excluded path: %s", excludedPath)
+			}
+		}
+	}
+
 	for _, path := range paths {
-		files = append(files, NewFile(path, source, true))
+		if excludedPaths[path] == 0 {
+			files = append(files, NewFile(path, source, true))
+		}
 	}
 	return files, nil
 }

@@ -191,7 +191,7 @@ func testSubmitHistogramBucket(t *testing.T) {
 	SubmitHistogramBucket(
 		C.CString("testID"),
 		C.CString("test_histogram"),
-		C.int(42),
+		C.longlong(42),
 		C.float(1.0),
 		C.float(2.0),
 		C.int(1),

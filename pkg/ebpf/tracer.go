@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -81,13 +81,12 @@ const (
 	defaultClosedChannelSize = 500
 )
 
-// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
-// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-func CurrentKernelVersion() (uint32, error) {
-	return bpflib.CurrentKernelVersion()
-}
-
 func NewTracer(config *Config) (*Tracer, error) {
+	// make sure debugfs is mounted
+	if mounted, msg := util.IsDebugfsMounted(); !mounted {
+		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
+	}
+
 	m, err := readBPFModule(config.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
@@ -201,30 +200,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 	return tr, nil
 }
 
-// snakeToCapInitialCamel converts a snake case to Camel case with capital initial
-func snakeToCapInitialCamel(s string) string {
-	n := ""
-	capNext := true
-	for _, v := range s {
-		if v >= 'A' && v <= 'Z' {
-			n += string(v)
-		}
-		if v >= 'a' && v <= 'z' {
-			if capNext {
-				n += strings.ToUpper(string(v))
-			} else {
-				n += string(v)
-			}
-		}
-		if v == '_' {
-			capNext = true
-		} else {
-			capNext = false
-		}
-	}
-	return n
-}
-
 func (t *Tracer) expvarStats() {
 	ticker := time.NewTicker(5 * time.Second)
 	// starts running the body immediately instead waiting for the first tick
@@ -277,7 +252,13 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs.Source, cs.SPort, process.ConnectionType(cs.Type))
+					cs.IPTranslation = t.conntracker.GetTranslationForConn(
+						cs.Source,
+						cs.SPort,
+						cs.Dest,
+						cs.DPort,
+						process.ConnectionType(cs.Type),
+					)
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
@@ -393,7 +374,13 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn.Source, conn.SPort, process.ConnectionType(conn.Type))
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(
+					conn.Source,
+					conn.SPort,
+					conn.Dest,
+					conn.DPort,
+					process.ConnectionType(conn.Type),
+				)
 				active = append(active, conn)
 			}
 		}
@@ -680,4 +667,10 @@ func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.Se
 			Disabled: !enableSocketFilter,
 		},
 	}
+}
+
+// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
+// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
+func CurrentKernelVersion() (uint32, error) {
+	return bpflib.CurrentKernelVersion()
 }

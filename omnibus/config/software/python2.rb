@@ -23,6 +23,7 @@ if ohai["platform"] != "windows"
   dependency "ncurses"
   dependency "zlib"
   dependency "openssl"
+  dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "libyaml"
@@ -35,6 +36,8 @@ if ohai["platform"] != "windows"
   env = {
     "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe -fPIC",
     "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+    "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
+    "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
   }
 
   python_configure = ["./configure",
@@ -45,8 +48,7 @@ if ohai["platform"] != "windows"
                           "--with-universal-archs=intel",
                           "--enable-shared",
                           "--without-gcc",
-                          "CC=clang",
-                          "MACOSX_DEPLOYMENT_TARGET=10.12")
+                          "CC=clang")
   elsif linux?
     python_configure.push("--enable-unicode=ucs4",
                           "--enable-shared")

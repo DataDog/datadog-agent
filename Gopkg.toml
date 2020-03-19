@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "4.24.0"
+  version = "=4.26.0"
 
 [[constraint]]
   name = "github.com/google/gopacket"
@@ -18,6 +18,10 @@
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
   version = "~v0.4.7"
+
+[[override]]
+  name = "k8s.io/klog"
+  branch = "release-1.x"
 
 [[constraint]]
   name = "github.com/hashicorp/consul"
@@ -267,3 +271,15 @@
 [[constraint]]
   name = "github.com/vishvananda/netns"
   revision = "0a2b9b5464df8343199164a0321edf3313202f7e"
+
+[[constraint]]
+  name = "github.com/miekg/dns"
+  version = "1.1.27"
+
+[[constraint]]
+  name = "code.cloudfoundry.org/bbs"
+  revision = "d0518a556b8f5320812b7d26d20ef0a71f058d44"
+
+[[constraint]]
+  name = "github.com/bhmj/jsonslice"
+  revision = "882a55fa931cb1034965bd34d2366b6b5fb012ae"

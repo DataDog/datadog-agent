@@ -50,7 +50,7 @@ func StartCLCRunnerServer() error {
 
 	// CLC Runner token
 	// Use the Cluster Agent token
-	err = util.SetDCAAuthToken()
+	err = util.InitDCAAuthToken()
 	if err != nil {
 		return err
 	}
