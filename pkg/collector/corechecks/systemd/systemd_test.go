@@ -270,6 +270,7 @@ func TestSystemStateCallFailGracefully(t *testing.T) {
 func TestListUnitErr(t *testing.T) {
 	stats := createDefaultMockSystemdStats()
 	stats.On("ListUnits", mock.Anything).Return(([]dbus.UnitStatus)(nil), fmt.Errorf("some error"))
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
 	check.Configure([]byte(``), []byte(``), "test")
