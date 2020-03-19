@@ -45,6 +45,7 @@ type Controller struct {
 	groupID                 int32
 	hostName                string
 	clusterName             string
+	clusterID               string
 	apiClient               api.Client
 	processConfig           *processcfg.AgentConfig
 	IsLeaderFunc            func() bool
@@ -71,12 +72,19 @@ func StartController(ctx ControllerContext) error {
 
 func newController(ctx ControllerContext) *Controller {
 	podInformer := ctx.UnassignedPodInformerFactory.Core().V1().Pods()
+	clusterID, err := clustername.GetClusterID()
+	if err != nil {
+		log.Errorf("Error retrieving Kubernetes cluster ID: %v", err)
+		return nil
+	}
+
 	oc := &Controller{
 		unassignedPodLister:     podInformer.Lister(),
 		unassignedPodListerSync: podInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
+		clusterID:               clusterID,
 		apiClient: api.NewClient(
 			http.Client{Timeout: 20 * time.Second, Transport: processcfg.NewDefaultTransport()},
 			30*time.Second),
@@ -116,7 +124,7 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName)
+	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
@@ -125,6 +133,7 @@ func (o *Controller) processPods() {
 	extraHeaders := map[string]string{
 		api.HostHeader:           o.hostName,
 		api.ContainerCountHeader: "0",
+		api.ClusterIDHeader:      o.clusterID,
 	}
 	for _, m := range msg {
 		// TODO: handle failure & retries
