@@ -12,11 +12,13 @@ PSID GetSidForUser(LPCWSTR host, LPCWSTR user) {
 	if (bRet) {
 		// this should *never* happen, because we didn't pass in a buffer large enough for
 		// the sid or the domain name.
+		WcaLog(LOGMSG_STANDARD, "Unexpected success: LookupAccountName() with no buffer %d %d", cchRefDomain, GetLastError());
 		return NULL;
 	}
 	DWORD err = GetLastError();
 	if (ERROR_INSUFFICIENT_BUFFER != err) {
 		// we don't know what happened
+		WcaLog(LOGMSG_STANDARD, "Unexpected failure: LookupAccountName(): Expected insufficient buffer, got %d", err);
 		return NULL;
 	}
 	newsid = (SID *) new BYTE[cbSid];
