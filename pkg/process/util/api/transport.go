@@ -26,9 +26,11 @@ const (
 	HostHeader = "X-Dd-Hostname"
 	// ContainerCountHeader contains the container count in the payload
 	ContainerCountHeader = "X-Dd-ContainerCount"
-	// ProcessVersionHeader hols the process agent version sending the payload
+	// ProcessVersionHeader holds the process agent version sending the payload
 	ProcessVersionHeader = "X-Dd-Processagentversion"
-	apiKeyHeader         = "X-Dd-APIKey"
+	// ClusterIDHeader contains the orchestrator cluster ID of this agent
+	ClusterIDHeader = "X-Dd-Orchestrator-ClusterID"
+	apiKeyHeader    = "X-Dd-APIKey"
 )
 
 // Endpoint is a single endpoint where process data will be submitted.

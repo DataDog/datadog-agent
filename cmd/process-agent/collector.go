@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 type checkPayload struct {
@@ -138,6 +139,9 @@ func (l *Collector) run(exit chan bool) {
 						api.HostHeader:           l.cfg.HostName,
 						api.ProcessVersionHeader: Version,
 						api.ContainerCountHeader: strconv.Itoa(getContainerCount(m)),
+					}
+					if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+						extraHeaders[api.ClusterIDHeader] = cid
 					}
 					statuses := l.apiClient.PostMessage(l.endpointsForCheck(payload.name), payload.endpoint, m, extraHeaders)
 					if len(statuses) > 0 {
