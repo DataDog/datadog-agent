@@ -219,7 +219,6 @@ func RunJmxListWithMetrics() error {
 	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJSON, out)
 }
 
-
 // RunJmxListWithRateMetrics runs the JMX command with "with-rate-metrics", reporting
 // the data as a JSON on the console. It is used by the `check jmx --rate` cli command
 // of the Agent.
