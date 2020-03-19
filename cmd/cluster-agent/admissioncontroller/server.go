@@ -4,9 +4,11 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 /*
-Package api implements the agent IPC api. Using HTTP
-calls, it's possible to communicate with the agent,
-sending commands and receiving infos.
+Package admissioncontroller implements the agent admission webhook
+endpoint. This server receives k8s objects from the cluster and
+preforms changes or admission control to such objects.
+
+More info: https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/
 */
 package admissioncontroller
 
@@ -24,6 +26,7 @@ var (
 	version string
 )
 
+// WebhookServer represents the http server for our admission controller
 type WebhookServer struct {
 	server *http.Server
 }
