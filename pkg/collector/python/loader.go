@@ -213,7 +213,16 @@ func expvarConfigureErrors() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	return configureErrors
+	configureErrorsCopy := map[string][]string{}
+	for k, v := range configureErrors {
+		errors := []string{}
+		for i := range v {
+			errors = append(errors, v[i])
+		}
+		configureErrorsCopy[k] = errors
+	}
+
+	return configureErrorsCopy
 }
 
 func addExpvarConfigureError(check string, errMsg string) {
@@ -233,7 +242,16 @@ func expvarPy3Warnings() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	return py3Warnings
+	py3WarningsCopy := map[string][]string{}
+	for k, v := range py3Warnings {
+		warnings := []string{}
+		for i := range v {
+			warnings = append(warnings, v[i])
+		}
+		py3WarningsCopy[k] = warnings
+	}
+
+	return py3WarningsCopy
 }
 
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
