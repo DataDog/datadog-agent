@@ -204,19 +204,28 @@ jobs:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
 
+  windows_docker_tests:
+    executor: win/default
+    working_directory: C:\gopath\src\github.com\DataDog\datadog-agent
+    steps:
+      - checkout
+      - run: systeminfo
+      - run: Get-ChildItem -Path .
+      - run: docker build .
+
   windows_tests:
     executor: win/default
     environment:
       GOPATH: C:\gopath
       GOVERSION: '1.12.9'
-      GOROOT: C:\go_1.12.9
+      GOROOT: C:\Go
       GOLANGCI_LINT_VERSION: "1.21.0"
       # Give hints to CMake to find Pythons
       Python2_ROOT_DIR: C:\tmp\Python27-x64
       Python3_ROOT_DIR: C:\tmp\Python38-x64
       PIP2: pip -q
       PIP3: pip3 -q
-      MSYS_ROOT: C:\msys64
+      MSYS_ROOT: C:\tools\msys64
     working_directory: C:\gopath\src\github.com\DataDog\datadog-agent
     steps:
       - checkout
@@ -237,80 +246,123 @@ jobs:
       #- run: C:\msys64\usr\bin\bash.exe -l -c "pacman --noconfirm -U https://archive.archlinux.org/packages/g/gcc7/gcc7-7.2.1+20180116-1-x86_64.pkg.tar.xz"
       #- run: C:\msys64\usr\bin\bash.exe -l -c "pacman-key --recv-keys 39E4B877E62EB915 && pacman --noconfirm -U https://archive.archlinux.org/packages/g/gcc8/gcc8-8.3.0-1-x86_64.pkg.tar.xz"
       #- run: C:\msys64\usr\bin\bash.exe -l -c "pacman --noconfirm -U https://archive.archlinux.org/packages/g/gcc/gcc-9.3.0-1-x86_64.pkg.tar.zst"
-      - run: $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force; New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
-      - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://github.com/Kitware/CMake/releases/download/v3.14.4/cmake-3.14.4-win64-x64.zip", "c:\tmp\cmake.zip")
-      - run: '& 7z -o"C:\tmp\" x c:\tmp\cmake.zip'
-      - run: Move-Item -Path c:\tmp\cmake-3.14.4-win64-x64 -Destination C:\tmp\cmake
-      - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://dd-agent-omnibus.s3.amazonaws.com/python-windows-2.7.17-amd64.zip", "c:\tmp\python.zip")
-      - run: '& 7z -o"$ENV:Python2_ROOT_DIR" x c:\tmp\python.zip'
-      - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://dd-agent-omnibus.s3.amazonaws.com/python-windows-3.8.1-withcrt-amd64.zip", "c:\tmp\python3.zip")
-      - run: '& 7z -o"$ENV:Python3_ROOT_DIR" x c:\tmp\python3.zip'
-      - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://codeload.github.com/pypa/setuptools/tar.gz/v40.9.0", "c:\tmp\setuptools.tar.gz")
-      - run: md C:\tmp\setuptools
-      - run: '& tar zxfo c:\tmp\setuptools.tar.gz -C C:\tmp\setuptools'
+      # - run: $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force; New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
+      # - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://github.com/Kitware/CMake/releases/download/v3.14.4/cmake-3.14.4-win64-x64.zip", "c:\tmp\cmake.zip")
+      # - run: '& 7z -o"C:\tmp\" x c:\tmp\cmake.zip'
+      # - run: Move-Item -Path c:\tmp\cmake-3.14.4-win64-x64 -Destination C:\tmp\cmake
+      # - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://dd-agent-omnibus.s3.amazonaws.com/python-windows-2.7.17-amd64.zip", "c:\tmp\python.zip")
+      # - run: '& 7z -o"$ENV:Python2_ROOT_DIR" x c:\tmp\python.zip'
+      # - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://dd-agent-omnibus.s3.amazonaws.com/python-windows-3.8.1-withcrt-amd64.zip", "c:\tmp\python3.zip")
+      # - run: '& 7z -o"$ENV:Python3_ROOT_DIR" x c:\tmp\python3.zip'
+      # - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://codeload.github.com/pypa/setuptools/tar.gz/v40.9.0", "c:\tmp\setuptools.tar.gz")
+      # - run: md C:\tmp\setuptools
+      # - run: '& tar zxfo c:\tmp\setuptools.tar.gz -C C:\tmp\setuptools'
+      # - run:
+      #     command: |
+      #       cd C:\tmp\setuptools\setuptools-40.9.0
+      #       C:\tmp\Python27-x64\python.exe bootstrap.py
+      #       C:\tmp\Python27-x64\python.exe setup.py install --prefix=$ENV:Python2_ROOT_DIR
+      #       C:\tmp\Python38-x64\python.exe bootstrap.py
+      #       C:\tmp\Python38-x64\python.exe setup.py install --prefix=$ENV:Python3_ROOT_DIR
+      # - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://codeload.github.com/pypa/pip/tar.gz/19.3.1", "c:\tmp\pip.tar.gz")
+      # - run: md C:\tmp\pip
+      # - run: '& tar zxfo c:\tmp\pip.tar.gz -C C:\tmp\pip'
+      # - run:
+      #     command: |
+      #       cd C:\tmp\pip\pip-19.3.1
+      #       C:\tmp\Python27-x64\python.exe setup.py install --prefix=$ENV:Python2_ROOT_DIR
+      #       C:\tmp\Python38-x64\python.exe setup.py install --prefix=$ENV:Python3_ROOT_DIR
+      # - run: Move-Item -Path C:\tmp\Python38-x64\python.exe -Destination C:\tmp\Python38-x64\python3.exe
+      # - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://dl.google.com/go/go$ENV:GOVERSION.windows-amd64.zip", "c:\tmp\godl.zip")
+      # - run: '& 7z -o"c:\tmp\go_$ENV:GOVERSION" x c:\tmp\godl.zip'
+      # - run: Move-Item -Path "C:\tmp\go_$ENV:GOVERSION\go" -Destination $ENV:GOROOT
+      # - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://github.com/golangci/golangci-lint/releases/download/v1.21.0/golangci-lint-$ENV:GOLANGCI_LINT_VERSION-windows-amd64.zip", "c:\tmp\golangci-lint.zip")
+      # - run: '& 7z -o"C:\tmp\golangci-lint\" x c:\tmp\golangci-lint.zip'
+      # - run: Move-Item -Path "C:\tmp\golangci-lint\golangci-lint-$ENV:GOLANGCI_LINT_VERSION-windows-amd64\golangci-lint.exe" -Destination $ENV:GOROOT\bin
+      # - run: git clone --depth 1 https://github.com/datadog/integrations-core
+      #- run: Set-ExecutionPolicy Bypass -Scope Process -Force; .\devenv\scripts\Install-DevEnv.ps1 
+      - run: Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+      - run: cinst -y visualstudio2017buildtools --params "--add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Win81"
+      - run: cinst -y visualstudio2017-workload-vctools
+      - run: cinst -y vcpython27
+      - run: cinst -y cmake
       - run:
           command: |
-            cd C:\tmp\setuptools\setuptools-40.9.0
-            C:\tmp\Python27-x64\python.exe bootstrap.py
-            C:\tmp\Python27-x64\python.exe setup.py install --prefix=$ENV:Python2_ROOT_DIR
-            C:\tmp\Python38-x64\python.exe bootstrap.py
-            C:\tmp\Python38-x64\python.exe setup.py install --prefix=$ENV:Python3_ROOT_DIR
-      - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://codeload.github.com/pypa/pip/tar.gz/19.3.1", "c:\tmp\pip.tar.gz")
-      - run: md C:\tmp\pip
-      - run: '& tar zxfo c:\tmp\pip.tar.gz -C C:\tmp\pip'
+            [Environment]::SetEnvironmentVariable(
+            "Path",
+            [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";${env:ProgramFiles}\CMake\bin",
+            [System.EnvironmentVariableTarget]::Machine)
+      - run: cinst -y golang --version 1.12.9
+      - run: cinst -y python2
+      - run: cinst -y ruby --version 2.4.3.1 --allow-downgrade
+      - run: cinst -y msys2 --params "/NoUpdate" # install msys2 without system update
+      #- run: ridk install 2 3 # use ruby's ridk to update the system and install development toolchain
+      - run: C:\tools\msys64\usr\bin\bash.exe -l -c "pacman -Su --needed --noconfirm"
+      - run: C:\tools\msys64\usr\bin\bash.exe -l -c "pacman -Su --needed --noconfirm"
+      - run: C:\tools\msys64\usr\bin\bash.exe -l -c "pacman -S --needed --noconfirm autoconf autoconf2.13 autogen automake-wrapper automake1.10 automake1.11 automake1.12 automake1.13 automake1.14 automake1.15 automake1.6 automake1.7 automake1.8 automake1.9 diffutils file gawk grep libtool m4 make patch pkg-config sed texinfo texinfo-tex wget mingw-w64-x86_64-binutils mingw-w64-x86_64-crt-git mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-libs mingw-w64-x86_64-headers-git mingw-w64-x86_64-libmangle-git mingw-w64-x86_64-libwinpthread-git mingw-w64-x86_64-make mingw-w64-x86_64-pkg-config mingw-w64-x86_64-tools-git mingw-w64-x86_64-winpthreads-git"
+      # - run:
+      #     name: blah
+      #     command: |
+      #       $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
+      #       Write-Host "$ENV:PATH"
+      #       python --version
+      #       python3 --version
+      #       go version
       - run:
           command: |
-            cd C:\tmp\pip\pip-19.3.1
-            C:\tmp\Python27-x64\python.exe setup.py install --prefix=$ENV:Python2_ROOT_DIR
-            C:\tmp\Python38-x64\python.exe setup.py install --prefix=$ENV:Python3_ROOT_DIR
-      - run: Move-Item -Path C:\tmp\Python38-x64\python.exe -Destination C:\tmp\Python38-x64\python3.exe
-      - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://dl.google.com/go/go$ENV:GOVERSION.windows-amd64.zip", "c:\tmp\godl.zip")
-      - run: '& 7z -o"c:\tmp\go_$ENV:GOVERSION" x c:\tmp\godl.zip'
-      - run: Move-Item -Path "C:\tmp\go_$ENV:GOVERSION\go" -Destination $ENV:GOROOT
-      - run: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://github.com/golangci/golangci-lint/releases/download/v1.21.0/golangci-lint-$ENV:GOLANGCI_LINT_VERSION-windows-amd64.zip", "c:\tmp\golangci-lint.zip")
-      - run: '& 7z -o"C:\tmp\golangci-lint\" x c:\tmp\golangci-lint.zip'
-      - run: Move-Item -Path "C:\tmp\golangci-lint\golangci-lint-$ENV:GOLANGCI_LINT_VERSION-windows-amd64\golangci-lint.exe" -Destination $ENV:GOROOT\bin
-      - run: git clone --depth 1 https://github.com/datadog/integrations-core
-      - run:
-          name: blah
-          command: |
-            $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
-            Write-Host "$ENV:PATH"
-            python --version
-            python3 --version
-            go version
-      - run:
-          command: |
-            $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
+            $ENV:GOPATH = "C:\gopath"
+            ridk enable
+            Write-Host "$ENV:GOPATH, $ENV:GOROOT"
             python -m pip install codecov -r requirements.txt
-            python3 -m pip install -r requirements.txt
+      # python3 -m pip install -r requirements.txt
       - run:
           command: |
-            $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
-            inv -e deps --dep-vendor-only --verbose --no-checks
+            $ENV:GOPATH = "C:\gopath"
+            ridk enable
+            Write-Host "$ENV:GOPATH, $ENV:GOROOT"
+            Write-Host $ENV:PATH
+            inv -e deps --no-dep-ensure --verbose --no-checks
       - run:
           command: |
-            $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
-            inv -e rtloader.make --install-prefix=C:\go\src\github.com\DataDog\datadog-agent\dev --cmake-options="-A \""Win64\"" -G \""Visual Studio 16 2019\"""
+            $ENV:GOPATH = "C:\gopath"
+            ridk enable
+            Write-Host "$ENV:GOPATH, $ENV:GOROOT"
+            dep ensure -vendor-only
       - run:
           command: |
-            $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
+            $ENV:GOPATH = "C:\gopath"
+            ridk enable
+            Write-Host "$ENV:GOPATH, $ENV:GOROOT"
+            inv -e rtloader.make --install-prefix=C:\go\src\github.com\DataDog\datadog-agent\dev --cmake-options="-G \""Unix Makefiles\"""
+      - run:
+          command: |
+            $ENV:GOPATH = "C:\gopath"
+            ridk enable
+            Write-Host "$ENV:GOPATH, $ENV:GOROOT"
             inv -e rtloader.install
       - run:
           command: |
-            $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
+            $ENV:GOPATH = "C:\gopath"
+            ridk enable
+            Write-Host "$ENV:GOPATH, $ENV:GOROOT"
             inv -e rtloader.format --raise-if-changed
       - run:
           command: |
-            $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
+            $ENV:GOPATH = "C:\gopath"
+            ridk enable
+            Write-Host "$ENV:GOPATH, $ENV:GOROOT"
             inv -e rtloader.test
       - run:
           command: |
-            $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
+            $ENV:GOPATH = "C:\gopath"
+            ridk enable
+            Write-Host "$ENV:GOPATH, $ENV:GOROOT"
             inv -e test --python-runtimes 3 --coverage --profile --fail-on-fmt --python-home-2=C:\tmp\Python27-x64 --python-home-3=C:\tmp\Python38-x64
       - run:
           command: |
-            $ENV:PATH = "C:\go\src\github.com\DataDog\datadog-agent\dev\lib;C:\tmp\cmake\bin;$ENV:GOROOT\bin;$ENV:GOPATH\bin;$ENV:Python2_ROOT_DIR;$ENV:Python2_ROOT_DIR\Scripts;$ENV:Python3_ROOT_DIR;$ENV:Python3_ROOT_DIR\Scripts;$ENV:MSYS_ROOT\mingw64\bin;$ENV:MSYS_ROOT\usr\bin\;$ENV:PATH"
+            $ENV:GOPATH = "C:\gopath"
+            ridk enable
+            Write-Host "$ENV:GOPATH, $ENV:GOROOT"
             codecov -f profile.cov -F windows
 
 workflows:
@@ -318,6 +370,7 @@ workflows:
   test_and_build:
     jobs:
       - checkout_code
+      - windows_docker_tests
       - windows_tests
       - dependencies:
           requires:
