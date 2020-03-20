@@ -321,14 +321,16 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
+	conns := t.state.Connections(clientID, latestTime, latestConns)
+	names := t.reverseDNS.Resolve(conns)
+
 	for key, dnsStats := range t.reverseDNS.GetDNSStats() {
 		if !t.config.CollectLocalDNS && key.serverIP.IsLoopback() {
 			continue
 		}
 		t.state.StoreDNSStats(key, dnsStats)
 	}
-	conns := t.state.Connections(clientID, latestTime, latestConns)
-	names := t.reverseDNS.Resolve(conns)
+	t.state.AddDNSStats(clientID, conns)
 
 	return &Connections{Conns: conns, DNS: names}, nil
 }

@@ -31,6 +31,8 @@ type NetworkState interface {
 	// StoreDNSStats stores latest DNS stats for all clients
 	StoreDNSStats(key dnsKey, dns dnsStats)
 
+	AddDNSStats(id string, conns []ConnectionStats)
+
 	// RemoveClient stops tracking stateful data for a given client
 	RemoveClient(clientID string)
 
@@ -169,24 +171,31 @@ func (ns *networkState) Connections(id string, latestTime uint64, latestConns []
 	ns.clients[id].closedConnections = map[string]ConnectionStats{}
 	ns.determineConnectionIntraHost(conns)
 
+	return conns
+}
+
+func (ns *networkState) AddDNSStats(id string, conns []ConnectionStats) {
+	if _, ok := ns.clients[id]; !ok {
+		return
+	}
+
 	for i := range conns {
 		conn := &conns[i]
-		if conn.DPort == 53 {
-			key := dnsKey{
-				serverIP:   conn.Dest,
-				clientIP:   conn.Source,
-				clientPort: conn.SPort,
-				protocol:   conn.Type,
-			}
-			if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
-				conn.DNSReplyCount = dnsStats.replies
-			}
+		if conn.DPort != 53 {
+			continue
+		}
+		key := dnsKey{
+			serverIP:   conn.Dest,
+			clientIP:   conn.Source,
+			clientPort: conn.SPort,
+			protocol:   conn.Type,
+		}
+		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
+			conn.DNSReplyCount = dnsStats.replies
 		}
 	}
 	// flush the DNS stats
 	ns.clients[id].dnsStats = make(map[dnsKey]dnsStats)
-
-	return conns
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation

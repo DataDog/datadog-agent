@@ -109,7 +109,7 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 
 	queryIP := GetOutboundIP(t).String()
 	rand.Seed(time.Now().UnixNano())
-	queryPort := rand.IntnRange(10000, 30000)
+	queryPort := rand.Intn(20000) + 10000
 	dnsClientAddr := &net.TCPAddr{IP: net.ParseIP(queryIP), Port: queryPort}
 	localAddrDialer := &net.Dialer{
 		LocalAddr: dnsClientAddr,
