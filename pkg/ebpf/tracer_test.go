@@ -726,18 +726,15 @@ func TestUDPSendAndReceive(t *testing.T) {
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, OUTGOING, outgoing[0].Direction)
 
-	// conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	// require.True(t, ok)
-	// assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
-	// assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
-	// assert.Equal(t, os.Getpid(), int(conn.Pid))
-	// assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	// assert.Equal(t, OUTGOING, conn.Direction)
-	// assert.True(t, conn.IntraHost)
+	// these values come from simulate_udp.sh
+	assert.Equal(t, 512, int(outgoing[0].MonotonicSentBytes))
+	assert.Equal(t, 256, int(outgoing[0].MonotonicRecvBytes))
+	assert.True(t, outgoing[0].IntraHost)
 
-	// fmt.Printf("%v\n", c.RemoteAddr())
-	// conn, ok = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	// require.True(t, ok)
+	// make sure the inverse values are seen for the other message
+	assert.Equal(t, 256, int(incoming[0].MonotonicSentBytes))
+	assert.Equal(t, 512, int(incoming[0].MonotonicRecvBytes))
+	assert.True(t, incoming[0].IntraHost)
 }
 
 func TestUDPDisabled(t *testing.T) {
