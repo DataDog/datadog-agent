@@ -303,7 +303,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 				},
 			},
 			batchCalls: 5,
-			err:        fmt.Errorf("Networking Error, timeout"),
+			err:        fmt.Errorf("networking Error, timeout"),
 			timeout:    true,
 		},
 	}
@@ -336,7 +336,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						// Error will be under the format:
 						// Error: Error while executing metric query avg:foo-56{foo:bar}.rollup(30),avg:foo-93{foo:bar}.rollup(30),[...],avg:foo-64{foo:bar}.rollup(30),avg:foo-81{foo:bar}.rollup(30): Networking Error, timeout!!!
 						// In the logs, we will be able to see which bundle failed, but for the tests, we can't know which routine will finish first (and therefore have `bc == 1`), so we only check the error returned by the Datadog Servers.
-						return nil, fmt.Errorf("Networking Error, timeout")
+						return nil, fmt.Errorf("networking Error, timeout")
 					}
 					return tt.out, nil
 				},
