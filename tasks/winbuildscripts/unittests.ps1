@@ -26,6 +26,7 @@ if($err -ne 0){
 }
 
 & inv -e rtloader.install
+$err = $LASTEXITCODE
 Write-Host rtloader install result is $err
 if($err -ne 0){
     Write-Host -ForegroundColor Red "rtloader install failed $err"
@@ -42,6 +43,7 @@ if($err -ne 0){
 # }
 
 & inv -e rtloader.test
+$err = $LASTEXITCODE
 Write-Host rtloader test result is $err
 if($err -ne 0){
     Write-Host -ForegroundColor Red "rtloader test failed $err"
