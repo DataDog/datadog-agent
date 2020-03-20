@@ -6,6 +6,7 @@
 package clustername
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,4 +51,30 @@ func TestGetClusterName(t *testing.T) {
 		freshData = newClusterNameData()
 		assert.Equal(t, "", getClusterName(freshData))
 	}
+}
+
+func TestGetClusterID(t *testing.T) {
+	// missing env
+	cid, err := GetClusterID()
+	assert.Empty(t, cid)
+	assert.NotNil(t, err)
+
+	// too short
+	os.Setenv(clusterIDEnv, "foo")
+	cid, err = GetClusterID()
+	assert.Empty(t, cid)
+	assert.NotNil(t, err)
+
+	// too long
+	os.Setenv(clusterIDEnv, "d801b2b1-4811-11ea-8618-121d4d0938a44444444")
+	cid, err = GetClusterID()
+	assert.Empty(t, cid)
+	assert.NotNil(t, err)
+
+	// just right
+	testID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
+	os.Setenv(clusterIDEnv, testID)
+	cid, err = GetClusterID()
+	assert.Equal(t, testID, cid)
+	assert.Nil(t, err)
 }
