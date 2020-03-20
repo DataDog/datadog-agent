@@ -1066,6 +1066,13 @@ int kretprobe__sys_socket(struct pt_regs* ctx) {
         return 0;
     }
 
+    if (fd == -1) {
+        // if the socket() call has failed, don't keep track of the returned
+        // file descriptor (which will be negative one)
+        bpf_map_delete_elem(&unbound_sockets, &fd_and_tid);
+        log_debug("kretprobe/sys_socket: socket() call failed\n");
+    }
+
 
     bpf_map_delete_elem(&pending_sockets, &tid);
 
