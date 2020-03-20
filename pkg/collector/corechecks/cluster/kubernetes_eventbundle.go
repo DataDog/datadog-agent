@@ -15,6 +15,8 @@ import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -78,15 +80,44 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	return nil
 }
 
-func (b *kubernetesEventBundle) formatEvents(clusterName string) (metrics.Event, error) {
+func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIdByNodename map[string]string) (metrics.Event, error) {
 	if len(b.events) == 0 {
 		return metrics.Event{}, errors.New("no event to export")
 	}
-	// Adding the clusterName to the nodename if present
+
+	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)}
+
 	hostname := b.nodename
-	if b.nodename != "" && clusterName != "" {
-		hostname = hostname + "-" + clusterName
+	if b.nodename != "" {
+		// Adding the clusterName to the nodename if present
+		if clusterName != "" {
+			hostname = hostname + "-" + clusterName
+		}
+
+		// Find provider ID from stored map or find via node spec from APIserver
+		hostProviderId, ok := providerIdByNodename[b.nodename]
+		if !ok {
+			cl, err := as.GetAPIClient()
+			if err != nil {
+				log.Warnf("Can't create client to query the API Server: %v", err)
+			} else {
+				node, err := as.GetNode(cl, b.nodename)
+				if err != nil {
+					log.Warnf("Can't get node from API Server: %v", err)
+				} else {
+					providerId := node.Spec.ProviderID
+					if providerId != "" {
+						// e.g. gce://datadog-test-cluster/us-east1-a/some-instance-id or aws:///us-east-1e/i-instanceid
+						s := strings.Split(providerId, "/")
+						hostProviderId = s[len(s)-1]
+						providerIdByNodename[b.nodename] = hostProviderId
+					}
+				}
+			}
+		}
+		tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostProviderId))
 	}
+
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := metrics.Event{
 		Title:          fmt.Sprintf("Events from the %s", b.readableKey),
@@ -95,7 +126,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string) (metrics.Event,
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(b.lastTimestamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)},
+		Tags:           tags,
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
 	}
 	if b.namespace != "" {
