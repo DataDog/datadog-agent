@@ -33,7 +33,7 @@ build do
     delete "jmxfetch.jar"
 
     if ENV['HARDENED_RUNTIME_MAC'] == 'true'
-      hardened_runtime = "-o runtime --entitlements #{project.files_path}/macos/Entitlements.plist "
+      hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
     else
       hardened_runtime = ""
     end
