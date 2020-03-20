@@ -175,9 +175,13 @@ func (ns *networkState) Connections(id string, latestTime uint64, latestConns []
 }
 
 func (ns *networkState) AddDNSStats(id string, conns []ConnectionStats) {
+	ns.Lock()
+	defer ns.Unlock()
+
 	if _, ok := ns.clients[id]; !ok {
 		return
 	}
+	seen := make(map[dnsKey]struct{})
 
 	for i := range conns {
 		conn := &conns[i]
@@ -190,10 +194,17 @@ func (ns *networkState) AddDNSStats(id string, conns []ConnectionStats) {
 			clientPort: conn.SPort,
 			protocol:   conn.Type,
 		}
+
+		if _, alreadySeen := seen[key]; alreadySeen {
+			continue
+		}
+
 		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
 			conn.DNSReplyCount = dnsStats.replies
 		}
+		seen[key] = struct{}{}
 	}
+
 	// flush the DNS stats
 	ns.clients[id].dnsStats = make(map[dnsKey]dnsStats)
 }
