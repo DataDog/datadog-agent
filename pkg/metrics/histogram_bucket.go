@@ -8,7 +8,7 @@ package metrics
 // HistogramBucket represents a prometheus/openmetrics histogram bucket
 type HistogramBucket struct {
 	Name       string
-	Value      int
+	Value      int64
 	LowerBound float64
 	UpperBound float64
 	Monotonic  bool

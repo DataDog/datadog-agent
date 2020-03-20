@@ -37,16 +37,16 @@ var currentStats = map[string]disk.IOCountersStat{
 
 var lastStats = map[string]disk.IOCountersStat{
 	"sda": {
-		ReadCount:        uint64(maxULong),
-		MergedReadCount:  uint64(maxULong),
-		WriteCount:       uint64(maxULong),
-		MergedWriteCount: uint64(maxULong),
-		ReadBytes:        uint64(maxULong),
-		WriteBytes:       uint64(maxULong),
+		ReadCount:        maxULong,
+		MergedReadCount:  maxULong,
+		WriteCount:       maxULong,
+		MergedWriteCount: maxULong,
+		ReadBytes:        maxULong,
+		WriteBytes:       maxULong,
 		ReadTime:         uint64(math.MaxUint32),
 		WriteTime:        uint64(math.MaxUint32),
 		IopsInProgress:   0,
-		IoTime:           uint64(maxULong),
+		IoTime:           maxULong,
 		WeightedIO:       uint64(math.MaxUint32),
 		Name:             "sda",
 		SerialNumber:     "123456789WD",

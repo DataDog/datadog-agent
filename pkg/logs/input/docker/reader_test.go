@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var fooError = errors.New("foo error")
-var barError = errors.New("bar error")
+var errFoo = errors.New("foo error")
+var errBar = errors.New("bar error")
 
 type ReadCloserMock struct {
 	io.Reader
@@ -40,7 +40,7 @@ type ReadErrorMock struct {
 }
 
 func (r *ReadErrorMock) Read(p []byte) (int, error) {
-	return 0, fooError
+	return 0, errFoo
 }
 
 func TestSafeReaderRead(t *testing.T) {
@@ -55,7 +55,7 @@ func TestSafeReaderRead(t *testing.T) {
 
 	n, err := reader.Read(bytesArray)
 	assert.Equal(t, 0, n)
-	assert.Equal(t, readerNotInitializedError, err)
+	assert.Equal(t, errReaderNotInitialized, err)
 
 	reader.setUnsafeReader(mockReadCloserNoError)
 	n, err = reader.Read(bytesArray)
@@ -65,12 +65,12 @@ func TestSafeReaderRead(t *testing.T) {
 	reader.setUnsafeReader(mockReadCloserReadError)
 	n, err = reader.Read(bytesArray)
 	assert.Equal(t, 0, n)
-	assert.Equal(t, fooError, err)
+	assert.Equal(t, errFoo, err)
 
 	reader.setUnsafeReader(nil)
 	n, err = reader.Read(bytesArray)
 	assert.Equal(t, 0, n)
-	assert.Equal(t, readerNotInitializedError, err)
+	assert.Equal(t, errReaderNotInitialized, err)
 }
 
 func TestSafeReaderClose(t *testing.T) {
@@ -79,11 +79,11 @@ func TestSafeReaderClose(t *testing.T) {
 		return nil
 	})
 	mockReadCloserCloseError := NewReadCloserMock(&ReadErrorMock{}, func() error {
-		return barError
+		return errBar
 	})
 
 	err := reader.Close()
-	assert.Equal(t, readerNotInitializedError, err)
+	assert.Equal(t, errReaderNotInitialized, err)
 
 	reader.setUnsafeReader(mockReadCloserNoError)
 	err = reader.Close()
@@ -91,9 +91,9 @@ func TestSafeReaderClose(t *testing.T) {
 
 	reader.setUnsafeReader(mockReadCloserCloseError)
 	err = reader.Close()
-	assert.Equal(t, barError, err)
+	assert.Equal(t, errBar, err)
 
 	reader.setUnsafeReader(nil)
 	err = reader.Close()
-	assert.Equal(t, readerNotInitializedError, err)
+	assert.Equal(t, errReaderNotInitialized, err)
 }

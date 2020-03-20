@@ -8,11 +8,12 @@
 package providers
 
 import (
+	"testing"
+
 	"github.com/coreos/etcd/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/net/context"
-	"testing"
 )
 
 type etcdTest struct {
@@ -21,8 +22,8 @@ type etcdTest struct {
 
 func (m *etcdTest) Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error) {
 	args := m.Called(ctx, key, opts)
-	resp, resp_ok := args.Get(0).(*client.Response)
-	if resp_ok {
+	resp, respOK := args.Get(0).(*client.Response)
+	if respOK {
 		return resp, nil
 	}
 	return nil, args.Error(1)
@@ -99,10 +100,10 @@ func TestGetIdentifiers(t *testing.T) {
 	resp.Node = badConf
 	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil)
 
-	err_array := etcd.getIdentifiers("/datadog/check_configs")
+	errArray := etcd.getIdentifiers("/datadog/check_configs")
 
-	assert.Len(t, err_array, 0)
-	assert.Equal(t, err_array, []string{})
+	assert.Len(t, errArray, 0)
+	assert.Equal(t, errArray, []string{})
 
 	backend.AssertExpectations(t)
 }

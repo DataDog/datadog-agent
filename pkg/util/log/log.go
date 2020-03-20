@@ -557,10 +557,24 @@ func GetLogLevel() (seelog.LogLevel, error) {
 	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 }
 
-func changeLogLevel(level string) error {
-	if logger == nil {
-		return errors.New("cannot set log-level: logger not initialized")
-	}
+// ChangeLogLevel changes the current log level, valide levels are trace, debug,
+// info, warn, error, critical and off, it requires a new seelog logger because
+// an existing one cannot be updated
+func ChangeLogLevel(l seelog.LoggerInterface, level string) error {
+	if logger != nil && logger.inner != nil {
+		err := logger.changeLogLevel(level)
+		if err != nil {
+			return err
+		}
+		// See detailed explanation in SetupDatadogLogger(...)
+		err = l.SetAdditionalStackDepth(defaultStackDepth)
+		if err != nil {
+			return err
+		}
 
-	return logger.changeLogLevel(level)
+		logger.replaceInnerLogger(l)
+		return nil
+	}
+	// need to return something, just set to Info (expected default)
+	return errors.New("cannot change loglevel: logger not initialized")
 }

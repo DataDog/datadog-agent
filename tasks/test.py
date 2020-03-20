@@ -15,7 +15,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .utils import get_build_flags, get_version
-from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses
+from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
@@ -46,7 +46,7 @@ DEFAULT_TEST_TARGETS = [
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     verbose=False, race=False, profile=False, fail_on_fmt=False,
     rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0, major_version='7',
-    timeout=120, arch="x64", cache=True):
+    python_runtimes='3', timeout=120, arch="x64", cache=True, skip_linters=False):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -72,23 +72,38 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
-    print("--- Linting:")
-    lint_filenames(ctx)
-    fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
-    lint(ctx, targets=tool_targets)
-    lint_licenses(ctx)
-    print("--- Vetting:")
-    vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
-    print("--- Misspelling:")
-    misspell(ctx, targets=tool_targets)
-    print("--- ineffassigning:")
-    ineffassign(ctx, targets=tool_targets)
+    print("--- go generating:")
+    generate(ctx)
+
+    if skip_linters:
+        print("--- [skipping linters]")
+    else:
+        print("--- Linting filenames:")
+        lint_filenames(ctx)
+        print("--- Linting licenses:")
+        lint_licenses(ctx)
+
+        # Until all packages whitelisted in .golangci.yml are fixed and removed
+        # from the 'skip-dirs' list we need to keep using the old functions that
+        # lint without build flags (linting some file is better than no linting).
+        print("--- Vetting and linting (legacy):")
+        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+        fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
+        lint(ctx, targets=tool_targets)
+        misspell(ctx, targets=tool_targets)
+        ineffassign(ctx, targets=tool_targets)
+
+        # for now we only run golangci_lint on Unix as the Windows env need more work
+        if sys.platform != 'win32':
+            print("--- golangci_lint:")
+            golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
 
     ldflags, gcflags, env = get_build_flags(ctx, rtloader_root=rtloader_root,
-            python_home_2=python_home_2, python_home_3=python_home_3, major_version=major_version, arch=arch)
+            python_home_2=python_home_2, python_home_3=python_home_3, major_version=major_version,
+            python_runtimes='3', arch=arch)
 
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
@@ -388,4 +403,25 @@ def make_kitchen_gitlab_yml(ctx):
             v['needs'] = new_needed
 
     with open('.gitlab-ci.yml', 'w') as f:
-        documents = yaml.dump(data, f)
+        documents = yaml.dump(data, f, default_style='"')
+
+@task
+def check_gitlab_broken_dependencies(ctx):
+    """
+    Checks that a gitlab job doesn't depend on (need) other jobs that will be excluded from the build,
+    since this would make gitlab fail when triggering a pipeline with those jobs excluded.
+    """
+    with open('.gitlab-ci.yml') as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+
+    def is_unwanted(job, version):
+        e = job.get('except',{})
+        return isinstance(e, dict) and '$RELEASE_VERSION_{} == ""'.format(version) in e.get('variables',{})
+
+    for version in [6,7]:
+        for k,v in data.items():
+            if isinstance(v, dict) and not is_unwanted(v, version) and "needs" in v:
+                needed = v['needs']
+                for need in needed:
+                    if is_unwanted(data[need], version):
+                        print("{} needs on {} but it won't be built for A{}".format(k, need, version))

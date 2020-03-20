@@ -62,8 +62,7 @@ func (t *mockTaskStruct) Metrics(ctx context.Context) (*types.Metric, error) {
 }
 
 type mockImage struct {
-	imageName string
-	size      int64
+	size int64
 	containerd.Image
 }
 
@@ -110,7 +109,7 @@ func TestTaskMetrics(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		typeUrl         string
+		typeURL         string
 		values          cgroups.Metrics
 		error           string
 		taskMetricError error
@@ -159,10 +158,7 @@ func TestTaskMetrics(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
-			ctn := makeCtn(test.values, test.typeUrl, test.taskMetricError)
-
-			cton := containerd.Container(ctn)
+			cton := makeCtn(test.values, test.typeURL, test.taskMetricError)
 
 			m, e := mockUtil.TaskMetrics(cton)
 			if e != nil {
@@ -177,21 +173,20 @@ func TestTaskMetrics(t *testing.T) {
 			if err != nil {
 				require.Equal(t, err.Error(), test.error)
 				return
-			} else {
-				require.Equal(t, test.expected, metricAny.(*cgroups.Metrics))
 			}
+			require.Equal(t, test.expected, metricAny.(*cgroups.Metrics))
 		})
 	}
 }
 
-func makeCtn(value cgroups.Metrics, typeUrl string, taskMetricsError error) containerd.Container {
+func makeCtn(value cgroups.Metrics, typeURL string, taskMetricsError error) containerd.Container {
 	taskStruct := &mockTaskStruct{
 		mockMectric: func(ctx context.Context) (*types.Metric, error) {
-			typeUrl := typeUrl
+			typeURL := typeURL
 			jsonValue, _ := json.Marshal(value)
 			metric := &types.Metric{
 				Data: &prototypes.Any{
-					TypeUrl: typeUrl,
+					TypeUrl: typeURL,
 					Value:   jsonValue,
 				},
 			}

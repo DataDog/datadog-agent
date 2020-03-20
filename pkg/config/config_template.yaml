@@ -65,6 +65,12 @@ api_key:
 #   - environment:dev
 #   - <TAG_KEY>:<TAG_VALUE>
 
+## @param env - string - optional
+## The environment name where the agent is running. Attached in-app to every
+## metric, event, log, trace, and service check emitted by this Agent.
+#
+# env: <environment name>
+
 ## @param tag_value_split_separator - list of key:value elements - optional
 ## Split tag values according to a given separator. Only applies to host tags,
 ## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
@@ -142,6 +148,13 @@ api_key:
 ## 'aggregator_stop_timeout' to 0.
 #
 # aggregator_stop_timeout: 2
+#
+# @param aggregator_buffer_size - integer - optional - default: 100
+# The default buffer size for the aggregator use a sane value for most of the
+# use cases, however, it could be useful to manually set it in order to trade
+# RSS usage with better performances.
+#
+# aggregator_buffer_size: 100
 
 ## @param forwarder_timeout - integer - optional - default: 20
 ## Forwarder timeout in seconds
@@ -339,6 +352,12 @@ api_key:
 #
 # tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
 
+## @param windows_use_pythonpath - boolean - optional
+## Whether to honour the value of the PYTHONPATH env var when set on Windows.
+## Disabled by default, so we only load Python libraries bundled with the Agent.
+#
+# windows_use_pythonpath: false
+
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
@@ -411,11 +430,23 @@ api_key:
   #     name: <RULE_NAME>
   #     pattern: <RULE_PATTERN>
 
-  ## @param use_port_443 - boolean - optional - default: false
-  ## By default, logs are sent to port 10516 *for the US site*, use this parameter
-  ## to force the Agent to send logs in TCP to port 443.
+  ## @param use_http - boolean - optional - default: false
+  ## By default, logs are sent through TCP, use this parameter
+  ## to send logs in HTTPS batches to port 443
   #
-  # use_port_443: false
+  # use_http: true
+
+  ## @param use_compression - boolean - optional - default: false
+  ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
+  ## compresses logs before sending them.
+  #
+  # use_compression: true
+
+  ## @param compression_level - integer - optional - default: 6
+  ## The compression_level parameter accepts values from 0 (no compression)
+  ## to 9 (maximum compression but higher resource usage).
+  #
+  # compression_level: 6
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -438,7 +469,9 @@ api_key:
 
   ## @param env - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
-  ## Inherits from "env" tag if "none" is applied here.
+  ## If not set the value will be inherited, in order, from the top level
+  ## "env" config option if set and then from the 'env:' tag if present in the
+  ## 'tags' top level config option.
   #
   # env: none
 
@@ -507,11 +540,7 @@ api_key:
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##
-  ## For instance to remove all query parameters from the http.url tag you would use:
-  ##
-  ##   - name: "http.url"
-  ##     pattern: "\?.*$"
-  ##     repl: "?"
+  ## See https://docs.datadoghq.com/tracing/guide/security/#replace-rules
   ##
   #
   # replace_tags:
@@ -778,6 +807,11 @@ api_key:
 #
 # dogstatsd_mapper_cache_size: 1000
 
+## @param dogstatsd_entity_id_precedence - boolean - optional - default: false
+## Disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
+#
+# dogstatsd_entity_id_precedence: false
+
 ## @param statsd_forward_host - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
 ## WARNING: Make sure that forwarded packets are regular statsd packets and not "DogStatsD" packets,
@@ -889,9 +923,11 @@ api_key:
 ###########################
 
 ## @param log_level - string - optional - default: info
-## Minum log level of the Datadog Agent.
+## Minimum log level of the Datadog Agent.
+## Valid log levels are: trace, debug, info, warn, error, critical, and off.
+## Note: When using the 'off' log level, quotes are mandatory.
 #
-# log_level: info
+# log_level: 'info'
 
 ## @param log_file - string - optional
 ## Path of the log file for the Datadog Agent.
@@ -1441,5 +1477,43 @@ api_key:
 ## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
 # cluster_name: <CLUSTER_IDENTIFIER>
+
+{{ end -}}
+{{- if .CloudFoundryBBS }}
+#######################################################
+## Cloud Foundry BBS Configuration for Autodiscovery ##
+#######################################################
+
+## @param cloud_foundry_bbs - custom object - optional
+## This section configures how the Cluster Agent accesses BBS API to gather information
+## necessary for autodiscovery on BBS-based Cloud Foundry deployments.
+#
+# cloud_foundry_bbs:
+
+  ## @param url - string - optional - default: https://bbs.service.cf.internal:8889
+  ## URL of the BBS API.
+  #
+  # url: https://bbs.service.cf.internal:8889
+
+  ## @param poll_interval - integer - optional - default: 15
+  ## Refresh rate of BBS API, in seconds. Values lower than 10 might influence
+  ## performance of other operations in the cluster.
+  #
+  # poll_interval: 15
+
+  ## @param ca_file - string - optional - default: ""
+  ## PEM-encoded CA certificate used when connecting to the BBS API.
+  #
+  # ca_file: ""
+
+  ## @param cert_file - string - optional - default: ""
+  ## PEM-encoded client certificate used when connecting to the BBS API.
+  #
+  # cert_file: ""
+
+  ## @param key_file - string - optional - default: ""
+  ## PEM-encoded client key used when connecting to the BBS API.
+  #
+  # key_file: ""
 
 {{ end -}}

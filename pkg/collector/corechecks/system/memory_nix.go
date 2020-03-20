@@ -66,7 +66,7 @@ func (c *MemoryCheck) Run() error {
 		sender.Gauge("system.swap.total", float64(s.Total)/mbSize, "", nil)
 		sender.Gauge("system.swap.free", float64(s.Free)/mbSize, "", nil)
 		sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
-		sender.Gauge("system.swap.pct_free", float64(100-s.UsedPercent)/100, "", nil)
+		sender.Gauge("system.swap.pct_free", (100-s.UsedPercent)/100, "", nil)
 	} else {
 		log.Errorf("system.MemoryCheck: could not retrieve swap memory stats: %s", errSwap)
 	}

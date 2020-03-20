@@ -88,7 +88,11 @@ func TestRegisterNonNat(t *testing.T) {
 	c := makeUntranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("50.30.40.10"), 6, 8080, 12345)
 
 	rt.register(c)
-	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 8080, process.ConnectionType_tcp)
+	translation := rt.GetTranslationForConn(
+		util.AddressFromString("10.0.0.0"), 8080,
+		util.AddressFromString("50.30.40.10"), 12345,
+		process.ConnectionType_tcp,
+	)
 	assert.Nil(t, translation)
 }
 
@@ -97,7 +101,11 @@ func TestRegisterNat(t *testing.T) {
 	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80)
 
 	rt.register(c)
-	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
+	translation := rt.GetTranslationForConn(
+		util.AddressFromString("10.0.0.0"), 12345,
+		util.AddressFromString("50.30.40.10"), 80,
+		process.ConnectionType_tcp,
+	)
 	assert.NotNil(t, translation)
 	assert.Equal(t, &IPTranslation{
 		ReplSrcIP:   util.AddressFromString("20.0.0.0"),
@@ -106,19 +114,31 @@ func TestRegisterNat(t *testing.T) {
 		ReplDstPort: 12345,
 	}, translation)
 
-	udpTranslation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_udp)
+	udpTranslation := rt.GetTranslationForConn(
+		util.AddressFromString("10.0.0.0"), 12345,
+		util.AddressFromString("50.30.40.10"), 80,
+		process.ConnectionType_udp,
+	)
 	assert.Nil(t, udpTranslation)
 
 	// even after unregistering, we should be able to access the conn
 	rt.unregister(c)
-	translation2 := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
+	translation2 := rt.GetTranslationForConn(
+		util.AddressFromString("10.0.0.0"), 12345,
+		util.AddressFromString("50.30.40.10"), 80,
+		process.ConnectionType_tcp,
+	)
 	assert.NotNil(t, translation2)
 
 	// double unregisters should never happen, though it will be treated as a no-op
 	rt.unregister(c)
 
 	rt.ClearShortLived()
-	translation3 := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
+	translation3 := rt.GetTranslationForConn(
+		util.AddressFromString("10.0.0.0"), 12345,
+		util.AddressFromString("50.30.40.10"), 80,
+		process.ConnectionType_tcp,
+	)
 	assert.Nil(t, translation3)
 
 	// triple unregisters should never happen, though it will be treated as a no-op
@@ -133,7 +153,11 @@ func TestRegisterNatUDP(t *testing.T) {
 	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 17, 12345, 80, 80)
 
 	rt.register(c)
-	translation := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, 1)
+	translation := rt.GetTranslationForConn(
+		util.AddressFromString("10.0.0.0"), 12345,
+		util.AddressFromString("50.30.40.10"), 80,
+		process.ConnectionType_udp,
+	)
 	assert.NotNil(t, translation)
 	assert.Equal(t, &IPTranslation{
 		ReplSrcIP:   util.AddressFromString("20.0.0.0"),
@@ -142,7 +166,11 @@ func TestRegisterNatUDP(t *testing.T) {
 		ReplDstPort: 12345,
 	}, translation)
 
-	translation = rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
+	translation = rt.GetTranslationForConn(
+		util.AddressFromString("10.0.0.0"), 12345,
+		util.AddressFromString("50.30.40.10"), 80,
+		process.ConnectionType_tcp,
+	)
 	assert.Nil(t, translation)
 }
 
@@ -152,19 +180,30 @@ func TestGetUpdatesGen(t *testing.T) {
 
 	rt.register(c)
 	var last uint8
+
+	// there will be two entries in rt.state for the entry we just registered.
+	// set them both to be 5 generations older than they are
+	require.Len(t, rt.state, 2)
 	for _, v := range rt.state {
 		v.expGeneration -= 5
 		last = v.expGeneration
-		break // there is only one item in the map
 	}
 
-	iptr := rt.GetTranslationForConn(util.AddressFromString("10.0.0.0"), 12345, process.ConnectionType_tcp)
+	iptr := rt.GetTranslationForConn(
+		util.AddressFromString("10.0.0.0"), 12345,
+		util.AddressFromString("50.30.40.10"), 80,
+		process.ConnectionType_tcp,
+	)
 	require.NotNil(t, iptr)
 
-	for _, v := range rt.state {
-		assert.NotEqual(t, last, v.expGeneration)
-		break // there is only one item in the map
-	}
+	require.Len(t, rt.state, 2)
+	require.Len(t, rt.shortLivedBuffer, 0)
+	entry := rt.state[connKey{
+		srcIP: util.AddressFromString("10.0.0.0"), srcPort: 12345,
+		dstIP: util.AddressFromString("50.30.40.10"), dstPort: 80,
+		transport: process.ConnectionType_tcp,
+	}]
+	assert.NotEqual(t, entry.expGeneration, last, "expected %v to equal %v", entry.expGeneration, last)
 }
 
 func TestTooManyEntries(t *testing.T) {

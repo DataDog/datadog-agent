@@ -23,7 +23,7 @@ type KubeUtilInterface interface {
 	GetPodFromUID(podUID string) (*Pod, error)
 	GetPodForEntityID(entityID string) (*Pod, error)
 	QueryKubelet(path string) ([]byte, int, error)
-	GetKubeletApiEndpoint() string
+	GetKubeletAPIEndpoint() string
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics() ([]byte, error)
 	IsAgentHostNetwork() (bool, error)

@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
-	"path"
 	"strings"
 	"unsafe"
 
@@ -56,7 +55,9 @@ func linuxKernelVersionCode(major, minor, patch uint32) uint32 {
 // along with some context on why it's not supported
 func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
 	currentKernelCode, err := CurrentKernelVersion()
-	if err != nil {
+	if err == ErrNotImplemented {
+		log.Infof("Could not detect OS, will assume supported.")
+	} else if err != nil {
 		return false, fmt.Sprintf("could not get kernel version: %s", err)
 	}
 
@@ -67,47 +68,6 @@ func IsTracerSupportedByOS(exclusionList []string) (bool, string) {
 		log.Infof("running on platform: %s", platform)
 	}
 	return verifyOSVersion(currentKernelCode, platform, exclusionList)
-}
-
-func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
-	for _, version := range exclusionList {
-		if code := stringToKernelCode(version); code == kernelCode {
-			return false, fmt.Sprintf(
-				"current kernel version (%s) is in the exclusion list: %s (list: %+v)",
-				kernelCodeToString(kernelCode),
-				version,
-				exclusionList,
-			)
-		}
-	}
-
-	// Hardcoded exclusion list
-	if platform == "" {
-		// If we can't retrieve the platform just return true to avoid blocking the tracer from running
-		return true, ""
-	}
-
-	// using eBPF causes kernel panic for linux kernel version 4.4.114 ~ 4.4.127
-	if isLinuxAWSUbuntu(platform) || isUbuntu(platform) {
-		if kernelCode >= linuxKernelVersionCode(4, 4, 114) && kernelCode <= linuxKernelVersionCode(4, 4, 127) {
-			return false, fmt.Sprintf("Known bug for kernel %s on platform %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCodeToString(kernelCode), platform)
-		}
-	}
-
-	missing, err := verifyKernelFuncs(path.Join(util.GetProcRoot(), "kallsyms"))
-	if err != nil {
-		log.Warnf("error reading /proc/kallsyms file: %s (check your kernel version, current is: %s)", err, kernelCodeToString(kernelCode))
-		// If we can't read the /proc/kallsyms file let's just return true to avoid blocking the tracer from running
-		return true, ""
-	}
-
-	if len(missing) == 0 {
-		return true, ""
-	}
-
-	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCodeToString(kernelCode))
-	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missing, ", "))
-	return false, errMsg
 }
 
 func verifyKernelFuncs(path string) ([]string, error) {
@@ -189,4 +149,28 @@ func isRHELOrCentOS() (bool, error) {
 // isPre410Kernel compares current kernel version to the minimum kernel version(4.1.0) and see if it's older
 func isPre410Kernel(currentKernelCode uint32) bool {
 	return currentKernelCode < stringToKernelCode("4.1.0")
+}
+
+// snakeToCapInitialCamel converts a snake case to Camel case with capital initial
+func snakeToCapInitialCamel(s string) string {
+	n := ""
+	capNext := true
+	for _, v := range s {
+		if v >= 'A' && v <= 'Z' {
+			n += string(v)
+		}
+		if v >= 'a' && v <= 'z' {
+			if capNext {
+				n += strings.ToUpper(string(v))
+			} else {
+				n += string(v)
+			}
+		}
+		if v == '_' {
+			capNext = true
+		} else {
+			capNext = false
+		}
+	}
+	return n
 }

@@ -11,12 +11,21 @@ package log
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
+
+func changeLogLevel(level string) error {
+	if logger == nil {
+		return errors.New("cannot set log-level: logger not initialized")
+	}
+
+	return logger.changeLogLevel(level)
+}
 
 func TestBasicLogging(t *testing.T) {
 	var b bytes.Buffer

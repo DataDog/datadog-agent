@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    The status output now shows checks' last execution date
+    and the last successful one.

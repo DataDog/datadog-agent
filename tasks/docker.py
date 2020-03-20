@@ -7,6 +7,7 @@ import shutil
 import sys
 import os
 import re
+import time
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -19,7 +20,7 @@ def test(ctx):
     """
     Run docker tests
     """
-    ctx.run("python ./Dockerfiles/agent/secrets-helper/test_readsecret.py")
+    ctx.run("python3 ./Dockerfiles/agent/secrets-helper/test_readsecret.py")
 
 
 @task
@@ -139,10 +140,26 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
     push_env = {}
     if signed_push:
         push_env["DOCKER_CONTENT_TRUST"] = "1"
-    ctx.run(
-        "docker push {dst}".format(dst=dst),
-        env=push_env
-    )
+    remaining_retries = 5
+    while True:
+        warn = True
+        if remaining_retries == 0:
+            warn = False
+
+        r = ctx.run(
+            "docker push {dst}".format(dst=dst),
+            env=push_env,
+            warn=warn
+        )
+
+        if r.ok:
+            break
+
+        # docker push might have failed because of a notary temporary error.
+        # Let give some time to the server to recover by itself before making a new attempt.
+        time.sleep(5)
+
+        remaining_retries -= 1
 
 @task(iterable=['platform'])
 def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):

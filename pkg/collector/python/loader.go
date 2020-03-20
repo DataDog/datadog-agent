@@ -73,10 +73,6 @@ func init() {
 	}
 }
 
-// const things
-const agentCheckClassName = "AgentCheck"
-const agentCheckModuleName = "checks"
-
 // PythonCheckLoader is a specific loader for checks living in Python modules
 type PythonCheckLoader struct{}
 
@@ -87,8 +83,8 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 
 func getRtLoaderError() error {
 	if C.has_error(rtloader) == 1 {
-		c_err := C.get_error(rtloader)
-		return errors.New(C.GoString(c_err))
+		cErr := C.get_error(rtloader)
+		return errors.New(C.GoString(cErr))
 	}
 	return nil
 }
@@ -217,7 +213,16 @@ func expvarConfigureErrors() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	return configureErrors
+	configureErrorsCopy := map[string][]string{}
+	for k, v := range configureErrors {
+		errors := []string{}
+		for i := range v {
+			errors = append(errors, v[i])
+		}
+		configureErrorsCopy[k] = errors
+	}
+
+	return configureErrorsCopy
 }
 
 func addExpvarConfigureError(check string, errMsg string) {
@@ -237,17 +242,27 @@ func expvarPy3Warnings() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	return py3Warnings
+	py3WarningsCopy := map[string][]string{}
+	for k, v := range py3Warnings {
+		warnings := []string{}
+		for i := range v {
+			warnings = append(warnings, v[i])
+		}
+		py3WarningsCopy[k] = warnings
+	}
+
+	return py3WarningsCopy
 }
 
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
 // and the aggregator (as extra series)
 func reportPy3Warnings(checkName string, checkFilePath string) {
-	statsLock.Lock()
-	defer statsLock.Unlock()
 
 	// check if the check has already been linted
-	if _, found := py3Warnings[checkName]; found {
+	statsLock.RLock()
+	_, found := py3Warnings[checkName]
+	statsLock.RUnlock()
+	if found {
 		return
 	}
 
@@ -272,6 +287,8 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 		} else {
 			status = a7TagNotReady
 			log.Warnf("The Python 3 linter returned warnings for check '%s'. For more details, check the output of the 'status' command or the status page of the Agent GUI).", checkName)
+			statsLock.Lock()
+			defer statsLock.Unlock()
 			for _, warning := range warnings {
 				log.Debug(warning)
 				py3Warnings[checkName] = append(py3Warnings[checkName], warning)

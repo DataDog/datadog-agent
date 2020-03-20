@@ -23,7 +23,6 @@ type Replacer struct {
 	ReplFunc func(b []byte) []byte
 }
 
-var apiKeyReplacer, uriPasswordReplacer, appKeyReplacer, passwordReplacer, tokenReplacer, snmpReplacer, certReplacer Replacer
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
 var singleLineReplacers, multiLineReplacers []Replacer
@@ -37,26 +36,26 @@ func init() {
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***********************************$1`),
 	}
-	uriPasswordReplacer = Replacer{
-		Regex: regexp.MustCompile(`([A-Za-z]+\:\/\/|\b)([A-Za-z0-9_]+)\:([^\s-]+)\@`),
+	uriPasswordReplacer := Replacer{
+		Regex: regexp.MustCompile(`([A-Za-z]+\:\/\/|\b)([A-Za-z0-9_]+)\:([^\s]+)\@`),
 		Repl:  []byte(`$1$2:********@`),
 	}
-	passwordReplacer = Replacer{
+	passwordReplacer := Replacer{
 		Regex: matchYAMLKeyPart(`(pass(word)?|pwd)`),
 		Hints: []string{"pass", "pwd"},
 		Repl:  []byte(`$1 ********`),
 	}
-	tokenReplacer = Replacer{
-		Regex: matchYAMLKeyPart(`token`),
+	tokenReplacer := Replacer{
+		Regex: matchYAMLKeyEnding(`token`),
 		Hints: []string{"token"},
 		Repl:  []byte(`$1 ********`),
 	}
-	snmpReplacer = Replacer{
+	snmpReplacer := Replacer{
 		Regex: matchYAMLKey(`(community_string|authKey|privKey)`),
 		Hints: []string{"community_string", "authKey", "privKey"},
 		Repl:  []byte(`$1 ********`),
 	}
-	certReplacer = Replacer{
+	certReplacer := Replacer{
 		Regex: matchCert(),
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
@@ -71,6 +70,12 @@ func matchYAMLKeyPart(part string) *regexp.Regexp {
 
 func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
+}
+
+// matchYAMLKeyEnding returns a regexp matching a single YAML line with a key ending by the string passed as argument.
+// The returned regexp catches only the key and not the value.
+func matchYAMLKeyEnding(ending string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s\s*:).+`, ending))
 }
 
 func matchCert() *regexp.Regexp {

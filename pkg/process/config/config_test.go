@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
 )
@@ -148,6 +149,19 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	}
 }
 
+func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	os.Setenv("DD_LOG_LEVEL", "error")
+	defer os.Unsetenv("DD_LOG_LEVEL")
+	os.Setenv("LOG_LEVEL", "debug")
+	defer os.Unsetenv("LOG_LEVEL")
+
+	agentConfig, _ := NewAgentConfig("test", "", "")
+	assert.Equal(t, "error", agentConfig.LogLevel)
+}
+
 func TestDisablingDNSInspection(t *testing.T) {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	defer restoreGlobalConfig()
@@ -281,8 +295,8 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.True(agentConfig.DisableUDPTracing)
 	assert.True(agentConfig.DisableIPv6Tracing)
 	assert.False(agentConfig.DisableDNSInspection)
-	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}), agentConfig.ExcludedSourceConnections)
-	assert.Equal(map[string][]string(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}), agentConfig.ExcludedDestinationConnections)
+	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}, agentConfig.ExcludedSourceConnections)
+	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}, agentConfig.ExcludedDestinationConnections)
 }
 
 func TestProxyEnv(t *testing.T) {
@@ -394,7 +408,7 @@ func TestGetCheckURL(t *testing.T) {
 	t.Run("endpoint doesn't contain path", func(t *testing.T) {
 		url, err := url.Parse("https://process.datadoghq.com")
 		assert.Nil(err)
-		endpoint := APIEndpoint{Endpoint: url}
+		endpoint := api.Endpoint{Endpoint: url}
 
 		assert.Equal(
 			"https://process.datadoghq.com/api/v1/collector",
@@ -409,7 +423,7 @@ func TestGetCheckURL(t *testing.T) {
 	t.Run("endpoint contain default collector path", func(t *testing.T) {
 		url, err := url.Parse("https://process.datadoghq.com/api/v1/collector")
 		assert.Nil(err)
-		endpoint := APIEndpoint{Endpoint: url}
+		endpoint := api.Endpoint{Endpoint: url}
 
 		assert.Equal(
 			"https://process.datadoghq.com/api/v1/collector",
@@ -424,7 +438,7 @@ func TestGetCheckURL(t *testing.T) {
 	t.Run("endpoint has an arbitrary path set", func(t *testing.T) {
 		url, err := url.Parse("https://nginx-server/proxy-path")
 		assert.Nil(err)
-		endpoint := APIEndpoint{Endpoint: url}
+		endpoint := api.Endpoint{Endpoint: url}
 
 		assert.Equal(
 			"https://nginx-server/proxy-path/api/v1/collector",

@@ -50,7 +50,7 @@ func GetClusterName() (string, error) {
 		return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
 	}
 
-	splitAll := strings.Split(string(all), "_")
+	splitAll := strings.Split(all, "_")
 	if len(splitAll) < 4 || splitAll[0] != "MC" {
 		return "", errors.New("cannot parse the clustername from metadata")
 	}

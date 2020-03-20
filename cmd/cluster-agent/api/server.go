@@ -56,7 +56,7 @@ func StartServer(sc clusteragent.ServerContext) error {
 	util.SetAuthToken()
 
 	// DCA client token
-	util.SetDCAAuthToken()
+	util.InitDCAAuthToken()
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}

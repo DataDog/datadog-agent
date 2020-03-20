@@ -5,6 +5,7 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -119,16 +120,6 @@ func TestTracerExpvar(t *testing.T) {
 	}
 }
 
-func TestSnakeToCamel(t *testing.T) {
-	for test, exp := range map[string]string{
-		"closed_conn_dropped":              "ClosedConnDropped",
-		"closed_conn_polling_lost":         "ClosedConnPollingLost",
-		"Conntrack_short_Term_Buffer_size": "ConntrackShortTermBufferSize",
-	} {
-		assert.Equal(t, exp, snakeToCapInitialCamel(test))
-	}
-}
-
 func TestTCPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())
@@ -187,7 +178,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 }
@@ -234,9 +226,73 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
+}
+
+func TestDNATIntraHostIntegration(t *testing.T) {
+	cmd := exec.Command("netlink/testdata/setup_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("setup command output: %s", string(out))
+	}
+	defer teardown(t)
+
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	conns := getConnections(t, tr).Conns
+
+	server := &TCPServer{
+		address: "1.1.1.1:5432",
+		onMessage: func(c net.Conn) {
+			bs := make([]byte, 1)
+			_, err := c.Read(bs)
+			require.NoError(t, err, "error reading in server")
+
+			_, err = c.Write([]byte("Ping back"))
+			require.NoError(t, err, "error writing back in server")
+			_ = c.Close()
+		},
+	}
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	conn, err := net.Dial("tcp", "2.2.2.2:5432")
+	require.NoError(t, err, "error connecting to client")
+	_, err = conn.Write([]byte("ping"))
+	require.NoError(t, err, "error writing in client")
+
+	bs := make([]byte, 1)
+	_, err = conn.Read(bs)
+	require.NoError(t, err)
+	require.NoError(t, conn.Close(), "error closing client connection")
+
+	doneChan <- struct{}{}
+
+	time.Sleep(time.Second * 1)
+
+	conns = getConnections(t, tr).Conns
+	assert.Condition(t, func() bool {
+		for _, c := range conns {
+			if c.Source == util.AddressFromString("1.1.1.1") {
+				return c.IntraHost == true
+			}
+		}
+
+		return false
+	}, "did not find 1.1.1.1 connection classified as local")
+
+	assert.Condition(t, func() bool {
+		for _, c := range conns {
+			if c.Dest == util.AddressFromString("2.2.2.2") {
+				return c.IntraHost == true
+			}
+		}
+		return true
+	})
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
@@ -526,7 +582,8 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	// Confirm that the connection has been cleaned up since the last get
 	connections = getConnections(t, tr)
@@ -590,7 +647,8 @@ func TestTCPOverIPv6(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, ln.Addr().(*net.TCPAddr).Port, int(conn.DPort))
-	assert.Equal(t, LOCAL, conn.Direction)
+	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 
@@ -679,6 +737,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, NONE, conn.Direction)
+	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 }
@@ -1001,6 +1060,81 @@ func TestSkipConnectionDNS(t *testing.T) {
 		}))
 
 	})
+}
+
+func TestConnectionExpirationRegression(t *testing.T) {
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Create TCP Server that simply "drains" connection until receiving an EOF
+	connClosed := make(chan struct{})
+	server := NewTCPServer(func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
+		connClosed <- struct{}{}
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+	defer func() { doneChan <- struct{}{} }()
+
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	require.NoError(t, err)
+
+	// Warm up state
+	_ = getConnections(t, tr)
+
+	// Write 5 bytes to TCP socket
+	payload := []byte("12345")
+	_, err = c.Write(payload)
+	require.NoError(t, err)
+
+	// Fetch connection matching source and target address
+	// This will make sure to populate the state for this particular client
+	allConnections := getConnections(t, tr)
+	connectionStats, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
+	require.True(t, ok)
+	assert.Equal(t, uint64(len(payload)), connectionStats.LastSentBytes)
+
+	// This emulates the race condition, a `tcp_close` followed by a call to `Tracer.removeConnections()`
+	// It's unfortunate we're relying here on private methods, but there isn't much we can do to avoid that.
+	c.Close()
+	<-connClosed
+	time.Sleep(100 * time.Millisecond)
+	removeConnection(t, tr, connectionStats)
+
+	// Since no bytes were send or received after we obtained the connectionStats, we should have 0 LastBytesSent
+	allConnections = getConnections(t, tr)
+	connectionStats, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
+	require.True(t, ok)
+	assert.Equal(t, uint64(0), connectionStats.LastSentBytes)
+
+	// Finally, this connection should have been expired from the state
+	allConnections = getConnections(t, tr)
+	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
+	require.False(t, ok)
+}
+
+func removeConnection(t *testing.T, tr *Tracer, c *ConnectionStats) {
+	mp, err := tr.getMap(connMap)
+	require.NoError(t, err)
+
+	tcpMp, err := tr.getMap(tcpStatsMap)
+	require.NoError(t, err)
+
+	tuple := []*ConnTuple{
+		{
+			pid:      _Ctype_uint(c.Pid),
+			saddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Source.Bytes())),
+			daddr_l:  _Ctype_ulonglong(binary.LittleEndian.Uint32(c.Dest.Bytes())),
+			sport:    _Ctype_ushort(c.SPort),
+			dport:    _Ctype_ushort(c.DPort),
+			netns:    _Ctype_uint(c.NetNS),
+			metadata: 1, // TCP/IPv4
+		},
+	}
+
+	tr.removeEntries(mp, tcpMp, tuple)
 }
 
 func byAddress(l, r net.Addr) func(c ConnectionStats) bool {
@@ -1328,4 +1462,12 @@ func getConnections(t *testing.T, tr *Tracer) *Connections {
 	}
 
 	return connections
+}
+
+func teardown(t *testing.T) {
+	cmd := exec.Command("netlink/testdata/teardown_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		fmt.Printf("teardown command output: %s", string(out))
+		t.Errorf("error tearing down: %s", err)
+	}
 }

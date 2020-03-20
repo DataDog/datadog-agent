@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+//+build zlib
+
 package metrics
 
 import (
@@ -470,7 +472,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 		if p == nil {
 			continue
 		}
-		compressedSize += len([]byte(*p))
+		compressedSize += len(*p)
 	}
 	if compressedSize > 3000000 {
 		panic(fmt.Sprintf("expecting no more than 3 MB, got %d", compressedSize))

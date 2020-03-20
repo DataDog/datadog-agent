@@ -52,25 +52,40 @@ func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve res
 		}
 	}
 
-	// Resolve sha to image repotag for orchestrators that pin the image by sha
+	// Resolve sha to image based on repotags/repodigests
 	dockerImage, err := resolve(co.Image)
 	if err != nil {
 		log.Debugf("Error resolving image %s: %s", co.Image, err)
 		return
 	}
 	tags.AddLow("docker_image", dockerImage)
+
 	imageName, shortImage, imageTag, err := containers.SplitImageName(dockerImage)
 	if err != nil {
-		log.Debugf("Cannot split %s: %s", dockerImage, err)
-		return
+		// Fallback and try to parse co.Config.Image if exists
+		if err == containers.ErrImageIsSha256 && co.Config != nil {
+			var errFallback error
+			imageName, shortImage, imageTag, errFallback = containers.SplitImageName(co.Config.Image)
+			if errFallback != nil {
+				log.Debugf("Cannot split %s: %s - fallback also failed: %s: %s ", dockerImage, err, co.Config.Image, errFallback)
+				return
+			}
+		} else {
+			log.Debugf("Cannot split %s: %s", dockerImage, err)
+			return
+		}
 	}
 	tags.AddLow("image_name", imageName)
 	tags.AddLow("short_image", shortImage)
 	tags.AddLow("image_tag", imageTag)
 }
 
-// dockerExtractLabels contain hard-coded labels from:
+// dockerExtractLabels extracts tags from docker labels
+// extracts env, version and service tags
+// extracts labels as tags
+// extracts hard-coded labels from:
 // - Docker swarm
+// - Rancher
 func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string, labelsAsTags map[string]string) {
 	for labelName, labelValue := range containerLabels {
 		switch labelName {
@@ -88,6 +103,14 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 		case "io.rancher.stack_service.name":
 			tags.AddLow("rancher_service", labelValue)
 
+		// Standard tags
+		case dockerLabelEnv:
+			tags.AddLow(tagKeyEnv, labelValue)
+		case dockerLabelVersion:
+			tags.AddLow(tagKeyVersion, labelValue)
+		case dockerLabelService:
+			tags.AddLow(tagKeyService, labelValue)
+
 		default:
 			if tagName, found := labelsAsTags[strings.ToLower(labelName)]; found {
 				tags.AddAuto(tagName, labelValue)
@@ -96,8 +119,12 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 	}
 }
 
-// dockerExtractEnvironmentVariables contain hard-coded environment variables from:
+// dockerExtractEnvironmentVariables extracts tags from the container's environment variables
+// extracts env, version and service tags
+// extracts environment variables as tags
+// extracts hard-coded environment variables from:
 // - Mesos/DCOS tags (mesos, marathon, chronos)
+// - Nomad
 func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariables []string, envAsTags map[string]string) {
 	var envSplit []string
 	var envName, envValue string
@@ -127,6 +154,14 @@ func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariable
 			tags.AddLow("nomad_job", envValue)
 		case "NOMAD_GROUP_NAME":
 			tags.AddLow("nomad_group", envValue)
+
+		// Standard tags
+		case envVarEnv:
+			tags.AddLow(tagKeyEnv, envValue)
+		case envVarVersion:
+			tags.AddLow(tagKeyVersion, envValue)
+		case envVarService:
+			tags.AddLow(tagKeyService, envValue)
 
 		default:
 			if tagName, found := envAsTags[strings.ToLower(envSplit[0])]; found {

@@ -142,6 +142,7 @@ func TestRemoveConnections(t *testing.T) {
 		LastRecvBytes:        6789,
 		MonotonicRetransmits: 2,
 		LastRetransmits:      2,
+		IntraHost:            true,
 	}
 
 	key, err := conn.ByteKey(&bytes.Buffer{})
@@ -178,6 +179,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 		LastRecvBytes:        6789,
 		MonotonicRetransmits: 2,
 		LastRetransmits:      2,
+		IntraHost:            true,
 	}
 
 	clientID := "1"
@@ -981,6 +983,7 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 		Source:             util.AddressFromString("127.0.0.1"),
 		Dest:               util.AddressFromString("127.0.0.1"),
 		MonotonicSentBytes: 3,
+		IntraHost:          true,
 	}
 
 	client := "client"
@@ -1018,6 +1021,7 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 		Dest:               util.AddressFromString("127.0.0.1"),
 		MonotonicSentBytes: 3,
 		LastSentBytes:      3,
+		IntraHost:          true,
 	}
 
 	expectedConn := conn

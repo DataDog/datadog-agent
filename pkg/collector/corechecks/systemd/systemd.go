@@ -54,10 +54,12 @@ type metricConfigItem struct {
 }
 
 // metricConfigs contains metricConfigItem(s) grouped by unit type.
+// TODO: Instead of using `optional`, use SystemD version to decide if a attribute/metric should be processed or not.
 var metricConfigs = map[string][]metricConfigItem{
 	typeService: {
 		{
 			// only present from systemd v220
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L5571-L5576
 			metricName:         "systemd.service.cpu_time_consumed",
 			propertyName:       "CPUUsageNSec",
 			accountingProperty: "CPUAccounting",
@@ -69,12 +71,17 @@ var metricConfigs = map[string][]metricConfigItem{
 			accountingProperty: "MemoryAccounting",
 		},
 		{
+			// only present from systemd v227
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L4980-L4984
+			// https://montecristosoftware.eu/matteo/systemd/commit/03a7b521e3ffb7f5d153d90480ba5d4bc29d1e8f#6e0729ff5b041f3624fb339e9484dbfad911e297_799_823
 			metricName:         "systemd.service.task_count",
 			propertyName:       "TasksCurrent",
 			accountingProperty: "TasksAccounting",
+			optional:           true,
 		},
 		{
 			// only present from systemd v235
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L3027-L3029
 			metricName:   "systemd.service.restart_count",
 			propertyName: "NRestarts",
 			optional:     true,
@@ -91,6 +98,7 @@ var metricConfigs = map[string][]metricConfigItem{
 		},
 		{
 			// only present from systemd v239
+			// https://github.com/systemd/systemd/blob/dd0395b5654c52e982adf6d354db9c7fdcf4b6c7/NEWS#L2256-L2258
 			metricName:   "systemd.socket.connection_refused_count",
 			propertyName: "NRefused",
 			optional:     true,
@@ -186,6 +194,8 @@ func (c *SystemdCheck) Run() error {
 	}
 	defer c.stats.CloseConn(conn)
 
+	c.submitSystemdState(sender, conn)
+
 	err = c.submitMetrics(sender, conn)
 	if err != nil {
 		return err
@@ -196,31 +206,33 @@ func (c *SystemdCheck) Run() error {
 
 func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
 	conn, err := c.getDbusConnection()
-
 	if err != nil {
 		newErr := fmt.Errorf("cannot create a connection: %v", err)
 		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
 		return nil, newErr
 	}
-
-	systemStateProp, err := c.stats.SystemState(conn)
-	if err != nil {
-		newErr := fmt.Errorf("err calling SystemState: %v", err)
-		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
-		return nil, newErr
-	}
 	sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckOK, "", nil, "")
-
-	serviceCheckStatus := metrics.ServiceCheckUnknown
-	systemState, ok := systemStateProp.Value.Value().(string)
-	if ok {
-		status, ok := systemdStatusMapping[systemState]
-		if ok {
-			serviceCheckStatus = status
-		}
-	}
-	sender.ServiceCheck(systemStateServiceCheck, serviceCheckStatus, "", nil, fmt.Sprintf("Systemd status is %v", systemStateProp.Value))
 	return conn, nil
+}
+
+func (c *SystemdCheck) submitSystemdState(sender aggregator.Sender, conn *dbus.Conn) {
+	systemStateProp, err := c.stats.SystemState(conn)
+	// Expected to fail for Systemd version <212
+	// Source: https://github.com/systemd/systemd/blob/d4ffda38716d33dbc17faaa12034ccb77d0ed68b/NEWS#L7292-L7300
+	// TODO: Instead of logging debug, replace with condition based on Systemd version.
+	if err != nil {
+		log.Debugf("err calling SystemState: %v", err)
+	} else {
+		serviceCheckStatus := metrics.ServiceCheckUnknown
+		systemState, ok := systemStateProp.Value.Value().(string)
+		if ok {
+			status, ok := systemdStatusMapping[systemState]
+			if ok {
+				serviceCheckStatus = status
+			}
+		}
+		sender.ServiceCheck(systemStateServiceCheck, serviceCheckStatus, "", nil, fmt.Sprintf("Systemd status is %v", systemStateProp.Value))
+	}
 }
 
 func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {

@@ -124,7 +124,7 @@ func parseEventAlertType(rawAlertType []byte) (alertType, error) {
 	return alertTypeInfo, fmt.Errorf("invalid alert type: %q", rawAlertType)
 }
 
-func applyEventOptionalField(event dogstatsdEvent, optionalField []byte) (dogstatsdEvent, error) {
+func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []byte) (dogstatsdEvent, error) {
 	newEvent := event
 	var err error
 	switch {
@@ -141,7 +141,7 @@ func applyEventOptionalField(event dogstatsdEvent, optionalField []byte) (dogsta
 	case bytes.HasPrefix(optionalField, eventAlertTypePrefix):
 		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
-		newEvent.tags = parseTags(optionalField[len(eventTagsPrefix):])
+		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
 	}
 	if err != nil {
 		return event, err
@@ -149,7 +149,7 @@ func applyEventOptionalField(event dogstatsdEvent, optionalField []byte) (dogsta
 	return newEvent, nil
 }
 
-func parseEvent(message []byte) (dogstatsdEvent, error) {
+func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 	rawHeader, rawEvent, err := splitHeaderEvent(message)
 	if err != nil {
 		return dogstatsdEvent{}, err
@@ -182,7 +182,7 @@ func parseEvent(message []byte) (dogstatsdEvent, error) {
 	var optionalField []byte
 	for optionalFields != nil {
 		optionalField, optionalFields = nextField(optionalFields)
-		event, err = applyEventOptionalField(event, optionalField)
+		event, err = p.applyEventOptionalField(event, optionalField)
 		if err != nil {
 			log.Warnf("invalid event optional field: %v", err)
 		}

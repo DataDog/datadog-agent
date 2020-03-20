@@ -38,6 +38,7 @@ type context struct {
 	KubeApiServer     bool
 	TraceAgent        bool
 	ClusterChecks     bool
+	CloudFoundryBBS   bool
 }
 
 func mkContext(buildType string) context {
@@ -91,6 +92,13 @@ func mkContext(buildType string) context {
 			Logging:       true,
 			KubeApiServer: true,
 			ClusterChecks: true,
+		}
+	case "dcacf":
+		return context{
+			Common:          true,
+			Logging:         true,
+			ClusterChecks:   true,
+			CloudFoundryBBS: true,
 		}
 	}
 

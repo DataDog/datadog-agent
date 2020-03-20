@@ -29,24 +29,24 @@ type KubeUtilInterface interface {
 	GetPodFromUID(podUID string) (*Pod, error)
 	GetPodForEntityID(entityID string) (*Pod, error)
 	QueryKubelet(path string) ([]byte, int, error)
-	GetKubeletApiEndpoint() string
+	GetKubeletAPIEndpoint() string
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics() ([]byte, error)
 	ListContainers() ([]*containers.Container, error)
 	IsAgentHostNetwork() (bool, error)
 	UpdateContainerMetrics(ctrList []*containers.Container) error
-	GetRawLocalPodList() ([]v1.Pod, error)
+	GetRawLocalPodList() ([]*v1.Pod, error)
 }
 
 // GetRawLocalPodList returns the unfiltered pod list from the kubelet
-func (ku *KubeUtil) GetRawLocalPodList() ([]v1.Pod, error) {
+func (ku *KubeUtil) GetRawLocalPodList() ([]*v1.Pod, error) {
 	data, code, err := ku.QueryKubelet(kubeletPodPath)
 
 	if err != nil {
-		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, err)
+		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletAPIEndpoint, kubeletPodPath, err)
 	}
 	if code != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
+		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletAPIEndpoint, kubeletPodPath, string(data))
 	}
 
 	podListData, err := runtime.Decode(clientsetscheme.Codecs.UniversalDecoder(v1.SchemeGroupVersion), data)
@@ -57,6 +57,11 @@ func (ku *KubeUtil) GetRawLocalPodList() ([]v1.Pod, error) {
 	if !ok {
 		return nil, fmt.Errorf("pod list type assertion failed on %v", podListData)
 	}
+	// transform []v1.Pod in []*v1.Pod
+	pods := make([]*v1.Pod, 0, len(podList.Items))
+	for _, p := range podList.Items {
+		pods = append(pods, &p)
+	}
 
-	return podList.Items, nil
+	return pods, nil
 }

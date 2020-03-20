@@ -7,19 +7,20 @@ import glob
 import os
 import shutil
 import sys
-import platform
 from distutils.dir_util import copy_tree
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var, check_go111module_envvar
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
-from .go import deps
+from .build_tags import get_build_tags, get_default_build_tags, get_distro_exclude_tags, LINUX_ONLY_TAGS
+from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
+from .rtloader import make as rtloader_make
+from .rtloader import install as rtloader_install
+from .rtloader import clean as rtloader_clean
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -81,7 +82,7 @@ PUPPY_CORECHECKS = [
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, development=True, precompile_only=False, skip_assets=False,
           embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
-          with_both_python=False, major_version='7', arch='x64'):
+          major_version='7', python_runtimes='3', arch='x64', exclude_rtloader=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -90,32 +91,29 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         inv agent.build --build-exclude=systemd
     """
 
+    # bail out if GO111MODULE is set to on
+    check_go111module_envvar("agent.build")
+
+    if not exclude_rtloader and not puppy:
+        rtloader_make(ctx, python_runtimes=python_runtimes)
+        rtloader_install(ctx)
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
             rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3,
-            with_both_python=with_both_python, major_version=major_version, arch=arch)
+            major_version=major_version, python_runtimes=python_runtimes, arch=arch)
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
-    # remove all tags that are only available on debian distributions
-    distname = platform.linux_distribution()[0].lower()
-    if distname not in REDHAT_AND_DEBIAN_DIST:
-        for ex in REDHAT_AND_DEBIAN_ONLY_TAGS:
-            if ex not in build_exclude:
-                build_exclude.append(ex)
+    # remove all tags that are not available for current distro
+    build_exclude.extend(get_distro_exclude_tags())
 
     if sys.platform == 'win32':
-        python_runtimes = os.environ.get("PYTHON_RUNTIMES") or "3"
-        python_runtimes = python_runtimes.split(',')
-
-        py_runtime_var = "PY3_RUNTIME"
-        if '2' in python_runtimes:
-            py_runtime_var = "PY2_RUNTIME"
+        py_runtime_var = get_win_py_runtime_var(python_runtimes)
 
         windres_target = "pe-x86-64"
 
@@ -152,6 +150,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     else:
         build_tags = get_build_tags(build_include, build_exclude)
 
+    # Generating go source from templates by running go generate on ./pkg/status
+    generate(ctx)
+
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
@@ -177,7 +178,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     args = {
         "go_file": "./pkg/config/render_config.go",
-        "build_type": "agent-py2py3" if with_both_python else "agent-py3",
+        "build_type": "agent-py2py3" if has_both_python(python_runtimes) else "agent-py3",
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": "./cmd/agent/dist/datadog.yaml",
     }
@@ -229,7 +230,6 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
     if "process" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/process_agent.yaml.default", os.path.join(dist_folder, "conf.d/process_agent.yaml.default"))
 
-    copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
     if development:
         copy_tree("./dev/dist/", dist_folder)
@@ -326,10 +326,15 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     for prefix in prefixes:
         ctx.run("{} {}".format(go_cmd, prefix))
 
-
-@task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
-def omnibus_build(ctx, puppy=False, cf_windows=False, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, skip_sign=False, release_version="nightly", major_version='7', omnibus_s3_cache=False):
+# hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
+@task(help={
+    'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
+    'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands"
+})
+def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base_dir=None, gem_path=None,
+                  skip_deps=False, skip_sign=False, release_version="nightly", major_version='7',
+                  python_runtimes='3', omnibus_s3_cache=False, hardened_runtime=False, system_probe_bin=None,
+                  libbcc_tarball=None):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -375,10 +380,17 @@ def omnibus_build(ctx, puppy=False, cf_windows=False, log_level="info", base_dir
         target_project = "agent"
         if puppy:
             target_project = "puppy"
-        elif cf_windows:
-            target_project = "cf-windows"
+        elif agent_binaries:
+            target_project = "agent-binaries"
 
-        omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
+        omnibus = "bundle exec omnibus"
+        if sys.platform == 'win32':
+            omnibus = "bundle exec omnibus.bat"
+        elif sys.platform == 'darwin':
+            # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
+            # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
+            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
+
         cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
             "omnibus": omnibus,
@@ -397,13 +409,24 @@ def omnibus_build(ctx, puppy=False, cf_windows=False, log_level="info", base_dir
                 env['SIGN_PFX'] = "{}".format(pfxfile)
                 env['SIGN_PFX_PW'] = "{}".format(pfxpass)
 
+            if sys.platform == 'darwin':
+                # Target MacOS 10.12
+                env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
+
             if omnibus_s3_cache:
                 args['populate_s3_cache'] = " --populate-s3-cache "
             if skip_sign:
                 env['SKIP_SIGN_MAC'] = 'true'
+            if hardened_runtime:
+                env['HARDENED_RUNTIME_MAC'] = 'true'
 
             env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version, env=env)
             env['MAJOR_VERSION'] = major_version
+            env['PY_RUNTIMES'] = python_runtimes
+            if system_probe_bin is not None:
+                env['SYSTEM_PROBE_BIN'] = system_probe_bin
+            if libbcc_tarball is not None:
+                env['LIBBCC_TARBALL'] = libbcc_tarball
             omnibus_start = datetime.datetime.now()
             ctx.run(cmd.format(**args), env=env)
             omnibus_done = datetime.datetime.now()
@@ -437,6 +460,8 @@ def clean(ctx):
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/agent")
 
+    print("Cleaning rtloader")
+    rtloader_clean(ctx)
 
 @task
 def version(ctx, url_safe=False, git_sha_length=7, major_version='7'):

@@ -15,6 +15,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -54,6 +55,12 @@ type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
 
+	// UnassignedPodInformerFactory gives access to filtered informers
+	UnassignedPodInformerFactory informers.SharedInformerFactory
+
+	// WPAClient gives access to WPA API
+	WPAClient wpa_client.Interface
+
 	// WPAInformerFactory gives access to informers for Watermark Pod Autoscalers.
 	WPAInformerFactory wpa_informers.SharedInformerFactory
 	// used to setup the APIClient
@@ -69,11 +76,11 @@ func GetAPIClient() (*APIClient, error) {
 			timeoutSeconds: config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
 		}
 		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
-			Name:          "apiserver",
-			AttemptMethod: globalAPIClient.connect,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "apiserver",
+			AttemptMethod:     globalAPIClient.connect,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	err := globalAPIClient.initRetry.TriggerRetry()
@@ -141,10 +148,20 @@ func getInformerFactory() (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
-		log.Infof("Could not get apiserver client: %v", err)
+		log.Errorf("Could not get apiserver client: %v", err)
 		return nil, err
 	}
 	return informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
+}
+
+func getInformerFactoryWithOption(options informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
+	if err != nil {
+		log.Errorf("Could not get apiserver client: %v", err)
+		return nil, err
+	}
+	return informers.NewSharedInformerFactoryWithOptions(client, resyncPeriodSeconds*time.Second, options), nil
 }
 
 func (c *APIClient) connect() error {
@@ -159,10 +176,23 @@ func (c *APIClient) connect() error {
 	if err != nil {
 		return err
 	}
+
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		tweakListOptions := func(options *metav1.ListOptions) {
+			options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
+		}
+		c.UnassignedPodInformerFactory, err = getInformerFactoryWithOption(
+			informers.WithTweakListOptions(tweakListOptions),
+		)
+	}
+
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
-		c.WPAInformerFactory, err = getWPAInformerFactory()
-		if err != nil {
+		if c.WPAInformerFactory, err = getWPAInformerFactory(); err != nil {
 			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
+			return err
+		}
+		if c.WPAClient, err = getWPAClient(time.Duration(c.timeoutSeconds) * time.Second); err != nil {
+			log.Errorf("Error getting WPA Client: %s", err.Error())
 			return err
 		}
 	}
@@ -339,8 +369,8 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 }
 
 // GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on
-func (c *APIClient) GetNodeForPod(namespace, pod_name string) (string, error) {
-	pod, err := c.Cl.CoreV1().Pods(namespace).Get(pod_name, metav1.GetOptions{})
+func (c *APIClient) GetNodeForPod(namespace, podName string) (string, error) {
+	pod, err := c.Cl.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -406,7 +436,7 @@ func getNodeList(cl *APIClient) ([]v1.Node, error) {
 	return nodes.Items, nil
 }
 
-// GetRESTObject allows to retrive a custom resource from the APIserver
+// GetRESTObject allows to retrieve a custom resource from the APIserver
 func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	result := c.Cl.CoreV1().RESTClient().Get().AbsPath(path).Do()
 	if result.Error() != nil {
