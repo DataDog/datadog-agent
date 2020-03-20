@@ -20,12 +20,18 @@ if ($Env:TARGET_ARCH -eq "x86") {
 & inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
 $err = $LASTEXITCODE
 Write-Host Build result is $err
+
 if($err -ne 0){
     Write-Host -ForegroundColor Red "rtloader make failed $err"
     [Environment]::Exit($err)
 }
 
 & inv -e rtloader.install
+Write-Host rtloader install result is $err
+if($err -ne 0){
+    Write-Host -ForegroundColor Red "rtloader install failed $err"
+    [Environment]::Exit($err)
+}
 
 # & inv -e rtloader.format --raise-if-changed
 # $err = $LASTEXITCODE
@@ -37,6 +43,13 @@ if($err -ne 0){
 # }
 
 & inv -e rtloader.test
+Write-Host rtloader test result is $err
+
+if($err -ne 0){
+    Write-Host -ForegroundColor Red "rtloader test failed $err"
+    [Environment]::Exit($err)
+}
+
 & inv -e test --race --profile --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --rtloader-root=$Env:BUILD_ROOT\rtloader
 $err = $LASTEXITCODE
 Write-Host Test result is $err
