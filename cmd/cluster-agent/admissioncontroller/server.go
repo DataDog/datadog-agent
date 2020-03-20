@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"net"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -23,6 +24,14 @@ import (
 // WebhookServer represents the http server for our admission controller
 type WebhookServer struct {
 	server *http.Server
+}
+
+var (
+	whsvr WebhookServer
+)
+
+func getListener(port int) (net.Listener, error) {
+	return net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", port))
 }
 
 // StartServer creates the router and starts the HTTP server
@@ -40,25 +49,30 @@ func StartServer(sc clusteragent.ServerContext) error {
 	}
 
 	port := config.Datadog.GetInt("cluster_agent.admissioncontroller_port")
-	whsvr := &WebhookServer{
-		server: &http.Server{
-			Addr:      fmt.Sprintf(":%d", port),
-			TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},
-		},
+	listener, err := getListener(port)
+	if err != nil {
+		log.Errorf("failed to create listener: %v", err)
 	}
 
-	// define http server and server handler
 	log.Infof("listening on admission controller endpoint, port %d", port)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mutate", whsvr.serve)
 	mux.HandleFunc("/status", whsvr.status)
-	whsvr.server.Handler = mux
 
-	// start admission controller server in new routine
-	go func() {
-		if err := whsvr.server.ListenAndServeTLS("", ""); err != nil {
-			log.Errorf("failed to listen and serve admission controller server: %v", err)
-		}
-	}()
+	tlsConfig := tls.Config{Certificates: []tls.Certificate{pair}}
+
+	server := &http.Server{Handler: mux, TLSConfig: &tlsConfig}
+
+	tlsListener := tls.NewListener(listener, &tlsConfig)
+
+	go server.Serve(tlsListener)
 	return nil
 }
+
+// StopServer closes the connection and the server
+// stops listening to new commands.
+//func StopServer() {
+//	if whsvr != nil {
+//		whsvr.server.Close()
+//	}
+//}
