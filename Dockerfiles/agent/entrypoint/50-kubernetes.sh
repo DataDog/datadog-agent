@@ -7,7 +7,7 @@ fi
 # Set a default config for Kubernetes if found
 # Don't override /etc/datadog-agent/datadog.yaml if it exists
 if [[ ! -e /etc/datadog-agent/datadog.yaml ]]; then
-    if [[ -S /var/run/docker.sock ]] || ( [[ "$DD_CRI_SOCKET_PATH" =~ docker\.sock ]] && [[ -S "$DD_CRI_SOCKET_PATH" ]] ); then
+    if [[ -n "${DOCKER_HOST}" || -S /var/run/docker.sock ]]; then
         ln -s /etc/datadog-agent/datadog-k8s-docker.yaml \
            /etc/datadog-agent/datadog.yaml
     else

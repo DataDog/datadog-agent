@@ -28,6 +28,7 @@ agentmsg.h
 datadog.yaml
 system-probe.yaml
 dogstatsd.yaml
+cloudfoundry.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
 

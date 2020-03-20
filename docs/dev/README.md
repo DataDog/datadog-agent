@@ -11,6 +11,7 @@ This guide will help you to develop and contribute code to the project.
 * [How to build the Agent binaries](agent_build.md)
 * [How to build the Agent packages][agent-omnibus]
 * [Testing guide][testing]
+* [Troubleshooting Memory Guide][memory]
 * [Caveats][caveats]
 * [Contributing][contributing]
 * [Legal][legal]
@@ -25,6 +26,7 @@ This guide will help you to develop and contribute code to the project.
 [legal]: legal.md
 [dev-env]: agent_dev_env.md
 [testing]: agent_tests.md
+[memory]: agent_memory.md
 [caveats]: caveats.md
 [contributing]: contributing.md
 [agent-omnibus]: agent_omnibus.md

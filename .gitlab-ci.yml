@@ -77,16 +77,6 @@ variables:
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2251287-69dedcf
   BCC_VERSION: v0.12.0
 
-
-# Default before_script for all the jobs. If you create a new job and don't want this to execute
-# you NEED to overwrite it.
-before_script:
-  - echo running default before_script
-  - cd $SRC_PATH
-  - pip install --upgrade --ignore-installed pip setuptools
-  - pip install -r requirements.txt
-  - inv -e deps --dep-vendor-only
-
 #
 # Trigger conditions
 #
@@ -178,8 +168,6 @@ fail_on_non_triggered_tag:
   stage: fail_on_tag
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  before_script:
-    - "# noop"
   script:
     - echo CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE CI_COMMIT_TAG=$CI_COMMIT_TAG
     - '[ "$CI_COMMIT_TAG" == "" -o "$CI_PIPELINE_SOURCE" != "push" ]'
@@ -193,7 +181,6 @@ fail_on_non_triggered_tag:
 .build_libbcc_common:
   stage: deps_build
   needs: ["fail_on_non_triggered_tag"]
-  before_script: []
   script:
     - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
     - mkdir /tmp/bcc/build
@@ -232,8 +219,6 @@ build_libbcc_arm64:
 .run_tests_windows_base:
   stage: source_test
   needs: ["fail_on_non_triggered_tag"]
-  before_script:
-    - echo "Running windows source tests"
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
     - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\unittests.bat
@@ -892,7 +877,6 @@ agent_suse-x64-a6:
   needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
@@ -910,7 +894,6 @@ agent_suse-x64-a7:
   needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["fail_on_non_triggered_tag", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
@@ -1148,6 +1131,8 @@ dogstatsd_suse-x64:
   <<: *skip_when_unwanted_on_7
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
+  before_script:
+    - inv -e deps --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -1811,7 +1796,7 @@ send_pkg_size-a6:
   <<: *skip_when_unwanted_on_6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
-    # tmp while we uppdate the base image
+    # FIXME: tmp while we uppdate the base image
     - apt-get install -y wget rpm2cpio cpio
     - ls -l $OMNIBUS_PACKAGE_DIR
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1852,7 +1837,7 @@ send_pkg_size-a7:
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
-    # tmp while we uppdate the base image
+    # FIXME: tmp while we uppdate the base image
     - apt-get install -y wget rpm2cpio cpio
     - ls -l $OMNIBUS_PACKAGE_DIR
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1919,8 +1904,6 @@ testkitchen_cleanup_s3-a6:
   variables:
     AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-  before_script:
-    - ls
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
@@ -1935,8 +1918,6 @@ testkitchen_cleanup_s3-a7:
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
-  before_script:
-    - ls
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
   when: always
@@ -1981,7 +1962,6 @@ testkitchen_cleanup_azure-a7:
 
 .docker_build_job_definition: &docker_build_job_definition
   stage: image_build
-  before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artifacts
   script:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
@@ -2980,7 +2960,7 @@ deploy_cloudfront_invalidate_on_failure:
   before_script:
   - cd $SRC_PATH
   - pip install --upgrade --ignore-installed pip setuptools
-  - pip install -r requirements.txt # Override top level entry
+  - pip install -r requirements.txt
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -3018,7 +2998,6 @@ pupernetes-tags-7:
 
 notify-on-failure:
   extends: .slack-notifier.on-failure
-  before_script: ["# noop"]
   only:
     - master
     - triggers
