@@ -224,8 +224,8 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 	m := map[string]int64{
 		"state_size":             int64(size),
 		"short_term_buffer_size": int64(stBufSize),
-		"expires":                int64(ctr.stats.expiresTotal),
-		"missed_registers":       int64(ctr.stats.missedRegisters),
+		"expires":                ctr.stats.expiresTotal,
+		"missed_registers":       ctr.stats.missedRegisters,
 	}
 
 	if ctr.stats.gets != 0 {
