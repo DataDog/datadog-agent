@@ -257,11 +257,12 @@ func expvarPy3Warnings() interface{} {
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
 // and the aggregator (as extra series)
 func reportPy3Warnings(checkName string, checkFilePath string) {
-	statsLock.Lock()
-	defer statsLock.Unlock()
 
 	// check if the check has already been linted
-	if _, found := py3Warnings[checkName]; found {
+	statsLock.RLock()
+	_, found := py3Warnings[checkName]
+	statsLock.RUnlock()
+	if found {
 		return
 	}
 
@@ -286,6 +287,8 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 		} else {
 			status = a7TagNotReady
 			log.Warnf("The Python 3 linter returned warnings for check '%s'. For more details, check the output of the 'status' command or the status page of the Agent GUI).", checkName)
+			statsLock.Lock()
+			defer statsLock.Unlock()
 			for _, warning := range warnings {
 				log.Debug(warning)
 				py3Warnings[checkName] = append(py3Warnings[checkName], warning)
