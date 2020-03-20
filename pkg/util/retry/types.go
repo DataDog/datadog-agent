@@ -51,4 +51,6 @@ type Config struct {
 	RetryDelay        time.Duration
 	InitialRetryDelay time.Duration
 	MaxRetryDelay     time.Duration
+	// now function is used in unit tests only and should be left to nil otherwise
+	now func() time.Time
 }

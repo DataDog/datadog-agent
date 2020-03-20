@@ -14,6 +14,19 @@ import (
 // is deadlocked.
 func AssertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) {
 	t.Helper()
+	assertTrueBeforeTimeout(t, frequency, timeout, condition)
+}
+
+// RequireTrueBeforeTimeout is the same as AssertTrueBeforeTimeout, but it calls
+// t.failNow() if the condition function times out.
+func RequireTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) {
+	t.Helper()
+	if !assertTrueBeforeTimeout(t, frequency, timeout, condition) {
+		t.FailNow()
+	}
+}
+
+func assertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, condition func() bool) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	r := make(chan bool, 1)
@@ -44,7 +57,7 @@ func AssertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, con
 		select {
 		case ok := <-r:
 			if ok {
-				return
+				return ok
 			}
 			ranOnce = true
 		case <-ctx.Done():
@@ -53,7 +66,7 @@ func AssertTrueBeforeTimeout(t *testing.T, frequency, timeout time.Duration, con
 			} else {
 				assert.Fail(t, "Timeout waiting for condition to happen, function never returned")
 			}
-			return
+			return false
 		}
 	}
 }

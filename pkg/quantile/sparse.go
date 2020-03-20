@@ -57,6 +57,11 @@ func (s *Sketch) Reset() {
 	s.bins = s.bins[:0] // TODO: just release to a size tiered pool.
 }
 
+// GetRawBins return raw bins information as string
+func (s *Sketch) GetRawBins() (int, string) {
+	return s.count, strings.Replace(s.bins.String(), "\n", "", -1)
+}
+
 // Insert a single value into the sketch.
 // NOTE: InsertMany is much more efficient.
 func (s *Sketch) Insert(c *Config, vals ...float64) {
