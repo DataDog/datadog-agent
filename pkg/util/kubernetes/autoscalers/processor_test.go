@@ -303,7 +303,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 				},
 			},
 			batchCalls: 5,
-			err:        fmt.Errorf("networking Error, timeout!!!"),
+			err:        fmt.Errorf("networking Error, timeout"),
 			timeout:    true,
 		},
 	}
