@@ -15,6 +15,8 @@ if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
 & go get gopkg.in/yaml.v2
+& inv -e deps --verbose --dep-vendor-only
+
 & inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
 $err = $LASTEXITCODE
 Write-Host Build result is $err
@@ -35,7 +37,6 @@ if($err -ne 0){
 # }
 
 & inv -e rtloader.test
-& inv -e deps --dep-vendor-only
 & inv -e test --race --profile --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --rtloader-root=$Env:BUILD_ROOT\rtloader
 $err = $LASTEXITCODE
 Write-Host Test result is $err
