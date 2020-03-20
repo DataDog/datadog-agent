@@ -80,7 +80,7 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	return nil
 }
 
-func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIdByNodename map[string]string) (metrics.Event, error) {
+func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDByNodename map[string]string) (metrics.Event, error) {
 	if len(b.events) == 0 {
 		return metrics.Event{}, errors.New("no event to export")
 	}
@@ -95,7 +95,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIdByNod
 		}
 
 		// Find provider ID from stored map or find via node spec from APIserver
-		hostProviderId, ok := providerIdByNodename[b.nodename]
+		hostProviderID, ok := providerIDByNodename[b.nodename]
 		if !ok {
 			cl, err := as.GetAPIClient()
 			if err != nil {
@@ -105,17 +105,17 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIdByNod
 				if err != nil {
 					log.Warnf("Can't get node from API Server: %v", err)
 				} else {
-					providerId := node.Spec.ProviderID
-					if providerId != "" {
+					providerID := node.Spec.ProviderID
+					if providerID != "" {
 						// e.g. gce://datadog-test-cluster/us-east1-a/some-instance-id or aws:///us-east-1e/i-instanceid
-						s := strings.Split(providerId, "/")
-						hostProviderId = s[len(s)-1]
-						providerIdByNodename[b.nodename] = hostProviderId
+						s := strings.Split(providerID, "/")
+						hostProviderID = s[len(s)-1]
+						providerIDByNodename[b.nodename] = hostProviderID
 					}
 				}
 			}
 		}
-		tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostProviderId))
+		tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostProviderID))
 	}
 
 	// If hostname was not defined, the aggregator will then set the local hostname

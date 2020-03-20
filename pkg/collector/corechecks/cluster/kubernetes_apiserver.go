@@ -65,7 +65,7 @@ type KubeASCheck struct {
 	ignoredEvents         string
 	ac                    *apiserver.APIClient
 	oshiftAPILevel        apiserver.OpenShiftAPILevel
-	providerIdByNodename  map[string]string
+	providerIDByNodename  map[string]string
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -179,8 +179,8 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	// Initialize map
-	if k.providerIdByNodename == nil {
-		k.providerIdByNodename = make(map[string]string)
+	if k.providerIDByNodename == nil {
+		k.providerIDByNodename = make(map[string]string)
 	}
 
 	// Running the event collection.
@@ -316,7 +316,7 @@ func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 	}
 	clusterName := clustername.GetClusterName()
 	for _, bundle := range eventsByObject {
-		datadogEv, err := bundle.formatEvents(clusterName, k.providerIdByNodename)
+		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDByNodename)
 		if err != nil {
 			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error())
 			continue
