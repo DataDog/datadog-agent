@@ -21,10 +21,6 @@ var (
 )
 
 func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) ([]string, string) {
-	if len(tags) == 0 {
-		return nil, defaultHostname
-	}
-
 	host := defaultHostname
 
 	n := 0

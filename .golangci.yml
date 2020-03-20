@@ -2,6 +2,7 @@ run:
   skip-files:
     - cmd/agent/app/reloadcheck.go # ignore unused command for now
     - cmd/agent/app/listchecks.go  # ignore unused command for now
+    - pkg/util/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
   skip-dirs:
     # ignore test helper
     - pkg/util/testutil
