@@ -68,6 +68,9 @@ thread <number> # switch to thread
 pystack # python stacktrace of current thread
 ```
 
+To debug a core dump generated with the `c_core_dump` Agent option, refer to the [GDB docker image
+that includes the Agent symbols][gdb-image].
+
 For simple debugging cases, you can simply use the python-provided `pdb` to jump into
 a debugging shell by adding to the python code that's run:
 ```python
@@ -78,3 +81,4 @@ and running the agent in the foreground.
 
 [runtime-docs]: https://golang.org/pkg/runtime/#MemStats
 [delve-project-page]: https://github.com/derekparker/delve
+[gdb-image]: /tools/gdb
