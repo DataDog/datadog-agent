@@ -43,28 +43,22 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// verify the content type is accurate
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/json" {
-		log.Errorf("contentType=%s, expect application/json", contentType)
-		return
-	}
-
 	log.Debug("admission controller request body: %v", body)
 
-	// The AdmissionReview that was sent to the admissioncontroller
 	requestedAdmissionReview := v1beta1.AdmissionReview{}
-
-	// The AdmissionReview that will be returned
 	responseAdmissionReview := v1beta1.AdmissionReview{}
 
 	deserializer := codecs.UniversalDeserializer()
 	if _, _, err := deserializer.Decode(body, nil, &requestedAdmissionReview); err != nil {
-		log.Error(err)
-		responseAdmissionReview.Response = toAdmissionResponse(err)
+		responseAdmissionReview.Response = newAdmissionResponseWithError(err)
 	} else {
-		// pass to admitFunc
-		responseAdmissionReview.Response = mutatePods(requestedAdmissionReview)
+		if requestedAdmissionReview.Request == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			log.Info("received empty request")
+			return
+		}
+
+		responseAdmissionReview.Response = handleAdmissionReview(requestedAdmissionReview)
 	}
 
 	// Return the same UID
@@ -74,66 +68,76 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 
 	respBytes, err := json.Marshal(responseAdmissionReview)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)
-		// TODO w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 	if _, err := w.Write(respBytes); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)
-		// TODO w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 }
 
-// toAdmissionResponse is a helper function to create an AdmissionResponse
-// with an embedded error
-// TODO newAdmissionResponseError
-func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
+// Returns a simple response with the provided error.
+// The webhook is still considered as allowed, in order
+// to not interfere with the user's deployment.
+func newAdmissionResponseWithMessage(message string, params ...interface{}) *v1beta1.AdmissionResponse {
+	msg := fmt.Sprintf(message, params...)
+	log.Error(msg)
 	return &v1beta1.AdmissionResponse{
+		Allowed: true,
 		Result: &metav1.Status{
-			Message: err.Error(),
+			Message: msg,
 		},
 	}
 }
 
-// TODO looking at this function implementation, at this point, we don't know if the AdmissionReview is for a Pod or another kind of resource. So I think we can rename this function to handleAdmissionReview()
-func mutatePods(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	podResource := metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"} // TODO this instance of podResource can be const and define outside this function
-	if ar.Request.Resource != podResource {
-		log.Errorf("expect resource to be %s, got %v", podResource, ar.Request.Resource)
-
-		return &v1beta1.AdmissionResponse{Allowed: true}
-	}
-
-	raw := ar.Request.Object.Raw
-	pod := corev1.Pod{}
-	deserializer := codecs.UniversalDeserializer()
-	if _, _, err := deserializer.Decode(raw, nil, &pod); err != nil {
-		log.Error(err)
-		return toAdmissionResponse(err)
-	}
-
-	patch, _ := mutatePod(pod)
-
-	// TODO I think we can have a more generic approach in this function.
-	// 	var response *admissionv1beta1.AdmissionResponse
-	//     switch {
-	//     case ar.Request.Resource == podResource:
-	//         response = handlePodRequest(ar.Request.Object.Raw)
-	//     default:
-	//         log.Errorf("resource %v not supported", ar.Request.Resource)
-	//         response = &admissionv1beta1.AdmissionResponse{Allowed: true}
-	//     }
-	//     return response
-
-	return mutateResponse(patch)
+func newAdmissionResponseWithError(err error) *v1beta1.AdmissionResponse {
+	return newAdmissionResponseWithMessage(err.Error())
 }
 
-func mutateResponse(patch jsonpatch.Patch) *v1beta1.AdmissionResponse {
-	bs, _ := json.Marshal(patch) // TODO error check
-	patchType := v1beta1.PatchTypeJSONPatch
+var (
+	podResource = metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+)
+
+func handleAdmissionReview(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+	if ar.Request == nil {
+		return newAdmissionResponseWithMessage("empty resource %v not supported", ar)
+	}
+
+	switch {
+	case ar.Request.Resource == podResource:
+		return handlePodRequest(ar.Request.Object.Raw)
+	default:
+		return newAdmissionResponseWithMessage("resource %v not supported", ar.Request.Resource)
+	}
+}
+
+func handlePodRequest(raw []byte) *v1beta1.AdmissionResponse {
+	pod := corev1.Pod{}
+	if err := json.Unmarshal(raw, &pod); err != nil {
+		return newAdmissionResponseWithError(err)
+	}
+
+	patch := mutatePod(pod, getEnvMutator())
+	return newJSONPatchResponse(patch)
+}
+
+var (
+	patchTypeJSONPatch = v1beta1.PatchTypeJSONPatch
+)
+
+func newJSONPatchResponse(patch jsonpatch.Patch) *v1beta1.AdmissionResponse {
+	bytes, err := json.Marshal(patch)
+	if err != nil {
+		return newAdmissionResponseWithError(err)
+	}
+
 	return &v1beta1.AdmissionResponse{
 		Allowed:   true,
-		Patch:     bs,
-		PatchType: &patchType,
+		Patch:     bytes,
+		PatchType: &patchTypeJSONPatch,
 	}
 }
 
@@ -152,63 +156,36 @@ func getEnvMutator() []corev1.EnvVar {
 	}
 }
 
-func mutatePod(pod corev1.Pod) (jsonpatch.Patch, error) {
-	var envVariables = getEnvMutator()
-
+func mutatePod(pod corev1.Pod, envMutator []corev1.EnvVar) (jsonpatch.Patch) {
 	containerLists := []struct {
-		field      string
+		containerType      string
 		containers []corev1.Container
 	}{
 		{"initContainers", pod.Spec.InitContainers},
 		{"containers", pod.Spec.Containers},
 	}
 
-	var patch jsonpatch.Patch
+	patch := jsonpatch.Patch{}
 
 	for _, s := range containerLists {
-		field, containers := s.field, s.containers
+		containerType, containers := s.containerType, s.containers
 		for i, container := range containers {
-			if len(container.Env) == 0 {
-				patch = append(patch, jsonpatch.Add(
-					fmt.Sprint("/spec/", field, "/", i, "/env"),
-					[]interface{}{},
-				))
-			}
-
-			remainingEnv := make([]corev1.EnvVar, len(container.Env))
-			copy(remainingEnv, container.Env)
-
-		injectedEnvLoop:
-			for envPos, def := range envVariables {
-				for pos, v := range remainingEnv {
+		mutateEnv:
+			for envPos, def := range envMutator {
+				// Skip current mutation if the variable already exists.
+				// We do not want to override provided by the user.
+				for _, v := range container.Env {
 					if v.Name == def.Name {
-						if currPos, destPos := envPos+pos, envPos; currPos != destPos {
-							// This should ideally be a `move` operation but due to a bug in the json-patch's
-							// implementation of `move` operation, we explicitly use `remove` followed by `add`.
-							// see, https://github.com/evanphx/json-patch/pull/73
-							// This is resolved in json-patch `v4.2.0`, which is pulled by Kubernetes `1.14.3` clusters.
-							// https://github.com/kubernetes/kubernetes/blob/v1.14.3/Godeps/Godeps.json#L1707-L1709
-							// TODO: Use a `move` operation, once all clusters are on `1.14.3+`
-							patch = append(patch,
-								jsonpatch.Remove(
-									fmt.Sprint("/spec/", field, "/", i, "/env/", currPos),
-								),
-								jsonpatch.Add(
-									fmt.Sprint("/spec/", field, "/", i, "/env/", destPos),
-									v,
-								))
-						}
-						remainingEnv = append(remainingEnv[:pos], remainingEnv[pos+1:]...)
-						continue injectedEnvLoop
+						continue mutateEnv
 					}
 				}
 
 				patch = append(patch, jsonpatch.Add(
-					fmt.Sprint("/spec/", field, "/", i, "/env/", envPos),
+					fmt.Sprint("/spec/", containerType, "/", i, "/env/", envPos),
 					def,
 				))
 			}
 		}
 	}
-	return patch, nil
+	return patch
 }
