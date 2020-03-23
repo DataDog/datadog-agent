@@ -579,7 +579,7 @@ New Features
 
 - Adding support for compression when forwarding logs through HTTPS. Enable it
   by following instructions
-  [here](https://docs.datadoghq.com/agent/logs/?tab=httpcompressed#send-logs-over-https)
+  `here <https://docs.datadoghq.com/agent/logs/?tab=httpcompressed#send-logs-over-https>`_
 
 .. _Release Notes_6.15.0_Enhancement Notes:
 
