@@ -34,4 +34,8 @@ bt           # show stacktrace for current thread
 py-bt        # show python stacktrace (if selected thread is a python thread and has python frames)
 ```
 
-See https://wiki.python.org/moin/DebuggingWithGdb for more info on the Python-specific commands.
+See https://devguide.python.org/gdb/#gdb-7-and-later for more info on the Python-specific commands.
+
+## TODO
+
+* add cpython sources
