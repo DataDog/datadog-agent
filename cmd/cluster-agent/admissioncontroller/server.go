@@ -17,7 +17,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,9 +34,7 @@ func getListener(port int) (net.Listener, error) {
 }
 
 // StartServer creates the router and starts the HTTP server
-// TODO Also I don't think providing the clusteragent.ServerContext as parameter is useful here. Providing the mainCtx context.Context can be more useful to have graceful stop of the webhook
-// TODO I think it is not useful to use the sc clusteragent.ServerContext here, but instead we can use a ctx context.Context. thank to context.Context it will be possible to close the listener when the channel behind the ctx.Done() is closed
-func StartServer(sc clusteragent.ServerContext) error {
+func StartServer() error {
 	certFile := config.Datadog.GetString("cluster_agent.admission_controller.tls_cert_file")
 	keyFile := config.Datadog.GetString("cluster_agent.admission_controller.tls_key_file")
 
@@ -69,10 +66,9 @@ func StartServer(sc clusteragent.ServerContext) error {
 	return nil
 }
 
-// StopServer closes the connection and the server
-// stops listening to new commands.
-//func StopServer() {
-//	if whsvr != nil {
-//		whsvr.server.Close()
-//	}
-//}
+// StopServer closes the TLS server
+func StopServer() {
+	if whsvr.server != nil {
+		whsvr.server.Close()
+	}
+}

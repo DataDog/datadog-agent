@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admissioncontroller"
 	"runtime"
 	"syscall"
 
@@ -329,6 +330,7 @@ func StopAgent() {
 		common.MetadataScheduler.Stop()
 	}
 	api.StopServer()
+	admissioncontroller.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 	aggregator.StopDefaultAggregator()

@@ -22,25 +22,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type ResponsePayload struct {
-	Response ResponseObject
+type responsePayload struct {
+	Response responseObject
 }
 
-type ResponseObject struct {
+type responseObject struct {
 	UID       string
 	Allowed   bool
 	Patch     string
 	PatchType string
-	Status    Result
+	Status    result
 }
 
-type JSONPath struct {
+type jsonPath struct {
 	Op    string
 	Path  string
 	Value interface{}
 }
 
-type Result struct {
+type result struct {
 	Message string
 }
 
@@ -180,7 +180,7 @@ func TestServe(t *testing.T) {
 				return
 			}
 
-			response := ResponsePayload{}
+			response := responsePayload{}
 			data, err := ioutil.ReadAll(writer.Body)
 			assert.Nil(t, err)
 			err = json.Unmarshal(data, &response)
@@ -202,7 +202,7 @@ func TestServe(t *testing.T) {
 			decodedPatch, err := base64.StdEncoding.DecodeString(response.Response.Patch)
 			assert.Nil(t, err)
 
-			var patchList []JSONPath
+			var patchList []jsonPath
 			err = json.Unmarshal(decodedPatch, &patchList)
 			assert.Nil(t, err)
 			assert.Equal(t, len(tt.patches), len(patchList))
