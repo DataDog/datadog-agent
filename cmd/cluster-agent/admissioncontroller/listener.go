@@ -34,12 +34,12 @@ func init() {
 	v1.AddToScheme(scheme)
 }
 
-func (whsvr *WebhookServer) status(w http.ResponseWriter, r *http.Request) {
+func status(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("status OK"))
 }
 
-func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
-	log.Error("test version 1") // TODO remove debug statement
+func serve(w http.ResponseWriter, r *http.Request) {
+	log.Error("test version 2") // TODO remove debug statement
 	var body []byte
 	if r.Body != nil {
 		if data, err := ioutil.ReadAll(r.Body); err == nil {

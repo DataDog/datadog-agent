@@ -150,8 +150,6 @@ func TestServe(t *testing.T) {
 		},
 	}
 
-	var whsvr WebhookServer
-
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.description), func(t *testing.T) {
 			// Build request object
@@ -169,7 +167,7 @@ func TestServe(t *testing.T) {
 			writer := httptest.NewRecorder()
 
 			// Exercise code
-			whsvr.serve(writer, req)
+			serve(writer, req)
 
 			assert.Equal(t, tt.status, writer.Code)
 

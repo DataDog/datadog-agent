@@ -20,13 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// WebhookServer represents the http server for our admission controller
-type WebhookServer struct {
-	server *http.Server
-}
-
 var (
-	whsvr WebhookServer
+	server *http.Server
 )
 
 func getListener(port int) (net.Listener, error) {
@@ -53,8 +48,8 @@ func StartServer() error {
 
 	log.Infof("listening on admission controller endpoint, port %d", port)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/mutate", whsvr.serve)
-	mux.HandleFunc("/status", whsvr.status)
+	mux.HandleFunc("/mutate", serve)
+	mux.HandleFunc("/status", status)
 
 	tlsConfig := tls.Config{Certificates: []tls.Certificate{pair}}
 
@@ -68,7 +63,7 @@ func StartServer() error {
 
 // StopServer closes the TLS server
 func StopServer() {
-	if whsvr.server != nil {
-		whsvr.server.Close()
+	if server != nil {
+		server.Close()
 	}
 }
