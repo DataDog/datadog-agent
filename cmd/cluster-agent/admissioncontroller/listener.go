@@ -19,16 +19,19 @@ import (
 )
 
 var (
-	runtimeScheme = runtime.NewScheme()
-	codecs        = serializer.NewCodecFactory(runtimeScheme)
+	// Scheme is the schemed used for validation and mutation of resources
+	scheme = runtime.NewScheme()
+
+	// Codecs is the codec used for en/de coding
+	codecs = serializer.NewCodecFactory(scheme)
 )
 
 func init() {
-	corev1.AddToScheme(runtimeScheme)
-	admissionregistrationv1beta1.AddToScheme(runtimeScheme)
+	corev1.AddToScheme(scheme)
+	admissionregistrationv1beta1.AddToScheme(scheme)
 	// defaulting with webhooks:
 	// https://github.com/kubernetes/kubernetes/issues/57982
-	v1.AddToScheme(runtimeScheme)
+	v1.AddToScheme(scheme)
 }
 
 func (whsvr *WebhookServer) status(w http.ResponseWriter, r *http.Request) {
