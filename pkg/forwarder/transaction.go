@@ -111,6 +111,11 @@ type HTTPTransaction struct {
 	ErrorCount int
 
 	createdAt time.Time
+
+	// attemptHandler will be called with a transaction before the attempting to send the request
+	attemptHandler func(transaction *HTTPTransaction)
+	// successHandler will be called with a transaction after it has been successfully sent
+	successHandler func(transaction *HTTPTransaction, statusCode int, body []byte)
 }
 
 // Transaction represents the task to process for a Worker.
@@ -126,6 +131,12 @@ func NewHTTPTransaction() *HTTPTransaction {
 		createdAt:  time.Now(),
 		ErrorCount: 0,
 		Headers:    make(http.Header),
+		attemptHandler: func(transaction *HTTPTransaction) {
+
+		},
+		successHandler: func(transaction *HTTPTransaction, statusCode int, body []byte) {
+
+		},
 	}
 }
 
@@ -142,6 +153,8 @@ func (t *HTTPTransaction) GetTarget() string {
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
 func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) error {
+	t.attemptHandler(t)
+
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint
 	logURL := httputils.SanitizeURL(url) // sanitized url that can be logged
@@ -206,6 +219,8 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		tlmTxErrors.Inc(t.Domain, "gt_400")
 		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
+
+	t.successHandler(t, resp.StatusCode, body)
 
 	transactionsSuccessful.Add(1)
 	tlmTxSuccess.Inc(t.Domain)
