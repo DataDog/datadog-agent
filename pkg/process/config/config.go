@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -293,12 +293,26 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	if cfg.HostName == "" {
-		if ecsutil.IsFargateInstance() {
-			// Fargate tasks should have no concept of host names, so we're using the task ARN.
-			if taskMeta, err := ecsmeta.V2().GetTask(); err == nil {
-				cfg.HostName = fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN)
-			} else {
-				log.Errorf("Failed to retrieve Fargate task metadata: %s", err)
+		if fargate.IsFargateInstance() {
+			// Fargate should have no concept of host names
+			// we set cfg.HostName depending on the orchestrator
+			switch fargate.GetOrchestrator() {
+			case fargate.ECS:
+				// Use the task ARN as hostname
+				if taskMeta, err := ecsmeta.V2().GetTask(); err == nil {
+					cfg.HostName = fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN)
+				} else {
+					log.Errorf("Failed to retrieve ECS Fargate task metadata: %s", err)
+				}
+			case fargate.EKS:
+				// Use the node name as hostname
+				if nodename, err := fargate.GetEKSFargateNodename(); err == nil {
+					cfg.HostName = nodename
+				} else {
+					log.Errorf("Failed to retrieve EKS Fargate node name: %s", err)
+				}
+			default:
+				log.Errorf("Failed to set config hostname in Fargate: unknown Fargate orchestrator")
 			}
 		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname

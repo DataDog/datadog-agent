@@ -217,7 +217,9 @@ func initConfig(config Config) {
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
-	if IsContainerized() {
+
+	// Exclude EKS Fargate since host volumes are not supported
+	if IsContainerized() && !IsEKSFargate() {
 		config.SetDefault("procfs_path", "/host/proc")
 		config.SetDefault("container_proc_root", "/host/proc")
 		config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
@@ -1008,6 +1010,15 @@ func IsKubernetes() bool {
 	}
 	// support of Datadog environment variable for Kubernetes
 	if os.Getenv("KUBERNETES") != "" {
+		return true
+	}
+	return false
+}
+
+// IsEKSFargate returns whether the Agent is running on a EKS Fargate cluster
+func IsEKSFargate() bool {
+	// Datadog environment variable for EKS Fargate
+	if os.Getenv("DD_EKS_FARGATE") != "" {
 		return true
 	}
 	return false
