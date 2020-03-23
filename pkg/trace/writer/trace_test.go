@@ -76,36 +76,34 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		numOpsPerWorker = 100
 	)
 
-	t.Run("ok", func(t *testing.T) {
-		testSpans := []*SampledSpans{
-			randomSampledSpans(20, 8),
-			randomSampledSpans(10, 0),
-			randomSampledSpans(40, 5),
-		}
-		in := make(chan *SampledSpans)
-		tw := NewTraceWriter(cfg, in)
-		go tw.Run()
+	testSpans := []*SampledSpans{
+		randomSampledSpans(20, 8),
+		randomSampledSpans(10, 0),
+		randomSampledSpans(40, 5),
+	}
+	in := make(chan *SampledSpans)
+	tw := NewTraceWriter(cfg, in)
+	go tw.Run()
 
-		var wg sync.WaitGroup
-		for i := 0; i < numWorkers; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for j := 0; j < numOpsPerWorker; j++ {
-					for _, ss := range testSpans {
-						in <- ss
-					}
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < numOpsPerWorker; j++ {
+				for _, ss := range testSpans {
+					in <- ss
 				}
-			}()
-		}
+			}
+		}()
+	}
 
-		wg.Wait()
-		tw.Stop()
-		// One payload flushes due to overflowing the threshold, and the second one
-		// because of stop.
-		assert.Equal(t, 186, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans)
-	})
+	wg.Wait()
+	tw.Stop()
+	// One payload flushes due to overflowing the threshold, and the second one
+	// because of stop.
+	assert.Equal(t, 186, srv.Accepted())
+	payloadsContain(t, srv.Payloads(), testSpans)
 }
 
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold

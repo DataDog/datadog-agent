@@ -352,10 +352,11 @@ func newPayload(headers map[string]string) *payload {
 }
 
 func (p *payload) clone() *payload {
-	clone := ppool.Get().(*payload)
-	// Don't clone the headers since they don't get mutated.
-	clone.headers = p.headers
-	clone.body.Reset()
+	headersClone := make(map[string]string, len(p.headers))
+	for key, val := range p.headers {
+		headersClone[key] = val
+	}
+	clone := newPayload(headersClone)
 	clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes()))
 	return clone
 }

@@ -216,26 +216,25 @@ func (w *TraceWriter) flush() {
 		gzipw.Write(b)
 		gzipw.Close()
 
-		var payloads []*payload
 		if len(w.senders) == 1 {
 			// Avoid an allocation when only one endpoint is configured.
-			payloadsArr := [1]*payload{p}
-			payloads = payloadsArr[:]
+			w.senders[0].Push(p)
 		} else {
-			// If there is more than one sender then we need to create a payload clone for each
-			// one because pooling is managed at the per-sender level so we need separate payloads
-			// for each sender to avoid double-put pooling bugs.
-			payloads = make([]*payload, 0, len(w.senders))
+			// Create a clone for each payload because each sender places payloads
+			// back onto the pool after they are sent.
+			payloads := make([]*payload, 0, len(w.senders))
+			// Perform all the clones before any sends are to ensure the original
+			// payload body is completely unread.
 			for i := range w.senders {
-				p := p
-				if i != 0 {
-					p = p.clone()
+				if i == 0 {
+					payloads = append(payloads, p)
+				} else {
+					payloads = append(payloads, p.clone())
 				}
-				payloads = append(payloads, p)
 			}
-		}
-		for i, sender := range w.senders {
-			sender.Push(payloads[i])
+			for i, sender := range w.senders {
+				sender.Push(payloads[i])
+			}
 		}
 	}()
 }
