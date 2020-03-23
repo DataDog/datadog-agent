@@ -36,6 +36,7 @@ func (whsvr *WebhookServer) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
+	log.Error("test version 1") // TODO remove debug statement
 	var body []byte
 	if r.Body != nil {
 		if data, err := ioutil.ReadAll(r.Body); err == nil {
@@ -156,10 +157,10 @@ func getEnvMutator() []corev1.EnvVar {
 	}
 }
 
-func mutatePod(pod corev1.Pod, envMutator []corev1.EnvVar) (jsonpatch.Patch) {
+func mutatePod(pod corev1.Pod, envMutator []corev1.EnvVar) jsonpatch.Patch {
 	containerLists := []struct {
-		containerType      string
-		containers []corev1.Container
+		containerType string
+		containers    []corev1.Container
 	}{
 		{"initContainers", pod.Spec.InitContainers},
 		{"containers", pod.Spec.Containers},
@@ -170,6 +171,15 @@ func mutatePod(pod corev1.Pod, envMutator []corev1.EnvVar) (jsonpatch.Patch) {
 	for _, s := range containerLists {
 		containerType, containers := s.containerType, s.containers
 		for i, container := range containers {
+			// If Container does not have any environment variables,
+			// create the base path first with an empty array.
+			if len(container.Env) == 0 {
+				patch = append(patch, jsonpatch.Add(
+					fmt.Sprint("/spec/", containerType, "/", i, "/env"),
+					[]interface{}{},
+				))
+			}
+
 		mutateEnv:
 			for envPos, def := range envMutator {
 				// Skip current mutation if the variable already exists.

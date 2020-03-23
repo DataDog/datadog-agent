@@ -37,7 +37,7 @@ type ResponseObject struct {
 type JSONPath struct {
 	Op    string
 	Path  string
-	Value corev1.EnvVar
+	Value interface{}
 }
 
 type Result struct {
@@ -55,28 +55,52 @@ func marshalContainers(containers []corev1.Container) []byte {
 }
 
 func newContainer() []corev1.Container {
-	return newContainerWithVar("", "")
+	return []corev1.Container{{}}
 }
 
 func newContainerWithVar(name string, value string) []corev1.Container {
 	return []corev1.Container{{Env: []corev1.EnvVar{{Name: name, Value: value}}}}
 }
 
+func expectedPatchFieldPath(name string, fieldPath string) interface{} {
+	return map[string]interface{}{
+		"name": name,
+		"valueFrom": map[string]interface{}{
+			"fieldRef": map[string]interface{}{
+				"fieldPath": fieldPath,
+			},
+		},
+	}
+}
+
+// Base path creation must have an empty array as value
+func expectedBaseEnvPatchValue() interface{} {
+	return []interface{}{}
+}
+
+type ExpectedPatch struct {
+	path  string
+	value interface{}
+}
+
 func TestServe(t *testing.T) {
 	tests := []struct {
-		description string
-		requestBody []byte
-		status      int
-		hasResponseBody  bool
-		patchPaths  []string
-		message string
+		description     string
+		requestBody     []byte
+		status          int
+		hasResponseBody bool
+		patches         []ExpectedPatch
+		message         string
 	}{
 		{
 			"with container",
 			marshalContainers(newContainer()),
 			200,
 			true,
-			[]string{"/spec/containers/0/env/0"},
+			[]ExpectedPatch{
+				{"/spec/containers/0/env", expectedBaseEnvPatchValue()},
+				{"/spec/containers/0/env/0", expectedPatchFieldPath("DD_AGENT_HOST", "status.hostIP")},
+			},
 			"",
 		},
 		{
@@ -84,15 +108,28 @@ func TestServe(t *testing.T) {
 			marshalPodSpec(corev1.PodSpec{InitContainers: newContainer()}),
 			200,
 			true,
-			[]string{"/spec/initContainers/0/env/0"},
+			[]ExpectedPatch{
+				{"/spec/initContainers/0/env", expectedBaseEnvPatchValue()},
+				{"/spec/initContainers/0/env/0", expectedPatchFieldPath("DD_AGENT_HOST", "status.hostIP")},
+			},
 			"",
 		},
 		{
-			"container with existing environment variable",
+			"container with conflicting environment variable",
 			marshalContainers(newContainerWithVar("DD_AGENT_HOST", "existing")),
 			200,
 			true,
-			[]string{},
+			[]ExpectedPatch{},
+			"",
+		},
+		{
+			"container with non-conflicting environment variable",
+			marshalContainers(newContainerWithVar("no-dd", "existing")),
+			200,
+			true,
+			[]ExpectedPatch{
+				{"/spec/containers/0/env/0", expectedPatchFieldPath("DD_AGENT_HOST", "status.hostIP")},
+			},
 			"",
 		},
 		{
@@ -100,7 +137,7 @@ func TestServe(t *testing.T) {
 			[]byte{},
 			400,
 			false,
-			[]string{},
+			[]ExpectedPatch{},
 			"",
 		},
 		{
@@ -108,7 +145,7 @@ func TestServe(t *testing.T) {
 			nil,
 			200,
 			true,
-			[]string{},
+			[]ExpectedPatch{},
 			"unexpected end of JSON input",
 		},
 	}
@@ -152,7 +189,7 @@ func TestServe(t *testing.T) {
 			assert.Equal(t, requestUid, response.Response.UID)
 			assert.Equal(t, true, response.Response.Allowed)
 
-			if len(tt.patchPaths) == 0 {
+			if len(tt.patches) == 0 {
 				// No JSONPatch in response
 				assert.Equal(t, tt.message, response.Response.Status.Message)
 				return
@@ -168,18 +205,14 @@ func TestServe(t *testing.T) {
 			var patchList []JSONPath
 			err = json.Unmarshal(decodedPatch, &patchList)
 			assert.Nil(t, err)
-			assert.Equal(t, len(tt.patchPaths), len(patchList))
+			assert.Equal(t, len(tt.patches), len(patchList))
 
-			for i, path := range tt.patchPaths {
+			for i, expectedPatch := range tt.patches {
 				patch := patchList[i]
 
 				assert.Equal(t, "add", patch.Op)
-				assert.Equal(t, path, patch.Path)
-
-				value := patch.Value
-				assert.Equal(t, "DD_AGENT_HOST", value.Name)
-				assert.Equal(t, "status.hostIP", value.ValueFrom.FieldRef.FieldPath)
-				assert.Empty(t, value.Value) // We use ValueFrom instead of Value
+				assert.Equal(t, expectedPatch.path, patch.Path)
+				assert.Equal(t, expectedPatch.value, patch.Value)
 			}
 		})
 	}
