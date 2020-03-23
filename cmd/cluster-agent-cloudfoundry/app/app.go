@@ -10,6 +10,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admissioncontroller"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"os"
 	"os/signal"
