@@ -18,10 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 // getAvailableUDPPort requests a random port number and makes sure it is available
@@ -85,12 +83,7 @@ func TestUDPReceive(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil),
-		"hostname",
-		"agentString",
-		time.Millisecond*10,
-	)
+	agg := mockAggregator()
 	metricOut, eventOut, serviceOut := agg.GetBufferedChannels()
 	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
@@ -286,12 +279,7 @@ func TestUDPForward(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil),
-		"hostname",
-		"agentString",
-		time.Millisecond*10,
-	)
+	agg := mockAggregator()
 	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -326,12 +314,7 @@ func TestHistToDist(t *testing.T) {
 	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
 	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 
-	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil),
-		"hostname",
-		"agentString",
-		time.Millisecond*10,
-	)
+	agg := mockAggregator()
 	metricOut, _, _ := agg.GetBufferedChannels()
 	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
@@ -370,12 +353,7 @@ func TestExtraTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 
-	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil),
-		"hostname",
-		"agentString",
-		time.Millisecond*10,
-	)
+	agg := mockAggregator()
 	metricOut, _, _ := agg.GetBufferedChannels()
 	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
@@ -403,12 +381,7 @@ func TestExtraTags(t *testing.T) {
 }
 
 func TestDebugStats(t *testing.T) {
-	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil),
-		"hostname",
-		"agentString",
-		time.Millisecond*10,
-	)
+	agg := mockAggregator()
 	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()

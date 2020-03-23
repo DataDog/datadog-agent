@@ -86,7 +86,6 @@ dogstatsd_mapper_profiles:
 
 	BenchmarkMapperControl(b)
 }
-
 func BenchmarkMapperControl(b *testing.B) {
 	port, err := getAvailableUDPPort()
 	require.NoError(b, err)
@@ -95,12 +94,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil),
-		"hostname",
-		"agentString",
-		time.Millisecond*10,
-	)
+	agg := mockAggregator()
 	s, _ := NewServer(agg)
 	defer s.Stop()
 
