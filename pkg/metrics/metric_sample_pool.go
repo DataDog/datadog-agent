@@ -4,12 +4,6 @@ import (
 	"sync"
 )
 
-var (
-	// GlobalMetricSamplePool is a pool of slices of metric sample to avoid allocations.
-	// Used by the Dogstatsd Batcher.
-	GlobalMetricSamplePool = NewMetricSamplePool(32)
-)
-
 // MetricSamplePool is a pool of metrics sample
 type MetricSamplePool struct {
 	pool *sync.Pool

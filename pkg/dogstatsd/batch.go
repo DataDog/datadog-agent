@@ -18,12 +18,15 @@ type batcher struct {
 	choutSamples       chan<- []metrics.MetricSample
 	choutEvents        chan<- []*metrics.Event
 	choutServiceChecks chan<- []*metrics.ServiceCheck
+
+	metricSamplePool *metrics.MetricSamplePool
 }
 
 func newBatcher(aggregator *aggregator.BufferedAggregator) *batcher {
 	s, e, sc := aggregator.GetBufferedChannels()
 	return &batcher{
-		samples:            metrics.GlobalMetricSamplePool.GetBatch(),
+		samples:            aggregator.MetricSamplePool.GetBatch(),
+		metricSamplePool:   aggregator.MetricSamplePool,
 		choutSamples:       s,
 		choutEvents:        e,
 		choutServiceChecks: sc,
@@ -50,7 +53,7 @@ func (b *batcher) flushSamples() {
 	if b.samplesCount > 0 {
 		b.choutSamples <- b.samples[:b.samplesCount]
 		b.samplesCount = 0
-		b.samples = metrics.GlobalMetricSamplePool.GetBatch()
+		b.samples = b.metricSamplePool.GetBatch()
 	}
 }
 

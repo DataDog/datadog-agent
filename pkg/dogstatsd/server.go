@@ -62,6 +62,7 @@ type Server struct {
 	aggregator *aggregator.BufferedAggregator
 
 	packetsIn                 chan listeners.Packets
+	sharedPacketPool          *listeners.PacketPool
 	Statistics                *util.Stats
 	Started                   bool
 	stopChan                  chan bool
@@ -109,9 +110,13 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
+	// sharedPacketPool is used by the packet assembler to retrieve already allocated
+	// buffer in order to avoid allocation. The packets are pushed back by the server.
+	sharedPacketPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel)
+		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -119,7 +124,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		}
 	}
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel)
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -154,6 +159,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		Started:                   true,
 		Statistics:                stats,
 		packetsIn:                 packetsChannel,
+		sharedPacketPool:          sharedPacketPool,
 		aggregator:                aggregator,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
@@ -332,7 +338,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 				}
 			}
 		}
-		listeners.GlobalPacketPool.Put(packet)
+		s.sharedPacketPool.Put(packet)
 	}
 	batcher.flush()
 }

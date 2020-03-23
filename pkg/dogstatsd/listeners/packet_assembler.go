@@ -18,18 +18,22 @@ type packetAssembler struct {
 	packet       *Packet
 	packetLength int
 	// assembled packets are pushed into this buffer
-	packetsBuffer *packetsBuffer
-	flushTimer    *time.Ticker
-	closeChannel  chan struct{}
+	packetsBuffer    *packetsBuffer
+	sharedPacketPool *PacketPool
+	flushTimer       *time.Ticker
+	closeChannel     chan struct{}
 	sync.Mutex
 }
 
-func newPacketAssembler(flushTimer time.Duration, packetsBuffer *packetsBuffer) *packetAssembler {
+func newPacketAssembler(flushTimer time.Duration, packetsBuffer *packetsBuffer, sharedPacketPool *PacketPool) *packetAssembler {
 	packetAssembler := &packetAssembler{
-		packet:        GlobalPacketPool.Get(),
-		packetsBuffer: packetsBuffer,
-		flushTimer:    time.NewTicker(flushTimer),
-		closeChannel:  make(chan struct{}),
+		// retrieve an available packet from the packet pool,
+		// the will be pushed by back the server when processed.
+		packet:           sharedPacketPool.Get(),
+		sharedPacketPool: sharedPacketPool,
+		packetsBuffer:    packetsBuffer,
+		flushTimer:       time.NewTicker(flushTimer),
+		closeChannel:     make(chan struct{}),
 	}
 	go packetAssembler.flushLoop()
 	return packetAssembler
@@ -69,7 +73,9 @@ func (p *packetAssembler) flush() {
 	}
 	p.packet.Contents = p.packet.buffer[:p.packetLength]
 	p.packetsBuffer.append(p.packet)
-	p.packet = GlobalPacketPool.Get()
+	// retrieve an available packet from the packet pool,
+	// the will be pushed by back the server when processed.
+	p.packet = p.sharedPacketPool.Get()
 	p.packetLength = 0
 }
 

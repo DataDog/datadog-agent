@@ -47,7 +47,7 @@ type UDPListener struct {
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan Packets) (*UDPListener, error) {
+func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -80,7 +80,7 @@ func NewUDPListener(packetOut chan Packets) (*UDPListener, error) {
 
 	buffer := make([]byte, bufferSize)
 	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
-	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer)
+	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool)
 
 	listener := &UDPListener{
 		conn:            conn,

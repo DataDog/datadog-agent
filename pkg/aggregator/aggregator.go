@@ -188,6 +188,10 @@ type BufferedAggregator struct {
 	checkMetricIn          chan senderMetricSample
 	checkHistogramBucketIn chan senderHistogramBucket
 
+	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
+	// Used by the Dogstatsd Batcher.
+	MetricSamplePool *metrics.MetricSamplePool
+
 	statsdSampler      TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
 	serviceChecks      metrics.ServiceChecks
@@ -219,6 +223,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName st
 
 		checkMetricIn:          make(chan senderMetricSample, bufferSize),
 		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
+
+		MetricSamplePool: metrics.NewMetricSamplePool(32),
 
 		statsdSampler:      *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
@@ -662,7 +668,7 @@ func (agg *BufferedAggregator) run() {
 			for i := 0; i < len(ms); i++ {
 				agg.addSample(&ms[i], timeNowNano())
 			}
-			metrics.GlobalMetricSamplePool.PutBatch(ms)
+			agg.MetricSamplePool.PutBatch(ms)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
 			tlmProcessed.Add(float64(len(serviceChecks)), "service_checks")
