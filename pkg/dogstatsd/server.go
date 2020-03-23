@@ -55,10 +55,10 @@ func init() {
 
 // Server represent a Dogstatsd server
 type Server struct {
-	// listeners are the instanciated socket listener (UDS or UDP or both)
+	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
 	// aggregator is a pointer to the aggregator that the dogstatsd daemon
-	// will send the the metrics samples, events and service checks to.
+	// will send the metrics samples, events and service checks to.
 	aggregator *aggregator.BufferedAggregator
 
 	packetsIn                 chan listeners.Packets
