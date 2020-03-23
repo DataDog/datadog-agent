@@ -1018,10 +1018,7 @@ func IsKubernetes() bool {
 // IsEKSFargate returns whether the Agent is running on a EKS Fargate cluster
 func IsEKSFargate() bool {
 	// Datadog environment variable for EKS Fargate
-	if os.Getenv("DD_EKS_FARGATE") != "" {
-		return true
-	}
-	return false
+	return os.Getenv("DD_EKS_FARGATE") != ""
 }
 
 // AddOverrides provides an externally accessible method for

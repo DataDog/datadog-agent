@@ -11,7 +11,7 @@ RUN set -ex \
         doxygen graphviz
 
 # Golang
-ENV GIMME_GO_VERSION 1.12.9
+ENV GIMME_GO_VERSION 1.13.8
 ENV GOROOT /root/.gimme/versions/go$GIMME_GO_VERSION.linux.amd64
 ENV GOPATH /go
 ENV PATH $GOROOT/bin:$GOPATH/bin:$PATH
