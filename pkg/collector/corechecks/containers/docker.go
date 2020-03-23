@@ -116,7 +116,7 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *contai
 	}
 }
 
-func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.DockerUtil) error {
+func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, imageTagsByImageID map[string][]string, du *docker.DockerUtil) error {
 	if d.instance.CollectImagesStats == false {
 		return nil
 	}
@@ -132,19 +132,12 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 
 	if d.instance.CollectImageSize {
 		for _, i := range availableImages {
-			if len(i.RepoTags) == 0 {
+			if tags, ok := imageTagsByImageID[i.ID]; ok {
+				sender.Gauge("docker.image.virtual_size", float64(i.VirtualSize), "", tags)
+				sender.Gauge("docker.image.size", float64(i.Size), "", tags)
+			} else {
 				log.Tracef("Skipping image %s, no repo tags", i.ID)
-				continue
 			}
-			name, _, tag, err := containers.SplitImageName(i.RepoTags[0])
-			if err != nil {
-				log.Errorf("Could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
-				continue
-			}
-			tags := []string{fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag)}
-
-			sender.Gauge("docker.image.virtual_size", float64(i.VirtualSize), "", tags)
-			sender.Gauge("docker.image.size", float64(i.Size), "", tags)
 		}
 	}
 	sender.Gauge("docker.images.available", float64(len(availableImages)), "", nil)
@@ -174,6 +167,7 @@ func (d *DockerCheck) Run() error {
 
 	collectingContainerSizeDuringThisRun := d.instance.CollectContainerSize && d.collectContainerSizeCounter == 0
 
+	imageTagsByImageID := make(map[string][]string)
 	images := map[string]*containerPerImage{}
 	for _, c := range cList {
 		updateContainerRunningCount(images, c)
@@ -183,6 +177,16 @@ func (d *DockerCheck) Run() error {
 		tags, err := tagger.Tag(c.EntityID, collectors.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
+		}
+		// Track image_name and image_tag tags by image for use in countAndWeightImages
+		for _, t := range tags {
+			if strings.HasPrefix(t, "image_name:") || strings.HasPrefix(t, "image_tag:") {
+				if _, found := imageTagsByImageID[c.ImageID]; !found {
+					imageTagsByImageID[c.ImageID] = []string{t}
+				} else {
+					imageTagsByImageID[c.ImageID] = append(imageTagsByImageID[c.ImageID], t)
+				}
+			}
 		}
 
 		currentUnixTime := time.Now().Unix()
@@ -296,7 +300,7 @@ func (d *DockerCheck) Run() error {
 	sender.Gauge("docker.containers.running.total", float64(totalRunning), "", nil)
 	sender.Gauge("docker.containers.stopped.total", float64(totalStopped), "", nil)
 
-	if err := d.countAndWeightImages(sender, du); err != nil {
+	if err := d.countAndWeightImages(sender, imageTagsByImageID, du); err != nil {
 		log.Error(err.Error())
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error collecting images: %s", err)
