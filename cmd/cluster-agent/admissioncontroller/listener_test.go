@@ -155,11 +155,11 @@ func TestServe(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.description), func(t *testing.T) {
 			// Build request object
-			const requestUid = "request-id"
+			const requestUID = "request-id"
 			podResource := metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 
 			request := v1beta1.AdmissionReview{Request: &v1beta1.AdmissionRequest{
-				UID:      requestUid,
+				UID:      requestUID,
 				Resource: podResource,
 				Object:   runtime.RawExtension{Raw: tt.requestBody},
 			}}
@@ -186,7 +186,7 @@ func TestServe(t *testing.T) {
 			err = json.Unmarshal(data, &response)
 			assert.Nil(t, err)
 
-			assert.Equal(t, requestUid, response.Response.UID)
+			assert.Equal(t, requestUID, response.Response.UID)
 			assert.Equal(t, true, response.Response.Allowed)
 
 			if len(tt.patches) == 0 {
