@@ -5,7 +5,7 @@
 
 // +build linux
 
-package metrics
+package cgroup
 
 import (
 	"bufio"
@@ -131,7 +131,7 @@ func parseCgroupMountPoints(r io.Reader) map[string]string {
 // ScrapeAllCgroups returns ContainerCgroup for every container that's in a Cgroup.
 // This version iterates on /{host/}proc to retrieve processes out of the namespace.
 // We return as a map[containerID]Cgroup for easy look-up.
-func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
+func scrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 	mountPoints, err := cgroupMountPoints()
 	if err != nil {
 		return nil, err
@@ -158,7 +158,7 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 			continue
 		}
 		cgPath := hostProc(dirName, "cgroup")
-		containerID, paths, err := ReadCgroupsForPath(cgPath, prefix)
+		containerID, paths, err := readCgroupsForPath(cgPath, prefix)
 		if containerID == "" {
 			continue
 		}
@@ -180,23 +180,8 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 	return cgs, nil
 }
 
-// ContainerIDForPID is a lighter version of CgroupsForPids to only retrieve the
-// container ID for origin detection. Returns container id as a string, empty if
-// the PID is not in a container.
-//
-// Matching is tested for docker on known cgroup variations, and
-// containerd / cri-o default Kubernetes cgroups
-func ContainerIDForPID(pid int) (string, error) {
-	cgPath := hostProc(strconv.Itoa(pid), "cgroup")
-	prefix := config.Datadog.GetString("container_cgroup_prefix")
-
-	containerID, _, err := ReadCgroupsForPath(cgPath, prefix)
-
-	return containerID, err
-}
-
-// ReadCgroupsForPath reads the cgroups from a /proc/$pid/cgroup path.
-func ReadCgroupsForPath(pidCgroupPath, prefix string) (string, map[string]string, error) {
+// readCgroupsForPath reads the cgroups from a /proc/$pid/cgroup path.
+func readCgroupsForPath(pidCgroupPath, prefix string) (string, map[string]string, error) {
 	f, err := os.Open(pidCgroupPath)
 	if os.IsNotExist(err) {
 		log.Debugf("cgroup path '%s' could not be read: %s", pidCgroupPath, err)
