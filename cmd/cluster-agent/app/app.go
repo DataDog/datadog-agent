@@ -245,7 +245,6 @@ func start(cmd *cobra.Command, args []string) error {
 	sc := clusteragent.ServerContext{
 		ClusterCheckHandler: clusterCheckHandler,
 	}
-
 	if err = api.StartServer(sc); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
