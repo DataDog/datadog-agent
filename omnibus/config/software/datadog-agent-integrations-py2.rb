@@ -171,11 +171,11 @@ build do
     if windows?
       command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
       command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
-      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
+      command "#{python} -m piptools compile --generate-hashes #{static_reqs_out_file} && false"
     else
       command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
+      command "#{python} -m piptools compile --generate-hashes #{static_reqs_out_file} && false", :env => nix_build_env
     end
 
     # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact

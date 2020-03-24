@@ -619,6 +619,10 @@ build_system-probe-arm64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+      - /opt/datadog-agent/agent_requirements-py2.txt
+      - /opt/datadog-agent/agent_requirements-py3.txt
+      - C:\opt\datadog-agent\agent_requirements-py2.txt
+      - C:\opt\datadog-agent\agent_requirements-py3.txt
 
 # build Agent package for deb-x64
 agent_deb-x64-a6:
