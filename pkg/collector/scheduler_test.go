@@ -15,8 +15,9 @@ import (
 
 type MockLoader struct{}
 
-func (l *MockLoader) Load(config integration.Config) ([]check.Check, error) {
-	return []check.Check{}, nil
+func (l *MockLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+	var c check.Check
+	return c, nil
 }
 
 func TestAddLoader(t *testing.T) {

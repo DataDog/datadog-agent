@@ -1,4 +1,6 @@
 instances:
+  - server: localhost
+    port: 8081
   - host: localhost
     port: 1099
     is_jmx: true

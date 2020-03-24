@@ -8,6 +8,8 @@
 package jmx
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -15,8 +17,7 @@ import (
 )
 
 // JMXCheckLoader is a specific loader for checks living in this package
-type JMXCheckLoader struct {
-}
+type JMXCheckLoader struct{}
 
 // NewJMXCheckLoader creates a loader for go checks
 func NewJMXCheckLoader() (*JMXCheckLoader, error) {
@@ -24,48 +25,31 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 	return &JMXCheckLoader{}, nil
 }
 
-func splitConfig(config integration.Config, instances []integration.Data) []integration.Config {
-	configs := []integration.Config{}
+// Load returns a JMX check
+func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+	var c check.Check
 
-	for _, instance := range instances {
-		c := integration.Config{
-			ADIdentifiers: config.ADIdentifiers,
-			InitConfig:    config.InitConfig,
-			Instances:     []integration.Data{instance},
-			LogsConfig:    config.LogsConfig,
-			MetricConfig:  config.MetricConfig,
-			Name:          config.Name,
-			Provider:      config.Provider,
-		}
-		configs = append(configs, c)
-	}
-	return configs
-}
-
-// Load returns an (empty?) list of checks and nil if it all works out
-func (jl *JMXCheckLoader) Load(config integration.Config) ([]check.Check, error) {
-	checks := []check.Check{}
-
-	instancesJMX := []integration.Data{}
-	for _, instance := range config.Instances {
-		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-			instancesJMX = append(instancesJMX, instance)
-		}
+	if !check.IsJMXInstance(config.Name, instance, config.InitConfig) {
+		return c, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
 
-	for _, instance := range instancesJMX {
-		if err := state.runner.configureRunner(instance, config.InitConfig); err != nil {
-			log.Errorf("jmx.loader: could not configure check: %s", err)
-			return checks, err
-		}
+	if err := state.runner.configureRunner(instance, config.InitConfig); err != nil {
+		log.Errorf("jmx.loader: could not configure check: %s", err)
+		return c, err
 	}
 
-	for _, cf := range splitConfig(config, instancesJMX) {
-		c := newJMXCheck(cf, config.Source)
-		checks = append(checks, c)
+	cf := integration.Config{
+		ADIdentifiers: config.ADIdentifiers,
+		InitConfig:    config.InitConfig,
+		Instances:     []integration.Data{instance},
+		LogsConfig:    config.LogsConfig,
+		MetricConfig:  config.MetricConfig,
+		Name:          config.Name,
+		Provider:      config.Provider,
 	}
+	c = newJMXCheck(cf, config.Source)
 
-	return checks, nil
+	return c, nil
 }
 
 func (jl *JMXCheckLoader) String() string {
@@ -77,5 +61,5 @@ func init() {
 		return NewJMXCheckLoader()
 	}
 
-	loaders.RegisterLoader(30, factory)
+	loaders.RegisterLoader(10, factory)
 }

@@ -15,5 +15,5 @@ import (
 // A check is loaded for every `instance` found in the configuration file.
 // Load is supposed to break down instances and return different checks.
 type Loader interface {
-	Load(config integration.Config) ([]Check, error)
+	Load(config integration.Config, instance integration.Data) (Check, error)
 }
