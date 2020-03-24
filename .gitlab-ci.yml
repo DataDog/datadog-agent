@@ -2338,7 +2338,7 @@ dev_branch_docker_hub-a7-windows:
     - |
       @"
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809-jmx
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64-jmx datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809-jmx
       "@ | Add-Content ci-scripts/docker-publish.ps1
 
 dev_branch_multiarch_docker_hub-a6:
@@ -2440,7 +2440,7 @@ dev_master_docker_hub-a7-windows:
     - |
       @"
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:master-py3-win1809
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:master-py3-win1809-jmx
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64-jmx datadog/agent-dev:master-py3-win1809-jmx
       "@ | Add-Content ci-scripts/docker-publish.ps1
     - cat ci-scripts/docker-publish.ps1
 
@@ -2523,7 +2523,7 @@ dev_nightly_docker_hub-a7-windows:
     - |
       @"
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1809
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1809-jmx
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64-jmx datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1809-jmx
       "@ | Add-Content ci-scripts/docker-publish.ps1
 
 # deploys nightlies to agent-dev
