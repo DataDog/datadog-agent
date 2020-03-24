@@ -72,9 +72,9 @@ func (c *Container) FillCgroupMetrics() error {
 	if err != nil {
 		return fmt.Errorf("cpu: %s", err)
 	}
-	c.CPUNrThrottled, err = c.cgroup.CPUNrThrottled()
+	c.CPUThrottled, err = c.cgroup.CPUThrottled()
 	if err != nil {
-		return fmt.Errorf("cpuNrThrottled: %s", err)
+		return fmt.Errorf("cpuThrottled: %s", err)
 	}
 	c.IO, err = c.cgroup.IO()
 	if err != nil {

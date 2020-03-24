@@ -64,6 +64,15 @@ type CgroupTimesStat struct {
 	Shares      uint64
 }
 
+// CgroupThrottleStat stores throttling-related CPU times for a cgroup.
+// Unit is a CFS throttling period (cfs_period_us)
+type CgroupThrottleStat struct {
+	ContainerID   string
+	NrPeriods     uint64
+	NrThrottled   uint64
+	ThrottledTime uint64 // in nanoseconds
+}
+
 // CgroupIOStat store I/O statistics about a cgroup.
 // Sums are stored in ReadBytes and WriteBytes
 type CgroupIOStat struct {
