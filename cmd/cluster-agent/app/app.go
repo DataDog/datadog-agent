@@ -258,7 +258,7 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	wg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 	// Autoscaler Controller Process
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
