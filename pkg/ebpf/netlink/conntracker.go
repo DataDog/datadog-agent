@@ -5,6 +5,7 @@ package netlink
 import (
 	"context"
 	"fmt"
+	stdlog "log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,16 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
+	"github.com/mdlayher/netlink"
 	"github.com/pkg/errors"
 )
 
 const (
 	initializationTimeout = time.Second * 10
 
-	compactInterval = time.Minute * 3
+	compactInterval = time.Minute
 
-	// generationLength must be greater than compactInterval to ensure we have  multiple compactions per generation
-	generationLength = compactInterval + time.Minute
+	// generationLength must be greater than compactInterval to ensure we have multiple compactions per generation
+	generationLength = compactInterval + 30*time.Second
+
+	// netlink socket buffer size in bytes
+	netlinkBufferSize = 1024 * 1024
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -117,14 +122,14 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 	}
 
 	netns := getGlobalNetNSFD(procRoot)
-
 	logger := getLogger()
-	nfct, err := ct.Open(&ct.Config{NetNS: netns, Logger: logger})
+
+	nfct, err := createNetlinkSocket("register", netns, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	nfctDel, err := ct.Open(&ct.Config{NetNS: netns, Logger: logger})
+	nfctDel, err := createNetlinkSocket("unregister", netns, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open delete NFCT")
 	}
@@ -344,6 +349,8 @@ func (ctr *realConntracker) unregister(c ct.Con) int {
 		atomic.AddInt64(&ctr.stats.missedRegisters, 1)
 	}
 
+	log.Tracef("unregistered %s", conDebug(c))
+
 	return 0
 }
 
@@ -442,4 +449,27 @@ func conDebug(c ct.Con) string {
 		c.Reply.Dst, *c.Reply.Proto.DstPort,
 		proto,
 	)
+}
+
+func createNetlinkSocket(name string, netns int, logger *stdlog.Logger) (*ct.Nfct, error) {
+	nfct, err := ct.Open(&ct.Config{NetNS: netns, Logger: logger})
+	if err != nil {
+		return nil, err
+	}
+
+	// Sometimes the conntrack flushes are larger than the socket recv buffer capacity.
+	// This ensures that in case of buffer overrun the `recvmsg` call will *not*
+	// receive an ENOBUF which is currently not handled properly by go-conntrack library.
+	nfct.Con.SetOption(netlink.NoENOBUFS, true)
+
+	// We also increase the socket buffer size to better handle bursts of events.
+	if err := setSocketBufferSize(netlinkBufferSize, nfct.Con); err != nil {
+		log.Errorf("error setting rcv buffer size for %s netlink socket: %s", name, err)
+	}
+
+	if size, err := getSocketBufferSize(nfct.Con); err == nil {
+		log.Debugf("rcv buffer size for %s netlink socket is %d bytes", name, size)
+	}
+
+	return nfct, nil
 }

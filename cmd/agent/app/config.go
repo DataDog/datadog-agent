@@ -54,7 +54,7 @@ var (
 	listRuntimeURLPath = agentConfigURLPath + "/list-runtime"
 )
 
-func showRuntimeConfiguration(cmd *cobra.Command, args []string) error {
+func setupConfig() error {
 	if flagNoColor {
 		color.NoColor = true
 	}
@@ -70,7 +70,11 @@ func showRuntimeConfiguration(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = util.SetAuthToken()
+	return util.SetAuthToken()
+}
+
+func showRuntimeConfiguration(cmd *cobra.Command, args []string) error {
+	err := setupConfig()
 	if err != nil {
 		return err
 	}
@@ -108,7 +112,7 @@ func requestConfig() (string, error) {
 }
 
 func listRuntimeConfigurableValue(cmd *cobra.Command, args []string) error {
-	err := util.SetAuthToken()
+	err := setupConfig()
 	if err != nil {
 		return err
 	}
@@ -144,7 +148,7 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("Exactly two parameters are required: the setting name and its value")
 	}
-	err := util.SetAuthToken()
+	err := setupConfig()
 	if err != nil {
 		return err
 	}
@@ -173,7 +177,7 @@ func getConfigValue(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("A single setting name must be specified")
 	}
-	err := util.SetAuthToken()
+	err := setupConfig()
 	if err != nil {
 		return err
 	}

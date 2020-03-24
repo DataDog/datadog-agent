@@ -43,6 +43,9 @@ const (
 
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
+
+	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
+	ClusterIDCacheKey = "orchestratorClusterID"
 )
 
 var overrideVars = make(map[string]interface{})
@@ -300,6 +303,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
 	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
+	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
+	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
 	config.SetKnown("dogstatsd_mapper_profiles")
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
@@ -389,7 +394,7 @@ func initConfig(config Config) {
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
-	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"})
+	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys"})
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)

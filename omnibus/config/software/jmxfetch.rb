@@ -27,7 +27,7 @@ build do
   ship_license "https://raw.githubusercontent.com/DataDog/jmxfetch/master/LICENSE"
   mkdir jar_dir
 
-  if osx?
+  if osx? && code_signing_identity
     # Also sign binaries and libraries inside the .jar, because they're detected by the Apple notarization service.
     command "unzip jmxfetch.jar -d ."
     delete "jmxfetch.jar"
@@ -38,7 +38,7 @@ build do
       hardened_runtime = ''
     end
 
-    command "find . -type f | grep -E '(\\.so|\\.dylib|\\.jnilib)' | xargs codesign #{hardened_runtime}--force --timestamp --deep -s 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'"
+    command "find . -type f | grep -E '(\\.so|\\.dylib|\\.jnilib)' | xargs codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'"
     command "zip jmxfetch.jar -r ."
   end
 

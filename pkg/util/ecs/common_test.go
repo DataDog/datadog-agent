@@ -31,7 +31,6 @@ func TestConvertMetaV2Container(t *testing.T) {
 		},
 	}
 	expected := &containers.Container{
-		CPULimit:    100,
 		Created:     1517518510,
 		EntityID:    "container_id://43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
 		ID:          "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946",
@@ -42,6 +41,8 @@ func TestConvertMetaV2Container(t *testing.T) {
 		Type:        "ECS",
 		AddressList: []containers.NetworkAddress{},
 	}
+	expected.CPULimit = 100
+
 	assert.Equal(t, expected, convertMetaV2Container(container))
 }
 
@@ -136,27 +137,27 @@ func TestConvertMetaV2ContainerStats(t *testing.T) {
 		Network: v2.NetStats{},
 	}
 
-	expectedCPU := metrics.CgroupTimesStat{
+	expectedCPU := &metrics.ContainerCPUStats{
 		User:        7450000000,
 		System:      2260000000,
 		SystemUsage: 3951680000000,
 	}
-	expectedMem := metrics.CgroupMemStat{
+	expectedMem := &metrics.ContainerMemStats{
 		Cache:           65499136,
 		MemUsageInBytes: 77254656,
 		Pgfault:         430478,
 		RSS:             1564672,
 	}
-	expectedIO := metrics.CgroupIOStat{
+	expectedIO := &metrics.ContainerIOStats{
 		ReadBytes:  1024,
 		WriteBytes: 256,
 	}
 
-	cpu, mem, io, memLimit := convertMetaV2ContainerStats(stats)
+	containerMetrics, memLimit := convertMetaV2ContainerStats(stats)
 
-	assert.Equal(t, expectedCPU, cpu)
-	assert.Equal(t, expectedMem, mem)
-	assert.Equal(t, expectedIO, io)
+	assert.Equal(t, expectedCPU, containerMetrics.CPU)
+	assert.Equal(t, expectedMem, containerMetrics.Memory)
+	assert.Equal(t, expectedIO, containerMetrics.IO)
 	assert.Equal(t, uint64(268435456), memLimit)
 }
 

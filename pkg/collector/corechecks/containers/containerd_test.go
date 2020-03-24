@@ -17,8 +17,8 @@ import (
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
-	"github.com/docker/docker/pkg/testutil/assert"
 	prototypes "github.com/gogo/protobuf/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -159,7 +159,7 @@ func TestComputeEvents(t *testing.T) {
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
 				assert.Contains(t, res.Title, test.expectedTitle)
-				assert.EqualStringSlice(t, res.Tags, test.expectedTags)
+				assert.ElementsMatch(t, res.Tags, test.expectedTags)
 			}
 			mocked.AssertNumberOfCalls(t, "Event", test.numberEvents)
 			mocked.ResetCalls()

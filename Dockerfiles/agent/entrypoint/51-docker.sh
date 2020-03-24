@@ -5,7 +5,7 @@
 #     (in that case, we trust the user wants docker integration and don't check existence)
 #   - we find the docker socket at it's default location
 
-if [[ -z "${DOCKER_HOST}" && ! -e /var/run/docker.sock ]]; then
+if [[ -z "${DOCKER_HOST}" && ! -S /var/run/docker.sock ]]; then
     exit 0
 fi
 
