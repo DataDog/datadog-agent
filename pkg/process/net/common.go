@@ -42,15 +42,15 @@ type RemoteSysProbeUtil struct {
 	// Retrier used to setup system probe
 	initRetry retry.Retrier
 
-	socketPath string
-	httpClient http.Client
+	systemProbePath string
+	httpClient      http.Client
 }
 
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 	if globalPath == "" {
-		return nil, fmt.Errorf("remote tracer has no socket path defined")
+		return nil, fmt.Errorf("remote tracer has no path defined")
 	}
 
 	globalUtilOnce.Do(func() {
@@ -85,7 +85,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	if err != nil {
 		return nil, err
 	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("conn request failed: socket %s, url: %s, status code: %d", r.socketPath, connectionsURL, resp.StatusCode)
+		return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.systemProbePath, connectionsURL, resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -116,7 +116,7 @@ func ShouldLogTracerUtilError() bool {
 
 func newSystemProbe() *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
-		socketPath: globalPath,
+		systemProbePath: globalPath,
 		httpClient: http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
@@ -137,7 +137,7 @@ func (r *RemoteSysProbeUtil) init() error {
 	if resp, err := r.httpClient.Get(statusURL); err != nil {
 		return err
 	} else if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.socketPath, statusURL, resp.StatusCode)
+		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.systemProbePath, statusURL, resp.StatusCode)
 	}
 	return nil
 }

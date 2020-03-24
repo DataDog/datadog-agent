@@ -219,7 +219,6 @@ func getDCAPartialConfig() map[string]string {
 	return conf
 }
 
-
 // getPartialConfig returns config parameters of interest for the status page
 func getPartialConfig() map[string]string {
 	conf := make(map[string]string)
