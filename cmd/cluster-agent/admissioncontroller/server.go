@@ -37,25 +37,23 @@ func StartServer() error {
 
 	pair, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		log.Errorf("failed to load key pair: %v", err)
+		log.Errorf("Failed to load key pair: %v", err)
 	}
 
 	port := config.Datadog.GetInt("cluster_agent.admissioncontroller_port")
-	listener, err := getListener(port)
+	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", port))
 	if err != nil {
 		log.Errorf("failed to create listener: %v", err)
 	}
 
-	log.Infof("listening on admission controller endpoint, port %d", port)
+	log.Infof("Listening on admission controller endpoint, port %d", port)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mutate", serve)
 	mux.HandleFunc("/status", status)
 
-	tlsConfig := tls.Config{Certificates: []tls.Certificate{pair}}
-
+	conf := tls.Config{Certificates: []tls.Certificate{pair}}
 	server := &http.Server{Handler: mux, TLSConfig: &tlsConfig}
-
-	tlsListener := tls.NewListener(listener, &tlsConfig)
+	tlsln := tls.NewListener(listener, &tlsConfig)
 
 	go server.Serve(tlsListener)
 	return nil

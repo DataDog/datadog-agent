@@ -66,7 +66,6 @@ func serve(w http.ResponseWriter, r *http.Request) {
 	resp.Response.UID = req.Request.UID
 
 	log.Debug("admission controller response: %v", resp.Response)
-
 	respBytes, err := json.Marshal(resp)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -83,7 +82,7 @@ func serve(w http.ResponseWriter, r *http.Request) {
 // Returns a simple response with the provided error.
 // The webhook is still considered as allowed, in order
 // to not interfere with the user's deployment.
-func newAdmissionResponseWithMessage(message string, params ...interface{}) *v1beta1.AdmissionResponse {
+func newResponseWithMessage(format string, a ...interface{}) *v1beta1.AdmissionResponse {
 	msg := fmt.Sprintf(message, params...)
 	log.Error(msg)
 	return &v1beta1.AdmissionResponse{
@@ -106,7 +105,6 @@ func handleAdmissionReview(ar v1beta1.AdmissionReview) *v1beta1.AdmissionRespons
 	if ar.Request == nil {
 		return newAdmissionResponseWithMessage("empty resource %v not supported", ar)
 	}
-
 	switch {
 	case ar.Request.Resource == podResource:
 		return handlePodRequest(ar.Request.Object.Raw)
@@ -120,7 +118,6 @@ func handlePodRequest(raw []byte) *v1beta1.AdmissionResponse {
 	if err := json.Unmarshal(raw, &pod); err != nil {
 		return newAdmissionResponseWithError(err)
 	}
-
 	patch := mutatePod(pod, getEnvMutator())
 	return newJSONPatchResponse(patch)
 }
@@ -134,7 +131,6 @@ func newJSONPatchResponse(patch jsonpatch.Patch) *v1beta1.AdmissionResponse {
 	if err != nil {
 		return newAdmissionResponseWithError(err)
 	}
-
 	return &v1beta1.AdmissionResponse{
 		Allowed:   true,
 		Patch:     bytes,
@@ -166,7 +162,7 @@ func mutatePod(pod corev1.Pod, envMutator []corev1.EnvVar) jsonpatch.Patch {
 		{"containers", pod.Spec.Containers},
 	}
 
-	patch := jsonpatch.Patch{}
+	var patch jsonpatch.Patch
 
 	for _, s := range containerLists {
 		containerType, containers := s.containerType, s.containers
