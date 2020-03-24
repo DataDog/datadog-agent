@@ -14,7 +14,6 @@ var (
 
 	// Agent 6
 	defaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
-
 )
 
 func init() {
