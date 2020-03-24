@@ -28,12 +28,13 @@ var _ ReverseDNS = &SocketFilterSnooper{}
 
 // SocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type SocketFilterSnooper struct {
-	source     *packetSource
-	parser     *dnsParser
-	cache      *reverseDNSCache
-	statKeeper *dnsStatKeeper
-	exit       chan struct{}
-	wg         sync.WaitGroup
+	source          *packetSource
+	parser          *dnsParser
+	cache           *reverseDNSCache
+	statKeeper      *dnsStatKeeper
+	exit            chan struct{}
+	wg              sync.WaitGroup
+	collectLocalDNS bool
 
 	// cache translation object to avoid allocations
 	translation *translation
@@ -48,7 +49,7 @@ type SocketFilterSnooper struct {
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
-func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
+func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter, collectLocalDNS bool) (*SocketFilterSnooper, error) {
 	var (
 		packetSrc *packetSource
 		srcErr    error
@@ -67,12 +68,13 @@ func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter) (*Sock
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	snooper := &SocketFilterSnooper{
-		source:      packetSrc,
-		parser:      newDNSParser(),
-		cache:       cache,
-		statKeeper:  newDNSStatkeeper(),
-		translation: new(translation),
-		exit:        make(chan struct{}),
+		source:          packetSrc,
+		parser:          newDNSParser(),
+		cache:           cache,
+		statKeeper:      newDNSStatkeeper(),
+		translation:     new(translation),
+		exit:            make(chan struct{}),
+		collectLocalDNS: collectLocalDNS,
 	}
 
 	// Start consuming packets
@@ -140,7 +142,9 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 		}
 		return
 	}
-	s.statKeeper.IncrementReplyCount(cKey, dnsTransactionID)
+	if s.collectLocalDNS || !cKey.serverIP.IsLoopback() {
+		s.statKeeper.IncrementReplyCount(cKey, dnsTransactionID)
+	}
 	s.cache.Add(t, time.Now())
 }
 

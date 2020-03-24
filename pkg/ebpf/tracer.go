@@ -154,7 +154,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 			return nil, fmt.Errorf("error retrieving socket filter")
 		}
 
-		if snooper, err := NewSocketFilterSnooper(config.ProcRoot, filter); err == nil {
+		if snooper, err := NewSocketFilterSnooper(config.ProcRoot, filter, config.CollectLocalDNS); err == nil {
 			reverseDNS = snooper
 		} else {
 			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
@@ -321,16 +321,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	conns := t.state.Connections(clientID, latestTime, latestConns)
+	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
 	names := t.reverseDNS.Resolve(conns)
-
-	for key, dnsStats := range t.reverseDNS.GetDNSStats() {
-		if !t.config.CollectLocalDNS && key.serverIP.IsLoopback() {
-			continue
-		}
-		t.state.StoreDNSStats(key, dnsStats)
-	}
-	t.state.AddDNSStats(clientID, conns)
 
 	return &Connections{Conns: conns, DNS: names}, nil
 }
@@ -386,12 +378,6 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
-				fmt.Println("Skipping connection")
-				fmt.Println(conn.Source)
-				fmt.Println(conn.SPort)
-				fmt.Println(conn.Dest)
-				fmt.Println(conn.DPort)
-				fmt.Println(conn.Type)
 			} else {
 				// lookup conntrack in for active
 				conn.IPTranslation = t.conntracker.GetTranslationForConn(

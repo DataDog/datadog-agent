@@ -24,7 +24,7 @@ func getSnooper(t *testing.T, m *bpflib.Module) *SocketFilterSnooper {
 	filter := m.SocketFilter("socket/dns_filter")
 	require.NotNil(t, filter)
 
-	reverseDNS, err := NewSocketFilterSnooper("/proc", filter)
+	reverseDNS, err := NewSocketFilterSnooper("/proc", filter, cfg.CollectLocalDNS)
 	require.NoError(t, err)
 	return reverseDNS
 }
@@ -81,8 +81,8 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 }
 
 // Get the preferred outbound IP of this machine
-func GetOutboundIP(t *testing.T) net.IP {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
+func getOutboundIP(t *testing.T, serverIP string) net.IP {
+	conn, err := net.Dial("udp", serverIP+":80")
 	require.NoError(t, err)
 	defer conn.Close()
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
@@ -102,12 +102,11 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	msg.SetQuestion(mdns.Fqdn("golang.org"), mdns.TypeA)
 	msg.RecursionDesired = true
 
-	config, err := mdns.ClientConfigFromFile("/etc/resolv.conf")
 	require.NoError(t, err)
-	serverAddress := "8.8.8.8"
-	dnsHost := net.JoinHostPort(serverAddress, config.Port)
+	serverIP := "8.8.8.8"
+	dnsHost := net.JoinHostPort(serverIP, "53")
 
-	queryIP := GetOutboundIP(t).String()
+	queryIP := getOutboundIP(t, serverIP).String()
 	rand.Seed(time.Now().UnixNano())
 	queryPort := rand.Intn(20000) + 10000
 	dnsClientAddr := &net.TCPAddr{IP: net.ParseIP(queryIP), Port: queryPort}
@@ -132,7 +131,7 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	key := dnsKey{
 		clientPort: uint16(queryPort),
 		clientIP:   util.AddressFromString(queryIP),
-		serverIP:   util.AddressFromString(serverAddress),
+		serverIP:   util.AddressFromString(serverIP),
 		protocol:   TCP,
 	}
 	allStats := reverseDNS.GetDNSStats()

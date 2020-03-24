@@ -6,13 +6,9 @@ import (
 )
 
 type dnsStats struct {
-	replies uint32
-	// More stats like latency, error, etc. will be added here later
-}
-
-type dnsData struct {
-	stats             dnsStats
 	lastTransactionID uint16
+	// More stats like latency, error, etc. will be added here later
+	replies uint32
 }
 
 type dnsKey struct {
@@ -23,40 +19,40 @@ type dnsKey struct {
 }
 
 type dnsStatKeeper struct {
-	mux  sync.Mutex
-	data map[dnsKey]dnsData
+	mux   sync.Mutex
+	stats map[dnsKey]dnsStats
 }
 
 func newDNSStatkeeper() *dnsStatKeeper {
 	return &dnsStatKeeper{
-		data: make(map[dnsKey]dnsData),
+		stats: make(map[dnsKey]dnsStats),
 	}
 }
 
 func (d *dnsStatKeeper) IncrementReplyCount(key dnsKey, transactionID uint16) {
-	d.mux.Lock()
-	defer d.mux.Unlock()
-	dnsData := d.data[key]
+	stats := d.stats[key]
 
 	// For local DNS traffic, sometimes the same reply packet gets processed by the
-	// snooper multiple times. This check avoids double counting in that scenario.
-	if dnsData.lastTransactionID == transactionID {
+	// snooper multiple times. This check avoids double counting in that scenario
+	// assuming the duplicates are not interleaved.
+	if stats.lastTransactionID == transactionID {
 		return
 	}
 
-	dnsData.stats.replies++
-	dnsData.lastTransactionID = transactionID
-	d.data[key] = dnsData
+	stats.replies++
+	stats.lastTransactionID = transactionID
+
+	// There is only one writer which is this thread. So we need to lock only
+	// before writing, not reading.
+	d.mux.Lock()
+	defer d.mux.Unlock()
+	d.stats[key] = stats
 }
 
 func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]dnsStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	allStats := make(map[dnsKey]dnsStats, len(d.data))
-	for k, v := range d.data {
-		allStats[k] = v.stats
-	}
-
-	d.data = make(map[dnsKey]dnsData)
-	return allStats
+	ret := d.stats
+	d.stats = make(map[dnsKey]dnsStats)
+	return ret
 }

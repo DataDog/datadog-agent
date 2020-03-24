@@ -119,6 +119,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 	// Update stats for telemetry
 	atomic.AddInt64(&c.lookups, int64(len(resolved)+len(unresolved)))
 	atomic.AddInt64(&c.resolved, int64(len(resolved)))
+
 	return resolved
 }
 
