@@ -175,6 +175,7 @@ func (t *HTTPTransaction) GetTarget() string {
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
+// This will return  (http status code, response body, error).
 func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) (int, []byte, error) {
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint
