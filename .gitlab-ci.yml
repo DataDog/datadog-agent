@@ -1030,8 +1030,7 @@ windows_choco_7_x64:
     paths:
       - .omnibus/pkg
   <<: *skip_when_unwanted_on_7
-  <<: *run_when_triggered_on_nightly_or_master
-  
+
 # build Agent package for android
 agent_android_apk:
   stage: package_build
