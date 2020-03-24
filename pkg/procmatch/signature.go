@@ -35,16 +35,3 @@ func buildSignatures(integs IntegrationCatalog) []signature {
 
 	return signatures
 }
-
-// Returns true if the given commandline matches the signature
-func (s *signature) match(cmdline string) bool {
-	i := 0
-	for _, f := range s.words {
-		if j := strings.Index(cmdline[i:], f); j != -1 {
-			i += j + len(f)
-			continue
-		}
-		return false
-	}
-	return true
-}
