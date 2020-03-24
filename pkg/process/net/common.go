@@ -29,7 +29,7 @@ type Conn interface {
 var (
 	globalUtil            *RemoteSysProbeUtil
 	globalUtilOnce        sync.Once
-	globalSocketPath      string
+	globalPath            string
 	hasLoggedErrForStatus map[retry.Status]struct{}
 )
 
@@ -46,15 +46,10 @@ type RemoteSysProbeUtil struct {
 	httpClient http.Client
 }
 
-// SetSystemProbeSocketPath provides a unix socket path location to be used by the remote system probe.
-// This needs to be called before GetRemoteSystemProbeUtil.
-func SetSystemProbeSocketPath(socketPath string) {
-	globalSocketPath = socketPath
-}
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
-	if globalSocketPath == "" {
+	if globalPath == "" {
 		return nil, fmt.Errorf("remote tracer has no socket path defined")
 	}
 
@@ -121,14 +116,14 @@ func ShouldLogTracerUtilError() bool {
 
 func newSystemProbe() *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
-		socketPath: globalSocketPath,
+		socketPath: globalPath,
 		httpClient: http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, globalSocketPath)
+					return net.Dial(netType, globalPath)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
 				ResponseHeaderTimeout: 5 * time.Second,

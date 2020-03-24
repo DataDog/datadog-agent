@@ -31,6 +31,10 @@ var (
 	// defaultSystemProbeFilePath is the default logging file for the system probe
 	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
 
+	// defaultWINProbePath is the default TCP endpoint used for connecting to the system probe on windows
+	defaultWINProbePath = "http://localhost:3333/"
+
+
 	defaultConntrackShortTermBufferSize = 10000
 
 	processChecks   = []string{"process", "rtprocess"}
@@ -90,6 +94,9 @@ type AgentConfig struct {
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
+
+	// System probe windows collection configuration
+	WinProbePath				   string
 
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
@@ -194,6 +201,9 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ClosedChannelSize:            500,
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
 		ConntrackMaxStateSize:        defaultMaxTrackedConnections,
+
+		// Windoews System probe collection configuration
+		WinProbePath:				  defaultWINProbePath,
 
 		// Check config
 		EnabledChecks: enabledChecks,

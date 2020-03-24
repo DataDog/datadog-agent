@@ -39,7 +39,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
-	net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
+	net.SetSystemProbePath(cfg)
 	_, _ = net.GetRemoteSystemProbeUtil()
 
 	networkID, err := util.GetNetworkID()

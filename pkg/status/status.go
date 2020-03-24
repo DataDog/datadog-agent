@@ -83,6 +83,10 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 
+	if config.Datadog.GetBool("system_probe_config.enabled") {
+		stats["systemProbeStatus"] = getSystemProbeStatus()
+	}
+
 	return stats, nil
 }
 
@@ -214,6 +218,7 @@ func getDCAPartialConfig() map[string]string {
 	conf["confd_path"] = config.Datadog.GetString("confd_path")
 	return conf
 }
+
 
 // getPartialConfig returns config parameters of interest for the status page
 func getPartialConfig() map[string]string {

@@ -5,13 +5,14 @@ package net
 import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // RemoteSysProbeUtil is not supported
 type RemoteSysProbeUtil struct{}
 
-// SetSystemProbeSocketPath is not supported
-func SetSystemProbeSocketPath(_ string) {
+// SetSystemProbePath is not supported
+func SetSystemProbePath(_ *config.AgentConfig) {
 	// no-op
 }
 
