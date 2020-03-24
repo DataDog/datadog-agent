@@ -51,24 +51,24 @@ func serve(w http.ResponseWriter, r *http.Request) {
 	var req, resp v1beta1.AdmissionReview
 
 	deserializer := codecs.UniversalDeserializer()
-	if _, _, err := deserializer.Decode(body, nil, &requestedAdmissionReview); err != nil {
-		responseAdmissionReview.Response = newAdmissionResponseWithError(err)
+	if _, _, err := deserializer.Decode(body, nil, &req); err != nil {
+		resp.Response = newAdmissionResponseWithError(err)
 	} else {
-		if requestedAdmissionReview.Request == nil {
+		if req.Request == nil {
 			w.WriteHeader(http.StatusBadRequest)
 			log.Info("received empty request")
 			return
 		}
 
-		responseAdmissionReview.Response = handleAdmissionReview(requestedAdmissionReview)
+		resp.Response = handleAdmissionReview(req)
 	}
 
 	// Return the same UID
-	responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
+	resp.Response.UID = req.Request.UID
 
-	log.Debug("admission controller response: %v", responseAdmissionReview.Response)
+	log.Debug("admission controller response: %v", resp.Response)
 
-	respBytes, err := json.Marshal(responseAdmissionReview)
+	respBytes, err := json.Marshal(resp)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Error(err)
