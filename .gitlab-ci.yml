@@ -324,6 +324,7 @@ run_tests_ebpf:
   after_script:
     - cd $SRC_PATH
     - cp ./pkg/ebpf/c/tracer-ebpf.o  $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.o
+    - cp ./pkg/ebpf/c/tracer-ebpf-debug.o  $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf-debug.o
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
