@@ -1,3 +1,5 @@
+// +build linux windows
+
 package config
 
 import (
