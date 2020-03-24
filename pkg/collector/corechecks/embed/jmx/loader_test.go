@@ -71,7 +71,7 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	// should be five valid JMX instances and one non-JMX instance
 	assert.Len(t, checks, 5)
-	assert.Equal(t, numOtherInstances, 1)
+	assert.Equal(t, numOtherInstances, 2)
 
 	for _, cfg := range cfgs {
 		found := false

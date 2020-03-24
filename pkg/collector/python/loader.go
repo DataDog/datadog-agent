@@ -191,7 +191,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 		C.rtloader_decref(rtloader, checkModule)
 
 		addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
-		return c, fmt.Errorf("Could not configure any python check %s", moduleName)
+		return c, fmt.Errorf("could not configure check instance for python check %s: %s", moduleName, err.Error())
 	}
 
 	c.version = wheelVersion

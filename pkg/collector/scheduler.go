@@ -150,7 +150,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		}
 
 		if len(errors) == numLoaders {
-			log.Debugf(strings.Join(errors, "\n"))
+			log.Debugf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
 		}
 	}
 

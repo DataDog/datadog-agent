@@ -15,8 +15,7 @@ import (
 // IsJMXConfig checks if a certain YAML config contains at least one instance of a JMX config
 func IsJMXConfig(config integration.Config) bool {
 	for _, instance := range config.Instances {
-		isJMX := IsJMXInstance(config.Name, instance, config.InitConfig)
-		if isJMX {
+		if IsJMXInstance(config.Name, instance, config.InitConfig) {
 			return true
 		}
 	}

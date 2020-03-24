@@ -146,8 +146,6 @@ var checkCmd = &cobra.Command{
 				continue
 			}
 
-			instances := []integration.Data{}
-
 			if check.IsJMXConfig(*conf) {
 				// we'll mimic the check command behavior with JMXFetch by running
 				// it with the JSON reporter and the list_with_metrics command.
@@ -155,6 +153,8 @@ var checkCmd = &cobra.Command{
 				if err := RunJmxListWithMetrics(); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
+
+				instances := []integration.Data{}
 
 				// Retain only non-JMX instances for later
 				for _, instance := range conf.Instances {
