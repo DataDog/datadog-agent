@@ -1,4 +1,7 @@
 ---
 features:
   - |
-    Create server endpoint in cluster agent kubernetes admission controller
+    Create server endpoint in the cluster agent to serve kubernetes admission
+    controller webhook requests. These requests allow the cluster agent to
+    modify kubernetes resources: for example, adding environment variables to
+    pod containers.
