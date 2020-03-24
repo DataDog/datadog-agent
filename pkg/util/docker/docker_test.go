@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -54,7 +55,9 @@ func TestParseContainerHealth(t *testing.T) {
 			expected: "unhealthy",
 		},
 	} {
-		assert.Equal(tc.expected, parseContainerHealth(tc.input), "test %d failed", i)
+		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+			assert.Equal(tc.expected, parseContainerHealth(tc.input), "test %d failed", i)
+		})
 	}
 }
 
@@ -89,9 +92,11 @@ func TestResolveImageName(t *testing.T) {
 			expected: imageName,
 		},
 	} {
-		name, err := globalDockerUtil.ResolveImageName(tc.input)
-		assert.Equal(tc.expected, name, "test %s failed", i)
-		assert.Nil(err, "test %s failed", i)
+		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+			name, err := globalDockerUtil.ResolveImageName(tc.input)
+			assert.Equal(tc.expected, name, "test %s failed", i)
+			assert.Nil(err, "test %s failed", i)
+		})
 	}
 }
 
@@ -144,9 +149,11 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 			expectedImage: imageName,
 		},
 	} {
-		result, err := globalDockerUtil.ResolveImageNameFromContainer(tc.input)
-		assert.Equal(tc.expectedImage, result, "%s test failed; expected %s but got %s", tc.name, tc.expectedImage, result)
-		assert.Nil(err, "%s test failed; expected nil error but got %s", tc.name, err)
+		t.Run(fmt.Sprintf("case %s", tc.name), func(t *testing.T) {
+			result, err := globalDockerUtil.ResolveImageNameFromContainer(tc.input)
+			assert.Equal(tc.expectedImage, result, "%s test failed; expected %s but got %s", tc.name, tc.expectedImage, result)
+			assert.Nil(err, "%s test failed; expected nil error but got %s", tc.name, err)
+		})
 	}
 }
 
@@ -223,8 +230,10 @@ func TestGetBestImageName(t *testing.T) {
 			expectedImage: "",
 		},
 	} {
-		result := getBestImageName(tc.imageInspect, tc.configImage)
-		assert.Equal(tc.expectedImage, result, "%s test failed: expected %s but got %s", tc.name, tc.expectedImage, result)
+		t.Run(fmt.Sprintf("test case: %s", tc.name), func(t *testing.T) {
+			result := getBestImageName(tc.imageInspect, tc.configImage)
+			assert.Equal(tc.expectedImage, result, "%s test failed: expected %s but got %s", tc.name, tc.expectedImage, result)
+		})
 	}
 }
 
@@ -580,17 +589,19 @@ func TestParseECSContainerNetworkAddresses(t *testing.T) {
 			},
 		},
 	} {
-		cacheKey := GetInspectCacheKey(tc.containerID, false)
-		cache.Cache.Set(cacheKey, tc.cacheContent, 10*time.Second)
-		d := &DockerUtil{
-			cfg:            &Config{CollectNetwork: false},
-			cli:            nil,
-			imageNameBySha: make(map[string]string),
-		}
-		networkAddresses := d.parseContainerNetworkAddresses(tc.containerID, tc.ports, tc.netSettings, "mycontainer")
-		assert.Len(t, networkAddresses, len(tc.expected), "test %d failed: %s", i, tc.name)
-		for _, addr := range tc.expected {
-			assert.Contains(t, networkAddresses, addr, "test %d failed: %s", i, tc.name)
-		}
+		t.Run(fmt.Sprintf("case %d: %s", i, tc.name), func(t *testing.T) {
+			cacheKey := GetInspectCacheKey(tc.containerID, false)
+			cache.Cache.Set(cacheKey, tc.cacheContent, 10*time.Second)
+			d := &DockerUtil{
+				cfg:            &Config{CollectNetwork: false},
+				cli:            nil,
+				imageNameBySha: make(map[string]string),
+			}
+			networkAddresses := d.parseContainerNetworkAddresses(tc.containerID, tc.ports, tc.netSettings, "mycontainer")
+			assert.Len(t, networkAddresses, len(tc.expected), "test %d failed: %s", i, tc.name)
+			for _, addr := range tc.expected {
+				assert.Contains(t, networkAddresses, addr, "test %d failed: %s", i, tc.name)
+			}
+		})
 	}
 }
