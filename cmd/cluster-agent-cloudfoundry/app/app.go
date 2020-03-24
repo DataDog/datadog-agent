@@ -204,8 +204,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	if config.Datadog.GetBool("cluster_agent.admission_controller.enabled") {
 		log.Info("Starting admission controller server")
-
-		if err = admissioncontroller.StartServer(); err != nil {
+		if err := admissioncontroller.StartServer(); err != nil {
 			return log.Errorf("Error while starting admission controller server, exiting: %v", err)
 		}
 	}
