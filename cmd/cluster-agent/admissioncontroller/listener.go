@@ -118,7 +118,16 @@ func handlePodRequest(raw []byte) *v1beta1.AdmissionResponse {
 	if err := json.Unmarshal(raw, &pod); err != nil {
 		return newAdmissionResponseWithError(err)
 	}
-	patch := mutatePod(pod, getEnvMutator())
+	patch := mutatePod(pod, []corev1.EnvVar{
+		{
+			Name: "DD_AGENT_HOST",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.hostIP",
+				},
+			},
+		},
+	})
 	return newJSONPatchResponse(patch)
 }
 
@@ -135,21 +144,6 @@ func newJSONPatchResponse(patch jsonpatch.Patch) *v1beta1.AdmissionResponse {
 		Allowed:   true,
 		Patch:     bytes,
 		PatchType: &patchTypeJSONPatch,
-	}
-}
-
-// NewEnvMutator creates a new mutator which adds environment
-// variables to pods
-func getEnvMutator() []corev1.EnvVar {
-	return []corev1.EnvVar{
-		{
-			Name: "DD_AGENT_HOST",
-			ValueFrom: &corev1.EnvVarSource{
-				FieldRef: &corev1.ObjectFieldSelector{
-					FieldPath: "status.hostIP",
-				},
-			},
-		},
 	}
 }
 
