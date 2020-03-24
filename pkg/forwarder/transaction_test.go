@@ -46,7 +46,7 @@ func TestProcess(t *testing.T) {
 
 	client := &http.Client{}
 
-	err := transaction.Process(context.Background(), client)
+	_, _, err := transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 }
 
@@ -59,7 +59,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 
 	client := &http.Client{}
 
-	err := transaction.Process(context.Background(), client)
+	_, _, err := transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 }
 
@@ -72,7 +72,7 @@ func TestProcessNetworkError(t *testing.T) {
 
 	client := &http.Client{}
 
-	err := transaction.Process(context.Background(), client)
+	_, _, err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
 }
 
@@ -84,12 +84,7 @@ func TestProcessHTTPError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	successes := 0
-
 	transaction := NewHTTPTransaction()
-	transaction.successHandler = func(transaction *HTTPTransaction, statusCode int, body []byte) {
-		successes++
-	}
 	transaction.Domain = ts.URL
 	transaction.Endpoint = "/endpoint/test"
 	payload := []byte("test payload")
@@ -97,25 +92,23 @@ func TestProcessHTTPError(t *testing.T) {
 
 	client := &http.Client{}
 
-	err := transaction.Process(context.Background(), client)
+	_, _, err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 
 	errorCode = http.StatusBadRequest
-	err = transaction.Process(context.Background(), client)
+	_, _, err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	err = transaction.Process(context.Background(), client)
+	_, _, err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
-	err = transaction.Process(context.Background(), client)
+	_, _, err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
-
-	assert.Equal(t, 0, successes)
 }
 
 func TestProcessCancel(t *testing.T) {
@@ -129,39 +122,6 @@ func TestProcessCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := transaction.Process(ctx, client)
+	_, _, err := transaction.Process(ctx, client)
 	assert.Nil(t, err)
-}
-
-func TestProcessEventHandlers(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte("hello world"))
-	}))
-	defer ts.Close()
-
-	attempts := 0
-	successes := 0
-	transaction := NewHTTPTransaction()
-	transaction.attemptHandler = func(transaction *HTTPTransaction) {
-		attempts++
-	}
-
-	transaction.successHandler = func(transaction *HTTPTransaction, statusCode int, body []byte) {
-		assert.Equal(t, 200, statusCode)
-		assert.Equal(t, []byte("hello world"), body)
-		successes++
-	}
-
-	transaction.Domain = ts.URL
-	transaction.Endpoint = "/endpoint/test"
-	payload := []byte("test payload")
-	transaction.Payload = &payload
-
-	client := &http.Client{}
-
-	err := transaction.Process(context.Background(), client)
-	assert.Nil(t, err)
-
-	assert.Equal(t, 1, attempts)
-	assert.Equal(t, 1, successes)
 }

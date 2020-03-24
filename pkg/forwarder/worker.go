@@ -146,16 +146,31 @@ func (w *Worker) process(ctx context.Context, t Transaction) {
 		}
 	}
 
+	t.OnAttempt()
+
 	// Run the endpoint through our blockedEndpoints circuit breaker
 	target := t.GetTarget()
 	if w.blockedList.isBlock(target) {
 		requeue()
 		log.Errorf("Too many errors for endpoint '%s': retrying later", target)
-	} else if err := t.Process(ctx, w.Client); err != nil {
+		return
+	}
+
+	statusCode, body, err := t.Process(ctx, w.Client)
+
+	if err != nil {
 		w.blockedList.close(target)
-		requeue()
+
+		if t.IsRetryable() {
+			requeue()
+		} else {
+			t.OnComplete(statusCode, body, err)
+		}
+
 		log.Errorf("Error while processing transaction: %v", err)
 	} else {
 		w.blockedList.recover(target)
+
+		t.OnComplete(statusCode, body, err)
 	}
 }
