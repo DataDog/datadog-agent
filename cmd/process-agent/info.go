@@ -186,10 +186,6 @@ func getProgramBanner(version string) (string, string) {
 	return program, banner
 }
 
-type infoString string
-
-func (s infoString) String() string { return string(s) }
-
 type infoVersion struct {
 	Version   string
 	GitCommit string

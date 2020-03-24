@@ -13,7 +13,6 @@ run:
     - pkg/quantile
     # TODO burrito
     - pkg/ebpf
-    - cmd/process-agent
 
 issues:
   exclude:
