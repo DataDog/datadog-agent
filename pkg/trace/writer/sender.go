@@ -352,11 +352,11 @@ func newPayload(headers map[string]string) *payload {
 }
 
 func (p *payload) clone() *payload {
-	headersClone := make(map[string]string, len(p.headers))
-	for key, val := range p.headers {
-		headersClone[key] = val
+	headers := make(map[string]string, len(p.headers))
+	for k, v := range p.headers {
+		headers[k] = v
 	}
-	clone := newPayload(headersClone)
+	clone := newPayload(headers)
 	clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes()))
 	return clone
 }

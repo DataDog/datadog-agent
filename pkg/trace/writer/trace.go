@@ -217,7 +217,7 @@ func (w *TraceWriter) flush() {
 		gzipw.Close()
 
 		if len(w.senders) == 1 {
-			// Avoid an allocation when only one endpoint is configured.
+			// fast path
 			w.senders[0].Push(p)
 		} else {
 			// Create a clone for each payload because each sender places payloads
