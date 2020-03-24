@@ -72,7 +72,7 @@ variables:
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2195996-580f7f3
   DATADOG_AGENT_BUILDERS: v2235609-1baad87
-  DATADOG_AGENT_WINBUILDIMAGES: v2123666-a884483
+  DATADOG_AGENT_WINBUILDIMAGES: v2313216-e29cff6
   DATADOG_AGENT_ARMBUILDIMAGES: v2195996-580f7f3
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2251287-69dedcf
   BCC_VERSION: v0.12.0
@@ -1016,6 +1016,22 @@ windows_dsd_msi_x64:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
 
+windows_choco_7_x64:
+  stage: package_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
+  script:
+    - agentVersion=(inv agent.version) | Select-String -Pattern "\d+.\d+.\d+" | %{$_.Matches[0].Value}
+    - copy .omnibus\pkg\*.msi chocolatey\datadog-agent\tools\
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES "choco pack --version=$agentVersion --out=c:\mnt\build-out c:\mnt\chocolatey\datadog-agent.nuspec"
+    - copy build-out\*.nupkg .omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg
+  <<: *skip_when_unwanted_on_7
+  <<: *run_when_triggered_on_nightly_or_master
+  
 # build Agent package for android
 agent_android_apk:
   stage: package_build
