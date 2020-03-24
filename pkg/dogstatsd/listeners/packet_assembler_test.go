@@ -5,14 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func buildPacketAssembler() (*packetAssembler, chan Packets) {
 	out := make(chan Packets, 16)
 	psb := newPacketsBuffer(1, 1*time.Hour, out)
-	pb := newPacketAssembler(100*time.Millisecond, psb)
+	pb := newPacketAssembler(100*time.Millisecond, psb, NewPacketPool(32))
 	return pb, out
 }
 
@@ -68,9 +67,8 @@ func TestPacketBufferMergeMaxSize(t *testing.T) {
 
 func TestPacketBufferOverflow(t *testing.T) {
 	pb, out := buildPacketAssembler()
-	buffSize := uint(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	// generate a message exactly of the size of the buffer
-	message1 := generateRandomPacket(buffSize)
+	message1 := generateRandomPacket(32)
 	message2 := []byte("12345678")
 
 	pb.addMessage(message1)
@@ -86,12 +84,9 @@ func TestPacketBufferOverflow(t *testing.T) {
 
 func TestPacketBufferMergePlusOverflow(t *testing.T) {
 	pb, out := buildPacketAssembler()
-	buffSize := uint(config.Datadog.GetInt("dogstatsd_buffer_size"))
-	message1 := generateRandomPacket(buffSize / 2)
-	message2 := generateRandomPacket((buffSize / 2) - 1)
+	message1 := generateRandomPacket(32 / 2)
+	message2 := generateRandomPacket((32 / 2) - 1)
 	message3 := []byte("Z")
-
-	fmt.Println(len(message1))
 
 	pb.addMessage(message1)
 	pb.addMessage(message2)
