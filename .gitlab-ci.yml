@@ -329,6 +329,11 @@ run_tests_ebpf:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
     - CGO_CFLAGS='-I/opt/libbcc/include' CGO_LDFLAGS='-Wl,-rpath,/opt/libbcc/lib -L/opt/libbcc/lib' inv -e system-probe.test --only-check-bpf-bytes
 
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/.tmp/binary-ebpf
+
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
   stage: source_test
