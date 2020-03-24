@@ -1017,7 +1017,7 @@ windows_dsd_msi_x64:
     - set RELEASE_VERSION $RELEASE_VERSION_7
 
 windows_choco_7_x64:
-  stage: package_build
+  stage: image_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
   script:
