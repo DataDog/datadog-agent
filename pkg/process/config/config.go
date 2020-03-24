@@ -30,10 +30,8 @@ var (
 	defaultSystemProbeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
 	// defaultSystemProbeFilePath is the default logging file for the system probe
 	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
-
 	// defaultWINProbePath is the default TCP endpoint used for connecting to the system probe on windows
 	defaultWINProbePath = "http://localhost:3333/"
-
 
 	defaultConntrackShortTermBufferSize = 10000
 
@@ -96,7 +94,7 @@ type AgentConfig struct {
 	MaxConnectionsStateBuffered    int
 
 	// System probe windows collection configuration
-	WinProbePath				   string
+	WinProbePath string
 
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
@@ -203,7 +201,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ConntrackMaxStateSize:        defaultMaxTrackedConnections,
 
 		// Windoews System probe collection configuration
-		WinProbePath:				  defaultWINProbePath,
+		WinProbePath: defaultWINProbePath,
 
 		// Check config
 		EnabledChecks: enabledChecks,
