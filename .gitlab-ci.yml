@@ -322,15 +322,12 @@ run_tests_ebpf:
     - mkdir /opt/libbcc
     - tar -xvf /tmp/libbcc.tar.xz -C /opt/libbcc
   after_script:
+    - cd $SRC_PATH
     - cp ./pkg/ebpf/tracer-ebpf.go $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.go
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
     - CGO_CFLAGS='-I/opt/libbcc/include' CGO_LDFLAGS='-Wl,-rpath,/opt/libbcc/lib -L/opt/libbcc/lib' inv -e system-probe.test --only-check-bpf-bytes
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $CI_PROJECT_DIR/.tmp/binary-ebpf
 
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:
