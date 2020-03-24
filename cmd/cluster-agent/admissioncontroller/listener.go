@@ -59,7 +59,6 @@ func serve(w http.ResponseWriter, r *http.Request) {
 			log.Info("received empty request")
 			return
 		}
-
 		resp.Response = handleAdmissionReview(req)
 	}
 
