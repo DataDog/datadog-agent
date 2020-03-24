@@ -48,8 +48,7 @@ func serve(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("admission controller request body: %v", body)
 
-	requestedAdmissionReview := v1beta1.AdmissionReview{}
-	responseAdmissionReview := v1beta1.AdmissionReview{}
+	var req, resp v1beta1.AdmissionReview
 
 	deserializer := codecs.UniversalDeserializer()
 	if _, _, err := deserializer.Decode(body, nil, &requestedAdmissionReview); err != nil {
