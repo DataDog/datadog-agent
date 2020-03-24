@@ -52,10 +52,10 @@ func StartServer() error {
 	mux.HandleFunc("/status", status)
 
 	conf := tls.Config{Certificates: []tls.Certificate{pair}}
-	server := &http.Server{Handler: mux, TLSConfig: &tlsConfig}
-	tlsln := tls.NewListener(listener, &tlsConfig)
+	server := &http.Server{Handler: mux, TLSConfig: &conf}
+	tlsln := tls.NewListener(ln, &conf)
 
-	go server.Serve(tlsListener)
+	go server.Serve(tlsln)
 	return nil
 }
 

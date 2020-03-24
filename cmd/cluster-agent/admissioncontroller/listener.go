@@ -83,7 +83,7 @@ func serve(w http.ResponseWriter, r *http.Request) {
 // The webhook is still considered as allowed, in order
 // to not interfere with the user's deployment.
 func newResponseWithMessage(format string, a ...interface{}) *v1beta1.AdmissionResponse {
-	msg := fmt.Sprintf(message, params...)
+	msg := fmt.Sprintf(format, a...)
 	log.Error(msg)
 	return &v1beta1.AdmissionResponse{
 		Allowed: true,
@@ -94,7 +94,7 @@ func newResponseWithMessage(format string, a ...interface{}) *v1beta1.AdmissionR
 }
 
 func newAdmissionResponseWithError(err error) *v1beta1.AdmissionResponse {
-	return newAdmissionResponseWithMessage(err.Error())
+	return newResponseWithMessage(err.Error())
 }
 
 var (
@@ -103,13 +103,13 @@ var (
 
 func handleAdmissionReview(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	if ar.Request == nil {
-		return newAdmissionResponseWithMessage("empty resource %v not supported", ar)
+		return newResponseWithMessage("empty resource %v not supported", ar)
 	}
 	switch {
 	case ar.Request.Resource == podResource:
 		return handlePodRequest(ar.Request.Object.Raw)
 	default:
-		return newAdmissionResponseWithMessage("resource %v not supported", ar.Request.Resource)
+		return newResponseWithMessage("resource %v not supported", ar.Request.Resource)
 	}
 }
 
