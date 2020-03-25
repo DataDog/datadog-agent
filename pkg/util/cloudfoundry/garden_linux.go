@@ -12,7 +12,7 @@ import (
 
 	"code.cloudfoundry.org/garden"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,26 +65,23 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 		cList[i] = &container
 	}
 
-	cgByContainer, err := metrics.ScrapeAllCgroups()
+	if err := providers.ContainerImpl().Prefetch(); err != nil {
+		return nil, fmt.Errorf("could not fetch container metrics: %s", err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("could not get cgroups: %s", err)
 	}
 	for _, container := range cList {
-		if container.State != containers.ContainerActiveState {
+		if container.State != containers.ContainerActiveState || providers.ContainerImpl().ContainerExists(container.ID) {
 			log.Debugf("Container %s not in state %s, skipping", container.ID[:12], containers.ContainerActiveState)
 			continue
 		}
-		cgroup, ok := cgByContainer[container.ID]
-		if !ok {
-			log.Debugf("No matching cgroups for container %s, skipping", container.ID[:12])
-			continue
-		}
-		container.SetCgroups(cgroup)
-		err = container.FillCgroupLimits()
+		limits, err := providers.ContainerImpl().GetContainerLimits(container.ID)
 		if err != nil {
 			log.Debugf("Cannot get limits for container %s: %s, skipping", container.ID[:12], err)
 			continue
 		}
+		container.SetLimits(limits)
 	}
 	err = gu.UpdateContainerMetrics(cList)
 	return cList, err
@@ -92,22 +89,27 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 
 // UpdateContainerMetrics updates the metric for a list of containers
 func (gu *GardenUtil) UpdateContainerMetrics(cList []*containers.Container) error {
+	if err := providers.ContainerImpl().Prefetch(); err != nil {
+		return fmt.Errorf("could not fetch container metrics: %s", err)
+	}
 	for _, container := range cList {
 		if container.State != containers.ContainerActiveState {
 			log.Debugf("Container %s not in state %s, skipping", container.ID[:12], containers.ContainerActiveState)
 			continue
 		}
 
-		err := container.FillCgroupMetrics()
+		networkMetrics, err := providers.ContainerImpl().GetNetworkMetrics(container.ID, map[string]string{})
 		if err != nil {
 			log.Debugf("Cannot get metrics for container %s: %s", container.ID[:12], err)
 			continue
 		}
-		err = container.FillNetworkMetrics(map[string]string{})
+		container.Network = networkMetrics
+		metrics, err := providers.ContainerImpl().GetContainerMetrics(container.ID)
 		if err != nil {
 			log.Debugf("Cannot get network metrics for container %s: %s", container.ID[:12], err)
 			continue
 		}
+		container.SetMetrics(metrics)
 	}
 	return nil
 }
