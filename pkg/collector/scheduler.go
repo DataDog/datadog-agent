@@ -145,7 +145,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				break
 			} else {
 				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-				errors = append(errors, fmt.Sprintf("%v: unable to load the check '%s': %s", loader, config.Name, err))
+				errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
 			}
 		}
 
