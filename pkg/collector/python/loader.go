@@ -92,10 +92,8 @@ func getRtLoaderError() error {
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
-	var tc check.Check
-
 	if rtloader == nil {
-		return tc, fmt.Errorf("python is not initialized")
+		return nil, fmt.Errorf("python is not initialized")
 	}
 
 	moduleName := config.Name
@@ -110,7 +108,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 		log.Debugf("Performing platform loading prep")
 		err = platformLoaderPrep()
 		if err != nil {
-			return tc, err
+			return nil, err
 		}
 		defer platformLoaderDone()
 	} else {
@@ -145,7 +143,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 	// all failed, return error for last failure
 	if checkModule == nil || checkClass == nil {
 		log.Debugf("PyLoader returning %s for %s", err, moduleName)
-		return tc, err
+		return nil, err
 	}
 
 	wheelVersion := "unversioned"
