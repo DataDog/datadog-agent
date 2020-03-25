@@ -68,8 +68,6 @@ func NewDriverInterface() (*DriverInterface, error) {
 	dc.iocp = iocp
 
 	// Set the packet filters that will determine what we pull from the driver
-	// TODO: Determine failure condition for not setting filter
-	// TODO: I.e., one or more, all fail? I.E., at what point do we not create a tracer
 	err = dc.prepareDriverFilters()
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup packet filters on the driver: %v", err)
@@ -122,11 +120,10 @@ func (dc *DriverInterface) prepareReadBuffers(bufs []readBuffer) ([]readBuffer, 
 	return bufs, nil
 }
 
-func (dc *DriverInterface) prepareDriverFilters() (err error) {
+func (dc *DriverInterface) prepareDriverFilters() error {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		log.Errorf("Error getting interfaces: %s\n", err.Error())
-		return
+		return fmt.Errorf("error getting interfaces: %s", err.Error())
 	}
 
 	for _, i := range ifaces {
@@ -135,7 +132,7 @@ func (dc *DriverInterface) prepareDriverFilters() (err error) {
 		for _, filter := range createFiltersForInterface(i) {
 			err = dc.setFilter(filter)
 			if err != nil {
-				return log.Warnf("Failed to set filter [%+v] on interface [%+v]: %s\n", filter, i, err.Error())
+				return log.Warnf("Failed to set filter [%+v] on interface [%+v]: %v", filter, err)
 			}
 		}
 	}
@@ -169,13 +166,13 @@ func newDDAPIFilter(direction C.uint64_t, ifaceIndex int, isIPV4 bool) (fd C.str
 	return fd
 }
 
-func (dc *DriverInterface) setFilter(fd C.struct__filterDefinition) (err error) {
+func (dc *DriverInterface) setFilter(fd C.struct__filterDefinition) error {
 	var id int64
-	err = windows.DeviceIoControl(dc.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd)), uint32(unsafe.Sizeof(fd)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
+	err := windows.DeviceIoControl(dc.driverHandle, C.DDFILTER_IOCTL_SET_FILTER, (*byte)(unsafe.Pointer(&fd)), uint32(unsafe.Sizeof(fd)), (*byte)(unsafe.Pointer(&id)), uint32(unsafe.Sizeof(id)), nil, nil)
 	if err != nil {
-		return log.Errorf("Failed to set filter: %s\n", err.Error())
+		return fmt.Errorf("failed to set filter: %v", err)
 	}
-	return
+	return nil
 }
 
 func (dc *DriverInterface) getStats() (map[string]interface{}, error) {

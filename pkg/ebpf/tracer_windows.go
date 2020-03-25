@@ -38,6 +38,8 @@ func init() {
 }
 
 // readBuffer is the buffer to pass into ReadFile system call to pull out packets
+// Do not change ordering of struct variables, as we use the layout of the struct to
+// make assumptions for packet processing
 type readBuffer struct {
 	ol   windows.Overlapped
 	data [128]byte
@@ -71,7 +73,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	err = tr.initPacketPolling()
 	if err != nil {
-		log.Warnf("issue polling packets from driver: %v", err)
+		return nil, fmt.Errorf("issue polling packets from driver: %v", err)
 	}
 	go tr.expvarStats()
 	return tr, nil
@@ -114,7 +116,7 @@ func (t *Tracer) initPacketPolling() (err error) {
 			if err == nil {
 				var buf *readBuffer
 				buf = (*readBuffer)(unsafe.Pointer(ol))
-				numPackets := printPacket(*buf, bytes)
+				numPackets := countPackets(*buf, bytes)
 				atomic.AddInt64(&t.packetCount, numPackets)
 				windows.ReadFile(t.driverController.driverHandle, buf.data[:], nil, &(buf.ol))
 			}
@@ -179,7 +181,7 @@ func CurrentKernelVersion() (uint32, error) {
 	return 0, ErrNotImplemented
 }
 
-func printPacket(buf readBuffer, bytes uint32) int64 {
+func countPackets(buf readBuffer, bytes uint32) int64 {
 	var header ipv4.Header
 	var packetHeader C.struct_filterPacketHeader
 
