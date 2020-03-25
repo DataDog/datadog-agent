@@ -2359,7 +2359,10 @@ dev_branch_docker_hub-a7:
     - fail_on_non_triggered_tag
     - build_agent7
     - build_agent7_jmx
-    - build_agent7_windows
+    - build_agent7_windows1809
+    - build_agent7_windows1809_jmx
+    - build_agent7_windows1909
+    - build_agent7_windows1909_jmx
   when: manual
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -2371,7 +2374,10 @@ dev_branch_docker_hub-a7-windows:
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7_windows
+    - build_agent7_windows1809
+    - build_agent7_windows1809_jmx
+    - build_agent7_windows1909
+    - build_agent7_windows1909_jmx
   when: manual
   script:
     - |
@@ -2471,7 +2477,10 @@ dev_master_docker_hub-a7-windows:
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7_windows
+    - build_agent7_windows1809
+    - build_agent7_windows1809_jmx
+    - build_agent7_windows1909
+    - build_agent7_windows1909_jmx
   only:
     - master
   script:
@@ -2558,7 +2567,10 @@ dev_nightly_docker_hub-a7-windows:
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7_windows
+    - build_agent7_windows1809
+    - build_agent7_windows1809_jmx
+    - build_agent7_windows1909
+    - build_agent7_windows1909_jmx
   script:
     - |
       @"
@@ -3006,7 +3018,10 @@ tag_release_7_windows:
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7_windows
+    - build_agent7_windows1809
+    - build_agent7_windows1809_jmx
+    - build_agent7_windows1909
+    - build_agent7_windows1909_jmx
   script:
     - $VERSION = inv -e agent.version --major-version 7
     - |
