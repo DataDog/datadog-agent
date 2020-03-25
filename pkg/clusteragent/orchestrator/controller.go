@@ -62,7 +62,11 @@ func StartController(ctx ControllerContext) error {
 		log.Warn("Orchestrator explorer enabled but no cluster name set: disabling")
 		return nil
 	}
-	orchestratorController := newController(ctx)
+	orchestratorController, err := newController(ctx)
+	if err != nil {
+		log.Errorf("Error retrieving Kubernetes cluster ID: %v", err)
+		return err
+	}
 
 	go orchestratorController.Run(ctx.StopCh)
 
@@ -71,12 +75,11 @@ func StartController(ctx ControllerContext) error {
 	return nil
 }
 
-func newController(ctx ControllerContext) *Controller {
+func newController(ctx ControllerContext) (*Controller, error) {
 	podInformer := ctx.UnassignedPodInformerFactory.Core().V1().Pods()
 	clusterID, err := clustername.GetClusterID()
 	if err != nil {
-		log.Errorf("Error retrieving Kubernetes cluster ID: %v", err)
-		return nil
+		return nil, err
 	}
 
 	oc := &Controller{
@@ -96,7 +99,7 @@ func newController(ctx ControllerContext) *Controller {
 		log.Errorf("Error loading the process config: %s", err)
 	}
 	oc.processConfig = cfg
-	return oc
+	return oc, nil
 }
 
 // Run starts the orchestrator controller
