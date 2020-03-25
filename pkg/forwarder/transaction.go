@@ -80,6 +80,11 @@ var trace = &httptrace.ClientTrace{
 	},
 }
 
+var _ Transaction = &HTTPTransaction{}
+
+var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
+var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
+
 func initTransactionExpvars() {
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
@@ -127,21 +132,15 @@ type Transaction interface {
 	GetTarget() string
 }
 
-var _ Transaction = &HTTPTransaction{}
-
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	return &HTTPTransaction{
-		createdAt:  time.Now(),
-		ErrorCount: 0,
-		retryable:  true,
-		Headers:    make(http.Header),
-		attemptHandler: func(transaction *HTTPTransaction) {
-
-		},
-		completionHandler: func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
-
-		},
+		createdAt:         time.Now(),
+		ErrorCount:        0,
+		retryable:         true,
+		Headers:           make(http.Header),
+		attemptHandler:    defaultAttemptHandler,
+		completionHandler: defaultCompletionHandler,
 	}
 }
 
