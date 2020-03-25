@@ -24,25 +24,13 @@ func newTestTransaction() *testTransaction {
 	return t
 }
 
-func (t *testTransaction) IsRetryable() bool {
-	return true
-}
-
-func (t *testTransaction) OnAttempt() {
-
-}
-
-func (t *testTransaction) OnComplete(_ int, _ []byte, _ error) {
-
-}
-
 func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(_ context.Context, client *http.Client) (int, []byte, error) {
+func (t *testTransaction) Process(_ context.Context, client *http.Client) error {
 	defer func() { t.processed <- true }()
-	return 0, nil, t.Called(client).Error(0) // we ignore the context to ease mocking
+	return t.Called(client).Error(0) // we ignore the context to ease mocking
 }
 
 func (t *testTransaction) GetTarget() string {

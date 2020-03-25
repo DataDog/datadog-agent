@@ -46,7 +46,7 @@ func TestProcess(t *testing.T) {
 
 	client := &http.Client{}
 
-	_, _, err := transaction.Process(context.Background(), client)
+	err := transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 }
 
@@ -59,7 +59,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 
 	client := &http.Client{}
 
-	_, _, err := transaction.Process(context.Background(), client)
+	err := transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 }
 
@@ -72,7 +72,7 @@ func TestProcessNetworkError(t *testing.T) {
 
 	client := &http.Client{}
 
-	_, _, err := transaction.Process(context.Background(), client)
+	err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
 }
 
@@ -92,21 +92,21 @@ func TestProcessHTTPError(t *testing.T) {
 
 	client := &http.Client{}
 
-	_, _, err := transaction.Process(context.Background(), client)
+	err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 
 	errorCode = http.StatusBadRequest
-	_, _, err = transaction.Process(context.Background(), client)
+	err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	_, _, err = transaction.Process(context.Background(), client)
+	err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
-	_, _, err = transaction.Process(context.Background(), client)
+	err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 }
@@ -122,6 +122,6 @@ func TestProcessCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, _, err := transaction.Process(ctx, client)
+	err := transaction.Process(ctx, client)
 	assert.Nil(t, err)
 }

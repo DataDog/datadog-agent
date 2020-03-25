@@ -122,12 +122,9 @@ type HTTPTransaction struct {
 
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
-	Process(ctx context.Context, client *http.Client) (int, []byte, error)
+	Process(ctx context.Context, client *http.Client) error
 	GetCreatedAt() time.Time
 	GetTarget() string
-	IsRetryable() bool
-	OnAttempt()
-	OnComplete(statusCode int, body []byte, err error)
 }
 
 var _ Transaction = &HTTPTransaction{}
@@ -148,21 +145,6 @@ func NewHTTPTransaction() *HTTPTransaction {
 	}
 }
 
-// IsRetryable returns true if this transaction can be retried
-func (t *HTTPTransaction) IsRetryable() bool {
-	return t.retryable
-}
-
-// OnAttempt indicates that this transaction is about to be attempted
-func (t *HTTPTransaction) OnAttempt() {
-	t.attemptHandler(t)
-}
-
-// OnComplete indicates that this transaction has been completed and will not be retried again
-func (t *HTTPTransaction) OnComplete(statusCode int, body []byte, err error) {
-	t.completionHandler(t, statusCode, body, err)
-}
-
 // GetCreatedAt returns the creation time of the HTTPTransaction.
 func (t *HTTPTransaction) GetCreatedAt() time.Time {
 	return t.createdAt
@@ -175,8 +157,27 @@ func (t *HTTPTransaction) GetTarget() string {
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
+func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) error {
+	t.attemptHandler(t)
+
+	statusCode, body, err := t.internalProcess(ctx, client)
+
+	if err == nil || !t.retryable {
+		t.completionHandler(t, statusCode, body, err)
+	}
+
+	// If the txn is retryable, return the error (if present) to the worker to allow it to be retried
+	// Otherwise, return nil so the txn won't be retried.
+	if t.retryable {
+		return err
+	}
+
+	return nil
+}
+
+// internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
-func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) (int, []byte, error) {
+func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint
 	logURL := httputils.SanitizeURL(url) // sanitized url that can be logged
