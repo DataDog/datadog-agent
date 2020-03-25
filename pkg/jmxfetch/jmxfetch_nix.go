@@ -9,11 +9,13 @@
 package jmxfetch
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,7 +47,10 @@ func (j *JMXFetch) Monitor() {
 		// stopTimes here will only start yielding values potentially <= ival _after_ the first
 		// maxRestarts attempts, which is fine and consistent.
 		if stopTimes[idx].Sub(stopTimes[oldestIdx]).Seconds() <= ival {
-			log.Errorf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", maxRestarts, ival)
+			msg := fmt.Sprintf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", maxRestarts, ival)
+			log.Errorf(msg)
+			s := status.JMXStartupError{msg, time.Now().Unix()}
+			status.SetJMXStartupError(s)
 			return
 		}
 
