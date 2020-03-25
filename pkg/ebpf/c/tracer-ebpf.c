@@ -168,7 +168,7 @@ struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
  * sockets that were created, but have not yet been bound to a port with
  * sys_bind.
  *
- * Key: a __u64 where the upper 32 bits are and the PID of the process which created the socket, and the lower
+ * Key: a __u64 where the upper 32 bits are the PID of the process which created the socket, and the lower
  * 32 bits are the file descriptor as returned by socket().
  * Value: the values are not relevant. It's only relevant that there is or isn't an entry.
  *
@@ -966,6 +966,7 @@ int kprobe__sys_bind(struct pt_regs* ctx) {
 
     struct sockaddr* addr = (struct sockaddr*)PT_REGS_PARM2(ctx);
     if (addr == NULL) {
+      log_debug("kprobe/sys_bind: could not read sockaddr\n");
         return 0;
     }
 
@@ -974,15 +975,13 @@ int kprobe__sys_bind(struct pt_regs* ctx) {
     bpf_probe_read(&sin_port, sizeof(u16), (char*)addr + 2);
     sin_port = ntohs(sin_port);
 
-    // write to pending_binds to the retprobe knows we can mark this as binding.
+    // write to pending_binds so the retprobe knows we can mark this as binding.
     bind_syscall_args_t args = {};
     args.fd = fd;
     args.port = sin_port;
 
     bpf_map_update_elem(&pending_bind, &tid, &args, BPF_ANY);
     log_debug("kprobe/sys_bind: started a bind on UDP port=%d fd=%d tid=%d\n", sin_port, fd, tid);
-
-
 
     return 0;
 }
@@ -992,11 +991,11 @@ int kretprobe__sys_bind(struct pt_regs* ctx) {
   __u64 tid = bpf_get_current_pid_tgid();
   int ret = PT_REGS_RC(ctx);
 
-  // bail if this bind() is not one we're instrumenting
+  // bail if this bind() is not the one we're instrumenting
   bind_syscall_args_t *args;
   args = bpf_map_lookup_elem(&pending_bind, &tid);
 
-  log_debug("kretprobe/bind: for tid %d and return value: %d\n");
+  log_debug("kretprobe/bind: for tid %d and return value: %d\n", tid, ret);
 
   if (args == NULL) {
     log_debug("kretprobe/bind: was not a UDP bind, will not process\n");
