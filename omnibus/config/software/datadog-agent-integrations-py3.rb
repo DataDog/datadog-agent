@@ -88,6 +88,10 @@ if arm?
   blacklist_packages.push(/^pymqi==/)
 end
 
+if arm? || !_64_bit?
+  blacklist_packages.push(/^orjson==/)
+end
+
 final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
