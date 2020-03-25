@@ -2118,6 +2118,25 @@ build_agent7_windows:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1809 --build-arg WITH_JMX=false
+  script:
+    - $ErrorActionPreference = "Stop"
+    - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
+    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
+    - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
+    - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - docker push ${TARGET_TAG}
+
+build_agent7_windows_jmx:
+  stage: image_build
+  before_script: [ "# noop" ] # Override top level entry
+  needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
+  <<: *skip_when_unwanted_on_7
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7-jmx
     BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1809 --build-arg WITH_JMX=true
   script:
     - $ErrorActionPreference = "Stop"
@@ -2319,6 +2338,7 @@ dev_branch_docker_hub-a7-windows:
     - |
       @"
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809
       "@ | Add-Content ci-scripts/docker-publish.ps1
 
 dev_branch_multiarch_docker_hub-a6:
@@ -2360,12 +2380,9 @@ dev_branch_multiarch_docker_hub-a7:
     # Platform-specific agent images
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-ARCH      --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3-jmx
-    # Other images
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-1809
     # Manifests
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3       --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3
     - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx   --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3-jmx
-    - inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3   --template datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-1809
 
 dev_branch_multiarch_docker_hub-dogstatsd:
   <<: *skip_when_unwanted_on_7
@@ -2420,6 +2437,7 @@ dev_master_docker_hub-a7-windows:
     - |
       @"
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:master-py3-win1809
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:master-py3-jmx-win1809
       "@ | Add-Content ci-scripts/docker-publish.ps1
     - cat ci-scripts/docker-publish.ps1
 
@@ -2502,6 +2520,7 @@ dev_nightly_docker_hub-a7-windows:
     - |
       @"
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1809
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win1809
       "@ | Add-Content ci-scripts/docker-publish.ps1
 
 # deploys nightlies to agent-dev
@@ -2948,7 +2967,9 @@ tag_release_7_windows:
     - |
       @"
       inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1809-ARCH --dst-template datadog/agent-ARCH:${VERSION}-win1809
+      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-ARCH --dst-template datadog/agent-ARCH:${VERSION}-jmx-win1809
       inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag ${VERSION} --template datadog/agent-ARCH:${VERSION}-win1809
+      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag ${VERSION} --template datadog/agent-ARCH:${VERSION}-jmx-win1809
       "@ | Add-Content ci-scripts/docker-publish.ps1
 
 latest_release_6:
