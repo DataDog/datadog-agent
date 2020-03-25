@@ -376,7 +376,7 @@ build_dogstatsd_static-deb_x64:
   needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --static --major-version 7
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
@@ -389,7 +389,7 @@ build_dogstatsd-deb_x64:
   needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
@@ -408,7 +408,7 @@ build_dogstatsd_static-deb_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --static --major-version 7
     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
@@ -427,7 +427,7 @@ build_dogstatsd-deb_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
   script:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
@@ -480,7 +480,7 @@ cluster_agent-build_amd64:
     ARCH: amd64
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
 
 cluster_agent-build_arm64:
   <<: *cluster_agent-build_common
@@ -494,7 +494,7 @@ cluster_agent-build_arm64:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
 
 
 
@@ -561,7 +561,7 @@ run_dogstatsd_arm_size_test:
     - mkdir -p $GOPATH/src/github.com/DataDog
     - '[[ "$ARCH" == arm64 ]] && cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog'
     - cd $SRC_PATH
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz /tmp/libbcc.tar.xz
     - mkdir -p /opt/datadog-agent/embedded
@@ -636,7 +636,7 @@ agent_deb-x64-a6:
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_amd64.deb'
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_deb
@@ -656,7 +656,7 @@ agent_deb-x64-a7:
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_deb
@@ -674,7 +674,7 @@ agent_deb-arm-a6:
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_arm64.deb'
   before_script:
     - source /root/.bashrc
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_deb
@@ -692,7 +692,7 @@ agent_deb-arm-a7:
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_arm64.deb'
   before_script:
     - source /root/.bashrc
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_deb
@@ -779,7 +779,7 @@ agent_rpm-x64-a6:
     CONDA_ENV: ddpy3
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_rpm
@@ -798,7 +798,7 @@ agent_rpm-x64-a7:
     CONDA_ENV: ddpy3
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_rpm
@@ -815,7 +815,7 @@ agent_rpm-arm-a6:
     PACKAGE_ARCH: arm64
   before_script:
     - source /root/.bashrc
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_rpm
@@ -832,7 +832,7 @@ agent_rpm-arm-a7:
     PACKAGE_ARCH: arm64
   before_script:
     - source /root/.bashrc
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_rpm
@@ -885,7 +885,7 @@ agent_suse-x64-a6:
     PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_suse_rpm
 
@@ -902,7 +902,7 @@ agent_suse-x64-a7:
     PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_suse_rpm
 
@@ -1062,7 +1062,7 @@ dogstatsd_deb-x64:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -1095,7 +1095,7 @@ dogstatsd_rpm-x64:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --no-checks --verbose --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -1133,7 +1133,7 @@ dogstatsd_suse-x64:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
-    - inv -e deps --dep-vendor-only
+    - inv -e deps --no-checks --dep-vendor-only
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
