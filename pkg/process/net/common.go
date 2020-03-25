@@ -46,7 +46,6 @@ type RemoteSysProbeUtil struct {
 	httpClient      http.Client
 }
 
-
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 	if globalPath == "" {
