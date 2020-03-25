@@ -1021,9 +1021,8 @@ windows_choco_7_x64:
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
   script:
-    - agentVersion=(inv agent.version) | Select-String -Pattern "\d+.\d+.\d+" | %{$_.Matches[0].Value}
     - copy .omnibus\pkg\*.msi chocolatey\datadog-agent\tools\
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES "choco pack --version=$agentVersion --out=c:\mnt\build-out c:\mnt\chocolatey\datadog-agent.nuspec"
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES "Powershell -C c:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1"
     - copy build-out\*.nupkg .omnibus\pkg
   artifacts:
     expire_in: 2 weeks
