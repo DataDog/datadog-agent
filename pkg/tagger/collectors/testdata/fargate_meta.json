@@ -83,6 +83,9 @@
         "com.datadoghq.ad.check_names": "[\"redisdb\"]",
         "com.datadoghq.ad.init_configs": "[{}]",
         "com.datadoghq.ad.instances": "[{\"host\": \"%%host%%\", \"port\": 6379}]",
+        "com.datadoghq.ad.service": "redis",
+        "com.datadoghq.ad.env": "prod",
+        "com.datadoghq.ad.version": "1.0",
         "highlabel": "value2",
         "mylabel": "myvalue"
       },
