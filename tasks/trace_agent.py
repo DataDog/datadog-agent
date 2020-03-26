@@ -92,8 +92,12 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         "exec_opts": "",
     }
 
+    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
+    # to the call, we don't want them because while calling invoke below, invoke
+    # thinks that the parameters are for it to interpret.
+    # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
+        test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
 
     go_cmd = 'INTEGRATION=yes go test {race_opt} -v'.format(**test_args)
 

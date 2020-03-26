@@ -237,7 +237,8 @@ def _save_release_json(release_json, list_major_versions, highest_version, integ
             new_release_json[key] = value
 
     with open("release.json", "w") as release_json_stream:
-        json.dump(new_release_json, release_json_stream, indent=4, sort_keys=False)
+        # Note, no space after the comma
+        json.dump(new_release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
 
 
 @task
@@ -247,7 +248,7 @@ def create_new_version(
     integration_version = None,
     omnibus_software_version = None,
     jmxfetch_version = None,
-    omnibus_ruby_version = "datadog-5.5.0",
+    omnibus_ruby_version = None,
     ignore_rc_tag = False):
 
     """
@@ -358,7 +359,7 @@ def create_rc(
     integration_version = None,
     omnibus_software_version = None,
     jmxfetch_version = None,
-    omnibus_ruby_version = "datadog-5.5.0"):
+    omnibus_ruby_version = None):
 
     """
     Creates new entry in the release.json file for a new RC.

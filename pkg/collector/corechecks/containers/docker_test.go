@@ -25,7 +25,7 @@ func TestReportIOMetrics(t *testing.T) {
 	tags := []string{"constant:tags", "container_name:dummy"}
 
 	// Test fallback to sums when per-device is not available
-	ioSum := &cmetrics.CgroupIOStat{
+	ioSum := &cmetrics.ContainerIOStats{
 		ReadBytes:  uint64(38989367),
 		WriteBytes: uint64(671846455),
 	}
@@ -34,7 +34,7 @@ func TestReportIOMetrics(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(671846455), "", tags)
 
 	// Test per-device when available
-	ioPerDevice := &cmetrics.CgroupIOStat{
+	ioPerDevice := &cmetrics.ContainerIOStats{
 		ReadBytes:  uint64(38989367),
 		WriteBytes: uint64(671846455),
 		DeviceReadBytes: map[string]uint64{

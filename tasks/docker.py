@@ -218,7 +218,7 @@ def publish_manifest(ctx, name, tag, template, platform, signed_push=False):
             -p docker.io/{name} {tag} {length} --sha256 {sha256} \
             -r targets/releases
         """
-        ctx.run(cmd.format(home=os.environ.get("HOME"), name=name, tag=tag, length=length, sha256=digest))
+        ctx.run(cmd.format(home=os.path.expanduser("~"), name=name, tag=tag, length=length, sha256=digest))
 
 @task
 def delete(ctx, org, image, tag, token):

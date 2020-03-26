@@ -33,6 +33,7 @@ var winopts struct {
 	uninstallService bool
 	startService     bool
 	stopService      bool
+	foreground       bool
 }
 
 func init() {
@@ -122,67 +123,70 @@ func main() {
 	flag.BoolVar(&winopts.uninstallService, "uninstall-service", false, "Remove the process agent from the Service Control Manager")
 	flag.BoolVar(&winopts.startService, "start-service", false, "Starts the process agent service")
 	flag.BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
+	flag.BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
 
 	flag.Parse()
-	isIntSess, err := svc.IsAnInteractiveSession()
-	if err != nil {
-		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
-	}
-	if !isIntSess {
-		runService(false)
-		return
-	}
-	// sigh.  Go doesn't have boolean xor operator.  The options are mutually exclusive,
-	// make sure more than one wasn't specified
-	optcount := 0
-	if winopts.installService {
-		fmt.Println("Installservice")
-		optcount++
-	} else {
-		fmt.Println("no Installservice")
-	}
-	if winopts.uninstallService {
-		optcount++
-	}
-	if winopts.startService {
-		optcount++
-	}
-	if winopts.stopService {
-		optcount++
-	}
-	if optcount > 1 {
-		fmt.Println("Incompatible options chosen")
-		return
-	}
-	if winopts.installService {
-		if err = installService(); err != nil {
-			fmt.Printf("Error installing service %v\n", err)
-		}
-		return
-	}
-	if winopts.uninstallService {
-		if err = removeService(); err != nil {
-			fmt.Printf("Error removing service %v\n", err)
-		}
-		return
-	}
-	if winopts.startService {
-		if err = startService(); err != nil {
-			fmt.Printf("Error starting service %v\n", err)
-		}
-		return
-	}
-	if winopts.stopService {
-		if err = stopService(); err != nil {
-			fmt.Printf("Error stopping service %v\n", err)
-		}
-		return
 
-	}
+	if !winopts.foreground {
+		isIntSess, err := svc.IsAnInteractiveSession()
+		if err != nil {
+			fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
+		}
 
-	exit := make(chan bool)
+		if !isIntSess {
+			runService(false)
+			return
+		}
+		// sigh.  Go doesn't have boolean xor operator.  The options are mutually exclusive,
+		// make sure more than one wasn't specified
+		optcount := 0
+		if winopts.installService {
+			fmt.Println("Installservice")
+			optcount++
+		} else {
+			fmt.Println("no Installservice")
+		}
+		if winopts.uninstallService {
+			optcount++
+		}
+		if winopts.startService {
+			optcount++
+		}
+		if winopts.stopService {
+			optcount++
+		}
+		if optcount > 1 {
+			fmt.Println("Incompatible options chosen")
+			return
+		}
+		if winopts.installService {
+			if err = installService(); err != nil {
+				fmt.Printf("Error installing service %v\n", err)
+			}
+			return
+		}
+		if winopts.uninstallService {
+			if err = removeService(); err != nil {
+				fmt.Printf("Error removing service %v\n", err)
+			}
+			return
+		}
+		if winopts.startService {
+			if err = startService(); err != nil {
+				fmt.Printf("Error starting service %v\n", err)
+			}
+			return
+		}
+		if winopts.stopService {
+			if err = stopService(); err != nil {
+				fmt.Printf("Error stopping service %v\n", err)
+			}
+			return
+		}
+	}
 
 	// Invoke the Agent
+	exit := make(chan bool)
 	runAgent(exit)
 }
 

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Remove cgroup deps from Docker utils, allows to implement several backends for Docker utils (i.e. Windows)

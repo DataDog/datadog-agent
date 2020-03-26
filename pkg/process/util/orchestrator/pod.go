@@ -30,7 +30,7 @@ const (
 )
 
 // ProcessPodlist processes a pod list into process messages
-func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string) ([]model.MessageBody, error) {
+func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, hostName string, clusterName string, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
@@ -72,6 +72,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 			Pods:        chunked[i],
 			GroupId:     groupID,
 			GroupSize:   int32(groupSize),
+			ClusterId:   clusterID,
 		})
 	}
 

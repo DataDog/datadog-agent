@@ -4,6 +4,7 @@ package ebpf
 
 import (
 	"bytes"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"

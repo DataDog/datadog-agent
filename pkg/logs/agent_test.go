@@ -102,8 +102,8 @@ func (suite *AgentTestSuite) TestAgent() {
 
 	agent.Start()
 	sources.AddSource(suite.source)
-	// Give the agent at most one second to send the logs.
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, time.Second, func() bool {
+	// Give the agent at most two second to send the logs. (seems to be slow on Windows/AppVeyor)
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return suite.fakeLogs == metrics.LogsSent.Value()
 	})
 	agent.Stop()

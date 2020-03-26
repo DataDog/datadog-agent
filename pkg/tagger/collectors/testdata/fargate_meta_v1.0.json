@@ -42,7 +42,10 @@
 			"com.amazonaws.ecs.container-name": "redis",
 			"com.amazonaws.ecs.task-arn": "arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
 			"com.amazonaws.ecs.task-definition-family": "redis-datadog",
-			"com.amazonaws.ecs.task-definition-version": "1"
+			"com.amazonaws.ecs.task-definition-version": "1",
+			"com.datadoghq.ad.service": "redis",
+			"com.datadoghq.ad.env": "prod",
+			"com.datadoghq.ad.version": "1.0"
 		},
 		"DesiredStatus": "RUNNING",
 		"KnownStatus": "RUNNING",

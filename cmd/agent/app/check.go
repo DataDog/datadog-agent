@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -139,19 +140,31 @@ var checkCmd = &cobra.Command{
 		allConfigs := common.AC.GetAllConfigs()
 
 		// make sure the checks in cs are not JMX checks
-		for _, conf := range allConfigs {
+		for idx := range allConfigs {
+			conf := &allConfigs[idx]
 			if conf.Name != checkName {
 				continue
 			}
 
-			if check.IsJMXConfig(conf.Name, conf.InitConfig) {
+			if check.IsJMXConfig(*conf) {
 				// we'll mimic the check command behavior with JMXFetch by running
 				// it with the JSON reporter and the list_with_metrics command.
 				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 				if err := RunJmxListWithMetrics(); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
-				return nil
+
+				instances := []integration.Data{}
+
+				// Retain only non-JMX instances for later
+				for _, instance := range conf.Instances {
+					if check.IsJMXInstance(conf.Name, instance, conf.InitConfig) {
+						continue
+					}
+					instances = append(instances, instance)
+				}
+
+				conf.Instances = instances
 			}
 		}
 
