@@ -80,7 +80,14 @@ var trace = &httptrace.ClientTrace{
 	},
 }
 
+// Compile-time check to ensure that HTTPTransaction conforms to the Transaction interface
 var _ Transaction = &HTTPTransaction{}
+
+// HTTPAttemptHandler is an event handler that will get called each time this transaction is attempted
+type HTTPAttemptHandler func(transaction *HTTPTransaction)
+
+// HTTPCompletionHandler is an  event handler that will get called after this transaction has completed
+type HTTPCompletionHandler func(transaction *HTTPTransaction, statusCode int, body []byte, err error)
 
 var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
 var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
@@ -120,9 +127,9 @@ type HTTPTransaction struct {
 	retryable bool
 
 	// attemptHandler will be called with a transaction before the attempting to send the request
-	attemptHandler func(transaction *HTTPTransaction)
+	attemptHandler HTTPAttemptHandler
 	// completionHandler will be called with a transaction after it has been successfully sent
-	completionHandler func(transaction *HTTPTransaction, statusCode int, body []byte, err error)
+	completionHandler HTTPCompletionHandler
 }
 
 // Transaction represents the task to process for a Worker.
