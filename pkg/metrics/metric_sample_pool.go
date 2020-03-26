@@ -37,7 +37,7 @@ func (m *MetricSamplePool) GetBatch() []MetricSample {
 		return nil
 	}
 	if m.tlmEnabled {
-		tlmMetricSamplePool.Add(1)
+		tlmMetricSamplePool.Inc()
 	}
 	return m.pool.Get().([]MetricSample)
 }
@@ -48,7 +48,7 @@ func (m *MetricSamplePool) PutBatch(batch []MetricSample) {
 		return
 	}
 	if m.tlmEnabled {
-		tlmMetricSamplePool.Add(-1)
+		tlmMetricSamplePool.Dec()
 	}
 	m.pool.Put(batch[:cap(batch)])
 }
