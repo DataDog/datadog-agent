@@ -29,9 +29,6 @@ func (r *RTContainerCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemIn
 // Name returns the name of the RTContainerCheck.
 func (r *RTContainerCheck) Name() string { return "rtcontainer" }
 
-// Endpoint returns the endpoint where this check is submitted.
-func (r *RTContainerCheck) Endpoint() string { return "/api/v1/container" }
-
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTContainerCheck) RealTime() bool { return true }
 

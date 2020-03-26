@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -22,7 +24,6 @@ import (
 
 type checkPayload struct {
 	messages []model.MessageBody
-	endpoint string
 	name     string
 }
 
@@ -37,7 +38,8 @@ type Collector struct {
 	send         chan checkPayload
 	rtIntervalCh chan time.Duration
 	cfg          *config.AgentConfig
-	apiClient    api.Client
+	forwarder    forwarder.Forwarder
+	podForwarder forwarder.Forwarder
 
 	// counters for each type of check
 	runCounters   sync.Map
@@ -67,7 +69,8 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
 		groupID:       rand.Int31(),
-		apiClient:     api.NewClient(http.Client{Timeout: HTTPTimeout, Transport: cfg.Transport}, ReqCtxTimeout),
+		forwarder:     forwarder.NewDefaultForwarder(keysPerDomains(cfg.APIEndpoints)),
+		podForwarder:  forwarder.NewDefaultForwarder(keysPerDomains(cfg.OrchestratorEndpoints)),
 		enabledChecks: enabledChecks,
 
 		// Defaults for real-time on start
@@ -90,7 +93,7 @@ func (l *Collector) runCheck(c checks.Check) {
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 	} else {
-		l.send <- checkPayload{messages, c.Endpoint(), c.Name()}
+		l.send <- checkPayload{messages, c.Name()}
 		// update proc and container count for info
 		updateProcContainerCount(messages)
 		if !c.RealTime() {
@@ -118,6 +121,16 @@ func (l *Collector) run(exit chan bool) {
 	}
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
 
+	if err := l.forwarder.Start(); err != nil {
+		log.Errorf("Error starting forwarder: %s", err)
+		return
+	}
+
+	if err := l.podForwarder.Start(); err != nil {
+		log.Errorf("Error starting pod forwarder: %s", err)
+		return
+	}
+
 	go util.HandleSignals(exit)
 	heartbeat := time.NewTicker(15 * time.Second)
 	queueSizeTicker := time.NewTicker(10 * time.Second)
@@ -134,17 +147,47 @@ func (l *Collector) run(exit chan bool) {
 					// Limit number of items kept in memory while we wait.
 					<-l.send
 				}
+
 				for _, m := range payload.messages {
-					extraHeaders := map[string]string{
-						api.HostHeader:           l.cfg.HostName,
-						api.ProcessVersionHeader: Version,
-						api.ContainerCountHeader: strconv.Itoa(getContainerCount(m)),
-					}
+					extraHeaders := make(http.Header)
+					extraHeaders.Set(api.HostHeader, l.cfg.HostName)
+					extraHeaders.Set(api.ProcessVersionHeader, Version)
+					extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+
 					if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-						extraHeaders[api.ClusterIDHeader] = cid
+						extraHeaders.Set(api.ClusterIDHeader, cid)
 					}
-					statuses := l.apiClient.PostMessage(l.endpointsForCheck(payload.name), payload.endpoint, m, extraHeaders)
-					if len(statuses) > 0 {
+
+					body, err := encodePayload(m)
+					if err != nil {
+						log.Errorf("Unable to encode message: %s", err)
+						continue
+					}
+
+					payloads := forwarder.Payloads{&body}
+					var responses chan forwarder.Response
+
+					switch payload.name {
+					case checks.Process.Name():
+						responses, err = l.forwarder.SubmitProcessChecks(payloads, extraHeaders)
+					case checks.RTProcess.Name():
+						responses, err = l.forwarder.SubmitRTProcessChecks(payloads, extraHeaders)
+					case checks.Container.Name():
+						responses, err = l.forwarder.SubmitContainerChecks(payloads, extraHeaders)
+					case checks.RTContainer.Name():
+						responses, err = l.forwarder.SubmitRTContainerChecks(payloads, extraHeaders)
+					case checks.Connections.Name():
+						responses, err = l.forwarder.SubmitConnectionChecks(payloads, extraHeaders)
+					case checks.Pod.Name():
+						responses, err = l.forwarder.SubmitPodChecks(payloads, extraHeaders)
+					}
+
+					if err != nil {
+						log.Errorf("Unable to submit payload: %s", err)
+						continue
+					}
+
+					if statuses := readResponseStatuses(responses); len(statuses) > 0 {
 						l.updateStatus(statuses)
 					}
 				}
@@ -188,6 +231,8 @@ func (l *Collector) run(exit chan bool) {
 		}(c)
 	}
 	<-exit
+	l.forwarder.Stop()
+	l.podForwarder.Stop()
 }
 
 func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
@@ -228,20 +273,6 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 	}
 }
 
-func (l *Collector) endpointsForCheck(checkName string) []api.Endpoint {
-	if checkName == checks.Pod.Name() {
-		return l.cfg.OrchestratorEndpoints
-	}
-	return l.cfg.APIEndpoints
-}
-
-const (
-	// HTTPTimeout is the timeout in seconds for process-agent to send process payloads to DataDog
-	HTTPTimeout = 20 * time.Second
-	// ReqCtxTimeout is the timeout in seconds for process-agent to cancel POST request using context timeout
-	ReqCtxTimeout = 30 * time.Second
-)
-
 // getContainerCount returns the number of containers in the message body
 func getContainerCount(mb model.MessageBody) int {
 	switch v := mb.(type) {
@@ -257,4 +288,64 @@ func getContainerCount(mb model.MessageBody) int {
 		return 0
 	}
 	return 0
+}
+
+func readResponseStatuses(responses chan forwarder.Response) []*model.CollectorStatus {
+	var statuses []*model.CollectorStatus
+
+	for response := range responses {
+		if response.Err != nil {
+			log.Errorf("Error from %s: %s", response.Domain, response.Err)
+			continue
+		}
+
+		if response.StatusCode >= 300 {
+			log.Errorf("Invalid response from %s: %d -> %s", response.Domain, response.StatusCode, response.Err)
+			continue
+		}
+
+		r, err := model.DecodeMessage(response.Body)
+		if err != nil {
+			log.Errorf("Could not decode response body: %s", err)
+			continue
+		}
+
+		switch r.Header.Type {
+		case model.TypeResCollector:
+			rm := r.Body.(*model.ResCollector)
+			if len(rm.Message) > 0 {
+				log.Errorf("Error in response from %s: %s", response.Domain, rm.Message)
+			} else {
+				statuses = append(statuses, rm.Status)
+			}
+		default:
+			log.Errorf("Unexpected response type from %s: %d", response.Domain, r.Header.Type)
+		}
+	}
+
+	return statuses
+}
+
+func encodePayload(m model.MessageBody) ([]byte, error) {
+	msgType, err := model.DetectMessageType(m)
+	if err != nil {
+		return nil, fmt.Errorf("unable to detect message type: %s", err)
+	}
+
+	return model.EncodeMessage(model.Message{
+		Header: model.MessageHeader{
+			Version:  model.MessageV3,
+			Encoding: model.MessageEncodingZstdPB,
+			Type:     msgType,
+		}, Body: m})
+}
+
+func keysPerDomains(endpoints []api.Endpoint) map[string][]string {
+	keysPerDomains := make(map[string][]string)
+
+	for _, ep := range endpoints {
+		keysPerDomains[ep.Endpoint.String()] = []string{ep.APIKey}
+	}
+
+	return keysPerDomains
 }

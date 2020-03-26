@@ -21,21 +21,18 @@ type PodCheck struct {
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (c *PodCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	c.sysInfo = info
 }
 
 // Name returns the name of the ProcessCheck.
 func (c *PodCheck) Name() string { return "pod" }
 
-// Endpoint returns the endpoint where this check is submitted.
-func (c *PodCheck) Endpoint() string { return "/api/v1/orchestrator" }
-
 // RealTime indicates if this check only runs in real-time mode.
 func (c *PodCheck) RealTime() bool { return false }
 
 // Run runs the PodCheck to collect a list of running containers and the
 // stats for each container.
-func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (c *PodCheck) Run(_ *config.AgentConfig, _ int32) ([]model.MessageBody, error) {
 	return nil, nil
 }
