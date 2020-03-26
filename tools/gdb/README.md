@@ -9,7 +9,6 @@ The image built from the Dockerfile includes:
 * the GDB scripts for Go and Python (only tested with Python 3)
 
 The image is based on the `datadog/agent` image for the version of the Agent you're debugging, so that the debug symbols of the system libraries are at the correct version.
-the system libraries are at the correct version as well.
 
 ## Usage
 
