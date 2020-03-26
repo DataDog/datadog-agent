@@ -1,5 +1,19 @@
 # StackState Agent v2 releases
 
+## 2.3.0 (2020-03-26)
+
+**Features**
+
+- Zabbix check [(STAC-7601)](https://stackstate.atlassian.net/browse/STAC-7601) provides support to visualize the hosts systems monitored by Zabbix.
+    * Gathers Topology from your Zabbix instance and allows visualization of your monitored systems components.
+    * Provides events mapped to those monitored systems from Zabbix.
+    * Disabling a trigger should clear health state [_(STAC-8176)_](https://stackstate.atlassian.net/browse/STAC-8176).
+    * Acknowledging a problem in Zabbix should clear state [_(STAC-8177)_](https://stackstate.atlassian.net/browse/STAC-8177) .
+
+**Bugs**
+
+- Trace-agent logs can be found in `C:\ProgramData\StackState\logs` now. [_(STAC-8177)_](https://stackstate.atlassian.net/browse/STAC-8177)
+
 ## 2.2.1 (2020-03-18)
 
 **Bugs**
