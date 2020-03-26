@@ -14,13 +14,16 @@ RUN export GIMME_GO_VERSION=$(agent version | grep --only-matching -E 'go[0-9\.]
  && eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | bash)"
 
 # Install datadog-agent-dbg at the right version
-ARG AGENT_VERSION
 RUN apt-get install -o Dpkg::Options::="--force-confold" --no-install-recommends -y gnupg dirmngr ca-certificates \
- && echo 'deb https://apt.datadoghq.com/ stable 7 6' > /etc/apt/sources.list.d/datadog.list \
- && apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 A2923DFF56EDA6E76E55E492D3A80E30382E94DE \
+ && apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 A2923DFF56EDA6E76E55E492D3A80E30382E94DE
+ARG AGENT_VERSION
+ARG APT_REPO=apt.datadoghq.com
+ARG APT_DISTRIBUTION=stable
+RUN echo "deb https://${APT_REPO}/ ${APT_DISTRIBUTION} 7 6" > /etc/apt/sources.list.d/datadog.list \
  && apt-get update -o Dir::Etc::sourcelist="sources.list.d/datadog.list" \
  && cd /root/ \
- && apt-get download datadog-agent-dbg=1:${AGENT_VERSION}-1 \
+ && DEB_AGENT_VERSION=$(echo "${AGENT_VERSION}" | sed "s/-/~/") \
+ && apt-get download datadog-agent-dbg=1:${DEB_AGENT_VERSION}-1 \
  && dpkg -i --ignore-depends=datadog-agent ./datadog-agent-dbg*.deb \
  && rm -f ./datadog-agent-dbg*.deb
 
