@@ -100,14 +100,14 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort         uint16
-	DPort         uint16
-	Type          ConnectionType
-	Family        ConnectionFamily
-	Direction     ConnectionDirection
-	IPTranslation *netlink.IPTranslation
-	IntraHost     bool
-	DNSReplyCount uint32
+	SPort                  uint16
+	DPort                  uint16
+	Type                   ConnectionType
+	Family                 ConnectionFamily
+	Direction              ConnectionDirection
+	IPTranslation          *netlink.IPTranslation
+	IntraHost              bool
+	DNSSuccessfulResponses uint32
 }
 
 func (c ConnectionStats) String() string {

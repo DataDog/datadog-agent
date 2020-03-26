@@ -143,7 +143,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 		return
 	}
 	if s.collectLocalDNS || !cKey.serverIP.IsLoopback() {
-		s.statKeeper.IncrementReplyCount(cKey, dnsTransactionID)
+		s.statKeeper.ProcessSuccessfulResponse(cKey, dnsTransactionID)
 	}
 	s.cache.Add(t, time.Now())
 }

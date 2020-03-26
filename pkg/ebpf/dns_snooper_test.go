@@ -136,7 +136,7 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	}
 	allStats := reverseDNS.GetDNSStats()
 	require.Equal(t, 1, len(allStats))
-	assert.Equal(t, uint32(1), allStats[key].replies)
+	assert.Equal(t, uint32(1), allStats[key].successfulResponses)
 }
 
 func TestParsingError(t *testing.T) {

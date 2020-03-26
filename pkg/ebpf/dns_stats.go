@@ -8,7 +8,7 @@ import (
 type dnsStats struct {
 	lastTransactionID uint16
 	// More stats like latency, error, etc. will be added here later
-	replies uint32
+	successfulResponses uint32
 }
 
 type dnsKey struct {
@@ -29,7 +29,9 @@ func newDNSStatkeeper() *dnsStatKeeper {
 	}
 }
 
-func (d *dnsStatKeeper) IncrementReplyCount(key dnsKey, transactionID uint16) {
+func (d *dnsStatKeeper) ProcessSuccessfulResponse(key dnsKey, transactionID uint16) {
+	d.mux.Lock()
+	defer d.mux.Unlock()
 	stats := d.stats[key]
 
 	// For local DNS traffic, sometimes the same reply packet gets processed by the
@@ -39,13 +41,9 @@ func (d *dnsStatKeeper) IncrementReplyCount(key dnsKey, transactionID uint16) {
 		return
 	}
 
-	stats.replies++
+	stats.successfulResponses++
 	stats.lastTransactionID = transactionID
 
-	// There is only one writer which is this thread. So we need to lock only
-	// before writing, not reading.
-	d.mux.Lock()
-	defer d.mux.Unlock()
 	d.stats[key] = stats
 }
 

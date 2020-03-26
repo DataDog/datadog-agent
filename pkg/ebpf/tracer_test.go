@@ -1517,5 +1517,5 @@ func TestDNSStats(t *testing.T) {
 	assert.Equal(t, NONE, conn.Direction)
 
 	// DNS Stats
-	assert.Equal(t, uint32(1), conn.DNSReplyCount)
+	assert.Equal(t, uint32(1), conn.DNSSuccessfulResponses)
 }
