@@ -131,7 +131,7 @@ func (l *UDSListener) Listen() {
 		var n int
 		var err error
 		// retrieve an available packet from the packet pool,
-		// the will be pushed by back the server when processed.
+		// which will be pushed back by the server when processed.
 		packet := l.sharedPacketPool.Get()
 		udsPackets.Add(1)
 		if l.OriginDetection {

@@ -28,7 +28,7 @@ type packetAssembler struct {
 func newPacketAssembler(flushTimer time.Duration, packetsBuffer *packetsBuffer, sharedPacketPool *PacketPool) *packetAssembler {
 	packetAssembler := &packetAssembler{
 		// retrieve an available packet from the packet pool,
-		// the will be pushed by back the server when processed.
+		// which will be pushed back by the server when processed.
 		packet:           sharedPacketPool.Get(),
 		sharedPacketPool: sharedPacketPool,
 		packetsBuffer:    packetsBuffer,
@@ -74,7 +74,7 @@ func (p *packetAssembler) flush() {
 	p.packet.Contents = p.packet.buffer[:p.packetLength]
 	p.packetsBuffer.append(p.packet)
 	// retrieve an available packet from the packet pool,
-	// the will be pushed by back the server when processed.
+	// which will be pushed back by the server when processed.
 	p.packet = p.sharedPacketPool.Get()
 	p.packetLength = 0
 }
