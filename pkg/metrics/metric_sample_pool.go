@@ -7,6 +7,10 @@ import (
 )
 
 var (
+	tlmMetricSamplePoolGet = telemetry.NewGauge("dogstatsd", "metric_sample_pool_get",
+		nil, "Amount of sample gotten from the metric sample pool")
+	tlmMetricSamplePoolPut = telemetry.NewGauge("dogstatsd", "metric_sample_pool_put",
+		nil, "Amount of sample put in the metric sample pool")
 	tlmMetricSamplePool = telemetry.NewGauge("dogstatsd", "metric_sample_pool",
 		nil, "Usage of the metric sample pool in dogstatsd")
 )
@@ -37,6 +41,7 @@ func (m *MetricSamplePool) GetBatch() []MetricSample {
 		return nil
 	}
 	if m.tlmEnabled {
+		tlmMetricSamplePoolGet.Inc()
 		tlmMetricSamplePool.Inc()
 	}
 	return m.pool.Get().([]MetricSample)
@@ -48,6 +53,7 @@ func (m *MetricSamplePool) PutBatch(batch []MetricSample) {
 		return
 	}
 	if m.tlmEnabled {
+		tlmMetricSamplePoolPut.Inc()
 		tlmMetricSamplePool.Dec()
 	}
 	m.pool.Put(batch[:cap(batch)])

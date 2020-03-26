@@ -12,6 +12,10 @@ import (
 )
 
 var (
+	tlmPacketPoolGet = telemetry.NewCounter("dogstatsd", "packet_pool_get",
+		nil, "Count of get done in the packet pool")
+	tlmPacketPoolPut = telemetry.NewCounter("dogstatsd", "packet_pool_put",
+		nil, "Count of put done in the packet pool")
 	tlmPacketPool = telemetry.NewGauge("dogstatsd", "packet_pool",
 		nil, "Usage of the packet pool in dogstatsd")
 )
@@ -53,6 +57,7 @@ func NewPacketPool(bufferSize int) *PacketPool {
 // Get gets a Packet object read for use.
 func (p *PacketPool) Get() *Packet {
 	if p.tlmEnabled {
+		tlmPacketPoolGet.Inc()
 		tlmPacketPool.Inc()
 	}
 	return p.pool.Get().(*Packet)
@@ -64,6 +69,7 @@ func (p *PacketPool) Put(packet *Packet) {
 		packet.Origin = NoOrigin
 	}
 	if p.tlmEnabled {
+		tlmPacketPoolPut.Inc()
 		tlmPacketPool.Dec()
 	}
 	p.pool.Put(packet)
