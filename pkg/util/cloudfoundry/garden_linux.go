@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	// Needs ContainerImpl, so make sure it is init
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 )
 
 // GetGardenContainers returns the list of running containers from the local garden API
@@ -72,7 +75,7 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 		return nil, fmt.Errorf("could not get cgroups: %s", err)
 	}
 	for _, container := range cList {
-		if container.State != containers.ContainerActiveState || providers.ContainerImpl().ContainerExists(container.ID) {
+		if container.State != containers.ContainerActiveState || !providers.ContainerImpl().ContainerExists(container.ID) {
 			log.Debugf("Container %s not in state %s, skipping", container.ID[:12], containers.ContainerActiveState)
 			continue
 		}
@@ -93,7 +96,7 @@ func (gu *GardenUtil) UpdateContainerMetrics(cList []*containers.Container) erro
 		return fmt.Errorf("could not fetch container metrics: %s", err)
 	}
 	for _, container := range cList {
-		if container.State != containers.ContainerActiveState {
+		if container.State != containers.ContainerActiveState || !providers.ContainerImpl().ContainerExists(container.ID) {
 			log.Debugf("Container %s not in state %s, skipping", container.ID[:12], containers.ContainerActiveState)
 			continue
 		}
