@@ -10,6 +10,7 @@ package autoscalers
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -28,7 +29,11 @@ import (
 
 const (
 	// chunkSize ensures batch queries are limited in size.
-	chunkSize = 45
+	chunkSize = 35
+	// maxCharactersPerChunk is the maximum size of a single chunk to avoid 414 Request-URI Too Large
+	maxCharactersPerChunk = 7000
+	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
+	extraQueryCharacters = 16
 )
 
 type DatadogClient interface {
@@ -145,14 +150,39 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 	return externalMetrics
 }
 
-func makeChunks(batch []string) (chunks [][]string) {
-	for i := 0; i < len(batch); i += chunkSize {
-		if i+chunkSize > len(batch) {
-			chunks = append(chunks, batch[i:])
-			break
-		}
-		chunks = append(chunks, batch[i:i+chunkSize])
+func isURLBeyondLimits(uriLength, numBuckets int) (bool, error) {
+	// The metric name can be at maximum 200 characters. Kubernetes limits the labels to 63 characters.
+	// Autoscalers with enough labels to form single a query of more than 7k characters are not supported.
+	lengthOverspill := uriLength >= maxCharactersPerChunk
+	if lengthOverspill && numBuckets == 0 {
+		return true, fmt.Errorf("Query is too long, could yield a server side error. Dropping")
 	}
+	return uriLength >= maxCharactersPerChunk || numBuckets >= chunkSize, nil
+}
+
+func makeChunks(batch []string) (chunks [][]string) {
+	// uriLength is used to avoid making a query that goes beyond the maximum URI size.
+	var uriLength int
+	var tempBucket []string
+
+	for _, val := range batch {
+		// Length of the query plus comma, time and space aggregators that come later on.
+		tempSize := len(url.QueryEscape(val)) + extraQueryCharacters
+		uriLength = uriLength + tempSize
+		beyond, err := isURLBeyondLimits(uriLength, len(tempBucket))
+		if err != nil {
+			log.Errorf(fmt.Sprintf("%s: %s", err.Error(), val))
+			continue
+		}
+		if beyond {
+			chunks = append(chunks, tempBucket)
+			uriLength = tempSize
+			tempBucket = []string{val}
+			continue
+		}
+		tempBucket = append(tempBucket, val)
+	}
+	chunks = append(chunks, tempBucket)
 	return chunks
 }
 

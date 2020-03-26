@@ -35,6 +35,8 @@ MODULE_WHITELIST = [
     "winsec.go",
     "allprocesses_windows.go",
     "allprocesses_windows_test.go",
+    "adapters.go",  # pkg/util/winutil/iphelper
+    "routes.go",    # pkg/util/winutil/iphelper
     # All
     "agent.pb.go"
 ]

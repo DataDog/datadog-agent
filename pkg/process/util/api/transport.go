@@ -26,9 +26,12 @@ const (
 	HostHeader = "X-Dd-Hostname"
 	// ContainerCountHeader contains the container count in the payload
 	ContainerCountHeader = "X-Dd-ContainerCount"
-	// ProcessVersionHeader hols the process agent version sending the payload
+	// ProcessVersionHeader holds the process agent version sending the payload
 	ProcessVersionHeader = "X-Dd-Processagentversion"
-	apiKeyHeader         = "X-Dd-APIKey"
+	// APIKeyHeader is the header name of the API key
+	APIKeyHeader = "X-Dd-APIKey"
+	// ClusterIDHeader contains the orchestrator cluster ID of this agent
+	ClusterIDHeader = "X-Dd-Orchestrator-ClusterID"
 )
 
 // Endpoint is a single endpoint where process data will be submitted.
@@ -99,7 +102,7 @@ func (c *Client) PostMessage(endpoints []Endpoint, checkPath string, m model.Mes
 	responses := make(chan postResponse)
 	for _, ep := range endpoints {
 		extraHeaders := map[string]string{
-			apiKeyHeader: ep.APIKey,
+			APIKeyHeader: ep.APIKey,
 		}
 		go c.postToAPI(ep.GetCheckURL(checkPath), body, responses, headers, extraHeaders)
 	}

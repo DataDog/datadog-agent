@@ -55,7 +55,7 @@ func init() {
 	factory := func() (check.Loader, error) {
 		return NewPythonCheckLoader()
 	}
-	loaders.RegisterLoader(10, factory)
+	loaders.RegisterLoader(20, factory)
 
 	configureErrors = map[string][]string{}
 	py3Warnings = map[string][]string{}
@@ -91,12 +91,11 @@ func getRtLoaderError() error {
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, error) {
+func (cl *PythonCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
 
-	checks := []check.Check{}
 	moduleName := config.Name
 
 	// Lock the GIL
@@ -182,27 +181,23 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	// Get an AgentCheck for each configuration instance and add it to the registry
-	for _, i := range config.Instances {
-		check := NewPythonCheck(moduleName, checkClass)
+	c := NewPythonCheck(moduleName, checkClass)
 
-		// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-		if err := check.Configure(i, config.InitConfig, config.Source); err != nil {
-			addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
-			continue
-		}
+	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
+	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
+		C.rtloader_decref(rtloader, checkClass)
+		C.rtloader_decref(rtloader, checkModule)
 
-		check.version = wheelVersion
-		checks = append(checks, check)
+		addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
+		return c, fmt.Errorf("could not configure check instance for python check %s: %s", moduleName, err.Error())
 	}
+
+	c.version = wheelVersion
 	C.rtloader_decref(rtloader, checkClass)
 	C.rtloader_decref(rtloader, checkModule)
 
-	if len(checks) == 0 {
-		return nil, fmt.Errorf("Could not configure any python check %s", moduleName)
-	}
 	log.Debugf("python loader: done loading check %s (version %s)", moduleName, wheelVersion)
-	return checks, nil
+	return c, nil
 }
 
 func (cl *PythonCheckLoader) String() string {

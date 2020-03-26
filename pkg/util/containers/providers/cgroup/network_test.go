@@ -5,16 +5,25 @@
 
 // +build linux
 
-package metrics
+package cgroup
 
 import (
+	"io/ioutil"
+	"net"
+	"os"
+	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func TestCollectNetworkStats(t *testing.T) {
@@ -29,8 +38,8 @@ func TestCollectNetworkStats(t *testing.T) {
 		name       string
 		dev        string
 		networks   map[string]string
-		stat       ContainerNetStats
-		summedStat *InterfaceNetStats
+		stat       metrics.ContainerNetStats
+		summedStat *metrics.InterfaceNetStats
 	}{
 		{
 			pid:  1245,
@@ -44,8 +53,8 @@ func TestCollectNetworkStats(t *testing.T) {
 			networks: map[string]string{
 				"eth0": "bridge",
 			},
-			stat: ContainerNetStats{
-				&InterfaceNetStats{
+			stat: metrics.ContainerNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "bridge",
 					BytesRcvd:   1345,
 					PacketsRcvd: 10,
@@ -53,7 +62,7 @@ func TestCollectNetworkStats(t *testing.T) {
 					PacketsSent: 0,
 				},
 			},
-			summedStat: &InterfaceNetStats{
+			summedStat: &metrics.InterfaceNetStats{
 				BytesRcvd:   1345,
 				PacketsRcvd: 10,
 				BytesSent:   0,
@@ -74,15 +83,15 @@ func TestCollectNetworkStats(t *testing.T) {
 				"eth0": "bridge",
 				"eth1": "test",
 			},
-			stat: ContainerNetStats{
-				&InterfaceNetStats{
+			stat: metrics.ContainerNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "bridge",
 					BytesRcvd:   648,
 					PacketsRcvd: 8,
 					BytesSent:   0,
 					PacketsSent: 0,
 				},
-				&InterfaceNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "test",
 					BytesRcvd:   1478,
 					PacketsRcvd: 19,
@@ -90,7 +99,7 @@ func TestCollectNetworkStats(t *testing.T) {
 					PacketsSent: 3,
 				},
 			},
-			summedStat: &InterfaceNetStats{
+			summedStat: &metrics.InterfaceNetStats{
 				BytesRcvd:   2126,
 				PacketsRcvd: 27,
 				BytesSent:   182,
@@ -110,15 +119,15 @@ func TestCollectNetworkStats(t *testing.T) {
 			networks: map[string]string{
 				"eth1": "test",
 			},
-			stat: ContainerNetStats{
-				&InterfaceNetStats{
+			stat: metrics.ContainerNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "eth0",
 					BytesRcvd:   648,
 					PacketsRcvd: 8,
 					BytesSent:   0,
 					PacketsSent: 0,
 				},
-				&InterfaceNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "test",
 					BytesRcvd:   1478,
 					PacketsRcvd: 19,
@@ -126,7 +135,7 @@ func TestCollectNetworkStats(t *testing.T) {
 					PacketsSent: 3,
 				},
 			},
-			summedStat: &InterfaceNetStats{
+			summedStat: &metrics.InterfaceNetStats{
 				BytesRcvd:   2126,
 				PacketsRcvd: 27,
 				BytesSent:   182,
@@ -144,8 +153,8 @@ func TestCollectNetworkStats(t *testing.T) {
                     lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
             `),
 			networks: nil,
-			stat: ContainerNetStats{
-				&InterfaceNetStats{
+			stat: metrics.ContainerNetStats{
+				&metrics.InterfaceNetStats{
 					NetworkName: "eth0",
 					BytesRcvd:   1111,
 					PacketsRcvd: 2,
@@ -153,7 +162,7 @@ func TestCollectNetworkStats(t *testing.T) {
 					PacketsSent: 80,
 				},
 			},
-			summedStat: &InterfaceNetStats{
+			summedStat: &metrics.InterfaceNetStats{
 				BytesRcvd:   1111,
 				PacketsRcvd: 2,
 				BytesSent:   1024,
@@ -165,7 +174,7 @@ func TestCollectNetworkStats(t *testing.T) {
 			err = dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "dev"), tc.dev)
 			assert.NoError(t, err)
 
-			stat, err := CollectNetworkStats(tc.pid, tc.networks)
+			stat, err := collectNetworkStats(tc.pid, tc.networks)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.stat, stat)
 			assert.Equal(t, tc.summedStat, stat.SumInterfaces())
@@ -182,7 +191,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
 	for _, tc := range []struct {
 		pid          int
 		routes       string
-		destinations []NetworkDestination
+		destinations []containers.NetworkDestination
 	}{
 		// One interface
 		{
@@ -192,7 +201,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
                 eth0    00000000    010011AC    0003    0   0   0   00000000    0   0   0
                 eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
             `),
-			destinations: []NetworkDestination{{
+			destinations: []containers.NetworkDestination{{
 				Interface: "eth0",
 				Subnet:    0x000011AC,
 				Mask:      0x0000FFFF,
@@ -207,7 +216,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
                 eth0    00000000    FEFEA8C0    0003    0   0   0   00000000    0   0   0
                 eth0    00FEA8C0    00000000    0001    0   0   0   00FFFFFF    0   0   0
 			`),
-			destinations: []NetworkDestination{{
+			destinations: []containers.NetworkDestination{{
 				Interface: "eth0",
 				Subnet:    0x00FEA8C0,
 				Mask:      0x00FFFFFF,
@@ -222,7 +231,7 @@ func TestDetectNetworkDestinations(t *testing.T) {
                 eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
                 eth1    000012AC    00000000    0001    0   0   0   0000FFFF    0   0   0
             `),
-			destinations: []NetworkDestination{{
+			destinations: []containers.NetworkDestination{{
 				Interface: "eth0",
 				Subnet:    0x000011AC,
 				Mask:      0x0000FFFF,
@@ -238,9 +247,111 @@ func TestDetectNetworkDestinations(t *testing.T) {
 			err = dummyProcDir.add(filepath.Join(strconv.Itoa(tc.pid), "net", "route"), tc.routes)
 			assert.NoError(t, err)
 
-			dest, err := DetectNetworkDestinations(tc.pid)
+			dest, err := detectNetworkDestinations(tc.pid)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.destinations, dest)
 		})
 	}
+}
+
+func TestDefaultGateway(t *testing.T) {
+	testCases := []struct {
+		netRouteContent []byte
+		expectedIP      string
+	}{
+		{
+			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
+ens33	00000000	0280A8C0	0003	0	0	100	00000000	0	0	0
+`),
+			"192.168.128.2",
+		},
+		{
+			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
+ens33	00000000	FE01A8C0	0003	0	0	100	00000000	0	0	0
+`),
+			"192.168.1.254",
+		},
+		{
+			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
+ens33	00000000	FEFEA8C0	0003	0	0	100	00000000	0	0	0
+`),
+			"192.168.254.254",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run("", func(t *testing.T) {
+			testProc, err := testutil.NewTempFolder("test-default-gateway")
+			require.NoError(t, err)
+			defer testProc.RemoveAll()
+			err = os.MkdirAll(path.Join(testProc.RootPath, "net"), os.ModePerm)
+			require.NoError(t, err)
+
+			err = ioutil.WriteFile(path.Join(testProc.RootPath, "net", "route"), testCase.netRouteContent, os.ModePerm)
+			require.NoError(t, err)
+			config.Datadog.SetDefault("proc_root", testProc.RootPath)
+			ip, err := defaultGateway()
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedIP, ip.String())
+
+			testProc.RemoveAll()
+			ip, err = defaultGateway()
+			require.NoError(t, err)
+			require.Nil(t, ip)
+		})
+	}
+}
+
+func TestDefaulHostIPs(t *testing.T) {
+	dummyProcDir, err := testutil.NewTempFolder("test-default-host-ips")
+	require.Nil(t, err)
+	defer dummyProcDir.RemoveAll()
+	config.Datadog.SetDefault("proc_root", dummyProcDir.RootPath)
+
+	t.Run("routing table contains a gateway entry", func(t *testing.T) {
+		routes := `
+		    Iface    Destination Gateway  Flags RefCnt Use Metric Mask     MTU Window IRTT
+		    default  00000000    010011AC 0003  0      0   0      00000000 0   0      0
+		    default  000011AC    00000000 0001  0      0   0      0000FFFF 0   0      0
+		    eth1     000012AC    00000000 0001  0      0   0      0000FFFF 0   0      0 `
+
+		// Pick an existing device and replace the "default" placeholder by its name
+		interfaces, err := net.Interfaces()
+		require.NoError(t, err)
+		require.NotEmpty(t, interfaces)
+		netInterface := interfaces[0]
+		routes = strings.ReplaceAll(routes, "default", netInterface.Name)
+
+		// Populate routing table file
+		err = dummyProcDir.Add(filepath.Join("net", "route"), routes)
+		require.NoError(t, err)
+
+		// Retrieve IPs bound to the "default" network interface
+		var expectedIPs []string
+		netAddrs, err := netInterface.Addrs()
+		require.NoError(t, err)
+		require.NotEmpty(t, netAddrs)
+		for _, address := range netAddrs {
+			ip := strings.Split(address.String(), "/")[0]
+			require.NotNil(t, net.ParseIP(ip))
+			expectedIPs = append(expectedIPs, ip)
+		}
+
+		// Verify they match the IPs returned by DefaultHostIPs()
+		defaultIPs, err := defaultHostIPs()
+		assert.Nil(t, err)
+		assert.Equal(t, expectedIPs, defaultIPs)
+	})
+
+	t.Run("routing table missing a gateway entry", func(t *testing.T) {
+		routes := `
+	        Iface    Destination Gateway  Flags RefCnt Use Metric Mask     MTU Window IRTT
+	        eth0     000011AC    00000000 0001  0      0   0      0000FFFF 0   0      0
+	        eth1     000012AC    00000000 0001  0      0   0      0000FFFF 0   0      0 `
+
+		err = dummyProcDir.Add(filepath.Join("net", "route"), routes)
+		require.NoError(t, err)
+		ips, err := defaultHostIPs()
+		assert.Nil(t, ips)
+		assert.NotNil(t, err)
+	})
 }
