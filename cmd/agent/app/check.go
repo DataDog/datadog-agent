@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -41,6 +42,7 @@ var (
 	logLevel             string
 	formatJSON           bool
 	breakPoint           string
+	fullSketches         bool
 	profileMemory        bool
 	profileMemoryDir     string
 	profileMemoryFrames  string
@@ -54,9 +56,6 @@ var (
 	profileMemoryVerbose string
 )
 
-// Make the check cmd aggregator never flush by setting a very high interval
-const checkCmdFlushInterval = time.Hour
-
 func init() {
 	AgentCmd.AddCommand(checkCmd)
 
@@ -68,6 +67,8 @@ func init() {
 	checkCmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	checkCmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
 	checkCmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
+	checkCmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
+	config.Datadog.BindPFlag("cmd.check.fullsketches", checkCmd.Flags().Lookup("full-sketches"))
 
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(&profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
@@ -128,7 +129,8 @@ var checkCmd = &cobra.Command{
 		}
 
 		s := serializer.NewSerializer(common.Forwarder)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, nil, hostname, "agent", checkCmdFlushInterval)
+		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, nil, hostname, "agent", 0)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 		if config.Datadog.GetBool("inventories_enabled") {
@@ -138,19 +140,31 @@ var checkCmd = &cobra.Command{
 		allConfigs := common.AC.GetAllConfigs()
 
 		// make sure the checks in cs are not JMX checks
-		for _, conf := range allConfigs {
+		for idx := range allConfigs {
+			conf := &allConfigs[idx]
 			if conf.Name != checkName {
 				continue
 			}
 
-			if check.IsJMXConfig(conf.Name, conf.InitConfig) {
+			if check.IsJMXConfig(*conf) {
 				// we'll mimic the check command behavior with JMXFetch by running
 				// it with the JSON reporter and the list_with_metrics command.
 				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 				if err := RunJmxListWithMetrics(); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
-				return nil
+
+				instances := []integration.Data{}
+
+				// Retain only non-JMX instances for later
+				for _, instance := range conf.Instances {
+					if check.IsJMXInstance(conf.Name, instance, conf.InitConfig) {
+						continue
+					}
+					instances = append(instances, instance)
+				}
+
+				conf.Instances = instances
 			}
 		}
 

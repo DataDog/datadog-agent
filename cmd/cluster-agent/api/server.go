@@ -53,10 +53,10 @@ func StartServer(sc clusteragent.ServerContext) error {
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
 	// Internal token
-	util.SetAuthToken()
+	util.CreateAndSetAuthToken()
 
 	// DCA client token
-	util.SetDCAAuthToken()
+	util.InitDCAAuthToken()
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}

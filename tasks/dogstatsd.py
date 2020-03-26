@@ -12,8 +12,8 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
-from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
+from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version, check_go111module_envvar
 from .utils import REPO_PATH
 
 from .go import deps
@@ -42,6 +42,9 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     build_tags = get_build_tags(build_include, build_exclude)
     ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)
     bin_path = DOGSTATSD_BIN_PATH
+
+    # bail out if GO111MODULE is set to on
+    check_go111module_envvar("dogstatsd.build")
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -236,8 +239,12 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         "exec_opts": "",
     }
 
+    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
+    # to the call, we don't want them because while calling invoke below, invoke
+    # thinks that the parameters are for it to interpret.
+    # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
+        test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
 
     go_cmd = 'go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
 
