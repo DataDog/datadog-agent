@@ -259,7 +259,7 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 func (s *Server) worker() {
 	// the batcher will be responsible of batching a few samples / events / service
 	// checks and it will automatically forward them to the aggregator, meaning that
-	// the flushing logic to the aggreagtor is actually in the batcher.
+	// the flushing logic to the aggregator is actually in the batcher.
 	batcher := newBatcher(s.aggregator)
 
 	parser := newParser()

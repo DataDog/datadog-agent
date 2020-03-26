@@ -27,7 +27,8 @@ import (
 // DefaultFlushInterval aggregator default flush interval
 const DefaultFlushInterval = 15 * time.Second // flush interval
 const bucketSize = 10                         // fixed for now
-const MetricSamplePoolBatchSize = 32          // batch size of the metric sample pool
+// MetricSamplePoolBatchSize is the batch size of the metric sample pool.
+const MetricSamplePoolBatchSize = 32
 
 // Stats stores a statistic from several past flushes allowing computations like median or percentiles
 type Stats struct {
