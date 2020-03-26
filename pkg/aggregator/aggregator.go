@@ -27,6 +27,7 @@ import (
 // DefaultFlushInterval aggregator default flush interval
 const DefaultFlushInterval = 15 * time.Second // flush interval
 const bucketSize = 10                         // fixed for now
+const MetricSamplePoolBatchSize = 32          // batch size of the metric sample pool
 
 // Stats stores a statistic from several past flushes allowing computations like median or percentiles
 type Stats struct {
@@ -224,7 +225,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName st
 		checkMetricIn:          make(chan senderMetricSample, bufferSize),
 		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
 
-		MetricSamplePool: metrics.NewMetricSamplePool(32),
+		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
 		statsdSampler:      *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),

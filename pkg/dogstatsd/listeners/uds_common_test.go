@@ -22,11 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+var packetPoolUDS = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+
 func testFileExistsNewUDSListener(t *testing.T, socketPath string) {
 	_, err := os.Create(socketPath)
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
-	_, err = NewUDSListener(nil, NewPacketPool(512))
+	_, err = NewUDSListener(nil, packetPoolUDS)
 	assert.Error(t, err)
 }
 
@@ -39,7 +41,7 @@ func testSocketExistsNewUSDListener(t *testing.T, socketPath string) {
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewUDSListener(nil, NewPacketPool(512))
+	s, err := NewUDSListener(nil, packetPoolUDS)
 	defer s.Stop()
 
 	assert.Nil(t, err)
@@ -77,7 +79,7 @@ func TestStartStopUDSListener(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", false)
-	s, err := NewUDSListener(nil, NewPacketPool(512))
+	s, err := NewUDSListener(nil, packetPoolUDS)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -104,7 +106,7 @@ func TestUDSReceive(t *testing.T) {
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
 	packetsChannel := make(chan Packets)
-	s, err := NewUDSListener(packetsChannel, NewPacketPool(512))
+	s, err := NewUDSListener(packetsChannel, packetPoolUDS)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 

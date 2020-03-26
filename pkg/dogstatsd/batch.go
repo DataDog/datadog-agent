@@ -22,11 +22,11 @@ type batcher struct {
 	metricSamplePool *metrics.MetricSamplePool
 }
 
-func newBatcher(aggregator *aggregator.BufferedAggregator) *batcher {
-	s, e, sc := aggregator.GetBufferedChannels()
+func newBatcher(agg *aggregator.BufferedAggregator) *batcher {
+	s, e, sc := agg.GetBufferedChannels()
 	return &batcher{
-		samples:            aggregator.MetricSamplePool.GetBatch(),
-		metricSamplePool:   aggregator.MetricSamplePool,
+		samples:            agg.MetricSamplePool.GetBatch(),
+		metricSamplePool:   agg.MetricSamplePool,
 		choutSamples:       s,
 		choutEvents:        e,
 		choutServiceChecks: sc,
