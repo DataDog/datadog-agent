@@ -10,10 +10,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const tcpListen = 10
+const (
+	tcpListen int64 = 10
 
-// readProcNet reads a /proc/net/ file and returns a list of all ports being listened on
+	// tcpClose is also used to indicate a UDP connection where the other end hasn't been established
+	tcpClose int64 = 7
+)
+
+// readProcNet reads a /proc/net/ file and returns a list of all source ports for connections in the tcpListen state
 func readProcNet(path string) ([]uint16, error) {
+	return readProcNetWithStatus(path, tcpListen)
+}
+
+// readProcNet reads a /proc/net/ file and returns a list of all source ports for connections in the given state
+func readProcNetWithStatus(path string, status int64) ([]uint16, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -52,7 +62,7 @@ func readProcNet(path string) ([]uint16, error) {
 				continue
 			}
 
-			if state != tcpListen {
+			if state != status {
 				continue
 			}
 
