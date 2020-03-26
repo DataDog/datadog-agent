@@ -39,15 +39,15 @@
   revision = "bbe0f8da39b3c59d42217afcc79019c754dabdfb"
 
 [[projects]]
-  branch = "mehedi.bakht/add-dns-metric"
-  digest = "1:78f5a0f7dd23059614d8af520d28ba06485219f1014f34b8aafc8a50e7c51cae"
+  digest = "1:827c97bbe64dc14ab134b48b8f1dce986e7636cfa9403f26f534a075c24679d6"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "bb8077c41d55d46a54e498d3f24a82c1dc0a5d66"
+  revision = "43b76357e2c46480bbc04b9ccc1b1dd8424c58cb"
+  version = "4.29.0"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -88,11 +88,12 @@
   revision = "833e93ecbcfd25e491eceea5e42c49c22dac7ed1"
 
 [[projects]]
-  digest = "1:eb704e209bd926f5f44c97c0646cd20906c1cd714ba7a5ad4dc70f37ca98c7c0"
+  digest = "1:9f33d6877e7f41b2a3318afefb961d4dab0c28176e30039945aebe9338a1b0cb"
   name = "github.com/DataDog/mmh3"
   packages = ["."]
   pruneopts = ""
-  revision = "6574a4241c5250712174e75a1042b4595124889e"
+  revision = "f5b682d8c9814d7847c63fcb0c08228a0f084f92"
+  version = "1.1.0"
 
 [[projects]]
   digest = "1:a4261d199fb200222fa77f78c343184ddcfd6ebedc71fdd966df3e7e76a1b95b"

@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  branch = "mehedi.bakht/add-dns-metric"
+  version = "=4.29.0"
 
 [[constraint]]
   name = "github.com/google/gopacket"
