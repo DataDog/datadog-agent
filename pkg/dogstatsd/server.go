@@ -54,28 +54,34 @@ func init() {
 
 // Server represent a Dogstatsd server
 type Server struct {
-	listeners             []listeners.StatsdListener
-	packetsIn             chan listeners.Packets
-	samplePool            *metrics.MetricSamplePool
-	samplesOut            chan<- []metrics.MetricSample
-	eventsOut             chan<- []*metrics.Event
-	servicesCheckOut      chan<- []*metrics.ServiceCheck
-	Statistics            *util.Stats
-	Started               bool
-	packetPool            *listeners.PacketPool
-	stopChan              chan bool
-	health                *health.Handle
-	metricPrefix          string
-	metricPrefixBlacklist []string
-	defaultHostname       string
-	histToDist            bool
-	histToDistPrefix      string
-	extraTags             []string
-	debugMetricsStats     bool
-	metricsStats          map[string]metricStat
-	statsLock             sync.Mutex
-	mapper                *mapper.MetricMapper
-	telemetryEnabled      bool
+	listeners                 []listeners.StatsdListener
+	packetsIn                 chan listeners.Packets
+	samplePool                *metrics.MetricSamplePool
+	samplesOut                chan<- []metrics.MetricSample
+	eventsOut                 chan<- []*metrics.Event
+	servicesCheckOut          chan<- []*metrics.ServiceCheck
+	Statistics                *util.Stats
+	Started                   bool
+	packetPool                *listeners.PacketPool
+	stopChan                  chan bool
+	health                    *health.Handle
+	metricPrefix              string
+	metricPrefixBlacklist     []string
+	defaultHostname           string
+	histToDist                bool
+	histToDistPrefix          string
+	extraTags                 []string
+	debugMetricsStats         bool
+	metricsStats              map[string]metricStat
+	statsLock                 sync.Mutex
+	mapper                    *mapper.MetricMapper
+	telemetryEnabled          bool
+	entityIDPrecedenceEnabled bool
+	// disableVerboseLogs is a feature flag to disable the logs capable
+	// of flooding the logger output (e.g. parsing messages error).
+	// NOTE(remy): this should probably be dropped and use a throttler logger, see
+	// package (pkg/trace/logutils) for a possible throttler implemetation.
+	disableVerboseLogs bool
 }
 
 // metricStat holds how many times a metric has been
@@ -147,27 +153,31 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 
 	extraTags := config.Datadog.GetStringSlice("dogstatsd_tags")
 
+	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
+
 	s := &Server{
-		Started:               true,
-		Statistics:            stats,
-		samplePool:            samplePool,
-		packetsIn:             packetsChannel,
-		samplesOut:            samplesOut,
-		eventsOut:             eventsOut,
-		servicesCheckOut:      servicesCheckOut,
-		listeners:             tmpListeners,
-		packetPool:            packetPool,
-		stopChan:              make(chan bool),
-		health:                health.Register("dogstatsd-main"),
-		metricPrefix:          metricPrefix,
-		metricPrefixBlacklist: metricPrefixBlacklist,
-		defaultHostname:       defaultHostname,
-		histToDist:            histToDist,
-		histToDistPrefix:      histToDistPrefix,
-		extraTags:             extraTags,
-		debugMetricsStats:     metricsStats,
-		metricsStats:          make(map[string]metricStat),
-		telemetryEnabled:      telemetry.IsEnabled(),
+		Started:                   true,
+		Statistics:                stats,
+		samplePool:                samplePool,
+		packetsIn:                 packetsChannel,
+		samplesOut:                samplesOut,
+		eventsOut:                 eventsOut,
+		servicesCheckOut:          servicesCheckOut,
+		listeners:                 tmpListeners,
+		packetPool:                packetPool,
+		stopChan:                  make(chan bool),
+		health:                    health.Register("dogstatsd-main"),
+		metricPrefix:              metricPrefix,
+		metricPrefixBlacklist:     metricPrefixBlacklist,
+		defaultHostname:           defaultHostname,
+		histToDist:                histToDist,
+		histToDistPrefix:          histToDistPrefix,
+		extraTags:                 extraTags,
+		debugMetricsStats:         metricsStats,
+		metricsStats:              make(map[string]metricStat),
+		telemetryEnabled:          telemetry.IsEnabled(),
+		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
+		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -247,13 +257,14 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 
 func (s *Server) worker() {
 	batcher := newBatcher(s.samplePool, s.samplesOut, s.eventsOut, s.servicesCheckOut)
+	parser := newParser()
 	for {
 		select {
 		case <-s.stopChan:
 			return
 		case <-s.health.C:
 		case packets := <-s.packetsIn:
-			s.parsePackets(batcher, packets)
+			s.parsePackets(batcher, parser, packets)
 		}
 	}
 }
@@ -272,9 +283,9 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
-func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
+func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet) {
 	for _, packet := range packets {
-		originTags := findOriginTags(packet.Origin)
+		originTagger := originTags{origin: packet.Origin}
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
 			message := nextMessage(&packet.Contents)
@@ -291,31 +302,43 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 
 			switch messageType {
 			case serviceCheckType:
-				serviceCheck, err := s.parseServiceCheckMessage(message)
+				serviceCheck, err := s.parseServiceCheckMessage(parser, message, originTagger.getTags)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing service check %q: %s", message, err)
+					originTags := originTagger.getTags()
+					if len(originTags) > 0 {
+						s.errLog("Dogstatsd: error parsing service check '%q' origin tags %v: %s", message, originTags, err)
+					} else {
+						s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
+					}
 					continue
 				}
-				serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
-				event, err := s.parseEventMessage(message)
+				event, err := s.parseEventMessage(parser, message, originTagger.getTags)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing event %q: %s", message, err)
+					originTags := originTagger.getTags()
+					if len(originTags) > 0 {
+						s.errLog("Dogstatsd: error parsing event '%q' origin tags %v: %s", message, originTags, err)
+					} else {
+						s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
+					}
 					continue
 				}
-				event.Tags = append(event.Tags, originTags...)
 				batcher.appendEvent(event)
 			case metricSampleType:
-				sample, err := s.parseMetricMessage(message)
+				sample, err := s.parseMetricMessage(parser, message, originTagger.getTags)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing metric message %q: %s", message, err)
+					originTags := originTagger.getTags()
+					if len(originTags) > 0 {
+						s.errLog("Dogstatsd: error parsing metric message '%q' origin tags %v: %s", message, originTags, err)
+					} else {
+						s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
+					}
 					continue
 				}
 				if s.debugMetricsStats {
 					s.storeMetricStats(sample.Name)
 				}
-				sample.Tags = append(sample.Tags, originTags...)
 				batcher.appendSample(sample)
 				if s.histToDist && sample.Mtype == metrics.HistogramType {
 					distSample := sample.Copy()
@@ -330,8 +353,16 @@ func (s *Server) parsePackets(batcher *batcher, packets []*listeners.Packet) {
 	batcher.flush()
 }
 
-func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error) {
-	sample, err := parseMetricSample(message)
+func (s *Server) errLog(format string, params ...interface{}) {
+	if s.disableVerboseLogs {
+		log.Debugf(format, params...)
+	} else {
+		log.Errorf(format, params...)
+	}
+}
+
+func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFunc func() []string) (metrics.MetricSample, error) {
+	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
 		tlmProcessed.Inc("metrics", "error")
@@ -344,7 +375,7 @@ func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname)
+	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
 	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
 	dogstatsdMetricPackets.Add(1)
 	// FIXME (arthur): remove this check and s.telemetryEnabled once we don't
@@ -355,45 +386,32 @@ func (s *Server) parseMetricMessage(message []byte) (metrics.MetricSample, error
 	return metricSample, nil
 }
 
-func (s *Server) parseEventMessage(message []byte) (*metrics.Event, error) {
-	sample, err := parseEvent(message)
+func (s *Server) parseEventMessage(parser *parser, message []byte, originTagsFunc func() []string) (*metrics.Event, error) {
+	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
 		tlmProcessed.Inc("events", "error")
 		return nil, err
 	}
-	event := enrichEvent(sample, s.defaultHostname)
+	event := enrichEvent(sample, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
 	event.Tags = append(event.Tags, s.extraTags...)
 	tlmProcessed.Inc("events", "ok")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
 
-func (s *Server) parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
-	sample, err := parseServiceCheck(message)
+func (s *Server) parseServiceCheckMessage(parser *parser, message []byte, originTagsFunc func() []string) (*metrics.ServiceCheck, error) {
+	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
 		tlmProcessed.Inc("service_checks", "error")
 		return nil, err
 	}
-	serviceCheck := enrichServiceCheck(sample, s.defaultHostname)
+	serviceCheck := enrichServiceCheck(sample, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
 	tlmProcessed.Inc("service_checks", "ok")
 	return serviceCheck, nil
-}
-
-func findOriginTags(origin string) []string {
-	var tags []string
-	if origin != listeners.NoOrigin {
-		originTags, err := tagger.Tag(origin, tagger.DogstatsdCardinality)
-		if err != nil {
-			log.Errorf(err.Error())
-		} else {
-			tags = append(tags, originTags...)
-		}
-	}
-	return tags
 }
 
 // Stop stops a running Dogstatsd server
@@ -462,4 +480,32 @@ func FormatDebugStats(stats []byte) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+func findOriginTags(origin string) []string {
+	var tags []string
+	if origin != listeners.NoOrigin {
+		originTags, err := tagger.Tag(origin, tagger.DogstatsdCardinality)
+		if err != nil {
+			log.Errorf(err.Error())
+		} else {
+			tags = append(tags, originTags...)
+		}
+	}
+	return tags
+}
+
+type originTags struct {
+	origin string
+	tags   []string
+	// we don't use "sync.Once" here because we know only on one goroutine can call the function `getTags()`
+	alreadyRun bool
+}
+
+func (o *originTags) getTags() []string {
+	if !o.alreadyRun {
+		o.tags = findOriginTags(o.origin)
+		o.alreadyRun = true
+	}
+	return o.tags
 }

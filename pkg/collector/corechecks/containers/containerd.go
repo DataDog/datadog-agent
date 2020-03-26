@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	ddContainers "github.com/DataDog/datadog-agent/pkg/util/containers"
-	cmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	cgroup "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -211,6 +211,8 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 
+		currentTime := time.Now()
+		computeUptime(sender, info, currentTime, tags)
 		computeMem(sender, metrics.Memory, tags)
 
 		if metrics.CPU.Throttling != nil && metrics.CPU.Usage != nil {
@@ -241,7 +243,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 		fileDescCount := 0
 		for _, p := range processes {
 			pid := p.Pid
-			fdCount, err := cmetrics.GetFileDescriptorLen(int(pid))
+			fdCount, err := cgroup.GetFileDescriptorLen(int(pid))
 			if err != nil {
 				log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, ctn.ID()[:12], err)
 				continue
@@ -293,6 +295,13 @@ func computeHugetlb(sender aggregator.Sender, huge []*cgroups.HugetlbStat, tags 
 		sender.Gauge("containerd.hugetlb.max", float64(h.Max), "", tags)
 		sender.Gauge("containerd.hugetlb.failcount", float64(h.Failcnt), "", tags)
 		sender.Gauge("containerd.hugetlb.usage", float64(h.Usage), "", tags)
+	}
+}
+
+func computeUptime(sender aggregator.Sender, ctn containers.Container, currentTime time.Time, tags []string) {
+	uptime := currentTime.Sub(ctn.CreatedAt).Seconds()
+	if uptime > 0 {
+		sender.Gauge("containerd.uptime", uptime, "", tags)
 	}
 }
 

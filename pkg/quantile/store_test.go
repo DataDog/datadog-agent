@@ -159,8 +159,6 @@ func TestStore(t *testing.T) {
 			c("0:1 0:max 0:max", "0:3 0:max 0:max", 0, 0),
 			c("1:1 3:1 4:1 5:1 6:1 7:1", "1:1 2:1 3:2 4:1 5:1 6:1 7:1", 2, 3),
 			c("1:1 3:1", "1:1 2:3 3:1", 2, 2, 2),
-			c("1:1", "0:3 0:max 1:1", make([]Key, maxBinWidth+3)...),
-			c("", "0:1 0:max 0:max", make([]Key, maxBinWidth*2+1)...),
 			c("0:max-3", "0:2 0:max", make([]Key, 5)...),
 		} {
 			// TODO|TEST: that we never exceed binLimit.

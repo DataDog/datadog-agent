@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -16,12 +15,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const processCheckEndpoint = "/api/v1/collector"
 
 var (
 	// defaultProxyPort is the default port used for proxies.
@@ -49,37 +47,13 @@ type WindowsConfig struct {
 	AddNewArgs bool
 }
 
-// APIEndpoint is a single endpoint where process data will be submitted.
-type APIEndpoint struct {
-	APIKey   string
-	Endpoint *url.URL
-}
-
-// GetCheckURL returns the URL string for a given agent check
-func (e *APIEndpoint) GetCheckURL(checkPath string) string {
-	// Make a copy of the URL
-	checkURL := *e.Endpoint
-
-	// This is to maintain backward compatibility with agents configured with the default collector endpoint:
-	// process_dd_url: https://process.datadoghq.com/api/v1/collector
-	if checkURL.Path == processCheckEndpoint {
-		checkURL.Path = ""
-	}
-
-	// Finally, add the checkPath to the existing APIEndpoint path.
-	// This is done like so to support certain use-cases in which `process_dd_url` points to something
-	// like a NGINX server proxying requests under a certain path (eg. https://proxy-host/process-agent)
-	checkURL.Path = path.Join(checkURL.Path, checkPath)
-	return checkURL.String()
-}
-
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
 	Enabled               bool
 	HostName              string
-	APIEndpoints          []APIEndpoint
-	OrchestratorEndpoints []APIEndpoint
+	APIEndpoints          []api.Endpoint
+	OrchestratorEndpoints []api.Endpoint
 	LogFile               string
 	LogLevel              string
 	LogToConsole          bool
@@ -190,14 +164,14 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 	ac := &AgentConfig{
 		Enabled:               canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints:          []APIEndpoint{{Endpoint: processEndpoint}},
-		OrchestratorEndpoints: []APIEndpoint{{Endpoint: orchestratorEndpoint}},
+		APIEndpoints:          []api.Endpoint{{Endpoint: processEndpoint}},
+		OrchestratorEndpoints: []api.Endpoint{{Endpoint: orchestratorEndpoint}},
 		LogFile:               defaultLogFilePath,
 		LogLevel:              "info",
 		LogToConsole:          false,
 		QueueSize:             20,
 		MaxPerMessage:         100,
-		MaxConnsPerMessage:    300,
+		MaxConnsPerMessage:    600,
 		AllowRealTime:         true,
 		HostName:              "",
 		Transport:             NewDefaultTransport(),
@@ -291,7 +265,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		return nil, err
 	}
 
-	if err := cfg.loadProcessYamlConfig(yamlPath); err != nil {
+	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}
 
@@ -379,36 +353,38 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 }
 
 func loadEnvVariables() {
-	for envKey, cfgKey := range map[string]string{
-		"DD_PROCESS_AGENT_CONTAINER_SOURCE": "process_config.container_source",
-		"DD_SCRUB_ARGS":                     "process_config.scrub_args",
-		"DD_STRIP_PROCESS_ARGS":             "process_config.strip_proc_arguments",
-		"DD_PROCESS_AGENT_URL":              "process_config.process_dd_url",
-		"DD_ORCHESTRATOR_URL":               "process_config.orchestrator_dd_url",
+	// The following environment variables will be loaded in the order listed, meaning variables
+	// further down the list may override prior variables.
+	for _, variable := range []struct{ env, cfg string }{
+		{"DD_PROCESS_AGENT_CONTAINER_SOURCE", "process_config.container_source"},
+		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
+		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
+		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
+		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
 
 		// System probe specific configuration (Beta)
-		"DD_SYSTEM_PROBE_ENABLED":   "system_probe_config.enabled",
-		"DD_SYSPROBE_SOCKET":        "system_probe_config.sysprobe_socket",
-		"DD_DISABLE_TCP_TRACING":    "system_probe_config.disable_tcp",
-		"DD_DISABLE_UDP_TRACING":    "system_probe_config.disable_udp",
-		"DD_DISABLE_IPV6_TRACING":   "system_probe_config.disable_ipv6",
-		"DD_DISABLE_DNS_INSPECTION": "system_probe_config.disable_dns_inspection",
-		"DD_COLLECT_LOCAL_DNS":      "system_probe_config.collect_local_dns",
+		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
+		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
+		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
+		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
+		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
+		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
+		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
 
-		"DD_HOSTNAME":       "hostname",
-		"DD_DOGSTATSD_PORT": "dogstatsd_port",
-		"DD_BIND_HOST":      "bind_host",
-		"HTTPS_PROXY":       "proxy.https",
-		"DD_PROXY_HTTPS":    "proxy.https",
+		{"DD_HOSTNAME", "hostname"},
+		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
+		{"DD_BIND_HOST", "bind_host"},
+		{"HTTPS_PROXY", "proxy.https"},
+		{"DD_PROXY_HTTPS", "proxy.https"},
 
-		"DD_LOGS_STDOUT":    "log_to_console",
-		"LOG_TO_CONSOLE":    "log_to_console",
-		"DD_LOG_TO_CONSOLE": "log_to_console",
-		"LOG_LEVEL":         "log_level", // Support LOG_LEVEL and DD_LOG_LEVEL but prefer DD_LOG_LEVEL
-		"DD_LOG_LEVEL":      "log_level",
+		{"DD_LOGS_STDOUT", "log_to_console"},
+		{"LOG_TO_CONSOLE", "log_to_console"},
+		{"DD_LOG_TO_CONSOLE", "log_to_console"},
+		{"LOG_LEVEL", "log_level"}, // Support LOG_LEVEL and DD_LOG_LEVEL but prefer DD_LOG_LEVEL
+		{"DD_LOG_LEVEL", "log_level"},
 	} {
-		if v, ok := os.LookupEnv(envKey); ok {
-			config.Datadog.Set(cfgKey, v)
+		if v, ok := os.LookupEnv(variable.env); ok {
+			config.Datadog.Set(variable.cfg, v)
 		}
 	}
 
@@ -542,20 +518,6 @@ func constructProxy(host, scheme string, port int, user, password string) (proxy
 		return nil, err
 	}
 	return http.ProxyURL(u), nil
-}
-
-// SetupInitialLogger will set up a default logger before parsing config so we log errors nicely.
-// The default will be stdout since we can't assume any file is writable.
-func SetupInitialLogger(loggerName config.LoggerName) error {
-	return config.SetupLogger(
-		loggerName,
-		"info",
-		"",
-		"",
-		false,
-		true, // logToConsole
-		false,
-	)
 }
 
 func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig) error {

@@ -41,22 +41,20 @@ PROCESS_ONLY_TAGS = [
 LINUX_ONLY_TAGS = [
     "containerd",
     "cri",
-    "docker",
-    "kubeapiserver",
-    "kubelet",
     "netcgo",
-    "orchestrator",
 ]
 
-REDHAT_AND_DEBIAN_ONLY_TAGS = [
+REDHAT_DEBIAN_SUSE_ONLY_TAGS = [
     "systemd",
 ]
 
-REDHAT_AND_DEBIAN_DIST = [
+REDHAT_DEBIAN_SUSE_DIST = [
     'centos',
     'debian',
     'rhel',
     'ubuntu',
+    'sles',
+    'opensuse',
 ]
 
 
@@ -76,12 +74,21 @@ def get_default_build_tags(puppy=False, process=False):
     if not process:
         exclude = exclude + PROCESS_ONLY_TAGS
 
-    # remove all tags that are only available on debian distributions
-    distname = distro.id().lower()
-    if distname not in REDHAT_AND_DEBIAN_DIST:
-        exclude = exclude + REDHAT_AND_DEBIAN_ONLY_TAGS
+    # remove all tags that are not available for current distro
+    exclude.extend(get_distro_exclude_tags())
 
     return get_build_tags(include, exclude)
+
+
+def get_distro_exclude_tags():
+    """
+    Get tags that should be excluded for current distro.
+    """
+    distro_name = distro.id().lower()
+    exclude = []
+    if distro_name not in REDHAT_DEBIAN_SUSE_DIST:
+        exclude.extend(REDHAT_DEBIAN_SUSE_ONLY_TAGS)
+    return exclude
 
 
 def get_build_tags(include, exclude):

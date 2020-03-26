@@ -11,7 +11,7 @@ default['dd-agent-upgrade']['package_name'] = 'datadog-agent'
 
 default['dd-agent-upgrade']['windows_version'] = nil # => install the latest available version
 default['dd-agent-upgrade']['windows_agent_checksum'] = nil
-default['dd-agent-upgrade']['windows_agent_url'] = 'https://s3.amazonaws.com/ddagent-windows-stable/'
+default['dd-agent-upgrade']['windows_agent_url'] = 'https://ddagent-windows-stable.s3.amazonaws.com/'
 
 default['dd-agent-upgrade']['agent_package_retries'] = nil
 default['dd-agent-upgrade']['agent_package_retry_delay'] = nil

@@ -102,6 +102,9 @@ func TestParseMetadata(t *testing.T) {
 				"ecs_container_name:redis",
 				"lowtag:myvalue",
 				"region:eu-central-1",
+				"service:redis",
+				"env:prod",
+				"version:1.0",
 			},
 			OrchestratorCardTags: []string{
 				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
@@ -182,6 +185,9 @@ func TestParseMetadata(t *testing.T) {
 				"region:eu-central-1",
 				"tag1:value1",
 				"tag3:value:2:value:3",
+				"service:redis",
+				"env:prod",
+				"version:1.0",
 			},
 			OrchestratorCardTags: []string{
 				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
@@ -269,6 +275,9 @@ func TestParseMetadataV10(t *testing.T) {
 				"task_family:redis-datadog",
 				"task_version:1",
 				"ecs_container_name:redis",
+				"service:redis",
+				"env:prod",
+				"version:1.0",
 			},
 			OrchestratorCardTags: []string{
 				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",

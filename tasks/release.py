@@ -60,11 +60,12 @@ def update_changelog(ctx, new_version):
         raise
 
     # removing releasenotes from bugfix on the old minor.
-    previous_minor = "%s.%s" % (new_version_int[0], new_version_int[1] - 1)
+    branching_point = "{}.{}.0-devel".format(new_version_int[0], new_version_int[1])
+    previous_minor = "{}.{}".format(new_version_int[0], new_version_int[1] - 1)
     if previous_minor == "7.15":
         previous_minor = "6.15" # 7.15 is the first release in the 7.x series
-    log_result = ctx.run("git log {}.0...remotes/origin/{}.x --name-only | \
-            grep releasenotes/notes/ || true".format(previous_minor, previous_minor))
+    log_result = ctx.run("git log {}...remotes/origin/{}.x --name-only --oneline | \
+            grep releasenotes/notes/ || true".format(branching_point, previous_minor))
     log_result = log_result.stdout.replace('\n', ' ').strip()
     if len(log_result) > 0:
         ctx.run("git rm --ignore-unmatch {}".format(log_result))
@@ -72,9 +73,9 @@ def update_changelog(ctx, new_version):
     # generate the new changelog
     ctx.run("reno report \
             --ignore-cache \
-            --earliest-version {}.0 \
+            --earliest-version {} \
             --version {} \
-            --no-show-source > /tmp/new_changelog.rst".format(previous_minor, new_version))
+            --no-show-source > /tmp/new_changelog.rst".format(branching_point, new_version))
 
     # reseting git
     ctx.run("git reset --hard HEAD")
@@ -132,6 +133,10 @@ def _is_version_higher(version_1, version_2):
     if version_1["minor"] < version_2["minor"]:
         return False
     if version_1["patch"] < version_2["patch"]:
+        return False
+    if version_1["rc"] == 0:
+        return True
+    if version_2["rc"] == 0:
         return False
     if version_1["rc"] < version_2["rc"]:
         return False
@@ -198,7 +203,8 @@ def _get_highest_version_from_release_json(release_json, highest_major, version_
 
 def _save_release_json(release_json, list_major_versions, highest_version, integration_version, omnibus_software_version, omnibus_ruby_version, jmxfetch_version):
 
-    jmxfetch = urllib.urlopen("https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar")
+    jmxfetch = urllib.urlopen("https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar"
+        .format(jmxfetch_version, jmxfetch_version))
     jmxfetch_sha256 = hashlib.sha256(jmxfetch.read()).hexdigest()
 
     print("Jmxfetch's SHA256 is {}".format(jmxfetch_sha256))
@@ -231,7 +237,8 @@ def _save_release_json(release_json, list_major_versions, highest_version, integ
             new_release_json[key] = value
 
     with open("release.json", "w") as release_json_stream:
-        json.dump(new_release_json, release_json_stream, indent=4, sort_keys=False)
+        # Note, no space after the comma
+        json.dump(new_release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
 
 
 @task
@@ -241,7 +248,8 @@ def create_new_version(
     integration_version = None,
     omnibus_software_version = None,
     jmxfetch_version = None,
-    omnibus_ruby_version = "datadog-5.5.0"):
+    omnibus_ruby_version = None,
+    ignore_rc_tag = False):
 
     """
     Creates new entry in the release.json file for a new version.
@@ -296,17 +304,31 @@ def create_new_version(
 
     if not integration_version:
         integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
+        if integration_version is None:
+            print("EREROR: No version found for integrationscore - did you create the tag ?")
+            return Exit(code=1)
         if integration_version["rc"] != 0:
-            print("ERROR: Integration-Core tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
-            #return Exit(code=1)
+            print("ERROR: Integration-Core tag is still an RC tag. That's probably NOT what you want in the final artifact.")
+            if ignore_rc_tag:
+                print("Continuing with RC tag on Integration-Core.")
+            else:
+                print("Aborting.")
+                return Exit(code=1)
         integration_version = _stringify_version(integration_version)
     print("Integration-Core's tag is {}".format(integration_version))
 
     if not omnibus_software_version:
         omnibus_software_version = _get_highest_repo_version(auth, "omnibus-software", highest_version, version_re)
+        if omnibus_software_version is None:
+            print("EREROR: No version found for omnibus-software - did you create the tag ?")
+            return Exit(code=1)
         if omnibus_software_version["rc"] != 0:
-            print("ERROR: Omnibus-Software tag is still and RC tag. That's probably NOT what you want in the final artifact. Aborting.")
-            #return Exit(code=1)
+            print("ERROR: Omnibus-Software tag is still an RC tag. That's probably NOT what you want in the final artifact.")
+            if ignore_rc_tag:
+                print("Continuing with RC tag on Omnibus-Software.")
+            else:
+                print("Aborting.")
+                return Exit(code=1)
         omnibus_software_version = _stringify_version(omnibus_software_version)
     print("Omnibus-Software's tag is {}".format(omnibus_software_version))
 
@@ -321,7 +343,7 @@ def create_new_version(
 
 
     _save_release_json(
-        release_json, 
+        release_json,
         list_major_versions,
         highest_version,
         integration_version,
@@ -337,7 +359,7 @@ def create_rc(
     integration_version = None,
     omnibus_software_version = None,
     jmxfetch_version = None,
-    omnibus_ruby_version = "datadog-5.5.0"):
+    omnibus_ruby_version = None):
 
     """
     Creates new entry in the release.json file for a new RC.
@@ -397,7 +419,7 @@ def create_rc(
         return Exit(code=1)
 
     _save_release_json(
-        release_json, 
+        release_json,
         list_major_versions,
         highest_version,
         integration_version,

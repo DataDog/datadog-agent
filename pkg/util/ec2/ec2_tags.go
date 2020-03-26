@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -77,7 +78,7 @@ type ec2Identity struct {
 func getInstanceIdentity() (*ec2Identity, error) {
 	instanceIdentity := &ec2Identity{}
 
-	res, err := getResponse(instanceIdentityURL)
+	res, err := doHTTPRequest(instanceIdentityURL, http.MethodGet, map[string]string{}, true)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -110,7 +111,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole)
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/"+iamRole, http.MethodGet, map[string]string{}, true)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -129,7 +130,7 @@ func getSecurityCreds() (*ec2SecurityCred, error) {
 }
 
 func getIAMRole() (string, error) {
-	res, err := getResponse(metadataURL + "/iam/security-credentials/")
+	res, err := doHTTPRequest(metadataURL+"/iam/security-credentials/", http.MethodGet, map[string]string{}, true)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}

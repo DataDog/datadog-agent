@@ -8,6 +8,7 @@ package names
 // User-facing names for the config providers
 const (
 	Consul          = "consul"
+	CloudFoundryBBS = "cloudfoundry-bbs"
 	ClusterChecks   = "cluster-checks"
 	Docker          = "docker"
 	ECS             = "ecs"

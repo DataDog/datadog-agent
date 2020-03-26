@@ -227,6 +227,29 @@ additional_endpoints:
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
+func TestGetMultipleEndpointsEnvVar(t *testing.T) {
+	os.Setenv("DD_API_KEY", "fakeapikey")
+	os.Setenv("DD_ADDITIONAL_ENDPOINTS", "{\"https://foo.datadoghq.com\": [\"someapikey\"]}")
+	defer os.Unsetenv("DD_API_KEY")
+	defer os.Unsetenv("DD_ADDITIONAL_ENDPOINTS")
+
+	testConfig := setupConf()
+
+	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://foo.datadoghq.com": {
+			"someapikey",
+		},
+		"https://app.datadoghq.com": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
 func TestGetMultipleEndpointsSite(t *testing.T) {
 	datadogYaml := `
 site: datadoghq.eu

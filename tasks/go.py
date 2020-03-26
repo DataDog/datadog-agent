@@ -35,6 +35,8 @@ MODULE_WHITELIST = [
     "winsec.go",
     "allprocesses_windows.go",
     "allprocesses_windows_test.go",
+    "adapters.go",  # pkg/util/winutil/iphelper
+    "routes.go",    # pkg/util/winutil/iphelper
     # All
     "agent.pb.go"
 ]
@@ -45,6 +47,11 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "gui", "views", "private"),
     os.path.join("pkg", "collector", "corechecks", "system", "testfiles"),
     os.path.join("pkg", "ebpf", "testdata"),
+]
+
+# Packages that need go:generate
+GO_GENERATE_TARGETS = [
+    "./pkg/status"
 ]
 
 @task
@@ -366,3 +373,11 @@ def reset(ctx):
     # remove vendor folder
     print("Remove vendor folder")
     ctx.run("rm -rf ./vendor")
+
+@task
+def generate(ctx):
+    """
+    Run go generate required package
+    """
+    ctx.run("go generate " + " ".join(GO_GENERATE_TARGETS))
+    print("go generate ran successfully")

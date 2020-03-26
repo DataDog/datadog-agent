@@ -78,6 +78,11 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, err
 	}
 
+	if len(ctrList) == 0 {
+		log.Trace("no containers found")
+		return nil, nil
+	}
+
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(ctrList)
 
@@ -175,7 +180,7 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			NetSentPs:   calculateRate(ifStats.PacketsSent, lastCtr.NetworkSum.PacketsSent, lastRun),
 			NetRcvdBps:  calculateRate(ifStats.BytesRcvd, lastCtr.NetworkSum.BytesRcvd, lastRun),
 			NetSentBps:  calculateRate(ifStats.BytesSent, lastCtr.NetworkSum.BytesSent, lastRun),
-			ThreadCount: ctr.ThreadCount,
+			ThreadCount: ctr.CPU.ThreadCount,
 			ThreadLimit: ctr.ThreadLimit,
 			Addresses:   convertAddressList(ctr),
 			Started:     ctr.StartedAt,
@@ -233,7 +238,7 @@ func fillNilContainer(ctr *containers.Container) *containers.Container {
 		ctr.Network = util.NullContainerRates.Network
 	}
 	if ctr.Memory == nil {
-		ctr.Memory = &metrics.CgroupMemStat{}
+		ctr.Memory = &metrics.ContainerMemStats{}
 	}
 	return ctr
 }

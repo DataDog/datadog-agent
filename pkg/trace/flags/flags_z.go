@@ -38,6 +38,7 @@ var Win = struct {
 	UninstallService bool
 	StartService     bool
 	StopService      bool
+	Foreground       bool
 }{}
 
 func init() {

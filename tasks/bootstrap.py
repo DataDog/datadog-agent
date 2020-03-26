@@ -5,7 +5,7 @@ import os
 import json
 import sys
 
-from .utils import get_gopath
+from .utils import get_gopath, check_go111module_envvar
 
 # Bootstrap dependencies description
 BOOTSTRAP_DEPS = "bootstrap.json"
@@ -40,6 +40,10 @@ def process_deps(ctx, target, version, kind, step, cmd=None, verbose=False):
 
     if step not in BOOTSTRAP_SUPPORTED_STEPS:
         raise Exception("Unknown bootstrap step: {} for {}".format(step, target))
+
+
+    # bail out if GO111MODULE is set to on
+    check_go111module_envvar("deps")
 
     verbosity = ' -v' if verbose else ''
     if kind == "go":

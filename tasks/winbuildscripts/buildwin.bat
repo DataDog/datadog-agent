@@ -18,7 +18,7 @@ set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
 
 if "%OMNIBUS_TARGET%" == "puppy" set OMNIBUS_ARGS=--puppy
 if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_BUILD=dogstatsd.omnibus-build && set OMNIBUS_ARGS=
-if "%OMNIBUS_TARGET%" == "cf_buildpack" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --cf-windows
+if "%OMNIBUS_TARGET%" == "agent_binaries" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --agent-binaries
 
 mkdir \dev\go\src\github.com\DataDog\datadog-agent 
 if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 1

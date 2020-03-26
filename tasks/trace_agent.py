@@ -5,9 +5,9 @@ import shutil
 import invoke
 from invoke import task
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, check_go111module_envvar
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_AND_DEBIAN_ONLY_TAGS, REDHAT_AND_DEBIAN_DIST
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
 from .go import deps
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
@@ -26,6 +26,9 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
     """
     Build the trace agent.
     """
+
+    # bail out if GO111MODULE is set to on
+    check_go111module_envvar("trace-agent.build")
 
     # get env prior to windows sources so we only have to set the target architecture once
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes)
@@ -89,8 +92,12 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         "exec_opts": "",
     }
 
+    # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
+    # to the call, we don't want them because while calling invoke below, invoke
+    # thinks that the parameters are for it to interpret.
+    # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
-        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
+        test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
 
     go_cmd = 'INTEGRATION=yes go test {race_opt} -v'.format(**test_args)
 

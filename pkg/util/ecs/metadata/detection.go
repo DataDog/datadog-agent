@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -41,7 +41,7 @@ func detectAgentV1URL() (string, error) {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
-		gw, err := containers.DefaultGateway()
+		gw, err := providers.ContainerImpl().GetDefaultGateway()
 		if err != nil {
 			log.Debugf("Could not get docker default gateway: %s", err)
 		}

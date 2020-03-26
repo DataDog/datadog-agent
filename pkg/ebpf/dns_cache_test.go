@@ -200,6 +200,36 @@ func TestDNSCacheMerge(t *testing.T) {
 	assert.Equal(t, []string{"host-a", "host-b"}, res[util.AddressFromString("192.168.0.1")])
 }
 
+func TestDNSCacheMerge_MixedCaseNames(t *testing.T) {
+	ttl := 100 * time.Millisecond
+	cache := newReverseDNSCache(1000, ttl, disableAutomaticExpiration)
+
+	ts := time.Now()
+	conns := []ConnectionStats{
+		{
+			Dest: util.AddressFromString("192.168.0.1"),
+		},
+	}
+
+	cache.Add(&translation{
+		dns: "host.name.com",
+		ips: []util.Address{util.AddressFromString("192.168.0.1")},
+	}, ts)
+
+	cache.Add(&translation{
+		dns: "host.NaMe.com",
+		ips: []util.Address{util.AddressFromString("192.168.0.1")},
+	}, ts)
+
+	cache.Add(&translation{
+		dns: "HOST.NAME.CoM",
+		ips: []util.Address{util.AddressFromString("192.168.0.1")},
+	}, ts)
+
+	res := cache.Get(conns, ts)
+	assert.Equal(t, []string{"host.name.com"}, res[util.AddressFromString("192.168.0.1")])
+}
+
 func BenchmarkDNSCacheGet(b *testing.B) {
 	const numIPs = 10000
 

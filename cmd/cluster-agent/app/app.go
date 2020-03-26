@@ -30,12 +30,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -201,6 +203,20 @@ func start(cmd *cobra.Command, args []string) error {
 		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
 		}
+		// TODO: move rest of the controllers out of the apiserver package
+		orchestratorCtx := orchestrator.ControllerContext{
+			IsLeaderFunc:                 le.IsLeader,
+			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
+			Client:                       apiCl.Cl,
+			StopCh:                       stopCh,
+			Hostname:                     hostname,
+			ClusterName:                  config.Datadog.GetString("cluster_name"),
+			ConfigPath:                   confPath,
+		}
+		err = orchestrator.StartController(orchestratorCtx)
+		if err != nil {
+			log.Errorf("Could not start orchestrator controller: %v", err)
+		}
 	}
 
 	// Setup a channel to catch OS signals
@@ -211,21 +227,25 @@ func start(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
+	var clusterCheckHandler *clusterchecks.Handler
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err := setupClusterCheck(mainCtx)
+		clusterCheckHandler, err = setupClusterCheck(mainCtx)
 		if err != nil {
 			log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
 		}
-		// Start the cmd HTTPS server
-		sc := clusteragent.ServerContext{
-			ClusterCheckHandler: clusterCheckHandler,
-		}
-		if err = api.StartServer(sc); err != nil {
-			return log.Errorf("Error while starting agent API, exiting: %v", err)
-		}
 	} else {
 		log.Debug("Cluster check Autodiscovery disabled")
+	}
+
+	// Start the cmd HTTPS server
+	// We always need to start it, even with nil clusterCheckHandler
+	// as it's also used to perform the agent commands (e.g. agent status)
+	sc := clusteragent.ServerContext{
+		ClusterCheckHandler: clusterCheckHandler,
+	}
+	if err = api.StartServer(sc); err != nil {
+		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
 	wg := sync.WaitGroup{}
@@ -241,6 +261,15 @@ func start(cmd *cobra.Command, args []string) error {
 				log.Errorf("Error in the External Metrics API Server: %v", errServ)
 			}
 		}()
+	}
+
+	// Generate and persist a cluster ID
+	// this must be a UUID, and ideally be stable for the lifetime of a cluster
+	// so we store it in a configmap that we try and read before generating a new one.
+	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+	_, err = apicommon.GetOrCreateClusterID(coreClient)
+	if err != nil {
+		log.Errorf("Failed to generate or retrieve the cluster ID")
 	}
 
 	// Block here until we receive the interrupt signal

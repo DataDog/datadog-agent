@@ -1,6 +1,7 @@
 description "Datadog System Probe"
 
-stop on (runlevel [!2345])
+start on starting datadog-agent
+stop on (runlevel [!2345] or stopping datadog-agent)
 
 respawn
 respawn limit 10 5
@@ -9,6 +10,9 @@ normal exit 0
 console output
 
 pre-start script
+  # Do not run if config file doesn't exist
+  test -f <%= etc_dir %>/system-probe.yaml || { stop ; exit 0; }
+
   # Manual rotation of errors log
   log_file_size=`du -b /var/log/datadog/system-probe-errors.log | cut -f1`
   if [ -n "$log_file_size" ] && [ $log_file_size -gt 5242880 ]; then

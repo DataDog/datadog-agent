@@ -90,6 +90,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
         fi
 
+
         # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
         # and avoid restarting when a check conf is invalid
         if [ -f "$CONFIG_DIR/datadog.yaml" ]; then

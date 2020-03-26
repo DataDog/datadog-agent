@@ -17,8 +17,8 @@ import (
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
-	"github.com/docker/docker/pkg/testutil/assert"
 	prototypes "github.com/gogo/protobuf/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -159,7 +159,7 @@ func TestComputeEvents(t *testing.T) {
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
 				assert.Contains(t, res.Title, test.expectedTitle)
-				assert.EqualStringSlice(t, res.Tags, test.expectedTags)
+				assert.ElementsMatch(t, res.Tags, test.expectedTags)
 			}
 			mocked.AssertNumberOfCalls(t, "Event", test.numberEvents)
 			mocked.ResetCalls()
@@ -256,6 +256,48 @@ func TestComputeMem(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			computeMem(mocked, test.mem, []string{})
+			for name, val := range test.expected {
+				mocked.AssertMetric(t, "Gauge", name, val, "", []string{})
+			}
+		})
+	}
+}
+
+func TestComputeUptime(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance:  &ContainerdConfig{},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked.SetupAcceptAll()
+
+	currentTime := time.Now()
+
+	tests := []struct {
+		name     string
+		ctn      containers.Container
+		expected map[string]float64
+	}{
+		{
+			name: "Normal check",
+			ctn: containers.Container{
+				CreatedAt: currentTime.Add(-60 * time.Second),
+			},
+			expected: map[string]float64{
+				"containerd.uptime": 60.0,
+			},
+		},
+		{
+			name: "Created in the future",
+			ctn: containers.Container{
+				CreatedAt: currentTime.Add(60 * time.Second),
+			},
+			expected: map[string]float64{},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			computeUptime(mocked, test.ctn, currentTime, []string{})
 			for name, val := range test.expected {
 				mocked.AssertMetric(t, "Gauge", name, val, "", []string{})
 			}

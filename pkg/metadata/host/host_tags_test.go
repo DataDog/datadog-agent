@@ -45,3 +45,15 @@ func TestGetHostTagsWithoutSplits(t *testing.T) {
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"}, hostTags.System)
 }
+
+func TestGetHostTagsWithEnv(t *testing.T) {
+	mockConfig := config.Mock()
+	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "env:prod"})
+	mockConfig.Set("env", "preprod")
+	defer mockConfig.Set("tags", nil)
+	defer mockConfig.Set("env", "")
+
+	hostTags := getHostTags()
+	assert.NotNil(t, hostTags.System)
+	assert.Equal(t, []string{"tag1:value1", "tag2", "tag3", "env:prod", "env:preprod"}, hostTags.System)
+}

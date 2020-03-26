@@ -3,11 +3,13 @@ import os
 import re
 import shutil
 import sys
-
+import shutil
+import tempfile
 from invoke import task
+from invoke.exceptions import Exit
 from subprocess import check_output
 
-from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
+from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only, check_go111module_envvar
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
@@ -20,6 +22,9 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     """
     Build the process agent
     """
+
+    # bail out if GO111MODULE is set to on
+    check_go111module_envvar("process-agent.build")
 
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes)
 
@@ -57,8 +62,6 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     }
 
     goenv = {}
-    # TODO: this is a temporary workaround to avoid the garbage collection issues that the process-agent+go1.11 have had.
-    # Once we have upgraded the go version to 1.12, this can be removed
     if go_version:
         lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:
@@ -96,3 +99,42 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+
+@task
+def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest"):
+    """
+    Build a dev image of the process-agent based off an existing datadog-agent image
+
+    image: the image name used to tag the image
+    push: if true, run a docker push on the image
+    base_image: base the docker image off this already build image (default: datadog/agent:latest)
+    """
+    if image is None:
+        raise Exit(message="image was not specified")
+
+    with TempDir() as docker_context:
+        ctx.run("cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {to}".format(
+            to=docker_context + "/Dockerfile"))
+
+        ctx.run("cp bin/process-agent/process-agent {to}".format(
+            to=docker_context + "/process-agent"))
+
+        ctx.run("cp bin/system-probe/system-probe {to}".format(
+            to=docker_context + "/system-probe"))
+
+        with ctx.cd(docker_context):
+            ctx.run("docker build --tag {image} --build-arg AGENT_BASE={base_image} .".format(image=image, base_image=base_image))
+
+    if push:
+        ctx.run("docker push {image}".format(image=image))
+
+
+class TempDir():
+    def __enter__(self):
+        self.fname = tempfile.mkdtemp()
+        print("created tempdir: {name}".format(name=self.fname))
+        return self.fname
+    def __exit__(self, exception_type, exception_value, traceback):
+        print("deleting tempdir: {name}".format(name=self.fname))
+        shutil.rmtree(self.fname)

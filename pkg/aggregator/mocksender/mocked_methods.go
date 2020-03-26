@@ -60,7 +60,7 @@ func (m *MockSender) Event(e metrics.Event) {
 }
 
 //HistogramBucket enables the histogram bucket mock call.
-func (m *MockSender) HistogramBucket(metric string, value int, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
+func (m *MockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
 	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags)
 }
 
@@ -72,6 +72,16 @@ func (m *MockSender) Commit() {
 //SetCheckCustomTags enables the set of check custom tags mock call.
 func (m *MockSender) SetCheckCustomTags(tags []string) {
 	m.Called(tags)
+}
+
+//SetCheckService enables the setting of check service mock call.
+func (m *MockSender) SetCheckService(service string) {
+	m.Called(service)
+}
+
+//FinalizeCheckServiceTag enables the sending of check service tag mock call.
+func (m *MockSender) FinalizeCheckServiceTag() {
+	m.Called()
 }
 
 //GetMetricStats enables the get metric stats mock call.

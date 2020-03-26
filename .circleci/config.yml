@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1129-doxygen-golangci
+      - image: datadog/datadog-agent-runner-circle:go1138
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -70,7 +70,7 @@ jobs:
       - run:
           name: build rtloader
           command: |
-            inv rtloader.build --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
             inv rtloader.install
       - run:
           name: lint rtloader
@@ -84,7 +84,7 @@ jobs:
             inv rtloader.test
       - run:
           name: pre-compile go deps
-          command: inv -e agent.build --race --precompile-only
+          command: inv -e agent.build --exclude-rtloader --race --precompile-only
       - save_cache:
           <<: *save_deps
           paths:
@@ -178,7 +178,7 @@ jobs:
           command: inv -e dogstatsd.build --static
       - run:
           name: build agent
-          command: inv -e agent.build
+          command: inv -e agent.build --exclude-rtloader
 
   build_puppy:
     <<: *job_template

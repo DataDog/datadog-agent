@@ -7,6 +7,7 @@ import shutil
 import sys
 import os
 import re
+import time
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -139,10 +140,26 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
     push_env = {}
     if signed_push:
         push_env["DOCKER_CONTENT_TRUST"] = "1"
-    ctx.run(
-        "docker push {dst}".format(dst=dst),
-        env=push_env
-    )
+    remaining_retries = 5
+    while True:
+        warn = True
+        if remaining_retries == 0:
+            warn = False
+
+        r = ctx.run(
+            "docker push {dst}".format(dst=dst),
+            env=push_env,
+            warn=warn
+        )
+
+        if r.ok:
+            break
+
+        # docker push might have failed because of a notary temporary error.
+        # Let give some time to the server to recover by itself before making a new attempt.
+        time.sleep(5)
+
+        remaining_retries -= 1
 
 @task(iterable=['platform'])
 def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
@@ -201,7 +218,7 @@ def publish_manifest(ctx, name, tag, template, platform, signed_push=False):
             -p docker.io/{name} {tag} {length} --sha256 {sha256} \
             -r targets/releases
         """
-        ctx.run(cmd.format(home=os.environ.get("HOME"), name=name, tag=tag, length=length, sha256=digest))
+        ctx.run(cmd.format(home=os.path.expanduser("~"), name=name, tag=tag, length=length, sha256=digest))
 
 @task
 def delete(ctx, org, image, tag, token):

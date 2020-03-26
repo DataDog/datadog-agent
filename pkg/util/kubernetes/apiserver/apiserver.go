@@ -15,6 +15,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -54,6 +55,9 @@ type APIClient struct {
 	// InformerFactory gives access to informers.
 	InformerFactory informers.SharedInformerFactory
 
+	// UnassignedPodInformerFactory gives access to filtered informers
+	UnassignedPodInformerFactory informers.SharedInformerFactory
+
 	// WPAClient gives access to WPA API
 	WPAClient wpa_client.Interface
 
@@ -72,11 +76,11 @@ func GetAPIClient() (*APIClient, error) {
 			timeoutSeconds: config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
 		}
 		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
-			Name:          "apiserver",
-			AttemptMethod: globalAPIClient.connect,
-			Strategy:      retry.RetryCount,
-			RetryCount:    10,
-			RetryDelay:    30 * time.Second,
+			Name:              "apiserver",
+			AttemptMethod:     globalAPIClient.connect,
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 1 * time.Second,
+			MaxRetryDelay:     5 * time.Minute,
 		})
 	}
 	err := globalAPIClient.initRetry.TriggerRetry()
@@ -144,10 +148,20 @@ func getInformerFactory() (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
-		log.Infof("Could not get apiserver client: %v", err)
+		log.Errorf("Could not get apiserver client: %v", err)
 		return nil, err
 	}
 	return informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
+}
+
+func getInformerFactoryWithOption(options informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
+	if err != nil {
+		log.Errorf("Could not get apiserver client: %v", err)
+		return nil, err
+	}
+	return informers.NewSharedInformerFactoryWithOptions(client, resyncPeriodSeconds*time.Second, options), nil
 }
 
 func (c *APIClient) connect() error {
@@ -162,6 +176,16 @@ func (c *APIClient) connect() error {
 	if err != nil {
 		return err
 	}
+
+	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		tweakListOptions := func(options *metav1.ListOptions) {
+			options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
+		}
+		c.UnassignedPodInformerFactory, err = getInformerFactoryWithOption(
+			informers.WithTweakListOptions(tweakListOptions),
+		)
+	}
+
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
 		if c.WPAInformerFactory, err = getWPAInformerFactory(); err != nil {
 			log.Errorf("Error getting WPA Informer Factory: %s", err.Error())
@@ -374,6 +398,7 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 		if err != nil {
 			warn := fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
 			stats.Warnings = append(stats.Warnings, warn)
+			continue
 		}
 		stats.Nodes[node.Name] = convertmetadataMapperBundleToAPI(bundle)
 	}
@@ -423,6 +448,9 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 
 func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
 	output := apiv1.NewMetadataResponseBundle()
+	if input == nil {
+		return output
+	}
 	for key, val := range input.Services {
 		output.Services[key] = val
 	}
