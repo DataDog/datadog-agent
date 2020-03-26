@@ -5,7 +5,16 @@
 
 package listeners
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	tlmPacketPool = telemetry.NewGauge("dogstatsd", "packet_pool",
+		nil, "Usage of the packet pool in dogstatsd")
+)
 
 // PacketPool wraps the sync.Pool class for *Packet type.
 // It allows to avoid allocating one object per packet.
@@ -19,6 +28,8 @@ import "sync"
 // origin []byte storage, so they will be unaffected.
 type PacketPool struct {
 	pool sync.Pool
+	// telemetry
+	tlmEnabled bool
 }
 
 // NewPacketPool creates a new pool with a specified buffer size
@@ -34,11 +45,16 @@ func NewPacketPool(bufferSize int) *PacketPool {
 				return packet
 			},
 		},
+		// telemetry
+		tlmEnabled: telemetry.IsEnabled(),
 	}
 }
 
 // Get gets a Packet object read for use.
 func (p *PacketPool) Get() *Packet {
+	if p.tlmEnabled {
+		tlmPacketPool.Inc()
+	}
 	return p.pool.Get().(*Packet)
 }
 
@@ -46,6 +62,9 @@ func (p *PacketPool) Get() *Packet {
 func (p *PacketPool) Put(packet *Packet) {
 	if packet.Origin != NoOrigin {
 		packet.Origin = NoOrigin
+	}
+	if p.tlmEnabled {
+		tlmPacketPool.Dec()
 	}
 	p.pool.Put(packet)
 }
