@@ -159,6 +159,16 @@ func (mp *provider) GetAgentCID() (string, error) {
 	return cID, err
 }
 
+// GetPIDs returns all PIDs running in the current container
+func (mp *provider) GetPIDs(containerID string) ([]int32, error) {
+	cg, err := mp.getCgroup(containerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return cg.Pids, nil
+}
+
 // ContainerIDForPID is a lighter version of CgroupsForPids to only retrieve the
 // container ID for origin detection. Returns container id as a string, empty if
 // the PID is not in a container.

@@ -16,6 +16,7 @@ stages:
   - image_deploy
   - deploy6
   - deploy7
+  - deploy7-manifests
   - deploy_invalidate
   - e2e
   - testkitchen_cleanup
@@ -2359,37 +2360,12 @@ dev_branch_docker_hub-a7:
     - fail_on_non_triggered_tag
     - build_agent7
     - build_agent7_jmx
-    - build_agent7_windows1809
-    - build_agent7_windows1809_jmx
-    - build_agent7_windows1909
-    - build_agent7_windows1909_jmx
   when: manual
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64         datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
 
-dev_branch_docker_hub-a7-windows1809:
-  <<: *skip_when_unwanted_on_7
-  extends: .docker_tag_windows_job_definition
-  variables:
-    VARIANT: 1809
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs:
-    - fail_on_non_triggered_tag
-    - build_agent7_windows1809
-    - build_agent7_windows1809_jmx
-  when: manual
-  script:
-    - |
-      @"
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809
-
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-win --template datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx-win --template datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809
-      "@ | Add-Content ci-scripts/docker-publish.ps1
-
-dev_branch_docker_hub-a7-windows1909:
+dev_branch_docker_hub-a7-windows:
   <<: *skip_when_unwanted_on_7
   extends: .docker_tag_windows_job_definition
   variables:
@@ -2397,17 +2373,22 @@ dev_branch_docker_hub-a7-windows1909:
   tags: ["runner:windows-docker", "windowsversion:1909"]
   needs:
     - fail_on_non_triggered_tag
+    - build_agent7_windows1809
+    - build_agent7_windows1809_jmx
     - build_agent7_windows1909
     - build_agent7_windows1909_jmx
   when: manual
   script:
     - |
       @"
+      # On newer Kernel we can pull/push older images even though these images won't run
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1909-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1909
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1909
 
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-win --template datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1909
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx-win --template datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1909
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-win --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1909,windows/amd64
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx-win --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1909,windows/amd64
       "@ | Add-Content ci-scripts/docker-publish.ps1
 
 dev_branch_multiarch_docker_hub-a6:
@@ -2430,10 +2411,10 @@ dev_branch_multiarch_docker_hub-a6:
     # Other images
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-py2py3-jmx-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
     # Manifests
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}           --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py2       --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-jmx       --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py2-jmx   --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py2-jmx
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG} --image datadog/agent-dev-amd64:${CI_COMMIT_REF_SLUG},linux/amd64 --image datadog/agent-dev-arm64:${CI_COMMIT_REF_SLUG},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py2 --image datadog/agent-dev-amd64:${CI_COMMIT_REF_SLUG}-py2,linux/amd64 --image datadog/agent-dev-arm64:${CI_COMMIT_REF_SLUG}-py2,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-jmx --image datadog/agent-dev-amd64:${CI_COMMIT_REF_SLUG}-jmx,linux/amd64 --image datadog/agent-dev-arm64:${CI_COMMIT_REF_SLUG}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py2-jmx --image datadog/agent-dev-amd64:${CI_COMMIT_REF_SLUG}-py2-jmx,linux/amd64 --image datadog/agent-dev-arm64:${CI_COMMIT_REF_SLUG}-py2-jmx,linux/arm64
 
 dev_branch_multiarch_docker_hub-a7:
   <<: *skip_when_unwanted_on_7
@@ -2450,8 +2431,8 @@ dev_branch_multiarch_docker_hub-a7:
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-ARCH      --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3-jmx
     # Manifests
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3       --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx   --template datadog/agent-dev-ARCH:${CI_COMMIT_REF_SLUG}-py3-jmx
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3 --image datadog/agent-dev-amd64:${CI_COMMIT_REF_SLUG}-py3,linux/amd64 --image datadog/agent-dev-arm64:${CI_COMMIT_REF_SLUG}-py3,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx --image datadog/agent-dev-amd64:${CI_COMMIT_REF_SLUG}-py3-jmx,linux/amd64 --image datadog/agent-dev-arm64:${CI_COMMIT_REF_SLUG}-py3-jmx,linux/arm64
 
 dev_branch_multiarch_docker_hub-dogstatsd:
   <<: *skip_when_unwanted_on_7
@@ -2493,30 +2474,7 @@ dev_master_docker_hub-a7:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64       datadog/agent-dev:master-py3
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64   datadog/agent-dev:master-py3-jmx
 
-dev_master_docker_hub-a7-windows1809:
-  <<: *skip_when_unwanted_on_7
-  extends: .docker_tag_windows_job_definition
-  variables:
-    VARIANT: 1809
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs:
-    - fail_on_non_triggered_tag
-    - build_agent7_windows1809
-    - build_agent7_windows1809_jmx
-  only:
-    - master
-  script:
-    - |
-      @"
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:master-py3-win1809
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:master-py3-jmx-win1809
-
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent-dev --tag datadog/agent-dev:master-py3-win --template datadog/agent-dev:master-py3-win1809
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent-dev --tag datadog/agent-dev:master-py3-jmx-win --template datadog/agent-dev:master-py3-jmx-win1809
-      "@ | Add-Content ci-scripts/docker-publish.ps1
-    - cat ci-scripts/docker-publish.ps1
-
-dev_master_docker_hub-a7-windows1909:
+dev_master_docker_hub-a7-windows:
   <<: *skip_when_unwanted_on_7
   extends: .docker_tag_windows_job_definition
   variables:
@@ -2524,6 +2482,8 @@ dev_master_docker_hub-a7-windows1909:
   tags: ["runner:windows-docker", "windowsversion:1909"]
   needs:
     - fail_on_non_triggered_tag
+    - build_agent7_windows1809
+    - build_agent7_windows1809_jmx
     - build_agent7_windows1909
     - build_agent7_windows1909_jmx
   only:
@@ -2531,11 +2491,14 @@ dev_master_docker_hub-a7-windows1909:
   script:
     - |
       @"
+      # On newer Kernel we can pull/push older images even though these images won't run
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:master-py3-win1809
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:master-py3-jmx-win1809
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1909-amd64 datadog/agent-dev:master-py3-win1909
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-amd64 datadog/agent-dev:master-py3-jmx-win1909
 
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent-dev --tag datadog/agent-dev:master-py3-win --template datadog/agent-dev:master-py3-win1909
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent-dev --tag datadog/agent-dev:master-py3-jmx-win --template datadog/agent-dev:master-py3-jmx-win1909
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag datadog/agent-dev:master-py3-win --image datadog/agent-dev:master-py3-win1809,windows/amd64 --image datadog/agent-dev:master-py3-win1909,windows/amd64
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag datadog/agent-dev:master-py3-jmx-win --image datadog/agent-dev:master-py3-jmx-win1809,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win1909,windows/amd64
       "@ | Add-Content ci-scripts/docker-publish.ps1
     - cat ci-scripts/docker-publish.ps1
 
@@ -2567,7 +2530,7 @@ dca_dev_branch_multiarch_docker_hub:
     - master
   script:
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_DCA}:${SRC_TAG}-ARCH --dst-template datadog/cluster-agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/cluster-agent-dev --tag ${CI_COMMIT_REF_SLUG} --template datadog/cluster-agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish-manifest --signed-push --name datadog/cluster-agent-dev --tag ${CI_COMMIT_REF_SLUG} --image datadog/cluster-agent-dev-amd64:${CI_COMMIT_REF_SLUG},linux/amd64 --image datadog/cluster-agent-dev-arm64:${CI_COMMIT_REF_SLUG},linux/arm64
 
 dca_dev_master_docker_hub:
   <<: *docker_tag_job_definition
@@ -2606,25 +2569,7 @@ dev_nightly_docker_hub-a7:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64   datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
 
-dev_nightly_docker_hub-a7-windows1809:
-  <<: *skip_when_unwanted_on_7
-  <<: *run_when_triggered_on_nightly
-  extends: .docker_tag_windows_job_definition
-  variables:
-    VARIANT: 1809
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs:
-    - fail_on_non_triggered_tag
-    - build_agent7_windows1809
-    - build_agent7_windows1809_jmx
-  script:
-    - |
-      @"
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1809
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win1809
-      "@ | Add-Content ci-scripts/docker-publish.ps1
-
-dev_nightly_docker_hub-a7-windows1909:
+dev_nightly_docker_hub-a7-windows:
   <<: *skip_when_unwanted_on_7
   <<: *run_when_triggered_on_nightly
   extends: .docker_tag_windows_job_definition
@@ -2633,11 +2578,15 @@ dev_nightly_docker_hub-a7-windows1909:
   tags: ["runner:windows-docker", "windowsversion:1909"]
   needs:
     - fail_on_non_triggered_tag
+    - build_agent7_windows1809
+    - build_agent7_windows1809_jmx
     - build_agent7_windows1909
     - build_agent7_windows1909_jmx
   script:
     - |
       @"
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1809
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win1809
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1909-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1909
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win1909
       "@ | Add-Content ci-scripts/docker-publish.ps1
@@ -3055,64 +3004,8 @@ tag_release_6:
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
     # Manifests
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}      --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
-
-tag_release_7:
-  <<: *docker_tag_job_definition
-  <<: *run_when_triggered_on_tag_7
-  stage: deploy7
-  when: manual
-  script:
-    - VERSION=$(inv -e agent.version --major-version 7)
-    # Images
-    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
-    # Other
-    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:${VERSION}
-    # Manifests
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}      --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag ${VERSION}-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
-
-tag_release_7_windows1809:
-  <<: *run_when_triggered_on_tag_7
-  extends: .docker_tag_windows_job_definition
-  variables:
-    VARIANT: 1809
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs:
-    - fail_on_non_triggered_tag
-    - build_agent7_windows1809
-    - build_agent7_windows1809_jmx
-  script:
-    - $VERSION = inv -e agent.version --major-version 7
-    - |
-      @"
-      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1809-ARCH --dst-template datadog/agent-ARCH:${VERSION}-win1809
-      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-ARCH --dst-template datadog/agent-ARCH:${VERSION}-jmx-win1809
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag ${VERSION} --template datadog/agent-ARCH:${VERSION}-win1809
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag ${VERSION} --template datadog/agent-ARCH:${VERSION}-jmx-win1809
-      "@ | Add-Content ci-scripts/docker-publish.ps1
-
-tag_release_7_windows1909:
-  <<: *run_when_triggered_on_tag_7
-  extends: .docker_tag_windows_job_definition
-  variables:
-    VARIANT: 1909
-  tags: ["runner:windows-docker", "windowsversion:1909"]
-  needs:
-    - fail_on_non_triggered_tag
-    - build_agent7_windows1909
-    - build_agent7_windows1909_jmx
-  script:
-    - $VERSION = inv -e agent.version --major-version 7
-    - |
-      @"
-      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1909-ARCH --dst-template datadog/agent-ARCH:${VERSION}-win1909
-      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-ARCH --dst-template datadog/agent-ARCH:${VERSION}-jmx-win1909
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag ${VERSION} --template datadog/agent-ARCH:${VERSION}-win1909
-      inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag ${VERSION} --template datadog/agent-ARCH:${VERSION}-jmx-win1909
-      "@ | Add-Content ci-scripts/docker-publish.ps1
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag ${VERSION} --image datadog/agent-amd64:${VERSION},linux/amd64 --image datadog/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag ${VERSION}-jmx  --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64 --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
 
 latest_release_6:
   <<: *docker_tag_job_definition
@@ -3121,10 +3014,65 @@ latest_release_6:
   when: manual
   script:
     - VERSION=$(inv -e agent.version --major-version 6)
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2        --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2-jmx    --template datadog/agent-ARCH:${VERSION}-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6                 --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 6-jmx             --template datadog/agent-ARCH:${VERSION}-jmx
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2 --image datadog/agent-amd64:${VERSION},linux/amd64 --image datadog/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2-jmx --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64 --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6 --image datadog/agent-amd64:${VERSION},linux/amd64 --image datadog/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 6-jmx --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64 --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
+
+tag_release_7_linux:
+  <<: *docker_tag_job_definition
+  <<: *run_when_triggered_on_tag_7
+  stage: deploy7
+  when: manual
+  script:
+    - VERSION=$(inv -e agent.version --major-version 7)
+    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-ARCH      --dst-template datadog/agent-ARCH:${VERSION}
+    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-ARCH  --dst-template datadog/agent-ARCH:${VERSION}-jmx
+    - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:${VERSION}
+
+tag_release_7_windows:
+  <<: *run_when_triggered_on_tag_7
+  stage: deploy7
+  when: manual
+  extends: .docker_tag_windows_job_definition
+  variables:
+    VARIANT: 1909
+  tags: ["runner:windows-docker", "windowsversion:1909"]
+  needs:
+    - fail_on_non_triggered_tag
+    - build_agent7_windows1809
+    - build_agent7_windows1809_jmx
+    - build_agent7_windows1909
+    - build_agent7_windows1909_jmx
+  script:
+    - $VERSION = inv -e agent.version --major-version 7
+    - |
+      @"
+      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1809-ARCH --dst-template datadog/agent-ARCH:${VERSION}-win1809
+      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-ARCH --dst-template datadog/agent-ARCH:${VERSION}-jmx-win1809
+      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1909-ARCH --dst-template datadog/agent-ARCH:${VERSION}-win1909
+      inv -e docker.publish-bulk --signed-push --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-ARCH --dst-template datadog/agent-ARCH:${VERSION}-jmx-win1909
+      "@ | Add-Content ci-scripts/docker-publish.ps1
+
+tag_release_7_manifests:
+  <<: *docker_tag_job_definition
+  <<: *run_when_triggered_on_tag_7
+  stage: deploy7-manifests
+  needs:
+    - tag_release_7_linux
+    - tag_release_7_windows
+  script:
+    - VERSION=$(inv -e agent.version --major-version 7)
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag ${VERSION}
+      --image datadog/agent-amd64:${VERSION},linux/amd64
+      --image datadog/agent-amd64:${VERSION}-win1809,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image datadog/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag ${VERSION}-jmx
+      --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64
+      --image datadog/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
 
 latest_release_7:
   <<: *docker_tag_job_definition
@@ -3133,22 +3081,30 @@ latest_release_7:
   when: manual
   script:
     - VERSION=$(inv -e agent.version --major-version 7)
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest      --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-jmx  --template datadog/agent-ARCH:${VERSION}-jmx
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 7           --template datadog/agent-ARCH:${VERSION}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag 7-jmx       --template datadog/agent-ARCH:${VERSION}-jmx
-    # Windows manifest publish (does not need to run on Windows)
-    - inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag latest --template datadog/agent-ARCH:${VERSION}-win1809
-    - inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag latest --template datadog/agent-ARCH:${VERSION}-win1909
-    - inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag latest-jmx --template datadog/agent-ARCH:${VERSION}-jmx-win1809
-    - inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag latest-jmx --template datadog/agent-ARCH:${VERSION}-jmx-win1909
-    - inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag 7 --template datadog/agent-ARCH:${VERSION}-win1809
-    - inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag 7 --template datadog/agent-ARCH:${VERSION}-win1909
-    - inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag 7-jmx --template datadog/agent-ARCH:${VERSION}-jmx-win1809
-    - inv -e docker.publish-manifest --signed-push --platform windows/amd64 --name datadog/agent --tag 7-jmx --template datadog/agent-ARCH:${VERSION}-jmx-win1909
     # Dogstatsd
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:latest
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd:7
+    # Manifests
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest
+      --image datadog/agent-amd64:${VERSION},linux/amd64
+      --image datadog/agent-amd64:${VERSION}-win1809,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image datadog/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx
+      --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64
+      --image datadog/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7
+      --image datadog/agent-amd64:${VERSION},linux/amd64
+      --image datadog/agent-amd64:${VERSION}-win1809,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-win1909,windows/amd64
+      --image datadog/agent-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7-jmx
+      --image datadog/agent-amd64:${VERSION}-jmx,linux/amd64
+      --image datadog/agent-amd64:${VERSION}-jmx-win1809,windows/amd64
+      --image datadog/agent-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image datadog/agent-arm64:${VERSION}-jmx,linux/arm64
 
 #
 # Use these steps to revert the latest tags to a previous release
@@ -3167,8 +3123,8 @@ latest_release_7:
     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2      --template datadog/agent-ARCH:${RELEASE}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-py2-jmx  --template datadog/agent-ARCH:${RELEASE}-jmx
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2 --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-py2-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
 
 .latest_revert_to_previous_release_7:
   <<: *docker_tag_job_definition
@@ -3179,8 +3135,8 @@ latest_release_7:
     RELEASE: ""  # tag name of the non-jmx version, for example "6.9.0"
   script:
     - if [[ -z "$RELEASE" ]]; then echo "Need release version to revert to"; exit 1; fi
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest      --template datadog/agent-ARCH:${RELEASE}
-    - inv -e docker.publish-manifest --signed-push --platform linux/amd64 --platform linux/arm64 --name datadog/agent --tag latest-jmx  --template datadog/agent-ARCH:${RELEASE}-jmx
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest --image datadog/agent-amd64:${RELEASE},linux/amd64 --image datadog/agent-arm64:${RELEASE},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx --image datadog/agent-amd64:${RELEASE}-jmx,linux/amd64 --image datadog/agent-arm64:${RELEASE}-jmx,linux/arm64
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${RELEASE} datadog/dogstatsd:latest
 
 #

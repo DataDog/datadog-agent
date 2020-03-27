@@ -104,6 +104,7 @@ type ContainerImplementation interface {
 	GetContainerStartTime(containerID string) (int64, error)
 	DetectNetworkDestinations(pid int) ([]NetworkDestination, error)
 	GetAgentCID() (string, error)
+	GetPIDs(containerID string) ([]int32, error)
 	ContainerIDForPID(pid int) (string, error)
 	GetDefaultGateway() (net.IP, error)
 	GetDefaultHostIPs() ([]string, error)

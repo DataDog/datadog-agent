@@ -235,6 +235,12 @@ func (mp *provider) GetAgentCID() (string, error) {
 	return "", fmt.Errorf("the agent doesn't appear to be running inside a container: %s", err)
 }
 
+// GetPIDs returns all PIDs running in the current container
+func (mp *provider) GetPIDs(containerID string) ([]int32, error) {
+	// FIXME: Figure out how to list PIDs from containers on Windows
+	return nil, nil
+}
+
 // ContainerIDForPID return ContainerID for a given pid
 func (mp *provider) ContainerIDForPID(pid int) (string, error) {
 	// FIXME: Figure out how to list PIDs from containers on Windows
