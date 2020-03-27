@@ -43,61 +43,65 @@ func (cf SNMPConfigProvider) Collect() ([]integration.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	for i, config := range snmpConfig.Configs {
+	for i, conf := range snmpConfig.Configs {
 		adIdentifier := fmt.Sprintf("snmp_%d", i)
 		log.Debugf("Building SNMP config for %s", adIdentifier)
 		instance := "ip_address: %%host%%"
-		if config.Port != 0 {
-			instance = fmt.Sprintf("%s\nport: %d", instance, config.Port)
+		if conf.Port != 0 {
+			instance = fmt.Sprintf("%s\nport: %d", instance, conf.Port)
 		}
-		if config.Version != "" {
-			instance = fmt.Sprintf("%s\nsnmp_version: %s", instance, config.Version)
+		if conf.Version != "" {
+			instance = fmt.Sprintf("%s\nsnmp_version: %s", instance, conf.Version)
 		}
-		if config.Timeout != 0 {
-			instance = fmt.Sprintf("%s\ntimeout: %d", instance, config.Timeout)
+		if conf.Timeout != 0 {
+			instance = fmt.Sprintf("%s\ntimeout: %d", instance, conf.Timeout)
 		}
-		if config.Retries != 0 {
-			instance = fmt.Sprintf("%s\nretries: %d", instance, config.Retries)
+		if conf.Retries != 0 {
+			instance = fmt.Sprintf("%s\nretries: %d", instance, conf.Retries)
 		}
-		if config.Community != "" {
-			instance = fmt.Sprintf("%s\ncommunity_string: %s", instance, config.Community)
+		if conf.Community != "" {
+			instance = fmt.Sprintf("%s\ncommunity_string: %s", instance, conf.Community)
 		}
-		if config.User != "" {
-			instance = fmt.Sprintf("%s\nuser: %s", instance, config.User)
+		if conf.User != "" {
+			instance = fmt.Sprintf("%s\nuser: %s", instance, conf.User)
 		}
-		if config.AuthKey != "" {
-			instance = fmt.Sprintf("%s\nauthKey: %s", instance, config.AuthKey)
+		if conf.AuthKey != "" {
+			instance = fmt.Sprintf("%s\nauthKey: %s", instance, conf.AuthKey)
 		}
-		if config.AuthProtocol != "" {
+		if conf.AuthProtocol != "" {
 			var authProtocol string
-			if config.AuthProtocol == "MD5" {
+			if conf.AuthProtocol == "MD5" {
 				authProtocol = "usmHMACMD5AuthProtocol"
-			} else if config.AuthProtocol == "SHA" {
+			} else if conf.AuthProtocol == "SHA" {
 				authProtocol = "usmHMACSHAAuthProtocol"
 			}
 			instance = fmt.Sprintf("%s\nauthProtocol: %s", instance, authProtocol)
 		}
-		if config.PrivKey != "" {
-			instance = fmt.Sprintf("%s\nprivKey: %s", instance, config.PrivKey)
+		if conf.PrivKey != "" {
+			instance = fmt.Sprintf("%s\nprivKey: %s", instance, conf.PrivKey)
 		}
-		if config.PrivProtocol != "" {
+		if conf.PrivProtocol != "" {
 			var privProtocol string
-			if config.PrivProtocol == "DES" {
+			if conf.PrivProtocol == "DES" {
 				privProtocol = "usmDESPrivProtocol"
-			} else if config.PrivProtocol == "AES" {
+			} else if conf.PrivProtocol == "AES" {
 				privProtocol = "usmAesCfb128Protocol"
 			}
 			instance = fmt.Sprintf("%s\nprivProtocol: %s", instance, privProtocol)
 		}
-		if config.ContextEngineID != "" {
-			instance = fmt.Sprintf("%s\ncontext_engine_id: %s", instance, config.ContextEngineID)
+		if conf.ContextEngineID != "" {
+			instance = fmt.Sprintf("%s\ncontext_engine_id: %s", instance, conf.ContextEngineID)
 		}
-		if config.ContextName != "" {
-			instance = fmt.Sprintf("%s\ncontext_name: %s", instance, config.ContextName)
+		if conf.ContextName != "" {
+			instance = fmt.Sprintf("%s\ncontext_name: %s", instance, conf.ContextName)
 		}
 		instances := [][]integration.Data{{integration.Data(instance)}}
 		initConfigs := [][]integration.Data{{integration.Data("")}}
 		newConfigs := buildTemplates(adIdentifier, []string{"snmp"}, initConfigs, instances)
+		for i := range newConfigs {
+			// Schedule cluster checks when running in k8s
+			newConfigs[i].ClusterCheck = config.IsKubernetes()
+		}
 		allConfigs = append(allConfigs, newConfigs...)
 	}
 	return allConfigs, nil
