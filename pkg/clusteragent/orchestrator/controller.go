@@ -169,7 +169,8 @@ func (o *Controller) processPods() {
 			continue
 		}
 
-		// Consume responses, we don't need the bodies here though
+		// Consume the responses so that writers to the channel do not become blocked
+		// we don't need the bodies here though
 		for range responses {
 
 		}
