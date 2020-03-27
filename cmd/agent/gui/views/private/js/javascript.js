@@ -342,7 +342,7 @@ function loadNewChecks() {
       if (fileName.endsWith(".example") ||
           fileName.endsWith(".disabled") ||
           fileName.endsWith("metrics.yaml")||
-          fileName.endsWith("auto_conf.yaml") ) return;
+          fileName.endsWith("auto_conf.yaml")) return;
       var checkName = fileName.substr(0, fileName.indexOf("."));
       enabledChecks.push(checkName);
     });
