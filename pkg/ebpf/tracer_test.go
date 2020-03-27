@@ -1491,6 +1491,7 @@ func TestDNSStats(t *testing.T) {
 	queryMsg.SetQuestion(dns.Fqdn("golang.org"), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
+	// Get outbound IP
 	dummyConn, err := net.Dial("udp", "8.8.8.8:80")
 	require.NoError(t, err)
 	dummyConn.Close()
@@ -1519,7 +1520,6 @@ func TestDNSStats(t *testing.T) {
 	assert.Equal(t, queryMsg.Len(), int(conn.MonotonicSentBytes))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
-	assert.Equal(t, NONE, conn.Direction)
 
 	// DNS Stats
 	assert.Equal(t, uint32(1), conn.DNSSuccessfulResponses)
