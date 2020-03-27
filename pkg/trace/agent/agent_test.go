@@ -233,55 +233,12 @@ func TestSampling(t *testing.T) {
 		wantRate    float64
 		wantSampled bool
 	}{
-		"score and priority rate": {
-			hasPriority:  true,
-			scoreRate:    0.5,
-			priorityRate: 0.6,
-			wantRate:     sampler.CombineRates(0.5, 0.6),
-		},
-		"score only rate": {
-			scoreRate:    0.5,
-			priorityRate: 0.1,
-			wantRate:     0.5,
-		},
 		"error and priority rate": {
 			hasErrors:      true,
 			hasPriority:    true,
 			scoreErrorRate: 0.8,
 			priorityRate:   0.2,
 			wantRate:       sampler.CombineRates(0.8, 0.2),
-		},
-		"score not sampled decision": {
-			scoreSampled: false,
-			wantSampled:  false,
-		},
-		"score sampled decision": {
-			scoreSampled: true,
-			wantSampled:  true,
-		},
-		"score sampled priority not sampled": {
-			hasPriority:     true,
-			scoreSampled:    true,
-			prioritySampled: false,
-			wantSampled:     true,
-		},
-		"score not sampled priority sampled": {
-			hasPriority:     true,
-			scoreSampled:    false,
-			prioritySampled: true,
-			wantSampled:     true,
-		},
-		"score sampled priority sampled": {
-			hasPriority:     true,
-			scoreSampled:    true,
-			prioritySampled: true,
-			wantSampled:     true,
-		},
-		"score and priority not sampled": {
-			hasPriority:     true,
-			scoreSampled:    false,
-			prioritySampled: false,
-			wantSampled:     false,
 		},
 		"error not sampled decision": {
 			hasErrors:         true,
