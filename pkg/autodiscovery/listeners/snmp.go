@@ -207,6 +207,18 @@ func (l *SNMPListener) checkDevices() {
 	for {
 		for _, subnet := range subnets {
 			if subnet.network.Contains(subnet.currentIP) {
+				ignored := false
+				currentString := subnet.currentIP.String()
+				for _, ip := range subnet.config.IgnoredIPAddresses {
+					if ip == currentString {
+						ignored = true
+						break
+					}
+				}
+				if ignored {
+					incrementIP(subnet.currentIP)
+					continue
+				}
 				jobSubnet := subnet
 				jobSubnet.currentIP = make(net.IP, len(subnet.currentIP))
 				copy(jobSubnet.currentIP, subnet.currentIP)

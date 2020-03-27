@@ -51,3 +51,40 @@ func TestSNMPListener(t *testing.T) {
 	assert.Equal(t, "192.168.0.1", subnet.currentIP.String())
 	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
 }
+
+func TestSNMPListenerIgnoredAdresses(t *testing.T) {
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	testChan := make(chan snmpSubnet, 10)
+
+	snmpConfig := util.SNMPConfig{
+		Network:            "192.168.0.0/24",
+		Community:          "public",
+		IgnoredIPAddresses: []string{"192.168.0.0"},
+	}
+	listenerConfig := util.SNMPListenerConfig{
+		Configs: []util.SNMPConfig{snmpConfig},
+	}
+
+	mockConfig := config.Mock()
+	mockConfig.Set("snmp_listener", listenerConfig)
+
+	worker = func(l *SNMPListener, jobs <-chan snmpSubnet) {
+		subnet := <-jobs
+		testChan <- subnet
+	}
+
+	l, err := NewSNMPListener()
+	assert.Equal(t, nil, err)
+	l.Listen(newSvc, delSvc)
+
+	subnet := <-testChan
+
+	assert.Equal(t, "snmp_0", subnet.adIdentifier)
+	assert.Equal(t, "192.168.0.1", subnet.currentIP.String())
+	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
+
+	subnet = <-testChan
+	assert.Equal(t, "192.168.0.2", subnet.currentIP.String())
+	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
+}

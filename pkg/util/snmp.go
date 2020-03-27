@@ -24,19 +24,20 @@ type SNMPListenerConfig struct {
 
 // SNMPConfig holds configuration for a particular subnet
 type SNMPConfig struct {
-	Network         string `mapstructure:"network"`
-	Port            uint16 `mapstructure:"port"`
-	Version         string `mapstructure:"version"`
-	Timeout         int    `mapstructure:"timeout"`
-	Retries         int    `mapstructure:"retries"`
-	Community       string `mapstructure:"community"`
-	User            string `mapstructure:"user"`
-	AuthKey         string `mapstructure:"authentication_key"`
-	AuthProtocol    string `mapstructure:"authentication_protocol"`
-	PrivKey         string `mapstructure:"privacy_key"`
-	PrivProtocol    string `mapstructure:"privacy_protocol"`
-	ContextEngineID string `mapstructure:"context_engine_id"`
-	ContextName     string `mapstructure:"context_name"`
+	Network            string   `mapstructure:"network"`
+	Port               uint16   `mapstructure:"port"`
+	Version            string   `mapstructure:"version"`
+	Timeout            int      `mapstructure:"timeout"`
+	Retries            int      `mapstructure:"retries"`
+	Community          string   `mapstructure:"community"`
+	User               string   `mapstructure:"user"`
+	AuthKey            string   `mapstructure:"authentication_key"`
+	AuthProtocol       string   `mapstructure:"authentication_protocol"`
+	PrivKey            string   `mapstructure:"privacy_key"`
+	PrivProtocol       string   `mapstructure:"privacy_protocol"`
+	ContextEngineID    string   `mapstructure:"context_engine_id"`
+	ContextName        string   `mapstructure:"context_name"`
+	IgnoredIPAddresses []string `mapstructure:"ignored_ip_addresses"`
 }
 
 // Digest returns an hash value representing the data stored in this configuration, minus the network address
@@ -53,6 +54,9 @@ func (c *SNMPConfig) Digest(address string) string {
 	h.Write([]byte(c.PrivProtocol))
 	h.Write([]byte(c.ContextEngineID))
 	h.Write([]byte(c.ContextName))
+	for _, ip := range c.IgnoredIPAddresses {
+		h.Write([]byte(ip))
+	}
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }
