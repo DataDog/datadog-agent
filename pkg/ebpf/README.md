@@ -18,4 +18,4 @@ To adapt to the currently running kernel at run-time, tracer-bpf creates a serie
 ## Development
 
 `make nettop` will run a small testing program which
-periodically prints statistics about TCP/UDP traffic inside the VM.
+periodically prints statistics about TCP/UDP traffic.
