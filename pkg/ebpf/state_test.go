@@ -1141,6 +1141,82 @@ func TestAggregateClosedConnectionsTimestamp(t *testing.T) {
 	assert.Equal(t, conn.LastUpdateEpoch, state.Connections(client, latestEpochTime(), nil, nil)[0].LastUpdateEpoch)
 }
 
+func TestDNSStatsWithMultipleClients(t *testing.T) {
+	c := ConnectionStats{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  1000,
+		DPort:  53,
+	}
+
+	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
+	stats := make(map[dnsKey]dnsStats)
+	stats[dKey] = dnsStats{successfulResponses: 1}
+
+	client1 := "client1"
+	client2 := "client2"
+	client3 := "client3"
+	state := NewDefaultNetworkState()
+
+	// Register the first two clients
+	assert.Len(t, state.Connections(client1, latestEpochTime(), nil, nil), 0)
+	assert.Len(t, state.Connections(client2, latestEpochTime(), nil, nil), 0)
+
+	c.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnection(c)
+
+	conns := state.Connections(client1, latestEpochTime(), nil, stats)
+	require.Len(t, conns, 1)
+	assert.EqualValues(t, 1, conns[0].DNSSuccessfulResponses)
+
+	// Register the third client but also pass in dns stats
+	conns = state.Connections(client3, latestEpochTime(), []ConnectionStats{c}, stats)
+	require.Len(t, conns, 1)
+	// DNS stats should be available for the new client
+	assert.EqualValues(t, 1, conns[0].DNSSuccessfulResponses)
+
+	conns = state.Connections(client2, latestEpochTime(), []ConnectionStats{c}, stats)
+	require.Len(t, conns, 1)
+	// 2nd client should get accumulated stats
+	assert.EqualValues(t, 3, conns[0].DNSSuccessfulResponses)
+}
+
+func TestDNSStatsPIDCollisions(t *testing.T) {
+	c := ConnectionStats{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  1000,
+		DPort:  53,
+	}
+
+	dKey := dnsKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
+	stats := make(map[dnsKey]dnsStats)
+	stats[dKey] = dnsStats{successfulResponses: 1}
+
+	client := "client"
+	state := NewDefaultNetworkState()
+
+	// Register the client
+	assert.Len(t, state.Connections(client, latestEpochTime(), nil, nil), 0)
+
+	c.LastUpdateEpoch = latestEpochTime()
+	state.StoreClosedConnection(c)
+
+	// Store another connection with same dnsKey but different PID
+	c.Pid++
+	state.StoreClosedConnection(c)
+
+	conns := state.Connections(client, latestEpochTime(), nil, stats)
+	require.Len(t, conns, 2)
+	assert.Equal(t, int64(1), state.(*networkState).telemetry.dnsPidCollisions)
+}
+
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {
