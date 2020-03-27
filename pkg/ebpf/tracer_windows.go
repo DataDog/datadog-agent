@@ -121,13 +121,10 @@ func (t *Tracer) initPacketPolling(exit <-chan struct{}) (err error) {
 		)
 
 		for {
-			log.Info("This runs")
 			select {
 			case <-exit:
-				log.Info("Exit runs")
 				return
 			default:
-				log.Info("Default runs")
 				err := windows.GetQueuedCompletionStatus(t.driverController.iocp, &bytes, &key, &ol, windows.INFINITE)
 				if err == nil {
 					var buf *readBuffer
