@@ -324,7 +324,6 @@ func TestSampling(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			a := &Agent{
-				ScoreSampler:       newMockSampler(tt.scoreSampled, tt.scoreRate),
 				ErrorsScoreSampler: newMockSampler(tt.scoreErrorSampled, tt.scoreErrorRate),
 				PrioritySampler:    newMockSampler(tt.prioritySampled, tt.priorityRate),
 			}
