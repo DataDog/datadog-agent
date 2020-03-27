@@ -214,7 +214,7 @@ func TestSendPodMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/orchestrator", req.uri)
 
 		assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
-		assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
+		assert.Equal(t, cfg.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(api.ContainerCountHeader))
 		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
 		assert.NotEmpty(t, req.headers.Get("X-DD-Agent-Timestamp"))
@@ -232,12 +232,12 @@ func TestSendPodMessage(t *testing.T) {
 
 func runCollectorTest(t *testing.T, tc func(payloads chan checkPayload, cfg *config.AgentConfig, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t)
-	addr := ep.start()
+	collectorAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
 
 	cfg := config.NewDefaultAgentConfig(false)
-	cfg.APIEndpoints = []api.Endpoint{{APIKey: "apiKey", Endpoint: addr}}
-	cfg.OrchestratorEndpoints = []api.Endpoint{{APIKey: "orchestratorApiKey", Endpoint: addr}}
+	cfg.APIEndpoints = []api.Endpoint{{APIKey: "apiKey", Endpoint: collectorAddr}}
+	cfg.OrchestratorEndpoints = []api.Endpoint{{APIKey: "orchestratorApiKey", Endpoint: orchestratorAddr}}
 	cfg.HostName = "test-host"
 
 	exit := make(chan bool)
@@ -258,13 +258,14 @@ type request struct {
 }
 
 type mockEndpoint struct {
-	t          *testing.T
-	server     *http.Server
-	stopper    sync.WaitGroup
-	Requests   chan request
-	ErrorCount int
-	errorsSent int
-	closeOnce  sync.Once
+	t                  *testing.T
+	collectorServer    *http.Server
+	orchestratorServer *http.Server
+	stopper            sync.WaitGroup
+	Requests           chan request
+	ErrorCount         int
+	errorsSent         int
+	closeOnce          sync.Once
 }
 
 func newMockEndpoint(t *testing.T) *mockEndpoint {
@@ -273,41 +274,69 @@ func newMockEndpoint(t *testing.T) *mockEndpoint {
 		Requests: make(chan request, 1),
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/validate", m.handleValidate)
-	mux.HandleFunc("/api/v1/collector", m.handle)
-	mux.HandleFunc("/api/v1/container", m.handle)
-	mux.HandleFunc("/api/v1/orchestrator", m.handle)
+	collectorMux := http.NewServeMux()
+	collectorMux.HandleFunc("/api/v1/validate", m.handleValidate)
+	collectorMux.HandleFunc("/api/v1/collector", m.handle)
+	collectorMux.HandleFunc("/api/v1/container", m.handle)
 
-	m.server = &http.Server{Addr: ":", Handler: mux}
+	orchestratorMux := http.NewServeMux()
+	orchestratorMux.HandleFunc("/api/v1/validate", m.handleValidate)
+	orchestratorMux.HandleFunc("/api/v1/orchestrator", m.handle)
+
+	m.collectorServer = &http.Server{Addr: ":", Handler: collectorMux}
+	m.orchestratorServer = &http.Server{Addr: ":", Handler: orchestratorMux}
 
 	return m
 }
 
-func (m *mockEndpoint) start() *url.URL {
-	addrC := make(chan net.Addr)
+// start starts the http endpoints and returns (collector server url, orchestrator server url)
+func (m *mockEndpoint) start() (*url.URL, *url.URL) {
+	addrC := make(chan net.Addr, 1)
 
 	m.stopper.Add(1)
 	go func() {
 		defer m.stopper.Done()
 
-		ln, err := net.Listen("tcp", ":")
+		listener, err := net.Listen("tcp", ":")
 		require.NoError(m.t, err)
 
-		addrC <- ln.Addr()
+		addrC <- listener.Addr()
 
-		_ = m.server.Serve(ln)
+		_ = m.collectorServer.Serve(listener)
 	}()
 
-	addr := <-addrC
+	collectorAddr := <-addrC
 
-	endpoint, err := url.Parse(fmt.Sprintf("http://%s", addr.String()))
+	m.stopper.Add(1)
+	go func() {
+		defer m.stopper.Done()
+
+		listener, err := net.Listen("tcp", ":")
+		require.NoError(m.t, err)
+
+		addrC <- listener.Addr()
+
+		_ = m.orchestratorServer.Serve(listener)
+	}()
+
+	orchestratorAddr := <-addrC
+
+	close(addrC)
+
+	collectorEndpoint, err := url.Parse(fmt.Sprintf("http://%s", collectorAddr.String()))
 	require.NoError(m.t, err)
-	return endpoint
+
+	orchestratorEndpoint, err := url.Parse(fmt.Sprintf("http://%s", orchestratorAddr.String()))
+	require.NoError(m.t, err)
+
+	return collectorEndpoint, orchestratorEndpoint
 }
 
 func (m *mockEndpoint) stop() {
-	err := m.server.Close()
+	err := m.collectorServer.Close()
+	require.NoError(m.t, err)
+
+	err = m.orchestratorServer.Close()
 	require.NoError(m.t, err)
 
 	m.stopper.Wait()

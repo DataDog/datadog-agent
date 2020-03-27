@@ -179,7 +179,7 @@ func (l *Collector) run(exit chan bool) {
 					case checks.Connections.Name():
 						responses, err = l.forwarder.SubmitConnectionChecks(payloads, extraHeaders)
 					case checks.Pod.Name():
-						responses, err = l.forwarder.SubmitPodChecks(payloads, extraHeaders)
+						responses, err = l.podForwarder.SubmitPodChecks(payloads, extraHeaders)
 					}
 
 					if err != nil {
