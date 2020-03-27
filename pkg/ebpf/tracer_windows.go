@@ -51,6 +51,7 @@ type Tracer struct {
 	driverController *DriverInterface
 	bufs             []readBuffer
 	packetCount      int64
+	stopChan         chan struct{}
 }
 
 // NewTracer returns an initialized tracer struct
@@ -63,6 +64,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	tr := &Tracer{
 		driverController: dc,
 		bufs:             make([]readBuffer, totalReadBuffers),
+		stopChan:         make(chan struct{}),
 	}
 
 	// We want tracer to own the buffers, but the DriverInterface to make the calls to set them up
@@ -71,38 +73,45 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("error preparing driver's read buffers: %v", err)
 	}
 
-	err = tr.initPacketPolling()
+	err = tr.initPacketPolling(tr.stopChan)
 	if err != nil {
 		return nil, fmt.Errorf("issue polling packets from driver: %v", err)
 	}
-	go tr.expvarStats()
+	go tr.expvarStats(tr.stopChan)
 	return tr, nil
 }
 
 // Stop function stops running tracer
-func (t *Tracer) Stop() {}
+func (t *Tracer) Stop() {
+	close(t.stopChan)
+}
 
-func (t *Tracer) expvarStats() {
+func (t *Tracer) expvarStats(exit <-chan struct{}) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	// starts running the body immediately instead waiting for the first tick
 	for range ticker.C {
-		stats, err := t.GetStats()
-		if err != nil {
-			continue
-		}
+		select {
+		case <-exit:
+			return
+		default:
+			stats, err := t.GetStats()
+			if err != nil {
+				continue
+			}
 
-		for name, stat := range stats {
-			for metric, val := range stat.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+			for name, stat := range stats {
+				for metric, val := range stat.(map[string]int64) {
+					currVal := &expvar.Int{}
+					currVal.Set(val)
+					expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+				}
 			}
 		}
 	}
 }
 
-func (t *Tracer) initPacketPolling() (err error) {
+func (t *Tracer) initPacketPolling(exit <-chan struct{}) (err error) {
 	log.Debugf("Started packet polling")
 	go func() {
 		var (
@@ -112,13 +121,21 @@ func (t *Tracer) initPacketPolling() (err error) {
 		)
 
 		for {
-			err := windows.GetQueuedCompletionStatus(t.driverController.iocp, &bytes, &key, &ol, windows.INFINITE)
-			if err == nil {
-				var buf *readBuffer
-				buf = (*readBuffer)(unsafe.Pointer(ol))
-				numPackets := countPackets(*buf, bytes)
-				atomic.AddInt64(&t.packetCount, numPackets)
-				windows.ReadFile(t.driverController.driverHandle, buf.data[:], nil, &(buf.ol))
+			log.Info("This runs")
+			select {
+			case <-exit:
+				log.Info("Exit runs")
+				return
+			default:
+				log.Info("Default runs")
+				err := windows.GetQueuedCompletionStatus(t.driverController.iocp, &bytes, &key, &ol, windows.INFINITE)
+				if err == nil {
+					var buf *readBuffer
+					buf = (*readBuffer)(unsafe.Pointer(ol))
+					numPackets := countPackets(*buf, bytes)
+					atomic.AddInt64(&t.packetCount, numPackets)
+					windows.ReadFile(t.driverController.driverHandle, buf.data[:], nil, &(buf.ol))
+				}
 			}
 		}
 	}()
