@@ -148,7 +148,7 @@ var checkCmd = &cobra.Command{
 
 			if check.IsJMXConfig(*conf) {
 				// we'll mimic the check command behavior with JMXFetch by running
-				// it with the JSON reporter and the aist_with_metrics command.
+				// it with the JSON reporter and the list_with_metrics command.
 				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 				if checkRate {
 					if err := RunJmxListWithRateMetrics(); err != nil {
