@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -27,6 +29,9 @@ var (
 	errClient = errors.New("client error")
 	errServer = errors.New("server error")
 )
+
+// emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
+var emptyPayload []byte
 
 // Destination sends a payload over HTTP.
 type Destination struct {
@@ -154,4 +159,21 @@ func buildContentEncoding(endpoint config.Endpoint) ContentEncoding {
 		return NewGzipContentEncoding(endpoint.CompressionLevel)
 	}
 	return IdentityContentType
+}
+
+// CheckConnectivity check if sending logs through HTTP works
+func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
+	log.Info("Checking HTTP connectivity...")
+	ctx := client.NewDestinationsContext()
+	ctx.Start()
+	defer ctx.Stop()
+	destination := NewDestination(endpoint, JSONContentType, ctx)
+	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
+	err := destination.Send(emptyPayload)
+	if err != nil {
+		log.Warnf("HTTP connectivity failure: %v", err)
+	} else {
+		log.Info("HTTP connectivity successful")
+	}
+	return err == nil
 }
