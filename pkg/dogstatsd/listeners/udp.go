@@ -76,7 +76,7 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
+	packetsBuffer := newPacketsBuffer(packetPool, uint(packetsBufferSize), flushTimeout, packetOut)
 	packetBuffer := newPacketBuffer(packetPool, flushTimeout, packetsBuffer)
 
 	listener := &UDPListener{

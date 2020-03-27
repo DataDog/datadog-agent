@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    Drop packets when buffer is full to avoid blocking
+    applications sending data through unix socket.

@@ -107,7 +107,7 @@ func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListene
 		OriginDetection: originDetection,
 		packetPool:      packetPool,
 		conn:            conn,
-		packetsBuffer: newPacketsBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
+		packetsBuffer: newPacketsBuffer(packetPool, uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
 	}
 

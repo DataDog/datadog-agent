@@ -8,6 +8,15 @@ package listeners
 import (
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	tlmPacketsBufferDropped = telemetry.NewCounter("dogstatsd", "packets_buffer_dropped",
+		nil, "Count of dropped packets")
+	tlmPacketsBufferProcessed = telemetry.NewCounter("dogstatsd", "packets_buffer_processed",
+		nil, "Count of processed packets")
 )
 
 // packetsBuffer is a buffer of packets that will automatically flush to configurable channel
@@ -18,16 +27,20 @@ type packetsBuffer struct {
 	bufferSize    uint
 	outputChannel chan Packets
 	closeChannel  chan struct{}
+	packetPool    *PacketPool
 	m             sync.Mutex
+	tlmEnabled    bool
 }
 
-func newPacketsBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *packetsBuffer {
+func newPacketsBuffer(packetPool *PacketPool, bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *packetsBuffer {
 	pb := &packetsBuffer{
 		bufferSize:    bufferSize,
 		flushTimer:    time.NewTicker(flushTimer),
 		outputChannel: outputChannel,
 		packets:       make(Packets, 0, bufferSize),
 		closeChannel:  make(chan struct{}),
+		packetPool:    packetPool,
+		tlmEnabled:    telemetry.IsEnabled(),
 	}
 	go pb.flushLoop()
 	return pb
@@ -57,7 +70,19 @@ func (pb *packetsBuffer) append(packet *Packet) {
 
 func (pb *packetsBuffer) flush() {
 	if len(pb.packets) > 0 {
-		pb.outputChannel <- pb.packets
+		select {
+		case pb.outputChannel <- pb.packets:
+			if pb.tlmEnabled {
+				tlmPacketsBufferProcessed.Inc()
+			}
+		default:
+			if pb.tlmEnabled {
+				tlmPacketsBufferDropped.Inc()
+			}
+			for _, packet := range pb.packets {
+				pb.packetPool.Put(packet)
+			}
+		}
 		pb.packets = make(Packets, 0, pb.bufferSize)
 	}
 }

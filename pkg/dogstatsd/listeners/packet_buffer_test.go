@@ -10,7 +10,7 @@ import (
 func buildPacketBuffer(buffersSize int) (*packetBuffer, chan Packets) {
 	pool := NewPacketPool(buffersSize)
 	out := make(chan Packets, 16)
-	psb := newPacketsBuffer(1, 1*time.Hour, out)
+	psb := newPacketsBuffer(pool, 1, 1*time.Hour, out)
 	pb := newPacketBuffer(pool, 100*time.Millisecond, psb)
 	return pb, out
 }
