@@ -19,7 +19,7 @@ const (
 	envVarService = "DD_SERVICE"
 
 	// Docker label keys
-	dockerLabelEnv     = "com.datadoghq.ad.env"
-	dockerLabelVersion = "com.datadoghq.ad.version"
-	dockerLabelService = "com.datadoghq.ad.service"
+	dockerLabelEnv     = "com.datadoghq.tags.env"
+	dockerLabelVersion = "com.datadoghq.tags.version"
+	dockerLabelService = "com.datadoghq.tags.service"
 )

@@ -313,6 +313,7 @@ run_tests_ebpf:
   needs: ["fail_on_non_triggered_tag", "build_libbcc_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_BUILDIMAGES
   before_script:
+    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
     - pip3 install distro -c requirements.txt # needed for some of our invoke tasks until the builders image contain it
     - inv -e deps --verbose --dep-vendor-only
@@ -320,10 +321,19 @@ run_tests_ebpf:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
     - mkdir /opt/libbcc
     - tar -xvf /tmp/libbcc.tar.xz -C /opt/libbcc
+  after_script:
+    - cd $SRC_PATH
+    - cp ./pkg/ebpf/c/tracer-ebpf.o  $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf.o
+    - cp ./pkg/ebpf/c/tracer-ebpf-debug.o  $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-ebpf-debug.o
   tags: [ "runner:main", "size:large" ]
   script:
     # For now only check bpf bytes since we don't have a way to run eBPF tests without mounting a debugfs
     - CGO_CFLAGS='-I/opt/libbcc/include' CGO_LDFLAGS='-Wl,-rpath,/opt/libbcc/lib -L/opt/libbcc/lib' inv -e system-probe.test --only-check-bpf-bytes
+
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/.tmp/binary-ebpf
 
 # scan the dependencies for security vulnerabilities with snyk
 run_security_scan_test:

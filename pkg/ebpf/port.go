@@ -81,3 +81,32 @@ func (pm *PortMapping) ReadInitialState() error {
 
 	return nil
 }
+
+// ReadInitialUDPState reads the /proc filesystem and determines which ports are being used as UDP server
+func (pm *PortMapping) ReadInitialUDPState() error {
+	pm.Lock()
+	defer pm.Unlock()
+
+	udpPath := path.Join(pm.procRoot, "net/udp")
+	if ports, err := readProcNetWithStatus(udpPath, tcpClose); err != nil {
+		log.Errorf("failed to read UDP state: %s", err)
+	} else {
+		log.Info("read UDP ports: %v", ports)
+		for _, port := range ports {
+			pm.ports[port] = struct{}{}
+		}
+	}
+
+	if pm.config.CollectIPv6Conns {
+		if ports, err := readProcNetWithStatus(path.Join(pm.procRoot, "net/udp6"), 7); err != nil {
+			log.Errorf("error reading UDPv6 state: %s", err)
+		} else {
+			log.Info("read UDPv6 state: %v", ports)
+			for _, port := range ports {
+				pm.ports[port] = struct{}{}
+			}
+		}
+	}
+
+	return nil
+}

@@ -283,6 +283,8 @@ def build_object_files(ctx, install=True):
         file=debug_obj_file
     ))
 
+    cmds = []
+
     if install:
         # Now update the assets stored in the go code
         commands.append("go get -u github.com/jteeuwen/go-bindata/...")
