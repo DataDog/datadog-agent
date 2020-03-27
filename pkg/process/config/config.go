@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -294,25 +295,10 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 
 	if cfg.HostName == "" {
 		if fargate.IsFargateInstance() {
-			// Fargate should have no concept of host names
-			// we set cfg.HostName depending on the orchestrator
-			switch fargate.GetOrchestrator() {
-			case fargate.ECS:
-				// Use the task ARN as hostname
-				if taskMeta, err := ecsmeta.V2().GetTask(); err == nil {
-					cfg.HostName = fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN)
-				} else {
-					log.Errorf("Failed to retrieve ECS Fargate task metadata: %s", err)
-				}
-			case fargate.EKS:
-				// Use the node name as hostname
-				if nodename, err := fargate.GetEKSFargateNodename(); err == nil {
-					cfg.HostName = nodename
-				} else {
-					log.Errorf("Failed to retrieve EKS Fargate node name: %s", err)
-				}
-			default:
-				log.Errorf("Failed to set config hostname in Fargate: unknown Fargate orchestrator")
+			if hostname, err := getFargateHost(fargate.GetOrchestrator(), getECSHost, getEKSHost); err == nil {
+				cfg.HostName = hostname
+			} else {
+				log.Errorf("Cannot get Fargate host: %v", err)
 			}
 		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname
@@ -532,6 +518,36 @@ func constructProxy(host, scheme string, port int, user, password string) (proxy
 		return nil, err
 	}
 	return http.ProxyURL(u), nil
+}
+
+// getFargateHost returns the hostname to be used
+// in the config based on the Fargate orchestrator
+// - ECS: fargate_task:<TaskARN>
+// - EKS: value of kubernetes_kubelet_nodename
+func getFargateHost(orchestrator fargate.OrchestratorName, ecsFunc, eksFunc func() (string, error)) (string, error) {
+	// Fargate should have no concept of host names
+	// we set the hostname depending on the orchestrator
+	switch orchestrator {
+	case fargate.ECS:
+		return ecsFunc()
+	case fargate.EKS:
+		return eksFunc()
+	}
+	return "", errors.New("unknown Fargate orchestrator")
+}
+
+func getECSHost() (string, error) {
+	// Use the task ARN as hostname
+	taskMeta, err := ecsmeta.V2().GetTask()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN), nil
+}
+
+func getEKSHost() (string, error) {
+	// Use the node name as hostname
+	return fargate.GetEKSFargateNodename()
 }
 
 func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig) error {

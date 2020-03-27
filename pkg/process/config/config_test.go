@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
 )
@@ -449,4 +450,41 @@ func TestGetCheckURL(t *testing.T) {
 			endpoint.GetCheckURL("api/v1/container"),
 		)
 	})
+}
+
+func TestGetFargateHost(t *testing.T) {
+	assert := assert.New(t)
+	for _, tc := range []struct {
+		orch     fargate.OrchestratorName
+		ecsFunc  func() (string, error)
+		eksFunc  func() (string, error)
+		expected string
+		wantErr  bool
+	}{
+		{
+			fargate.ECS,
+			func() (string, error) { return "fargate_task:arn-xxx", nil },
+			func() (string, error) { return "fargate-ip-xxx", nil },
+			"fargate_task:arn-xxx",
+			false,
+		},
+		{
+			fargate.EKS,
+			func() (string, error) { return "fargate_task:arn-xxx", nil },
+			func() (string, error) { return "fargate-ip-xxx", nil },
+			"fargate-ip-xxx",
+			false,
+		},
+		{
+			fargate.Unknown,
+			func() (string, error) { return "fargate_task:arn-xxx", nil },
+			func() (string, error) { return "fargate-ip-xxx", nil },
+			"",
+			true,
+		},
+	} {
+		got, err := getFargateHost(tc.orch, tc.ecsFunc, tc.eksFunc)
+		assert.Equal(err != nil, tc.wantErr)
+		assert.Equal(tc.expected, got)
+	}
 }
