@@ -249,6 +249,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToA
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConnectivity() {
 	// When use_http is true always create HTTP endpoints
 	suite.config.Set("logs_config.use_http", "true")
+	suite.config.Set("logs_config.use_tcp", "false")
 	endpoints, err := BuildEndpoints(HTTPConnectivitySuccess)
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
@@ -256,8 +257,19 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)
 
-	// When use_http is false create HTTP endpoints if HTTP connectivity is successful
+	// When use_tcp is true always create TCP endpoints
 	suite.config.Set("logs_config.use_http", "false")
+	suite.config.Set("logs_config.use_tcp", "true")
+	endpoints, err = BuildEndpoints(HTTPConnectivitySuccess)
+	suite.Nil(err)
+	suite.False(endpoints.UseHTTP)
+	endpoints, err = BuildEndpoints(HTTPConnectivityFailure)
+	suite.Nil(err)
+	suite.False(endpoints.UseHTTP)
+
+	// When use_http & use_tcp are false create HTTP endpoints if HTTP connectivity is successful
+	suite.config.Set("logs_config.use_http", "false")
+	suite.config.Set("logs_config.use_tcp", "false")
 	endpoints, err = BuildEndpoints(HTTPConnectivitySuccess)
 	suite.Nil(err)
 	suite.True(endpoints.UseHTTP)

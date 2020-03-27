@@ -93,7 +93,8 @@ func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
 
-	if coreConfig.Datadog.GetBool("logs_config.use_http") || bool(httpConnectivity) {
+	if coreConfig.Datadog.GetBool("logs_config.use_http") ||
+		(bool(httpConnectivity) && !coreConfig.Datadog.GetBool("logs_config.use_tcp")) {
 		return BuildHTTPEndpoints()
 	}
 
