@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package metrics
+// +build linux
+
+package cgroup
 
 import (
 	"bufio"
@@ -12,6 +14,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
+
+// ContainerCgroup is a structure that stores paths and mounts for a cgroup.
+// It provides several methods for collecting stats about the cgroup using the
+// paths and mounts metadata.
+type ContainerCgroup struct {
+	ContainerID string
+	Pids        []int32
+	Paths       map[string]string
+	Mounts      map[string]string
+}
 
 // readLines reads contents from a file and splits them by new lines.
 func readLines(filename string) ([]string, error) {

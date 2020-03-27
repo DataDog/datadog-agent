@@ -11,11 +11,8 @@ run:
     - pkg/trace
     # TODO metrics-aggregation
     - pkg/quantile
-    # TODO burito
+    # TODO burrito
     - pkg/ebpf
-    - pkg/procmatch
-    - cmd/process-agent
-    - cmd/system-probe
 
 issues:
   exclude:

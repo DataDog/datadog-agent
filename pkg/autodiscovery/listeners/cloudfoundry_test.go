@@ -391,15 +391,15 @@ func TestCloudFoundryListener(t *testing.T) {
 		testBBSCache.DesiredLRPs = tc.dLRP
 		testBBSCache.Unlock()
 
+		// make sure at least one refresh loop of the listener has passed *since we updated the cache*
+		cfl.RLock()
+		lastRefreshCount = cfl.refreshCount
+		cfl.RUnlock()
 		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
-			// wait until at least one listener refresh loop passes
 			cfl.RLock()
 			defer cfl.RUnlock()
 			return cfl.refreshCount > lastRefreshCount
 		})
-		cfl.RLock()
-		lastRefreshCount = cfl.refreshCount
-		cfl.RUnlock()
 
 		// we have to fail now, otherwise we might get blocked trying to read from the channel
 		require.Equal(t, len(tc.expNew), len(newSvc))

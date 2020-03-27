@@ -45,11 +45,11 @@
 
 [[constraint]]
   name = "github.com/docker/docker"
-  version = "~v1.13.1"
+  version = "~v19.03.8"
 
 [[constraint]]
   name = "github.com/containerd/containerd"
-  version = "~v1.2.2"
+  version = "~v1.2.13"
 
 [[override]]
   version = "kubernetes-1.15.0"

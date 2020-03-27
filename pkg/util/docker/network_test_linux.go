@@ -4,6 +4,7 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
+// +build linux
 
 package docker
 

@@ -17,76 +17,133 @@ type InterfaceNetStats struct {
 // ContainerNetStats stores network statistics about a Docker container per interface
 type ContainerNetStats []*InterfaceNetStats
 
-// CgroupMemStat stores memory statistics about a cgroup.
-type CgroupMemStat struct {
-	ContainerID             string
-	Cache                   uint64
-	Swap                    uint64 // See SwapPresent to make sure it's a real zero
-	SwapPresent             bool
-	RSS                     uint64
-	RSSHuge                 uint64
-	MappedFile              uint64
-	Pgpgin                  uint64
-	Pgpgout                 uint64
-	Pgfault                 uint64
-	Pgmajfault              uint64
-	InactiveAnon            uint64
-	ActiveAnon              uint64
-	InactiveFile            uint64
-	ActiveFile              uint64
-	Unevictable             uint64
+// ContainerMemStats stores memory statistics about a cgroup.
+type ContainerMemStats struct {
+	// docker.mem.cache
+	Cache uint64
+
+	// docker.mem.swap
+	Swap        uint64 // See SwapPresent to make sure it's a real zero
+	SwapPresent bool
+
+	// docker.mem.rss
+	RSS uint64
+
+	RSSHuge      uint64
+	MappedFile   uint64
+	Pgpgin       uint64
+	Pgpgout      uint64
+	Pgfault      uint64
+	Pgmajfault   uint64
+	InactiveAnon uint64
+	ActiveAnon   uint64
+	InactiveFile uint64
+	ActiveFile   uint64
+	Unevictable  uint64
+
+	// docker.mem.limit
+	// Note: docker.mem.in_use = docker.mem.rss / docker.mem.limit
 	HierarchicalMemoryLimit uint64
-	HierarchicalMemSWLimit  uint64 // One can safely assume 0 == absent
-	TotalCache              uint64
-	TotalRSS                uint64
-	TotalRSSHuge            uint64
-	TotalMappedFile         uint64
-	TotalPgpgIn             uint64
-	TotalPgpgOut            uint64
-	TotalPgFault            uint64
-	TotalPgMajFault         uint64
-	TotalInactiveAnon       uint64
-	TotalActiveAnon         uint64
-	TotalInactiveFile       uint64
-	TotalActiveFile         uint64
-	TotalUnevictable        uint64
-	MemUsageInBytes         uint64
+
+	// docker.mem.sw_limit
+	// Note: docker.mem.sw_in_use = docker.mem.rss / docker.mem.sw_limit
+	HierarchicalMemSWLimit uint64 // One can safely assume 0 == absent
+
+	TotalCache        uint64
+	TotalRSS          uint64
+	TotalRSSHuge      uint64
+	TotalMappedFile   uint64
+	TotalPgpgIn       uint64
+	TotalPgpgOut      uint64
+	TotalPgFault      uint64
+	TotalPgMajFault   uint64
+	TotalInactiveAnon uint64
+	TotalActiveAnon   uint64
+	TotalInactiveFile uint64
+	TotalActiveFile   uint64
+	TotalUnevictable  uint64
+	MemUsageInBytes   uint64
+
+	// docker.mem.soft_limit
+	SoftMemLimit uint64
+
+	// docker.kmem.usage
+	KernMemUsage uint64
+
+	// docker.mem.failed_count
+	MemFailCnt uint64
+
+	// docker.mem.private_working_set
+	PrivateWorkingSet uint64
+
+	// docker.mem.commit_bytes
+	CommitBytes uint64
+
+	// docker.mem.commit_peak_bytes
+	CommitPeakBytes uint64
 }
 
-// CgroupTimesStat stores CPU times for a cgroup.
+// ContainerCPUStats stores CPU times for a cgroup.
 // Unit is userspace scheduling unit (USER_HZ, usually 1/100)
-type CgroupTimesStat struct {
-	ContainerID string
-	System      uint64
-	User        uint64
-	UsageTotal  float64
+type ContainerCPUStats struct {
+	// docker.cpu.system
+	System uint64
+
+	// docker.cpu.user
+	User uint64
+
+	// docker.cpu.usage
+	UsageTotal float64
+
 	SystemUsage uint64
-	Shares      uint64
+
+	// docker.cpu.shares
+	Shares uint64
+
+	// docker.cpu.throttled
+	NrThrottled uint64
+
+	// docker.thread.count
+	ThreadCount uint64
 }
 
-// CgroupIOStat store I/O statistics about a cgroup.
+// ContainerIOStats store I/O statistics about a cgroup.
 // Sums are stored in ReadBytes and WriteBytes
-type CgroupIOStat struct {
-	ContainerID      string
-	ReadBytes        uint64
-	WriteBytes       uint64
-	DeviceReadBytes  map[string]uint64
+type ContainerIOStats struct {
+
+	// docker.io.read_bytes
+	ReadBytes uint64
+
+	// docker.io.write_bytes
+	WriteBytes uint64
+
+	// docker.io.read_bytes
+	DeviceReadBytes map[string]uint64
+
+	// docker.io.write_bytes
 	DeviceWriteBytes map[string]uint64
+
+	// docker.container.open_fds
+	OpenFiles uint64
 }
 
-// ContainerCgroup is a structure that stores paths and mounts for a cgroup.
-// It provides several methods for collecting stats about the cgroup using the
-// paths and mounts metadata.
-type ContainerCgroup struct {
-	ContainerID string
-	Pids        []int32
-	Paths       map[string]string
-	Mounts      map[string]string
+// ContainerMetrics wraps all container metrics
+type ContainerMetrics struct {
+	CPU    *ContainerCPUStats
+	Memory *ContainerMemStats
+	IO     *ContainerIOStats
 }
 
-// NetworkDestination holds one network destination subnet and it's linked interface name
-type NetworkDestination struct {
-	Interface string
-	Subnet    uint64
-	Mask      uint64
+// ContainerLimits represents the (normally static) resources limits set when a container is created
+type ContainerLimits struct {
+	CPULimit    float64
+	MemLimit    uint64
+	ThreadLimit uint64
+}
+
+// ContainerMetricsProvider defines the API for any implementation that could provide container metrics
+type ContainerMetricsProvider interface {
+	GetContainerMetrics(containerID string) (*ContainerMetrics, error)
+	GetContainerLimits(containerID string) (*ContainerLimits, error)
+	GetNetworkMetrics(containerID string, networks map[string]string) (ContainerNetStats, error)
 }

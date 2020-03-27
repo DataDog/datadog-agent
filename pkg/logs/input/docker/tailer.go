@@ -197,13 +197,18 @@ func (t *Tailer) readForever() {
 				case isClosedConnError(err):
 					// This error is raised when the agent is stopping
 					return
+				case isFileAlreadyClosed(err):
+					// This error seems to be returned by Docker for Windows
+					// See: https://github.com/microsoft/go-winio/blob/master/file.go
+					// We can probably just wait to get more data
+					continue
 				case err == io.EOF:
 					// This error is raised when:
 					// * the container is stopping.
 					// * when the container has not started to output logs yet.
 					// * during a file rotation.
 					// restart the reader (restartReader() include 1second wait)
-					t.source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart"))
+					t.source.Status.Error(fmt.Errorf("log decoder returns an EOF error that will trigger a Reader restart, container: %v", ShortContainerID(t.ContainerID)))
 					if err := t.tryRestartReader("log decoder returns an EOF error that will trigger a Reader restart"); err != nil {
 						return
 					}
@@ -291,4 +296,9 @@ func isContextCanceled(err error) bool {
 // isReaderClosed returns true if a reader has been closed.
 func isReaderClosed(err error) bool {
 	return strings.Contains(err.Error(), "http: read on closed response body")
+}
+
+// isFileAlreadyClosed returns true if file is already closing
+func isFileAlreadyClosed(err error) bool {
+	return strings.Contains(err.Error(), "file has already been closed")
 }

@@ -5,7 +5,7 @@
 
 // +build linux
 
-package metrics
+package cgroup
 
 import (
 	"math"
@@ -33,7 +33,6 @@ func TestCPU(t *testing.T) {
 
 	timeStat, err := cgroup.CPU()
 	assert.Nil(t, err)
-	assert.Equal(t, timeStat.ContainerID, "dummy")
 	assert.Equal(t, timeStat.User, uint64(64140))
 	assert.Equal(t, timeStat.System, uint64(18327))
 	assert.Equal(t, timeStat.Shares, uint64(1024))

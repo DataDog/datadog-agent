@@ -116,4 +116,10 @@ typedef struct {
 #define PORT_LISTENING 1
 #define PORT_CLOSED 0
 
+
+typedef struct {
+  __u16 port;
+  __u64 fd;
+} bind_syscall_args_t;
+
 #endif
