@@ -170,7 +170,7 @@ build do
     end
 
     # Adding pympler for memory debug purposes
-    requirements.push("pympler==0.7")
+#     requirements.push("pympler==0.7")
 
     # Render the filtered requirements file
     erb source: "static_requirements.txt.erb",
