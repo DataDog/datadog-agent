@@ -93,8 +93,15 @@ end
 
 final_constraints_file = 'final_constraints-py2.txt'
 agent_requirements_file = 'agent_requirements-py2.txt'
-filtered_agent_requirements_in = 'agent_requirements-py2.in'
-agent_requirements_in = 'agent_requirements.in'
+filtered_agent_requirements_txt = 'agent_requirements-py2.in'
+
+if windows?
+    agent_requirements_txt = 'agent_requirements-windows-py2.txt'
+elsif osx?
+    agent_requirements_txt = 'agent_requirements-darwin-py2.txt'
+else
+    agent_requirements_txt = 'agent_requirements-linux-py2.txt'
+end
 
 build do
   # The dir for confs
@@ -138,11 +145,11 @@ build do
     # want to filter out things before installing.
     #
     if windows?
-      static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
-      static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
+      static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_txt}"
+      static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_txt}"
     else
-      static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
-      static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
+      static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_txt}"
+      static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_txt}"
     end
 
     # Remove any blacklisted requirements from the static-environment req file
@@ -175,11 +182,11 @@ build do
     if windows?
       command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
       command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
-      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
+      command "cp #{static_reqs_out_file} #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
     else
       command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
+      command "cp #{static_reqs_out_file} #{install_dir}/#{agent_requirements_file}"
     end
 
     # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
