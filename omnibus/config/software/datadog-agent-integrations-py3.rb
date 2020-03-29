@@ -155,7 +155,7 @@ build do
 
     # Remove any blacklisted requirements from the static-environment req file
     requirements = Array.new
-    File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
+    File.open("#{static_reqs_in_file}", 'r+').read().split(/^(?=[^=#\s]+\=\=|#)/).each do |line|
       blacklist_flag = false
       blacklist_packages.each do |blacklist_regex|
         re = Regexp.new(blacklist_regex).freeze
