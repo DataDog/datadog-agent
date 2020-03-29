@@ -7,7 +7,7 @@
         "JMXFETCH_HASH": "1f1c8435b56050e006990c450b3c8969c3097932c01e080b2c320343a968fcba"
     },
     "nightly-a7": {
-        "INTEGRATIONS_CORE_VERSION": "master",
+        "INTEGRATIONS_CORE_VERSION": "alex/agent_pinned_deps_sandbox",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.35.0",
