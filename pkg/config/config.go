@@ -589,9 +589,6 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.dest_excludes")
 	config.SetKnown("system_probe_config.closed_channel_size")
 
-	// System probe Windows
-	config.SetKnown("system_probe_config.win_probe_path")
-
 	// Network
 	config.BindEnv("network.id")
 

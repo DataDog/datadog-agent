@@ -130,11 +130,6 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ExcludedDestinationConnections = config.Datadog.GetStringMapStringSlice(destinationExclude)
 	}
 
-	// Used if we're running on windows
-	if winProbePath := key(spNS, "win_probe_path"); config.Datadog.IsSet(winProbePath) {
-		a.WinProbePath = config.Datadog.GetString(key("spNS", "win_probe_path"))
-	}
-
 	return nil
 }
 
