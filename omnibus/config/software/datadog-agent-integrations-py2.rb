@@ -183,15 +183,13 @@ build do
       command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
       command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
       command "cp #{static_reqs_out_file} #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
-      command "mkdir -p #{ENV['OMNIBUS_PACKAGE_DIR']}"
-      command "cp #{static_reqs_out_file} #{ENV['OMNIBUS_PACKAGE_DIR']}/"
     else
       command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
       command "cp #{static_reqs_out_file} #{install_dir}/#{agent_requirements_file}"
-      command "mkdir -p #{ENV['OMNIBUS_PACKAGE_DIR']}"
-      command "cp #{static_reqs_out_file} #{ENV['OMNIBUS_PACKAGE_DIR']}/"
     end
+    command "mkdir -p #{ENV['OMNIBUS_PACKAGE_DIR']}"
+    command "cp #{static_reqs_out_file} #{ENV['OMNIBUS_PACKAGE_DIR']}/agent_requirements_#{ENV['CI_JOB_NAME']}_py3.txt"
 
     # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
     uninstall_buildtime_deps.each do |dep|
