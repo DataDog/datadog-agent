@@ -40,7 +40,7 @@ func TestSNMPListener(t *testing.T) {
 
 	subnet := <-testChan
 
-	assert.Equal(t, "snmp_0", subnet.adIdentifier)
+	assert.Equal(t, "snmp:6678be1bb70de3a2", subnet.adIdentifier)
 	assert.Equal(t, "192.168.0.0", subnet.currentIP.String())
 	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
 	assert.Equal(t, "192.168.0.0/24", subnet.network.String())
@@ -80,7 +80,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 
 	subnet := <-testChan
 
-	assert.Equal(t, "snmp_0", subnet.adIdentifier)
+	assert.Equal(t, "snmp:397144ca61fd76d3", subnet.adIdentifier)
 	assert.Equal(t, "192.168.0.1", subnet.currentIP.String())
 	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
 
