@@ -97,7 +97,7 @@ type NetworkDestination struct {
 // different container implementation (Linux cgroup, windows containers, etc.)
 type ContainerImplementation interface {
 	// Asks provider to fetch data from system APIs in bulk
-	// It's be required to call it before any other function
+	// It's required to call it before any other function
 	Prefetch() error
 
 	ContainerExists(containerID string) bool
