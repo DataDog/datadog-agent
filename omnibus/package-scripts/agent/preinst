@@ -126,6 +126,7 @@ else
     exec > $LOG_FILE 2>&1
 
     # Determine current user if he is using the Graphical installer
+    # shellcheck disable=SC2009
     INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
 
     # Otherwise, we hope he is using the install script and try to use this user
