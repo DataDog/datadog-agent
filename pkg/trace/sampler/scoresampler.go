@@ -8,8 +8,9 @@ package sampler
 import "github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 const (
+	// errorSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
 	// If this is surpassed, the rate is set to 1.
-	errorSamplingRateThresholdTo1 = 0.3
+	errorSamplingRateThresholdTo1 = 0.1
 )
 
 // ScoreEngine is the main component of the sampling logic
