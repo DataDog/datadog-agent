@@ -259,18 +259,18 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
 func (a *Agent) runSamplers(pt ProcessedTrace) (sampled bool, rate float64) {
-	var sampledPriority, sampledScore bool
-	var ratePriority, rateScore float64
+	var prioritySampled bool
+	var priorityRate float64
 
 	if _, ok := pt.GetSamplingPriority(); ok {
-		sampledPriority, ratePriority = a.PrioritySampler.Add(pt)
+		prioritySampled, priorityRate = a.PrioritySampler.Add(pt)
 	}
 
 	if traceContainsError(pt.Trace) {
-		sampledScore, rateScore = a.ErrorsScoreSampler.Add(pt)
-		return sampledScore || sampledPriority, sampler.CombineRates(ratePriority, rateScore)
+		errorSampled, errorRate := a.ErrorsScoreSampler.Add(pt)
+		return errorSampled || prioritySampled, sampler.CombineRates(errorRate, priorityRate)
 	}
-	return sampledPriority, ratePriority
+	return prioritySampled, priorityRate
 }
 
 func traceContainsError(trace pb.Trace) bool {
