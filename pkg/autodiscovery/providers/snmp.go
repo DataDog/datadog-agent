@@ -101,6 +101,7 @@ func (cf SNMPConfigProvider) Collect() ([]integration.Config, error) {
 		for i := range newConfigs {
 			// Schedule cluster checks when running in k8s
 			newConfigs[i].ClusterCheck = config.IsKubernetes()
+			newConfigs[i].Source = fmt.Sprintf("snmp:%s", conf.Digest(conf.Network))
 		}
 		allConfigs = append(allConfigs, newConfigs...)
 	}

@@ -37,6 +37,7 @@ func TestSNMPConfigProvider(t *testing.T) {
 	assert.Equal(t, 1, len(configs))
 	assert.Equal(t, 1, len(configs[0].Instances))
 	assert.Equal(t, "ip_address: %%host%%\nport: 1234\nsnmp_version: 2\ntimeout: 5\nretries: 3\ncommunity_string: public", string(configs[0].Instances[0]))
+	assert.Equal(t, "snmp:130c7ff4c52654", configs[0].Source)
 }
 
 func TestSNMPConfigProviderV3(t *testing.T) {
