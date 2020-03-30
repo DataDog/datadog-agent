@@ -2,7 +2,6 @@ package config
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -295,7 +293,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 
 	if cfg.HostName == "" {
 		if fargate.IsFargateInstance() {
-			if hostname, err := getFargateHost(fargate.GetOrchestrator(), getECSHost, getEKSHost); err == nil {
+			if hostname, err := fargate.GetFargateHost(); err == nil {
 				cfg.HostName = hostname
 			} else {
 				log.Errorf("Cannot get Fargate host: %v", err)
@@ -518,36 +516,6 @@ func constructProxy(host, scheme string, port int, user, password string) (proxy
 		return nil, err
 	}
 	return http.ProxyURL(u), nil
-}
-
-// getFargateHost returns the hostname to be used
-// in the config based on the Fargate orchestrator
-// - ECS: fargate_task:<TaskARN>
-// - EKS: value of kubernetes_kubelet_nodename
-func getFargateHost(orchestrator fargate.OrchestratorName, ecsFunc, eksFunc func() (string, error)) (string, error) {
-	// Fargate should have no concept of host names
-	// we set the hostname depending on the orchestrator
-	switch orchestrator {
-	case fargate.ECS:
-		return ecsFunc()
-	case fargate.EKS:
-		return eksFunc()
-	}
-	return "", errors.New("unknown Fargate orchestrator")
-}
-
-func getECSHost() (string, error) {
-	// Use the task ARN as hostname
-	taskMeta, err := ecsmeta.V2().GetTask()
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN), nil
-}
-
-func getEKSHost() (string, error) {
-	// Use the node name as hostname
-	return fargate.GetEKSFargateNodename()
 }
 
 func setupLogger(loggerName config.LoggerName, logFile string, cfg *AgentConfig) error {
