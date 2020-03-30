@@ -2,6 +2,10 @@
 
 package net
 
+import (
+	"fmt"
+)
+
 const (
 	statusURL      = "http://localhost:3333/status"
 	connectionsURL = "http://localhost:3333/connections"
