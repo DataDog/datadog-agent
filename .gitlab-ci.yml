@@ -316,7 +316,7 @@ run_tests_ebpf:
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
     - pip3 install distro -c requirements.txt # needed for some of our invoke tasks until the builders image contain it
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only --no-checks
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
     - mkdir /opt/libbcc
