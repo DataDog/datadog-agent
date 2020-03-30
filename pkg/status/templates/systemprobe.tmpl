@@ -5,7 +5,23 @@ NOTE: Changes made to this template should be reflected on the following templat
 ============
 System Probe
 ============
-{{- if eq .is_running false }}
 
-  System Probe is not running
+{{- if .Errors }}
+  System Probe is not running:
+
+    Errors
+    {{ printDashes "Errors" "=" }}
+    {{ .Errors }}
+
+{{- else }}
+System Probe is running
+
 {{- end }}
+
+
+{{- if .state.clients }}
+
+  Connection Clients: {{ len .state.clients }}
+
+{{- end }}
+

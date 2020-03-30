@@ -4,12 +4,12 @@ package net
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -25,6 +25,10 @@ type Conn interface {
 	// Stop and clean up resources for the underlying connection
 	Stop()
 }
+
+const (
+	contentTypeProtobuf = "application/protobuf"
+)
 
 var (
 	globalUtil            *RemoteSysProbeUtil
@@ -42,14 +46,15 @@ type RemoteSysProbeUtil struct {
 	// Retrier used to setup system probe
 	initRetry retry.Retrier
 
-	systemProbePath string
-	httpClient      http.Client
+	path       string
+	httpClient http.Client
 }
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
-	if globalPath == "" {
-		return nil, fmt.Errorf("remote tracer has no path defined")
+	err := CheckPath()
+	if err != nil {
+		return nil, fmt.Errorf("error setting up remote system probe util, %v", err)
 	}
 
 	globalUtilOnce.Do(func() {
@@ -84,7 +89,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	if err != nil {
 		return nil, err
 	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.systemProbePath, connectionsURL, resp.StatusCode)
+		return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.path, connectionsURL, resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -101,6 +106,34 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return conns, nil
 }
 
+// GetStats returns the expvar stats of the system probe
+func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s", statsURL), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	} else if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("conn request failed: Path %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]interface{})
+	err = json.Unmarshal(body, &stats)
+	if err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
 // ShouldLogTracerUtilError will return whether or not errors sourced from the RemoteSysProbeUtil _should_ be logged, for less noisy logging.
 // We only want to log errors if the tracer has been initialized, or it's the first error for a particular tracer status
 // (e.g. retrying, permafail)
@@ -115,7 +148,7 @@ func ShouldLogTracerUtilError() bool {
 
 func newSystemProbe() *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
-		systemProbePath: globalPath,
+		path: globalPath,
 		httpClient: http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
@@ -136,7 +169,7 @@ func (r *RemoteSysProbeUtil) init() error {
 	if resp, err := r.httpClient.Get(statusURL); err != nil {
 		return err
 	} else if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.systemProbePath, statusURL, resp.StatusCode)
+		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statusURL, resp.StatusCode)
 	}
 	return nil
 }
