@@ -39,8 +39,7 @@ func (cf SNMPConfigProvider) IsUpToDate() (bool, error) {
 func (cf SNMPConfigProvider) Collect() ([]integration.Config, error) {
 	allConfigs := []integration.Config{}
 	var snmpConfig util.SNMPListenerConfig
-	err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig)
-	if err != nil {
+	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig); err != nil {
 		return nil, err
 	}
 	for i, conf := range snmpConfig.Configs {

@@ -91,8 +91,7 @@ func (l *SNMPListener) loadCache(config util.SNMPConfig, adIdentifier string, ca
 		return
 	}
 	var devices []net.IP
-	err = json.Unmarshal([]byte(cacheValue), &devices)
-	if err != nil {
+	if err = json.Unmarshal([]byte(cacheValue), &devices); err != nil {
 		log.Errorf("Couldn't unmarshal cache for %s: %s", cacheKey, err)
 		return
 	}
@@ -108,8 +107,7 @@ func writeCache(cacheKey string, devices []string) {
 		log.Errorf("Couldn't marshal cache: %s", err)
 		return
 	}
-	err = persistentcache.Write(cacheKey, string(cacheValue))
-	if err != nil {
+	if err = persistentcache.Write(cacheKey, string(cacheValue)); err != nil {
 		log.Errorf("Couldn't write cache: %s", err)
 	}
 }
@@ -254,8 +252,7 @@ func (l *SNMPListener) checkDevices() {
 }
 
 func (l *SNMPListener) createService(deviceIP string, adIdentifier string, entityID string) {
-	_, present := l.services[entityID]
-	if present {
+	if _, present := l.services[entityID]; present {
 		return
 	}
 	svc := &SNMPService{
