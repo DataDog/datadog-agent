@@ -35,7 +35,7 @@ You can now run the Agent on the command-line:
 ```
 
 ## Development
-The easiest way to build and test is inside a Vagrant VM. You can provision the VM by running `./pkg/process/tools/dev_setup.sh` and SSHing into the VM with `vagrant ssh` (vagrant must be installed.)
+The easiest way to build and test is inside a Vagrant VM. You can provision the VM by running `./tools/ebpf/dev_setup.sh` and SSHing into the VM with `vagrant ssh` (vagrant must be installed.)
 
 The VM will mount your local $GOPATH, so you can edit source code with your editor of choice.
 
