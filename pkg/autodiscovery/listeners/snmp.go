@@ -122,7 +122,6 @@ var worker = func(l *SNMPListener, jobs <-chan snmpSubnet) {
 		case subnet := <-jobs:
 			log.Debugf("Handling IP %s", subnet.currentIP.String())
 			l.checkDevice(subnet.adIdentifier, subnet.currentIP.String(), subnet.config, subnet.defaultParams)
-		default:
 		}
 	}
 }
@@ -140,8 +139,11 @@ func (l *SNMPListener) checkDevice(adIdentifier string, deviceIP string, config 
 
 		oids := []string{"1.3.6.1.2.1.1.2.0"}
 		v, err := params.Get(oids)
-		if err != nil || len(v.Variables) < 1 || v.Variables[0].Value == nil {
+		if err != nil {
 			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
+			l.deleteService(entityID)
+		} else if len(v.Variables) < 1 || v.Variables[0].Value == nil {
+			log.Debugf("SNMP get to %s no data", deviceIP)
 			l.deleteService(entityID)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, v.Variables[0].Value)
@@ -152,10 +154,11 @@ func (l *SNMPListener) checkDevice(adIdentifier string, deviceIP string, config 
 
 func (l *SNMPListener) checkDevices() {
 	subnets := []snmpSubnet{}
-	for i, config := range l.config.Configs {
+	for _, config := range l.config.Configs {
 		ipAddr, ipNet, err := net.ParseCIDR(config.Network)
 		if err != nil {
-			return
+			log.Errorf("Couldn't parse SNMP network: %s", err)
+			continue
 		}
 
 		defaultParams, err := config.BuildSNMPParams()
@@ -163,7 +166,6 @@ func (l *SNMPListener) checkDevices() {
 			log.Error(err)
 			continue
 		}
-		adIdentifier := fmt.Sprintf("snmp_%d", i)
 
 		startingIP := ipAddr.Mask(ipNet.Mask)
 		currentIP := make(net.IP, len(startingIP))
@@ -171,6 +173,7 @@ func (l *SNMPListener) checkDevices() {
 
 		configHash := config.Digest(config.Network)
 		cacheKey := fmt.Sprintf("snmp:%s", configHash)
+		adIdentifier := cacheKey
 		l.loadCache(config, adIdentifier, cacheKey)
 
 		subnet := snmpSubnet{

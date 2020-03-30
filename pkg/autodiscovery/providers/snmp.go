@@ -42,8 +42,8 @@ func (cf SNMPConfigProvider) Collect() ([]integration.Config, error) {
 	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig); err != nil {
 		return nil, err
 	}
-	for i, conf := range snmpConfig.Configs {
-		adIdentifier := fmt.Sprintf("snmp_%d", i)
+	for _, conf := range snmpConfig.Configs {
+		adIdentifier := fmt.Sprintf("snmp:%s", conf.Digest(conf.Network))
 		log.Debugf("Building SNMP config for %s", adIdentifier)
 		instance := "ip_address: %%host%%"
 		if conf.Port != 0 {
@@ -100,7 +100,7 @@ func (cf SNMPConfigProvider) Collect() ([]integration.Config, error) {
 		for i := range newConfigs {
 			// Schedule cluster checks when running in k8s
 			newConfigs[i].ClusterCheck = config.IsKubernetes()
-			newConfigs[i].Source = fmt.Sprintf("snmp:%s", conf.Digest(conf.Network))
+			newConfigs[i].Source = adIdentifier
 		}
 		allConfigs = append(allConfigs, newConfigs...)
 	}
