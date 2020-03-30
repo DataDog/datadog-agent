@@ -90,7 +90,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs --no-run-if-empty -I '{}' rm -r $INSTALL_DIR/{}
 
             rm $INSTALL_DIR/embedded/.all-integrations.txt
-            cd $PREV_DIR
+            cd "$PREV_DIR"
         else
             PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
             PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
