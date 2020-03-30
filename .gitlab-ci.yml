@@ -7,6 +7,7 @@ default:
       - runner_system_failure
       - stuck_or_timeout_failure
       - unknown_failure
+      - api_failure
 
 stages:
   - fail_on_tag
