@@ -49,7 +49,7 @@ func (j *JMXFetch) Monitor() {
 		if stopTimes[idx].Sub(stopTimes[oldestIdx]).Seconds() <= ival {
 			msg := fmt.Sprintf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", maxRestarts, ival)
 			log.Errorf(msg)
-			s := status.JMXStartupError{msg, time.Now().Unix()}
+			s := status.JMXStartupError{LastError: msg, Timestamp: time.Now().Unix()}
 			status.SetJMXStartupError(s)
 			return
 		}

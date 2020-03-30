@@ -36,7 +36,7 @@ func (r *runner) startRunner() error {
 
 	err := r.jmxfetch.Start(lifecycleMgmt)
 	if err != nil {
-		s := status.JMXStartupError{err.Error(), time.Now().Unix()}
+		s := status.JMXStartupError{LastError: err.Error(), Timestamp: time.Now().Unix()}
 		status.SetJMXStartupError(s)
 		return err
 	}
