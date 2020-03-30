@@ -9,7 +9,7 @@ const (
 	netType        = "tcp"
 )
 
-// SetSystemProbePath sets where teh System probe is listening for connections
+// SetSystemProbePath sets where the System probe is listening for connections
 // This needs to be called before GetRemoteSystemProbeUtil.
 func SetSystemProbePath(path string) {
 	globalSocketPath = path
