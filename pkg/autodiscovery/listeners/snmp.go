@@ -101,7 +101,10 @@ func (l *SNMPListener) loadCache(config util.SNMPConfig, adIdentifier string, ca
 	}
 }
 
-func writeCache(cacheKey string, devices []string) {
+func (l *SNMPListener) writeCache(cacheKey string, adIdentifier string) {
+	l.Lock()
+	defer l.Unlock()
+	devices := l.devices[adIdentifier]
 	cacheValue, err := json.Marshal(devices)
 	if err != nil {
 		log.Errorf("Couldn't marshal cache: %s", err)
@@ -226,7 +229,7 @@ func (l *SNMPListener) checkDevices() {
 				incrementIP(subnet.currentIP)
 			} else {
 				// XXX write the cache a bit more often
-				writeCache(subnet.cacheKey, l.devices[subnet.adIdentifier])
+				l.writeCache(subnet.cacheKey, subnet.adIdentifier)
 				subnetsDone++
 			}
 		}
@@ -253,6 +256,8 @@ func (l *SNMPListener) checkDevices() {
 }
 
 func (l *SNMPListener) createService(deviceIP string, adIdentifier string, entityID string) {
+	l.Lock()
+	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
 		return
 	}
@@ -268,6 +273,8 @@ func (l *SNMPListener) createService(deviceIP string, adIdentifier string, entit
 }
 
 func (l *SNMPListener) deleteService(entityID string) {
+	l.Lock()
+	defer l.Unlock()
 	// XXX don't delete on first failure
 	svc, present := l.services[entityID]
 	if present {
