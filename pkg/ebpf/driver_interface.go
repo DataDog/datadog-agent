@@ -132,7 +132,7 @@ func (dc *DriverInterface) prepareDriverFilters() error {
 		for _, filter := range createFiltersForInterface(i) {
 			err = dc.setFilter(filter)
 			if err != nil {
-				return log.Warnf("Failed to set filter [%+v] on interface [%+v]: %v", filter, err)
+				return log.Warnf("failed to set filter [%+v] on interface [%+v]: %v", filter, i, err)
 			}
 		}
 	}
