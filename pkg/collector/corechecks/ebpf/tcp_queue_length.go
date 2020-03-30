@@ -105,7 +105,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		entityID := containers.BuildTaggerEntityName(line.ContainerID)
 		tags, err := tagger.Tag(entityID, collectors.OrchestratorCardinality)
 		if err != nil {
-			log.Errorf("Could not collect tags for container %s: %s", line.ContainerID[:12], err)
+			log.Errorf("Could not collect tags for container %s: %s", line.ContainerID, err)
 		}
 
 		tags = append(tags,
