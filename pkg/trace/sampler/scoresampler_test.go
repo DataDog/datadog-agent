@@ -57,6 +57,25 @@ func TestExtraSampleRate(t *testing.T) {
 	assert.Equal(s.Sampler.GetSampleRate(trace, root, signature), s.Sampler.extraRate*sRate)
 }
 
+func TestErrorSampleThresholdTo1(t *testing.T) {
+	assert := assert.New(t)
+	env := defaultEnv
+
+	s := getTestScoreEngine()
+	for i := 0; i < 1e2; i++ {
+		trace, root := getTestTrace()
+		_, rate := s.Sample(trace, root, env)
+		assert.Equal(1.0, rate)
+	}
+	for i := 0; i < 1e3; i++ {
+		trace, root := getTestTrace()
+		_, rate := s.Sample(trace, root, env)
+		if rate < 1 {
+			assert.True(rate < errorSamplingRateThresholdTo1)
+		}
+	}
+}
+
 func TestMaxTPS(t *testing.T) {
 	// Test the "effectiveness" of the maxTPS option.
 	assert := assert.New(t)
