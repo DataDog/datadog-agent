@@ -33,7 +33,7 @@ const (
 var (
 	globalUtil            *RemoteSysProbeUtil
 	globalUtilOnce        sync.Once
-	globalPath            string
+	globalSocketPath      string
 	hasLoggedErrForStatus map[retry.Status]struct{}
 )
 
@@ -148,14 +148,14 @@ func ShouldLogTracerUtilError() bool {
 
 func newSystemProbe() *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
-		path: globalPath,
+		path: globalSocketPath,
 		httpClient: http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, globalPath)
+					return net.Dial(netType, globalSocketPath)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
 				ResponseHeaderTimeout: 5 * time.Second,
