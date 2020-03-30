@@ -42,6 +42,12 @@ const (
 
 	// KeySamplingPriority is the key of the sampling priority value in the metrics map of the root span
 	KeySamplingPriority = "_sampling_priority_v1"
+
+	// KeyErrorType is the key of the error type in the meta map
+	KeyErrorType = "error.type"
+
+	// KeyHTTPStatusCode is the key of the http status code in the meta map
+	KeyHTTPStatusCode = "http.status_code"
 )
 
 // SamplingPriority is the type encoding a priority sampling decision.
@@ -160,6 +166,14 @@ func getMetric(s *pb.Span, k string) (float64, bool) {
 		return 0, false
 	}
 	val, ok := s.Metrics[k]
+	return val, ok
+}
+
+func getMeta(s *pb.Span, k string) (string, bool) {
+	if s.Meta == nil {
+		return "", false
+	}
+	val, ok := s.Meta[k]
 	return val, ok
 }
 
