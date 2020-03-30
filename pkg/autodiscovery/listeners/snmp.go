@@ -202,8 +202,7 @@ func (l *SNMPListener) checkDevices() {
 	}
 
 	subnetsDone := 0
-	started := time.Now()
-	discoveryInterval := time.Duration(l.config.DiscoveryInterval) * time.Second
+	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 
 	for {
 		for _, subnet := range subnets {
@@ -232,23 +231,22 @@ func (l *SNMPListener) checkDevices() {
 			}
 		}
 
-		var delay time.Duration = 0
 		if subnetsDone == len(subnets) {
 			for _, subnet := range subnets {
 				copy(subnet.currentIP, subnet.startingIP)
 			}
 			subnetsDone = 0
-			current := time.Now()
-			elapsed := current.Sub(started)
-			delay = discoveryInterval - elapsed
-		}
 
-		select {
-		case <-l.stop:
-			return
-		case <-time.After(delay):
-			if delay > 0 {
-				started = time.Now()
+			select {
+			case <-l.stop:
+				return
+			case <-discoveryTicker.C:
+			}
+		} else {
+			select {
+			case <-l.stop:
+				return
+			default:
 			}
 		}
 	}
