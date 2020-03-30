@@ -189,7 +189,7 @@ build do
       command "cp #{static_reqs_out_file} #{install_dir}/#{agent_requirements_file}"
     end
     command "mkdir -p #{ENV['OMNIBUS_PACKAGE_DIR']}/agent_requirements"
-    command "cp #{static_reqs_out_file} #{ENV['OMNIBUS_PACKAGE_DIR']}/agent_requirements/agent_requirements_#{ENV['CI_JOB_NAME']}_py3.txt"
+    command "cp #{static_reqs_out_file} #{ENV['OMNIBUS_PACKAGE_DIR']}/agent_requirements/agent_requirements_#{ENV['CI_JOB_NAME']}_py2.txt"
 
     # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
     uninstall_buildtime_deps.each do |dep|
