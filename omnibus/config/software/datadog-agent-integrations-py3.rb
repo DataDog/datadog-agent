@@ -173,17 +173,18 @@ build do
 
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
-    command "mkdir -p #{ENV['OMNIBUS_PACKAGE_DIR']}/agent_requirements"
     if windows?
       command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_base"
       command "#{python} -m pip install --no-deps  #{windows_safe_path(project_dir)}\\datadog_checks_downloader --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\""
       command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
-      command "cp #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{ENV['OMNIBUS_PACKAGE_DIR']}/agent_requirements/agent_requirements_#{ENV['CI_JOB_NAME']}_py3.txt"
+      command "mkdir -p #{ENV['OMNIBUS_PACKAGE_DIR']}\\agent_requirements"
+      command "cp #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{ENV['OMNIBUS_PACKAGE_DIR']}\\agent_requirements\\agent_requirements_#{ENV['CI_JOB_NAME']}_py3.txt"
     else
       command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
       command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
-      command "cp #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{ENV['OMNIBUS_PACKAGE_DIR']}/agent_requirements/agent_requirements_#{ENV['CI_JOB_NAME']}_py3.txt"
+      command "mkdir -p #{ENV['OMNIBUS_PACKAGE_DIR']}/agent_requirements"
+      command "cp #{install_dir}/#{agent_requirements_file} #{ENV['OMNIBUS_PACKAGE_DIR']}/agent_requirements/agent_requirements_#{ENV['CI_JOB_NAME']}_py3.txt"
     end
 
     # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
