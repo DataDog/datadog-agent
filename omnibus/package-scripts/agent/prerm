@@ -146,7 +146,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         ;;
     esac
 else
-    echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+    echo "[ FAILED ]\tYour system is currently not supported by this script.";
 fi
 
 # Delete all .pyc files in the `agent/` and the `bin/agent/dist` dirs

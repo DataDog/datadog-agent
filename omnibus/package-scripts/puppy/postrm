@@ -33,7 +33,7 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
         ;;
     esac
 else
-    echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+    echo "[ FAILED ]\tYour system is currently not supported by this script.";
 fi
 
 exit 0
