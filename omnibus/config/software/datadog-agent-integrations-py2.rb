@@ -121,7 +121,7 @@ build do
     # install the core integrations.
     #
     command "#{pip} install wheel==0.34.1"
-    command "#{pip} install pip-tools==4.2.0"
+    command "#{pip} install pip-tools==4.5.1"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
