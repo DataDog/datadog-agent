@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 
@@ -18,9 +20,14 @@ func main() {
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 
+	allChecks := make([]string, 0, len(checkEndpoints))
+	for check := range checkEndpoints {
+		allChecks = append(allChecks, check)
+	}
+	sort.Strings(allChecks)
 	opts.checkCmd = flag.NewFlagSet("check", flag.ExitOnError)
-	flag.StringVar(&opts.checkType, "type", "", "The type of check to run. Choose from: conections, network_maps, network_state, stags")
-	flag.StringVar(&opts.checkClient, "client", "", "The client ID that the check will use to run")
+	opts.checkCmd.StringVar(&opts.checkType, "type", "", "The type of check to run. Choose from: "+strings.Join(allChecks, ", "))
+	opts.checkCmd.StringVar(&opts.checkClient, "client", "", "The client ID that the check will use to run")
 	flag.Parse()
 
 	runAgent()
@@ -28,8 +35,8 @@ func main() {
 
 // run check command if the flag is specified
 func runCheck(cfg *config.AgentConfig) {
-	if len(os.Args) >= 2 && os.Args[1] == "check" {
-		err := opts.checkCmd.Parse(os.Args[2:])
+	if len(flag.Args()) >= 1 && flag.Arg(0) == "check" {
+		err := opts.checkCmd.Parse(flag.Args()[1:])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
