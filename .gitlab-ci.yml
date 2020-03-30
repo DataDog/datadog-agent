@@ -1,14 +1,5 @@
 include: 'https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml'
 
-default:
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
-      - unknown_failure
-      - api_failure
-
 stages:
   - fail_on_tag
   - deps_build
