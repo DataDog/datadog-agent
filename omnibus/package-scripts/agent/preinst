@@ -154,7 +154,7 @@ else
         echo '## Trying to stop agent 6'
         sudo -Hu $INSTALL_USER launchctl stop com.datadoghq.agent || true
         echo '## Trying to kill agent GUI'
-        kill `ps aux | grep 'Datadog Agent.app' | grep -v grep  | cut -d ' ' -f 4` || true
+        kill "$(pgrep -f 'Datadog Agent.app')"
 
         echo '## Trying to unload agent 6 launchd service'
         sudo -Hu $INSTALL_USER launchctl unload -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist" || true
