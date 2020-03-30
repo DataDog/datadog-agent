@@ -373,7 +373,7 @@ run_shell_script_lint:
     #Excludes:
     #SC2028: echo may not expand escape sequences. Use printf.
     #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
-    - shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh
+    - shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
 
 #
 # binary_build
