@@ -92,7 +92,7 @@ rm -f /tmp/datadog-install-user
 echo "$real_user" > /tmp/datadog-install-user
 
 function on_error() {
-    printf "\033[31m%s
+    printf "\033[31m$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Agent.
 
 Troubleshooting and basic usage information for the Agent are available at:
@@ -101,7 +101,7 @@ Troubleshooting and basic usage information for the Agent are available at:
 
 If you're still having problems, please send an email to support@datadoghq.com
 with the contents of ddagent-install.log and we'll do our very best to help you
-solve your problem.\n\033[0m\n" "$ERROR_MESSAGE"
+solve your problem.\n\033[0m\n"
 }
 trap on_error ERR
 

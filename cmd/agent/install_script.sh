@@ -25,7 +25,7 @@ trap 'rm -f $npipe' EXIT
 
 
 function on_error() {
-    printf "\033[31m%s
+    printf "\033[31m$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Agent.
 
 Troubleshooting and basic usage information for the Agent are available at:
@@ -34,7 +34,7 @@ Troubleshooting and basic usage information for the Agent are available at:
 
 If you're still having problems, please send an email to support@datadoghq.com
 with the contents of ddagent-install.log and we'll do our very best to help you
-solve your problem.\n\033[0m\n" "$ERROR_MESSAGE"
+solve your problem.\n\033[0m\n"
 }
 trap on_error ERR
 
@@ -269,7 +269,7 @@ if [ "$upgrade" ]; then
   if [ -e $LEGACY_CONF ]; then
     # try to import the config file from the previous version
     icmd="datadog-agent import $LEGACY_ETCDIR $ETCDIR"
-    $sudo_cmd "$icmd" || printf "\033[31mAutomatic import failed, you can still try to manually run: %s\n\033[0m\n" "$icmd"
+    $sudo_cmd "$icmd" || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
     # fix file owner and permissions since the script moves around some files
     $sudo_cmd chown -R dd-agent:dd-agent $ETCDIR
     $sudo_cmd find $ETCDIR/ -type f -exec chmod 640 {} \;
@@ -286,7 +286,7 @@ else
     $sudo_cmd cp $CONF.example $CONF
   fi
   if [ "$apikey" ]; then
-    printf "\033[34m\n* Adding your API key to the Agent configuration: %s\n\033[0m\n" "$CONF"
+    printf "\033[34m\n* Adding your API key to the Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' $CONF"
   else
     # If the import script failed for any reason, we might end here also in case
@@ -298,19 +298,19 @@ else
     fi
   fi
   if [ "$site" ]; then
-    printf "\033[34m\n* Setting SITE in the Agent configuration: %s\n\033[0m\n" "$CONF"
+    printf "\033[34m\n* Setting SITE in the Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $CONF"
   fi
   if [ -n "$DD_URL" ]; then
-    printf "\033[34m\n* Setting DD_URL in the Agent configuration: %s\n\033[0m\n" "$CONF"
+    printf "\033[34m\n* Setting DD_URL in the Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $CONF"
   fi
   if [ "$hostname" ]; then
-    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: %s\n\033[0m\n" "$CONF"
+    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $hostname/' $CONF"
   fi
   if [ "$host_tags" ]; then
-      printf "\033[34m\n* Adding your HOST TAGS to the Agent configuration: %s\n\033[0m\n" "$CONF"
+      printf "\033[34m\n* Adding your HOST TAGS to the Agent configuration: $CONF\n\033[0m\n"
       formatted_host_tags="['""$( echo "$host_tags" | sed "s/,/','/g" )""']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
       $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $CONF"
   fi
@@ -350,9 +350,9 @@ if [ $no_start ]; then
 will not be started. You will have to do it manually using the following
 command:
 
-    %s
+    $start_instructions
 
-\033[0m\n" "$start_instructions"
+\033[0m\n"
     exit
 fi
 
@@ -368,10 +368,10 @@ background and submit metrics to Datadog.
 
 If you ever want to stop the Agent, run:
 
-    %s
+    $stop_instructions
 
 And to run it again run:
 
-    %s
+    $start_instructions
 
-\033[0m" "$stop_instructions" "$start_instructions"
+\033[0m"
