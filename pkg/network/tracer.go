@@ -6,14 +6,13 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/network/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -96,16 +95,16 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
-	currKernelVersion, err := CurrentKernelVersion()
+	currKernelVersion, err := ebpf.CurrentKernelVersion()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
 	}
 
 	// check to see if current kernel is earlier than version 4.1.0
-	pre410Kernel := isPre410Kernel(currKernelVersion)
+	pre410Kernel := ebpf.IsPre410Kernel(currKernelVersion)
 	if pre410Kernel {
-		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", kernelCodeToString(currKernelVersion))
+		log.Infof("detected platform %s, switch to use kprobes from kernel version < 4.1.0", ebpf.KernelCodeToString(currKernelVersion))
 	}
 
 	enableSocketFilter := config.DNSInspection && !pre410Kernel
@@ -135,7 +134,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes := EnabledKProbes(config, pre410Kernel)
 
-	prefix, err := getSyscallPrefix()
+	prefix, err := ebpf.GetSyscallPrefix()
 	if err != nil {
 		return nil, fmt.Errorf("cannot get syscall prefix: %v", err)
 	}
@@ -150,8 +149,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 				}
 			}
 
-			if isSysCall(probeName) {
-				fixedName := fixSyscallName(prefix, probeName)
+			if ebpf.IsSysCall(string(probeName)) {
+				fixedName := ebpf.FixSyscallName(prefix, string(probeName))
 				log.Debugf("attaching section %s to %s", string(probeName), fixedName)
 				m.SetKprobeForSection(string(probeName), fixedName)
 			}
@@ -562,7 +561,7 @@ func readBPFModule(debug bool) (*bpflib.Module, error) {
 		file = "tracer-ebpf-debug.o"
 	}
 
-	buf, err := bytecode.Asset(file)
+	buf, err := ebpf.Asset(file)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
@@ -622,7 +621,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 			"pid_collisions":               pidCollisions,
 		},
 		"ebpf":    t.getEbpfTelemetry(),
-		"kprobes": GetProbeStats(),
+		"kprobes": ebpf.GetProbeStats(),
 		"dns":     t.reverseDNS.GetStats(),
 	}, nil
 }
@@ -711,18 +710,4 @@ func SectionsFromConfig(c *Config, enableSocketFilter bool) map[string]bpflib.Se
 			Disabled: !enableSocketFilter,
 		},
 	}
-}
-
-// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
-// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
-func CurrentKernelVersion() (uint32, error) {
-	return bpflib.CurrentKernelVersion()
-}
-
-func isSysCall(name KProbeName) bool {
-	parts := strings.Split(string(name), "/")
-	if len(parts) != 2 {
-		return false
-	}
-	return strings.HasPrefix(parts[1], "sys_")
 }

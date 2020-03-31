@@ -1,4 +1,4 @@
-package network
+package ebpf
 
 import (
 	"testing"
@@ -12,13 +12,13 @@ func TestLinuxKernelVersionCode(t *testing.T) {
 	assert.Equal(t, linuxKernelVersionCode(3, 2, 12), uint32(197132))
 	assert.Equal(t, linuxKernelVersionCode(4, 4, 0), uint32(263168))
 
-	assert.Equal(t, stringToKernelCode("2.6.9"), uint32(132617))
-	assert.Equal(t, stringToKernelCode("3.2.12"), uint32(197132))
-	assert.Equal(t, stringToKernelCode("4.4.0"), uint32(263168))
+	assert.Equal(t, StringToKernelCode("2.6.9"), uint32(132617))
+	assert.Equal(t, StringToKernelCode("3.2.12"), uint32(197132))
+	assert.Equal(t, StringToKernelCode("4.4.0"), uint32(263168))
 
-	assert.Equal(t, kernelCodeToString(uint32(132617)), "2.6.9")
-	assert.Equal(t, kernelCodeToString(uint32(197132)), "3.2.12")
-	assert.Equal(t, kernelCodeToString(uint32(263168)), "4.4.0")
+	assert.Equal(t, KernelCodeToString(uint32(132617)), "2.6.9")
+	assert.Equal(t, KernelCodeToString(uint32(197132)), "3.2.12")
+	assert.Equal(t, KernelCodeToString(uint32(263168)), "4.4.0")
 }
 
 func TestVerifyKernelFuncs(t *testing.T) {
@@ -41,11 +41,11 @@ func TestVerifyKernelFuncs(t *testing.T) {
 func TestHasPre410Kernel(t *testing.T) {
 	oldKernels := []string{"3.10.0", "2.5.0", "4.0.10", "4.0"}
 	for _, kernel := range oldKernels {
-		assert.True(t, isPre410Kernel(stringToKernelCode(kernel)))
+		assert.True(t, IsPre410Kernel(StringToKernelCode(kernel)))
 	}
 	newKernels := []string{"4.1.0", "4.10.2", "4.1", "5.1"}
 	for _, kernel := range newKernels {
-		assert.False(t, isPre410Kernel(stringToKernelCode(kernel)))
+		assert.False(t, IsPre410Kernel(StringToKernelCode(kernel)))
 	}
 }
 
@@ -63,14 +63,4 @@ func TestIsRHEL(t *testing.T) {
 	assert.True(t, isRHEL("Linux rhel7.localdomain 3.10.0-957.el7.x86_64 #1 SMP Thu Oct 4 20:48:51 UTC 2018 x86_64 x86_64 x86_64 GNU/Linux"))
 	// cat /etc/redhat-release
 	assert.True(t, isRHEL("Red Hat Enterprise Linux Server release 7.6 (Maipo)"))
-}
-
-func TestSnakeToCamel(t *testing.T) {
-	for test, exp := range map[string]string{
-		"closed_conn_dropped":              "ClosedConnDropped",
-		"closed_conn_polling_lost":         "ClosedConnPollingLost",
-		"Conntrack_short_Term_Buffer_size": "ConntrackShortTermBufferSize",
-	} {
-		assert.Equal(t, exp, snakeToCapInitialCamel(test))
-	}
 }

@@ -17,13 +17,14 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/iovisor/gobpf/elf"
 	"github.com/pkg/errors"
 )
 
 /*
-#include "bytecode/c/tracer-ebpf.h"
+#include "../ebpf/c/tracer-ebpf.h"
 */
 import "C"
 
@@ -203,7 +204,7 @@ func ipv6FromUint32Arr(ipv6Addr [4]uint32) net.IP {
 func htons(a uint16) uint16 {
 	var arr [2]byte
 	binary.BigEndian.PutUint16(arr[:], a)
-	return nativeEndian.Uint16(arr[:])
+	return ebpf.NativeEndian.Uint16(arr[:])
 }
 
 func generateRandomIPv6Address() (addr [4]uint32) {

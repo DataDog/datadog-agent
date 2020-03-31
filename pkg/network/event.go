@@ -9,7 +9,7 @@ import (
 )
 
 /*
-#include "bytecode/c/tracer-ebpf.h"
+#include "../ebpf/c/tracer-ebpf.h"
 */
 import "C"
 

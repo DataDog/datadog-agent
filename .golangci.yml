@@ -12,8 +12,9 @@ skip-dirs:
   - pkg/trace
   # TODO metrics-aggregation
   - pkg/quantile
-  # We run the linter separately for pkg/network via `inv -e system-probe.lint`
+  # We run the linter separately for pkg/{network,ebpf} via `inv -e system-probe.lint`
   - pkg/network
+  - pkg/ebpf
 
 issues:
   exclude:

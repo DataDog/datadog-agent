@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package bytecode
+package ebpf
 
 import (
 	"io/ioutil"

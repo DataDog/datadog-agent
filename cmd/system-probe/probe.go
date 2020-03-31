@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -37,7 +38,7 @@ type SystemProbe struct {
 // system probe
 func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 	// Checking whether the current OS + kernel version is supported by the tracer
-	if supported, msg := network.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
+	if supported, msg := ebpf.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
 		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 

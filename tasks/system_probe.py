@@ -122,7 +122,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     if not skip_object_files:
         build_object_files(ctx, install=False)
 
-    pkg = "./pkg/network/..."
+    pkg = "./pkg/network/... ./pkg/ebpf/..."
 
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']
@@ -143,7 +143,7 @@ def lint(ctx):
     """
     build_tags = get_default_build_tags() + [BPF_TAG]
     skip_dirs = "/dev/null" # overrides what is in .golangci.yaml
-    golangci_lint(ctx, targets="./pkg/network", build_tags=build_tags, skip_dirs=skip_dirs)
+    golangci_lint(ctx, targets=["./pkg/network", "./pkg/ebpf"], build_tags=build_tags, skip_dirs=skip_dirs)
 
 @task
 def nettop(ctx, incremental_build=False):
@@ -179,7 +179,7 @@ def cfmt(ctx):
     sedCmd = r"sed -i 's/__attribute__((always_inline)) /__attribute__((always_inline))\
 /g' {file}"
 
-    files = glob.glob("pkg/network/bytecode/c/*.[c,h]")
+    files = glob.glob("pkg/ebpf/c/*.[c,h]")
 
     for file in files:
         ctx.run(fmtCmd.format(file=file))
@@ -234,7 +234,7 @@ def build_object_files(ctx, install=True):
             if d.startswith("linux-")
         ]
 
-    bpf_dir = os.path.join(".", "pkg", "network", "bytecode")
+    bpf_dir = os.path.join(".", "pkg", "ebpf")
     c_dir = os.path.join(bpf_dir, "c")
 
     flags = [
@@ -298,7 +298,7 @@ def build_object_files(ctx, install=True):
         # Now update the assets stored in the go code
         commands.append("go get -u github.com/jteeuwen/go-bindata/...")
 
-        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}'"
+        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}'"
         go_file = os.path.join(bpf_dir, "tracer-ebpf.go")
         commands.append(assets_cmd.format(
             c_dir=c_dir,

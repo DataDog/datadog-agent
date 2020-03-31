@@ -1,4 +1,4 @@
-package network
+package ebpf
 
 import (
 	"testing"

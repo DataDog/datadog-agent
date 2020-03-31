@@ -1114,12 +1114,6 @@ func TestConnectionExpirationRegression(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestIsSyscall(t *testing.T) {
-	assert.True(t, isSysCall("kprobe/sys_bind"))
-	assert.True(t, isSysCall("kretprobe/sys_socket"))
-	assert.False(t, isSysCall("kprobe/tcp_send"))
-}
-
 func removeConnection(t *testing.T, tr *Tracer, c *ConnectionStats) {
 	mp, err := tr.getMap(connMap)
 	require.NoError(t, err)
