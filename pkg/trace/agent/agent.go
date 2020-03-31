@@ -38,6 +38,7 @@ type Agent struct {
 	Replacer           *filters.Replacer
 	ScoreSampler       *Sampler
 	ErrorsScoreSampler *Sampler
+	ExceptionSampler   *sampler.ExceptionSampler
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
 	TraceWriter        *writer.TraceWriter
@@ -71,6 +72,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
 		ScoreSampler:       NewScoreSampler(conf),
+		ExceptionSampler:   sampler.NewExceptionSampler(),
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
@@ -90,6 +92,7 @@ func (a *Agent) Run() {
 		a.Receiver,
 		a.Concentrator,
 		a.ScoreSampler,
+		a.ExceptionSampler,
 		a.ErrorsScoreSampler,
 		a.PrioritySampler,
 		a.EventProcessor,
@@ -132,6 +135,7 @@ func (a *Agent) loop() {
 			a.TraceWriter.Stop()
 			a.StatsWriter.Stop()
 			a.ScoreSampler.Stop()
+			a.ExceptionSampler.Stop()
 			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
 			a.EventProcessor.Stop()
