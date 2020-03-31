@@ -14,3 +14,9 @@ import "fmt"
 func RunJmxListWithMetrics() error {
 	return fmt.Errorf("not supported in the Puppy Agent")
 }
+
+// RunJmxListWithRateMetrics is not supported in the Puppy Agent because it doesn't
+// support JMXFetch.
+func RunJmxListWithRateMetrics() error {
+	return fmt.Errorf("not supported in the Puppy Agent")
+}

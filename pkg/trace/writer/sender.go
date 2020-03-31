@@ -351,6 +351,16 @@ func newPayload(headers map[string]string) *payload {
 	return p
 }
 
+func (p *payload) clone() *payload {
+	headers := make(map[string]string, len(p.headers))
+	for k, v := range p.headers {
+		headers[k] = v
+	}
+	clone := newPayload(headers)
+	clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes()))
+	return clone
+}
+
 // httpRequest returns an HTTP request based on the payload, targeting the given URL.
 func (p *payload) httpRequest(url *url.URL) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodPost, url.String(), bytes.NewReader(p.body.Bytes()))

@@ -53,3 +53,12 @@ func SetMeta(s *pb.Span, key, val string) {
 	}
 	s.Meta[key] = val
 }
+
+// GetMeta gets the metadata value in the span Meta map.
+func GetMeta(s *pb.Span, key string) (string, bool) {
+	if s.Meta == nil {
+		return "", false
+	}
+	val, ok := s.Meta[key]
+	return val, ok
+}

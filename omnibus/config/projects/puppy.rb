@@ -19,7 +19,11 @@ if ohai['platform'] == "windows"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
   install_dir '/opt/datadog-agent'
-  maintainer 'Datadog Packages <package@datadoghq.com>'
+  if redhat? || suse?
+    maintainer 'Datadog, Inc <package@datadoghq.com>'
+  else
+    maintainer 'Datadog Packages <package@datadoghq.com>'
+  end
 end
 
 # build_version is computed by an invoke command/function.
@@ -49,6 +53,19 @@ package :deb do
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+end
+
+# .rpm specific flags
+package :rpm do
+  vendor 'Datadog <package@datadoghq.com>'
+  epoch 1
+  dist_tag ''
+  license 'Apache License Version 2.0'
+  category 'System Environment/Daemons'
+  priority 'extra'
+  if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
+    signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
+  end
 end
 
 # ------------------------------------
