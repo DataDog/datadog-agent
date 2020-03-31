@@ -10,6 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -96,6 +100,14 @@ func requestStatus() error {
 	if err != nil {
 		return err
 	}
+	// attach trace-agent status, if obtainable
+	temp := make(map[string]interface{})
+	if err := json.Unmarshal(r, &temp); err == nil {
+		temp["apmStats"] = traceAgentStatus()
+		if newr, err := json.Marshal(temp); err == nil {
+			r = newr
+		}
+	}
 
 	// The rendering is done in the client so that the agent has less work to do
 	if prettyPrintJSON {
@@ -119,6 +131,39 @@ func requestStatus() error {
 	}
 
 	return nil
+}
+
+// traceAgentStatus returns a set of key/value pairs summarizing the status of the trace-agent.
+func traceAgentStatus() map[string]interface{} {
+	port := 8126
+	if p, ok := os.LookupEnv("DD_APM_RECEIVER_PORT"); ok {
+		if v, err := strconv.Atoi(p); err == nil {
+			port = v
+		}
+	}
+	if config.Datadog.IsSet("apm_config.receiver_port") {
+		port = config.Datadog.GetInt("apm_config.receiver_port")
+	}
+	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
+	resp, err := (&http.Client{Timeout: 3 * time.Second}).Get(url)
+	if err != nil {
+		return map[string]interface{}{
+			"outcome": "error",
+			"port":    port,
+			"error":   err.Error(),
+		}
+	}
+	defer resp.Body.Close()
+	status := make(map[string]interface{})
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return map[string]interface{}{
+			"outcome": "error",
+			"port":    port,
+			"error":   err.Error(),
+		}
+	}
+	status["outcome"] = "success"
+	return status
 }
 
 func componentStatus(component string) error {
