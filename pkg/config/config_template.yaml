@@ -475,7 +475,7 @@ api_key:
   # receiver_port: 8126
 
   ## @param receiver_socket - string - optional
-  ## Collect your traces through a Unix Domain Sockets.
+  ## Accept traces through Unix Domain Sockets.
   ## It is off by default. When set, it must point to a valid socket file.
   #
   # receiver_socket: <APM_SOCKET>
