@@ -17,17 +17,19 @@ type reverseDNSCache struct {
 	// that this file can run on a 32 bit system, they must 64-bit aligned.
 	// Go will ensure that each struct is 64-bit aligned, so these fields
 	// must always be at the beginning of the struct.
-	length   int64
-	lookups  int64
-	resolved int64
-	added    int64
-	expired  int64
+	length    int64
+	lookups   int64
+	resolved  int64
+	added     int64
+	expired   int64
+	oversized int64
 
-	mux  sync.Mutex
-	data map[util.Address]*dnsCacheVal
-	exit chan struct{}
-	ttl  time.Duration
-	size int
+	oversizedLogLimit *util.LogLimit
+	mux               sync.Mutex
+	data              map[util.Address]*dnsCacheVal
+	exit              chan struct{}
+	ttl               time.Duration
+	size              int
 }
 
 func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
@@ -90,6 +92,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 	var (
 		resolved   = make(map[util.Address][]string)
 		unresolved = make(map[util.Address]struct{})
+		oversized  = make(map[util.Address]struct{})
 		expiration = now.Add(c.ttl).UnixNano()
 	)
 
@@ -102,12 +105,22 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 			return
 		}
 
-		if names := c.getNamesForIP(addr, expiration); names != nil {
-			resolved[addr] = names
+		if _, ok := oversized[addr]; ok {
 			return
 		}
 
-		unresolved[addr] = struct{}{}
+		names := c.getNamesForIP(addr, expiration)
+		if len(names) == 0 {
+			unresolved[addr] = struct{}{}
+		} else if len(names) > 1000 {
+			oversized[addr] = struct{}{}
+
+			if c.oversizedLogLimit.ShouldLog() {
+				log.Warnf("%s mapped to to %d domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr, len(names))
+			}
+		} else {
+			resolved[addr] = names
+		}
 	}
 
 	c.mux.Lock()
@@ -120,6 +133,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 	// Update stats for telemetry
 	atomic.AddInt64(&c.lookups, int64(len(resolved)+len(unresolved)))
 	atomic.AddInt64(&c.resolved, int64(len(resolved)))
+	atomic.AddInt64(&c.oversized, int64(len(oversized)))
 
 	return resolved
 }
