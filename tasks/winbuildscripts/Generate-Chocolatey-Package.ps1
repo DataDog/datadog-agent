@@ -1,3 +1,4 @@
+$ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 $outputDirectory = "c:\mnt\build-out"
 $agentVersion=(inv agent.version) | Select-String -Pattern "\d+.\d+.\d+" | ForEach-Object{$_.Matches[0].Value}
