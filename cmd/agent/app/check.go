@@ -18,7 +18,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -138,6 +138,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		allConfigs := common.AC.GetAllConfigs()
+		seenJMXConfigs := make([]bool, len(allConfigs))
 
 		// make sure the checks in cs are not JMX checks
 		for idx := range allConfigs {
@@ -147,19 +148,7 @@ var checkCmd = &cobra.Command{
 			}
 
 			if check.IsJMXConfig(*conf) {
-				// we'll mimic the check command behavior with JMXFetch by running
-				// it with the JSON reporter and the list_with_metrics command.
-				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
-				if checkRate {
-					if err := RunJmxListWithRateMetrics(); err != nil {
-						return fmt.Errorf("while running the jmx check: %v", err)
-					}
-				} else {
-					if err := RunJmxListWithMetrics(); err != nil {
-						return fmt.Errorf("while running the jmx check: %v", err)
-					}
-				}
-
+				seenJMXConfigs[idx] = true
 				instances := []integration.Data{}
 
 				// Retain only non-JMX instances for later
@@ -372,6 +361,20 @@ var checkCmd = &cobra.Command{
 				printMetrics(agg)
 				checkStatus, _ := status.GetCheckStatus(c, s)
 				fmt.Println(string(checkStatus))
+			}
+		}
+
+		// only run JMX configs
+		for idx := range allConfigs {
+			if !seenJMXConfigs[idx] {
+				continue
+			}
+
+			// we'll mimic the check command behavior with JMXFetch by running
+			// it with the JSON reporter and the list_with_metrics command.
+			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
+			if err := RunJmxListWithMetrics(); err != nil {
+				return fmt.Errorf("while running the jmx check: %v", err)
 			}
 		}
 

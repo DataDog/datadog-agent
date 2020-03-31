@@ -240,7 +240,6 @@ func loadConfigs(runner *jmxfetch.JMXFetch) {
 		if check.IsJMXConfig(c) && (includeEverything || configIncluded(c)) {
 			fmt.Println("Config ", c.Name, " was loaded.")
 			jmx.AddScheduledConfig(c)
-			runner.ConfigureFromInitConfig(c.InitConfig)
 			for _, instance := range c.Instances {
 				if !check.IsJMXInstance(c.Name, instance, c.InitConfig) {
 					continue
