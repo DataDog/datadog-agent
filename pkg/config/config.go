@@ -43,9 +43,6 @@ const (
 
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
-
-	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
-	ClusterIDCacheKey = "orchestratorClusterID"
 )
 
 var overrideVars = make(map[string]interface{})
@@ -394,7 +391,7 @@ func initConfig(config Config) {
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
-	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys"})
+	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"})
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
@@ -588,6 +585,16 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.source_excludes")
 	config.SetKnown("system_probe_config.dest_excludes")
 	config.SetKnown("system_probe_config.closed_channel_size")
+
+	// System probe windows
+	config.SetKnown("system_probe_config.system_probe_windows_listener")
+	config.SetKnown("system_probe_config.tracer_read_buffers")
+	config.SetKnown("system_probe_config.tracer_read_buffer_size")
+	config.SetKnown("system_probe_config.max_data_per_packet")
+	config.SetKnown("system_probe_config.transfer_buffers")
+	config.SetKnown("system_probe_config.transfer_buffer_size")
+	config.SetKnown("system_probe_config.driver_buffers")
+	config.SetKnown("system_probe_config.driver_buffer_size")
 
 	// Network
 	config.BindEnv("network.id")

@@ -91,6 +91,16 @@ type AgentConfig struct {
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
 
+	// System Probe Windows Configuration
+	SystemProbeWindowsListener string
+	MaxDataPerPacket           int
+	TracerReadBuffers          int
+	TracerReadBufferSize       int
+	TransferBuffers            int
+	TransferBufferSize         int
+	DriverBuffers              int
+	DriverBufferSize           int
+
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
 	KubeClusterName                string
@@ -194,6 +204,16 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ClosedChannelSize:            500,
 		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
 		ConntrackMaxStateSize:        defaultMaxTrackedConnections,
+
+		// Windows System Probe Configuration
+		SystemProbeWindowsListener: "http://localhost:3333",
+		MaxDataPerPacket:           256,
+		TracerReadBuffers:          32,
+		TracerReadBufferSize:       14400,
+		TransferBuffers:            32,
+		TransferBufferSize:         14400,
+		DriverBuffers:              32,
+		DriverBufferSize:           14400,
 
 		// Check config
 		EnabledChecks: enabledChecks,

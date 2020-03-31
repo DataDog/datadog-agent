@@ -130,6 +130,38 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ExcludedDestinationConnections = config.Datadog.GetStringMapStringSlice(destinationExclude)
 	}
 
+	if systemProbeWindowsListener := key(spNS, "system_probe_windows_listener"); config.Datadog.IsSet(systemProbeWindowsListener) {
+		a.SystemProbeWindowsListener = config.Datadog.GetString(systemProbeWindowsListener)
+	}
+
+	if tracerReadBuffers := key(spNS, "tracer_read_buffers"); config.Datadog.IsSet(tracerReadBuffers) {
+		a.TracerReadBuffers = config.Datadog.GetInt(tracerReadBuffers)
+	}
+
+	if tracerReadBufferSize := key(spNS, "driver_read_buffer_size"); config.Datadog.IsSet(tracerReadBufferSize) {
+		a.TracerReadBufferSize = config.Datadog.GetInt(tracerReadBufferSize)
+	}
+
+	if maxDataPerPacket := key(spNS, "max_data_per_packet"); config.Datadog.IsSet(maxDataPerPacket) {
+		a.MaxDataPerPacket = config.Datadog.GetInt(maxDataPerPacket)
+	}
+
+	if transferBuffers := key(spNS, "transfer_buffers"); config.Datadog.IsSet(transferBuffers) {
+		a.TransferBuffers = config.Datadog.GetInt(transferBuffers)
+	}
+
+	if transferBufferSize := key(spNS, "transfer_buffer_size"); config.Datadog.IsSet(transferBufferSize) {
+		a.TransferBufferSize = config.Datadog.GetInt(transferBufferSize)
+	}
+
+	if driverBuffers := key(spNS, "driver_read_buffers"); config.Datadog.IsSet(driverBuffers) {
+		a.DriverBuffers = config.Datadog.GetInt(driverBuffers)
+	}
+
+	if driverBufferSize := key(spNS, "driver_read_buffer_size"); config.Datadog.IsSet(driverBufferSize) {
+		a.DriverBufferSize = config.Datadog.GetInt(driverBufferSize)
+	}
+
 	return nil
 }
 

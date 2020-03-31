@@ -1,0 +1,11 @@
+system_probe_config:
+    enabled: true
+
+    system_probe_windows_listener: "http://localhost:4444"
+    tracer_read_buffers: 16
+    tracer_read_buffer_size: 1024
+    max_data_per_packet: 512
+    transfer_buffers: 17
+    transfer_buffer_size: 2048
+    driver_buffers: 30
+    driver_buffer_size: 4096

@@ -299,6 +299,44 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}, agentConfig.ExcludedDestinationConnections)
 }
 
+func TestAgentConfigYamlAndSystemProbeWindowsConfig(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	assert := assert.New(t)
+	agentConfig, err := NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Windows-Default.yaml",
+	)
+
+	assert.NoError(err)
+	assert.Equal("http://localhost:3333", agentConfig.SystemProbeWindowsListener)
+	assert.Equal(256, agentConfig.MaxDataPerPacket)
+	assert.Equal(32, agentConfig.TracerReadBuffers)
+	assert.Equal(14400, agentConfig.TracerReadBufferSize)
+	assert.Equal(32, agentConfig.TransferBuffers)
+	assert.Equal(14400, agentConfig.TransferBufferSize)
+	assert.Equal(32, agentConfig.DriverBuffers)
+	assert.Equal(14400, agentConfig.DriverBufferSize)
+
+	agentConfig, err = NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Windows-2.yaml",
+	)
+	assert.NoError(err)
+
+	assert.Equal("http://localhost:4444", agentConfig.SystemProbeWindowsListener)
+	assert.Equal(512, agentConfig.MaxDataPerPacket)
+	assert.Equal(16, agentConfig.TracerReadBuffers)
+	assert.Equal(1024, agentConfig.TracerReadBufferSize)
+	assert.Equal(17, agentConfig.TransferBuffers)
+	assert.Equal(2048, agentConfig.TransferBufferSize)
+	assert.Equal(30, agentConfig.DriverBuffers)
+	assert.Equal(4096, agentConfig.DriverBufferSize)
+}
+
 func TestProxyEnv(t *testing.T) {
 	assert := assert.New(t)
 	for i, tc := range []struct {
