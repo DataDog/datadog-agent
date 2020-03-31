@@ -2,6 +2,7 @@
 
 package ebpf
 
+// VerifyOSVersion validates whether the OS version is compatbile with eBPF
 func VerifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
 	return false, "unsupported architecture"
 }

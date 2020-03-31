@@ -13,8 +13,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type KProbeName string
-
 // Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
 var requiredKernelFuncs = []string{
 	// Maps (3.18)
@@ -32,15 +30,18 @@ var (
 	// ErrNotImplemented will be returned on non-linux environments like Windows and Mac OSX
 	ErrNotImplemented = errors.New("BPF-based system probe not implemented on non-linux systems")
 
+	// NativeEndian of the current host
 	NativeEndian binary.ByteOrder
 )
 
+// KernelCodeToString translates a uint32 into a 'a.b.c' string
 func KernelCodeToString(code uint32) string {
 	// Kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
 	a, b, c := code>>16, code>>8&0xff, code&0xff
 	return fmt.Sprintf("%d.%d.%d", a, b, c)
 }
 
+// StringToKernelCode translates a 'a.b.c' string into a (a<<16 + b<<8 + c) number
 func StringToKernelCode(str string) uint32 {
 	var a, b, c uint32
 	fmt.Sscanf(str, "%d.%d.%d", &a, &b, &c)

@@ -59,7 +59,7 @@ func GetSyscallPrefix() (string, error) {
 func FixSyscallName(prefix string, name string) string {
 	// see get_syscall_fname in bcc
 
-	parts := strings.Split(string(name), "/")
+	parts := strings.Split(name, "/")
 	probeType := parts[0]
 	rawName := strings.TrimPrefix(parts[1], "sys_")
 
@@ -70,7 +70,7 @@ func FixSyscallName(prefix string, name string) string {
 
 // IsSysCall determines whether the Kprobe refers to a syscall
 func IsSysCall(name string) bool {
-	parts := strings.Split(string(name), "/")
+	parts := strings.Split(name, "/")
 	if len(parts) != 2 {
 		return false
 	}

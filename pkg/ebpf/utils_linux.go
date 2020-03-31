@@ -12,6 +12,7 @@ import (
 	bpflib "github.com/iovisor/gobpf/elf"
 )
 
+// VerifyOSVersion validates whether the OS version is compatbile with eBPF
 func VerifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
 	for _, version := range exclusionList {
 		if code := StringToKernelCode(version); code == kernelCode {
