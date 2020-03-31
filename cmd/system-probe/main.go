@@ -5,8 +5,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 
 	_ "net/http/pprof"
 )

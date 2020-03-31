@@ -5,7 +5,7 @@
 
 // +build linux
 
-package metrics
+package cgroup
 
 import (
 	"testing"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 )
 
 type DiskMappingTestSuite struct {
@@ -122,10 +123,9 @@ func (s *DiskMappingTestSuite) TestContainerCgroupIO() {
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "blkio", "blkio")
 
-	expectedStats := &CgroupIOStat{
-		ContainerID: "dummy",
-		ReadBytes:   uint64(1130496 + 37858816 + 55),
-		WriteBytes:  uint64(0 + 671846400 + 55),
+	expectedStats := &metrics.ContainerIOStats{
+		ReadBytes:  uint64(1130496 + 37858816 + 55),
+		WriteBytes: uint64(0 + 671846400 + 55),
 		DeviceReadBytes: map[string]uint64{
 			"sda": 37858816,
 			"sdb": 1130496,
@@ -169,8 +169,7 @@ func (s *DiskMappingTestSuite) TestContainerCgroupIOFailedMapping() {
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "blkio", "blkio")
 
-	expectedStats := &CgroupIOStat{
-		ContainerID:      "dummy",
+	expectedStats := &metrics.ContainerIOStats{
 		ReadBytes:        uint64(1130496 + 37858816 + 55),
 		WriteBytes:       uint64(0 + 671846400 + 55),
 		DeviceReadBytes:  map[string]uint64{},
