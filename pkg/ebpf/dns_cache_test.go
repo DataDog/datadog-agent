@@ -255,6 +255,16 @@ func TestGetOversizedDNS(t *testing.T) {
 	result = cache.Get(conns, now)
 	assert.Empty(t, result[addr])
 
+	// now add another entry for the address and make sure extra DNS is not stored
+	cache.Add(&translation{
+		dns: fmt.Sprintf("other-host"),
+		ips: []util.Address{addr},
+	}, now)
+	assert.Len(t, cache.data[addr].names, 10)
+
+	result = cache.Get(conns, now)
+	assert.Empty(t, result[addr])
+
 }
 
 func BenchmarkDNSCacheGet(b *testing.B) {

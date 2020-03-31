@@ -76,6 +76,9 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 		if ok {
 			val.expiration = exp
 			val.merge(translation.dns)
+			if extra := val.shrinkToSize(c.maxDomainsPerIP); extra > 0 {
+				log.Warnf("%s mapped to to %d domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr, extra)
+			}
 			continue
 		}
 
@@ -117,12 +120,8 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 		names := c.getNamesForIP(addr, expiration)
 		if len(names) == 0 {
 			unresolved[addr] = struct{}{}
-		} else if len(names) > c.maxDomainsPerIP {
+		} else if len(names) >= c.maxDomainsPerIP {
 			oversized[addr] = struct{}{}
-
-			if c.oversizedLogLimit.ShouldLog() {
-				log.Warnf("%s mapped to to %d domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr, len(names))
-			}
 		} else {
 			resolved[addr] = names
 		}
@@ -216,6 +215,15 @@ func (v *dnsCacheVal) merge(name string) {
 
 	v.names = append(v.names, normalized)
 	sort.Strings(v.names)
+}
+
+// shrinkToSize reduces the number of IPs in the cache value to the given target size, returning the old size of the entry.
+func (v *dnsCacheVal) shrinkToSize(targetSize int) int {
+	actualSize := len(v.names)
+	if actualSize > targetSize {
+		v.names = v.names[0:targetSize]
+	}
+	return actualSize
 }
 
 func (v *dnsCacheVal) copy() []string {
