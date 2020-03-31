@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Signature is a hash representation of trace or a service, used to identify
@@ -80,13 +81,13 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 	if withResource {
 		h.Write([]byte(span.Resource))
 	}
-	statusCode, ok := getMeta(span, KeyHTTPStatusCode)
+	code, ok := traceutil.GetMeta(span, KeyHTTPStatusCode)
 	if ok {
-		h.Write([]byte(statusCode))
+		h.Write([]byte(code))
 	}
-	errorType, ok := getMeta(span, KeyErrorType)
+	typ, ok := traceutil.GetMeta(span, KeyErrorType)
 	if ok {
-		h.Write([]byte(errorType))
+		h.Write([]byte(typ))
 	}
 	return spanHash(h.Sum32())
 }
