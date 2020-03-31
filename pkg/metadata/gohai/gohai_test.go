@@ -26,6 +26,7 @@ func TestGetPayloadContainerized(t *testing.T) {
 	os.Setenv("DOCKER_DD_AGENT", "true")
 	defer os.Unsetenv("DOCKER_DD_AGENT")
 
+	detectDocker0()
 	oldDocker0Detected := docker0Detected
 	docker0Detected = false
 	defer func() { docker0Detected = oldDocker0Detected }()
@@ -43,6 +44,7 @@ func TestGetPayloadContainerizedWithDocker0(t *testing.T) {
 	os.Setenv("DOCKER_DD_AGENT", "true")
 	defer os.Unsetenv("DOCKER_DD_AGENT")
 
+	detectDocker0()
 	oldDocker0Detected := docker0Detected
 	docker0Detected = true
 	defer func() { docker0Detected = oldDocker0Detected }()

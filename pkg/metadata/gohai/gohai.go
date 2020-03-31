@@ -55,8 +55,7 @@ func getGohaiInfo() *gohai {
 		log.Errorf("Failed to retrieve memory metadata: %s", err)
 	}
 
-	detectDocker0()
-	if !config.IsContainerized() || docker0Detected {
+	if !config.IsContainerized() || detectDocker0() {
 		networkPayload, err := new(network.Network).Collect()
 		if err == nil {
 			res.Network = networkPayload
@@ -75,11 +74,13 @@ func getGohaiInfo() *gohai {
 	return res
 }
 
-var docker0Detector = sync.Once{}
+var docker0Detector sync.Once
 
-func detectDocker0() {
+func detectDocker0() bool {
 	docker0Detector.Do(func() {
 		iface, _ := net.InterfaceByName("docker0")
 		docker0Detected = iface != nil
 	})
+
+	return docker0Detected
 }
