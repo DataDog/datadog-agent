@@ -218,7 +218,7 @@ func (l *DockerListener) createService(cID string) {
 			log.Warnf("error while resolving image name: %s", err)
 			image = ""
 		}
-		if l.filter.IsExcluded(cInspect.Name, image) {
+		if l.filter.IsExcluded(cInspect.Name, image, "") {
 			log.Debugf("container %s filtered out: name %q image %q", cID[:12], cInspect.Name, image)
 			return
 		}
@@ -370,7 +370,7 @@ func (l *DockerListener) isExcluded(co types.Container) bool {
 		image = ""
 	}
 	for _, name := range co.Names {
-		if l.filter.IsExcluded(name, image) {
+		if l.filter.IsExcluded(name, image, "") {
 			log.Debugf("container %s filtered out: name %q image %q", co.ID[:12], name, image)
 			return true
 		}

@@ -45,7 +45,7 @@ void _set_is_excluded_cb(cb_is_excluded_t cb)
     collection or not.
     \param self A PyObject* pointer to the containers module.
     \param args A PyObject* pointer to the python args, typically expected to
-    contain the container and images names as strings.
+    contain the container name, the image name and an optional namespace as strings.
     \return a PyObject * pointer, typically a boolean reflecting if the container
     should be excluded and None, if the callback has not been defined.
 
@@ -62,11 +62,12 @@ PyObject *is_excluded(PyObject *self, PyObject *args)
 
     char *name;
     char *image;
-    if (!PyArg_ParseTuple(args, "ss", &name, &image)) {
+    char *namespace = NULL;
+    if (!PyArg_ParseTuple(args, "ss|s", &name, &image, &namespace)) {
         return NULL;
     }
 
-    int result = cb_is_excluded(name, image);
+    int result = cb_is_excluded(name, image, namespace);
 
     if (result > 0) {
         Py_RETURN_TRUE;

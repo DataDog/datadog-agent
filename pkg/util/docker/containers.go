@@ -219,7 +219,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 			log.Warnf("Can't resolve image name %s: %s", c.Image, err)
 		}
 
-		excluded := d.cfg.filter.IsExcluded(c.Names[0], image)
+		excluded := d.cfg.filter.IsExcluded(c.Names[0], image, "")
 		if excluded && !cfg.FlagExcluded {
 			continue
 		}
