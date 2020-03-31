@@ -9,4 +9,3 @@
 enhancements:
   - |
     Count of successful DNS responses are tracked for each connection.
-
