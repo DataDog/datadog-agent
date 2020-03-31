@@ -312,6 +312,9 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 
 		if subStateMapping, found := c.config.instance.SubstateStatusMapping[unit.Name]; found {
 			// User provided a custom mapping for this unit. Submit the systemd.unit.substate service check based on that
+			if _, ok := subStateMapping[unit.SubState]; !ok {
+				log.Debugf("The systemd unit %s has a substate value of %s that is not defined in the mapping set in the conf.yaml file. The service check will report 'UNKNOWN'", unit.Name, unit.SubState)
+			}
 			sender.ServiceCheck(unitSubStateServiceCheck, getServiceCheckStatus(unit.SubState, subStateMapping), "", tags, "")
 		}
 
@@ -463,8 +466,9 @@ func getPropertyBool(properties map[string]interface{}, propertyName string) (bo
 	return propValue, nil
 }
 
-func getServiceCheckStatus(state string, substateMapping map[string]string) metrics.ServiceCheckStatus {
-	switch substateMapping[state] {
+// getServiceCheckStatus returns a service check status for a given unit state (or substate) and a provided mapping
+func getServiceCheckStatus(state string, mapping map[string]string) metrics.ServiceCheckStatus {
+	switch mapping[state] {
 	case "ok":
 		return metrics.ServiceCheckOK
 	case "warning":
