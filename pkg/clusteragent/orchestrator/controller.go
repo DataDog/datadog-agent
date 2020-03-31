@@ -17,6 +17,7 @@ import (
 	processcfg "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -45,6 +46,7 @@ type Controller struct {
 	groupID                 int32
 	hostName                string
 	clusterName             string
+	clusterID               string
 	apiClient               api.Client
 	processConfig           *processcfg.AgentConfig
 	IsLeaderFunc            func() bool
@@ -60,7 +62,11 @@ func StartController(ctx ControllerContext) error {
 		log.Warn("Orchestrator explorer enabled but no cluster name set: disabling")
 		return nil
 	}
-	orchestratorController := newController(ctx)
+	orchestratorController, err := newController(ctx)
+	if err != nil {
+		log.Errorf("Error retrieving Kubernetes cluster ID: %v", err)
+		return err
+	}
 
 	go orchestratorController.Run(ctx.StopCh)
 
@@ -69,14 +75,20 @@ func StartController(ctx ControllerContext) error {
 	return nil
 }
 
-func newController(ctx ControllerContext) *Controller {
+func newController(ctx ControllerContext) (*Controller, error) {
 	podInformer := ctx.UnassignedPodInformerFactory.Core().V1().Pods()
+	clusterID, err := clustername.GetClusterID()
+	if err != nil {
+		return nil, err
+	}
+
 	oc := &Controller{
 		unassignedPodLister:     podInformer.Lister(),
 		unassignedPodListerSync: podInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
+		clusterID:               clusterID,
 		apiClient: api.NewClient(
 			http.Client{Timeout: 20 * time.Second, Transport: processcfg.NewDefaultTransport()},
 			30*time.Second),
@@ -87,7 +99,7 @@ func newController(ctx ControllerContext) *Controller {
 		log.Errorf("Error loading the process config: %s", err)
 	}
 	oc.processConfig = cfg
-	return oc
+	return oc, nil
 }
 
 // Run starts the orchestrator controller
@@ -116,7 +128,7 @@ func (o *Controller) processPods() {
 	}
 
 	// we send an empty hostname for unassigned pods
-	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName)
+	msg, err := orchestrator.ProcessPodlist(podList, atomic.AddInt32(&o.groupID, 1), o.processConfig, "", o.clusterName, o.clusterID)
 	if err != nil {
 		log.Errorf("Unable to process pod list: %v", err)
 		return
@@ -125,6 +137,7 @@ func (o *Controller) processPods() {
 	extraHeaders := map[string]string{
 		api.HostHeader:           o.hostName,
 		api.ContainerCountHeader: "0",
+		api.ClusterIDHeader:      o.clusterID,
 	}
 	for _, m := range msg {
 		// TODO: handle failure & retries

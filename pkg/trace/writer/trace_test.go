@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"io/ioutil"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -51,6 +52,55 @@ func TestTraceWriter(t *testing.T) {
 		assert.Equal(t, 2, srv.Accepted())
 		payloadsContain(t, srv.Payloads(), testSpans)
 	})
+}
+
+func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
+	var (
+		srv = newTestServer()
+		cfg = &config.AgentConfig{
+			Hostname:   testHostname,
+			DefaultEnv: testEnv,
+			Endpoints: []*config.Endpoint{
+				{
+					APIKey: "123",
+					Host:   srv.URL,
+				},
+				{
+					APIKey: "123",
+					Host:   srv.URL,
+				},
+			},
+			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		}
+		numWorkers      = 10
+		numOpsPerWorker = 100
+	)
+
+	testSpans := []*SampledSpans{
+		randomSampledSpans(20, 8),
+		randomSampledSpans(10, 0),
+		randomSampledSpans(40, 5),
+	}
+	in := make(chan *SampledSpans, 100)
+	tw := NewTraceWriter(cfg, in)
+	go tw.Run()
+
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < numOpsPerWorker; j++ {
+				for _, ss := range testSpans {
+					in <- ss
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	tw.Stop()
+	payloadsContain(t, srv.Payloads(), testSpans)
 }
 
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold

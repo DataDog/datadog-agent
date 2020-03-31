@@ -158,20 +158,3 @@ func walk(node *node, cmdline []string, integration *Integration) {
 		}
 	}
 }
-
-func bfs(n *node) {
-	queue := make([]*node, 0)
-	queue = append(queue, n)
-
-	for len(queue) > 0 {
-		actual := queue[0]
-		fmt.Printf("Node: %s \n", actual.integration.Name)
-
-		queue = queue[1:]
-
-		for word, child := range actual.children {
-			fmt.Printf("\t%s -> %s\n", word, child.integration.Name)
-			queue = append(queue, child)
-		}
-	}
-}
