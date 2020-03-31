@@ -156,7 +156,7 @@ def nettop(ctx, incremental_build=False):
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
     ctx.run(cmd.format(
-        path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
+        path=os.path.join(REPO_PATH, "pkg", "network", "nettop"),
         bin_path=bin_path,
         build_type="-i" if incremental_build else "-a",
     ))
