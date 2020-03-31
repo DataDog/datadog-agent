@@ -12,6 +12,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/coreos/go-systemd/dbus"
@@ -19,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+const systemdVersion = "241"
 
 type mockSystemdStats struct {
 	mock.Mock
@@ -53,6 +60,11 @@ func (s *mockSystemdStats) CloseConn(c *dbus.Conn) {
 func (s *mockSystemdStats) ListUnits(conn *dbus.Conn) ([]dbus.UnitStatus, error) {
 	args := s.Mock.Called(conn)
 	return args.Get(0).([]dbus.UnitStatus), args.Error(1)
+}
+
+func (s *mockSystemdStats) GetVersion(conn *dbus.Conn) (string, error) {
+	args := s.Mock.Called(conn)
+	return args.Get(0).(string), nil
 }
 
 func (s *mockSystemdStats) UnixNow() int64 {
@@ -239,6 +251,7 @@ func TestSystemStateCallFailGracefully(t *testing.T) {
 	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 	stats.On("SystemState", mock.Anything).Return((*dbus.Property)(nil), fmt.Errorf("some error"))
 	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
 	check.Configure([]byte(``), []byte(``), "test")
@@ -257,6 +270,7 @@ func TestSystemStateCallFailGracefully(t *testing.T) {
 func TestListUnitErr(t *testing.T) {
 	stats := createDefaultMockSystemdStats()
 	stats.On("ListUnits", mock.Anything).Return(([]dbus.UnitStatus)(nil), fmt.Errorf("some error"))
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
 	check.Configure([]byte(``), []byte(``), "test")
@@ -286,6 +300,7 @@ func TestCountMetrics(t *testing.T) {
 	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, dbusTypeMap[typeService]).Return(map[string]interface{}{
 		"ActiveEnterTimestamp": uint64(1),
 	}, nil)
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -351,6 +366,7 @@ unit_names:
 	stats.On("GetUnitTypeProperties", mock.Anything, "unit2.service", dbusTypeMap[typeUnit]).Return(map[string]interface{}{
 		"ActiveEnterTimestamp": uint64(100 * 1000 * 1000),
 	}, nil)
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil, "test")
@@ -417,6 +433,7 @@ unit_names:
 	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, dbusTypeMap[typeUnit]).Return(map[string]interface{}{
 		"ActiveEnterTimestamp": uint64(1),
 	}, nil)
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil, "test")
@@ -491,6 +508,7 @@ unit_names:
 		"MemoryAccounting": false,
 		"TasksCurrent":     uint64(1),
 	}, nil)
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil, "test")
@@ -539,6 +557,7 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 			stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 			stats.On("SystemState", mock.Anything).Return(&dbus.Property{Name: "SystemState", Value: godbus.MakeVariant(d.systemStatus)}, nil)
 			stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
+			stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 			check := SystemdCheck{stats: stats}
 			check.Configure([]byte(``), []byte(``), "test")
@@ -585,6 +604,7 @@ unit_names:
 	stats.On("GetUnitTypeProperties", mock.Anything, "unit2.service", dbusTypeMap[typeUnit]).Return(map[string]interface{}{
 		"ActiveEnterTimestamp": uint64(200),
 	}, nil)
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil, "test")
@@ -793,4 +813,54 @@ func TestGetPropertyBool(t *testing.T) {
 			assert.Equal(t, d.expectedError, err)
 		})
 	}
+}
+
+type mockAutoConfig struct{}
+
+func (*mockAutoConfig) GetLoadedConfigs() map[string]integration.Config {
+	ret := make(map[string]integration.Config)
+	ret["systemd_digest"] = integration.Config{
+		Name:     "systemd",
+		Provider: "provider1",
+	}
+	return ret
+}
+
+type mockCollector struct{}
+
+func (*mockCollector) GetAllInstanceIDs(checkName string) []check.ID {
+	if checkName == "systemd" {
+		return []check.ID{"systemd"}
+	}
+	return nil
+}
+
+func TestGetVersion(t *testing.T) {
+
+	rawInstanceConfig := []byte(`
+unit_names:
+ - ssh.service
+ - syslog.socket
+`)
+	stats := createDefaultMockSystemdStats()
+	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
+
+	check := SystemdCheck{
+		stats:     stats,
+		CheckBase: core.NewCheckBase(systemdCheckName),
+	}
+	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	check.Configure(rawInstanceConfig, nil, "test")
+	// run
+	check.Run()
+
+	p := inventories.GetPayload("testHostname", &mockAutoConfig{}, &mockCollector{})
+	checkMetadata := *p.CheckMetadata
+	systemdMetadata := *checkMetadata["systemd"][0]
+	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])
 }
