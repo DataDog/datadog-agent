@@ -50,10 +50,15 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
-	log.Infof("Starting the TCP queue length tracer")
-	tqlt, err := ebpf.NewTCPQueueLengthTracer()
-	if err != nil {
-		log.Errorf("unable to start the TCP queue length tracer: %v", err)
+	var tqlt *ebpf.TCPQueueLengthTracer
+	if cfg.CheckIsEnabled("TCP queue length") {
+		log.Infof("Starting the TCP queue length tracer")
+		tqlt, err = ebpf.NewTCPQueueLengthTracer()
+		if err != nil {
+			log.Errorf("unable to start the TCP queue length tracer: %v", err)
+		}
+	} else {
+		log.Infof("TCP queue length tracer disabled")
 	}
 
 	// Setting up the unix socket

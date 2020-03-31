@@ -130,6 +130,12 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ExcludedDestinationConnections = config.Datadog.GetStringMapStringSlice(destinationExclude)
 	}
 
+	if config.Datadog.IsSet(key(spNS, "enable_tcp_queue_length")) {
+		if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
+			a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
+		}
+	}
+
 	return nil
 }
 
