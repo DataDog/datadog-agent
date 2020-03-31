@@ -1035,13 +1035,25 @@ windows_choco_7_x64:
     ARCH: "x64"
   script:
     - copy .omnibus\pkg\*.msi chocolatey\tools\
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat
+    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat
     - copy build-out\*.nupkg .omnibus\pkg
   artifacts:
     expire_in: 2 weeks
     paths:
       - .omnibus/pkg
   <<: *skip_when_unwanted_on_7
+
+publish_choco_7_x64:
+  stage: image_deploy
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: ["fail_on_non_triggered_tag", "windows_choco_7_x64"]
+  variables:
+    ARCH: "x64"
+  before_script:
+    - $chocolateyApiKey = `aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.chocolatey_api_key --with-decryption --query "Parameter.Value" --out text)`
+  script:
+    - docker run --rm -v "$(Get-Location):c:\mnt" -e CHOCOLATEY_API_KEY=${chocolateyApiKey} 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopush.bat
+  when: manual
 
 # build Agent package for android
 agent_android_apk:
