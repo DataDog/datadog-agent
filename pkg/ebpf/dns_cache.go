@@ -30,7 +30,7 @@ type reverseDNSCache struct {
 	ttl  time.Duration
 	size int
 
-	// maxDomainsPerIP is how many domains
+	// maxDomainsPerIP is the maximum number of domains mapped to a single IP
 	maxDomainsPerIP   int
 	oversizedLogLimit *util.LogLimit
 }
@@ -148,19 +148,21 @@ func (c *reverseDNSCache) Len() int {
 
 func (c *reverseDNSCache) Stats() map[string]int64 {
 	var (
-		lookups  = atomic.SwapInt64(&c.lookups, 0)
-		resolved = atomic.SwapInt64(&c.resolved, 0)
-		added    = atomic.SwapInt64(&c.added, 0)
-		expired  = atomic.SwapInt64(&c.expired, 0)
-		ips      = int64(c.Len())
+		lookups   = atomic.SwapInt64(&c.lookups, 0)
+		resolved  = atomic.SwapInt64(&c.resolved, 0)
+		added     = atomic.SwapInt64(&c.added, 0)
+		expired   = atomic.SwapInt64(&c.expired, 0)
+		oversized = atomic.SwapInt64(&c.oversized, 0)
+		ips       = int64(c.Len())
 	)
 
 	return map[string]int64{
-		"lookups":  lookups,
-		"resolved": resolved,
-		"added":    added,
-		"expired":  expired,
-		"ips":      ips,
+		"lookups":   lookups,
+		"resolved":  resolved,
+		"added":     added,
+		"expired":   expired,
+		"oversized": oversized,
+		"ips":       ips,
 	}
 }
 
