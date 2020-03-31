@@ -8,6 +8,7 @@ package app
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -22,6 +23,7 @@ import (
 var (
 	customerEmail string
 	autoconfirm   bool
+	forceLocal    bool
 )
 
 func init() {
@@ -29,6 +31,7 @@ func init() {
 
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -68,47 +71,32 @@ var flareCmd = &cobra.Command{
 			}
 		}
 
-		return requestFlare(caseID)
+		return makeFlare(caseID)
 	},
 }
 
-func requestFlare(caseID string) error {
-	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
-	var e error
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
-
+func makeFlare(caseID string) error {
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
 	}
 
-	// Set session token
-	e = util.SetAuthToken()
-	if e != nil {
-		return e
+	var filePath string
+	var err error
+	if forceLocal {
+		filePath, err = createArchive(logFile)
+	} else {
+		filePath, err = requestArchive(logFile)
 	}
 
-	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
-	var filePath string
-	if e != nil {
-		if r != nil && string(r) != "" {
-			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
-		} else {
-			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
-		}
-		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
-		if e != nil {
-			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
-			return e
-		}
-	} else {
-		filePath = string(r)
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(filePath); err != nil {
+		fmt.Fprintln(color.Output, color.RedString("The flare zipfile \"%s\" does not exist."))
+		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
+		return err
 	}
 
 	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
@@ -126,4 +114,42 @@ func requestFlare(caseID string) error {
 		return e
 	}
 	return nil
+}
+
+func requestArchive(logFile string) (string, error) {
+	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
+	var e error
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
+
+	// Set session token
+	e = util.SetAuthToken()
+	if e != nil {
+		return "", e
+	}
+
+	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	if e != nil {
+		if r != nil && string(r) != "" {
+			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
+		} else {
+			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
+		}
+		return createArchive(logFile)
+	}
+	return string(r), nil
+}
+
+func createArchive(logFile string) (string, error) {
+	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
+	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
+	if e != nil {
+		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
+		return "", e
+	}
+	return filePath, nil
 }
