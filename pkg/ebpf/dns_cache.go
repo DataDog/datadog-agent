@@ -30,19 +30,19 @@ type reverseDNSCache struct {
 	ttl  time.Duration
 	size int
 
-	// domainPerIpThrehsold is how many domains
-	domainPerIpThrehsold int
-	oversizedLogLimit    *util.LogLimit
+	// maxDomainsPerIP is how many domains
+	maxDomainsPerIP   int
+	oversizedLogLimit *util.LogLimit
 }
 
 func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
-		data:                 make(map[util.Address]*dnsCacheVal),
-		exit:                 make(chan struct{}),
-		ttl:                  ttl,
-		size:                 size,
-		oversizedLogLimit:    util.NewLogLimit(10, time.Minute*10),
-		domainPerIpThrehsold: 1000,
+		data:              make(map[util.Address]*dnsCacheVal),
+		exit:              make(chan struct{}),
+		ttl:               ttl,
+		size:              size,
+		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
+		maxDomainsPerIP:   1000,
 	}
 
 	ticker := time.NewTicker(expirationPeriod)
@@ -117,7 +117,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 		names := c.getNamesForIP(addr, expiration)
 		if len(names) == 0 {
 			unresolved[addr] = struct{}{}
-		} else if len(names) > c.domainPerIpThrehsold {
+		} else if len(names) > c.maxDomainsPerIP {
 			oversized[addr] = struct{}{}
 
 			if c.oversizedLogLimit.ShouldLog() {

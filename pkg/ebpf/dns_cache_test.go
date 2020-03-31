@@ -230,6 +230,33 @@ func TestDNSCacheMerge_MixedCaseNames(t *testing.T) {
 	assert.Equal(t, []string{"host.name.com"}, res[util.AddressFromString("192.168.0.1")])
 }
 
+func TestGetOversizedDNS(t *testing.T) {
+	cache := newReverseDNSCache(1000, time.Hour, time.Minute)
+	addr := util.AddressFromString("192.168.0.1")
+	now := time.Now()
+
+	for i := 0; i < 100; i++ {
+		cache.Add(&translation{
+			dns: fmt.Sprintf("%d.host.com", i),
+			ips: []util.Address{addr},
+		}, now)
+	}
+
+	conns := []ConnectionStats{
+		{
+			Dest: addr,
+		},
+	}
+
+	result := cache.Get(conns, now)
+	assert.Len(t, result[addr], 100)
+
+	cache.maxDomainsPerIP = 10
+	result = cache.Get(conns, now)
+	assert.Empty(t, result[addr])
+
+}
+
 func BenchmarkDNSCacheGet(b *testing.B) {
 	const numIPs = 10000
 
