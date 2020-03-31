@@ -1,0 +1,3 @@
+features:
+  - |
+    Add chocolatey package generation in pipeline.
