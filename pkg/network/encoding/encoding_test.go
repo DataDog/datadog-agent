@@ -5,16 +5,16 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSerialization(t *testing.T) {
-	in := &ebpf.Connections{
-		Conns: []ebpf.ConnectionStats{
+	in := &network.Connections{
+		Conns: []network.ConnectionStats{
 			{
 				Source:               util.AddressFromString("10.1.1.1"),
 				Dest:                 util.AddressFromString("10.2.2.2"),
@@ -36,9 +36,9 @@ func TestSerialization(t *testing.T) {
 					ReplDstPort: 70,
 				},
 
-				Type:      ebpf.UDP,
-				Family:    ebpf.AFINET6,
-				Direction: ebpf.LOCAL,
+				Type:      network.UDP,
+				Family:    network.AFINET6,
+				Direction: network.LOCAL,
 			},
 		},
 		DNS: map[util.Address][]string{
@@ -138,7 +138,7 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		// Empty connection batch
-		blob, err := marshaler.Marshal(&ebpf.Connections{Conns: []ebpf.ConnectionStats{{}}})
+		blob, err := marshaler.Marshal(&network.Connections{Conns: []network.ConnectionStats{{}}})
 		require.NoError(t, err)
 
 		res := struct {

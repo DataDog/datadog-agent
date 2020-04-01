@@ -4,7 +4,7 @@ import (
 	"bytes"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/gogo/protobuf/jsonpb"
 )
 
@@ -15,7 +15,7 @@ type jsonSerializer struct {
 	marshaller jsonpb.Marshaler
 }
 
-func (j jsonSerializer) Marshal(conns *ebpf.Connections) ([]byte, error) {
+func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	for i, conn := range conns.Conns {
 		agentConns[i] = FormatConnection(conn)

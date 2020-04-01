@@ -2,13 +2,13 @@ package encoding
 
 import (
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn ebpf.ConnectionStats) *model.Connection {
+func FormatConnection(conn network.ConnectionStats) *model.Connection {
 	return &model.Connection{
 		Pid:                    int32(conn.Pid),
 		Laddr:                  formatAddr(conn.Source, conn.SPort),
@@ -51,37 +51,37 @@ func formatAddr(addr util.Address, port uint16) *model.Addr {
 	return &model.Addr{Ip: addr.String(), Port: int32(port)}
 }
 
-func formatFamily(f ebpf.ConnectionFamily) model.ConnectionFamily {
+func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
 	switch f {
-	case ebpf.AFINET:
+	case network.AFINET:
 		return model.ConnectionFamily_v4
-	case ebpf.AFINET6:
+	case network.AFINET6:
 		return model.ConnectionFamily_v6
 	default:
 		return -1
 	}
 }
 
-func formatType(f ebpf.ConnectionType) model.ConnectionType {
+func formatType(f network.ConnectionType) model.ConnectionType {
 	switch f {
-	case ebpf.TCP:
+	case network.TCP:
 		return model.ConnectionType_tcp
-	case ebpf.UDP:
+	case network.UDP:
 		return model.ConnectionType_udp
 	default:
 		return -1
 	}
 }
 
-func formatDirection(d ebpf.ConnectionDirection) model.ConnectionDirection {
+func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	switch d {
-	case ebpf.INCOMING:
+	case network.INCOMING:
 		return model.ConnectionDirection_incoming
-	case ebpf.OUTGOING:
+	case network.OUTGOING:
 		return model.ConnectionDirection_outgoing
-	case ebpf.LOCAL:
+	case network.LOCAL:
 		return model.ConnectionDirection_local
-	case ebpf.NONE:
+	case network.NONE:
 		return model.ConnectionDirection_none
 	default:
 		return model.ConnectionDirection_unspecified

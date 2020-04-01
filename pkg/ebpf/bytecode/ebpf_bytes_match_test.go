@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package ebpf
+package bytecode
 
 import (
 	"io/ioutil"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestEbpfBytesCorrect(t *testing.T) {
-	bs, err := ioutil.ReadFile("c/tracer-ebpf.o")
+	bs, err := ioutil.ReadFile("../c/tracer-ebpf.o")
 	require.NoError(t, err)
 
 	actual, err := tracerEbpfOBytes()
@@ -19,7 +19,7 @@ func TestEbpfBytesCorrect(t *testing.T) {
 
 	assert.Equal(t, bs, actual)
 
-	bsDebug, err := ioutil.ReadFile("c/tracer-ebpf-debug.o")
+	bsDebug, err := ioutil.ReadFile("../c/tracer-ebpf-debug.o")
 	require.NoError(t, err)
 
 	actualDebug, err := tracerEbpfDebugOBytes()

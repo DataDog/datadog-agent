@@ -13,6 +13,7 @@ run:
     - pkg/quantile
     # TODO burrito
     - pkg/ebpf
+    - pkg/network
 
 issues:
   exclude:

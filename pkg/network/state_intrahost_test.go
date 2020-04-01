@@ -1,10 +1,11 @@
-package ebpf
+package network
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestDNATIntraHost(t *testing.T) {

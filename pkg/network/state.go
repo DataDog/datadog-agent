@@ -1,16 +1,17 @@
-package ebpf
+package network
 
 import (
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	_ NetworkState = &networkState{}
+	_ State = &networkState{}
 )
 
 const (
@@ -18,10 +19,10 @@ const (
 	DEBUGCLIENT = "-1"
 )
 
-// NetworkState takes care of handling the logic for:
+// State takes care of handling the logic for:
 // - closed connections
 // - sent and received bytes per connection
-type NetworkState interface {
+type State interface {
 	// Connections returns the list of connections for the given client when provided the latest set of active connections
 	Connections(
 		clientID string,
@@ -45,7 +46,7 @@ type NetworkState interface {
 	// GetStats returns a map of statistics about the current network state
 	GetStats() map[string]interface{}
 
-	// DebugNetworkState returns a map with the current network state for a client ID
+	// DebugState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
 }
 
@@ -89,19 +90,8 @@ type networkState struct {
 	maxDNSStats    int
 }
 
-// NewDefaultNetworkState creates a new network state with default settings
-func NewDefaultNetworkState() NetworkState {
-	defaultC := NewDefaultConfig()
-	return NewNetworkState(
-		defaultC.ClientStateExpiry,
-		defaultC.MaxClosedConnectionsBuffered,
-		defaultC.MaxConnectionsStateBuffered,
-		defaultC.MaxDNSStatsBufferred,
-	)
-}
-
-// NewNetworkState creates a new network state
-func NewNetworkState(clientExpiry time.Duration, maxClosedConns, maxClientStats, maxDNSStats int) NetworkState {
+// NewState creates a new network state
+func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int) State {
 	return &networkState{
 		clients:        map[string]*client{},
 		telemetry:      telemetry{},

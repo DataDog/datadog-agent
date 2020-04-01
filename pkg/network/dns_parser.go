@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package ebpf
+package network
 
 import (
 	"bytes"

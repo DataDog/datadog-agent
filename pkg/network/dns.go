@@ -1,4 +1,4 @@
-package ebpf
+package network
 
 import "github.com/DataDog/datadog-agent/pkg/process/util"
 
@@ -8,6 +8,11 @@ type ReverseDNS interface {
 	GetDNSStats() map[dnsKey]dnsStats
 	GetStats() map[string]int64
 	Close()
+}
+
+// NewNullReverseDNS returns a dummy implementation of ReverseDNS
+func NewNullReverseDNS() ReverseDNS {
+	return nullReverseDNS{}
 }
 
 type nullReverseDNS struct{}

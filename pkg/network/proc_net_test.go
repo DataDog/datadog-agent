@@ -1,10 +1,11 @@
-package ebpf
+package network
 
 import (
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestReadProcNet(t *testing.T) {

@@ -6,7 +6,7 @@
 // pkg/ebpf/c/tcp-queue-length-kern-user.h
 // DO NOT EDIT!
 
-package ebpf
+package bytecode
 
 import (
 	"bytes"
