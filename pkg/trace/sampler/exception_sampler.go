@@ -12,12 +12,19 @@ import (
 )
 
 const (
-	cardinalityLimit      = 1000
-	defaultTTL            = 2 * time.Minute
-	priorityTTL           = 10 * time.Minute
-	ttlRenewalPeriod      = 1 * time.Minute
-	exceptionSamplerTPS   = 5
+	// cardinalityLimit limits the number of spans considered per combination of (env, service).
+	cardinalityLimit = 1000
+	// defaultTTL limits the frequency at which we sample a same span (env, service, name, rsc, ...).
+	defaultTTL = 2 * time.Minute
+	// priorityTTL allows to blacklist p1 spans that are sampled entirely.
+	priorityTTL = 10 * time.Minute
+	// ttlRenewalPeriod prevents from continuously updating expire times for each span seen.
+	ttlRenewalPeriod = 1 * time.Minute
+	// exceptionSamplerTPS traces per second allowed by the rate limiter.
+	exceptionSamplerTPS = 5
+	// exceptionSamplerBurst sizes the token store used by the rate limiter.
 	exceptionSamplerBurst = 50
+	exceptionKey          = "_dd.exception"
 )
 
 // ExceptionSampler samples traces that are not caught by the Priority sampler.
@@ -25,27 +32,31 @@ const (
 // (env, service, name, resource, error type, http status) seen on a measured span.
 // The resulting sampled traces will likely be incomplete.
 type ExceptionSampler struct {
-	mu           sync.RWMutex
-	limiter      *rate.Limiter
-	spanSeenSets map[Signature]*spanSeenSet
+	mu      sync.RWMutex
+	limiter *rate.Limiter
+	seen    map[Signature]*seenSpans
 
 	tickStats *time.Ticker
 	hits      int64
 	misses    int64
 }
 
-// NewExceptionSampler returns a NewExceptionSampler that samples rare traces
-// not caught by Priority sampler.
+// NewExceptionSampler returns a NewExceptionSampler that ensures that we samplexs combinations
+// of env, service, name, resource, http-status, error type for each top level or measured spans
 func NewExceptionSampler() *ExceptionSampler {
 	return &ExceptionSampler{
-		limiter:      rate.NewLimiter(exceptionSamplerTPS, exceptionSamplerBurst),
-		spanSeenSets: make(map[Signature]*spanSeenSet),
-		tickStats:    time.NewTicker(10 * time.Second),
+		limiter:   rate.NewLimiter(exceptionSamplerTPS, exceptionSamplerBurst),
+		seen:      make(map[Signature]*seenSpans),
+		tickStats: time.NewTicker(10 * time.Second),
 	}
 }
 
 // Add samples a trace and returns true if trace was sampled (should be kept)
-func (e *ExceptionSampler) Add(now time.Time, env string, root *pb.Span, t pb.Trace) (sampled bool) {
+func (e *ExceptionSampler) Add(env string, root *pb.Span, t pb.Trace) (sampled bool) {
+	return e.add(time.Now(), env, root, t)
+}
+
+func (e *ExceptionSampler) add(now time.Time, env string, root *pb.Span, t pb.Trace) (sampled bool) {
 	if priority, ok := GetSamplingPriority(root); priority > 0 && ok {
 		e.handlePriorityTrace(now, env, t)
 		return false
@@ -110,6 +121,7 @@ func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) boo
 		if sampled {
 			b.add(now.Add(defaultTTL), s)
 			atomic.AddInt64(&e.hits, 1)
+			traceutil.SetMetric(s, exceptionKey, 1)
 		} else {
 			atomic.AddInt64(&e.misses, 1)
 		}
@@ -117,32 +129,35 @@ func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) boo
 	return sampled
 }
 
-func (e *ExceptionSampler) loadSpanSeenSet(shardSig Signature) *spanSeenSet {
+func (e *ExceptionSampler) loadSpanSeenSet(shardSig Signature) *seenSpans {
 	e.mu.RLock()
-	s, ok := e.spanSeenSets[shardSig]
+	s, ok := e.seen[shardSig]
 	e.mu.RUnlock()
 	if ok {
 		return s
 	}
-	s = &spanSeenSet{expires: make(map[spanHash]time.Time)}
+	s = &seenSpans{expires: make(map[spanHash]time.Time)}
 	e.mu.Lock()
-	e.spanSeenSets[shardSig] = s
+	e.seen[shardSig] = s
 	e.mu.Unlock()
 	return s
 }
 
 func (e *ExceptionSampler) report() {
-	metrics.Count("datadog.trace_agent.trace_sampler.exception.hits", atomic.SwapInt64(&e.hits, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.trace_sampler.exception.misses", atomic.SwapInt64(&e.misses, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.sampler.exception.hits", atomic.SwapInt64(&e.hits, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.sampler.exception.misses", atomic.SwapInt64(&e.misses, 0), nil, 1)
 }
 
-type spanSeenSet struct {
-	mu      sync.RWMutex
+// seenSpans keeps record of a set of spans.
+type seenSpans struct {
+	mu sync.RWMutex
+	// expires contains expire time of each span seen.
 	expires map[spanHash]time.Time
-	shrunk  bool
+	// shrunk caracterize seenSpans when it's limited in size by capacityLimit.
+	shrunk bool
 }
 
-func (ss *spanSeenSet) add(expire time.Time, s *pb.Span) {
+func (ss *seenSpans) add(expire time.Time, s *pb.Span) {
 	sig := ss.sign(s)
 	storedExpire, ok := ss.getExpire(sig)
 	if ok && expire.Sub(storedExpire) < ttlRenewalPeriod {
@@ -164,7 +179,7 @@ func (ss *spanSeenSet) add(expire time.Time, s *pb.Span) {
 // This ensure that a service with high cardinality of resources does not consume
 // all sampling tokens. The cardinality limit matches a backend limit.
 // This function is not thread safe and should be called between locks
-func (ss *spanSeenSet) shrink() {
+func (ss *seenSpans) shrink() {
 	newExpires := make(map[spanHash]time.Time, cardinalityLimit)
 	for h, expire := range ss.expires {
 		newExpires[h%spanHash(cardinalityLimit)] = expire
@@ -173,14 +188,14 @@ func (ss *spanSeenSet) shrink() {
 	ss.shrunk = true
 }
 
-func (ss *spanSeenSet) getExpire(h spanHash) (time.Time, bool) {
+func (ss *seenSpans) getExpire(h spanHash) (time.Time, bool) {
 	ss.mu.RLock()
 	expire, ok := ss.expires[h]
 	ss.mu.RUnlock()
 	return expire, ok
 }
 
-func (ss *spanSeenSet) sign(s *pb.Span) spanHash {
+func (ss *seenSpans) sign(s *pb.Span) spanHash {
 	h := computeSpanHash(s, "", true)
 	if ss.shrunk {
 		h = h % spanHash(cardinalityLimit)

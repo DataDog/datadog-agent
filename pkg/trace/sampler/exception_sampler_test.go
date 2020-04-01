@@ -35,7 +35,7 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 			tr := pb.Trace{
 				&pb.Span{Service: "s1", Resource: "r1", Metrics: tc.metrics},
 			}
-			assert.Equal(tc.expected, e.Add(tc.time, "", tr[0], tr))
+			assert.Equal(tc.expected, e.add(tc.time, "", tr[0], tr))
 		})
 	}
 }
@@ -63,7 +63,7 @@ func TestConsideredSpans(t *testing.T) {
 			tr := pb.Trace{
 				&pb.Span{Service: tc.service, Metrics: tc.metrics},
 			}
-			assert.Equal(tc.expected, e.Add(testTime, "", tr[0], tr))
+			assert.Equal(tc.expected, e.add(testTime, "", tr[0], tr))
 		})
 	}
 }
@@ -76,7 +76,7 @@ func TestExceptionSamplerRace(t *testing.T) {
 				tr := pb.Trace{
 					&pb.Span{Resource: strconv.Itoa(j), Metrics: map[string]float64{"_top_level": 1}},
 				}
-				e.Add(time.Now(), "", tr[0], tr)
+				e.add(time.Now(), "", tr[0], tr)
 			}
 		}()
 	}
@@ -89,18 +89,18 @@ func TestCardinalityLimit(t *testing.T) {
 		tr := pb.Trace{
 			&pb.Span{Resource: strconv.Itoa(j), Metrics: map[string]float64{KeySamplingPriority: 1, "_top_level": 1}},
 		}
-		e.Add(time.Now(), "", tr[0], tr)
-		for _, set := range e.spanSeenSets {
+		e.add(time.Now(), "", tr[0], tr)
+		for _, set := range e.seen {
 			assert.Len(set.expires, j)
 		}
 	}
 	tr := pb.Trace{
 		&pb.Span{Resource: "newResource", Metrics: map[string]float64{"_top_level": 1}},
 	}
-	e.Add(time.Now(), "", tr[0], tr)
+	e.add(time.Now(), "", tr[0], tr)
 
-	assert.Len(e.spanSeenSets, 1)
-	for _, set := range e.spanSeenSets {
+	assert.Len(e.seen, 1)
+	for _, set := range e.seen {
 		assert.True(len(set.expires) <= cardinalityLimit)
 	}
 }
