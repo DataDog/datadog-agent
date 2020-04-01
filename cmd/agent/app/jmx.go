@@ -239,11 +239,20 @@ func loadConfigs(runner *jmxfetch.JMXFetch) {
 	for _, c := range configs {
 		if check.IsJMXConfig(c) && (includeEverything || configIncluded(c)) {
 			fmt.Println("Config ", c.Name, " was loaded.")
-			jmx.AddScheduledConfig(c)
+			instances := []integration.Data{}
+
+			// Retain only JMX instances
 			for _, instance := range c.Instances {
 				if !check.IsJMXInstance(c.Name, instance, c.InitConfig) {
 					continue
 				}
+				instances = append(instances, instance)
+			}
+			c.Instances = instances
+
+			jmx.AddScheduledConfig(c)
+			runner.ConfigureFromInitConfig(c.InitConfig)
+			for _, instance := range c.Instances {
 				runner.ConfigureFromInstance(instance)
 			}
 		}
