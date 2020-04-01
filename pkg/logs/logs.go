@@ -27,6 +27,16 @@ const (
 	invalidEndpoints       = "invalid_endpoints"
 )
 
+// Transport is the transport used by logs-agent, i.e TCP or HTTP
+type Transport string
+
+const (
+	// TransportHTTP indicates logs-agent is using HTTP transport
+	TransportHTTP Transport = "HTTP"
+	// TransportTCP indicates logs-agent is using TCP transport
+	TransportTCP Transport = "TCP"
+)
+
 var (
 	// isRunning indicates whether logs-agent is running or not
 	isRunning int32
@@ -35,6 +45,8 @@ var (
 	// scheduler is plugged to autodiscovery to collect integration configs
 	// and schedule log collection for different kind of inputs
 	adScheduler *scheduler.Scheduler
+	// CurrentTransport is the current transport used by logs-agent, i.e TCP or HTTP
+	CurrentTransport Transport
 )
 
 // Start starts logs-agent
@@ -60,6 +72,10 @@ func Start() error {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)
 		return errors.New(message)
+	}
+	CurrentTransport = TransportTCP
+	if endpoints.UseHTTP {
+		CurrentTransport = TransportHTTP
 	}
 
 	// setup the status
