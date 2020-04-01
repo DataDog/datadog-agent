@@ -246,6 +246,7 @@ build_deb:
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
+  - curl https://www.openssl.org/source/old/1.0.2/openssl-1.0.2o.tar.gz -o openssl-1.0.2o.tar.gz
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
   - inv version
