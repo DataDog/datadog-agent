@@ -2,6 +2,22 @@
 Release Notes
 =============
 
+.. _Release Notes_7.18.1:
+
+7.18.1
+======
+
+.. _Release Notes_7.18.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix conntrack issue where a large batch of deletion events was killing
+  the goroutine polling the netlink socket.
+
+- On Debian and Ubuntu-based systems, remove system-probe SELinux policy
+  to prevent install failures.
+
 .. _Release Notes_7.18.0:
 
 7.18.0 / 6.18.0
