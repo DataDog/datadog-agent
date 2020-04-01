@@ -75,15 +75,14 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 		val, ok := c.data[addr]
 		if ok {
 			val.expiration = exp
-			val.merge(translation.dns)
-			if extra := val.shrinkToSize(c.maxDomainsPerIP); extra > 0 {
-				log.Warnf("%s mapped to to %d domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr, extra)
+			if rejected := val.merge(translation.dns, c.maxDomainsPerIP); rejected {
+				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
+				break
 			}
-			continue
+		} else {
+			atomic.AddInt64(&c.added, 1)
+			c.data[addr] = &dnsCacheVal{names: []string{translation.dns}, expiration: exp}
 		}
-
-		atomic.AddInt64(&c.added, 1)
-		c.data[addr] = &dnsCacheVal{names: []string{translation.dns}, expiration: exp}
 	}
 
 	// Update cache length for telemetry purposes
@@ -209,23 +208,19 @@ type dnsCacheVal struct {
 	expiration int64
 }
 
-func (v *dnsCacheVal) merge(name string) {
+func (v *dnsCacheVal) merge(name string, maxSize int) (rejected bool) {
 	normalized := strings.ToLower(name)
 	if i := sort.SearchStrings(v.names, normalized); i < len(v.names) && v.names[i] == normalized {
-		return
+		return false
+	}
+
+	if len(v.names) == maxSize {
+		return true
 	}
 
 	v.names = append(v.names, normalized)
 	sort.Strings(v.names)
-}
-
-// shrinkToSize reduces the number of IPs in the cache value to the given target size, returning the old size of the entry.
-func (v *dnsCacheVal) shrinkToSize(targetSize int) int {
-	actualSize := len(v.names)
-	if actualSize > targetSize {
-		v.names = v.names[0:targetSize]
-	}
-	return actualSize
+	return false
 }
 
 func (v *dnsCacheVal) copy() []string {
