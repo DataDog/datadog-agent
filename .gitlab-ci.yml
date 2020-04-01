@@ -246,11 +246,11 @@ build_deb:
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
-  - source ./.gitlab-scripts/setup_artifactory.sh
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
   - inv version
   - cat version.txt || true
+  - source ./.gitlab-scripts/setup_artifactory.sh
 
   - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign
 
@@ -296,11 +296,11 @@ build_rpm:
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
-  - source ./.gitlab-scripts/setup_artifactory.sh
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
   - inv version
   - cat version.txt || true
+  - source ./.gitlab-scripts/setup_artifactory.sh
 
   - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign
 
