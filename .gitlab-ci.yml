@@ -82,6 +82,7 @@ deps_deb:
       - vendor
       - venv
   script:
+    - source ./.gitlab-scripts/setup_artifactory.sh
     - pip install -r requirements.txt
     - inv deps
     - inv version -u > version.txt
@@ -101,6 +102,7 @@ deps_rpm:
       - vendor
       - venv
   script:
+    - source ./.gitlab-scripts/setup_artifactory.sh
     - pip install -r requirements.txt
     - inv deps
     - inv version -u > version.txt
