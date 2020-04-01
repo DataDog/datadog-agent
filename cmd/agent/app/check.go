@@ -364,6 +364,10 @@ var checkCmd = &cobra.Command{
 			}
 		}
 
+		// FIXME: We require that this run after all Python instances because `common.SetupAutoConfig` is called a
+		// second time via `RunJmxListWithMetrics` when the check command is called on JMXFetch checks, but it's not
+		// idempotent and should only be called once. Here, calling it twice breaks the rtloader logic that only
+		// expects to be called once, which is why after the second call Python shows as not being initialized.
 		if hasJMXConfig {
 			// we'll mimic the check command behavior with JMXFetch by running
 			// it with the JSON reporter and the list_with_metrics command.
