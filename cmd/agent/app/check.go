@@ -138,7 +138,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		allConfigs := common.AC.GetAllConfigs()
-		seenJMXConfigs := make([]bool, len(allConfigs))
+		hasJMXConfig := false
 
 		// make sure the checks in cs are not JMX checks
 		for idx := range allConfigs {
@@ -148,7 +148,7 @@ var checkCmd = &cobra.Command{
 			}
 
 			if check.IsJMXConfig(*conf) {
-				seenJMXConfigs[idx] = true
+				hasJMXConfig = true
 				instances := []integration.Data{}
 
 				// Retain only non-JMX instances for later
@@ -364,12 +364,7 @@ var checkCmd = &cobra.Command{
 			}
 		}
 
-		// only run JMX configs
-		for idx := range allConfigs {
-			if !seenJMXConfigs[idx] {
-				continue
-			}
-
+		if hasJMXConfig {
 			// we'll mimic the check command behavior with JMXFetch by running
 			// it with the JSON reporter and the list_with_metrics command.
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
