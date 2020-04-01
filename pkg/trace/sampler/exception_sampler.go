@@ -56,7 +56,7 @@ func (e *ExceptionSampler) Add(now time.Time, env string, root *pb.Span, t pb.Tr
 // Start starts reporting stats
 func (e *ExceptionSampler) Start() {
 	go func() {
-		for _ = range e.tickStats.C {
+		for range e.tickStats.C {
 			e.report()
 		}
 	}()
