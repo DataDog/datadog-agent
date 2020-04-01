@@ -19,10 +19,11 @@ The image is based on the `datadog/agent` image for the version of the Agent you
   ```
 
   Optional build args, which configure how to source the `datadog-agent-dbg` package:
-    * `APT_REPO`: APT repo (default: `apt.datadoghq.com`)
-    * `APT_DISTRIBUTION`: APT distro (default: `stable`)
-  Example: for `7.18.0-rc.2` use `--build-arg APT_REPO=apt.datad0g.com --build-arg APT_DISTRIBUTION=beta`.
+  * `APT_REPO`: APT repo (default: `apt.datadoghq.com`)
+  * `APT_DISTRIBUTION`: APT distro (default: `stable`)
 
+  Example: for `7.18.0-rc.2` use `--build-arg APT_REPO=apt.datad0g.com --build-arg APT_DISTRIBUTION=beta`.
+  
 2. Navigate the core dump file in a gdb prompt:
 
   ```sh
