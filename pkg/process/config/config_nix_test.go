@@ -10,7 +10,9 @@ import (
 	"sync"
 	"testing"
 
+	// This test calls ContainerProvider behind the scene, need to initialize the linux provider
 	"github.com/DataDog/datadog-agent/pkg/config"
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

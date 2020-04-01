@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 /*
@@ -102,9 +101,8 @@ func testLoadCustomCheck(t *testing.T) {
 	C.reset_loader_mock()
 
 	conf := integration.Config{
-		Name: "fake_check",
-		Instances: []integration.Data{integration.Data("{\"value\": 1}"),
-			integration.Data("{\"value\": 2}")},
+		Name:       "fake_check",
+		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
 		InitConfig: integration.Data("{}"),
 	}
 
@@ -121,15 +119,11 @@ func testLoadCustomCheck(t *testing.T) {
 	C.get_class_py_class = &C.rtloader_pyobject_t{}
 	C.get_attr_string_return = 0
 
-	checks, err := loader.Load(conf)
+	check, err := loader.Load(conf, conf.Instances[0])
 	assert.Nil(t, err)
-	require.Len(t, checks, 2)
-	assert.Equal(t, "fake_check", checks[0].(*PythonCheck).ModuleName)
-	assert.Equal(t, "fake_check", checks[1].(*PythonCheck).ModuleName)
-	assert.Equal(t, "unversioned", checks[0].(*PythonCheck).version)
-	assert.Equal(t, "unversioned", checks[1].(*PythonCheck).version)
-	assert.Equal(t, C.get_class_py_class, checks[0].(*PythonCheck).class)
-	assert.Equal(t, C.get_class_py_class, checks[1].(*PythonCheck).class)
+	assert.Equal(t, "fake_check", check.(*PythonCheck).ModuleName)
+	assert.Equal(t, "unversioned", check.(*PythonCheck).version)
+	assert.Equal(t, C.get_class_py_class, check.(*PythonCheck).class)
 	// test we call get_attr_string on the module
 	assert.Equal(t, C.get_attr_string_py_class, C.get_class_py_module)
 }
@@ -138,9 +132,8 @@ func testLoadWheelCheck(t *testing.T) {
 	C.reset_loader_mock()
 
 	conf := integration.Config{
-		Name: "fake_check",
-		Instances: []integration.Data{integration.Data("{\"value\": 1}"),
-			integration.Data("{\"value\": 2}")},
+		Name:       "fake_check",
+		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
 		InitConfig: integration.Data("{}"),
 	}
 
@@ -158,15 +151,11 @@ func testLoadWheelCheck(t *testing.T) {
 	C.get_attr_string_return = 1
 	C.get_attr_string_attr_value = C.CString("1.2.3")
 
-	checks, err := loader.Load(conf)
+	check, err := loader.Load(conf, conf.Instances[0])
 	assert.Nil(t, err)
-	require.Len(t, checks, 2)
-	assert.Equal(t, "fake_check", checks[0].(*PythonCheck).ModuleName)
-	assert.Equal(t, "fake_check", checks[1].(*PythonCheck).ModuleName)
-	assert.Equal(t, "1.2.3", checks[0].(*PythonCheck).version)
-	assert.Equal(t, "1.2.3", checks[1].(*PythonCheck).version)
-	assert.Equal(t, C.get_class_dd_wheel_py_class, checks[0].(*PythonCheck).class)
-	assert.Equal(t, C.get_class_dd_wheel_py_class, checks[1].(*PythonCheck).class)
+	assert.Equal(t, "fake_check", check.(*PythonCheck).ModuleName)
+	assert.Equal(t, "1.2.3", check.(*PythonCheck).version)
+	assert.Equal(t, C.get_class_dd_wheel_py_class, check.(*PythonCheck).class)
 	// test we call get_attr_string on the module
 	assert.Equal(t, C.get_attr_string_py_class, C.get_class_dd_wheel_py_module)
 }

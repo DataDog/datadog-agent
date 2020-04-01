@@ -36,4 +36,7 @@ var (
 	updateStatsDuration = telemetry.NewGaugeWithOpts("cluster_checks", "updating_stats_duration_seconds",
 		nil, "Duration of collecting stats from check runners and updating cache",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	busyness = telemetry.NewGaugeWithOpts("cluster_checks", "busyness",
+		[]string{"node"}, "Busyness of a node per the number of metrics submitted and average duration of all checks run",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

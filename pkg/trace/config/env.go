@@ -80,6 +80,14 @@ func loadEnv() {
 			log.Errorf("Bad format for %s it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "DD_APM_REPLACE_TAGS", err)
 		}
 	}
+	if v := os.Getenv("DD_APM_ADDITIONAL_ENDPOINTS"); v != "" {
+		ap := make(map[string][]string)
+		if err := json.Unmarshal([]byte(v), &ap); err != nil {
+			log.Errorf(`Could not parse DD_APM_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://trace.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
+		} else {
+			config.Datadog.Set("apm_config.additional_endpoints", ap)
+		}
+	}
 }
 
 func parseNameAndRate(token string) (string, float64, error) {

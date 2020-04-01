@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,6 +66,7 @@ func (b *bbsCacheFake) GetAllLRPs() (map[string][]cloudfoundry.ActualLRP, []clou
 var testBBSCache *bbsCacheFake = &bbsCacheFake{}
 
 func TestCloudFoundryListener(t *testing.T) {
+	var lastRefreshCount int64 = 0
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
 	cfl := CloudFoundryListener{
@@ -389,7 +391,16 @@ func TestCloudFoundryListener(t *testing.T) {
 		testBBSCache.DesiredLRPs = tc.dLRP
 		testBBSCache.Unlock()
 
-		time.Sleep(50 * time.Millisecond)
+		// make sure at least one refresh loop of the listener has passed *since we updated the cache*
+		cfl.RLock()
+		lastRefreshCount = cfl.refreshCount
+		cfl.RUnlock()
+		testutil.RequireTrueBeforeTimeout(t, 15*time.Millisecond, 250*time.Millisecond, func() bool {
+			cfl.RLock()
+			defer cfl.RUnlock()
+			return cfl.refreshCount > lastRefreshCount
+		})
+
 		// we have to fail now, otherwise we might get blocked trying to read from the channel
 		require.Equal(t, len(tc.expNew), len(newSvc))
 		require.Equal(t, len(tc.expDel), len(delSvc))

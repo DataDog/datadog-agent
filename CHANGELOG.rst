@@ -2,6 +2,22 @@
 Release Notes
 =============
 
+.. _Release Notes_7.18.1:
+
+7.18.1
+======
+
+.. _Release Notes_7.18.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix conntrack issue where a large batch of deletion events was killing
+  the goroutine polling the netlink socket.
+
+- On Debian and Ubuntu-based systems, remove system-probe SELinux policy
+  to prevent install failures.
+
 .. _Release Notes_7.18.0:
 
 7.18.0 / 6.18.0
@@ -577,6 +593,9 @@ New Features
   `value` (as a string), whereas `datadog_agent.read_persistent_cache(key)`
   returns it for usage afterwards.
 
+- Adding support for compression when forwarding logs through HTTPS. Enable it
+  by following instructions
+  `here <https://docs.datadoghq.com/agent/logs/?tab=httpcompressed#send-logs-over-https>`_
 
 .. _Release Notes_6.15.0_Enhancement Notes:
 

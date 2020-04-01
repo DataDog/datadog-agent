@@ -76,6 +76,15 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 			}
 
 			for labelName, labelValue := range ctr.Labels {
+				switch labelName {
+				case dockerLabelEnv:
+					tags.AddLow(tagKeyEnv, labelValue)
+				case dockerLabelVersion:
+					tags.AddLow(tagKeyVersion, labelValue)
+				case dockerLabelService:
+					tags.AddLow(tagKeyService, labelValue)
+				}
+
 				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
 					tags.AddAuto(tagName, labelValue)
 				}

@@ -213,7 +213,7 @@ func (l *DockerListener) createService(cID string) {
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	} else {
-		image, err := l.dockerUtil.ResolveImageName(cInspect.Image)
+		image, err := l.dockerUtil.ResolveImageNameFromContainer(cInspect)
 		if err != nil {
 			log.Warnf("error while resolving image name: %s", err)
 			image = ""
@@ -399,7 +399,7 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 		if err != nil {
 			return []string{}, err
 		}
-		image, err := du.ResolveImageName(cj.Image)
+		image, err := du.ResolveImageNameFromContainer(cj)
 		if err != nil {
 			log.Warnf("error while resolving image name: %s", err)
 		}

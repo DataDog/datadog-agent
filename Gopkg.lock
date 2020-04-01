@@ -318,7 +318,7 @@
   revision = "fc51bcbe4714807834a6481e609aef94e5e6b917"
 
 [[projects]]
-  digest = "1:0a9019c3c23c3148957b9653aea5d404936173fc01a52ed164a58d9e59d6d31e"
+  digest = "1:d21b0bc185fcbdee10aa18269c78c7b75094e5d0afd8c8670ec771b37f1eaf17"
   name = "github.com/containerd/containerd"
   packages = [
     ".",
@@ -372,8 +372,8 @@
     "version",
   ]
   pruneopts = ""
-  revision = "d50db0a42053864a270f648048f9a8b4f24eced3"
-  version = "v1.2.9"
+  revision = "7ad184331fa3e55e52b890ea95e65ba581ae3429"
+  version = "v1.2.13"
 
 [[projects]]
   branch = "master"
@@ -466,35 +466,39 @@
   packages = [
     "digestset",
     "reference",
+    "registry/api/errcode",
   ]
   pruneopts = ""
   revision = "0ac367fd6bee057d404c405a298b4b7aedf301ec"
 
 [[projects]]
-  digest = "1:a60acfb78bd12ce7b2101f0cc0bca8cd83db6aa60bf1e6ddfd33e83013083ddf"
+  digest = "1:579eb8eeefc0168fd5f2255d05ea3ed5b50bab55d5f06960fe880bdccf26de02"
   name = "github.com/docker/docker"
   packages = [
+    "api",
     "api/types",
     "api/types/blkiodev",
     "api/types/container",
     "api/types/events",
     "api/types/filters",
+    "api/types/image",
     "api/types/mount",
     "api/types/network",
-    "api/types/reference",
     "api/types/registry",
     "api/types/strslice",
     "api/types/swarm",
+    "api/types/swarm/runtime",
     "api/types/time",
     "api/types/versions",
     "api/types/volume",
     "client",
-    "pkg/testutil/assert",
-    "pkg/tlsconfig",
+    "errdefs",
+    "pkg/parsers",
+    "pkg/sysinfo",
   ]
   pruneopts = ""
-  revision = "092cba3727bb9b4a2f0e922cd6c0f93ea270e363"
-  version = "v1.13.1"
+  revision = "aa6a9891b09cce3d9004121294301a30d45d998d"
+  version = "v19.03.8"
 
 [[projects]]
   digest = "1:ebe593d8b65a2947b78b6e164a2dac1a230b977a700b694da3a398b03b7afb04"
@@ -1106,15 +1110,17 @@
   version = "v1.0.1"
 
 [[projects]]
-  digest = "1:fa19ddee0e5ee5951a6a450a4b6ec635a42957f86bfc87d9d778eeee04ad2036"
+  digest = "1:5b66445509acb4b8464865f96729db42853c9e8f13b6792f576c92ed48fab5d1"
   name = "github.com/opencontainers/runc"
   packages = [
+    "libcontainer/cgroups",
+    "libcontainer/configs",
     "libcontainer/system",
     "libcontainer/user",
   ]
   pruneopts = ""
-  revision = "baf6536d6259209c3edfa2b22237af82942d3dfa"
-  version = "v0.1.1"
+  revision = "1a124e9c2da68c867ed2c4f4ff19f0cd95cda0cd"
+  version = "v0.0.8"
 
 [[projects]]
   digest = "1:6695522de4de350bba68ec33f8e901e216583e533ec7c296eb2233025aa2aa9f"
@@ -2212,6 +2218,7 @@
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1",
     "github.com/DataDog/zstd.v1.3",
     "github.com/Microsoft/go-winio",
+    "github.com/Microsoft/hcsshim",
     "github.com/StackExchange/wmi",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/credentials",
@@ -2243,9 +2250,8 @@
     "github.com/docker/docker/api/types/network",
     "github.com/docker/docker/api/types/registry",
     "github.com/docker/docker/api/types/swarm",
-    "github.com/docker/docker/api/types/versions",
     "github.com/docker/docker/client",
-    "github.com/docker/docker/pkg/testutil/assert",
+    "github.com/docker/docker/pkg/sysinfo",
     "github.com/docker/go-connections/nat",
     "github.com/dustin/go-humanize",
     "github.com/fatih/color",
@@ -2272,6 +2278,7 @@
     "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",
     "github.com/lxn/walk",
     "github.com/lxn/win",
+    "github.com/mdlayher/netlink",
     "github.com/mholt/archiver",
     "github.com/miekg/dns",
     "github.com/openshift/api/quota/v1",
@@ -2327,6 +2334,7 @@
     "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/apimachinery/pkg/util/errors",
+    "k8s.io/apimachinery/pkg/util/rand",
     "k8s.io/apimachinery/pkg/util/sets",
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/apimachinery/pkg/watch",
