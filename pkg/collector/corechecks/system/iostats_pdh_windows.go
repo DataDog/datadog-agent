@@ -79,7 +79,10 @@ func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, 
 		"Disk Writes/sec":           "system.io.w_s",
 		"Disk Read Bytes/sec":       "system.io.rkb_s",
 		"Disk Reads/sec":            "system.io.r_s",
-		"Current Disk Queue Length": "system.io.avg_q_sz"}
+		"Current Disk Queue Length": "system.io.avg_q_sz",
+		"Avg. Disk sec/Read":        "system.io.r_await",
+		"Avg. Disk sec/Write":       "system.io.w_await",
+	}
 
 	c.counters = make(map[string]*pdhutil.PdhMultiInstanceCounterSet)
 
@@ -117,6 +120,12 @@ func (c *IOCheck) Run() error {
 			if cname == "Disk Write Bytes/sec" || cname == "Disk Read Bytes/sec" {
 				val /= 1024
 			}
+			if cname == "Avg. Disk sec/Read" || cname == "Avg. Disk sec/Write" {
+				// r_await/w_await are in milliseconds, but the performance counter
+				// is (obviously) in seconds.  Normalize:
+				val *= 1000
+			}
+
 			sender.Gauge(c.counternames[cname], val, "", tags)
 		}
 	}
