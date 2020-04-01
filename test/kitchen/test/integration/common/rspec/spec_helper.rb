@@ -157,6 +157,24 @@ def info
   `#{agent_command} status 2>&1`
 end
 
+def integration_install(package)
+  `#{agent_command} integration install -r #{package} 2>&1`.tap do |output|
+    raise "Failed to install integrations package '#{package}' - #{output}" unless $? == 0
+  end
+end
+
+def integration_remove(package)
+  `#{agent_command} integration remove -r #{package} 2>&1`.tap do |output|
+    raise "Failed to remove integrations package '#{package}' - #{output}" unless $? == 0
+  end
+end
+
+def integration_freeze
+  `#{agent_command} integration freeze 2>&1`.tap do |output|
+    raise "Failed to get integrations freeze - #{output}" unless $? == 0
+  end
+end
+
 def json_info
   info_output = `#{agent_command} status -j 2>&1`
   info_output = info_output.gsub("Getting the status from the agent.", "")
@@ -298,6 +316,7 @@ shared_examples_for 'Agent' do
   it_behaves_like 'a running Agent with APM'
   it_behaves_like 'a running Agent with APM manually disabled'
   it_behaves_like 'an Agent with python3 enabled'
+  it_behaves_like 'an Agent with integrations'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
   it_behaves_like 'an Agent that is removed'
@@ -559,6 +578,64 @@ shared_examples_for 'an Agent with python3 enabled' do
       result = true
     end
     expect(result).to be_truthy
+  end
+end
+
+shared_examples_for 'an Agent with integrations' do
+  let(:integrations_freeze_file) do
+    if os == :windows
+      'C:\Program Files\Datadog\Datadog Agent\requirements-agent-release.txt'
+    else
+      '/opt/datadog-agent/requirements-agent-release.txt'
+    end
+  end
+
+  before do
+    freeze_content = File.read(integrations_freeze_file)
+    freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==1.0.1')
+    File.write(integrations_freeze_file, freeze_content)
+
+    integration_remove('datadog-cilium')
+  end
+
+  it 'can uninstall an installed package' do
+    integration_install('datadog-cilium==1.0.1')
+
+    expect do
+      integration_remove('datadog-cilium')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==.*}) }.from(true).to(false)
+  end
+
+  it 'can install a new package' do
+    integration_remove('datadog-cilium')
+
+    expect do
+      integration_install('datadog-cilium==1.0.1')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.1}) }.from(false).to(true)
+  end
+
+  it 'can upgrade an installed package' do
+    expect do
+      integration_install('datadog-cilium==1.0.2')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.2}) }.from(false).to(true)
+  end
+
+  it 'can downgrade an installed package' do
+    integration_remove('datadog-cilium')
+    integration_install('datadog-cilium==1.0.2')
+
+    expect do
+      integration_install('datadog-cilium==1.0.1')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.1}) }.from(false).to(true)
+  end
+
+  it 'cannot downgrade an installed package to a version older than the one shipped with the agent' do
+    integration_remove('datadog-cilium')
+    integration_install('datadog-cilium==1.0.1')
+
+    expect do
+      integration_install('datadog-cilium==1.0.0')
+    end.to raise_error(/Failed to install integrations package 'datadog-cilium==1\.0\.0'/)
   end
 end
 
