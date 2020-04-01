@@ -253,7 +253,7 @@ func TestGetOversizedDNS(t *testing.T) {
 	}
 
 	result := cache.Get(conns, now)
-	assert.Len(t, result[addr], 10)
+	assert.Len(t, result[addr], 5)
 	assert.Len(t, cache.data[addr].names, 5)
 
 	for i := 5; i < 100; i++ {
@@ -263,14 +263,14 @@ func TestGetOversizedDNS(t *testing.T) {
 		}, now)
 	}
 
-	conns := []ConnectionStats{
+	conns = []ConnectionStats{
 		{
 			Dest: addr,
 		},
 	}
 
-	result := cache.Get(conns, now)
-	assert.Len(t, result[addr], 10)
+	result = cache.Get(conns, now)
+	assert.Len(t, result[addr], 0)
 	assert.Len(t, cache.data[addr].names, 10)
 }
 
