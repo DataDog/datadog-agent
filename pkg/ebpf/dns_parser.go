@@ -19,16 +19,17 @@ var (
 )
 
 type dnsParser struct {
-	decoder     *gopacket.DecodingLayerParser
-	layers      []gopacket.LayerType
-	ipv4Payload *layers.IPv4
-	ipv6Payload *layers.IPv6
-	udpPayload  *layers.UDP
-	tcpPayload  *tcpWithDNSSupport
-	dnsPayload  *layers.DNS
+	decoder         *gopacket.DecodingLayerParser
+	layers          []gopacket.LayerType
+	ipv4Payload     *layers.IPv4
+	ipv6Payload     *layers.IPv6
+	udpPayload      *layers.UDP
+	tcpPayload      *tcpWithDNSSupport
+	dnsPayload      *layers.DNS
+	collectDNSStats bool
 }
 
-func newDNSParser() *dnsParser {
+func newDNSParser(collectDNStats bool) *dnsParser {
 	ipv4Payload := &layers.IPv4{}
 	ipv6Payload := &layers.IPv6{}
 	udpPayload := &layers.UDP{}
@@ -45,12 +46,13 @@ func newDNSParser() *dnsParser {
 	}
 
 	return &dnsParser{
-		decoder:     gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, stack...),
-		ipv4Payload: ipv4Payload,
-		ipv6Payload: ipv6Payload,
-		udpPayload:  udpPayload,
-		tcpPayload:  tcpPayload,
-		dnsPayload:  dnsPayload,
+		decoder:         gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, stack...),
+		ipv4Payload:     ipv4Payload,
+		ipv6Payload:     ipv6Payload,
+		udpPayload:      udpPayload,
+		tcpPayload:      tcpPayload,
+		dnsPayload:      dnsPayload,
+		collectDNSStats: collectDNStats,
 	}
 }
 
@@ -72,6 +74,10 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *dnsKey) (uint16
 
 	if err := p.parseAnswerInto(p.dnsPayload, t); err != nil {
 		return 0, err
+	}
+
+	if !p.collectDNSStats {
+		return p.dnsPayload.ID, nil
 	}
 
 	for _, layer := range p.layers {

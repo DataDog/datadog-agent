@@ -156,8 +156,10 @@ func (ns *networkState) Connections(
 		}
 
 		ns.determineConnectionIntraHost(latestConns)
-		ns.storeDNSStats(dnsStats)
-		ns.addDNSStats(id, latestConns)
+		if len(dnsStats) > 0 {
+			ns.storeDNSStats(dnsStats)
+			ns.addDNSStats(id, latestConns)
+		}
 		return latestConns
 	}
 
@@ -178,9 +180,10 @@ func (ns *networkState) Connections(
 	// Flush closed connection map and stats
 	ns.clients[id].closedConnections = map[string]ConnectionStats{}
 	ns.determineConnectionIntraHost(conns)
-	ns.storeDNSStats(dnsStats)
-	ns.addDNSStats(id, conns)
-
+	if len(dnsStats) > 0 {
+		ns.storeDNSStats(dnsStats)
+		ns.addDNSStats(id, conns)
+	}
 	return conns
 }
 

@@ -16,15 +16,24 @@ import (
 )
 
 func getSnooper(t *testing.T, m *bpflib.Module) *SocketFilterSnooper {
-	// Load socket filter
 	cfg := NewDefaultConfig()
+	return getSnooperWithConfig(t, m, cfg)
+}
+
+func getSnooperWithConfig(t *testing.T, m *bpflib.Module, cfg *Config) *SocketFilterSnooper {
+	// Load socket filter
 	err := m.Load(SectionsFromConfig(cfg, true))
 	require.NoError(t, err)
 
 	filter := m.SocketFilter("socket/dns_filter")
 	require.NotNil(t, filter)
 
-	reverseDNS, err := NewSocketFilterSnooper("/proc", filter, cfg.CollectLocalDNS)
+	reverseDNS, err := NewSocketFilterSnooper(
+		"/proc",
+		filter,
+		cfg.CollectDNSStats,
+		cfg.CollectLocalDNS,
+	)
 	require.NoError(t, err)
 	return reverseDNS
 }
@@ -94,7 +103,9 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	require.NoError(t, err)
 	defer m.Close()
 
-	reverseDNS := getSnooper(t, m)
+	cfg := NewDefaultConfig()
+	cfg.CollectDNSStats = true
+	reverseDNS := getSnooperWithConfig(t, m, cfg)
 	defer reverseDNS.Close()
 
 	// Create a DNS query message

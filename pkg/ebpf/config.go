@@ -22,6 +22,10 @@ type Config struct {
 	// Notice this does *not* depend on CollectLocalDNS
 	DNSInspection bool
 
+	// CollectDNSStats specifies whether the tracer should enhance connection data with relevant DNS stats
+	// It is relevant *only* when DNSInspection is enabled.
+	CollectDNSStats bool
+
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
 	// connection as inactive.
 	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
@@ -88,6 +92,7 @@ func NewDefaultConfig() *Config {
 		CollectIPv6Conns:             true,
 		CollectLocalDNS:              false,
 		DNSInspection:                true,
+		CollectDNSStats:              false,
 		UDPConnTimeout:               30 * time.Second,
 		TCPConnTimeout:               2 * time.Minute,
 		MaxTrackedConnections:        65536,

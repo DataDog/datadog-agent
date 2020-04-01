@@ -1480,6 +1480,7 @@ func teardown(t *testing.T) {
 
 func TestDNSStats(t *testing.T) {
 	config := NewDefaultConfig()
+	config.CollectDNSStats = true
 	config.CollectLocalDNS = true
 	tr, err := NewTracer(config)
 	require.NoError(t, err)
