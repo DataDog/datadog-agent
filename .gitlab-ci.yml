@@ -92,11 +92,6 @@ deps_deb:
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
-test_curl:
-  stage: prepare
-  script:
-    - wget https://www.openssl.org/source/old/1.0.2/openssl-1.0.2o.tar.gz
-
 deps_rpm:
   stage: prepare
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6
