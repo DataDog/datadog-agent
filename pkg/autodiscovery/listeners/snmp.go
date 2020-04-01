@@ -60,8 +60,7 @@ type snmpSubnet struct {
 // NewSNMPListener creates a SNMPListener
 func NewSNMPListener() (ServiceListener, error) {
 	var snmpConfig util.SNMPListenerConfig
-	err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig)
-	if err != nil {
+	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig); err != nil {
 		return nil, err
 	}
 	return &SNMPListener{
@@ -133,23 +132,22 @@ func (l *SNMPListener) checkDevice(adIdentifier string, deviceIP string, config 
 	params := *defaultParams
 	params.Target = deviceIP
 	entityID := config.Digest(deviceIP)
-	err := params.Connect()
-	if err != nil {
+	if err := params.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
 		l.deleteService(entityID)
 	} else {
 		defer params.Conn.Close()
 
 		oids := []string{"1.3.6.1.2.1.1.2.0"}
-		v, err := params.Get(oids)
+		value, err := params.Get(oids)
 		if err != nil {
 			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
 			l.deleteService(entityID)
-		} else if len(v.Variables) < 1 || v.Variables[0].Value == nil {
+		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
 			log.Debugf("SNMP get to %s no data", deviceIP)
 			l.deleteService(entityID)
 		} else {
-			log.Debugf("SNMP get to %s success: %v", deviceIP, v.Variables[0].Value)
+			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
 			l.createService(deviceIP, adIdentifier, entityID)
 		}
 	}
@@ -276,8 +274,7 @@ func (l *SNMPListener) deleteService(entityID string) {
 	l.Lock()
 	defer l.Unlock()
 	// XXX don't delete on first failure
-	svc, present := l.services[entityID]
-	if present {
+	if svc, present := l.services[entityID]; present {
 		l.delService <- svc
 		delete(l.services, entityID)
 	}
