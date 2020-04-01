@@ -42,7 +42,7 @@ func init() {
 // make assumptions for packet processing
 type readBuffer struct {
 	ol   windows.Overlapped
-	data [128]byte
+	data [128*512]byte
 }
 
 // Tracer struct for tracking network state and connections
@@ -195,19 +195,35 @@ func CurrentKernelVersion() (uint32, error) {
 	return 0, ErrNotImplemented
 }
 
+// temporary location
 func countPackets(buf readBuffer, bytes uint32) int64 {
 	var header ipv4.Header
-	var packetHeader C.struct_filterPacketHeader
+	var packetHeader C.struct_packetHeader
+	var bufferHeader C.struct_filterBufferHeader
 
-	dataStart := uint32(unsafe.Sizeof(packetHeader))
-	pheader := *(*C.struct_filterPacketHeader)(unsafe.Pointer(&(buf.data[0])))
+	dataStart := uint32(unsafe.Sizeof(bufferHeader))
+	bheader := *(*C.struct_filterBufferHeader)(unsafe.Pointer(&(buf.data[0])))
 
-	log.Debugf("Contains %v packets \n", pheader.numPackets)
+	log.Debugf("Contains %v packets \n", bheader.numPackets)
 
-	for i := uint64(0); i < uint64(pheader.numPackets) && dataStart < bytes; i++ {
-		header.Parse(buf.data[dataStart:])
-		dataStart += 128
+	for i := uint64(0); i < uint64(bheader.numPackets) && dataStart < bytes; i++ {
+		//header.Parse(buf.data[dataStart:])
+		pheader := *(*C.struct_packetHeader)(unsafe.Pointer(&(buf.data[dataStart])))
+		// pheader now has a pointer to the small header we put on the front.  First
+		// check what type of packet it is
+		switch ptype := (pheader.info & C.PACKET_TYPE_MASK) ; ptype {
+		case C.PACKET_TYPE_END_FLOW:
+			log.Infof("New Flow notification")
+		case C.PACKET_TYPE_NEW_FLOW:
+			log.Infof("End of flow notification")
+		case C.PACKET_TYPE_DATA:
+			packetStart := dataStart + uint32(unsafe.Sizeof(packetHeader))
+			header.Parse(buf.data[packetStart:])
+		default:
+			log.Errorf("Unknown packet type");
+		}
+		dataStart += uint32(pheader.size)
 	}
-	return int64(pheader.numPackets)
+	return int64(bheader.numPackets)
 
 }

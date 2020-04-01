@@ -67,6 +67,17 @@ func NewDriverInterface() (*DriverInterface, error) {
 	dc.driverHandle = handle
 	dc.iocp = iocp
 
+	// Set the driver buffer parameters
+	var params C.struct__handle_buffer_cfg
+	params.filterVersion = C.DD_FILTER_SIGNATURE
+	params.numPacketBuffers = 2048
+	params.sizeOfBuffer = 128
+	params.packetMode = C.PACKET_REPORT_MODE_HEADER_ONLY;
+	err = dc.setDriverBufferConfig(params)
+	if err != nil {
+		return nil, err
+	}
+
 	// Set the packet filters that will determine what we pull from the driver
 	err = dc.prepareDriverFilters()
 	if err != nil {
@@ -142,18 +153,27 @@ func (dc *DriverInterface) prepareDriverFilters() error {
 // To capture all traffic for an interface, we create an inbound/outbound traffic filter
 // for both IPV4 and IPV6 traffic going to that interface
 func createFiltersForInterface(iface net.Interface) (filters []C.struct__filterDefinition) {
-	filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, iface.Index, true))
-	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, iface.Index, true))
-	filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, iface.Index, false))
-	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, iface.Index, false))
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_ALE_CONNECT, iface.Index, true))
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, true))
+
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, C.FILTER_LAYER_ALE_RECVCONN, iface.Index, true))
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, true))
+
+	// this one doesn't really have a "direction".  TODO  Should probably clarify the API
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, C.FILTER_LAYER_ALE_CLOSURE, iface.Index, true))
+
+	// for now skip ipv6
+	//filters = append(filters, newDDAPIFilter(C.DIRECTION_INBOUND, iface.Index, false))
+	//filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, iface.Index, false))
 	return
 }
 
 // NewDDAPIFilter returns a filter we can apply to the driver
-func newDDAPIFilter(direction C.uint64_t, ifaceIndex int, isIPV4 bool) (fd C.struct__filterDefinition) {
+func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) (fd C.struct__filterDefinition) {
 	fd.filterVersion = C.DD_FILTER_SIGNATURE
 	fd.size = C.sizeof_struct__filterDefinition
 	fd.direction = direction
+	fd.filterLayer = layer
 
 	if isIPV4 {
 		fd.af = windows.AF_INET
@@ -175,6 +195,15 @@ func (dc *DriverInterface) setFilter(fd C.struct__filterDefinition) error {
 	return nil
 }
 
+func (dc *DriverInterface)  setDriverBufferConfig(cfg C.struct__handle_buffer_cfg) error {
+	var outlen uint32
+	err := windows.DeviceIoControl(dc.driverHandle, C.DDFILTER_IOCTL_SET_HANDLE_BUFFER_CONFIG, (*byte)(unsafe.Pointer(&cfg)), uint32(unsafe.Sizeof(cfg)), 
+	nil, 0, &outlen, nil)
+	if err != nil {
+		return fmt.Errorf("Failed to set driver buffer params")
+	}
+	return nil
+}
 func (dc *DriverInterface) getStats() (map[string]interface{}, error) {
 	var (
 		bytesReturned uint32
