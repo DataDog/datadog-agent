@@ -40,6 +40,7 @@ type ExceptionSampler struct {
 	tickStats *time.Ticker
 	hits      int64
 	misses    int64
+	shrinks   int64
 }
 
 // NewExceptionSampler returns a NewExceptionSampler that ensures that we sample combinations
@@ -107,20 +108,20 @@ func (e *ExceptionSampler) handleTrace(now time.Time, env string, t pb.Trace) bo
 
 func (e *ExceptionSampler) addSpan(expire time.Time, env string, s *pb.Span) {
 	shardSig := ServiceSignature{env, s.Service}.Hash()
-	b := e.loadSpanSeenSet(shardSig)
-	b.add(expire, s)
+	ss := e.loadSeenSpans(shardSig)
+	ss.add(expire, s)
 }
 
 func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
 	var sampled bool
 	shardSig := ServiceSignature{env, s.Service}.Hash()
-	b := e.loadSpanSeenSet(shardSig)
-	sig := b.sign(s)
-	expire, ok := b.getExpire(sig)
+	ss := e.loadSeenSpans(shardSig)
+	sig := ss.sign(s)
+	expire, ok := ss.getExpire(sig)
 	if now.After(expire) || !ok {
 		sampled = e.limiter.Allow()
 		if sampled {
-			b.add(now.Add(defaultTTL), s)
+			ss.add(now.Add(defaultTTL), s)
 			atomic.AddInt64(&e.hits, 1)
 			traceutil.SetMetric(s, exceptionKey, 1)
 		} else {
@@ -130,14 +131,14 @@ func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) boo
 	return sampled
 }
 
-func (e *ExceptionSampler) loadSpanSeenSet(shardSig Signature) *seenSpans {
+func (e *ExceptionSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 	e.mu.RLock()
 	s, ok := e.seen[shardSig]
 	e.mu.RUnlock()
 	if ok {
 		return s
 	}
-	s = &seenSpans{expires: make(map[spanHash]time.Time)}
+	s = &seenSpans{expires: make(map[spanHash]time.Time), totalSamplerShrinks: &e.shrinks}
 	e.mu.Lock()
 	e.seen[shardSig] = s
 	e.mu.Unlock()
@@ -147,6 +148,7 @@ func (e *ExceptionSampler) loadSpanSeenSet(shardSig Signature) *seenSpans {
 func (e *ExceptionSampler) report() {
 	metrics.Count("datadog.trace_agent.sampler.exception.hits", atomic.SwapInt64(&e.hits, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.sampler.exception.misses", atomic.SwapInt64(&e.misses, 0), nil, 1)
+	metrics.Gauge("datadog.trace_agent.sampler.exception.shrinks", float64(atomic.LoadInt64(&e.shrinks)), nil, 1)
 }
 
 // seenSpans keeps record of a set of spans.
@@ -156,6 +158,8 @@ type seenSpans struct {
 	expires map[spanHash]time.Time
 	// shrunk caracterize seenSpans when it's limited in size by capacityLimit.
 	shrunk bool
+	// totalSamplerShrinks is the reference to the total number of shrinks reported by ExceptionSampler.
+	totalSamplerShrinks *int64
 }
 
 func (ss *seenSpans) add(expire time.Time, s *pb.Span) {
@@ -187,6 +191,7 @@ func (ss *seenSpans) shrink() {
 	}
 	ss.expires = newExpires
 	ss.shrunk = true
+	atomic.AddInt64(ss.totalSamplerShrinks, 1)
 }
 
 func (ss *seenSpans) getExpire(h spanHash) (time.Time, bool) {

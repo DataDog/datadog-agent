@@ -24,7 +24,7 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 		{"p1-ttl-expired", true, testTime.Add(priorityTTL + time.Nanosecond), map[string]float64{"_top_level": 1}},
 		{"p0-ttl-active", false, testTime.Add(priorityTTL + time.Nanosecond), map[string]float64{"_top_level": 1}},
 		{"p0-ttl-before-expiration", false, testTime.Add(priorityTTL + defaultTTL + time.Nanosecond), map[string]float64{"_top_level": 1}},
-		{"p0-ttl-expired", true, testTime.Add(priorityTTL + defaultTTL + 2*time.Nanosecond), map[string]float64{"_top_level": 1}},
+		{"p0-ttl-expired", true, testTime.Add(priorityTTL + defaultTTL + 2*time.Nanosecond), map[string]float64{"_dd.measured": 1}},
 	}
 
 	e := NewExceptionSampler()
