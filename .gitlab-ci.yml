@@ -248,6 +248,7 @@ build_deb:
     # cloning in omnibus and operations on datadog-agent
   - curl https://www.openssl.org/source/1.0.2/openssl-1.0.2o.tar.gz -o openssl-1.0.2o.tar.gz
   - curl http://ftp.gnu.org/gnu/ncurses/ncurses-5.9.tar.gz -o ncurses-5.9.tar.gz
+  - ls
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
   - inv version
