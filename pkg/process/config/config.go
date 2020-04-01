@@ -47,6 +47,19 @@ type WindowsConfig struct {
 	AddNewArgs bool
 }
 
+// WinSystemProbeConfig stores all windows-specific configuration for the System Probe
+type WinSystemProbeConfig struct {
+	// System Probe Windows Configuration
+	SystemProbeWindowsListener string
+	MaxDataPerPacket           int
+	TracerReadBuffers          int
+	TracerReadBufferSize       int
+	TransferBuffers            int
+	TransferBufferSize         int
+	DriverBuffers              int
+	DriverBufferSize           int
+}
+
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
@@ -91,15 +104,7 @@ type AgentConfig struct {
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
 
-	// System Probe Windows Configuration
-	SystemProbeWindowsListener string
-	MaxDataPerPacket           int
-	TracerReadBuffers          int
-	TracerReadBufferSize       int
-	TransferBuffers            int
-	TransferBufferSize         int
-	DriverBuffers              int
-	DriverBufferSize           int
+	WinSysProbeConfig WinSystemProbeConfig
 
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
@@ -206,14 +211,16 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ConntrackMaxStateSize:        defaultMaxTrackedConnections,
 
 		// Windows System Probe Configuration
-		SystemProbeWindowsListener: "http://localhost:3333",
-		MaxDataPerPacket:           256,
-		TracerReadBuffers:          32,
-		TracerReadBufferSize:       14400,
-		TransferBuffers:            32,
-		TransferBufferSize:         14400,
-		DriverBuffers:              32,
-		DriverBufferSize:           14400,
+		WinSysProbeConfig: WinSystemProbeConfig{
+			SystemProbeWindowsListener: "http://localhost:3333",
+			MaxDataPerPacket:           256,
+			TracerReadBuffers:          32,
+			TracerReadBufferSize:       14400,
+			TransferBuffers:            32,
+			TransferBufferSize:         14400,
+			DriverBuffers:              32,
+			DriverBufferSize:           14400,
+		},
 
 		// Check config
 		EnabledChecks: enabledChecks,
