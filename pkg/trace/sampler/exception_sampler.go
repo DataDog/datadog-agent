@@ -29,7 +29,8 @@ const (
 
 // ExceptionSampler samples traces that are not caught by the Priority sampler.
 // It ensures that we sample traces for each combination of
-// (env, service, name, resource, error type, http status) seen on a measured span.
+// (env, service, name, resource, error type, http status) seen on a top level or measured span
+// for which we did not see any span with a priority > 0 (sampled by Priority).
 // The resulting sampled traces will likely be incomplete.
 type ExceptionSampler struct {
 	mu      sync.RWMutex
@@ -41,7 +42,7 @@ type ExceptionSampler struct {
 	misses    int64
 }
 
-// NewExceptionSampler returns a NewExceptionSampler that ensures that we samplexs combinations
+// NewExceptionSampler returns a NewExceptionSampler that ensures that we sample combinations
 // of env, service, name, resource, http-status, error type for each top level or measured spans
 func NewExceptionSampler() *ExceptionSampler {
 	return &ExceptionSampler{
