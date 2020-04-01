@@ -722,6 +722,7 @@ substate_status_mapping:
 	stats.On("GetUnitTypeProperties", mock.Anything, "unit2.service", dbusTypeMap[typeUnit]).Return(map[string]interface{}{
 		"ActiveEnterTimestamp": uint64(200),
 	}, nil)
+	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
 	check.Configure(rawInstanceConfig, nil, "test")
