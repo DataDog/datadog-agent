@@ -2,7 +2,6 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>$package_id$</id>
-    <!-- Will be replaced during packaging -->
     <version>$package_version$</version>
     <packageSourceUrl>https://github.com/DataDog/datadog-agent/tree/master/chocolatey</packageSourceUrl>
     <owners>package@datadoghq.com</owners>
