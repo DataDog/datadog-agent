@@ -18,7 +18,7 @@ const (
 	defaultTTL = 2 * time.Minute
 	// priorityTTL allows to blacklist p1 spans that are sampled entirely, for this period.
 	priorityTTL = 10 * time.Minute
-	// ttlRenewalPeriod prevents from continuously updating expire times for each span seen.
+	// ttlRenewalPeriod specifies the frequency at which we will upload cached entries.
 	ttlRenewalPeriod = 1 * time.Minute
 	// exceptionSamplerTPS traces per second allowed by the rate limiter.
 	exceptionSamplerTPS = 5
