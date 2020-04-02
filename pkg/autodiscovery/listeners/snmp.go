@@ -202,12 +202,11 @@ func (l *SNMPListener) checkDevices() {
 		go worker(l, jobs)
 	}
 
-	subnetsDone := 0
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 
 	for {
 		for _, subnet := range subnets {
-			if subnet.network.Contains(subnet.currentIP) {
+			for subnet.network.Contains(subnet.currentIP) {
 				ignored := false
 				currentString := subnet.currentIP.String()
 				for _, ip := range subnet.config.IgnoredIPAddresses {
@@ -225,30 +224,25 @@ func (l *SNMPListener) checkDevices() {
 				copy(jobSubnet.currentIP, subnet.currentIP)
 				jobs <- jobSubnet
 				incrementIP(subnet.currentIP)
-			} else {
-				// XXX write the cache a bit more often
-				l.writeCache(subnet.cacheKey, subnet.adIdentifier)
-				subnetsDone++
+
+				select {
+				case <-l.stop:
+					return
+				default:
+				}
 			}
+			// XXX write the cache a bit more often
+			l.writeCache(subnet.cacheKey, subnet.adIdentifier)
 		}
 
-		if subnetsDone == len(subnets) {
-			for _, subnet := range subnets {
-				copy(subnet.currentIP, subnet.startingIP)
-			}
-			subnetsDone = 0
+		for _, subnet := range subnets {
+			copy(subnet.currentIP, subnet.startingIP)
+		}
 
-			select {
-			case <-l.stop:
-				return
-			case <-discoveryTicker.C:
-			}
-		} else {
-			select {
-			case <-l.stop:
-				return
-			default:
-			}
+		select {
+		case <-l.stop:
+			return
+		case <-discoveryTicker.C:
 		}
 	}
 }
