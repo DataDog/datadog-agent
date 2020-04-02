@@ -108,7 +108,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 
 // GetStats returns the expvar stats of the system probe
 func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s", statsURL), nil)
+	req, err := http.NewRequest("GET", statsURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +121,7 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
