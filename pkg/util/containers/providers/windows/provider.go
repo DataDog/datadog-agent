@@ -12,17 +12,19 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
-	"github.com/docker/docker/pkg/sysinfo"
-	"golang.org/x/sys/windows"
 	"math"
 	"net"
+	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/Microsoft/hcsshim"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper"
+	"github.com/docker/docker/pkg/sysinfo"
+	"golang.org/x/sys/windows"
+
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -33,13 +35,18 @@ import (
 )
 
 type containerBundle struct {
-	container  types.Container
-	statsCache *types.StatsJSON
+	metrics        *metrics.ContainerMetrics
+	networkMetrics map[string]types.NetworkStats
+	limits         *metrics.ContainerLimits
+	startTime      int64
 }
 
 // Provider is a Windows implementation of the ContainerImplementation interface
 type provider struct {
-	containers map[string]containerBundle
+	containers     map[string]containerBundle
+	agentCID       *string
+	containersLock sync.RWMutex
+	prefetchLock   sync.Mutex
 }
 
 func init() {
@@ -49,83 +56,88 @@ func init() {
 // Prefetch gets data from all cgroups in one go
 // If not successful all other calls will fail
 func (mp *provider) Prefetch() error {
+	// Prefetch() can be slow and we don't want to lock readers during all this time.
+	// Also, we don't want multiple Prefetch() at the same time, so using 2 locks.
+	mp.prefetchLock.Lock()
+	defer mp.prefetchLock.Unlock()
+
 	dockerUtil, err := docker.GetDockerUtil()
 	if err != nil {
 		return err
 	}
-	rawContainers, err := dockerUtil.RawContainerList(types.ContainerListOptions{
-		All: true,
-	})
+
+	// We don't need exited/stopped containers
+	rawContainers, err := dockerUtil.RawContainerList(types.ContainerListOptions{})
 	if err != nil {
 		return err
 	}
-	mp.containers = make(map[string]containerBundle)
+
+	// Used to find if Agent is running in a container.
+	// With K8S entrypoint, `agentPID` should match
+	// With Docker entrypoint, `parentPID` should match
+	agentPID := os.Getpid()
+	parentPID := os.Getppid()
+
+	containers := make(map[string]containerBundle, len(rawContainers))
 	for _, container := range rawContainers {
-		mp.containers[container.ID] = containerBundle{
-			container: container,
+		containerBundle := containerBundle{}
+
+		cjson, err := dockerUtil.Inspect(container.ID, false)
+		if err == nil {
+			mp.fillContainerDetails(cjson, &containerBundle)
+
+			// Luckily for us, on Windows PIDs are the same inside/outside containers
+			if cjson.State.Pid == agentPID || cjson.State.Pid == parentPID {
+				mp.agentCID = &container.ID
+			}
+		} else {
+			log.Debugf("Impossible to inspect container %s: %v", container.ID, err)
 		}
+
+		stats, err := dockerUtil.GetContainerStats(container.ID)
+		if err == nil && stats != nil {
+			mp.fillContainerMetrics(stats, &containerBundle)
+			mp.fillContainerNetworkMetrics(stats, &containerBundle)
+		} else {
+			log.Debugf("Impossible to get stats for container %s: %v", container.ID, err)
+		}
+
+		containers[container.ID] = containerBundle
 	}
+
+	mp.containersLock.Lock()
+	defer mp.containersLock.Unlock()
+	mp.containers = containers
+
 	return nil
 }
 
-// ContainerExists returns true if a cgroup exists for this containerID
-func (mp *provider) ContainerExists(containerID string) bool {
-	_, exists := mp.containers[containerID]
-	return exists
-}
-
-// GetContainerStartTime returns container start time
-func (mp *provider) GetContainerStartTime(containerID string) (int64, error) {
-	dockerUtil, err := docker.GetDockerUtil()
-	if err != nil {
-		return 0, err
-	}
-
-	_, exists := mp.containers[containerID]
-	if !exists {
-		return 0, fmt.Errorf("container not found")
-	}
-
-	cjson, err := dockerUtil.Inspect(containerID, false)
-	if err != nil {
-		return 0, err
-	}
-
+func (mp *provider) fillContainerDetails(cjson types.ContainerJSON, containerBundle *containerBundle) {
+	// Parsing start time
 	t, err := time.Parse(time.RFC3339, cjson.State.StartedAt)
-	if err != nil {
-		return 0, err
+	if err == nil {
+		containerBundle.startTime = t.Unix()
+	} else {
+		log.Debugf("Impossible to get start time for container %s: %v", cjson.ID, err)
 	}
 
-	return t.Unix(), nil
+	// Parsing limits
+	var cpuMax float64 = 0
+	if cjson.HostConfig.NanoCPUs > 0 {
+		cpuMax = float64(cjson.HostConfig.NanoCPUs) / 1e9 / float64(sysinfo.NumCPU()) * 100
+	} else if cjson.HostConfig.CPUPercent > 0 {
+		cpuMax = float64(cjson.HostConfig.CPUPercent)
+	} else if cjson.HostConfig.CPUCount > 0 {
+		cpuMax = math.Min(float64(cjson.HostConfig.CPUCount), float64(sysinfo.NumCPU())) / float64(sysinfo.NumCPU()) * 100
+	}
+	containerBundle.limits = &metrics.ContainerLimits{
+		CPULimit: cpuMax,
+		MemLimit: uint64(cjson.HostConfig.Memory),
+		//ThreadLimit: 0, // Unknown ?
+	}
 }
 
-func (mp *provider) getContainerStats(containerID string) (*types.StatsJSON, error) {
-	dockerUtil, err := docker.GetDockerUtil()
-	if err != nil {
-		return nil, err
-	}
-
-	containerBundle, exists := mp.containers[containerID]
-	if !exists {
-		return nil, fmt.Errorf("container not found")
-	}
-
-	if containerBundle.statsCache == nil {
-		stats, err := dockerUtil.GetContainerStats(containerID)
-		if err != nil {
-			return nil, err
-		}
-		containerBundle.statsCache = stats
-	}
-	return containerBundle.statsCache, nil
-}
-
-// GetContainerMetrics returns CPU, IO and Memory metrics
-func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerMetrics, error) {
-	stats, err := mp.getContainerStats(containerID)
-	if err != nil {
-		return nil, err
-	}
+func (mp *provider) fillContainerMetrics(stats *types.StatsJSON, containerBundle *containerBundle) {
 	// 100's of nanoseconds to jiffy
 	kernel := stats.CPUStats.CPUUsage.UsageInKernelmode / 1e5
 	total := stats.CPUStats.CPUUsage.TotalUsage / 1e5
@@ -133,7 +145,8 @@ func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerM
 	if user < 0 {
 		user = 0
 	}
-	containerMetrics := metrics.ContainerMetrics{
+
+	containerBundle.metrics = &metrics.ContainerMetrics{
 		CPU: &metrics.ContainerCPUStats{
 			User:       user,
 			System:     kernel,
@@ -152,47 +165,72 @@ func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerM
 			WriteBytes: stats.StorageStats.WriteSizeBytes,
 		},
 	}
-	return &containerMetrics, nil
+}
+
+func (mp *provider) fillContainerNetworkMetrics(stats *types.StatsJSON, containerBundle *containerBundle) {
+	containerBundle.networkMetrics = stats.Networks
+}
+
+// ContainerExists returns true if a cgroup exists for this containerID
+func (mp *provider) ContainerExists(containerID string) bool {
+	mp.containersLock.RLock()
+	defer mp.containersLock.RUnlock()
+
+	_, exists := mp.containers[containerID]
+	return exists
+}
+
+// GetContainerStartTime returns container start time
+func (mp *provider) GetContainerStartTime(containerID string) (int64, error) {
+	mp.containersLock.RLock()
+	defer mp.containersLock.RUnlock()
+
+	containerBundle, exists := mp.containers[containerID]
+	if !exists {
+		return 0, fmt.Errorf("container not found")
+	}
+
+	return containerBundle.startTime, nil
+}
+
+// GetContainerMetrics returns CPU, IO and Memory metrics
+func (mp *provider) GetContainerMetrics(containerID string) (*metrics.ContainerMetrics, error) {
+	mp.containersLock.RLock()
+	defer mp.containersLock.RUnlock()
+
+	containerBundle, exists := mp.containers[containerID]
+	if !exists {
+		return nil, fmt.Errorf("container not found")
+	}
+
+	return containerBundle.metrics, nil
 }
 
 // GetContainerLimits returns CPU, Thread and Memory limits
 func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLimits, error) {
-	dockerUtil, err := docker.GetDockerUtil()
-	if err != nil {
-		return nil, err
+	mp.containersLock.RLock()
+	defer mp.containersLock.RUnlock()
+
+	containerBundle, exists := mp.containers[containerID]
+	if !exists {
+		return nil, fmt.Errorf("container not found")
 	}
 
-	cjson, err := dockerUtil.Inspect(containerID, false)
-	if err != nil {
-		return nil, err
-	}
-
-	var cpuMax float64 = 0
-	if cjson.HostConfig.NanoCPUs > 0 {
-		cpuMax = float64(cjson.HostConfig.NanoCPUs) / 1e9 / float64(sysinfo.NumCPU()) * 100
-	} else if cjson.HostConfig.CPUPercent > 0 {
-		cpuMax = float64(cjson.HostConfig.CPUPercent)
-	} else if cjson.HostConfig.CPUCount > 0 {
-		cpuMax = math.Min(float64(cjson.HostConfig.CPUCount), float64(sysinfo.NumCPU())) / float64(sysinfo.NumCPU()) * 100
-	}
-	containerLimits := metrics.ContainerLimits{
-		CPULimit: cpuMax,
-		MemLimit: uint64(cjson.HostConfig.Memory),
-		//ThreadLimit: 0, // Unknown ?
-	}
-
-	return &containerLimits, nil
+	return containerBundle.limits, nil
 }
 
 // GetNetworkMetrics return network metrics for all PIDs in container
 func (mp *provider) GetNetworkMetrics(containerID string, networks map[string]string) (metrics.ContainerNetStats, error) {
-	stats, err := mp.getContainerStats(containerID)
-	if err != nil {
-		return nil, err
+	mp.containersLock.RLock()
+	defer mp.containersLock.RUnlock()
+
+	containerBundle, exists := mp.containers[containerID]
+	if !exists {
+		return nil, fmt.Errorf("container not found")
 	}
 
 	netStats := metrics.ContainerNetStats{}
-	for ifaceName, netStat := range stats.Networks {
+	for ifaceName, netStat := range containerBundle.networkMetrics {
 		var stat *metrics.InterfaceNetStats
 		if nw, ok := networks[ifaceName]; ok {
 			stat = &metrics.InterfaceNetStats{NetworkName: nw}
@@ -211,28 +249,25 @@ func (mp *provider) GetNetworkMetrics(containerID string, networks map[string]st
 
 // GetAgentCID returns the container ID where the current agent is running
 func (mp *provider) GetAgentCID() (string, error) {
-	dockerUtil, err := docker.GetDockerUtil()
-	if err != nil {
-		return "", err
+	// GetAgentCID is working without Prefetch() on Linux
+	// Here we need Prefetch() to have run at least once
+	if mp.agentCID == nil {
+		log.Infof("AgentCID is empty, forcing a prefetch")
+		mp.Prefetch()
 	}
 
-	_, err = hcsshim.GetContainers(hcsshim.ComputeSystemQuery{})
-	if err == nil {
-		// If we can't get access to the HCS system, that means we're probably inside a container
-		// or that the host OS doesn't support containers. Let's check the entry point.
-		for _, containerBundle := range mp.containers {
-			cjson, err := dockerUtil.Inspect(containerBundle.container.ID, false)
-			if err != nil {
-				_ = log.Warnf("Could not inspect %s: %s", containerBundle.container.ID, err)
-			} else {
-				// Official Windows Agent Docker image use the agent.exe as the entry point
-				if cjson.Path == "C:/Program Files/Datadog/Datadog Agent/bin/agent.exe" {
-					return cjson.ID, nil
-				}
-			}
-		}
+	// In case Prefetch() failed
+	if mp.agentCID == nil {
+		return "", nil
 	}
-	return "", fmt.Errorf("the agent doesn't appear to be running inside a container: %s", err)
+
+	return *mp.agentCID, nil
+}
+
+// GetPIDs returns all PIDs running in the current container
+func (mp *provider) GetPIDs(containerID string) ([]int32, error) {
+	// FIXME: Figure out how to list PIDs from containers on Windows
+	return nil, nil
 }
 
 // ContainerIDForPID return ContainerID for a given pid
