@@ -337,7 +337,6 @@ build_win:
     - call .gitlab-scripts/setup_artifactory.cmd
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-    - set PIP_FIND_LINKS=https://%ARTIFACTORY_USER%:%ARTIFACTORY_PASSWORD%@%ARTIFACTORY_URL%/simple
     - call .gitlab-scripts/windows_build_env.cmd
 # debug
 #    - call .gitlab-scripts/windows_deps.cmd
