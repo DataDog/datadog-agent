@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	cache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -45,8 +46,8 @@ func TestFormatEvent(t *testing.T) {
 	}
 	expectedOutput.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
 
-	providerIDByNodename := make(map[string]string)
-	output, err := b.formatEvents("", providerIDByNodename)
+	providerIDCache := cache.New(defaultCacheExpire, defaultCachePurge)
+	output, err := b.formatEvents("", providerIDCache)
 
 	assert.Nil(t, err, "not nil")
 	assert.Equal(t, expectedOutput, output)
@@ -85,9 +86,9 @@ func TestFormatEventWithNodename(t *testing.T) {
 	}
 	expectedOutput.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
 
-	providerIDByNodename := make(map[string]string)
-	providerIDByNodename[nodename] = providerID
-	output, err := b.formatEvents(clusterName, providerIDByNodename)
+	providerIDCache := cache.New(defaultCacheExpire, defaultCachePurge)
+	providerIDCache.Set(nodename, providerID, cache.NoExpiration)
+	output, err := b.formatEvents(clusterName, providerIDCache)
 
 	assert.Nil(t, err, "not nil")
 	assert.Equal(t, expectedOutput, output)

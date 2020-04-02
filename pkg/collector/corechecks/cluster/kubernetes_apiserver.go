@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,6 +38,9 @@ const (
 	maxEventCardinality           = 300
 	defaultResyncPeriodInSecond   = 300
 	defaultTimeoutEventCollection = 2000
+
+	defaultCacheExpire = 2 * time.Minute
+	defaultCachePurge  = 10 * time.Minute
 )
 
 // KubeASConfig is the config of the API server.
@@ -65,7 +69,7 @@ type KubeASCheck struct {
 	ignoredEvents         string
 	ac                    *apiserver.APIClient
 	oshiftAPILevel        apiserver.OpenShiftAPILevel
-	providerIDByNodename  map[string]string
+	providerIDCache       *cache.Cache
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -75,6 +79,19 @@ func (c *KubeASConfig) parse(data []byte) error {
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
 
 	return yaml.Unmarshal(data, c)
+}
+
+func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
+	return &KubeASCheck{
+		CheckBase:       base,
+		instance:        instance,
+		providerIDCache: cache.New(defaultCacheExpire, defaultCachePurge),
+	}
+}
+
+// KubernetesASFactory is exported for integration testing.
+func KubernetesASFactory() check.Check {
+	return NewKubeASCheck(core.NewCheckBase(kubernetesAPIServerCheckName), &KubeASConfig{})
 }
 
 // Configure parses the check configuration and init the check.
@@ -98,6 +115,7 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 		k.instance.MaxEventCollection = maxEventCardinality
 	}
 	k.ignoredEvents = convertFilter(k.instance.FilteredEventTypes)
+
 	return nil
 }
 
@@ -178,11 +196,6 @@ func (k *KubeASCheck) Run() error {
 		}
 	}
 
-	// Initialize map
-	if k.providerIDByNodename == nil {
-		k.providerIDByNodename = make(map[string]string)
-	}
-
 	// Running the event collection.
 	if !k.instance.CollectEvent {
 		return nil
@@ -200,14 +213,6 @@ func (k *KubeASCheck) Run() error {
 		k.Warnf("Could not submit new event %s", err.Error())
 	}
 	return nil
-}
-
-// KubernetesASFactory is exported for integration testing.
-func KubernetesASFactory() check.Check {
-	return &KubeASCheck{
-		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
-		instance:  &KubeASConfig{},
-	}
 }
 
 func (k *KubeASCheck) runLeaderElection() error {
@@ -316,7 +321,7 @@ func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 	}
 	clusterName := clustername.GetClusterName()
 	for _, bundle := range eventsByObject {
-		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDByNodename)
+		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
 		if err != nil {
 			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error())
 			continue
