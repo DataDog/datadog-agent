@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"net"
 	"strconv"
 	"time"
 
@@ -127,4 +128,15 @@ func (c *SNMPConfig) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 			PrivacyPassphrase:        c.PrivKey,
 		},
 	}, nil
+}
+
+// IsIPIgnored checks the given IP against IgnoredIPAddresses
+func (c *SNMPConfig) IsIPIgnored(ip net.IP) bool {
+	ipString := ip.String()
+	for _, ip := range c.IgnoredIPAddresses {
+		if ip == ipString {
+			return true
+		}
+	}
+	return false
 }

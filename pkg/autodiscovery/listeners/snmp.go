@@ -169,8 +169,6 @@ func (l *SNMPListener) checkDevices() {
 		}
 
 		startingIP := ipAddr.Mask(ipNet.Mask)
-		currentIP := make(net.IP, len(startingIP))
-		copy(currentIP, startingIP)
 
 		configHash := config.Digest(config.Network)
 		cacheKey := fmt.Sprintf("snmp:%s", configHash)
@@ -182,7 +180,6 @@ func (l *SNMPListener) checkDevices() {
 			config:        config,
 			defaultParams: defaultParams,
 			startingIP:    startingIP,
-			currentIP:     currentIP,
 			network:       *ipNet,
 			cacheKey:      cacheKey,
 		}
@@ -206,24 +203,18 @@ func (l *SNMPListener) checkDevices() {
 
 	for {
 		for _, subnet := range subnets {
-			for subnet.network.Contains(subnet.currentIP) {
-				ignored := false
-				currentString := subnet.currentIP.String()
-				for _, ip := range subnet.config.IgnoredIPAddresses {
-					if ip == currentString {
-						ignored = true
-						break
-					}
-				}
-				if ignored {
-					incrementIP(subnet.currentIP)
+			startingIP := make(net.IP, len(subnet.startingIP))
+			copy(startingIP, subnet.startingIP)
+			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
+
+				if ignored := subnet.config.IsIPIgnored(currentIP); ignored {
 					continue
 				}
+
 				jobSubnet := subnet
-				jobSubnet.currentIP = make(net.IP, len(subnet.currentIP))
-				copy(jobSubnet.currentIP, subnet.currentIP)
+				jobSubnet.currentIP = make(net.IP, len(currentIP))
+				copy(jobSubnet.currentIP, currentIP)
 				jobs <- jobSubnet
-				incrementIP(subnet.currentIP)
 
 				select {
 				case <-l.stop:
@@ -233,10 +224,6 @@ func (l *SNMPListener) checkDevices() {
 			}
 			// XXX write the cache a bit more often
 			l.writeCache(subnet.cacheKey, subnet.adIdentifier)
-		}
-
-		for _, subnet := range subnets {
-			copy(subnet.currentIP, subnet.startingIP)
 		}
 
 		select {
