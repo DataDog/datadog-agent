@@ -8,7 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 )
 
 // GetCheck returns the output of the specified check
-func (r *RemoteSysProbeUtil) GetCheck(check string) ([]ebpf.Stats, error) {
+func (r *RemoteSysProbeUtil) GetCheck(check string) ([]tcpqueuelength.Stats, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s", checksURL, check), nil)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func (r *RemoteSysProbeUtil) GetCheck(check string) ([]ebpf.Stats, error) {
 		return nil, err
 	}
 
-	var stats []ebpf.Stats
+	var stats []tcpqueuelength.Stats
 	err = json.Unmarshal(body, &stats)
 	if err != nil {
 		return nil, err

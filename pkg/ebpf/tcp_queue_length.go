@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
+
 	bpflib "github.com/iovisor/gobpf/bcc"
 )
 
@@ -103,16 +105,16 @@ func (t *TCPQueueLengthTracer) Close() {
 	t.m.Close()
 }
 
-func (t *TCPQueueLengthTracer) Get() []Stats {
+func (t *TCPQueueLengthTracer) Get() []tcpqueuelength.Stats {
 	if t == nil {
 		return nil
 	}
 
-	var result []Stats
+	var result []tcpqueuelength.Stats
 
 	for it := t.queueMap.Iter(); it.Next(); {
-		var in C.struct_stats // kernel       <-> system-probe
-		var out Stats         // system-probe <-> agent
+		var in C.struct_stats        // kernel       <-> system-probe
+		var out tcpqueuelength.Stats // system-probe <-> agent
 
 		// `binary.Read(…)` doesn’t work because reflection doesn’t work with C types.
 		// binary.Read(bytes.NewBuffer(it.Leaf()), bpflib.GetHostByteOrder(), &in)
@@ -145,7 +147,7 @@ func (t *TCPQueueLengthTracer) Get() []Stats {
 	return result
 }
 
-func (t *TCPQueueLengthTracer) GetAndFlush() []Stats {
+func (t *TCPQueueLengthTracer) GetAndFlush() []tcpqueuelength.Stats {
 	result := t.Get()
 	t.queueMap.DeleteAll()
 	return result

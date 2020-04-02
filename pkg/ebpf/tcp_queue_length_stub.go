@@ -2,6 +2,8 @@
 
 package ebpf
 
+import "github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
+
 // TCPQueueLengthTracer is not implemented on non-linux systems
 type TCPQueueLengthTracer struct{}
 
@@ -14,11 +16,11 @@ func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 func (t *TCPQueueLengthTracer) Close() {}
 
 // Get is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) Get() []Stats {
+func (t *TCPQueueLengthTracer) Get() []tcpqueuelength.Stats {
 	return nil
 }
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *TCPQueueLengthTracer) GetAndFlush() []Stats {
+func (t *TCPQueueLengthTracer) GetAndFlush() []tcpqueuelength.Stats {
 	return nil
 }
