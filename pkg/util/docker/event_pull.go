@@ -68,7 +68,7 @@ func (d *DockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 			log.Warnf("can't resolve image name %s: %s", imageName, err)
 		}
 	}
-	if d.cfg.filter.IsExcluded(containerName, imageName) {
+	if d.cfg.filter.IsExcluded(containerName, imageName, "") {
 		log.Tracef("events from %s are skipped as the image is excluded for the event collection", containerName)
 		return nil, nil
 	}

@@ -140,8 +140,12 @@ func servicesDiffer(first, second *v1.Service) bool {
 	if first.ResourceVersion == second.ResourceVersion {
 		return false
 	}
-	// AD annotations
-	if isServiceAnnotated(first) != isServiceAnnotated(second) {
+	// AD annotations - check templates
+	if isServiceAnnotated(first, kubeServiceAnnotationFormat) != isServiceAnnotated(second, kubeServiceAnnotationFormat) {
+		return true
+	}
+	// AD labels - standard tags
+	if standardTagsDigest(first.GetLabels()) != standardTagsDigest(second.GetLabels()) {
 		return true
 	}
 	// Cluster IP
@@ -168,7 +172,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	if ksvc == nil {
 		return
 	}
-	if !isServiceAnnotated(ksvc) {
+	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) {
 		// Ignore services with no AD annotation
 		return
 	}
@@ -191,11 +195,14 @@ func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
 		svc.creationTime = integration.Before
 	}
 
-	// Tags, static for now
+	// Service tags
 	svc.tags = []string{
 		fmt.Sprintf("kube_service:%s", ksvc.Name),
 		fmt.Sprintf("kube_namespace:%s", ksvc.Namespace),
 	}
+
+	// Standard tags from the service's labels
+	svc.tags = append(svc.tags, getStandardTags(ksvc.GetLabels())...)
 
 	// Hosts, only use internal ClusterIP for now
 	svc.hosts = map[string]string{"cluster": ksvc.Spec.ClusterIP}
@@ -291,9 +298,4 @@ func (s *KubeServiceService) IsReady() bool {
 // KubeServiceService doesn't implement this method
 func (s *KubeServiceService) GetCheckNames() []string {
 	return nil
-}
-
-func isServiceAnnotated(ksvc *v1.Service) bool {
-	_, found := ksvc.Annotations[kubeServiceAnnotationFormat]
-	return found
 }

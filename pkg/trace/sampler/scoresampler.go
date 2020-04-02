@@ -20,6 +20,16 @@ type ScoreEngine struct {
 	engineType EngineType
 }
 
+// NewScoreEngine returns an initialized Sampler
+func NewScoreEngine(extraRate float64, maxTPS float64) *ScoreEngine {
+	s := &ScoreEngine{
+		Sampler:    newSampler(extraRate, maxTPS),
+		engineType: NormalScoreEngineType,
+	}
+
+	return s
+}
+
 // NewErrorsEngine returns an initialized Sampler dedicate to errors. It behaves
 // just like the the normal ScoreEngine except for its GetType method (useful
 // for reporting).

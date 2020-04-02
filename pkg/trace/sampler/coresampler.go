@@ -33,8 +33,10 @@ const (
 type EngineType int
 
 const (
+	// NormalScoreEngineType is the type of the ScoreEngine sampling non-error traces.
+	NormalScoreEngineType EngineType = iota
 	// ErrorsScoreEngineType is the type of the ScoreEngine sampling error traces.
-	ErrorsScoreEngineType EngineType = iota
+	ErrorsScoreEngineType
 	// PriorityEngineType is type of the priority sampler engine type.
 	PriorityEngineType
 )
