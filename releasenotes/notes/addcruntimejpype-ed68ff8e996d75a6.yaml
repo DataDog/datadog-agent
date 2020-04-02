@@ -8,5 +8,4 @@
 ---
 fixes:
   - |
-    On Windows, for Python3, add additional C-runtime DLLs.  fixes
-    missing dependency for jpype
+    On Windows, for Python3, add additional C-runtime DLLs to fix missing dependencies (notably for jpype).
