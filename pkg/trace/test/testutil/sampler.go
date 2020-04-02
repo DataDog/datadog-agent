@@ -43,5 +43,5 @@ func (e *MockEngine) GetState() interface{} {
 
 // GetType mocks Engine.GetType()
 func (e *MockEngine) GetType() sampler.EngineType {
-	return sampler.ErrorsScoreEngineType
+	return sampler.NormalScoreEngineType
 }
