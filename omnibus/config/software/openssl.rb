@@ -24,20 +24,22 @@ dependency "zlib"
 dependency "cacerts"
 dependency "makedepend" unless aix? || windows?
 
-default_version "1.1.1d"
+default_version "1.0.2o"
 
 # OpenSSL source ships with broken symlinks which windows doesn't allow.
 # Skip error checking.
-source url: "https://www.openssl.org/source/old/1.1.1/openssl-#{version}.tar.gz", extract: :lax_tar
+source url: "https://www.openssl.org/source/old/1.0.2/openssl-#{version}.tar.gz", extract: :lax_tar
 
-version("1.1.1d") { source sha256: "1e3a91bc1f9dfce01af26026f856e064eab4c8ee0a8f457b5ae30b40b8b711f2" }
-version("1.0.2t") { source sha256: "14cb464efe7ac6b54799b34456bd69558a749a4931ecfd9cf9f71d7881cac7bc" }
 version("1.0.2o") { source sha256: "ec3f5c9714ba0fd45cb4e087301eb1336c317e0d20b575a125050470e8089e4d" }
 version("1.0.2k") { source sha256: "6b3977c61f2aedf0f96367dcfb5c6e578cf37e7b8d913b4ecb6643c3cb88d8c0" }
 version("1.0.2j") { source sha256: "e7aff292be21c259c6af26469c7a9b3ba26e9abaaffd325e3dccc9785256c431" }
 version("1.0.2i") { source sha256: "9287487d11c9545b6efb287cdb70535d4e9b284dd10d51441d9b9963d000de6f" }
 version("1.0.2h") { source sha256: "1d4007e53aad94a5b2002fe045ee7bb0b3d98f1a47f8b2bc851dcd1c74332919" }
+version("1.0.2g") { source md5: "f3c710c045cdee5fd114feb69feba7aa" }
 version("1.0.1u") { source sha256: "4312b4ca1215b6f2c97007503d80db80d5157f76f8f7d3febbe6b4c56ff26739" }
+version("1.0.1t") { source md5: "9837746fcf8a6727d46d22ca35953da1" }
+version("1.0.1s") { source md5: "562986f6937aabc7c11a6d376d8a0d26" }
+version("1.0.1r") { source md5: "1abd905e079542ccae948af37e393d28" }
 
 relative_path "openssl-#{version}"
 
@@ -111,24 +113,22 @@ build do
       "#{prefix} disable-gost"
     end
 
-  # on 1.0 we have to path before running config
-  if version.start_with? "1.0."
-    if aix?
-      # This enables omnibus to use 'makedepend'
-      # from fileset 'X11.adt.imake' (AIX install media)
-      env["PATH"] = "/usr/lpp/X11/bin:#{ENV["PATH"]}"
+  if aix?
 
-      patch_env = env.dup
-      patch_env["PATH"] = "/opt/freeware/bin:#{env["PATH"]}"
-      patch source: "openssl-1.0.1f-do-not-build-docs.patch", env: patch_env
-    else
-      patch source: "openssl-1.0.1f-do-not-build-docs.patch", env: env
-    end
+    # This enables omnibus to use 'makedepend'
+    # from fileset 'X11.adt.imake' (AIX install media)
+    env["PATH"] = "/usr/lpp/X11/bin:#{ENV["PATH"]}"
 
-    if windows?
-      # Patch Makefile.org to update the compiler flags/options table for mingw.
-      patch source: "openssl-1.0.1q-fix-compiler-flags-table-for-msys.patch", env: env
-    end
+    patch_env = env.dup
+    patch_env["PATH"] = "/opt/freeware/bin:#{env['PATH']}"
+    patch source: "openssl-1.0.1f-do-not-build-docs.patch", env: patch_env
+  else
+    patch source: "openssl-1.0.1f-do-not-build-docs.patch", env: env
+  end
+
+  if windows?
+    # Patch Makefile.org to update the compiler flags/options table for mingw.
+    patch source: "openssl-1.0.1q-fix-compiler-flags-table-for-msys.patch", env: env
   end
 
   # Out of abundance of caution, we put the feature flags first and then
@@ -138,22 +138,6 @@ build do
   configure_command = configure_args.unshift(configure_cmd).join(" ")
 
   command configure_command, env: env, in_msys_bash: true
-
-  # on 1.1 we have to path after running config
-  if version.start_with? "1.1."
-    if aix?
-      # This enables omnibus to use 'makedepend'
-      # from fileset 'X11.adt.imake' (AIX install media)
-      env["PATH"] = "/usr/lpp/X11/bin:#{ENV["PATH"]}"
-
-      patch_env = env.dup
-      patch_env["PATH"] = "/opt/freeware/bin:#{env["PATH"]}"
-      patch source: "openssl-1.1.1d-do-not-build-docs.patch", env: patch_env
-    else
-      patch source: "openssl-1.1.1d-do-not-build-docs.patch", env: env
-    end
-  end
-
   make "depend", env: env
   # make -j N on openssl is not reliable
   make env: env
