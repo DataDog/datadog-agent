@@ -8,4 +8,5 @@
 ---
 other:
   - |
-    JMXFetch upgraded to `0.36.1 <https://github.com/DataDog/jmxfetch/releases/0.36.1>`_
+    JMXFetch upgraded to 0.36.1. See `0.36.1 <https://github.com/DataDog/jmxfetch/releases/0.36.1>`_
+    and `0.36.0 <https://github.com/DataDog/jmxfetch/releases/0.36.0>`_
