@@ -141,15 +141,11 @@ variables:
       - $RELEASE_VERSION_6 == "nightly"
       - $RELEASE_VERSION_7 == "nightly-a7"
 
-# run job only when triggered on nightly AND when it's a merge to master
-.run_when_triggered_on_nightly_or_master: &run_when_triggered_on_nightly_or_master
-  only:
+# run when not triggered (for jobs we don't want to run on release pipelines)
+.run_when_not_triggered: &run_when_not_triggered
+  except:
     refs:
       - triggers
-      - master
-    variables:
-      - $RELEASE_VERSION_6 == "nightly"
-      - $RELEASE_VERSION_7 == "nightly-a7"
 
 # skip job only when triggered by an external tool (ex: Jenkins) and when
 # BUILD_AGENT_X is set to "no".
@@ -244,7 +240,7 @@ run_tests_windows-x64:
     ARCH: "x64"
 
 run_tests_windows-x86:
-  <<: *run_when_triggered_on_nightly_or_master
+  <<: *run_when_not_triggered
   # temporarily allow failure for tests
   extends: .run_tests_windows_base
   allow_failure: true
@@ -1121,7 +1117,7 @@ windows_msi_x86-a7:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
-  <<: *run_when_triggered_on_nightly_or_master
+  <<: *run_when_not_triggered
 
 windows_msi_x64-a6:
   extends: .windows_main_agent_base
@@ -1142,7 +1138,7 @@ windows_msi_x86-a6:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
-  <<: *run_when_triggered_on_nightly_or_master
+  <<: *run_when_not_triggered
 
 .windows_puppy_agent_base:
   extends: .windows_msi_base
@@ -1169,7 +1165,7 @@ agent_android_apk:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   <<: *skip_when_unwanted_on_7
-  <<: *run_when_triggered_on_nightly_or_master
+  <<: *run_when_not_triggered
   before_script:
     - echo running android before_script
     - cd $SRC_PATH
