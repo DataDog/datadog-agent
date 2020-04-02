@@ -314,11 +314,10 @@ func TestAgentConfigYamlAndSystemProbeWindowsConfig(t *testing.T) {
 	assert.Equal("http://localhost:3333", agentConfig.WinSysProbeConfig.SystemProbeWindowsListener)
 	assert.Equal(256, agentConfig.WinSysProbeConfig.MaxDataPerPacket)
 	assert.Equal(32, agentConfig.WinSysProbeConfig.TracerReadBuffers)
-	assert.Equal(14400, agentConfig.WinSysProbeConfig.TracerReadBufferSize)
-	assert.Equal(32, agentConfig.WinSysProbeConfig.TransferBuffers)
-	assert.Equal(14400, agentConfig.WinSysProbeConfig.TransferBufferSize)
+	assert.Equal(16384, agentConfig.WinSysProbeConfig.TracerReadBufferSize)
+	assert.Equal(64, agentConfig.WinSysProbeConfig.NumTransferPackets)
 	assert.Equal(32, agentConfig.WinSysProbeConfig.DriverBuffers)
-	assert.Equal(14400, agentConfig.WinSysProbeConfig.DriverBufferSize)
+	assert.Equal(16384, agentConfig.WinSysProbeConfig.DriverBufferSize)
 
 	agentConfig, err = NewAgentConfig(
 		"test",
@@ -331,8 +330,7 @@ func TestAgentConfigYamlAndSystemProbeWindowsConfig(t *testing.T) {
 	assert.Equal(512, agentConfig.WinSysProbeConfig.MaxDataPerPacket)
 	assert.Equal(16, agentConfig.WinSysProbeConfig.TracerReadBuffers)
 	assert.Equal(1024, agentConfig.WinSysProbeConfig.TracerReadBufferSize)
-	assert.Equal(17, agentConfig.WinSysProbeConfig.TransferBuffers)
-	assert.Equal(2048, agentConfig.WinSysProbeConfig.TransferBufferSize)
+	assert.Equal(17, agentConfig.WinSysProbeConfig.NumTransferPackets)
 	assert.Equal(30, agentConfig.WinSysProbeConfig.DriverBuffers)
 	assert.Equal(4096, agentConfig.WinSysProbeConfig.DriverBufferSize)
 }

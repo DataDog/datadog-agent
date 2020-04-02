@@ -594,8 +594,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.windows.tracer_read_buffers")
 	config.SetKnown("system_probe_config.windows.tracer_read_buffer_size")
 	config.SetKnown("system_probe_config.windows.max_data_per_packet")
-	config.SetKnown("system_probe_config.windows.transfer_buffers")
-	config.SetKnown("system_probe_config.windows.transfer_buffer_size")
+	config.SetKnown("system_probe_config.windows.number_transfer_packets")
 	config.SetKnown("system_probe_config.windows.driver_buffers")
 	config.SetKnown("system_probe_config.windows.driver_buffer_size")
 

@@ -49,15 +49,24 @@ type WindowsConfig struct {
 
 // WinSystemProbeConfig stores all windows-specific configuration for the System Probe
 type WinSystemProbeConfig struct {
-	// System Probe Windows Configuration
+	// Where the probe listens for connections from the process agent/main agent
 	SystemProbeWindowsListener string
-	MaxDataPerPacket           int
-	TracerReadBuffers          int
-	TracerReadBufferSize       int
-	TransferBuffers            int
-	TransferBufferSize         int
-	DriverBuffers              int
-	DriverBufferSize           int
+
+	// Maximum amount of data we will read from a packet passed up from the driver
+	MaxDataPerPacket int
+
+	// Number of packets to transfer in the tracer buffers
+	NumTransferPackets int
+
+	// Number and size of buffers that the tracer will have filled by the driver
+	// For the tracer to process
+	TracerReadBuffers    int
+	TracerReadBufferSize int
+
+	// Number and size of the buffers the driver will maintain to process packets
+	// These are passed to the driver with a DeviceIOControl syscall
+	DriverBuffers    int
+	DriverBufferSize int
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -215,11 +224,10 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			SystemProbeWindowsListener: "http://localhost:3333",
 			MaxDataPerPacket:           256,
 			TracerReadBuffers:          32,
-			TracerReadBufferSize:       14400,
-			TransferBuffers:            32,
-			TransferBufferSize:         14400,
+			TracerReadBufferSize:       16384,
+			NumTransferPackets:         64,
 			DriverBuffers:              32,
-			DriverBufferSize:           14400,
+			DriverBufferSize:           16384,
 		},
 
 		// Check config
