@@ -50,6 +50,13 @@ REDHAT_DEBIAN_SUSE_ONLY_TAGS = [
     "systemd",
 ]
 
+WINDOWS_32BIT_EXCLUDE_TAGS = [
+    "orchestrator",
+    "docker",
+    "kubeapiserver",
+    "kubelet",
+]
+
 REDHAT_DEBIAN_SUSE_DIST = [
     'centos',
     'debian',
