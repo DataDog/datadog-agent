@@ -16,7 +16,7 @@ const (
 	cardinalityLimit = 1000
 	// defaultTTL limits the frequency at which we sample a same span (env, service, name, rsc, ...).
 	defaultTTL = 2 * time.Minute
-	// priorityTTL allows to blacklist p1 spans that are sampled entirely.
+	// priorityTTL allows to blacklist p1 spans that are sampled entirely, for this period.
 	priorityTTL = 10 * time.Minute
 	// ttlRenewalPeriod prevents from continuously updating expire times for each span seen.
 	ttlRenewalPeriod = 1 * time.Minute
@@ -46,11 +46,17 @@ type ExceptionSampler struct {
 // NewExceptionSampler returns a NewExceptionSampler that ensures that we sample combinations
 // of env, service, name, resource, http-status, error type for each top level or measured spans
 func NewExceptionSampler() *ExceptionSampler {
-	return &ExceptionSampler{
+	e := &ExceptionSampler{
 		limiter:   rate.NewLimiter(exceptionSamplerTPS, exceptionSamplerBurst),
 		seen:      make(map[Signature]*seenSpans),
 		tickStats: time.NewTicker(10 * time.Second),
 	}
+	go func() {
+		for range e.tickStats.C {
+			e.report()
+		}
+	}()
+	return e
 }
 
 // Add samples a trace and returns true if trace was sampled (should be kept)
@@ -64,15 +70,6 @@ func (e *ExceptionSampler) add(now time.Time, env string, root *pb.Span, t pb.Tr
 		return false
 	}
 	return e.handleTrace(now, env, t)
-}
-
-// Start starts reporting stats
-func (e *ExceptionSampler) Start() {
-	go func() {
-		for range e.tickStats.C {
-			e.report()
-		}
-	}()
 }
 
 // Stop stops reporting stats

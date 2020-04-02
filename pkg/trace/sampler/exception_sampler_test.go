@@ -28,6 +28,7 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 	}
 
 	e := NewExceptionSampler()
+	e.Stop()
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -56,6 +57,7 @@ func TestConsideredSpans(t *testing.T) {
 	}
 
 	e := NewExceptionSampler()
+	e.Stop()
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -70,6 +72,7 @@ func TestConsideredSpans(t *testing.T) {
 
 func TestExceptionSamplerRace(t *testing.T) {
 	e := NewExceptionSampler()
+	e.Stop()
 	for i := 0; i < 2; i++ {
 		go func() {
 			for j := 0; j < 100; j++ {
@@ -85,6 +88,7 @@ func TestExceptionSamplerRace(t *testing.T) {
 func TestCardinalityLimit(t *testing.T) {
 	assert := assert.New(t)
 	e := NewExceptionSampler()
+	e.Stop()
 	for j := 1; j <= cardinalityLimit; j++ {
 		tr := pb.Trace{
 			&pb.Span{Resource: strconv.Itoa(j), Metrics: map[string]float64{KeySamplingPriority: 1, "_top_level": 1}},

@@ -92,7 +92,6 @@ func (a *Agent) Run() {
 		a.Receiver,
 		a.Concentrator,
 		a.ScoreSampler,
-		a.ExceptionSampler,
 		a.ErrorsScoreSampler,
 		a.PrioritySampler,
 		a.EventProcessor,
