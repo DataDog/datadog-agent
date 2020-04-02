@@ -233,9 +233,9 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			co: &types.ContainerJSON{
 				Config: &container.Config{
 					Labels: map[string]string{
-						"com.datadoghq.ad.service": "redis",
-						"com.datadoghq.ad.env":     "dev",
-						"com.datadoghq.ad.version": "0.0.1",
+						"com.datadoghq.tags.service": "redis",
+						"com.datadoghq.tags.env":     "dev",
+						"com.datadoghq.tags.version": "0.0.1",
 					},
 				},
 			},
@@ -280,9 +280,9 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 						"DD_VERSION=0.0.1",
 					},
 					Labels: map[string]string{
-						"com.datadoghq.ad.service": "redis",
-						"com.datadoghq.ad.env":     "dev",
-						"com.datadoghq.ad.version": "0.0.1",
+						"com.datadoghq.tags.service": "redis",
+						"com.datadoghq.tags.env":     "dev",
+						"com.datadoghq.tags.version": "0.0.1",
 					},
 				},
 			},
@@ -306,9 +306,9 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 						"DD_VERSION=0.0.1",
 					},
 					Labels: map[string]string{
-						"com.datadoghq.ad.service": "redis-db",
-						"com.datadoghq.ad.env":     "staging",
-						"com.datadoghq.ad.version": "0.0.2",
+						"com.datadoghq.tags.service": "redis-db",
+						"com.datadoghq.tags.env":     "staging",
+						"com.datadoghq.tags.version": "0.0.2",
 					},
 				},
 			},

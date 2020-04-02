@@ -169,7 +169,7 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname, "cluster_agent")
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
@@ -203,6 +203,16 @@ func start(cmd *cobra.Command, args []string) error {
 		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
 		}
+
+		// Generate and persist a cluster ID
+		// this must be a UUID, and ideally be stable for the lifetime of a cluster
+		// so we store it in a configmap that we try and read before generating a new one.
+		coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+		_, err = apicommon.GetOrCreateClusterID(coreClient)
+		if err != nil {
+			log.Errorf("Failed to generate or retrieve the cluster ID")
+		}
+
 		// TODO: move rest of the controllers out of the apiserver package
 		orchestratorCtx := orchestrator.ControllerContext{
 			IsLeaderFunc:                 le.IsLeader,
@@ -261,15 +271,6 @@ func start(cmd *cobra.Command, args []string) error {
 				log.Errorf("Error in the External Metrics API Server: %v", errServ)
 			}
 		}()
-	}
-
-	// Generate and persist a cluster ID
-	// this must be a UUID, and ideally be stable for the lifetime of a cluster
-	// so we store it in a configmap that we try and read before generating a new one.
-	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
-	_, err = apicommon.GetOrCreateClusterID(coreClient)
-	if err != nil {
-		log.Errorf("Failed to generate or retrieve the cluster ID")
 	}
 
 	// Block here until we receive the interrupt signal

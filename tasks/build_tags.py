@@ -15,6 +15,7 @@ ALL_TAGS = set([
     "docker",
     "ec2",
     "etcd",
+    "fargateprocess",
     "gce",
     "jmx",
     "kubeapiserver",
@@ -35,6 +36,7 @@ PUPPY_TAGS = set([
 ])
 
 PROCESS_ONLY_TAGS = [
+    "fargateprocess",
     "orchestrator",
 ]
 

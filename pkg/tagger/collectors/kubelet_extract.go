@@ -24,9 +24,11 @@ const (
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
 	podTagsAnnotation                = podAnnotationPrefix + "tags"
-	podEnvAnnotation                 = podAnnotationPrefix + "env"
-	podVersionAnnotation             = podAnnotationPrefix + "version"
-	podServiceAnnotation             = podAnnotationPrefix + "service"
+
+	podStandardLabelPrefix  = "tags.datadoghq.com/"
+	podStandardLabelEnv     = podStandardLabelPrefix + tagKeyEnv
+	podStandardLabelVersion = podStandardLabelPrefix + tagKeyVersion
+	podStandardLabelService = podStandardLabelPrefix + tagKeyService
 )
 
 // KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
@@ -49,6 +51,15 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// Pod labels
 		for name, value := range pod.Metadata.Labels {
+			// Standard pod labels
+			switch name {
+			case podStandardLabelEnv:
+				tags.AddLow(tagKeyEnv, value)
+			case podStandardLabelVersion:
+				tags.AddLow(tagKeyVersion, value)
+			case podStandardLabelService:
+				tags.AddLow(tagKeyService, value)
+			}
 			for pattern, tmpl := range c.labelsAsTags {
 				if ok, _ := filepath.Match(pattern, strings.ToLower(name)); ok {
 					tags.AddAuto(resolveTag(tmpl, name), value)
@@ -58,15 +69,6 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// Pod annotations
 		for name, value := range pod.Metadata.Annotations {
-			switch name {
-			// Standard pod annotations
-			case podEnvAnnotation:
-				tags.AddLow(tagKeyEnv, value)
-			case podVersionAnnotation:
-				tags.AddLow(tagKeyVersion, value)
-			case podServiceAnnotation:
-				tags.AddLow(tagKeyService, value)
-			}
 			if tagName, found := c.annotationsAsTags[strings.ToLower(name)]; found {
 				tags.AddAuto(tagName, value)
 			}
@@ -150,16 +152,16 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				cTags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", container.Name, pod.Metadata.Name))
 			}
 
-			// Enrich with standard annotations for this container if present
-			annotationTags := []string{
+			// Enrich with standard tags from labels for this container if present
+			labelTags := []string{
 				tagKeyEnv,
 				tagKeyVersion,
 				tagKeyService,
 			}
 
-			for _, tag := range annotationTags {
-				annotation := fmt.Sprintf(podAnnotationPrefix+"%s.%s", container.Name, tag)
-				if value, ok := pod.Metadata.Annotations[annotation]; ok {
+			for _, tag := range labelTags {
+				label := fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tag)
+				if value, ok := pod.Metadata.Labels[label]; ok {
 					cTags.AddLow(tag, value)
 				}
 			}

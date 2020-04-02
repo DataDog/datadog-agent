@@ -4,6 +4,7 @@ package ebpf
 
 import (
 	bpflib "github.com/iovisor/gobpf/elf"
+	"math/rand"
 	"net"
 	"testing"
 	"time"
@@ -15,15 +16,24 @@ import (
 )
 
 func getSnooper(t *testing.T, m *bpflib.Module) *SocketFilterSnooper {
-	// Load socket filter
 	cfg := NewDefaultConfig()
+	return getSnooperWithConfig(t, m, cfg)
+}
+
+func getSnooperWithConfig(t *testing.T, m *bpflib.Module, cfg *Config) *SocketFilterSnooper {
+	// Load socket filter
 	err := m.Load(SectionsFromConfig(cfg, true))
 	require.NoError(t, err)
 
 	filter := m.SocketFilter("socket/dns_filter")
 	require.NotNil(t, filter)
 
-	reverseDNS, err := NewSocketFilterSnooper("/proc", filter)
+	reverseDNS, err := NewSocketFilterSnooper(
+		"/proc",
+		filter,
+		cfg.CollectDNSStats,
+		cfg.CollectLocalDNS,
+	)
 	require.NoError(t, err)
 	return reverseDNS
 }
@@ -79,12 +89,23 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	checkSnooping(t, destIP, reverseDNS)
 }
 
+// Get the preferred outbound IP of this machine
+func getOutboundIP(t *testing.T, serverIP string) net.IP {
+	conn, err := net.Dial("udp", serverIP+":80")
+	require.NoError(t, err)
+	defer conn.Close()
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP
+}
+
 func TestDNSOverTCPSnooping(t *testing.T) {
 	m, err := readBPFModule(false)
 	require.NoError(t, err)
 	defer m.Close()
 
-	reverseDNS := getSnooper(t, m)
+	cfg := NewDefaultConfig()
+	cfg.CollectDNSStats = true
+	reverseDNS := getSnooperWithConfig(t, m, cfg)
 	defer reverseDNS.Close()
 
 	// Create a DNS query message
@@ -92,11 +113,20 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	msg.SetQuestion(mdns.Fqdn("golang.org"), mdns.TypeA)
 	msg.RecursionDesired = true
 
-	config, err := mdns.ClientConfigFromFile("/etc/resolv.conf")
 	require.NoError(t, err)
-	dnsHost := net.JoinHostPort(config.Servers[0], config.Port)
+	serverIP := "8.8.8.8"
+	dnsHost := net.JoinHostPort(serverIP, "53")
 
-	dnsClient := mdns.Client{Net: "tcp"}
+	queryIP := getOutboundIP(t, serverIP).String()
+	rand.Seed(time.Now().UnixNano())
+	queryPort := rand.Intn(20000) + 10000
+	dnsClientAddr := &net.TCPAddr{IP: net.ParseIP(queryIP), Port: queryPort}
+	localAddrDialer := &net.Dialer{
+		LocalAddr: dnsClientAddr,
+	}
+
+	dnsClient := mdns.Client{Net: "tcp", Dialer: localAddrDialer}
+
 	rep, _, _ := dnsClient.Exchange(msg, dnsHost)
 	require.NotNil(t, rep)
 	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
@@ -108,6 +138,16 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 		destIP := mdns.Field(aRecord, 1)
 		checkSnooping(t, destIP, reverseDNS)
 	}
+
+	key := dnsKey{
+		clientPort: uint16(queryPort),
+		clientIP:   util.AddressFromString(queryIP),
+		serverIP:   util.AddressFromString(serverIP),
+		protocol:   TCP,
+	}
+	allStats := reverseDNS.GetDNSStats()
+	require.Equal(t, 1, len(allStats))
+	assert.Equal(t, uint32(1), allStats[key].successfulResponses)
 }
 
 func TestParsingError(t *testing.T) {

@@ -19,47 +19,84 @@ var (
 )
 
 type dnsParser struct {
-	decoder *gopacket.DecodingLayerParser
-	layers  []gopacket.LayerType
-	payload *layers.DNS
+	decoder         *gopacket.DecodingLayerParser
+	layers          []gopacket.LayerType
+	ipv4Payload     *layers.IPv4
+	ipv6Payload     *layers.IPv6
+	udpPayload      *layers.UDP
+	tcpPayload      *tcpWithDNSSupport
+	dnsPayload      *layers.DNS
+	collectDNSStats bool
 }
 
-func newDNSParser() *dnsParser {
-	payload := &layers.DNS{}
+func newDNSParser(collectDNStats bool) *dnsParser {
+	ipv4Payload := &layers.IPv4{}
+	ipv6Payload := &layers.IPv6{}
+	udpPayload := &layers.UDP{}
+	tcpPayload := &tcpWithDNSSupport{}
+	dnsPayload := &layers.DNS{}
 
 	stack := []gopacket.DecodingLayer{
 		&layers.Ethernet{},
-		&layers.IPv4{},
-		&layers.IPv6{},
-		&layers.UDP{},
-		&tcpWithDNSSupport{},
-		payload,
+		ipv4Payload,
+		ipv6Payload,
+		udpPayload,
+		tcpPayload,
+		dnsPayload,
 	}
 
 	return &dnsParser{
-		decoder: gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, stack...),
-		payload: payload,
+		decoder:         gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, stack...),
+		ipv4Payload:     ipv4Payload,
+		ipv6Payload:     ipv6Payload,
+		udpPayload:      udpPayload,
+		tcpPayload:      tcpPayload,
+		dnsPayload:      dnsPayload,
+		collectDNSStats: collectDNStats,
 	}
 }
 
-func (p *dnsParser) ParseInto(data []byte, t *translation) error {
+func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *dnsKey) (uint16, error) {
 	err := p.decoder.DecodeLayers(data, &p.layers)
 
 	if p.decoder.Truncated {
-		return errTruncated
+		return 0, errTruncated
 	}
 
 	if err != nil {
-		return err
+		return 0, err
+	}
+
+	// If there is a DNS layer then it would be the last layer
+	if p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
+		return 0, skippedPayload
+	}
+
+	if err := p.parseAnswerInto(p.dnsPayload, t); err != nil {
+		return 0, err
+	}
+
+	if !p.collectDNSStats {
+		return p.dnsPayload.ID, nil
 	}
 
 	for _, layer := range p.layers {
-		if layer == layers.LayerTypeDNS {
-			return p.parseAnswerInto(p.payload, t)
+		switch layer {
+		case layers.LayerTypeIPv4:
+			cKey.serverIP = util.AddressFromNetIP(p.ipv4Payload.SrcIP)
+			cKey.clientIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
+		case layers.LayerTypeIPv6:
+			cKey.serverIP = util.AddressFromNetIP(p.ipv6Payload.SrcIP)
+			cKey.clientIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
+		case layers.LayerTypeUDP:
+			cKey.clientPort = uint16(p.udpPayload.DstPort)
+			cKey.protocol = UDP
+		case layers.LayerTypeTCP:
+			cKey.clientPort = uint16(p.tcpPayload.DstPort)
+			cKey.protocol = TCP
 		}
 	}
-
-	return skippedPayload
+	return p.dnsPayload.ID, nil
 }
 
 // source: https://github.com/weaveworks/scope

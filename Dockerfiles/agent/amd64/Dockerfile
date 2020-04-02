@@ -39,7 +39,8 @@ RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGE
     # ditto for this older libsystemd
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
     # self-test certificates that are detected (false positive) as private keys
-    opt/datadog-agent/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest \
+    opt/datadog-agent/embedded/lib/python*/site-packages/Cryptodome/SelfTest \
+    opt/datadog-agent/embedded/lib/python*/site-packages/future/backports/test \
  && if [ "$PYTHON_VERSION" = "2" ]; then \
         rm -rf \
             opt/datadog-agent/embedded/bin/2to3-3* \

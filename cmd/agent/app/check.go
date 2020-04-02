@@ -18,11 +18,12 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -129,7 +130,7 @@ var checkCmd = &cobra.Command{
 
 		s := serializer.NewSerializer(common.Forwarder)
 		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, nil, hostname, "agent", 0)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", 0)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 		if config.Datadog.GetBool("inventories_enabled") {
@@ -137,21 +138,28 @@ var checkCmd = &cobra.Command{
 		}
 
 		allConfigs := common.AC.GetAllConfigs()
+		hasJMXConfig := false
 
 		// make sure the checks in cs are not JMX checks
-		for _, conf := range allConfigs {
+		for idx := range allConfigs {
+			conf := &allConfigs[idx]
 			if conf.Name != checkName {
 				continue
 			}
 
-			if check.IsJMXConfig(conf.Name, conf.InitConfig) {
-				// we'll mimic the check command behavior with JMXFetch by running
-				// it with the JSON reporter and the list_with_metrics command.
-				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
-				if err := RunJmxListWithMetrics(); err != nil {
-					return fmt.Errorf("while running the jmx check: %v", err)
+			if check.IsJMXConfig(*conf) {
+				hasJMXConfig = true
+				instances := []integration.Data{}
+
+				// Retain only non-JMX instances for later
+				for _, instance := range conf.Instances {
+					if check.IsJMXInstance(conf.Name, instance, conf.InitConfig) {
+						continue
+					}
+					instances = append(instances, instance)
 				}
-				return nil
+
+				conf.Instances = instances
 			}
 		}
 
@@ -353,6 +361,19 @@ var checkCmd = &cobra.Command{
 				printMetrics(agg)
 				checkStatus, _ := status.GetCheckStatus(c, s)
 				fmt.Println(string(checkStatus))
+			}
+		}
+
+		// FIXME: We require that this run after all Python instances because `common.SetupAutoConfig` is called a
+		// second time via `RunJmxListWithMetrics` when the check command is called on JMXFetch checks, but it's not
+		// idempotent and should only be called once. Here, calling it twice breaks the rtloader logic that only
+		// expects to be called once, which is why after the second call Python shows as not being initialized.
+		if hasJMXConfig {
+			// we'll mimic the check command behavior with JMXFetch by running
+			// it with the JSON reporter and the list_with_metrics command.
+			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
+			if err := RunJmxListWithMetrics(); err != nil {
+				return fmt.Errorf("while running the jmx check: %v", err)
 			}
 		}
 

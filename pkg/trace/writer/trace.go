@@ -158,7 +158,7 @@ func (w *TraceWriter) addSpans(pkg *SampledSpans) {
 		w.traces = append(w.traces, traceutil.APITrace(pkg.Trace))
 	}
 	if len(pkg.Events) > 0 {
-		log.Tracef("Handling new APM events: %v", pkg.Events)
+		log.Tracef("Handling new analyzed spans: %v", pkg.Events)
 		w.events = append(w.events, pkg.Events...)
 	}
 	w.bufferedSize += size
@@ -182,13 +182,13 @@ func (w *TraceWriter) flush() {
 	defer w.resetBuffer()
 
 	log.Debugf("Serializing %d traces and %d APM events.", len(w.traces), len(w.events))
-	payload := pb.TracePayload{
+	tracePayload := pb.TracePayload{
 		HostName:     w.hostname,
 		Env:          w.env,
 		Traces:       w.traces,
 		Transactions: w.events,
 	}
-	b, err := proto.Marshal(&payload)
+	b, err := proto.Marshal(&tracePayload)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return
@@ -216,8 +216,25 @@ func (w *TraceWriter) flush() {
 		gzipw.Write(b)
 		gzipw.Close()
 
-		for _, sender := range w.senders {
-			sender.Push(p)
+		if len(w.senders) == 1 {
+			// fast path
+			w.senders[0].Push(p)
+		} else {
+			// Create a clone for each payload because each sender places payloads
+			// back onto the pool after they are sent.
+			payloads := make([]*payload, 0, len(w.senders))
+			// Perform all the clones before any sends are to ensure the original
+			// payload body is completely unread.
+			for i := range w.senders {
+				if i == 0 {
+					payloads = append(payloads, p)
+				} else {
+					payloads = append(payloads, p.clone())
+				}
+			}
+			for i, sender := range w.senders {
+				sender.Push(payloads[i])
+			}
 		}
 	}()
 }
