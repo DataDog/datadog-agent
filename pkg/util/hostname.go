@@ -6,6 +6,7 @@
 package util
 
 import (
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"net"
@@ -22,12 +23,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
+	"github.com/DataDog/datadog-agent/pkg/util/persistentcache"
 )
 
 var (
 	hostnameExpvars  = expvar.NewMap("hostname")
 	hostnameProvider = expvar.String{}
 	hostnameErrors   = expvar.Map{}
+)
+
+// HostnameProviderConfiguration is the key for the hostname provider associated to datadog.yaml
+const HostnameProviderConfiguration = "configuration"
+
+// HostnameMap type providing a map mapping sources to hostname.
+type HostnameMap map[string]string
+
+type hostnameSourcer func() (HostnameMap, error)
+
+type resolutionItem struct {
+	provider string // source for the hostname
+	reliable bool   // is this a reliable source?
+	fallback bool   // is this a fallback source?
+	final    bool   // if hostname found, is it final?
+}
+
+// order matters!
+// TODO: review reliability definitions
+var resolutionPipeline = []resolutionItem{
+	{provider: HostnameProviderConfiguration, reliable: true, fallback: false, final: true},
+	{provider: "fargate", reliable: false, fallback: false, final: true},
+	{provider: "gce", reliable: false, fallback: false, final: true},
+	{provider: "fqdn", reliable: true, fallback: false, final: false},
+	{provider: "container", reliable: true, fallback: false, final: false},
+	{provider: "os", reliable: true, fallback: true, final: false},
+	{provider: "aws", reliable: false, fallback: false, final: false},
+}
+
+// for testing
+var (
+	configSourceResolver                 = ResolveSourcesWithState
+	liveSourcer          hostnameSourcer = GetLiveHostnameSources
+	stateSourcer         hostnameSourcer = GetPersistedHostnameSources
 )
 
 func init() {
@@ -98,11 +134,9 @@ func isOSHostnameUsable() (osHostnameUsable bool) {
 // GetHostname retrieves the host name from GetHostnameData
 func GetHostname() (string, error) {
 	hostnameData, err := GetHostnameData()
+
 	return hostnameData.Hostname, err
 }
-
-// HostnameProviderConfiguration is the key for the hostname provider associated to datadog.yaml
-const HostnameProviderConfiguration = "configuration"
 
 // HostnameData contains hostname and the hostname provider
 type HostnameData struct {
@@ -121,54 +155,181 @@ func saveHostnameData(cacheHostnameKey string, hostname string, provider string)
 	return hostnameData
 }
 
+// ResolveSourcesWithState will merge two HostnameMap sources, providing the expected
+// resolved output.
+func ResolveSourcesWithState(newSources, stateSources HostnameMap) (HostnameMap, bool) {
+	resolvedSources := HostnameMap{}
+	stateChange := false
+
+	if stateSources == nil {
+		return newSources, true
+	}
+
+	for _, stage := range resolutionPipeline {
+		log.Debug("Getting hostname collected by: %s", stage.provider)
+
+		newH, newOk := newSources[stage.provider]
+		stateH, stateOk := stateSources[stage.provider]
+
+		if !newOk && !stateOk {
+			// missing source
+			continue
+		}
+
+		h := newH
+
+		if newOk {
+			if newH != stateH {
+				stateChange = true
+			}
+		} else {
+			if stage.reliable {
+				stateChange = true
+				log.Warnf("Reliable source %s no longer configured", stage.provider)
+
+				// reliable source did not resolve thus it does not apply
+				continue
+			} else {
+				// here we should always use stored state - an unreliable source failed
+				h = stateH
+				log.Info("an unreliable source %s did not resolve a hostname as expected, using stored state: %s",
+					stage.provider, stateH)
+			}
+
+		}
+
+		resolvedSources[stage.provider] = h
+	}
+
+	return resolvedSources, stateChange
+}
+
 // GetHostnameData retrieves the host name for the Agent and hostname provider, trying to query these
 // environments/api, in order:
+// * Fargate
 // * GCE
 // * Docker
 // * kubernetes
 // * os
 // * EC2
 func GetHostnameData() (HostnameData, error) {
+
 	cacheHostnameKey := cache.BuildAgentKey("hostname")
 	if cacheHostname, found := cache.Cache.Get(cacheHostnameKey); found {
 		return cacheHostname.(HostnameData), nil
 	}
 
 	var hostName string
-	var err error
+	var fqdn string
 	var provider string
+	var err error
+
+	live, err := liveSourcer()
+	if err != nil {
+		return HostnameData{}, err
+	}
+
+	state, err := stateSourcer()
+	if err != nil {
+		log.Warn("stateful hostname unavailable, will rely on live sources")
+	}
+
+	sources, stateChange := configSourceResolver(live, state)
+	for _, stage := range resolutionPipeline {
+		log.Debug("Getting hostname collected by: %s", stage.provider)
+
+		if h, ok := sources[stage.provider]; ok {
+
+			if h != "" || stage.provider == "fargate" {
+				if stage.provider == "fqdn" {
+					fqdn = h
+				}
+
+				if !stage.fallback || stage.fallback && hostName == "" {
+					hostName = h
+					provider = stage.provider
+				}
+			}
+			if ok && stage.final {
+				hostNameData := saveHostnameData(cacheHostnameKey, hostName, stage.provider)
+				if stage.provider == HostnameProviderConfiguration && !isHostnameCanonicalForIntake(hostName) &&
+					!config.Datadog.GetBool("hostname_force_config_as_canonical") {
+					_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-force-config-as-canonical", hostName)
+				}
+				return hostNameData, nil
+			}
+		}
+	}
+
+	h, err := os.Hostname()
+	if err == nil && !config.Datadog.GetBool("hostname_fqdn") && fqdn != "" && hostName == h && h != fqdn {
+		if runtime.GOOS != "windows" {
+			// REMOVEME: This should be removed when the default `hostname_fqdn` is set to true
+			log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However in a future version, it will be resolved as '%s' by default. To enable the future behavior, please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
+		} else { // OS is Windows
+			log.Warnf("The agent resolved your hostname as '%s', and will be reported this way to maintain compatibility with version 5. To enable reporting as '%s', please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
+		}
+	}
+
+	// If at this point we don't have a name, bail out
+	if hostName == "" {
+		err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
+	} else {
+		// we got a hostname, residual errors are irrelevant now
+		err = nil
+	}
+
+	if err != nil {
+		expErr := new(expvar.String)
+		expErr.Set(fmt.Sprintf(err.Error()))
+		hostnameErrors.Set("all", expErr)
+	}
+
+	hostnameData := saveHostnameData(cacheHostnameKey, hostName, provider)
+	if stateChange {
+		if err := PersistHostnameSources(sources); err != nil {
+			log.Errorf("There was an issue persisting the hostname state to disk: %v", err)
+		}
+	}
+
+	return hostnameData, err
+}
+
+// GetLiveHostnameSources helper that resolves the hostname as currently reported by
+// the multiple supported sources.
+func GetLiveHostnameSources() (HostnameMap, error) {
+
+	var hostName string
+	var err error
+
+	hostnames := HostnameMap{}
 
 	// try the name provided in the configuration file
 	configName := config.Datadog.GetString("hostname")
 	err = validate.ValidHostname(configName)
 	if err == nil {
-		hostnameData := saveHostnameData(cacheHostnameKey, configName, HostnameProviderConfiguration)
-		if !isHostnameCanonicalForIntake(configName) && !config.Datadog.GetBool("hostname_force_config_as_canonical") {
-			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-force-config-as-canonical", configName)
-		}
-		return hostnameData, err
+		hostnames[HostnameProviderConfiguration] = configName
+		return hostnames, nil
 	}
 
 	expErr := new(expvar.String)
 	expErr.Set(err.Error())
 	hostnameErrors.Set("configuration/environment", expErr)
 
-	log.Debugf("Unable to get the hostname from the config file: %s", err)
-	log.Debug("Trying to determine a reliable host name automatically...")
-
 	// if fargate we strip the hostname
 	if ecs.IsFargateInstance() || config.Datadog.GetBool("eks_fargate") {
-		hostnameData := saveHostnameData(cacheHostnameKey, "", "")
-		return hostnameData, nil
+		hostnames["fargate"] = ""
+		return hostnames, nil
 	}
 
 	// GCE metadata
+	var gceName string
 	log.Debug("GetHostname trying GCE metadata...")
 	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
-		gceName, err := getGCEHostname()
+		gceName, err = getGCEHostname()
 		if err == nil {
-			hostnameData := saveHostnameData(cacheHostnameKey, gceName, "gce")
-			return hostnameData, err
+			hostnames["gce"] = gceName
+			return hostnames, nil
 		}
 		expErr := new(expvar.String)
 		expErr.Set(err.Error())
@@ -184,14 +345,13 @@ func GetHostnameData() (HostnameData, error) {
 		fqdn, err = getSystemFQDN()
 		if config.Datadog.GetBool("hostname_fqdn") && err == nil {
 			hostName = fqdn
-			provider = "fqdn"
+			hostnames["fqdn"] = hostName
 		} else {
 			if err != nil {
 				expErr := new(expvar.String)
 				expErr.Set(err.Error())
 				hostnameErrors.Set("fqdn", expErr)
 			}
-			log.Debug("Unable to get FQDN from system: ", err)
 		}
 	}
 
@@ -199,7 +359,7 @@ func GetHostnameData() (HostnameData, error) {
 	if isContainerized {
 		if containerName != "" {
 			hostName = containerName
-			provider = "container"
+			hostnames["container"] = containerName
 		} else {
 			expErr := new(expvar.String)
 			expErr.Set("Unable to get hostname from container API")
@@ -207,13 +367,14 @@ func GetHostnameData() (HostnameData, error) {
 		}
 	}
 
+	var systemName string
 	if canUseOSHostname && hostName == "" {
 		// os
 		log.Debug("GetHostname trying os...")
-		systemName, err := os.Hostname()
+		systemName, err = os.Hostname()
 		if err == nil {
 			hostName = systemName
-			provider = "os"
+			hostnames["os"] = systemName
 		} else {
 			expErr := new(expvar.String)
 			expErr.Set(err.Error())
@@ -221,8 +382,6 @@ func GetHostnameData() (HostnameData, error) {
 			log.Debug("Unable to get hostname from OS: ", err)
 		}
 	}
-
-	/* at this point we've either the hostname from the os or an empty string */
 
 	// We use the instance id if we're on an ECS cluster or we're on EC2
 	// and the hostname is one of the default ones
@@ -233,8 +392,7 @@ func GetHostnameData() (HostnameData, error) {
 			ec2Hostname, err := getValidEC2Hostname(getEC2Hostname)
 
 			if err == nil {
-				hostName = ec2Hostname
-				provider = "aws"
+				hostnames["aws"] = ec2Hostname
 			} else {
 				expErr := new(expvar.String)
 				expErr.Set(err.Error())
@@ -264,31 +422,38 @@ func GetHostnameData() (HostnameData, error) {
 		}
 	}
 
-	h, err := os.Hostname()
-	if err == nil && !config.Datadog.GetBool("hostname_fqdn") && fqdn != "" && hostName == h && h != fqdn {
-		if runtime.GOOS != "windows" {
-			// REMOVEME: This should be removed when the default `hostname_fqdn` is set to true
-			log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However in a future version, it will be resolved as '%s' by default. To enable the future behavior, please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
-		} else { // OS is Windows
-			log.Warnf("The agent resolved your hostname as '%s', and will be reported this way to maintain compatibility with version 5. To enable reporting as '%s', please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)
-		}
+	if len(hostnames) == 0 {
+		err = fmt.Errorf("No valid hostname sources were found")
+	}
+	return hostnames, err
+}
+
+// GetPersistedHostnameSources collects the persisted state for hostname sources.
+func GetPersistedHostnameSources() (HostnameMap, error) {
+	var err error
+	var cacheHostnameData string
+
+	sources := HostnameMap{}
+	cacheHostnameKey := cache.BuildAgentKey("hostname-sources")
+
+	if cacheHostnameData, err = persistentcache.Read(cacheHostnameKey); err != nil {
+		return sources, err
 	}
 
-	// If at this point we don't have a name, bail out
-	if hostName == "" {
-		err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
-	} else {
-		// we got a hostname, residual errors are irrelevant now
-		err = nil
+	err = json.Unmarshal([]byte(cacheHostnameData), &sources)
+	return sources, err
+}
+
+// PersistHostnameSources saves the hostname sources to disk.
+func PersistHostnameSources(sources HostnameMap) error {
+	cacheHostnameKey := cache.BuildAgentKey("hostname-sources")
+
+	j, err := json.Marshal(sources)
+	if err == nil {
+		err = persistentcache.Write(cacheHostnameKey, string(j))
 	}
 
-	hostnameData := saveHostnameData(cacheHostnameKey, hostName, provider)
-	if err != nil {
-		expErr := new(expvar.String)
-		expErr.Set(fmt.Sprintf(err.Error()))
-		hostnameErrors.Set("all", expErr)
-	}
-	return hostnameData, err
+	return err
 }
 
 // isHostnameCanonicalForIntake returns true if the intake will use the hostname as canonical hostname.
