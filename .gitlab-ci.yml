@@ -334,6 +334,7 @@ build_win:
     - deps_win
   before_script: []
   script:
+    - call .gitlab-scripts/setup_artifactory.cmd
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
     - call .gitlab-scripts/windows_build_env.cmd
