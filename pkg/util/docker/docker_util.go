@@ -88,6 +88,13 @@ func connectToDocker(ctx context.Context) (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Looks like docker is not actually doing a call to server when `NewClient` is called
+	// Forcing it to verify server availability by calling Info()
+	_, err = cli.Info(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	log.Debugf("Successfully connected to Docker server")
 
 	return cli, nil

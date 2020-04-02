@@ -69,6 +69,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["time"] = now.Format(timeFormat)
 
 	stats["JMXStatus"] = GetJMXStatus()
+	stats["JMXStartupError"] = GetJMXStartupError()
 
 	stats["logsStats"] = logs.GetStatus()
 

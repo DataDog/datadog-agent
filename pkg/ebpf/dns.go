@@ -5,6 +5,7 @@ import "github.com/DataDog/datadog-agent/pkg/process/util"
 // ReverseDNS translates IPs to names
 type ReverseDNS interface {
 	Resolve([]ConnectionStats) map[util.Address][]string
+	GetDNSStats() map[dnsKey]dnsStats
 	GetStats() map[string]int64
 	Close()
 }
@@ -12,6 +13,10 @@ type ReverseDNS interface {
 type nullReverseDNS struct{}
 
 func (nullReverseDNS) Resolve(_ []ConnectionStats) map[util.Address][]string {
+	return nil
+}
+
+func (nullReverseDNS) GetDNSStats() map[dnsKey]dnsStats {
 	return nil
 }
 

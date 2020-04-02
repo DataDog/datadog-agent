@@ -16,8 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
-	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -98,6 +97,7 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
+	CollectDNSStats                bool
 	SystemProbeSocketPath          string
 	SystemProbeLogFile             string
 	MaxTrackedConnections          uint
@@ -328,12 +328,11 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	if cfg.HostName == "" {
-		if ecsutil.IsFargateInstance() {
-			// Fargate tasks should have no concept of host names, so we're using the task ARN.
-			if taskMeta, err := ecsmeta.V2().GetTask(); err == nil {
-				cfg.HostName = fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN)
+		if fargate.IsFargateInstance() {
+			if hostname, err := fargate.GetFargateHost(); err == nil {
+				cfg.HostName = hostname
 			} else {
-				log.Errorf("Failed to retrieve Fargate task metadata: %s", err)
+				log.Errorf("Cannot get Fargate host: %v", err)
 			}
 		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname

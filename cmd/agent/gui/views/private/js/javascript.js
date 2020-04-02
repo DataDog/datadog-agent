@@ -310,7 +310,8 @@ function loadCheckConfigFiles() {
       // filter out the example / disabled files
       if (item.endsWith(".example") ||
           item.endsWith(".disabled") ||
-          item.endsWith("metrics.yaml")) return;
+          item.endsWith("metrics.yaml")||
+          item.endsWith("auto_conf.yaml")) return;
 
       $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
                         + item  + '\')" class="check">' +  item + '</a>');
@@ -340,7 +341,8 @@ function loadNewChecks() {
     data.forEach(function(fileName){
       if (fileName.endsWith(".example") ||
           fileName.endsWith(".disabled") ||
-          fileName.endsWith("metrics.yaml")) return;
+          fileName.endsWith("metrics.yaml")||
+          fileName.endsWith("auto_conf.yaml")) return;
       var checkName = fileName.substr(0, fileName.indexOf("."));
       enabledChecks.push(checkName);
     });

@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+enhancements:
   - |
-    JMXFetch upgraded to `0.36.0 <https://github.com/DataDog/jmxfetch/releases/0.36.0>`_
+    Network information is collected when the agent is running in docker (host mode only).

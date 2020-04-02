@@ -36,6 +36,7 @@ type Agent struct {
 	Concentrator       *stats.Concentrator
 	Blacklister        *filters.Blacklister
 	Replacer           *filters.Replacer
+	ScoreSampler       *Sampler
 	ErrorsScoreSampler *Sampler
 	PrioritySampler    *Sampler
 	EventProcessor     *event.Processor
@@ -69,6 +70,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		Concentrator:       stats.NewConcentrator(conf.ExtraAggregators, conf.BucketInterval.Nanoseconds(), statsChan),
 		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:           filters.NewReplacer(conf.ReplaceTags),
+		ScoreSampler:       NewScoreSampler(conf),
 		ErrorsScoreSampler: NewErrorsSampler(conf),
 		PrioritySampler:    NewPrioritySampler(conf, dynConf),
 		EventProcessor:     newEventProcessor(conf),
@@ -87,6 +89,7 @@ func (a *Agent) Run() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
+		a.ScoreSampler,
 		a.ErrorsScoreSampler,
 		a.PrioritySampler,
 		a.EventProcessor,
@@ -128,6 +131,7 @@ func (a *Agent) loop() {
 			a.Concentrator.Stop()
 			a.TraceWriter.Stop()
 			a.StatsWriter.Stop()
+			a.ScoreSampler.Stop()
 			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
 			a.EventProcessor.Stop()
@@ -259,18 +263,20 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
 func (a *Agent) runSamplers(pt ProcessedTrace) (sampled bool, rate float64) {
-	var prioritySampled bool
-	var priorityRate float64
+	var sampledPriority, sampledScore bool
+	var ratePriority, rateScore float64
 
 	if _, ok := pt.GetSamplingPriority(); ok {
-		prioritySampled, priorityRate = a.PrioritySampler.Add(pt)
+		sampledPriority, ratePriority = a.PrioritySampler.Add(pt)
 	}
 
 	if traceContainsError(pt.Trace) {
-		errorSampled, errorRate := a.ErrorsScoreSampler.Add(pt)
-		return errorSampled || prioritySampled, sampler.CombineRates(errorRate, priorityRate)
+		sampledScore, rateScore = a.ErrorsScoreSampler.Add(pt)
+	} else {
+		sampledScore, rateScore = a.ScoreSampler.Add(pt)
 	}
-	return prioritySampled, priorityRate
+
+	return sampledScore || sampledPriority, sampler.CombineRates(ratePriority, rateScore)
 }
 
 func traceContainsError(trace pb.Trace) bool {
