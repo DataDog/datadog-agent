@@ -50,6 +50,12 @@ type RemoteSysProbeUtil struct {
 	httpClient http.Client
 }
 
+// SetSystemProbePath sets where the System probe is listening for connections
+// This needs to be called before GetRemoteSystemProbeUtil.
+func SetSystemProbePath(path string) {
+	globalSocketPath = path
+}
+
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 	err := CheckPath()
