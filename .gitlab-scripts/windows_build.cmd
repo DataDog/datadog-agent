@@ -18,4 +18,4 @@ echo git config --global user.email "gitlab@runner.some"
 git config --global user.email "gitlab@runner.some"
 echo git config --global user.name "Gitlab runner"
 git config --global user.name "Gitlab runner"
-inv -e agent.omnibus-build --skip-sign --log-level debug --skip-deps
+inv -e agent.omnibus-build --skip-sign --log-level info --skip-deps
