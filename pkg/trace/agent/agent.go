@@ -273,7 +273,7 @@ func (a *Agent) runSamplers(pt ProcessedTrace) (bool, float64) {
 }
 
 // samplePriorityTrace samples traces with priority set on them. PrioritySampler and
-// ErrorSampler are run in parallel. The ExceptionSampler catches traces with rate top-level
+// ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(pt ProcessedTrace) (sampled bool, rate float64) {
 	sampledPriority, ratePriority := a.PrioritySampler.Add(pt)

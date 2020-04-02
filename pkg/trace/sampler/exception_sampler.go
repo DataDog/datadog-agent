@@ -31,7 +31,8 @@ const (
 // It ensures that we sample traces for each combination of
 // (env, service, name, resource, error type, http status) seen on a top level or measured span
 // for which we did not see any span with a priority > 0 (sampled by Priority).
-// The resulting sampled traces will likely be incomplete.
+// The resulting sampled traces will likely be incomplete and will be flagged with
+// a exceptioKey metric set at 1.
 type ExceptionSampler struct {
 	mu      sync.RWMutex
 	limiter *rate.Limiter
@@ -103,12 +104,15 @@ func (e *ExceptionSampler) handleTrace(now time.Time, env string, t pb.Trace) bo
 	return sampled
 }
 
+// addSpan adds a span to the seenSpans with an expire time.
 func (e *ExceptionSampler) addSpan(expire time.Time, env string, s *pb.Span) {
 	shardSig := ServiceSignature{env, s.Service}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	ss.add(expire, s)
 }
 
+// sampleSpan samples a span if it's not in the seenSpan set. If the span is sampled
+// it's added to the seenSpans set.
 func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
 	var sampled bool
 	shardSig := ServiceSignature{env, s.Service}.Hash()
