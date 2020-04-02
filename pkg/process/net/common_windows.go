@@ -21,7 +21,7 @@ func SetSystemProbePath(path string) {
 }
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
-// From the main agent and want to ensure the socket exists
+// From the main agent and want to ensure the probe listener exists
 func CheckPath() error {
 	if globalSocketPath == "" {
 		return fmt.Errorf("remote tracer has no path defined")
