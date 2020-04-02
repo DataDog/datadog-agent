@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// packetsBuffer is a buffer of packets that will automatically flush to configurable channel
-// when it is full or after a configurable duration
+// packetsBuffer is a buffer of packets that will automatically flush to the given
+// output channel when it is full or after a configurable duration.
 type packetsBuffer struct {
 	packets       Packets
 	flushTimer    *time.Ticker

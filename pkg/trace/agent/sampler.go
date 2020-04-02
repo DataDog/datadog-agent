@@ -32,6 +32,14 @@ type Sampler struct {
 	exit chan struct{}
 }
 
+// NewScoreSampler creates a new empty sampler ready to be started
+func NewScoreSampler(conf *config.AgentConfig) *Sampler {
+	return &Sampler{
+		engine: sampler.NewScoreEngine(conf.ExtraSampleRate, conf.MaxTPS),
+		exit:   make(chan struct{}),
+	}
+}
+
 // NewErrorsSampler creates a new sampler dedicated to traces containing errors
 // to isolate them from the global max tps. It behaves exactly like the normal
 // ScoreSampler except that its statistics are reported under a different name.
@@ -117,6 +125,8 @@ func (s *Sampler) logStats() {
 				// publish through expvar
 				// TODO: avoid type switch, prefer engine method
 				switch s.engine.GetType() {
+				case sampler.NormalScoreEngineType:
+					info.UpdateSamplerInfo(info.SamplerInfo{Stats: stats, State: state})
 				case sampler.ErrorsScoreEngineType:
 					info.UpdateErrorsSamplerInfo(info.SamplerInfo{Stats: stats, State: state})
 				case sampler.PriorityEngineType:
