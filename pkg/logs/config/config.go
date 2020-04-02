@@ -97,8 +97,9 @@ func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 		(bool(httpConnectivity) && !coreConfig.Datadog.GetBool("logs_config.use_tcp")) {
 		return BuildHTTPEndpoints()
 	}
-
-	log.Warn("You are currently sending Logs to Datadog through TCP. To benefit from increased reliability and better network performances, we strongly encourage to switch over compressed HTTPS by using the logs_config.use_http and logs_config.use_compression parameters. This will become the default protocol in the Agent future version.")
+	log.Warn("You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed) " +
+		"To benefit from increased reliability and better network performances, " +
+		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.")
 	return buildTCPEndpoints()
 }
 
