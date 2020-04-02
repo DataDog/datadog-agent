@@ -17,7 +17,7 @@ func SetSystemProbePath(_ string) {
 
 // GetRemoteSystemProbeUtil is not supported
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
-	return &RemoteSysProbeUtil{}, nil
+	return &RemoteSysProbeUtil{}, ebpf.ErrNotImplemented
 }
 
 // GetConnections is not supported

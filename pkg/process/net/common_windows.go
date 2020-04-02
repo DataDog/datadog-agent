@@ -4,6 +4,7 @@ package net
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 const (
@@ -25,5 +26,5 @@ func CheckPath() error {
 	if globalSocketPath == "" {
 		return fmt.Errorf("remote tracer has no path defined")
 	}
-	return nil
+	return ebpf.ErrNotImplemented
 }
