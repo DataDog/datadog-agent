@@ -10,14 +10,14 @@ import (
 // RemoteSysProbeUtil is not supported
 type RemoteSysProbeUtil struct{}
 
-// SetSystemProbeSocketPath is not supported
-func SetSystemProbeSocketPath(_ string) {
+// SetSystemProbePath is not supported
+func SetSystemProbePath(_ string) {
 	// no-op
 }
 
 // GetRemoteSystemProbeUtil is not supported
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
-	return &RemoteSysProbeUtil{}, nil
+	return &RemoteSysProbeUtil{}, ebpf.ErrNotImplemented
 }
 
 // GetConnections is not supported
