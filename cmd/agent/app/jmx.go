@@ -153,7 +153,7 @@ func RunJmxCommand(command string, reporter jmxfetch.JMXReporter, output func(..
 		overrides["log_level"] = jmxLogLevel
 		config.AddOverrides(overrides)
 	} else {
-		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "debug")
+		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "off")
 	}
 
 	overrides := make(map[string]interface{})
