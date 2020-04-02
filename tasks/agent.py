@@ -14,7 +14,7 @@ from invoke.exceptions import Exit, ParseError
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var, check_go111module_envvar
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, get_distro_exclude_tags, LINUX_ONLY_TAGS
+from .build_tags import get_build_tags, get_default_build_tags, get_distro_exclude_tags, LINUX_ONLY_TAGS, WINDOWS_32BIT_EXCLUDE_TAGS
 from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
@@ -106,6 +106,11 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
+            if ex not in build_exclude:
+                build_exclude.append(ex)
+
+    if sys.platform == 'win32' and arch == "x86":
+        for ex in WINDOWS_32BIT_EXCLUDE_TAGS:
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
