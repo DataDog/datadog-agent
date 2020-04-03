@@ -339,7 +339,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base_dir=None, gem_path=None,
                   skip_deps=False, skip_sign=False, release_version="nightly", major_version='7',
                   python_runtimes='3', omnibus_s3_cache=False, hardened_runtime=False, system_probe_bin=None,
-                  libbcc_tarball=None):
+                  libbcc_tarball=None, with_bcc=True):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -428,6 +428,8 @@ def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base
             env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version, env=env)
             env['MAJOR_VERSION'] = major_version
             env['PY_RUNTIMES'] = python_runtimes
+            if with_bcc:
+                env['WITH_BCC'] = 'true'
             if system_probe_bin is not None:
                 env['SYSTEM_PROBE_BIN'] = system_probe_bin
             if libbcc_tarball is not None:

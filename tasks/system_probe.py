@@ -18,12 +18,13 @@ EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
 EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
 
 BPF_TAG = "linux_bpf"
+BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7',
-          python_runtimes='3'):
+          python_runtimes='3', with_bcc=True):
     """
     Build the system_probe
     """
@@ -62,6 +63,9 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
     build_tags = get_default_build_tags() + [BPF_TAG]
+
+    if with_bcc:
+        build_tags.append(BCC_TAG)
 
     # TODO static option
     cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '

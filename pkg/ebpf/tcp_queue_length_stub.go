@@ -1,4 +1,4 @@
-// +build !linux_bpf
+// +build !linux_bpf linux_bpf,!bcc
 
 package ebpf
 
