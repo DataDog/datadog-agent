@@ -1,3 +1,5 @@
+// +build !zlib
+
 package status
 
 import (
