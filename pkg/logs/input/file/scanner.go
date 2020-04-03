@@ -118,7 +118,7 @@ func (s *Scanner) scan() {
 
 		if !isTailed && tailersLen < s.tailingLimit {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			succeeded := s.startNewTailer(file, true)
+			succeeded := s.startNewTailer(file, config.Beginning)
 			if !succeeded {
 				// the setup failed, let's try to tail this file in the next scan
 				continue
@@ -185,23 +185,29 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 		if _, isTailed := s.tailers[file.Path]; isTailed {
 			continue
 		}
-		var tailFromBeginning bool
+
+		mode, _ := config.TailingModeFromString(source.Config.TailingMode)
+
 		if source.Config.Identifier != "" {
 			// only sources generated from a service discovery will contain a config identifier,
 			// in which case we want to collect all logs.
 			// FIXME: better detect a source that has been generated from a service discovery.
-			tailFromBeginning = true
+			mode = config.Beginning
 		}
-		s.startNewTailer(file, tailFromBeginning)
+		s.startNewTailer(file, mode)
 	}
 }
 
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise
-func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
+func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), tailFromBeginning)
+	var offset int64
+	var whence int
+	mode := s.handleTailingModeChange(tailer.Identifier(), m)
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
@@ -214,6 +220,28 @@ func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
 
 	s.tailers[file.Path] = tailer
 	return true
+}
+
+// handleTailingModeChange determines the tailing behaviour when the tailing mode for a given file has its
+// configuration change. Two case may happen we can switch from "end" to "beginning" (1) and from "beginning" to
+// "end" (2). If the tailing mode is set to forceEnd or forceBeginning it will remain unchanged.
+// If (1) then the resulting tailing mode if "beginning" in order to honor existing offset to avoid duplicated lines to be sent.
+// If (2) then the resulting tailing mode is "forceEnd" to drop any saved offset and tail from the end of the file.
+func (s *Scanner) handleTailingModeChange(tailerID string, currentTailingMode config.TailingMode) config.TailingMode {
+	if currentTailingMode == config.ForceBeginning || currentTailingMode == config.ForceEnd {
+		return currentTailingMode
+	}
+	previousMode, _ := config.TailingModeFromString(s.registry.GetTailingMode(tailerID))
+	if previousMode != currentTailingMode {
+		log.Infof("Tailing mode changed for %v from %v to %v", tailerID, previousMode, currentTailingMode)
+		if currentTailingMode == config.Beginning {
+			// end -> beginning, the offset will be honored if it exists
+			return config.Beginning
+		}
+		// beginning -> end, the offset will be ignored
+		return config.ForceEnd
+	}
+	return currentTailingMode
 }
 
 // stopTailer stops the tailer

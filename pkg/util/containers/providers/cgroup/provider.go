@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -22,6 +23,7 @@ import (
 // provider is a Cgroup implementation of the ContainerImplementation interface
 type provider struct {
 	cgroups map[string]*ContainerCgroup
+	lock    sync.RWMutex
 }
 
 func init() {
@@ -31,6 +33,9 @@ func init() {
 // Prefetch gets data from all cgroups in one go
 // If not successful all other calls will fail
 func (mp *provider) Prefetch() error {
+	mp.lock.Lock()
+	defer mp.lock.Unlock()
+
 	var err error
 	mp.cgroups, err = scrapeAllCgroups()
 	return err
@@ -127,9 +132,9 @@ func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLi
 
 // GetNetworkMetrics return network metrics for all PIDs in container
 func (mp *provider) GetNetworkMetrics(containerID string, networks map[string]string) (metrics.ContainerNetStats, error) {
-	cg, ok := mp.cgroups[containerID]
-	if !ok || cg == nil {
-		return nil, fmt.Errorf("Cgroup not found for container: %s", containerID[:12])
+	cg, err := mp.getCgroup(containerID)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(cg.Pids) == 0 {
@@ -152,6 +157,16 @@ func (mp *provider) GetAgentCID() (string, error) {
 		return "", err
 	}
 	return cID, err
+}
+
+// GetPIDs returns all PIDs running in the current container
+func (mp *provider) GetPIDs(containerID string) ([]int32, error) {
+	cg, err := mp.getCgroup(containerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return cg.Pids, nil
 }
 
 // ContainerIDForPID is a lighter version of CgroupsForPids to only retrieve the
@@ -188,6 +203,9 @@ func (mp *provider) GetDefaultHostIPs() ([]string, error) {
 }
 
 func (mp *provider) getCgroup(containerID string) (*ContainerCgroup, error) {
+	mp.lock.RLock()
+	defer mp.lock.RUnlock()
+
 	cg, ok := mp.cgroups[containerID]
 	if !ok || cg == nil {
 		return nil, fmt.Errorf("Cgroup not found for container: %s", containerID[:12])

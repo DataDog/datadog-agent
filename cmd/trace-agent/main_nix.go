@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 )
 
 // main is the main application entry point

@@ -25,6 +25,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1475,4 +1476,52 @@ func teardown(t *testing.T) {
 		fmt.Printf("teardown command output: %s", string(out))
 		t.Errorf("error tearing down: %s", err)
 	}
+}
+
+func TestDNSStats(t *testing.T) {
+	config := NewDefaultConfig()
+	config.CollectDNSStats = true
+	config.CollectLocalDNS = true
+	tr, err := NewTracer(config)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53}
+
+	queryMsg := new(dns.Msg)
+	queryMsg.SetQuestion(dns.Fqdn("golang.org"), dns.TypeA)
+	queryMsg.RecursionDesired = true
+
+	// Get outbound IP
+	dummyConn, err := net.Dial("udp", "8.8.8.8:80")
+	require.NoError(t, err)
+	dummyConn.Close()
+	localAddr := dummyConn.LocalAddr().(*net.UDPAddr)
+
+	dnsClientAddr := &net.UDPAddr{IP: localAddr.IP, Port: 7777}
+	localAddrDialer := &net.Dialer{
+		LocalAddr: dnsClientAddr,
+	}
+
+	dnsClient := dns.Client{Net: "udp", Dialer: localAddrDialer}
+	_, _, err = dnsClient.Exchange(queryMsg, dnsServerAddr.String())
+
+	if err != nil {
+		t.Fatalf("Failed to get dns response %s\n", err.Error())
+	}
+
+	// Allow the DNS reply to be processed in the snooper
+	time.Sleep(time.Millisecond * 500)
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
+	require.True(t, ok)
+
+	assert.Equal(t, queryMsg.Len(), int(conn.MonotonicSentBytes))
+	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
+
+	// DNS Stats
+	assert.Equal(t, uint32(1), conn.DNSSuccessfulResponses)
 }

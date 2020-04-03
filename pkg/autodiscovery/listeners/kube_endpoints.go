@@ -162,8 +162,16 @@ func (l *KubeEndpointsListener) serviceUpdated(old, obj interface{}) {
 		return
 	}
 
-	if !isServiceEndpointsAnnotated(castedOld) && isServiceEndpointsAnnotated(castedObj) {
+	// Detect if new annotations are added
+	if !isServiceAnnotated(castedOld, kubeEndpointsAnnotationFormat) && isServiceAnnotated(castedObj, kubeEndpointsAnnotationFormat) {
 		l.createService(l.endpointsForService(castedObj), true, false)
+	}
+
+	// Detect changes of AD labels for standard tags if the Service is annotated
+	if isServiceAnnotated(castedObj, kubeEndpointsAnnotationFormat) && (standardTagsDigest(castedOld.GetLabels()) != standardTagsDigest(castedObj.GetLabels())) {
+		kep := l.endpointsForService(castedObj)
+		l.removeService(kep)
+		l.createService(kep, true, false)
 	}
 }
 
@@ -185,11 +193,30 @@ func (l *KubeEndpointsListener) endpointsDiffer(first, second *v1.Endpoints) boo
 	if first.ResourceVersion == second.ResourceVersion {
 		return false
 	}
-	// AD annotations on the corresponding service
-	if l.isEndpointsAnnotated(first) != l.isEndpointsAnnotated(second) {
+
+	ksvcFirst, err := l.serviceLister.Services(first.Namespace).Get(first.Name)
+	if err != nil {
+		log.Tracef("Cannot get Kubernetes service: %s", err)
 		return true
 	}
-	// Subsets
+
+	ksvcSecond, err := l.serviceLister.Services(second.Namespace).Get(second.Name)
+	if err != nil {
+		log.Tracef("Cannot get Kubernetes service: %s", err)
+		return true
+	}
+
+	// AD annotations on the corresponding services
+	if isServiceAnnotated(ksvcFirst, kubeEndpointsAnnotationFormat) != isServiceAnnotated(ksvcSecond, kubeEndpointsAnnotationFormat) {
+		return true
+	}
+
+	// AD labels - standard tags on the corresponding services
+	if standardTagsDigest(ksvcFirst.GetLabels()) != standardTagsDigest(ksvcSecond.GetLabels()) {
+		return true
+	}
+
+	// Endpoint subsets
 	return subsetsDiffer(first, second)
 }
 
@@ -206,21 +233,7 @@ func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	if err != nil {
 		log.Tracef("Cannot get Kubernetes service: %s", err)
 	}
-	if ksvc != nil {
-		if _, found := ksvc.Annotations[kubeEndpointsAnnotationFormat]; found {
-			return true
-		}
-	}
-	return false
-}
-
-func isServiceEndpointsAnnotated(ksvc *v1.Service) bool {
-	if ksvc != nil {
-		if _, found := ksvc.Annotations[kubeEndpointsAnnotationFormat]; found {
-			return true
-		}
-	}
-	return false
+	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat)
 }
 
 func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExistingService, checkServiceAnnotations bool) {
@@ -234,7 +247,14 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExisting
 		return
 	}
 
-	eps := processEndpoints(kep, alreadyExistingService)
+	// Look for standard tags
+	tags, err := l.getStandardTagsForEndpoints(kep)
+	if err != nil {
+		log.Debugf("Couldn't get standard tags for %s/%s: %v", kep.Namespace, kep.Name, err)
+		tags = []string{}
+	}
+
+	eps := processEndpoints(kep, alreadyExistingService, tags)
 
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
@@ -248,7 +268,7 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExisting
 
 // processEndpoints parses a kubernetes Endpoints object
 // and returns a slice of KubeEndpointService per endpoint
-func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool) []*KubeEndpointService {
+func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool, tags []string) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 	for i := range kep.Subsets {
 		ports := []ContainerPort{}
@@ -270,6 +290,7 @@ func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool) []*KubeEnd
 					fmt.Sprintf("kube_endpoint_ip:%s", host.IP),
 				},
 			}
+			ep.tags = append(ep.tags, tags...)
 			if alreadyExistingService {
 				ep.creationTime = integration.Before
 			}
@@ -297,6 +318,16 @@ func (l *KubeEndpointsListener) removeService(kep *v1.Endpoints) {
 	} else {
 		log.Debugf("Entity %s not found, not removing", kep.UID)
 	}
+}
+
+// getStandardTagsForEndpoints returns the standard tags defined in the labels
+// of the Service that corresponds to a given Endpoints object.
+func (l *KubeEndpointsListener) getStandardTagsForEndpoints(kep *v1.Endpoints) ([]string, error) {
+	ksvc, err := l.serviceLister.Services(kep.Namespace).Get(kep.Name)
+	if err != nil {
+		return nil, err
+	}
+	return getStandardTags(ksvc.GetLabels()), nil
 }
 
 // GetEntity returns the unique entity name linked to that service
