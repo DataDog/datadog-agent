@@ -471,6 +471,7 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 				receivedResponses++
 				if receivedResponses == expectedResponses {
 					close(results)
+					return
 				}
 			case <-time.After(defaultResponseTimeout):
 				log.Errorf("timed out waiting for responses, received %d/%d", receivedResponses, expectedResponses)
