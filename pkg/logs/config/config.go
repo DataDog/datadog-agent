@@ -33,6 +33,16 @@ var logsEndpoints = map[string]int{
 	"agent-intake.logs.datad0g.eu":    443,
 }
 
+// HTTPConnectivity is the status of the HTTP connectivity
+type HTTPConnectivity bool
+
+var (
+	// HTTPConnectivitySuccess is the status for successful HTTP connectivity
+	HTTPConnectivitySuccess HTTPConnectivity = true
+	// HTTPConnectivityFailure is the status for failed HTTP connectivity
+	HTTPConnectivityFailure HTTPConnectivity = false
+)
+
 // DefaultSources returns the default log sources that can be directly set from the datadog.yaml or through environment variables.
 func DefaultSources() []*LogSource {
 	var sources []*LogSource
@@ -77,18 +87,30 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 	return rules, nil
 }
 
-// BuildEndpoints returns the endpoints to send logs to.
-func BuildEndpoints() (*Endpoints, error) {
+// BuildEndpoints returns the endpoints to send logs.
+func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 	if coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
-
-	if coreConfig.Datadog.GetBool("logs_config.use_http") {
-		return buildHTTPEndpoints()
+	if isForceHTTPUse() || (bool(httpConnectivity) && !(isForceTCPUse() || isSocks5ProxySet())) {
+		return BuildHTTPEndpoints()
 	}
-
-	log.Warn("You are currently sending Logs to Datadog through TCP. To benefit from increased reliability and better network performances, we strongly encourage to switch over compressed HTTPS by using the logs_config.use_http and logs_config.use_compression parameters. This will become the default protocol in the Agent future version.")
+	log.Warn("You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed) " +
+		"To benefit from increased reliability and better network performances, " +
+		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.")
 	return buildTCPEndpoints()
+}
+
+func isSocks5ProxySet() bool {
+	return len(coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")) > 0
+}
+
+func isForceTCPUse() bool {
+	return coreConfig.Datadog.GetBool("logs_config.use_tcp")
+}
+
+func isForceHTTPUse() bool {
+	return coreConfig.Datadog.GetBool("logs_config.use_http")
 }
 
 func buildTCPEndpoints() (*Endpoints, error) {
@@ -134,7 +156,8 @@ func buildTCPEndpoints() (*Endpoints, error) {
 	return NewEndpoints(main, additionals, useProto, false, 0), nil
 }
 
-func buildHTTPEndpoints() (*Endpoints, error) {
+// BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
+func BuildHTTPEndpoints() (*Endpoints, error) {
 	main := Endpoint{
 		APIKey:           getLogsAPIKey(coreConfig.Datadog),
 		UseCompression:   coreConfig.Datadog.GetBool("logs_config.use_compression"),

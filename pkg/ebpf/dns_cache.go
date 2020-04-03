@@ -17,25 +17,32 @@ type reverseDNSCache struct {
 	// that this file can run on a 32 bit system, they must 64-bit aligned.
 	// Go will ensure that each struct is 64-bit aligned, so these fields
 	// must always be at the beginning of the struct.
-	length   int64
-	lookups  int64
-	resolved int64
-	added    int64
-	expired  int64
+	length    int64
+	lookups   int64
+	resolved  int64
+	added     int64
+	expired   int64
+	oversized int64
 
 	mux  sync.Mutex
 	data map[util.Address]*dnsCacheVal
 	exit chan struct{}
 	ttl  time.Duration
 	size int
+
+	// maxDomainsPerIP is the maximum number of domains mapped to a single IP
+	maxDomainsPerIP   int
+	oversizedLogLimit *util.LogLimit
 }
 
 func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
-		data: make(map[util.Address]*dnsCacheVal),
-		exit: make(chan struct{}),
-		ttl:  ttl,
-		size: size,
+		data:              make(map[util.Address]*dnsCacheVal),
+		exit:              make(chan struct{}),
+		ttl:               ttl,
+		size:              size,
+		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
+		maxDomainsPerIP:   1000,
 	}
 
 	ticker := time.NewTicker(expirationPeriod)
@@ -68,12 +75,13 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 		val, ok := c.data[addr]
 		if ok {
 			val.expiration = exp
-			val.merge(translation.dns)
-			continue
+			if rejected := val.merge(translation.dns, c.maxDomainsPerIP); rejected && c.oversizedLogLimit.ShouldLog() {
+				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
+			}
+		} else {
+			atomic.AddInt64(&c.added, 1)
+			c.data[addr] = &dnsCacheVal{names: []string{translation.dns}, expiration: exp}
 		}
-
-		atomic.AddInt64(&c.added, 1)
-		c.data[addr] = &dnsCacheVal{names: []string{translation.dns}, expiration: exp}
 	}
 
 	// Update cache length for telemetry purposes
@@ -90,6 +98,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 	var (
 		resolved   = make(map[util.Address][]string)
 		unresolved = make(map[util.Address]struct{})
+		oversized  = make(map[util.Address]struct{})
 		expiration = now.Add(c.ttl).UnixNano()
 	)
 
@@ -102,12 +111,18 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 			return
 		}
 
-		if names := c.getNamesForIP(addr, expiration); names != nil {
-			resolved[addr] = names
+		if _, ok := oversized[addr]; ok {
 			return
 		}
 
-		unresolved[addr] = struct{}{}
+		names := c.getNamesForIP(addr, expiration)
+		if len(names) == 0 {
+			unresolved[addr] = struct{}{}
+		} else if len(names) == c.maxDomainsPerIP {
+			oversized[addr] = struct{}{}
+		} else {
+			resolved[addr] = names
+		}
 	}
 
 	c.mux.Lock()
@@ -120,6 +135,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 	// Update stats for telemetry
 	atomic.AddInt64(&c.lookups, int64(len(resolved)+len(unresolved)))
 	atomic.AddInt64(&c.resolved, int64(len(resolved)))
+	atomic.AddInt64(&c.oversized, int64(len(oversized)))
 
 	return resolved
 }
@@ -130,19 +146,21 @@ func (c *reverseDNSCache) Len() int {
 
 func (c *reverseDNSCache) Stats() map[string]int64 {
 	var (
-		lookups  = atomic.SwapInt64(&c.lookups, 0)
-		resolved = atomic.SwapInt64(&c.resolved, 0)
-		added    = atomic.SwapInt64(&c.added, 0)
-		expired  = atomic.SwapInt64(&c.expired, 0)
-		ips      = int64(c.Len())
+		lookups   = atomic.SwapInt64(&c.lookups, 0)
+		resolved  = atomic.SwapInt64(&c.resolved, 0)
+		added     = atomic.SwapInt64(&c.added, 0)
+		expired   = atomic.SwapInt64(&c.expired, 0)
+		oversized = atomic.SwapInt64(&c.oversized, 0)
+		ips       = int64(c.Len())
 	)
 
 	return map[string]int64{
-		"lookups":  lookups,
-		"resolved": resolved,
-		"added":    added,
-		"expired":  expired,
-		"ips":      ips,
+		"lookups":   lookups,
+		"resolved":  resolved,
+		"added":     added,
+		"expired":   expired,
+		"oversized": oversized,
+		"ips":       ips,
 	}
 }
 
@@ -189,14 +207,19 @@ type dnsCacheVal struct {
 	expiration int64
 }
 
-func (v *dnsCacheVal) merge(name string) {
+func (v *dnsCacheVal) merge(name string, maxSize int) (rejected bool) {
 	normalized := strings.ToLower(name)
 	if i := sort.SearchStrings(v.names, normalized); i < len(v.names) && v.names[i] == normalized {
-		return
+		return false
+	}
+
+	if len(v.names) == maxSize {
+		return true
 	}
 
 	v.names = append(v.names, normalized)
 	sort.Strings(v.names)
+	return false
 }
 
 func (v *dnsCacheVal) copy() []string {

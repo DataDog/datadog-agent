@@ -2317,6 +2317,7 @@
     "golang.org/x/sys/windows/svc/eventlog",
     "golang.org/x/sys/windows/svc/mgr",
     "golang.org/x/text/unicode/norm",
+    "golang.org/x/time/rate",
     "google.golang.org/grpc",
     "gopkg.in/yaml.v2",
     "gopkg.in/zorkian/go-datadog-api.v2",
