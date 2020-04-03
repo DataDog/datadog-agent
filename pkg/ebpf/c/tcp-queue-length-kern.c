@@ -7,8 +7,16 @@
 
 #include "tcp-queue-length-kern-user.h"
 
+/*
+ * The `queue` map is used to share with the userland program system-probe
+ * the statistics (max/min size of receive/send buffer) of every socket
+ */
 BPF_HASH(queue, struct sock *, struct stats);
 
+/*
+ * the `who_recvmsg` and `who_sendmsg` maps are used to remind the sock pointer
+ * received as input parameter when we are in the kretprobe of tcp_recvmsg and tcp_sendmsg.
+ */
 BPF_HASH(who_recvmsg, u64, struct sock *);
 BPF_HASH(who_sendmsg, u64, struct sock *);
 

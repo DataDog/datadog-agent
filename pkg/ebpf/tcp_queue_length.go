@@ -113,35 +113,12 @@ func (t *TCPQueueLengthTracer) Get() []tcpqueuelength.Stats {
 	var result []tcpqueuelength.Stats
 
 	for it := t.queueMap.Iter(); it.Next(); {
-		var in C.struct_stats        // kernel       <-> system-probe
-		var out tcpqueuelength.Stats // system-probe <-> agent
-
-		// `binary.Read(…)` doesn’t work because reflection doesn’t work with C types.
-		// binary.Read(bytes.NewBuffer(it.Leaf()), bpflib.GetHostByteOrder(), &in)
+		var stat C.struct_stats
 
 		data := it.Leaf()
-		C.memcpy(unsafe.Pointer(&in), unsafe.Pointer(&data[0]), C.sizeof_struct_stats)
+		C.memcpy(unsafe.Pointer(&stat), unsafe.Pointer(&data[0]), C.sizeof_struct_stats)
 
-		// TODO: Can this code be handled by using reflection? Would it be clearer?
-		out.Pid = uint32(in.pid)
-		out.ContainerID = C.GoString(&in.cgroup_name[0])
-		out.Conn.Saddr = make(net.IP, 4)
-		bpflib.GetHostByteOrder().PutUint32(out.Conn.Saddr, uint32(in.conn.saddr))
-		out.Conn.Daddr = make(net.IP, 4)
-		bpflib.GetHostByteOrder().PutUint32(out.Conn.Daddr, uint32(in.conn.daddr))
-		port := make([]byte, 2)
-		bpflib.GetHostByteOrder().PutUint16(port, uint16(in.conn.dport))
-		out.Conn.Dport = binary.BigEndian.Uint16(port)
-		bpflib.GetHostByteOrder().PutUint16(port, uint16(in.conn.sport))
-		out.Conn.Sport = binary.BigEndian.Uint16(port)
-		out.Rqueue.Size = int(in.rqueue.size)
-		out.Rqueue.Min = uint32(in.rqueue.min)
-		out.Rqueue.Max = uint32(in.rqueue.max)
-		out.Wqueue.Size = int(in.wqueue.size)
-		out.Wqueue.Min = uint32(in.wqueue.min)
-		out.Wqueue.Max = uint32(in.wqueue.max)
-
-		result = append(result, out)
+		result = append(result, convertStat(stat))
 	}
 
 	return result
@@ -151,4 +128,25 @@ func (t *TCPQueueLengthTracer) GetAndFlush() []tcpqueuelength.Stats {
 	result := t.Get()
 	t.queueMap.DeleteAll()
 	return result
+}
+
+func convertStat(in C.struct_stats) (out tcpqueuelength.Stats) {
+	out.Pid = uint32(in.pid)
+	out.ContainerID = C.GoString(&in.cgroup_name[0])
+	out.Conn.Saddr = make(net.IP, 4)
+	bpflib.GetHostByteOrder().PutUint32(out.Conn.Saddr, uint32(in.conn.saddr))
+	out.Conn.Daddr = make(net.IP, 4)
+	bpflib.GetHostByteOrder().PutUint32(out.Conn.Daddr, uint32(in.conn.daddr))
+	port := make([]byte, 2)
+	bpflib.GetHostByteOrder().PutUint16(port, uint16(in.conn.dport))
+	out.Conn.Dport = binary.BigEndian.Uint16(port)
+	bpflib.GetHostByteOrder().PutUint16(port, uint16(in.conn.sport))
+	out.Conn.Sport = binary.BigEndian.Uint16(port)
+	out.Rqueue.Size = int(in.rqueue.size)
+	out.Rqueue.Min = uint32(in.rqueue.min)
+	out.Rqueue.Max = uint32(in.rqueue.max)
+	out.Wqueue.Size = int(in.wqueue.size)
+	out.Wqueue.Min = uint32(in.wqueue.min)
+	out.Wqueue.Max = uint32(in.wqueue.max)
+	return
 }

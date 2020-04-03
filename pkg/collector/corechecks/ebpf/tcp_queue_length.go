@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -68,7 +69,7 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 //Configure parses the check configuration and init the check
 func (t *TCPQueueLengthCheck) Configure(config, initConfig integration.Data, source string) error {
 	// TODO: Remove that hard-code and put it somewhere else
-	process_net.SetSystemProbeSocketPath("/opt/datadog-agent/run/sysprobe.sock")
+	process_net.SetSystemProbeSocketPath(dd_config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 
 	err := t.CommonConfigure(config, source)
 	if err != nil {
