@@ -174,7 +174,11 @@ func runAgent(exit chan bool) {
 		os.Exit(1)
 		return
 	}
-	cl.run(exit)
+	if err := cl.run(exit); err != nil {
+		log.Criticalf("Error starting collector: %s", err)
+		os.Exit(1)
+		return
+	}
 	for range exit {
 
 	}

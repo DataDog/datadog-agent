@@ -50,9 +50,6 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 // Name returns the name of the ProcessCheck.
 func (c *ContainerCheck) Name() string { return "container" }
 
-// Endpoint returns the endpoint where this check is submitted.
-func (c *ContainerCheck) Endpoint() string { return "/api/v1/container" }
-
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ContainerCheck) RealTime() bool { return false }
 

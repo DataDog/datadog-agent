@@ -157,6 +157,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	if driverBufferSize := key(spNS, "windows", "driver_buffer_size"); config.Datadog.IsSet(driverBufferSize) {
 		a.WinSysProbeConfig.DriverBufferSize = config.Datadog.GetInt(driverBufferSize)
+
+	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
+		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
+
 	}
 
 	return nil

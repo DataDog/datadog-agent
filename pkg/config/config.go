@@ -46,6 +46,9 @@ const (
 
 	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
 	ClusterIDCacheKey = "orchestratorClusterID"
+
+	// defaultSystemProbeSocketPath is the default unix socket path to be used for connecting to the system probe
+	defaultSystemProbeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
 )
 
 var overrideVars = make(map[string]interface{})
@@ -587,7 +590,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
-	config.SetKnown("system_probe_config.sysprobe_socket")
+	config.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", defaultSystemProbeSocketPath)
 	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
 	config.SetKnown("system_probe_config.max_conns_per_message")
 	config.SetKnown("system_probe_config.max_tracked_connections")
