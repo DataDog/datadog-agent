@@ -27,6 +27,8 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
     exit 1
 }
 
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/master/LICENSE" -OutFile .\chocolatey\tools\LICENSE.txt
+
 Write-Host "Generating Chocolatey package version $agentVersion in $outputDirectory"
 
 if (!(Test-Path $outputDirectory)) {

@@ -12,7 +12,6 @@
     <copyright>$copyright$</copyright>
     <licenseUrl>https://raw.githubusercontent.com/DataDog/datadog-agent/master/LICENSE</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
-    <projectSourceUrl>https://github.com/DataDog/datadog-agent</projectSourceUrl>
     <docsUrl>https://docs.datadoghq.com</docsUrl>
     <tags>datadog agent monitoring admin</tags>
     <summary>The Datadog Agent for Microsoft Windows</summary>
