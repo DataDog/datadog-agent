@@ -63,6 +63,7 @@ if ohai["platform"] != "windows"
   end
 
 else
+  dependency "vc_redist_14"
   #
   # note for next version after 3.8.1, remove the `-withcrt` as the filename won't
   # include that any more
@@ -79,7 +80,9 @@ else
          :sha256 => "1da0a5e43c24ed62a43c9f3a4d42e72abb4905b0e1fa4923f01c9ee5814ef9e7"
 
   end
+  vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
+    command "copy /y \"#{windows_safe_path(vcrt140_root)}\\msvc*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
   end
 end
