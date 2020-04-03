@@ -9,8 +9,3 @@
 fixes:
   - |
     On Windows, fixes Process agent memory leak when obtaining process arguments.
-other:
-  - |
-    Add here every other information you want in the CHANGELOG that
-    don't fit in any other section. This section should rarely be
-    used.

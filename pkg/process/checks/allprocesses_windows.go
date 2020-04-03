@@ -301,13 +301,7 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 		cp.commandLine = cp.executablePath
 	}
 
-	var parsedargs []string
-	if len(cp.commandLine) == 0 {
-		parsedargs = append(parsedargs, cp.executablePath)
-	} else {
-		parsedargs = parseCmdLineArgs(cp.commandLine)
-	}
-	cp.parsedArgs = parsedargs
+	cp.parsedArgs = parseCmdLineArgs(cp.commandLine)
 	return
 }
 
