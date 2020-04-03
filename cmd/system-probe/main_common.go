@@ -138,7 +138,6 @@ func cleanupAndExit(status int) {
 		if _, err := os.Stat(opts.pidFilePath); err == nil {
 			os.Remove(opts.pidFilePath)
 		}
-
 	}
 
 	os.Exit(status)
