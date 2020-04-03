@@ -210,7 +210,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		tlmTxErrors.Inc(t.Domain, "cant_send")
 		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", httputils.SanitizeURL(err.Error()))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

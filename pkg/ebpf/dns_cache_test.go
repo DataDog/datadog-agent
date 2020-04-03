@@ -126,11 +126,12 @@ func TestDNSCacheTelemetry(t *testing.T) {
 	cache.Add(translation, t1)
 
 	expected := map[string]int64{
-		"lookups":  0,
-		"resolved": 0,
-		"ips":      1,
-		"added":    1,
-		"expired":  0,
+		"lookups":   0,
+		"resolved":  0,
+		"ips":       1,
+		"added":     1,
+		"expired":   0,
+		"oversized": 0,
 	}
 	assert.Equal(t, expected, cache.Stats())
 
@@ -148,11 +149,12 @@ func TestDNSCacheTelemetry(t *testing.T) {
 	// Attempt to resolve IPs
 	cache.Get(conns, t1)
 	expected = map[string]int64{
-		"lookups":  3, // 127.0.0.1, 192.168.0.1, 192.168.0.2
-		"resolved": 1, // 192.168.0.1
-		"ips":      1,
-		"added":    0,
-		"expired":  0,
+		"lookups":   3, // 127.0.0.1, 192.168.0.1, 192.168.0.2
+		"resolved":  1, // 192.168.0.1
+		"ips":       1,
+		"added":     0,
+		"expired":   0,
+		"oversized": 0,
 	}
 	assert.Equal(t, expected, cache.Stats())
 
@@ -160,11 +162,12 @@ func TestDNSCacheTelemetry(t *testing.T) {
 	t2 := t1.Add(ttl + 1*time.Millisecond)
 	cache.Expire(t2)
 	expected = map[string]int64{
-		"lookups":  0,
-		"resolved": 0,
-		"ips":      0,
-		"added":    0,
-		"expired":  1,
+		"lookups":   0,
+		"resolved":  0,
+		"ips":       0,
+		"added":     0,
+		"expired":   1,
+		"oversized": 0,
 	}
 	assert.Equal(t, expected, cache.Stats())
 }
@@ -228,6 +231,47 @@ func TestDNSCacheMerge_MixedCaseNames(t *testing.T) {
 
 	res := cache.Get(conns, ts)
 	assert.Equal(t, []string{"host.name.com"}, res[util.AddressFromString("192.168.0.1")])
+}
+
+func TestGetOversizedDNS(t *testing.T) {
+	cache := newReverseDNSCache(1000, time.Hour, time.Minute)
+	cache.maxDomainsPerIP = 10
+	addr := util.AddressFromString("192.168.0.1")
+	now := time.Now()
+
+	for i := 0; i < 5; i++ {
+		cache.Add(&translation{
+			dns: fmt.Sprintf("%d.host.com", i),
+			ips: []util.Address{addr},
+		}, now)
+	}
+
+	conns := []ConnectionStats{
+		{
+			Dest: addr,
+		},
+	}
+
+	result := cache.Get(conns, now)
+	assert.Len(t, result[addr], 5)
+	assert.Len(t, cache.data[addr].names, 5)
+
+	for i := 5; i < 100; i++ {
+		cache.Add(&translation{
+			dns: fmt.Sprintf("%d.host.com", i),
+			ips: []util.Address{addr},
+		}, now)
+	}
+
+	conns = []ConnectionStats{
+		{
+			Dest: addr,
+		},
+	}
+
+	result = cache.Get(conns, now)
+	assert.Len(t, result[addr], 0)
+	assert.Len(t, cache.data[addr].names, 10)
 }
 
 func BenchmarkDNSCacheGet(b *testing.B) {
