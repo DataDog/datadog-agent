@@ -101,6 +101,10 @@ const (
 	useragentHTTPHeaderKey = "User-Agent"
 )
 
+// The amount of time the forwarder will wait to receive process-like response payloads before giving up
+// This is a var so that it can be changed for testing
+var defaultResponseTimeout = 30 * time.Second
+
 type endpoint struct {
 	// Route to hit in the HTTP transaction
 	route string
@@ -430,11 +434,10 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 	transactions := f.createHTTPTransactions(ep, payload, false, extra)
 
 	results := make(chan Response, len(transactions))
+	internalResults := make(chan Response, len(transactions))
+	expectedResponses := len(transactions)
 
-	var wg sync.WaitGroup
 	for _, txn := range transactions {
-		wg.Add(1)
-
 		txn.retryable = retryable
 		txn.attemptHandler = func(transaction *HTTPTransaction) {
 			if v := transaction.Headers.Get("X-DD-Agent-Timestamp"); v == "" {
@@ -450,19 +453,31 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 		}
 
 		txn.completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
-			results <- Response{
+			internalResults <- Response{
 				Domain:     transaction.Domain,
 				Body:       body,
 				StatusCode: statusCode,
 				Err:        err,
 			}
-			wg.Done()
 		}
 	}
 
 	go func() {
-		wg.Wait()
-		close(results)
+		receivedResponses := 0
+		for {
+			select {
+			case r := <-internalResults:
+				results <- r
+				receivedResponses++
+				if receivedResponses == expectedResponses {
+					close(results)
+				}
+			case <-time.After(defaultResponseTimeout):
+				log.Errorf("timed out waiting for responses, received %d/%d", receivedResponses, expectedResponses)
+				close(results)
+				return
+			}
+		}
 	}()
 
 	return results, f.sendHTTPTransactions(transactions)
