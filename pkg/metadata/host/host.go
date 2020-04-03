@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
+
+	"github.com/DataDog/datadog-agent/pkg/logs"
 )
 
 const packageCachePrefix = "host"
@@ -42,6 +44,7 @@ func GetPayload(hostnameData util.HostnameData) *Payload {
 		HostTags:      getHostTags(),
 		ContainerMeta: getContainerMeta(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(),
+		LogsMeta:      getLogsMeta(),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -205,6 +208,10 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 		mutex.Unlock()
 		return incompleteMeta
 	}
+}
+
+func getLogsMeta() *LogsMeta {
+	return &LogsMeta{Transport: string(logs.CurrentTransport)}
 }
 
 func buildKey(key string) string {

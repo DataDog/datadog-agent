@@ -84,6 +84,8 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 
+	stats["systemProbeStats"] = getSystemProbeStats()
+
 	return stats, nil
 }
 
@@ -362,7 +364,11 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 // and puts it into a CLCChecks struct
 func GetExpvarRunnerStats() (CLCChecks, error) {
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
+	return convertExpvarRunnerStats(runnerStatsJSON)
+}
+
+func convertExpvarRunnerStats(inputJSON []byte) (CLCChecks, error) {
 	runnerStats := CLCChecks{}
-	err := json.Unmarshal(runnerStatsJSON, &runnerStats)
+	err := json.Unmarshal(inputJSON, &runnerStats)
 	return runnerStats, err
 }
