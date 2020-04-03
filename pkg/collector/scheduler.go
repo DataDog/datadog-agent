@@ -130,22 +130,35 @@ func (s *CheckScheduler) AddLoader(loader check.Loader) {
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
 func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
-	for _, loader := range s.loaders {
-		res, err := loader.Load(config)
-		if err == nil {
-			log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-			errorStats.removeLoaderErrors(config.Name)
-			return res, nil
+	checks := []check.Check{}
+	numLoaders := len(s.loaders)
+
+	for _, instance := range config.Instances {
+		errors := []string{}
+
+		for _, loader := range s.loaders {
+			c, err := loader.Load(config, instance)
+			if err == nil {
+				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
+				errorStats.removeLoaderErrors(config.Name)
+				checks = append(checks, c)
+				break
+			} else {
+				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+				errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
+			}
 		}
-		// Check if some check instances were loaded correctly (can occur if there's multiple check instances)
-		if len(res) != 0 {
-			return res, nil
+
+		if len(errors) == numLoaders {
+			log.Debugf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
 		}
-		errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 
-	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
+	if len(checks) == 0 {
+		return checks, fmt.Errorf("unable to load any check from config '%s'", config.Name)
+	}
+
+	return checks, nil
 }
 
 // GetChecksByNameForConfigs returns checks matching name for passed in configs

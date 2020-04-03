@@ -129,6 +129,9 @@ func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`   random_url_key:   'http://user:password@host:port'   `,
 		`   random_url_key:   'http://user:********@host:port'   `)
+	assertClean(t,
+		`   random_url_key:   'mongodb+srv://user:pass-with-hyphen@abc.example.com/database'   `,
+		`   random_url_key:   'mongodb+srv://user:********@abc.example.com/database'   `)
 }
 
 func TestTextStripApiKey(t *testing.T) {

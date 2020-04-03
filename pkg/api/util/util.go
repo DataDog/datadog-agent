@@ -32,14 +32,28 @@ func SetAuthToken() error {
 	return err
 }
 
+// CreateAndSetAuthToken creates and sets the authorization token
+// Requires that the config has been set up before calling
+func CreateAndSetAuthToken() error {
+	// Noop if token is already set
+	if token != "" {
+		return nil
+	}
+
+	// token is only set once, no need to mutex protect
+	var err error
+	token, err = security.CreateOrFetchToken()
+	return err
+}
+
 // GetAuthToken gets the session token
 func GetAuthToken() string {
 	return token
 }
 
-// SetDCAAuthToken sets the session token for the Cluster Agent
+// InitDCAAuthToken initialize the session token for the Cluster Agent based on config options
 // Requires that the config has been set up before calling
-func SetDCAAuthToken() error {
+func InitDCAAuthToken() error {
 	// Noop if dcaToken is already set
 	if dcaToken != "" {
 		return nil
@@ -47,7 +61,7 @@ func SetDCAAuthToken() error {
 
 	// dcaToken is only set once, no need to mutex protect
 	var err error
-	dcaToken, err = security.GetClusterAgentAuthToken()
+	dcaToken, err = security.CreateOrGetClusterAgentAuthToken()
 	return err
 }
 

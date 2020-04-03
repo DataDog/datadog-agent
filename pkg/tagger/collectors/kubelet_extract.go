@@ -24,6 +24,11 @@ const (
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
 	podTagsAnnotation                = podAnnotationPrefix + "tags"
+
+	podStandardLabelPrefix  = "tags.datadoghq.com/"
+	podStandardLabelEnv     = podStandardLabelPrefix + tagKeyEnv
+	podStandardLabelVersion = podStandardLabelPrefix + tagKeyVersion
+	podStandardLabelService = podStandardLabelPrefix + tagKeyService
 )
 
 // KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
@@ -46,6 +51,15 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// Pod labels
 		for name, value := range pod.Metadata.Labels {
+			// Standard pod labels
+			switch name {
+			case podStandardLabelEnv:
+				tags.AddLow(tagKeyEnv, value)
+			case podStandardLabelVersion:
+				tags.AddLow(tagKeyVersion, value)
+			case podStandardLabelService:
+				tags.AddLow(tagKeyService, value)
+			}
 			for pattern, tmpl := range c.labelsAsTags {
 				if ok, _ := filepath.Match(pattern, strings.ToLower(name)); ok {
 					tags.AddAuto(resolveTag(tmpl, name), value)
@@ -138,9 +152,44 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				cTags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", container.Name, pod.Metadata.Name))
 			}
 
-			// check image tag in spec
+			// Enrich with standard tags from labels for this container if present
+			labelTags := []string{
+				tagKeyEnv,
+				tagKeyVersion,
+				tagKeyService,
+			}
+
+			for _, tag := range labelTags {
+				label := fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tag)
+				if value, ok := pod.Metadata.Labels[label]; ok {
+					cTags.AddLow(tag, value)
+				}
+			}
+
+			// container-specific tags provided through pod annotation
+			containerTags, found := extractTagsFromMap(
+				fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name),
+				pod.Metadata.Annotations,
+			)
+			if found {
+				for tagName, value := range containerTags {
+					cTags.AddAuto(tagName, value)
+				}
+			}
+
+			// check env vars and image tag in spec
 			for _, containerSpec := range pod.Spec.Containers {
 				if containerSpec.Name == container.Name {
+					for _, env := range containerSpec.Env {
+						switch env.Name {
+						case envVarEnv:
+							cTags.AddLow(tagKeyEnv, env.Value)
+						case envVarVersion:
+							cTags.AddLow(tagKeyVersion, env.Value)
+						case envVarService:
+							cTags.AddLow(tagKeyService, env.Value)
+						}
+					}
 					imageName, shortImage, imageTag, err := containers.SplitImageName(containerSpec.Image)
 					if err != nil {
 						log.Debugf("Cannot split %s: %s", containerSpec.Image, err)
@@ -154,17 +203,6 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 					}
 					cTags.AddLow("image_tag", imageTag)
 					break
-				}
-			}
-
-			// container-specific tags provided through pod annotation
-			containerTags, found := extractTagsFromMap(
-				fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name),
-				pod.Metadata.Annotations,
-			)
-			if found {
-				for tagName, value := range containerTags {
-					cTags.AddAuto(tagName, value)
 				}
 			}
 

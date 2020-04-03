@@ -12,10 +12,10 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const (
@@ -45,6 +45,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
+	a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
@@ -133,8 +134,8 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	return nil
 }
 
-// Process-specific configuration
-func (a *AgentConfig) loadProcessYamlConfig(path string) error {
+// LoadProcessYamlConfig load Process-specific configuration
+func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	loadEnvVariables()
 
 	// Resolve any secrets
@@ -286,7 +287,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 			}
 			for _, k := range apiKeys {
-				a.APIEndpoints = append(a.APIEndpoints, APIEndpoint{
+				a.APIEndpoints = append(a.APIEndpoints, api.Endpoint{
 					APIKey:   k,
 					Endpoint: u,
 				})
@@ -301,7 +302,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 			}
 			for _, k := range apiKeys {
-				a.OrchestratorEndpoints = append(a.OrchestratorEndpoints, APIEndpoint{
+				a.OrchestratorEndpoints = append(a.OrchestratorEndpoints, api.Endpoint{
 					APIKey:   k,
 					Endpoint: u,
 				})

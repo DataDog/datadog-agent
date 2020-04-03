@@ -46,11 +46,26 @@ const (
 	// UDPRecvMsgReturn traces the return value for the udp_recvmsg() system call
 	UDPRecvMsgReturn KProbeName = "kretprobe/udp_recvmsg"
 
+	// UDPDestroySock traces the udp_destroy_sock() function
+	UDPDestroySock KProbeName = "kprobe/udp_destroy_sock"
+
 	// TCPRetransmit traces the return value for the tcp_retransmit_skb() system call
 	TCPRetransmit KProbeName = "kprobe/tcp_retransmit_skb"
 
 	// InetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	InetCskAcceptReturn KProbeName = "kretprobe/inet_csk_accept"
+
+	// SysSocket traces calls to the socket kprobe
+	SysSocket KProbeName = "kprobe/sys_socket"
+
+	// SysSocketRet is the kretprobe for SysSocket
+	SysSocketRet KProbeName = "kretprobe/sys_socket"
+
+	// SysBind is the kprobe the bind() syscall.
+	SysBind KProbeName = "kprobe/sys_bind"
+
+	// SysBindRet is the kretprobe for bind().
+	SysBindRet KProbeName = "kretprobe/sys_bind"
 )
 
 // bpfMapName stores the name of the BPF maps storing statistics and other info
@@ -63,6 +78,7 @@ const (
 	latestTimestampMap bpfMapName = "latest_ts"
 	tracerStatusMap    bpfMapName = "tracer_status"
 	portBindingsMap    bpfMapName = "port_bindings"
+	udpPortBindingsMap bpfMapName = "udp_port_bindings"
 	telemetryMap       bpfMapName = "telemetry"
 )
 

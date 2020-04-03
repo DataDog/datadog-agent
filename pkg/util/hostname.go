@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
@@ -157,7 +158,7 @@ func GetHostnameData() (HostnameData, error) {
 	log.Debug("Trying to determine a reliable host name automatically...")
 
 	// if fargate we strip the hostname
-	if ecs.IsFargateInstance() || config.Datadog.GetBool("eks_fargate") {
+	if fargate.IsFargateInstance() {
 		hostnameData := saveHostnameData(cacheHostnameKey, "", "")
 		return hostnameData, nil
 	}

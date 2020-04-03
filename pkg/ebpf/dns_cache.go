@@ -2,6 +2,7 @@ package ebpf
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -189,11 +190,12 @@ type dnsCacheVal struct {
 }
 
 func (v *dnsCacheVal) merge(name string) {
-	if i := sort.SearchStrings(v.names, name); i < len(v.names) && v.names[i] == name {
+	normalized := strings.ToLower(name)
+	if i := sort.SearchStrings(v.names, normalized); i < len(v.names) && v.names[i] == normalized {
 		return
 	}
 
-	v.names = append(v.names, name)
+	v.names = append(v.names, normalized)
 	sort.Strings(v.names)
 }
 

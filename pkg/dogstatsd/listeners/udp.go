@@ -40,15 +40,14 @@ func init() {
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn          net.PacketConn
-	packetsBuffer *packetsBuffer
-	packetBuffer  *packetBuffer
-	buffer        []byte
+	conn            *net.UDPConn
+	packetsBuffer   *packetsBuffer
+	packetAssembler *packetAssembler
+	buffer          []byte
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListener, error) {
-	var conn net.PacketConn
+func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -59,10 +58,14 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 		url = net.JoinHostPort(config.Datadog.GetString("bind_host"), config.Datadog.GetString("dogstatsd_port"))
 	}
 
-	conn, err = net.ListenPacket("udp", url)
+	addr, err := net.ResolveUDPAddr("udp", url)
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve udp addr: %s", err)
+	}
+	conn, err := net.ListenUDP("udp", addr)
 
 	if rcvbuf := config.Datadog.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
-		if err := conn.(*net.UDPConn).SetReadBuffer(rcvbuf); err != nil {
+		if err := conn.SetReadBuffer(rcvbuf); err != nil {
 			return nil, fmt.Errorf("could not set socket rcvbuf: %s", err)
 		}
 	}
@@ -77,13 +80,13 @@ func NewUDPListener(packetOut chan Packets, packetPool *PacketPool) (*UDPListene
 
 	buffer := make([]byte, bufferSize)
 	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
-	packetBuffer := newPacketBuffer(packetPool, flushTimeout, packetsBuffer)
+	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool)
 
 	listener := &UDPListener{
-		conn:          conn,
-		packetsBuffer: packetsBuffer,
-		packetBuffer:  packetBuffer,
-		buffer:        buffer,
+		conn:            conn,
+		packetsBuffer:   packetsBuffer,
+		packetAssembler: packetAssembler,
+		buffer:          buffer,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -111,14 +114,14 @@ func (l *UDPListener) Listen() {
 		udpBytes.Add(int64(n))
 		tlmUDPPacketsBytes.Add(float64(n))
 
-		// packetBuffer merges multiple packets together and sends them when its buffer is full
-		l.packetBuffer.addMessage(l.buffer[:n])
+		// packetAssembler merges multiple packets together and sends them when its buffer is full
+		l.packetAssembler.addMessage(l.buffer[:n])
 	}
 }
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
-	l.packetBuffer.close()
+	l.packetAssembler.close()
 	l.packetsBuffer.close()
 	l.conn.Close()
 }

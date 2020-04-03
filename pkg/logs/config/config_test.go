@@ -178,7 +178,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		CompressionLevel: 2}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second)
-	endpoints, err := buildHTTPEndpoints()
+	endpoints, err := BuildHTTPEndpoints()
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
@@ -264,7 +264,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		CompressionLevel: 2}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second)
-	endpoints, err := buildHTTPEndpoints()
+	endpoints, err := BuildHTTPEndpoints()
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)

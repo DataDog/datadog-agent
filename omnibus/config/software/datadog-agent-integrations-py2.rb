@@ -75,6 +75,9 @@ if osx?
   blacklist_packages.push(/^lxml==/)
   # Blacklist ibm_was, which depends on lxml
   blacklist_folders.push('ibm_was')
+
+  # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
+  blacklist_folders.push('aerospike')
 end
 
 if arm?
@@ -82,6 +85,10 @@ if arm?
   blacklist_folders.push('aerospike')
   blacklist_folders.push('ibm_mq')
   blacklist_packages.push(/^pymqi==/)
+end
+
+if arm? || !_64_bit?
+  blacklist_packages.push(/^orjson==/)
 end
 
 final_constraints_file = 'final_constraints-py2.txt'
@@ -246,12 +253,10 @@ build do
       end
 
       # We don't have auto_conf on windows yet
-      if os != 'windows'
-        auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
-        if File.exist? auto_conf_yaml
-          mkdir check_conf_dir
-          copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
-        end
+      auto_conf_yaml = "#{check_dir}/datadog_checks/#{check}/data/auto_conf.yaml"
+      if File.exist? auto_conf_yaml
+        mkdir check_conf_dir
+        copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
       end
 
       # Copy SNMP profiles

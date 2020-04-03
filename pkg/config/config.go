@@ -43,6 +43,9 @@ const (
 
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
+
+	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
+	ClusterIDCacheKey = "orchestratorClusterID"
 )
 
 var overrideVars = make(map[string]interface{})
@@ -119,6 +122,8 @@ func init() {
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	initConfig(Datadog)
+	// Configuration settings that can be changed at runtime
+	initRuntimeSettings()
 }
 
 // initConfig initializes the config defaults on a config
@@ -178,6 +183,9 @@ func initConfig(config Config) {
 	//       can only increase this timeout value. Linting operation is async.
 	config.BindEnvAndSetDefault("python3_linter_timeout", 120)
 
+	// Whether to honour the value of PYTHONPATH, if set, on Windows. On other OSes we always do.
+	config.BindEnvAndSetDefault("windows_use_pythonpath", false)
+
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
@@ -212,10 +220,18 @@ func initConfig(config Config) {
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+
 	if IsContainerized() {
-		config.SetDefault("procfs_path", "/host/proc")
-		config.SetDefault("container_proc_root", "/host/proc")
-		config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		// In serverless-containerized environments (e.g Fargate)
+		// it's impossible to mount host volumes.
+		// Make sure the paths exist before setting-up the default values.
+		if pathExists("/host/proc") {
+			config.SetDefault("procfs_path", "/host/proc")
+			config.SetDefault("container_proc_root", "/host/proc")
+		}
+		if pathExists("/host/sys/fs/cgroup/") {
+			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -293,6 +309,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
+	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
+	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
+	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
+	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
 	config.SetKnown("dogstatsd_mapper_profiles")
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
@@ -382,12 +402,19 @@ func initConfig(config Config) {
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
-	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"})
+	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys"})
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
+
+	// Cloud Foundry BBS
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.poll_interval", 15)
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
@@ -454,7 +481,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	config.BindEnv("logs_config.dd_url")
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
-	config.BindEnvAndSetDefault("logs_config.use_compression", false)
+	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
+	config.BindEnvAndSetDefault("logs_config.use_compression", true)
 	config.BindEnvAndSetDefault("logs_config.compression_level", 6) // Default level for the gzip/deflate algorithm
 	config.BindEnvAndSetDefault("logs_config.batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
@@ -618,6 +646,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
+	// command line options
+	config.SetKnown("cmd.check.fullsketches")
+
 	setAssetFs(config)
 }
 
@@ -772,7 +803,6 @@ func load(config Config, origin string, loadSecret bool) error {
 	loadProxyFromEnv(config)
 	sanitizeAPIKey(config)
 	applyOverrides(config)
-	trimTrailingSlashFromURLS(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -817,47 +847,6 @@ func ResolveSecrets(config Config, origin string) error {
 // Avoid log ingestion breaking because of a newline in the API key
 func sanitizeAPIKey(config Config) {
 	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
-}
-
-//trimTrailingSlashFromURLS trims any forward slashes from the end of various config URL's (site, dd_url, and various additional endpoints)
-func trimTrailingSlashFromURLS(config Config) error {
-	var urls = []string{
-		"site",
-		"dd_url",
-	}
-	var additionalEndpointSelectors = []string{
-		"additional_endpoints",
-		"apm_config.additional_endpoints",
-		"process_config.additional_endpoints",
-	}
-
-	for _, domain := range urls {
-		key := config.GetString(domain)
-		if key == "" {
-			continue
-		}
-		config.Set(domain, strings.TrimRight(key, "/"))
-	}
-
-	for _, es := range additionalEndpointSelectors {
-		additionalEndpoints := make(map[string][]string)
-		sanitizedAdditionalEndpoints := make(map[string][]string)
-
-		err := config.UnmarshalKey(es, &additionalEndpoints)
-
-		if err != nil {
-			return err
-		}
-		for domain, keys := range additionalEndpoints {
-			if domain == "" {
-				continue
-			}
-			domain = strings.TrimRight(domain, "/")
-			sanitizedAdditionalEndpoints[domain] = keys
-		}
-		config.Set(es, sanitizedAdditionalEndpoints)
-	}
-	return nil
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
@@ -1034,6 +1023,12 @@ func IsKubernetes() bool {
 		return true
 	}
 	return false
+}
+
+// pathExists returns true if the given path exists
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
 }
 
 // AddOverrides provides an externally accessible method for

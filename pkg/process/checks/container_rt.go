@@ -1,5 +1,3 @@
-// +build linux
-
 package checks
 
 import (
@@ -127,7 +125,7 @@ func fmtContainerStats(
 			NetSentPs:   calculateRate(ifStats.PacketsSent, lastCtr.NetworkSum.PacketsSent, lastRun),
 			NetRcvdBps:  calculateRate(ifStats.BytesRcvd, lastCtr.NetworkSum.BytesRcvd, lastRun),
 			NetSentBps:  calculateRate(ifStats.BytesSent, lastCtr.NetworkSum.BytesSent, lastRun),
-			ThreadCount: ctr.ThreadCount,
+			ThreadCount: ctr.CPU.ThreadCount,
 			ThreadLimit: ctr.ThreadLimit,
 			State:       model.ContainerState(model.ContainerState_value[ctr.State]),
 			Health:      model.ContainerHealth(model.ContainerHealth_value[ctr.Health]),

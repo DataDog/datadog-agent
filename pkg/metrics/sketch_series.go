@@ -6,8 +6,10 @@ import (
 
 	"github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 // A SketchSeries is a timeseries of quantile sketches.
@@ -30,13 +32,47 @@ type SketchPoint struct {
 type SketchSeriesList []SketchSeries
 
 // MarshalJSON serializes sketch series to JSON.
+// Quite slow, but hopefully this method is called only in the `agent check` command
 func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
-	// use an alias to avoid infinite recursion while serializing a SketchSeriesList
-	type SketchSeriesAlias SketchSeriesList
+	// We use this function to customize generated JSON
+	// This function, only used when displaying `bins`, is especially slow
+	// As `StructToMap` function is using reflection to return a generic map[string]interface{}
+	customSketchSeries := func(srcSl SketchSeriesList) []interface{} {
+		dstSl := make([]interface{}, 0, len(srcSl))
 
-	data := map[string][]SketchSeries{
+		for _, ss := range srcSl {
+			ssMap := common.StructToMap(ss)
+			for i, sketchPoint := range ss.Points {
+				if sketchPoint.Sketch != nil {
+					sketch := ssMap["points"].([]interface{})[i].(map[string]interface{})
+					count, bins := sketchPoint.Sketch.GetRawBins()
+					sketch["binsCount"] = count
+					sketch["bins"] = bins
+				}
+			}
+
+			dstSl = append(dstSl, ssMap)
+		}
+
+		return dstSl
+	}
+
+	// use an alias to avoid infinite recursion while serializing a SketchSeriesList
+	if config.Datadog.GetBool("cmd.check.fullsketches") {
+		data := map[string]interface{}{
+			"sketches": customSketchSeries(sl),
+		}
+
+		reqBody := &bytes.Buffer{}
+		err := json.NewEncoder(reqBody).Encode(data)
+		return reqBody.Bytes(), err
+	}
+
+	type SketchSeriesAlias SketchSeriesList
+	data := map[string]SketchSeriesAlias{
 		"sketches": SketchSeriesAlias(sl),
 	}
+
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)
 	return reqBody.Bytes(), err

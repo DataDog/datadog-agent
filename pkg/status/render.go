@@ -34,19 +34,20 @@ func FormatStatus(data []byte) (string, error) {
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	aggregatorStats := stats["aggregatorStats"]
 	dogstatsdStats := stats["dogstatsdStats"]
-	jmxStats := stats["JMXStatus"]
 	logsStats := stats["logsStats"]
 	dcaStats := stats["clusterAgentStatus"]
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
+	systemProbeStats := stats["systemProbeStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
 	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
-	renderJMXFetchStatus(b, jmxStats)
+	renderStatusTemplate(b, "/jmxfetch.tmpl", stats)
 	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
 	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
 	renderStatusTemplate(b, "/logsagent.tmpl", logsStats)
+	renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
 	renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
 	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
 	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
@@ -125,12 +126,6 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, checkName)
 
 	return b.String(), nil
-}
-
-func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
-	stats := make(map[string]interface{})
-	stats["JMXStatus"] = jmxStats
-	renderStatusTemplate(w, "/jmxfetch.tmpl", stats)
 }
 
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {

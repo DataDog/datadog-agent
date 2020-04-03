@@ -10,20 +10,21 @@ import (
 // FormatConnection converts a ConnectionStats into an model.Connection
 func FormatConnection(conn ebpf.ConnectionStats) *model.Connection {
 	return &model.Connection{
-		Pid:               int32(conn.Pid),
-		Laddr:             formatAddr(conn.Source, conn.SPort),
-		Raddr:             formatAddr(conn.Dest, conn.DPort),
-		Family:            formatFamily(conn.Family),
-		Type:              formatType(conn.Type),
-		LastBytesSent:     conn.LastSentBytes,
-		LastBytesReceived: conn.LastRecvBytes,
-		LastRetransmits:   conn.LastRetransmits,
-		Rtt:               conn.RTT,
-		RttVar:            conn.RTTVar,
-		Direction:         formatDirection(conn.Direction),
-		NetNS:             conn.NetNS,
-		IpTranslation:     formatIPTranslation(conn.IPTranslation),
-		IntraHost:         conn.IntraHost,
+		Pid:                    int32(conn.Pid),
+		Laddr:                  formatAddr(conn.Source, conn.SPort),
+		Raddr:                  formatAddr(conn.Dest, conn.DPort),
+		Family:                 formatFamily(conn.Family),
+		Type:                   formatType(conn.Type),
+		LastBytesSent:          conn.LastSentBytes,
+		LastBytesReceived:      conn.LastRecvBytes,
+		LastRetransmits:        conn.LastRetransmits,
+		Rtt:                    conn.RTT,
+		RttVar:                 conn.RTTVar,
+		Direction:              formatDirection(conn.Direction),
+		NetNS:                  conn.NetNS,
+		IpTranslation:          formatIPTranslation(conn.IPTranslation),
+		IntraHost:              conn.IntraHost,
+		DnsSuccessfulResponses: conn.DNSSuccessfulResponses,
 	}
 }
 
