@@ -110,7 +110,7 @@ func (l *Collector) runCheck(c checks.Check) {
 	}
 }
 
-func (l *Collector) run(exit chan bool) {
+func (l *Collector) run(exit chan bool) error {
 	eps := make([]string, 0, len(l.cfg.APIEndpoints))
 	for _, e := range l.cfg.APIEndpoints {
 		eps = append(eps, e.Endpoint.String())
@@ -122,13 +122,11 @@ func (l *Collector) run(exit chan bool) {
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
 
 	if err := l.forwarder.Start(); err != nil {
-		log.Errorf("Error starting forwarder: %s", err)
-		return
+		return fmt.Errorf("error starting forwarder: %s", err)
 	}
 
 	if err := l.podForwarder.Start(); err != nil {
-		log.Errorf("Error starting pod forwarder: %s", err)
-		return
+		return fmt.Errorf("error starting pod forwarder: %s", err)
 	}
 
 	go util.HandleSignals(exit)
@@ -235,6 +233,7 @@ func (l *Collector) run(exit chan bool) {
 	<-exit
 	l.forwarder.Stop()
 	l.podForwarder.Stop()
+	return nil
 }
 
 func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {

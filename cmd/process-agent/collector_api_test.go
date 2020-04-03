@@ -245,7 +245,10 @@ func runCollectorTest(t *testing.T, tc func(payloads chan checkPayload, cfg *con
 	c, err := NewCollector(cfg)
 	require.NoError(t, err)
 
-	go c.run(exit)
+	go func() {
+		err := c.run(exit)
+		require.NoError(t, err)
+	}()
 	defer func() { close(exit) }()
 
 	tc(c.send, cfg, ep)
