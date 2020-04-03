@@ -133,8 +133,13 @@ def _is_version_higher(version_1, version_2):
         if version_1[part] != version_2[part]:
             return version_1[part] > version_2[part]
 
-    if version_1["rc"] == 0 or version_2["rc"] == 0:
-        return version_1["rc"] == 0
+    if version_1["rc"] == 0:
+        # Everything else being equal, version_1 can only be higher than version_2 if version_2 is not a released version
+        return version_2["rc"] != 0
+
+    if version_2["rc"] == 0:
+        # Everything else being equal, version_1 cannot be higher than version_2 if it's a released version - at most it can be equal
+        return False
 
     if version_1["rc"] != version_2["rc"]:
         return version_1["rc"] > version_2["rc"]
