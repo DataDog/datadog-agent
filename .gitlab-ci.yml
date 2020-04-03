@@ -250,6 +250,7 @@ build_deb:
 
   - inv version
   - cat version.txt || true
+  - source ./.gitlab-scripts/setup_artifactory.sh
 
   - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign
 
@@ -299,6 +300,7 @@ build_rpm:
 
   - inv version
   - cat version.txt || true
+  - source ./.gitlab-scripts/setup_artifactory.sh
 
   - inv -e agent.omnibus-build --base-dir /omnibus --skip-sign
 
@@ -332,8 +334,10 @@ build_win:
     - deps_win
   before_script: []
   script:
+    - call .gitlab-scripts/setup_artifactory.cmd
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
+    - type %APPDATA%\pip\pip.ini
     - call .gitlab-scripts/windows_build_env.cmd
 # debug
 #    - call .gitlab-scripts/windows_deps.cmd
