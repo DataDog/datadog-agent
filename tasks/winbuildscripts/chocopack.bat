@@ -1,8 +1,7 @@
 if not exist c:\mnt\ goto nomntdir
 
 @echo c:\mnt found, continuing
-@echo PARAMS=%*
-@echo PACKAGE_ID=%PACKAGE_ID%
+
 Powershell -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1" || exit /b 1
 goto :EOF
 

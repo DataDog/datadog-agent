@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
-    <id>$package_id$</id>
+    <id>datadog-agent</id>
     <version>$package_version$</version>
     <packageSourceUrl>https://github.com/DataDog/datadog-agent/tree/master/chocolatey</packageSourceUrl>
     <owners>package@datadoghq.com</owners>

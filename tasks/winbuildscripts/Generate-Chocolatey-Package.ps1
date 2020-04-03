@@ -1,11 +1,6 @@
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 $outputDirectory = "c:\mnt\build-out"
-$packageId = "datadog-agent"
-# Specifying a custom PACKAGE_ID is useful for testing (i.e. publishing under a different ID, say test-datadog-agent)
-if ($env:PACKAGE_ID) {
-    $packageId = $env:PACKAGE_ID
-}
 $rawAgentVersion = (inv agent.version)
 $copyright = "Datadog {0}" -f (Get-Date).Year
 
@@ -29,7 +24,7 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
     $releaseNotes = "https://github.com/DataDog/datadog-agent/releases/tag/$agentVersion"
 } else {
     Write-Host "Unknown agent version '$rawAgentVersion', aborting"
-    exit -42
+    exit 1
 }
 
 Write-Host "Generating Chocolatey package version $agentVersion in $outputDirectory"
@@ -38,8 +33,4 @@ if (!(Test-Path $outputDirectory)) {
     New-Item -ItemType Directory -Path $outputDirectory
 }
 
-choco pack --out=$outputDirectory c:\mnt\chocolatey\datadog-agent.nuspec package_id=$packageId package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
-if ($env:PACKAGE_ID) {
-    # Changing the package id changes the name of the nupkg, so rename it here
-    Move-Item "$outputDirectory\$packageId.$agentVersion.nupkg" "$outputDirectory\datadog-agent.$agentVersion.nupkg" 
-}
+choco pack --out=$outputDirectory c:\mnt\chocolatey\datadog-agent.nuspec package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright

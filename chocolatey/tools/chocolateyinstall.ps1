@@ -1,11 +1,15 @@
 ﻿$ErrorActionPreference = 'Stop';
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$fileLocation = Join-Path $toolsDir ddagent-cli-$($env:chocolateyPackageVersion).msi
+$nupkgs = Get-ChildItem $toolsDir\datadog-agent*.msi
+if (($nupkgs | Measure-Object).Count -gt 1) {
+  Write-Host "More than 1 MSI installer exists - aborting"
+  exit -1
+}
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
   unzipLocation = $toolsDir
   fileType      = 'msi'
-  file          = $fileLocation
+  file          = $nupkgs[0].FullName
   softwareName  = 'Datadog Agent'
   silentArgs    = "/qn /norestart /l*v `"$($env:TEMP)\$($packageName).$($env:chocolateyPackageVersion).MsiInstall.log`""
   validExitCodes= @(0, 3010, 1641)
