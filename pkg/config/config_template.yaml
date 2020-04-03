@@ -438,6 +438,12 @@ api_key:
   #
   # use_http: true
 
+  ## @param use_tcp - boolean - optional - default: false
+  ## By default, logs are sent through HTTP if possible, use this parameter
+  ## to send logs in TCP
+  #
+  # use_tcp: true
+
   ## @param use_compression - boolean - optional - default: false
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
   ## compresses logs before sending them.
