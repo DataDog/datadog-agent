@@ -33,6 +33,8 @@ func (d *CLCStats) UnmarshalJSON(data []byte) error {
 	d.MetricSamples = int(stats.MetricSamples)
 	if stats.LastError != "" {
 		d.LastExecFailed = true
+	} else {
+		d.LastExecFailed = false
 	}
 
 	return nil
