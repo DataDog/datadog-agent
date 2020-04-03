@@ -96,7 +96,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache
 			hostname = hostname + "-" + clusterName
 		}
 
-		// Find provider ID from stored map or find via node spec from APIserver
+		// Find provider ID from cache or find via node spec from APIserver
 		hostProviderID, hit := providerIDCache.Get(b.nodename)
 		if hit {
 			tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostProviderID))
