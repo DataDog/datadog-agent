@@ -166,12 +166,15 @@ def _stringify_version(version_dict):
 
 
 def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
-    response = urllib.urlopen("{}api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}.{}.{}"
-                              .format(auth,
-                                      repo,
-                                      new_rc_version["major"],
-                                      new_rc_version["minor"],
-                                      new_rc_version["patch"]))
+    if new_rc_version is not None:
+        response = urllib.urlopen("{}api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}"
+                                .format(auth,
+                                        repo,
+                                        new_rc_version["major"]))
+    else:
+        response = urllib.urlopen("{}api.github.com/repos/DataDog/{}/git/matching-refs/tags/"
+                                .format(auth,
+                                        repo))
     tags = json.load(response)
     highest_version = None
     for tag in tags:
@@ -241,7 +244,7 @@ def _save_release_json(release_json, list_major_versions, highest_version, integ
 
 
 @task
-def create_release(
+def finish(
     ctx,
     major_versions = "6,7",
     integration_version = None,
@@ -333,7 +336,7 @@ def create_release(
     print("Jmxfetch's tag is {}".format(jmxfetch_version))
 
     if not omnibus_ruby_version:
-        print("ERROR: No omnibus_ruby_version found")
+        print("ERROR: No omnibus_ruby_version found. Please specify it manually via '--omnibus-ruby-version' until we start tagging omnibus-ruby builds.")
         return Exit(code=1)
 
 
@@ -357,8 +360,8 @@ def create_rc(
     omnibus_ruby_version = None):
 
     """
-    Creates new entry in the release.json file for a new RC.
-    Looks at the current release.json to find the highest version released and create a new RC based on that.
+    Takes whatever version is the highest in release.json and adds a new RC to it.
+    If there was no RC, creates one and bump minor version. If there was an RC, create RC + 1.
     """
 
     list_major_versions = major_versions.split(",")
@@ -390,8 +393,11 @@ def create_rc(
     highest_version, highest_jmxfetch_version = _get_highest_version_from_release_json(release_json, highest_major, version_re)
 
     if highest_version["rc"] is None:
+        # No RC exists, create one
+        highest_version["minor"] = highest_version["minor"] + 1
         highest_version["rc"] = 1
     else:
+        # An RC exists, create next RC
         highest_version["rc"] = highest_version["rc"] + 1
     new_rc = _stringify_version(highest_version)
     print("Creating {}".format(new_rc))
@@ -412,7 +418,7 @@ def create_rc(
     print("Jmxfetch's tag is {}".format(jmxfetch_version))
 
     if not omnibus_ruby_version:
-        print("ERROR: No omnibus_ruby_version found")
+        print("ERROR: No omnibus_ruby_version found. Please specify it manually via '--omnibus-ruby-version' until we start tagging omnibus-ruby builds.")
         return Exit(code=1)
 
     _save_release_json(
