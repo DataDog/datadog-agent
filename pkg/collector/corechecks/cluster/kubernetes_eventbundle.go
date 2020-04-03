@@ -14,7 +14,11 @@ import (
 
 	"math"
 
+	cache "github.com/patrickmn/go-cache"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -78,15 +82,33 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	return nil
 }
 
-func (b *kubernetesEventBundle) formatEvents(clusterName string) (metrics.Event, error) {
+func (b *kubernetesEventBundle) formatEvents(clusterName string, providerIDCache *cache.Cache) (metrics.Event, error) {
 	if len(b.events) == 0 {
 		return metrics.Event{}, errors.New("no event to export")
 	}
-	// Adding the clusterName to the nodename if present
+
+	tags := []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)}
+
 	hostname := b.nodename
-	if b.nodename != "" && clusterName != "" {
-		hostname = hostname + "-" + clusterName
+	if b.nodename != "" {
+		// Adding the clusterName to the nodename if present
+		if clusterName != "" {
+			hostname = hostname + "-" + clusterName
+		}
+
+		// Find provider ID from cache or find via node spec from APIserver
+		hostProviderID, hit := providerIDCache.Get(b.nodename)
+		if hit {
+			tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostProviderID))
+		} else {
+			hostProviderID := getHostProviderID(b.nodename)
+			if hostProviderID != "" {
+				providerIDCache.Set(b.nodename, hostProviderID, cache.NoExpiration)
+				tags = append(tags, fmt.Sprintf("host_provider_id:%s", hostProviderID))
+			}
+		}
 	}
+
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := metrics.Event{
 		Title:          fmt.Sprintf("Events from the %s", b.readableKey),
@@ -95,7 +117,7 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string) (metrics.Event,
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(b.lastTimestamp),
-		Tags:           []string{fmt.Sprintf("source_component:%s", b.component), fmt.Sprintf("kubernetes_kind:%s", b.kind), fmt.Sprintf("name:%s", b.name)},
+		Tags:           tags,
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", b.objUID),
 	}
 	if b.namespace != "" {
@@ -105,6 +127,30 @@ func (b *kubernetesEventBundle) formatEvents(clusterName string) (metrics.Event,
 	}
 	output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s since %s_ \n", formatStringIntMap(b.countByAction), b.component, time.Unix(int64(b.lastTimestamp), 0), time.Unix(int64(b.timeStamp), 0)) + "\n %%%"
 	return output, nil
+}
+
+func getHostProviderID(nodename string) string {
+	cl, err := as.GetAPIClient()
+	if err != nil {
+		log.Warnf("Can't create client to query the API Server: %v", err)
+		return ""
+	}
+
+	node, err := as.GetNode(cl, nodename)
+	if err != nil {
+		log.Warnf("Can't get node from API Server: %v", err)
+		return ""
+	}
+
+	providerID := node.Spec.ProviderID
+	if providerID == "" {
+		log.Warnf("ProviderID not found")
+		return ""
+	}
+
+	// e.g. gce://datadog-test-cluster/us-east1-a/some-instance-id or aws:///us-east-1e/i-instanceid
+	s := strings.Split(providerID, "/")
+	return s[len(s)-1]
 }
 
 func formatStringIntMap(input map[string]int) string {
