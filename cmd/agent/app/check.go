@@ -18,8 +18,9 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/app/standalone"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -90,29 +91,14 @@ var checkCmd = &cobra.Command{
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		if logLevel != "" {
-			// Honour the deprecated --log-level argument
-			overrides := make(map[string]interface{})
-			overrides["log_level"] = logLevel
-			config.AddOverrides(overrides)
-		} else {
-			logLevel = config.GetEnv("DD_LOG_LEVEL", "off")
+		resolvedLogLevel, err := standalone.SetupCLI(loggerName, confFilePath, logLevel, "off")
+		if err != nil {
+			fmt.Printf("Cannot initialize command: %v\n", err)
+			return err
 		}
 
 		if flagNoColor {
 			color.NoColor = true
-		}
-
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global agent configuration: %v", err)
-		}
-
-		err = config.SetupLogger(loggerName, logLevel, "", "", false, true, false)
-		if err != nil {
-			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-			return err
 		}
 
 		if len(args) != 0 {
@@ -138,7 +124,6 @@ var checkCmd = &cobra.Command{
 		}
 
 		allConfigs := common.AC.GetAllConfigs()
-		hasJMXConfig := false
 
 		// make sure the checks in cs are not JMX checks
 		for idx := range allConfigs {
@@ -148,7 +133,20 @@ var checkCmd = &cobra.Command{
 			}
 
 			if check.IsJMXConfig(*conf) {
-				hasJMXConfig = true
+				// we'll mimic the check command behavior with JMXFetch by running
+				// it with the JSON reporter and the list_with_metrics command.
+				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
+				selectedChecks := []string{checkName}
+				if checkRate {
+					if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						return fmt.Errorf("while running the jmx check: %v", err)
+					}
+				} else {
+					if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+						return fmt.Errorf("while running the jmx check: %v", err)
+					}
+				}
+
 				instances := []integration.Data{}
 
 				// Retain only non-JMX instances for later
@@ -364,21 +362,8 @@ var checkCmd = &cobra.Command{
 			}
 		}
 
-		// FIXME: We require that this run after all Python instances because `common.SetupAutoConfig` is called a
-		// second time via `RunJmxListWithMetrics` when the check command is called on JMXFetch checks, but it's not
-		// idempotent and should only be called once. Here, calling it twice breaks the rtloader logic that only
-		// expects to be called once, which is why after the second call Python shows as not being initialized.
-		if hasJMXConfig {
-			// we'll mimic the check command behavior with JMXFetch by running
-			// it with the JSON reporter and the list_with_metrics command.
-			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
-			if err := RunJmxListWithMetrics(); err != nil {
-				return fmt.Errorf("while running the jmx check: %v", err)
-			}
-		}
-
 		if runtime.GOOS == "windows" {
-			printWindowsUserWarning("check")
+			standalone.PrintWindowsUserWarning("check")
 		}
 
 		if formatJSON {
@@ -481,12 +466,6 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	}
 
 	return aggData
-}
-func printWindowsUserWarning(op string) {
-	fmt.Printf("\nNOTE:\n")
-	fmt.Printf("The %s command runs in a different user context than the running service\n", op)
-	fmt.Printf("This could affect results if the command relies on specific permissions and/or user contexts\n")
-	fmt.Printf("\n")
 }
 
 func singleCheckRun() bool {
