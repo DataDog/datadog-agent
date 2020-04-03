@@ -55,11 +55,11 @@ class TestIsHigherMethod(unittest.TestCase):
     def test_rc_lower_than_release(self):
         version = self._get_random_version()
         self.assertFalse(release._is_version_higher(self._get_version(version["major"], version["minor"], version["patch"], version["rc"]),
-                                                    self._get_version(version["major"], version["minor"], version["patch"], 0)))
+                                                    self._get_version(version["major"], version["minor"], version["patch"], None)))
 
     def test_release_higher_than_rc(self):
         version = self._get_random_version()
-        self.assertTrue(release._is_version_higher(self._get_version(version["major"], version["minor"], version["patch"], 0),
+        self.assertTrue(release._is_version_higher(self._get_version(version["major"], version["minor"], version["patch"], None),
                                                    self._get_version(version["major"], version["minor"], version["patch"], version["rc"])))
 
     def test_rc_lower(self):
