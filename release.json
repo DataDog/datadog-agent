@@ -7,7 +7,7 @@
         "JMXFETCH_HASH": "41a8b4c977d87d23c01cf37da9687b0ba117158ec543692fe93f325542f39e99"
     },
     "nightly-a7": {
-        "INTEGRATIONS_CORE_VERSION": "master",
+        "INTEGRATIONS_CORE_VERSION": "alex/update_psutil",
         "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.36.1",
