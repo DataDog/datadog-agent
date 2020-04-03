@@ -86,6 +86,7 @@ type realConntracker struct {
 		getTimeTotal         int64
 		registers            int64
 		registersTotalTime   int64
+		registersDropped     int64
 		unregisters          int64
 		unregistersTotalTime int64
 		expiresTotal         int64
@@ -235,6 +236,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 	}
 	if ctr.stats.registers != 0 {
 		m["registers_total"] = ctr.stats.registers
+		m["registers_dropped"] = ctr.stats.registersDropped
 		m["nanoseconds_per_register"] = ctr.stats.registersTotalTime / ctr.stats.registers
 	}
 	if ctr.stats.unregisters != 0 {
@@ -270,6 +272,7 @@ func (ctr *realConntracker) loadInitialState(sessions []ct.Con) {
 func (ctr *realConntracker) register(c ct.Con) int {
 	// don't bother storing if the connection is not NAT
 	if !isNAT(c) {
+		atomic.AddInt64(&ctr.stats.registersDropped, 1)
 		return 0
 	}
 
