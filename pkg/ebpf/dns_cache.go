@@ -1,14 +1,13 @@
 package ebpf
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type reverseDNSCache struct {
@@ -75,7 +74,7 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 		val, ok := c.data[addr]
 		if ok {
 			val.expiration = exp
-			if rejected := val.merge(translation.dns, c.maxDomainsPerIP); rejected {
+			if rejected := val.merge(translation.dns, c.maxDomainsPerIP); rejected && c.oversizedLogLimit.ShouldLog() {
 				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
 				break
 			}
