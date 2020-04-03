@@ -118,7 +118,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 		names := c.getNamesForIP(addr, expiration)
 		if len(names) == 0 {
 			unresolved[addr] = struct{}{}
-		} else if len(names) >= c.maxDomainsPerIP {
+		} else if len(names) == c.maxDomainsPerIP {
 			oversized[addr] = struct{}{}
 		} else {
 			resolved[addr] = names
