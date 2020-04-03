@@ -220,10 +220,18 @@ func initConfig(config Config) {
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+
 	if IsContainerized() {
-		config.SetDefault("procfs_path", "/host/proc")
-		config.SetDefault("container_proc_root", "/host/proc")
-		config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		// In serverless-containerized environments (e.g Fargate)
+		// it's impossible to mount host volumes.
+		// Make sure the paths exist before setting-up the default values.
+		if pathExists("/host/proc") {
+			config.SetDefault("procfs_path", "/host/proc")
+			config.SetDefault("container_proc_root", "/host/proc")
+		}
+		if pathExists("/host/sys/fs/cgroup/") {
+			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -1014,6 +1022,12 @@ func IsKubernetes() bool {
 		return true
 	}
 	return false
+}
+
+// pathExists returns true if the given path exists
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
 }
 
 // AddOverrides provides an externally accessible method for

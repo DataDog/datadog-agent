@@ -23,10 +23,10 @@ import "C"
 var filter *containers.Filter
 
 // IsContainerExcluded returns whether a container should be excluded,
-// based on it's name and image name. Exclusion patterns are configured
+// based on it's name, image name and namespace. Exclusion patterns are configured
 // via the global options (ac_include/ac_exclude/exclude_pause_container)
 //export IsContainerExcluded
-func IsContainerExcluded(name, image *C.char) C.int {
+func IsContainerExcluded(name, image, namespace *C.char) C.int {
 	// If init failed, fallback to False
 	if filter == nil {
 		return 0
@@ -34,8 +34,12 @@ func IsContainerExcluded(name, image *C.char) C.int {
 
 	goName := C.GoString(name)
 	goImg := C.GoString(image)
+	goNs := ""
+	if namespace != nil {
+		goNs = C.GoString(namespace)
+	}
 
-	if filter.IsExcluded(goName, goImg) {
+	if filter.IsExcluded(goName, goImg, goNs) {
 		return 1
 	}
 	return 0

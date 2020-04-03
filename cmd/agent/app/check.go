@@ -130,7 +130,7 @@ var checkCmd = &cobra.Command{
 
 		s := serializer.NewSerializer(common.Forwarder)
 		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-		agg := aggregator.InitAggregatorWithFlushInterval(s, nil, hostname, "agent", 0)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", 0)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 		if config.Datadog.GetBool("inventories_enabled") {
@@ -150,8 +150,14 @@ var checkCmd = &cobra.Command{
 				// we'll mimic the check command behavior with JMXFetch by running
 				// it with the JSON reporter and the list_with_metrics command.
 				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
-				if err := RunJmxListWithMetrics(); err != nil {
-					return fmt.Errorf("while running the jmx check: %v", err)
+				if checkRate {
+					if err := RunJmxListWithRateMetrics(); err != nil {
+						return fmt.Errorf("while running the jmx check: %v", err)
+					}
+				} else {
+					if err := RunJmxListWithMetrics(); err != nil {
+						return fmt.Errorf("while running the jmx check: %v", err)
+					}
 				}
 
 				instances := []integration.Data{}

@@ -128,7 +128,7 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 			log.Debugf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus)
 			continue
 		}
-		if l.filter.IsExcluded(c.DockerName, c.Image) {
+		if l.filter.IsExcluded(c.DockerName, c.Image, "") {
 			log.Debugf("container %s filtered out: name %q image %q", c.DockerID[:12], c.DockerName, c.Image)
 			continue
 		}

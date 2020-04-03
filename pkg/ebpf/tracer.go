@@ -168,7 +168,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 			return nil, fmt.Errorf("error retrieving socket filter")
 		}
 
-		if snooper, err := NewSocketFilterSnooper(config.ProcRoot, filter); err == nil {
+		if snooper, err := NewSocketFilterSnooper(
+			config.ProcRoot,
+			filter,
+			config.CollectDNSStats,
+			config.CollectLocalDNS,
+		); err == nil {
 			reverseDNS = snooper
 		} else {
 			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
@@ -194,7 +199,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	state := NewNetworkState(config.ClientStateExpiry, config.MaxClosedConnectionsBuffered, config.MaxConnectionsStateBuffered)
+	state := NewNetworkState(
+		config.ClientStateExpiry,
+		config.MaxClosedConnectionsBuffered,
+		config.MaxConnectionsStateBuffered,
+		config.MaxDNSStatsBufferred,
+	)
 
 	tr := &Tracer{
 		m:              m,
@@ -336,8 +346,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	conns := t.state.Connections(clientID, latestTime, latestConns)
+	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
 	names := t.reverseDNS.Resolve(conns)
+
 	return &Connections{Conns: conns, DNS: names}, nil
 }
 
@@ -411,6 +422,7 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 					conn.DPort,
 					process.ConnectionType(conn.Type),
 				)
+
 				active = append(active, conn)
 			}
 		}

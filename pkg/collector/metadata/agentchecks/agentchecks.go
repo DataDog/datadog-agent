@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,6 +25,7 @@ func GetPayload() *Payload {
 	hostnameData, _ := util.GetHostnameData()
 	hostname := hostnameData.Hostname
 	checkStats := runner.GetCheckStats()
+	jmxStartupError := status.GetJMXStartupError()
 
 	for _, stats := range checkStats {
 		for _, s := range stats {
@@ -65,6 +67,13 @@ func GetPayload() *Payload {
 	for check, e := range configErrors {
 		status := []interface{}{
 			check, check, "initialization", "ERROR", e,
+		}
+		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
+	}
+
+	if jmxStartupError.LastError != "" {
+		status := []interface{}{
+			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError,
 		}
 		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}

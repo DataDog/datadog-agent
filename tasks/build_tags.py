@@ -15,6 +15,7 @@ ALL_TAGS = set([
     "docker",
     "ec2",
     "etcd",
+    "fargateprocess",
     "gce",
     "jmx",
     "kubeapiserver",
@@ -35,6 +36,7 @@ PUPPY_TAGS = set([
 ])
 
 PROCESS_ONLY_TAGS = [
+    "fargateprocess",
     "orchestrator",
 ]
 
@@ -46,6 +48,13 @@ LINUX_ONLY_TAGS = [
 
 REDHAT_DEBIAN_SUSE_ONLY_TAGS = [
     "systemd",
+]
+
+WINDOWS_32BIT_EXCLUDE_TAGS = [
+    "orchestrator",
+    "docker",
+    "kubeapiserver",
+    "kubelet",
 ]
 
 REDHAT_DEBIAN_SUSE_DIST = [

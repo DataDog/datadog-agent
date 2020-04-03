@@ -4,7 +4,7 @@
 Expose the needed API to make the agent submit payloads.
 
 
-#### API 
+#### API
 
 Prefer using mongo.
 
@@ -92,9 +92,9 @@ db.series.findOne({metric: "kubernetes.network.tx_errors"})
 Advanced find:
 ```js
 db.series.find({
-    metric: "kubernetes.cpu.usage.total", 
+    metric: "kubernetes.cpu.usage.total",
     tags: { $all: ["kube_namespace:kube-system", "pod_name:kube-controller-manager"] }
-}, {_id: 0}) // .count() 
+}, {_id: 0}) // .count()
 ```
 
 #### Aggregation pipeline
@@ -153,7 +153,7 @@ Aggregate a metric and a tag as timeseries:
 db.series.aggregate([
 	{ $match: { tags: "kube_deployment:dd", metric: "kubernetes.cpu.usage.total"} },
 	{ $unwind: "$points" },
-	{ $project: { 
+	{ $project: {
 		_id: { $arrayElemAt: [ "$points", 0 ] },
 		value: { $arrayElemAt: [ "$points", 1 ] },
 		tags: "$tags"
@@ -172,4 +172,29 @@ db.series.aggregate([
 	{ $group: {_id: "$tags", count: { $sum: 1 } } },
 	{ $sort: {count: -1} }
 ])
+```
+
+#### Use standalone
+
+This tool can be used as a debug proxy to inspect agent payloads. Here is how to do it for Kubernetes.
+
+- run the following from within this folder:
+
+```console
+docker build -t fake-datadog:latest .
+docker tag fake-datadog:latest <YOUR_REPO/IMAGE:TAG>
+docker push <YOUR_REPO/IMAGE:TAG>
+# replace <YOUR_REPO/IMAGE:TAG> in fake-datadog.yaml before running the next command
+kubectl apply -f fake-datadog.yaml
+```
+
+- edit your Datadog Agent Daemonset to use the service deployed above as the Datadog API. Be aware that each agent has its own intake - configuring `DD_DD_URL` doesn't cover the logs agent for example.
+
+```yaml
+...
+  env:
+    ...
+    - name: DD_DD_URL
+      # if you deployed the service & deployment in a separate namespace, add `.<NAMESPACE>.svc.cluster.local
+      value: "http://fake-datadog"
 ```

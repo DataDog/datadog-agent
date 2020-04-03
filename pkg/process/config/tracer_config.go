@@ -46,6 +46,7 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 	}
 
 	tracerConfig.CollectLocalDNS = cfg.CollectLocalDNS
+	tracerConfig.CollectDNSStats = cfg.CollectDNSStats
 
 	tracerConfig.MaxTrackedConnections = cfg.MaxTrackedConnections
 	tracerConfig.ProcRoot = util.GetProcRoot()

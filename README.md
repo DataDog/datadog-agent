@@ -20,7 +20,7 @@ and development, is located under [the docs directory](docs) of the present repo
 
 To build the Agent you need:
  * [Go](https://golang.org/doc/install) 1.13 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
- * Python 2.7 or 3.x along with development libraries.
+ * Python 2.7 or 3.7+ along with development libraries.
  * Python dependencies. You may install these with `pip install -r requirements.txt`
    This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
  * CMake version 3.12 or later and a C++ compiler
@@ -47,7 +47,7 @@ To start working on the Agent, you can build the `master` branch:
 3. Install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
 4. Create a development `datadog.yaml` configuration file in `dev/dist/datadog.yaml`, containing a valid API key: `api_key: <API_KEY>`
-5. Build the agent with `invoke agent.build --build-exclude=systemd`. 
+5. Build the agent with `invoke agent.build --build-exclude=systemd`.
    By default, the Agent will be built to use Python 3 but you can select which Python version you want to use:
    - `invoke agent.build --python-runtimes 2` for Python2 only
    - `invoke agent.build --python-runtimes 3` for Python3 only
@@ -62,8 +62,8 @@ To start working on the Agent, you can build the `master` branch:
     * Builds the Agent and writes the binary to `bin/agent/agent`.
     * Copies files from `dev/dist` to `bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/master/dev/dist/README.md` for more information.
   If you built an older version of the agent, you may have the error `make: *** No targets specified and no makefile found.  Stop.`.
-  To solve the issue, you should remove `CMakeCache.txt` from `rtloader` folder with `rm rtloader/CMakeCache.txt`. 
-  
+  To solve the issue, you should remove `CMakeCache.txt` from `rtloader` folder with `rm rtloader/CMakeCache.txt`.
+
 
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
