@@ -128,19 +128,20 @@ def _find_v6_tag(ctx, v7_tag):
 def _is_version_higher(version_1, version_2):
     if not version_2:
         return True
-    if version_1["major"] < version_2["major"]:
+
+    for part in ["major","minor","patch"]:
+        if version_1[part] != version_2[part]:
+            return version_1[part] > version_2[part]
+
+    if version_1["rc"] == None:
+        # Everything else being equal, version_1 can only be higher than version_2 if version_2 is not a released version
+        return version_2["rc"] != None
+
+    if version_2["rc"] == None:
+        # Everything else being equal, version_1 cannot be higher than version_2 if it's a released version - at most it can be equal
         return False
-    if version_1["minor"] < version_2["minor"]:
-        return False
-    if version_1["patch"] < version_2["patch"]:
-        return False
-    if version_1["rc"] == 0:
-        return True
-    if version_2["rc"] == 0:
-        return False
-    if version_1["rc"] < version_2["rc"]:
-        return False
-    return True
+
+    return version_1["rc"] > version_2["rc"]
 
 
 def _create_version_dict_from_match(match):
@@ -149,10 +150,8 @@ def _create_version_dict_from_match(match):
         "major": int(groups[0]),
         "minor": int(groups[1]),
         "patch": int(groups[2]),
-        "rc": int(groups[4]) if groups[4] else 0
+        "rc": int(groups[4]) if groups[4] and groups[4] != 0 else None
     }
-    if groups[4]:
-        version["rc"] = int(groups[4])
     return version
 
 
@@ -161,18 +160,21 @@ def _stringify_version(version_dict):
         .format(version_dict["major"],
                 version_dict["minor"],
                 version_dict["patch"])
-    if version_dict["rc"] != 0:
+    if version_dict["rc"] != None and version_dict["rc"] != 0:
         version = "{}-rc.{}".format(version, version_dict["rc"])
     return version
 
 
 def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
-    response = urllib.urlopen("{}api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}.{}.{}"
-                              .format(auth,
-                                      repo,
-                                      new_rc_version["major"],
-                                      new_rc_version["minor"],
-                                      new_rc_version["patch"]))
+    if new_rc_version is not None:
+        response = urllib.urlopen("{}api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}"
+                                .format(auth,
+                                        repo,
+                                        new_rc_version["major"]))
+    else:
+        response = urllib.urlopen("{}api.github.com/repos/DataDog/{}/git/matching-refs/tags/"
+                                .format(auth,
+                                        repo))
     tags = json.load(response)
     highest_version = None
     for tag in tags:
@@ -242,7 +244,7 @@ def _save_release_json(release_json, list_major_versions, highest_version, integ
 
 
 @task
-def create_new_version(
+def finish(
     ctx,
     major_versions = "6,7",
     integration_version = None,
@@ -252,21 +254,17 @@ def create_new_version(
     ignore_rc_tag = False):
 
     """
-    Creates new entry in the release.json file for a new version.
+    Creates new entry in the release.json file for the new version. Removes all the RC entries.
     """
 
     list_major_versions = major_versions.split(",")
-    if list_major_versions.count < 1:
-        print("Specify at least one major version to release")
-        return Exit(code=1)
+    print("Creating new agent version(s) {}".format(list_major_versions))
 
     list_major_versions = map(lambda x: int(x), list_major_versions)
     highest_major = 0
     for version in list_major_versions:
         if int(version) > highest_major:
             highest_major = version
-
-    print("Creating new agent version(s) {}".format(list_major_versions))
 
     github_token = os.environ.get('GITHUB_TOKEN')
     if github_token is None:
@@ -288,7 +286,7 @@ def create_new_version(
     for major_version in list_major_versions:
         highest_version["major"] = major_version
         rc = highest_version["rc"]
-        while highest_version["rc"] > 0:
+        while highest_version["rc"] not in [0, None]:
             # In case we have skipped an RC in the file...
             try:
                 release_json.pop(_stringify_version(highest_version))
@@ -300,14 +298,14 @@ def create_new_version(
     highest_version["major"] = highest_major
 
     # We don't want to fetch RC tags
-    highest_version["rc"] = 0
+    highest_version["rc"] = None
 
     if not integration_version:
         integration_version = _get_highest_repo_version(auth, "integrations-core", highest_version, version_re)
         if integration_version is None:
             print("EREROR: No version found for integrationscore - did you create the tag ?")
             return Exit(code=1)
-        if integration_version["rc"] != 0:
+        if integration_version["rc"] != None:
             print("ERROR: Integration-Core tag is still an RC tag. That's probably NOT what you want in the final artifact.")
             if ignore_rc_tag:
                 print("Continuing with RC tag on Integration-Core.")
@@ -322,7 +320,7 @@ def create_new_version(
         if omnibus_software_version is None:
             print("EREROR: No version found for omnibus-software - did you create the tag ?")
             return Exit(code=1)
-        if omnibus_software_version["rc"] != 0:
+        if omnibus_software_version["rc"] != None:
             print("ERROR: Omnibus-Software tag is still an RC tag. That's probably NOT what you want in the final artifact.")
             if ignore_rc_tag:
                 print("Continuing with RC tag on Omnibus-Software.")
@@ -338,7 +336,7 @@ def create_new_version(
     print("Jmxfetch's tag is {}".format(jmxfetch_version))
 
     if not omnibus_ruby_version:
-        print("ERROR: No omnibus_ruby_version found")
+        print("ERROR: No omnibus_ruby_version found. Please specify it manually via '--omnibus-ruby-version' until we start tagging omnibus-ruby builds.")
         return Exit(code=1)
 
 
@@ -362,8 +360,8 @@ def create_rc(
     omnibus_ruby_version = None):
 
     """
-    Creates new entry in the release.json file for a new RC.
-    Looks at the current release.json to find the highest version released and create a new RC based on that.
+    Takes whatever version is the highest in release.json and adds a new RC to it.
+    If there was no RC, creates one and bump minor version. If there was an RC, create RC + 1.
     """
 
     list_major_versions = major_versions.split(",")
@@ -371,13 +369,12 @@ def create_rc(
         print("Specify at least one major version to release")
         return Exit(code=1)
 
+    print("Creating RC for agent version(s) {}".format(list_major_versions))
     list_major_versions = map(lambda x: int(x), list_major_versions)
     highest_major = 0
     for version in list_major_versions:
         if int(version) > highest_major:
             highest_major = version
-
-    print("Creating RC for agent version(s) {}".format(list_major_versions))
 
     github_token = os.environ.get('GITHUB_TOKEN')
     if github_token is None:
@@ -395,7 +392,13 @@ def create_rc(
 
     highest_version, highest_jmxfetch_version = _get_highest_version_from_release_json(release_json, highest_major, version_re)
 
-    highest_version["rc"] = highest_version["rc"] + 1
+    if highest_version["rc"] is None:
+        # No RC exists, create one
+        highest_version["minor"] = highest_version["minor"] + 1
+        highest_version["rc"] = 1
+    else:
+        # An RC exists, create next RC
+        highest_version["rc"] = highest_version["rc"] + 1
     new_rc = _stringify_version(highest_version)
     print("Creating {}".format(new_rc))
 
@@ -415,7 +418,7 @@ def create_rc(
     print("Jmxfetch's tag is {}".format(jmxfetch_version))
 
     if not omnibus_ruby_version:
-        print("ERROR: No omnibus_ruby_version found")
+        print("ERROR: No omnibus_ruby_version found. Please specify it manually via '--omnibus-ruby-version' until we start tagging omnibus-ruby builds.")
         return Exit(code=1)
 
     _save_release_json(
