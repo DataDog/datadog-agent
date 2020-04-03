@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Clean up pid file whenever os.Exit() is called.
