@@ -77,7 +77,6 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 			val.expiration = exp
 			if rejected := val.merge(translation.dns, c.maxDomainsPerIP); rejected && c.oversizedLogLimit.ShouldLog() {
 				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
-				break
 			}
 		} else {
 			atomic.AddInt64(&c.added, 1)
