@@ -15,11 +15,6 @@ func SetSystemProbePath(_ string) {
 	// no-op
 }
 
-// CheckPath is not supported
-func CheckPath() error {
-	return ebpf.ErrNotImplemented
-}
-
 // GetRemoteSystemProbeUtil is not supported
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 	return &RemoteSysProbeUtil{}, ebpf.ErrNotImplemented
@@ -27,11 +22,6 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 
 // GetConnections is not supported
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
-	return nil, ebpf.ErrNotImplemented
-}
-
-// GetStats is not supported
-func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
