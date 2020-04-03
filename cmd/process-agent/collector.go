@@ -180,6 +180,8 @@ func (l *Collector) run(exit chan bool) {
 						responses, err = l.forwarder.SubmitConnectionChecks(payloads, extraHeaders)
 					case checks.Pod.Name():
 						responses, err = l.podForwarder.SubmitPodChecks(payloads, extraHeaders)
+					default:
+						err = fmt.Errorf("unsupported payload type: %s", payload.name)
 					}
 
 					if err != nil {
