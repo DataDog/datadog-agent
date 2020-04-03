@@ -1,9 +1,15 @@
 ﻿$ErrorActionPreference = 'Stop';
+# See https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-operatingsystem
+# 2 is Domain Controller
+if ((Get-WmiObject -Class Win32_OperatingSystem).ProductType -eq 2) {
+  Write-Host "Installation on a Domain Controller is not yet supported - aborting"
+  exit -1 
+}
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $nupkgs = Get-ChildItem $toolsDir\datadog-agent*.msi
 if (($nupkgs | Measure-Object).Count -gt 1) {
   Write-Host "More than 1 MSI installer exists - aborting"
-  exit -1
+  exit -2
 }
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
