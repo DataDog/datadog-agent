@@ -121,31 +121,6 @@ func TestRegisterNat(t *testing.T) {
 	)
 	assert.Nil(t, udpTranslation)
 
-	// even after unregistering, we should be able to access the conn
-	rt.unregister(c)
-	translation2 := rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 12345,
-		util.AddressFromString("50.30.40.10"), 80,
-		process.ConnectionType_tcp,
-	)
-	assert.NotNil(t, translation2)
-
-	// double unregisters should never happen, though it will be treated as a no-op
-	rt.unregister(c)
-
-	rt.ClearShortLived()
-	translation3 := rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 12345,
-		util.AddressFromString("50.30.40.10"), 80,
-		process.ConnectionType_tcp,
-	)
-	assert.Nil(t, translation3)
-
-	// triple unregisters should never happen, though it will be treated as a no-op
-	rt.unregister(c)
-
-	assert.Equal(t, translation, translation2)
-
 }
 
 func TestRegisterNatUDP(t *testing.T) {
