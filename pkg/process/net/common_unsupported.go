@@ -17,7 +17,7 @@ func SetSystemProbePath(_ string) {
 
 // CheckPath is not supported
 func CheckPath() error {
-	return error.New("Not Supported")
+	return ebpf.ErrNotImplemented
 }
 
 // GetRemoteSystemProbeUtil is not supported
