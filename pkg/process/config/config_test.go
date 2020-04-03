@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
 )
@@ -400,4 +401,16 @@ func TestIsAffirmative(t *testing.T) {
 	value, err = isAffirmative("ok")
 	assert.Nil(t, err)
 	assert.False(t, value)
+}
+
+func TestContainerHostType(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	assert := assert.New(t)
+	config.Datadog.Set("eks_fargate", "true")
+	agentConfig, err := NewAgentConfig("test", "./testdata/TestEnvSiteConfig.yaml", "")
+	assert.NoError(err)
+	assert.Equal(model.ContainerHostType_fargateEKS, agentConfig.ContainerHostType)
+	config.Datadog.Set("eks_fargate", "")
 }
