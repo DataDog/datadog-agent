@@ -42,6 +42,8 @@ var (
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
 		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
+	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error"}
+	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok"}
 )
 
 func init() {
@@ -376,7 +378,7 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
-		tlmProcessed.Inc("metrics", "error")
+		tlmProcessed.IncWithTags(tlmProcessedErrorTags)
 		return metrics.MetricSample{}, err
 	}
 	if s.mapper != nil && len(sample.tags) == 0 {
@@ -389,11 +391,7 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
 	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
 	dogstatsdMetricPackets.Add(1)
-	// FIXME (arthur): remove this check and s.telemetryEnabled once we don't
-	// escape the tags slice to the heap
-	if s.telemetryEnabled {
-		tlmProcessed.Inc("metrics", "ok")
-	}
+	tlmProcessed.IncWithTags(tlmProcessedOkTags)
 	return metricSample, nil
 }
 

@@ -26,7 +26,7 @@ func (r *RemoteSysProbeUtil) GetCheck(check string) ([]tcpqueuelength.Stats, err
 	if err != nil {
 		return nil, err
 	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("conn request failed: socket %s, url %s, status code: %d", r.socketPath, fmt.Sprintf("%s/%s", checksURL, check), resp.StatusCode)
+		return nil, fmt.Errorf("conn request failed: socket %s, url %s, status code: %d", r.path, fmt.Sprintf("%s/%s", checksURL, check), resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
