@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
 )
