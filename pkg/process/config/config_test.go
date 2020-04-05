@@ -412,5 +412,4 @@ func TestContainerHostType(t *testing.T) {
 	agentConfig, err := NewAgentConfig("test", "./testdata/TestEnvSiteConfig.yaml", "")
 	assert.NoError(err)
 	assert.Equal(model.ContainerHostType_fargateEKS, agentConfig.ContainerHostType)
-	config.Datadog.Set("eks_fargate", "")
 }
