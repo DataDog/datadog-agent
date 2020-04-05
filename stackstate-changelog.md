@@ -1,5 +1,11 @@
 # StackState Agent v2 releases
 
+## 2.3.1 (2020-04-03)
+
+**Bug**
+
+- Fix VSphere Check functionality [(STAC-8351)](https://stackstate.atlassian.net/browse/STAC-8351)
+
 ## 2.3.0 (2020-03-26)
 
 **Features**
