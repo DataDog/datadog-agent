@@ -2243,7 +2243,7 @@ testkitchen_cleanup_azure-a7:
     ARCH: arm64
 
 # build agent6 py2 image
-build_agent6:
+docker_build_agent6:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a6"]
@@ -2255,7 +2255,7 @@ build_agent6:
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
-build_agent6_arm64:
+docker_build_agent6_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a6"]
@@ -2269,7 +2269,7 @@ build_agent6_arm64:
     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
 
 # build agent6 py2 jmx image
-build_agent6_jmx:
+docker_build_agent6_jmx:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a6"]
@@ -2283,7 +2283,7 @@ build_agent6_jmx:
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 # build agent6 py2 jmx image
-build_agent6_jmx_arm64:
+docker_build_agent6_jmx_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a6"]
@@ -2299,7 +2299,7 @@ build_agent6_jmx_arm64:
 
 # TESTING ONLY: This image is for internal testing purposes, not customer facing.
 # build agent6 jmx unified image (including python3)
-build_agent6_py2py3_jmx:
+docker_build_agent6_py2py3_jmx:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a6"]
@@ -2312,7 +2312,7 @@ build_agent6_py2py3_jmx:
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
 # build agent7 image
-build_agent7:
+docker_build_agent7:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a7"]
@@ -2324,7 +2324,7 @@ build_agent7:
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
-build_agent7_arm64:
+docker_build_agent7_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a7"]
@@ -2338,7 +2338,7 @@ build_agent7_arm64:
     TESTING_ARG:  --target testing --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
 
 # build agent7 jmx image
-build_agent7_jmx:
+docker_build_agent7_jmx:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a7"]
@@ -2350,7 +2350,7 @@ build_agent7_jmx:
     BUILD_ARG: --target release --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
-build_agent7_jmx_arm64:
+docker_build_agent7_jmx_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a7"]
@@ -2364,7 +2364,7 @@ build_agent7_jmx_arm64:
     TESTING_ARG:  --target testing --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
 
 # build agent7_windows image
-build_agent7_windows1809:
+docker_build_agent7_windows1809:
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
@@ -2383,7 +2383,7 @@ build_agent7_windows1809:
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - docker push ${TARGET_TAG}
 
-build_agent7_windows1809_jmx:
+docker_build_agent7_windows1809_jmx:
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
@@ -2403,7 +2403,7 @@ build_agent7_windows1809_jmx:
     - docker push ${TARGET_TAG}
 
 # build agent7_windows image
-build_agent7_windows1909:
+docker_build_agent7_windows1909:
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
@@ -2422,7 +2422,7 @@ build_agent7_windows1909:
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - docker push ${TARGET_TAG}
 
-build_agent7_windows1909_jmx:
+docker_build_agent7_windows1909_jmx:
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
@@ -2589,9 +2589,9 @@ dev_branch_docker_hub-a6:
   <<: *docker_tag_job_definition
   needs:
   - fail_on_non_triggered_tag
-  - build_agent6
-  - build_agent6_jmx
-  - build_agent6_py2py3_jmx
+  - docker_build_agent6
+  - docker_build_agent6_jmx
+  - docker_build_agent6_py2py3_jmx
   when: manual
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}
@@ -2614,8 +2614,8 @@ dev_branch_docker_hub-a7:
   <<: *docker_tag_job_definition
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7
-    - build_agent7_jmx
+    - docker_build_agent7
+    - docker_build_agent7_jmx
   when: manual
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -2629,10 +2629,10 @@ dev_branch_docker_hub-a7-windows:
   tags: ["runner:windows-docker", "windowsversion:1909"]
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7_windows1809
-    - build_agent7_windows1809_jmx
-    - build_agent7_windows1909
-    - build_agent7_windows1909_jmx
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows1909
+    - docker_build_agent7_windows1909_jmx
   when: manual
   script:
     - |
@@ -2652,11 +2652,11 @@ dev_branch_multiarch_docker_hub-a6:
   <<: *docker_tag_job_definition
   needs:
     - fail_on_non_triggered_tag
-    - build_agent6
-    - build_agent6_arm64
-    - build_agent6_jmx
-    - build_agent6_jmx_arm64
-    - build_agent6_py2py3_jmx
+    - docker_build_agent6
+    - docker_build_agent6_arm64
+    - docker_build_agent6_jmx
+    - docker_build_agent6_jmx_arm64
+    - docker_build_agent6_py2py3_jmx
   when: manual
   script:
     # Platform-specific agent images
@@ -2677,10 +2677,10 @@ dev_branch_multiarch_docker_hub-a7:
   <<: *docker_tag_job_definition
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7
-    - build_agent7_arm64
-    - build_agent7_jmx
-    - build_agent7_jmx_arm64
+    - docker_build_agent7
+    - docker_build_agent7_arm64
+    - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
   when: manual
   script:
     # Platform-specific agent images
@@ -2706,9 +2706,9 @@ dev_master_docker_hub-a6:
   <<: *docker_tag_job_definition
   needs:
     - fail_on_non_triggered_tag
-    - build_agent6
-    - build_agent6_jmx
-    - build_agent6_py2py3_jmx
+    - docker_build_agent6
+    - docker_build_agent6_jmx
+    - docker_build_agent6_py2py3_jmx
   only:
     - master
   script:
@@ -2722,8 +2722,8 @@ dev_master_docker_hub-a7:
   <<: *docker_tag_job_definition
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7
-    - build_agent7_jmx
+    - docker_build_agent7
+    - docker_build_agent7_jmx
   only:
     - master
   script:
@@ -2738,10 +2738,10 @@ dev_master_docker_hub-a7-windows:
   tags: ["runner:windows-docker", "windowsversion:1909"]
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7_windows1809
-    - build_agent7_windows1809_jmx
-    - build_agent7_windows1909
-    - build_agent7_windows1909_jmx
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows1909
+    - docker_build_agent7_windows1909_jmx
   only:
     - master
   script:
@@ -2803,9 +2803,9 @@ dev_nightly_docker_hub-a6:
   <<: *run_when_triggered_on_nightly
   needs:
     - fail_on_non_triggered_tag
-    - build_agent6
-    - build_agent6_jmx
-    - build_agent6_py2py3_jmx
+    - docker_build_agent6
+    - docker_build_agent6_jmx
+    - docker_build_agent6_py2py3_jmx
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
@@ -2819,8 +2819,8 @@ dev_nightly_docker_hub-a7:
   <<: *run_when_triggered_on_nightly
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7
-    - build_agent7_jmx
+    - docker_build_agent7
+    - docker_build_agent7_jmx
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64   datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
@@ -2834,10 +2834,10 @@ dev_nightly_docker_hub-a7-windows:
   tags: ["runner:windows-docker", "windowsversion:1909"]
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7_windows1809
-    - build_agent7_windows1809_jmx
-    - build_agent7_windows1909
-    - build_agent7_windows1909_jmx
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows1909
+    - docker_build_agent7_windows1909_jmx
   script:
     - |
       @"
@@ -3296,10 +3296,10 @@ tag_release_7_windows:
   tags: ["runner:windows-docker", "windowsversion:1909"]
   needs:
     - fail_on_non_triggered_tag
-    - build_agent7_windows1809
-    - build_agent7_windows1809_jmx
-    - build_agent7_windows1909
-    - build_agent7_windows1909_jmx
+    - docker_build_agent7_windows1809
+    - docker_build_agent7_windows1809_jmx
+    - docker_build_agent7_windows1909
+    - docker_build_agent7_windows1909_jmx
   script:
     - $VERSION = inv -e agent.version --major-version 7
     - |
