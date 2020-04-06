@@ -72,13 +72,14 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorRealTime{
-			HostName:       cfg.HostName,
-			Stats:          chunkedStats[i],
-			ContainerStats: chunkedCtrStats[i],
-			GroupId:        groupID,
-			GroupSize:      int32(groupSize),
-			NumCpus:        int32(len(r.sysInfo.Cpus)),
-			TotalMemory:    r.sysInfo.TotalMemory,
+			HostName:          cfg.HostName,
+			Stats:             chunkedStats[i],
+			ContainerStats:    chunkedCtrStats[i],
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			NumCpus:           int32(len(r.sysInfo.Cpus)),
+			TotalMemory:       r.sysInfo.TotalMemory,
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 

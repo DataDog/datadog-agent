@@ -66,12 +66,13 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorContainerRealTime{
-			HostName:    cfg.HostName,
-			Stats:       chunked[i],
-			NumCpus:     int32(runtime.NumCPU()),
-			TotalMemory: r.sysInfo.TotalMemory,
-			GroupId:     groupID,
-			GroupSize:   int32(groupSize),
+			HostName:          cfg.HostName,
+			Stats:             chunked[i],
+			NumCpus:           int32(runtime.NumCPU()),
+			TotalMemory:       r.sysInfo.TotalMemory,
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 

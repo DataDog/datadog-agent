@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  revision = "c192317fe7c4d65a0a0aafd768c134120637e512"
+  revision = "79d10f8bc542e3981ee156abe761e0d1398d5ae7"
 
 [[constraint]]
   name = "github.com/google/gopacket"
