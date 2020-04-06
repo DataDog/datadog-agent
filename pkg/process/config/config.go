@@ -365,7 +365,7 @@ func getContainerHostType() model.ContainerHostType {
 	case fargate.EKS:
 		return model.ContainerHostType_fargateEKS
 	}
-	return model.ContainerHostType_default
+	return model.ContainerHostType_notSpecified
 }
 
 func loadEnvVariables() {
