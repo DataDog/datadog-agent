@@ -60,6 +60,7 @@ variables:
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   ANDROID_BUILDS_S3_BUCKET: $ANDROID_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
+  AGENT_REQUIREMENTS_CACHE_BUCKET: agent_requirements
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
