@@ -12,6 +12,11 @@ if node['platform_family'] != 'windows'
 else
     ruby_block "list-before-files" do
         block do
+            # Windows update is likely to change lots of files, disable it.
+            # It's okay to do this because this should run on an ephemereal VM.
+            system("sc.exe config wuauserv start=disabled")
+            system("sc.exe stop wuauserv")
+
             File.open("c:/before-files.txt", "w") do |out|
                 list_files().each { |f| out.puts(f) }
             end
