@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -358,12 +357,13 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 	return cfg, nil
 }
 
-// getContainerHostType returns the host type of current instance
+// getContainerHostType uses the fargate library to detect container environment and returns the protobuf version of it
 func getContainerHostType() model.ContainerHostType {
-	if fargate.IsEKSFargateInstance() {
-		return model.ContainerHostType_fargateEKS
-	} else if ecs.IsFargateInstance() {
+	switch fargate.GetOrchestrator() {
+	case fargate.ECS:
 		return model.ContainerHostType_fargateECS
+	case fargate.EKS:
+		return model.ContainerHostType_fargateEKS
 	}
 	return model.ContainerHostType_default
 }
