@@ -179,7 +179,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		HostName:              "",
 		Transport:             NewDefaultTransport(),
 		ProcessExpVarPort:     6062,
-		ContainerHostType:     model.ContainerHostType_default,
+		ContainerHostType:     model.ContainerHostType_notSpecified,
 
 		// Statsd for internal instrumentation
 		StatsdHost: "127.0.0.1",

@@ -39,14 +39,14 @@
   revision = "bbe0f8da39b3c59d42217afcc79019c754dabdfb"
 
 [[projects]]
-  digest = "1:5f2109d28348c26d105142bf201ae5c8620772c3f64a2022569f6f38ad401e2d"
+  digest = "1:f08073405b4cdb6347ac44fdd06c0df556c99c74e271b76e213d947ed1455aeb"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "79d10f8bc542e3981ee156abe761e0d1398d5ae7"
+  revision = "841c02d4e0f3a3c25bc12a2c47d53e0098f6347a"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -2118,7 +2118,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "0:"
+  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
