@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Improve connection reuse with http keep-alive in
+    APM: Improve connection reuse with HTTP keep-alive in
     trace agent.
