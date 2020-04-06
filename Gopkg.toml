@@ -176,10 +176,6 @@
   name = "github.com/lxn/win"
 
 [[override]]
-  name = "github.com/StackExchange/wmi"
-  revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
-
-[[override]]
   name = "github.com/jhoonb/archivex"
   revision = "be4efa7ec0c38ab76d56037014c90d48d6b13037"
 
