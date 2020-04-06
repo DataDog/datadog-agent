@@ -19,7 +19,7 @@ import (
 // volumes.
 //
 // Having int64/uint64 context keys mean that we will get better performances
-// from the Go runtime while using them as map keys. This is because is fast-path
+// from the Go runtime while using them as map keys. This is thanks to the fast-path
 // methods for map access and map assign with int64 keys.
 // See for instance runtime.mapassign_fast64 or runtime.mapaccess2_fast64.
 //

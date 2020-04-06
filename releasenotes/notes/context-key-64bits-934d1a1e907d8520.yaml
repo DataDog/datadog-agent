@@ -8,6 +8,7 @@
 ---
 other:
   - |
+    Improved performances in metric aggregation logic.
     Use 64 bits context keys instead of 128 bits in order to benefit from better
-    performances using them as map keys + better performances while computing the
-    hash thanks to inlining.
+    performances using them as map keys (fast path methods) + better performances
+    while computing the hash thanks to inlining.
