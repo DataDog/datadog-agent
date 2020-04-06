@@ -1,8 +1,8 @@
-// +build !linux
+// +build !linux !cgo
 
 package ebpf
 
-// Avoid the following error on Windows:
-// cmd\agent\app\run.go:49:2: build constraints exclude all Go files in C:\omnibus-ruby\src\datadog-puppy\src\github.com\DataDog\datadog-agent\pkg\collector\corechecks\ebpf
+// Avoid the following error on non-supported platforms:
+// "build constraints exclude all Go files in github.com\DataDog\datadog-agent\pkg\collector\corechecks\ebpf"
 func init() {
 }
