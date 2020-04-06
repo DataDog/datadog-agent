@@ -314,7 +314,6 @@ func (s *sender) do(req *http.Request) error {
 		// should thus be retried.
 		return &retriableError{err}
 	}
-
 	// From https://golang.org/pkg/net/http/#Response:
 	// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive"
 	// TCP connections if the Body is not read to completion and closed.
