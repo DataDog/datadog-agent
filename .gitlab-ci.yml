@@ -2382,6 +2382,10 @@ docker_build_agent7_windows1809:
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - docker push ${TARGET_TAG}
+    - docker rmi ${TARGET_TAG}
+  after_script:
+    - docker image prune -f # Dangling images
+    - docker builder prune -a -f # Build cache
 
 docker_build_agent7_windows1809_jmx:
   stage: image_build
@@ -2401,6 +2405,10 @@ docker_build_agent7_windows1809_jmx:
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - docker push ${TARGET_TAG}
+    - docker rmi ${TARGET_TAG}
+  after_script:
+    - docker image prune -f # Dangling images
+    - docker builder prune -a -f # Build cache
 
 # build agent7_windows image
 docker_build_agent7_windows1909:
@@ -2421,6 +2429,10 @@ docker_build_agent7_windows1909:
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - docker push ${TARGET_TAG}
+    - docker rmi ${TARGET_TAG}
+  after_script:
+    - docker image prune -f # Dangling images
+    - docker builder prune -a -f # Build cache
 
 docker_build_agent7_windows1909_jmx:
   stage: image_build
@@ -2440,6 +2452,10 @@ docker_build_agent7_windows1909_jmx:
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - docker push ${TARGET_TAG}
+    - docker rmi ${TARGET_TAG}
+  after_script:
+    - docker image prune -f # Dangling images
+    - docker builder prune -a -f # Build cache
 
 # build the cluster-agent image
 build_cluster_agent_amd64:
