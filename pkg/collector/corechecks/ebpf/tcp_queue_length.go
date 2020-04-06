@@ -3,6 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
+// FIXME: we require the `cgo` build tag because of this dep relationship:
+// github.com/DataDog/datadog-agent/pkg/process/net depends on `github.com/DataDog/agent-payload/process`,
+// which has a hard dependency on `github.com/DataDog/zstd`, which requires CGO.
+// Should be removed once `github.com/DataDog/agent-payload/process` can be imported with CGO disabled.
+// +build cgo
 // +build linux
 
 package ebpf
