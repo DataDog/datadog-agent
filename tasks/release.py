@@ -6,7 +6,6 @@ import os
 import re
 import sys
 import json
-import urllib.request
 import hashlib
 from collections import OrderedDict
 from datetime import date
@@ -156,20 +155,26 @@ def _create_version_dict_from_match(match):
 
 
 def _stringify_version(version_dict):
-    version = f"{version_dict['major']}.{version_dict['minor']}.{version_dict['patch']}"
+    version = "{}.{}.{}" \
+        .format(version_dict["major"],
+                version_dict["minor"],
+                version_dict["patch"])
     if version_dict["rc"] != None and version_dict["rc"] != 0:
         version = "{}-rc.{}".format(version, version_dict["rc"])
     return version
 
 
 def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
+    import urllib.request
     password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
     password_mgr.add_password(None, "api.github.com", auth, "x-oauth-basic")
     opener = urllib.request.build_opener(urllib.request.HTTPBasicAuthHandler(password_mgr))
     if new_rc_version is not None:
-        response = opener.open(f"https://api.github.com/repos/DataDog/{repo}/git/matching-refs/tags/{new_rc_version['major']}")
+        response = opener.open("https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}"
+                               .format(repo, new_rc_version["major"]))
     else:
-        response = opener.open(f"https://api.github.com/repos/DataDog/{repo}/git/matching-refs/tags/")
+        response = opener.open("https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/"
+                               .format(repo))
     tags = json.load(response)
     highest_version = None
     for tag in tags:
@@ -194,17 +199,17 @@ def _get_highest_version_from_release_json(release_json, highest_major, version_
                     highest_jmxfetch_version = _create_version_dict_from_match(match)
                     highest_version = this_version
                 else:
-                    print(f"{_stringify_version(this_version)} does not have a valid JMXFETCH_VERSION ({value['JMXFETCH_VERSION']}), ignoring.")
+                    print("{} does not have a valid JMXFETCH_VERSION ({}), ignoring".format(_stringify_version(this_version), value["JMXFETCH_VERSION"]))
     return highest_version, highest_jmxfetch_version
 
 
 def _save_release_json(release_json, list_major_versions, highest_version, integration_version, omnibus_software_version, omnibus_ruby_version, jmxfetch_version):
-
-    jmxfetch = urllib.request.urlopen(
-        f"https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{jmxfetch_version}%2Fjmxfetch-{jmxfetch_version}-jar-with-dependencies.jar")
+    import urllib.request
+    jmxfetch = urllib.request.urlopen("https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{}%2Fjmxfetch-{}-jar-with-dependencies.jar"
+        .format(jmxfetch_version, jmxfetch_version))
     jmxfetch_sha256 = hashlib.sha256(jmxfetch.read()).hexdigest()
 
-    print(f"Jmxfetch's SHA256 is {jmxfetch_sha256}")
+    print("Jmxfetch's SHA256 is {}".format(jmxfetch_sha256))
 
     new_version_config = OrderedDict()
     new_version_config["INTEGRATIONS_CORE_VERSION"] = integration_version
@@ -252,8 +257,12 @@ def finish(
     Creates new entry in the release.json file for the new version. Removes all the RC entries.
     """
 
+    if sys.version_info[0] < 3:
+        print("Must use Python 3 for this task")
+        return Exit(code=1)
+
     list_major_versions = major_versions.split(",")
-    print(f"Finishing release for major version(s) {list_major_versions}")
+    print("Finishing release for major version(s) {}".format(list_major_versions))
 
     list_major_versions = list(map(lambda x: int(x), list_major_versions))
     highest_major = 0
@@ -357,8 +366,12 @@ def create_rc(
     If there was no RC, creates one and bump minor version. If there was an RC, create RC + 1.
     """
 
+    if sys.version_info[0] < 3:
+        print("Must use Python 3 for this task")
+        return Exit(code=1)
+
     list_major_versions = major_versions.split(",")
-    print(f"Creating RC for major version(s) {list_major_versions}")
+    print("Creating RC for agent version(s) {}".format(list_major_versions))
 
     list_major_versions = list(map(lambda x: int(x), list_major_versions))
     highest_major = 0
