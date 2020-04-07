@@ -9,7 +9,8 @@ def list_files()
     'C:/Windows/servicing/',
     'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
     'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
-    'C:/windows/SoftwareDistribution/DataStore/Logs/',
+    'C:/Windows/SoftwareDistribution/DataStore/Logs/',
+    'C:/Windows/System32/wbem/Performance/',
   ].each { |e| e.downcase! }
   return Find.find('c:/windows/').reject { |f| f.downcase.start_with?(*exclude) }
 end
