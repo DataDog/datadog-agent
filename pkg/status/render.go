@@ -18,14 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var fmap template.FuncMap
-
-func init() {
-	fmap = Textfmap()
-	fmap["percent"] = func(v float64) string {
-		return fmt.Sprintf("%02.1f", v*100)
-	}
-}
+var fmap = Textfmap()
 
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatStatus(data []byte) (string, error) {

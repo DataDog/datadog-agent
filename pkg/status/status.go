@@ -8,6 +8,8 @@ package status
 import (
 	"encoding/json"
 	"expvar"
+	"fmt"
+	"net/http"
 	"os"
 	"runtime"
 	"strconv"
@@ -85,8 +87,43 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	stats["systemProbeStats"] = getSystemProbeStats()
+	stats["apmStats"] = GetAPMStatus()
 
 	return stats, nil
+}
+
+// GetAPMStatus returns a set of key/value pairs summarizing the status of the trace-agent.
+// A key "outcome" is always returned and it may be either "error" or "success".
+func GetAPMStatus() map[string]interface{} {
+	port := 8126
+	if p, ok := os.LookupEnv("DD_APM_RECEIVER_PORT"); ok {
+		if v, err := strconv.Atoi(p); err == nil {
+			port = v
+		}
+	}
+	if config.Datadog.IsSet("apm_config.receiver_port") {
+		port = config.Datadog.GetInt("apm_config.receiver_port")
+	}
+	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
+	resp, err := (&http.Client{Timeout: 3 * time.Second}).Get(url)
+	if err != nil {
+		return map[string]interface{}{
+			"outcome": "error",
+			"port":    port,
+			"error":   err.Error(),
+		}
+	}
+	defer resp.Body.Close()
+	status := make(map[string]interface{})
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return map[string]interface{}{
+			"outcome": "error",
+			"port":    port,
+			"error":   err.Error(),
+		}
+	}
+	status["outcome"] = "success"
+	return status
 }
 
 // GetAndFormatStatus gets and formats the status all in one go

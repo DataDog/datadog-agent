@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    APM: The 'agent status' command will not show information about the
-    trace-agent when they are running in the same container/host.
+    APM: Information about APM is now included in the agent's status
+    output (both in the GUI and in the 'agent status' command).
