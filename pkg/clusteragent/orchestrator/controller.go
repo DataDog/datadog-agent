@@ -95,6 +95,9 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		keysPerDomain[ep.Endpoint.String()] = []string{ep.APIKey}
 	}
 
+	podForwarderOpts := forwarder.NewOptions(keysPerDomain)
+	podForwarderOpts.EnableHealthChecking = false
+
 	oc := &Controller{
 		unassignedPodLister:     podInformer.Lister(),
 		unassignedPodListerSync: podInformer.Informer().HasSynced,
@@ -103,7 +106,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		clusterName:             ctx.ClusterName,
 		clusterID:               clusterID,
 		processConfig:           cfg,
-		forwarder:               forwarder.NewDefaultForwarderWithOptions(keysPerDomain, false),
+		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
 		IsLeaderFunc:            ctx.IsLeaderFunc,
 	}
 
