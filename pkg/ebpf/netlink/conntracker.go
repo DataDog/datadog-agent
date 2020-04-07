@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
 	"github.com/mdlayher/netlink"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -117,10 +118,10 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 		return nil, fmt.Errorf("short term buffer size is less than 0")
 	}
 
-	netns := getGlobalNetNSFD(procRoot)
+	netns, inRootNS := getGlobalNetNSFD(procRoot)
 	logger := getLogger()
 
-	nfct, err := createNetlinkSocket("register", netns, logger)
+	nfct, err := createNetlinkSocket("register", netns, inRootNS, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -387,10 +388,25 @@ func conDebug(c ct.Con) string {
 	)
 }
 
-func createNetlinkSocket(name string, netns int, logger *stdlog.Logger) (*ct.Nfct, error) {
+func createNetlinkSocket(name string, netns int, inRootNS bool, logger *stdlog.Logger) (*ct.Nfct, error) {
 	nfct, err := ct.Open(&ct.Config{NetNS: netns, Logger: logger})
 	if err != nil {
 		return nil, err
+	}
+
+	// If we're already in the root network namespace, we re-instantiate the underlying
+	// netlink socket with DisableNSLockThread. Unfortunately there is no way around re-instantiating it,
+	// as we can't propagate this option via the go-conntrack constructor.
+	if inRootNS {
+		nfct.Con.Close()
+
+		cfg := &netlink.Config{DisableNSLockThread: true}
+		con, err := netlink.Dial(unix.NETLINK_NETFILTER, cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		nfct.Con = con
 	}
 
 	// Sometimes the conntrack flushes are larger than the socket recv buffer capacity.
