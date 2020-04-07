@@ -9,3 +9,7 @@ What inspired you to submit this pull request?
 ### Additional Notes
 
 Anything else we should know when reviewing?
+
+### How to test
+
+Write there any instructions you may have to test your PR.
