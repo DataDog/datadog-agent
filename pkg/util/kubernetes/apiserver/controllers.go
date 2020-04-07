@@ -37,6 +37,10 @@ var controllerCatalog = map[string]controllerFuncs{
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		startServicesInformer,
 	},
+	"endpoints": {
+		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
+		startEndpointsInformer,
+	},
 }
 
 type ControllerContext struct {
@@ -114,6 +118,14 @@ func startServicesInformer(ctx ControllerContext) error {
 	// Just start the shared informer, the autodiscovery
 	// components will access it when needed.
 	go ctx.InformerFactory.Core().V1().Services().Informer().Run(ctx.StopCh)
+
+	return nil
+}
+
+func startEndpointsInformer(ctx ControllerContext) error {
+	// Just start the shared informer, the autodiscovery
+	// components will access it when needed.
+	go ctx.InformerFactory.Core().V1().Endpoints().Informer().Run(ctx.StopCh)
 
 	return nil
 }

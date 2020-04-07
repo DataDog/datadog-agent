@@ -42,9 +42,16 @@ func NewKubeServiceConfigProvider(config config.ConfigurationProviders) (ConfigP
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
+	}
+
+	if err := apiserver.SyncInformers([]cache.SharedInformer{
+		servicesInformer.Informer(),
+	}); err != nil {
+		log.Errorf("Informers not synced properly: %v", err)
 	}
 
 	p := &KubeServiceConfigProvider{
