@@ -1489,7 +1489,6 @@ func testDNSStats(t *testing.T, domain string, success int) {
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53}
 
 	queryMsg := new(dns.Msg)
-	// queryMsg.SetQuestion(dns.Fqdn("golang.org"), dns.TypeA)
 	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
