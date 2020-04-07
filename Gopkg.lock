@@ -46,7 +46,8 @@
     "process",
   ]
   pruneopts = ""
-  revision = "841c02d4e0f3a3c25bc12a2c47d53e0098f6347a"
+  revision = "2c57260621e591efa4632d5d3462116111e532f3"
+  version = "4.30.0"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -2118,7 +2119,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
+  digest = "0:"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
