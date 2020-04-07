@@ -103,7 +103,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		clusterName:             ctx.ClusterName,
 		clusterID:               clusterID,
 		processConfig:           cfg,
-		forwarder:               forwarder.NewDefaultForwarder(keysPerDomain),
+		forwarder:               forwarder.NewDefaultForwarderWithOptions(keysPerDomain, false),
 		IsLeaderFunc:            ctx.IsLeaderFunc,
 	}
 

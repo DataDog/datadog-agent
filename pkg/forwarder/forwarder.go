@@ -166,15 +166,23 @@ type DefaultForwarder struct {
 
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(keysPerDomains map[string][]string) *DefaultForwarder {
+	return NewDefaultForwarderWithOptions(keysPerDomains, true)
+}
+
+// NewDefaultForwarderWithOptions creates a new DefaultForwarder with the given configuration
+func NewDefaultForwarderWithOptions(keysPerDomains map[string][]string, enableHealthChecks bool) *DefaultForwarder {
 	f := &DefaultForwarder{
 		NumberOfWorkers:  config.Datadog.GetInt("forwarder_num_workers"),
 		domainForwarders: map[string]*domainForwarder{},
 		keysPerDomains:   map[string][]string{},
 		internalState:    Stopped,
-		healthChecker:    &forwarderHealth{keysPerDomains: keysPerDomains},
 	}
 	numWorkers := config.Datadog.GetInt("forwarder_num_workers")
 	retryQueueMaxSize := config.Datadog.GetInt("forwarder_retry_queue_max_size")
+
+	if enableHealthChecks {
+		f.healthChecker = &forwarderHealth{keysPerDomains: keysPerDomains}
+	}
 
 	for domain, keys := range keysPerDomains {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
@@ -212,7 +220,9 @@ func (f *DefaultForwarder) Start() error {
 	log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
-	f.healthChecker.Start()
+	if f.healthChecker != nil {
+		f.healthChecker.Start()
+	}
 	f.internalState = Started
 	return nil
 }
@@ -260,7 +270,10 @@ func (f *DefaultForwarder) Stop() {
 		}
 	}
 
-	f.healthChecker.Stop()
+	if f.healthChecker != nil {
+		f.healthChecker.Stop()
+	}
+
 	f.healthChecker = nil
 	f.domainForwarders = map[string]*domainForwarder{}
 

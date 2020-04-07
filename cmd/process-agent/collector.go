@@ -69,8 +69,8 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
 		groupID:       rand.Int31(),
-		forwarder:     forwarder.NewDefaultForwarder(keysPerDomains(cfg.APIEndpoints)),
-		podForwarder:  forwarder.NewDefaultForwarder(keysPerDomains(cfg.OrchestratorEndpoints)),
+		forwarder:     forwarder.NewDefaultForwarderWithOptions(keysPerDomains(cfg.APIEndpoints), false),
+		podForwarder:  forwarder.NewDefaultForwarderWithOptions(keysPerDomains(cfg.OrchestratorEndpoints), false),
 		enabledChecks: enabledChecks,
 
 		// Defaults for real-time on start
