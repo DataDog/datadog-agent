@@ -173,7 +173,7 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go test {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'gotestsum --format testname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_mod": go_mod,
