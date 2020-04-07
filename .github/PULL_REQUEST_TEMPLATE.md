@@ -10,6 +10,6 @@ What inspired you to submit this pull request?
 
 Anything else we should know when reviewing?
 
-### How to test
+### Describe your test plan
 
-Write there any instructions you may have to test your PR.
+Write there any instructions and details you may have to test your PR.
