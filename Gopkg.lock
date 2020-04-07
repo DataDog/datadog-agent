@@ -39,15 +39,15 @@
   revision = "bbe0f8da39b3c59d42217afcc79019c754dabdfb"
 
 [[projects]]
-  digest = "1:827c97bbe64dc14ab134b48b8f1dce986e7636cfa9403f26f534a075c24679d6"
+  branch = "mehedi.bakht/add-dns-failed-response-field"
+  digest = "1:f277f9fa1cf8af0a3363742b1a70a07d63f6ebb1148462fba46d80d73dd7a9fa"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "43b76357e2c46480bbc04b9ccc1b1dd8424c58cb"
-  version = "4.29.0"
+  revision = "8273ec034d92a43d53f9e168478334bf1b1960fd"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -2118,7 +2118,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
+  digest = "0:"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",

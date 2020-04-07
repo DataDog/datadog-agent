@@ -9,7 +9,7 @@ type dnsStats struct {
 	lastTransactionID uint16
 	// More stats like latency, error, etc. will be added here later
 	successfulResponses uint32
-	failedResponses uint32
+	failedResponses     uint32
 }
 
 type dnsKey struct {
@@ -52,7 +52,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo) {
 	// For local DNS traffic, sometimes the same reply packet gets processed by the
 	// snooper multiple times. This check avoids double counting in that scenario
 	// assuming the duplicates are not interleaved.
-	if stats.lastTransactionID == info.transactionID{
+	if stats.lastTransactionID == info.transactionID {
 		return
 	}
 
