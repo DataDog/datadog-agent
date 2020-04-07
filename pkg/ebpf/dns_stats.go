@@ -9,6 +9,7 @@ type dnsStats struct {
 	lastTransactionID uint16
 	// More stats like latency, error, etc. will be added here later
 	successfulResponses uint32
+	failedResponses uint32
 }
 
 type dnsKey struct {
@@ -16,6 +17,20 @@ type dnsKey struct {
 	clientIP   util.Address
 	clientPort uint16
 	protocol   ConnectionType
+}
+
+// ConnectionType will be either TCP or UDP
+type DNSPacketType uint8
+
+const (
+	SuccessfulResponse DNSPacketType = 0
+	FailedResponse     DNSPacketType = 1
+)
+
+type dnsPacketInfo struct {
+	transactionID uint16
+	key           dnsKey
+	type_         DNSPacketType
 }
 
 type dnsStatKeeper struct {
@@ -29,22 +44,27 @@ func newDNSStatkeeper() *dnsStatKeeper {
 	}
 }
 
-func (d *dnsStatKeeper) ProcessSuccessfulResponse(key dnsKey, transactionID uint16) {
+func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	stats := d.stats[key]
+	stats := d.stats[info.key]
 
 	// For local DNS traffic, sometimes the same reply packet gets processed by the
 	// snooper multiple times. This check avoids double counting in that scenario
 	// assuming the duplicates are not interleaved.
-	if stats.lastTransactionID == transactionID {
+	if stats.lastTransactionID == info.transactionID{
 		return
 	}
 
-	stats.successfulResponses++
-	stats.lastTransactionID = transactionID
+	if info.type_ == SuccessfulResponse {
+		stats.successfulResponses++
+	} else {
+		stats.failedResponses++
+	}
 
-	d.stats[key] = stats
+	stats.lastTransactionID = info.transactionID
+
+	d.stats[info.key] = stats
 }
 
 func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]dnsStats {

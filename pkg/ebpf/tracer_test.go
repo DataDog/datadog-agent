@@ -1478,7 +1478,7 @@ func teardown(t *testing.T) {
 	}
 }
 
-func TestDNSStats(t *testing.T) {
+func testDNSStats(t *testing.T, domain string, success int) {
 	config := NewDefaultConfig()
 	config.CollectDNSStats = true
 	config.CollectLocalDNS = true
@@ -1489,7 +1489,8 @@ func TestDNSStats(t *testing.T) {
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53}
 
 	queryMsg := new(dns.Msg)
-	queryMsg.SetQuestion(dns.Fqdn("golang.org"), dns.TypeA)
+	// queryMsg.SetQuestion(dns.Fqdn("golang.org"), dns.TypeA)
+	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
 	// Get outbound IP
@@ -1523,5 +1524,14 @@ func TestDNSStats(t *testing.T) {
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
 	// DNS Stats
-	assert.Equal(t, uint32(1), conn.DNSSuccessfulResponses)
+	assert.Equal(t, uint32(success), conn.DNSSuccessfulResponses)
+	assert.Equal(t, uint32(1-success), conn.DNSFailedResponses)
+}
+
+func TestDNSStatsForValidDomain(t *testing.T) {
+	testDNSStats(t, "golang.org", 1)
+}
+
+func TestDNSStatsForInvalidDomain(t *testing.T) {
+	testDNSStats(t, "abcdedfg", 0)
 }
