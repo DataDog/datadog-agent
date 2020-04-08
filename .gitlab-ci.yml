@@ -1,5 +1,14 @@
 include: 'https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml'
 
+default:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+
 stages:
   - fail_on_tag
   - deps_build
@@ -164,15 +173,6 @@ variables:
     variables:
       - $RELEASE_VERSION_7 == ""
 
-.retry-job: &retry-job
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
-      - unknown_failure
-      - api_failure
-
 # Fail if we're running a pipeline on a non-triggered tag build
 # NOTE: All jobs with 'needs' dependencies should also 'need' this to workaround a Gitlab issue: https://gitlab.com/gitlab-org/gitlab/issues/31526
 fail_on_non_triggered_tag:
@@ -214,7 +214,6 @@ build_libbcc_x64:
     ARCH: amd64
 
 build_libbcc_arm64:
-  <<: *retry-job
   extends: .build_libbcc_common
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -417,7 +416,6 @@ build_dogstatsd-deb_x64:
 
 # build dogstatsd static for deb-arm
 build_dogstatsd_static-deb_arm64:
-  <<: *retry-job
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -437,7 +435,6 @@ build_dogstatsd_static-deb_arm64:
 
 # build dogstatsd linked for deb-arm
 build_dogstatsd-deb_arm64:
-  <<: *retry-job
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -470,7 +467,6 @@ build_puppy_agent-deb_x64:
 
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
 build_puppy_agent-deb_arm64:
-  <<: *retry-job
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -507,7 +503,6 @@ cluster_agent-build_amd64:
     - inv -e deps --no-checks --verbose --dep-vendor-only
 
 cluster_agent-build_arm64:
-  <<: *retry-job
   <<: *cluster_agent-build_common
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -566,7 +561,6 @@ run_dogstatsd_size_test:
 
 # check the size of the static dogstatsd binary
 run_dogstatsd_arm_size_test:
-  <<: *retry-job
   stage: integration_test
   needs: ["fail_on_non_triggered_tag", "build_dogstatsd_static-deb_arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -604,7 +598,6 @@ build_system-probe-x64:
     ARCH: amd64
 
 build_system-probe-arm64:
-  <<: *retry-job
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["fail_on_non_triggered_tag", "run_dep_check_lock"]
@@ -640,7 +633,6 @@ build_system-probe_with-bcc-x64:
     ARCH: amd64
 
 build_system-probe_with-bcc-arm64:
-  <<: *retry-job
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["fail_on_non_triggered_tag", "build_libbcc_arm64", "run_dep_check_lock"]
@@ -782,7 +774,6 @@ agent_deb-arm-a6:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_deb
-  <<: *retry-job
 
 agent_deb-arm-a7:
   stage: package_build
@@ -801,7 +792,6 @@ agent_deb-arm-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_deb
-  <<: *retry-job
 
 # build Agent package for deb-x64
 puppy_deb-x64:
@@ -1038,7 +1028,6 @@ agent_rpm-arm-a6:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
   <<: *agent_build_common_rpm
-  <<: *retry-job
 
 # build Agent package for rpm-arm64
 agent_rpm-arm-a7:
@@ -1056,7 +1045,6 @@ agent_rpm-arm-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_rpm
-  <<: *retry-job
 
 
 .agent_build_common_suse_rpm: &agent_build_common_suse_rpm
@@ -2260,7 +2248,6 @@ build_agent6_arm64:
   extends: .docker_build_job_definition_arm64
   needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a6"]
   <<: *skip_when_unwanted_on_6
-  <<: *retry-job
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -2288,7 +2275,6 @@ build_agent6_jmx_arm64:
   extends: .docker_build_job_definition_arm64
   needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a6"]
   <<: *skip_when_unwanted_on_6
-  <<: *retry-job
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -2329,7 +2315,6 @@ build_agent7_arm64:
   extends: .docker_build_job_definition_arm64
   needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a7"]
   <<: *skip_when_unwanted_on_7
-  <<: *retry-job
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -2355,7 +2340,6 @@ build_agent7_jmx_arm64:
   extends: .docker_build_job_definition_arm64
   needs: ["fail_on_non_triggered_tag", "agent_deb-arm-a7"]
   <<: *skip_when_unwanted_on_7
-  <<: *retry-job
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -2454,7 +2438,6 @@ build_cluster_agent_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs: ["fail_on_non_triggered_tag", "cluster_agent-build_arm64"]
-  <<: *retry-job
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
