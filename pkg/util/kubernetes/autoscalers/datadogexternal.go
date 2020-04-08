@@ -10,6 +10,7 @@ package autoscalers
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -72,8 +73,15 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 	aggregator := config.Datadog.GetString("external_metrics.aggregator")
 	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
 	var toQuery []string
+	var invalidMetrics []string
 	for _, metric := range metricNames {
-		toQuery = append(toQuery, fmt.Sprintf("%s:%s.rollup(%d)", aggregator, metric, rollup))
+		query := fmt.Sprintf("%s:%s.rollup(%d)", aggregator, metric, rollup)
+		matched, _ := regexp.MatchString("('\")", query)
+		if !matched {
+			toQuery = append(toQuery, query)
+		} else {
+			invalidMetrics = append(invalidMetrics, metric)
+		}
 	}
 
 	query := strings.Join(toQuery, ",")
@@ -87,6 +95,13 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 
 	processedMetrics := make(map[string]Point)
 	for _, name := range metricNames {
+		// If the returned Series is empty for one or more processedMetrics, add it as invalid now
+		// so it can be retried later.
+		processedMetrics[name] = Point{
+			timestamp: time.Now().Unix(),
+		}
+	}
+	for _, name := range invalidMetrics {
 		// If the returned Series is empty for one or more processedMetrics, add it as invalid now
 		// so it can be retried later.
 		processedMetrics[name] = Point{
