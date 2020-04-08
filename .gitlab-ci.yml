@@ -1128,7 +1128,7 @@ agent_suse-x64-a7:
   <<: *agent_build_common_suse_rpm
 
 # cloudfoundry puppy build/windows
-windows_zip_agent_binaries_x64:
+windows_zip_agent_binaries_x64-a7:
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["fail_on_non_triggered_tag", "run_dep_check_lock"]
@@ -1148,6 +1148,7 @@ windows_zip_agent_binaries_x64:
     expire_in: 2 weeks
     paths:
       - .omnibus/pkg
+  <<: *skip_when_unwanted_on_7
 
 ##
 ## windows dockerized builds
@@ -1228,7 +1229,7 @@ windows_msi_x86-a6:
 
 
 # build dogstatsd package for Windows
-windows_dsd_msi_x64:
+windows_dsd_msi_x64-a7:
   extends: .windows_msi_base
   variables:
     ARCH: "x64"
@@ -1237,6 +1238,7 @@ windows_dsd_msi_x64:
     OMNIBUS_TARGET: dogstatsd
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
+  <<: *skip_when_unwanted_on_7
 
 windows_choco_7_x64:
   stage: image_build
@@ -3234,7 +3236,7 @@ deploy_datadog_agent_windows_zip:
 deploy_datadog_agent_windows_binaries_zip:
   <<: *run_when_triggered_on_tag_7
   stage: deploy7
-  needs: [ "windows_zip_agent_binaries_x64"]
+  needs: [ "windows_zip_agent_binaries_x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
