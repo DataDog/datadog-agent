@@ -31,15 +31,10 @@ const (
 )
 
 var (
-	globalUtil            *RemoteSysProbeUtil
-	globalUtilOnce        sync.Once
-	globalSocketPath      string
-	hasLoggedErrForStatus map[retry.Status]struct{}
+	globalUtil       *RemoteSysProbeUtil
+	globalUtilOnce   sync.Once
+	globalSocketPath string
 )
-
-func init() {
-	hasLoggedErrForStatus = make(map[retry.Status]struct{})
-}
 
 // RemoteSysProbeUtil wraps interactions with a remote system probe service
 type RemoteSysProbeUtil struct {
