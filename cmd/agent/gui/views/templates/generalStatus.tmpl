@@ -347,7 +347,7 @@
     <span class="stat_title">APM</span>
     <span class="stat_data">
     {{- with .apmStats -}}
-      {{- if eq .outcome "error" }}
+      {{- if .error }}
         Status: Not running or unreachable on localhost:{{.port}}.<br>
         Error: {{.error}}<br>
       {{else}}

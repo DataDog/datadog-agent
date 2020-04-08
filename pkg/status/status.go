@@ -93,9 +93,12 @@ func GetStatus() (map[string]interface{}, error) {
 }
 
 // GetAPMStatus returns a set of key/value pairs summarizing the status of the trace-agent.
-// A key "outcome" is always returned and it may be either "error" or "success".
+// If the status can not be obtained for any reason, the returned map will contain an "error"
+// key with an explanation.
 func GetAPMStatus() map[string]interface{} {
 	port := 8126
+	// TODO(gbbr): This should be handled by the shared config package once
+	// we migrate APM env. vars there.
 	if p, ok := os.LookupEnv("DD_APM_RECEIVER_PORT"); ok {
 		if v, err := strconv.Atoi(p); err == nil {
 			port = v
@@ -105,24 +108,21 @@ func GetAPMStatus() map[string]interface{} {
 		port = config.Datadog.GetInt("apm_config.receiver_port")
 	}
 	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
-	resp, err := (&http.Client{Timeout: 3 * time.Second}).Get(url)
+	resp, err := (&http.Client{Timeout: 1 * time.Second}).Get(url)
 	if err != nil {
 		return map[string]interface{}{
-			"outcome": "error",
-			"port":    port,
-			"error":   err.Error(),
+			"port":  port,
+			"error": err.Error(),
 		}
 	}
 	defer resp.Body.Close()
 	status := make(map[string]interface{})
 	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
 		return map[string]interface{}{
-			"outcome": "error",
-			"port":    port,
-			"error":   err.Error(),
+			"port":  port,
+			"error": err.Error(),
 		}
 	}
-	status["outcome"] = "success"
 	return status
 }
 

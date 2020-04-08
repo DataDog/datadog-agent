@@ -2,7 +2,7 @@
 APM Agent
 =========
  
-{{- if eq .outcome "error" }}
+{{- if .error }}
   Status: Not running or unreachable on localhost:{{.port}}.
   Error: {{.error}}
 {{else}}
