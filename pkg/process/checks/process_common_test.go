@@ -73,7 +73,7 @@ func makeProcess(pid int32, cmdline string) *process.FilledProcess {
 }
 
 // procMsgsVerification takes raw containers and processes and make sure the chunked messages have all data, and each chunk has the correct grouping
-func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*process.FilledProcess, maxSize int) {
+func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*process.FilledProcess, maxSize int, cfg *config.AgentConfig) {
 	actualProcs := 0
 	for _, msg := range msgs {
 		payload := msg.(*model.CollectorProc)
@@ -102,6 +102,7 @@ func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers 
 			assert.True(t, len(payload.Processes) <= maxSize)
 			actualProcs += len(payload.Processes)
 		}
+		assert.Equal(t, cfg.ContainerHostType, payload.ContainerHostType)
 	}
 	assert.Equal(t, len(rawProcesses), actualProcs)
 }

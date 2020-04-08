@@ -137,13 +137,14 @@ func batchConnections(
 		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(batchConns))
 
 		batches = append(batches, &model.CollectorConnections{
-			HostName:        cfg.HostName,
-			NetworkId:       networkID,
-			Connections:     batchConns,
-			GroupId:         groupID,
-			GroupSize:       groupSize,
-			ContainerForPid: ctrIDForPID,
-			EncodedDNS:      dnsEncoder.Encode(batchDNS),
+			HostName:          cfg.HostName,
+			NetworkId:         networkID,
+			Connections:       batchConns,
+			GroupId:           groupID,
+			GroupSize:         groupSize,
+			ContainerForPid:   ctrIDForPID,
+			EncodedDNS:        dnsEncoder.Encode(batchDNS),
+			ContainerHostType: cfg.ContainerHostType,
 		})
 		cxs = cxs[batchSize:]
 	}
