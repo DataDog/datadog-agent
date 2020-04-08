@@ -29,12 +29,15 @@ var (
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
-	tracerClientID string
-	networkID      string
+	tracerClientID         string
+	networkID              string
+	notInitializedLogLimit *util.LogLimit
 }
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
+	c.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
+
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 
@@ -87,12 +90,11 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil()
 	if err != nil {
-		if net.ShouldLogTracerUtilError() {
-			return nil, err
+		if c.notInitializedLogLimit.ShouldLog() {
+			log.Errorf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
 		}
-		return nil, ErrTracerStillNotInitialized
+		return ErrTracerStillNotInitialized
 	}
-
 	return tu.GetConnections(c.tracerClientID)
 }
 
