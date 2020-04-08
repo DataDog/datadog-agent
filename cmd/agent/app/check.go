@@ -124,6 +124,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		allConfigs := common.AC.GetAllConfigs()
+		hasJMXConfigs := false
 
 		// make sure the checks in cs are not JMX checks
 		for idx := range allConfigs {
@@ -133,6 +134,8 @@ var checkCmd = &cobra.Command{
 			}
 
 			if check.IsJMXConfig(*conf) {
+				hasJMXConfigs = true
+
 				// we'll mimic the check command behavior with JMXFetch by running
 				// it with the JSON reporter and the list_with_metrics command.
 				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
@@ -263,7 +266,10 @@ var checkCmd = &cobra.Command{
 					}
 				}
 			}
-			return fmt.Errorf("no valid check found")
+
+			if !hasJMXConfigs {
+				return fmt.Errorf("no valid check found")
+			}
 		}
 
 		if len(cs) > 1 {
