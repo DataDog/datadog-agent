@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
+	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,12 +32,12 @@ var (
 type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
-	notInitializedLogLimit *util.LogLimit
+	notInitializedLogLimit *procutil.LogLimit
 }
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
-	c.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
+	c.notInitializedLogLimit = procutil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
@@ -91,9 +92,9 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil()
 	if err != nil {
 		if c.notInitializedLogLimit.ShouldLog() {
-			log.Errorf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
+			log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
 		}
-		return ErrTracerStillNotInitialized
+		return nil, ErrTracerStillNotInitialized
 	}
 	return tu.GetConnections(c.tracerClientID)
 }
