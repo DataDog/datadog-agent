@@ -8,6 +8,7 @@ package autodiscovery
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 type dummyService struct {
@@ -74,4 +75,9 @@ func (s *dummyService) IsReady() bool {
 // GetCheckNames returns slice of check names defined in docker labels
 func (s *dummyService) GetCheckNames() []string {
 	return s.CheckNames
+}
+
+// HasFilter returns false
+func (s *dummyService) HasFilter(filter containers.FilterType) bool {
+	return false
 }

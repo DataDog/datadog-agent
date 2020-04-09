@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -241,4 +242,9 @@ func (s *CloudFoundryService) IsReady() bool {
 // GetCheckNames always returns empty slice on CF
 func (s *CloudFoundryService) GetCheckNames() []string {
 	return []string{}
+}
+
+// HasFilter returns false on CF
+func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
+	return false
 }

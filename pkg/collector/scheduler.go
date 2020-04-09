@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -72,8 +73,8 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !config.IsCheckConfig() {
-			// skip non check configs.
+		if !config.IsCheckConfig() || config.HasFilter(containers.MetricsFilter) {
+			// skip non check and excluded configs.
 			continue
 		}
 		// unschedule all the possible checks corresponding to this config
@@ -188,6 +189,10 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	for _, config := range configs {
 		if !config.IsCheckConfig() {
 			// skip non check configs.
+			continue
+		}
+		if config.HasFilter(containers.MetricsFilter) {
+			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", config.Name)
 			continue
 		}
 		configDigest := config.Digest()

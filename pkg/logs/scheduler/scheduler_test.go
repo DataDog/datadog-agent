@@ -204,3 +204,36 @@ func TestUnscheduleConfigRemovesService(t *testing.T) {
 		break
 	}
 }
+
+func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
+	logSources := config.NewLogSources()
+	services := service.NewServices()
+	scheduler := NewScheduler(logSources, services)
+	servicesStreamIn := services.GetAddedServicesForType(config.DockerType)
+	servicesStreamOut := services.GetRemovedServicesForType(config.DockerType)
+
+	configService := integration.Config{
+		LogsConfig:   []byte(""),
+		TaggerEntity: "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		Entity:       "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck: false,
+		CreationTime: 0,
+		LogsExcluded: true,
+	}
+
+	go scheduler.Schedule([]integration.Config{configService})
+	select {
+	case <-servicesStreamIn:
+		assert.Fail(t, "config must be ignored")
+	case <-time.After(100 * time.Millisecond):
+		break
+	}
+
+	go scheduler.Unschedule([]integration.Config{configService})
+	select {
+	case <-servicesStreamOut:
+		assert.Fail(t, "config must be ignored")
+	case <-time.After(100 * time.Millisecond):
+		break
+	}
+}

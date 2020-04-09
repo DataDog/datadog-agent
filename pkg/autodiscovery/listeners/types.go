@@ -9,6 +9,7 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,6 +37,7 @@ type Service interface {
 	GetCreationTime() integration.CreationTime // created before or after the agent start
 	IsReady() bool                             // is the service ready
 	GetCheckNames() []string                   // slice of check names defined in kubernetes annotations or docker labels
+	HasFilter(containers.FilterType) bool      // whether the service is excluded by metrics or logs exclusion config
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

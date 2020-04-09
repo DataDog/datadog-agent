@@ -16,6 +16,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -113,4 +114,10 @@ func (s *DockerKubeletService) IsReady() bool {
 // DockerKubeletService doesn't implement this method
 func (s *DockerKubeletService) GetCheckNames() []string {
 	return nil
+}
+
+// HasFilter always returns false
+// DockerKubeletService doesn't implement this method
+func (s *DockerKubeletService) HasFilter(filter containers.FilterType) bool {
+	return false
 }
