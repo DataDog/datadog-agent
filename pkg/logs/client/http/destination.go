@@ -171,6 +171,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	ctx := client.NewDestinationsContext()
 	ctx.Start()
 	defer ctx.Stop()
+	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
 	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := destination.Send(emptyPayload)
