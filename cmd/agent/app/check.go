@@ -157,6 +157,11 @@ var checkCmd = &cobra.Command{
 					instances = append(instances, instance)
 				}
 
+				if len(instances) == 0 {
+					fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", checkName)
+					return nil
+				}
+
 				conf.Instances = instances
 			}
 		}

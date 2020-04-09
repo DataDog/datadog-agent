@@ -79,7 +79,11 @@ func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.J
 		return err
 	}
 
-	fmt.Println("JMXFetch exited successfully. If nothing was displayed please check your configuration, flags and the JMXFetch log file.")
+	fmt.Printf(
+		"JMXFetch exited successfully. If nothing was displayed please check your configuration and flags, "+
+			"or re-run the command with a more verbose log level (current log level: '%s').\n",
+		logLevel,
+	)
 	return nil
 }
 
