@@ -40,14 +40,14 @@ func NewLauncher(collectAll bool, collectFromFiles bool, dockerReadTimeout time.
 		}
 		log.Infof("Could not setup the kubernetes launcher: %v", err)
 
-		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, false, dockerReadTimeout)
+		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false)
 		if err == nil {
 			log.Info("Docker launcher initialized")
 			return launcher
 		}
 		log.Infof("Could not setup the docker launcher: %v", err)
 	} else {
-		launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, false, dockerReadTimeout)
+		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false)
 		if err == nil {
 			log.Info("Docker launcher initialized")
 			return launcher
@@ -62,7 +62,7 @@ func NewLauncher(collectAll bool, collectFromFiles bool, dockerReadTimeout time.
 		log.Infof("Could not setup the kubernetes launcher: %v", err)
 	}
 
-	launcher, err = docker.NewLauncher(sources, services, pipelineProvider, registry, true, dockerReadTimeout)
+	launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, true)
 	if err != nil {
 		log.Warnf("Could not setup the docker launcher: %v. Will not be able to collect container logs", err)
 		return NewNoopLauncher()

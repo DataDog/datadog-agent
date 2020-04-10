@@ -482,8 +482,8 @@ func initConfig(config Config) {
 	// Configurable docker client timeout while communicating with the docker daemon.
 	// It could happen that the docker daemon takes a lot of time gathering timestamps
 	// before starting to send any data when it has stored several large log files.
-	// This field let you increase the read timeout to avoid the client to timeout
-	// in such a situation. Value in seconds.
+	// This field lets you increase the read timeout to prevent the client from
+	// timing out too early in such a situation. Value in seconds.
 	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)

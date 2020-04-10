@@ -189,10 +189,9 @@ func (t *Tailer) readForever() {
 					// of the tailer, stop reading
 					return
 				case isContextCanceled(err):
-					// It could happen that the docker daemon takes a lot of time gathering timestamps
+					// Note that it could happen that the docker daemon takes a lot of time gathering timestamps
 					// before starting to send any data when it has stored several large log files.
 					// Increasing the docker_client_read_timeout could help avoiding such a situation.
-					log.Warnf("docker client read timeout (after %s) in the tailer", t.readTimeout.String())
 					if err := t.tryRestartReader("Restarting reader after a read timeout"); err != nil {
 						return
 					}
