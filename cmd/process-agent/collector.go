@@ -65,13 +65,19 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 		}
 	}
 
+	forwarderOpts := forwarder.NewOptions(keysPerDomains(cfg.APIEndpoints))
+	forwarderOpts.EnableHealthChecking = false
+
+	podForwarderOpts := forwarder.NewOptions(keysPerDomains(cfg.OrchestratorEndpoints))
+	podForwarderOpts.EnableHealthChecking = false
+
 	return Collector{
 		send:          make(chan checkPayload, cfg.QueueSize),
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
 		groupID:       rand.Int31(),
-		forwarder:     forwarder.NewDefaultForwarder(keysPerDomains(cfg.APIEndpoints)),
-		podForwarder:  forwarder.NewDefaultForwarder(keysPerDomains(cfg.OrchestratorEndpoints)),
+		forwarder:     forwarder.NewDefaultForwarder(forwarderOpts),
+		podForwarder:  forwarder.NewDefaultForwarder(podForwarderOpts),
 		enabledChecks: enabledChecks,
 
 		// Defaults for real-time on start
