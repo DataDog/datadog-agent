@@ -263,9 +263,8 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 	if found {
 		py3LintedLock.Unlock()
 		return
-	} else {
-		py3Linted[checkName] = struct{}{}
 	}
+	py3Linted[checkName] = struct{}{}
 	py3LintedLock.Unlock()
 
 	status := a7TagUnknown
