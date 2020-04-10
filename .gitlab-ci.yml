@@ -1255,7 +1255,9 @@ publish_choco_7_x64:
   script:
     - Get-ChildItem .omnibus\pkg
     - if (Test-Path nupkg) { remove-item -recurse -force nupkg }
+    - mkdir nupkg
     - copy .omnibus\pkg\*.nupkg nupkg\
+    - Get-ChildItem nupkg
     - docker run --rm -v "$(Get-Location):c:\mnt" -e CHOCOLATEY_API_KEY=${chocolateyApiKey} 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopush.bat
   when: manual
   <<: *skip_when_unwanted_on_7
