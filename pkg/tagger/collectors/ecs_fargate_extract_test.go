@@ -120,6 +120,16 @@ func TestParseMetadata(t *testing.T) {
 
 	expectedUpdatesParseAll := []*TagInfo{
 		{
+			Source:      "ecs_fargate",
+			Entity:      OrchestratorScopeEntityID,
+			LowCardTags: []string{},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
+			HighCardTags: []string{},
+			DeleteEntity: false,
+		},
+		{
 			Source: "ecs_fargate",
 			Entity: "container_id://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
 			LowCardTags: []string{
@@ -224,7 +234,7 @@ func TestParseMetadata(t *testing.T) {
 	// Full parsing should show 3 containers
 	updates, err = collector.parseMetadata(&meta, true)
 	assert.NoError(t, err)
-	assert.Len(t, updates, 3)
+	assert.Len(t, updates, 4)
 	assertTagInfoListEqual(t, expectedUpdatesParseAll, updates)
 }
 

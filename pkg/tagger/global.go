@@ -57,6 +57,11 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	return defaultTagger.Tag(entity, cardinality)
 }
 
+// OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
+func OrchestratorScopeTag() ([]string, error) {
+	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
+}
+
 // Stop queues a stop signal to the defaultTagger
 func Stop() error {
 	return defaultTagger.Stop()

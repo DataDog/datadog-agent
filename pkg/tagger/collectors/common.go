@@ -12,6 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
+// OrchestratorScopeEntityID defines the orchestrator scope entity ID
+const OrchestratorScopeEntityID = "c843937b-8912-452c-be85-f50bd04ecc0f"
+
 var templateVariables = map[string]struct{}{
 	"label": {},
 }
