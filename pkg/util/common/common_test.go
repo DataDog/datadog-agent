@@ -6,6 +6,7 @@
 package common
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
@@ -44,7 +45,7 @@ func TestStringSetGetAll(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, []string(res))
 }
 
-func TestStructToMap(t *testing.T) {
+func TestStructToMapTable(t *testing.T) {
 	type MoreNested struct {
 		Name         string  `json:"name"`
 		Value        float64 `json:"value"`
@@ -93,7 +94,9 @@ func TestStructToMap(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, map[string]interface{}{
+	var topNil Top
+
+	topOutput := map[string]interface{}{
 		"name":  "top",
 		"value": 0,
 		"nested": map[string]interface{}{
@@ -128,5 +131,27 @@ func TestStructToMap(t *testing.T) {
 				},
 			},
 		},
-	}, StructToMap(top))
+	}
+
+	topNilOutput := map[string]interface{}{
+		"name":  "",
+		"value": 0,
+		"mymap": map[string]interface{}{},
+	}
+
+	cases := []struct {
+		name string
+		in   Top
+		out  map[string]interface{}
+	}{
+		{"notNil", top, topOutput},
+		{"nil", topNil, topNilOutput},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%v", tc.name), func(t *testing.T) {
+			assert.Equal(t, tc.out, StructToMap(tc.in))
+		})
+	}
+
 }
