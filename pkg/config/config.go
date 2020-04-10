@@ -479,7 +479,12 @@ func initConfig(config Config) {
 	// additional config to ensure initial logs are tagged with kubelet tags
 	// wait (seconds) for tagger before start fetching tags of new AD services
 	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
-
+	// Configurable docker client timeout while communicating with the docker daemon.
+	// It could happen that the docker daemon takes a lot of time gathering timestamps
+	// before starting to send any data when it has stored several large log files.
+	// This field let you increase the read timeout to avoid the client to timeout
+	// in such a situation. Value in seconds.
+	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	config.BindEnv("logs_config.dd_url")
