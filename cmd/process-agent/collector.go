@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -345,8 +346,13 @@ func keysPerDomains(endpoints []api.Endpoint) map[string][]string {
 	keysPerDomains := make(map[string][]string)
 
 	for _, ep := range endpoints {
-		keysPerDomains[ep.Endpoint.String()] = []string{ep.APIKey}
+		keysPerDomains[removePathIfPresent(ep.Endpoint)] = []string{ep.APIKey}
 	}
 
 	return keysPerDomains
+}
+
+// removePathIfPresent removes the path component from the URL if it is present
+func removePathIfPresent(url *url.URL) string {
+	return fmt.Sprintf("%s://%s", url.Scheme, url.Host)
 }
