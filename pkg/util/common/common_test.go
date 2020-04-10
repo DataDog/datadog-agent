@@ -45,7 +45,7 @@ func TestStringSetGetAll(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c"}, []string(res))
 }
 
-func TestStructToMapTable(t *testing.T) {
+func TestStructToMap(t *testing.T) {
 	type MoreNested struct {
 		Name         string  `json:"name"`
 		Value        float64 `json:"value"`
