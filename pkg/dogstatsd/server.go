@@ -507,7 +507,7 @@ func findOriginTags(origin string) []string {
 	if tagger.DogstatsdCardinality == collectors.OrchestratorCardinality {
 		orchestratorScopeTags, err := tagger.OrchestratorScopeTag()
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Error(err.Error())
 		} else {
 			tags = append(tags, orchestratorScopeTags...)
 		}
