@@ -6,7 +6,6 @@
 package common
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 
@@ -94,28 +93,36 @@ func TestStructToMap(t *testing.T) {
 		},
 	}
 
-	var topNil Top
+	topSliceOfStructs := []Top{
+		top,
+		top,
+	}
 
-	topOutput := map[string]interface{}{
-		"name":  "top",
-		"value": 0,
-		"nested": map[string]interface{}{
-			"moreNested": []interface{}{
-				map[string]interface{}{
-					"id":          "toto",
-					"name":        "ms1",
-					"value":       float64(1),
-					"JSONLessStr": "42",
-				},
-				map[string]interface{}{
-					"name":        "ms2",
-					"value":       float64(2),
-					"JSONLessStr": "",
-				},
-			},
-		},
-		"mymap": map[string]interface{}{
-			"n1": map[string]interface{}{
+	topPointer := &top
+
+	type emptyInterval interface {
+		String() string
+	}
+
+	var nilCase emptyInterval
+
+	var nilPointerCase *Top = nil
+
+	numCase := 1
+	letterCase := "a"
+
+	cases := []struct {
+		name string
+		in   interface{}
+		out  map[string]interface{}
+	}{
+		{"nil interface ", nilCase, map[string]interface{}(nil)},
+		{"number ", numCase, map[string]interface{}{}},
+		{"letter ", letterCase, map[string]interface{}{}},
+		{"valid struct", top, map[string]interface{}{
+			"name":  "top",
+			"value": 0,
+			"nested": map[string]interface{}{
 				"moreNested": []interface{}{
 					map[string]interface{}{
 						"id":          "toto",
@@ -130,26 +137,31 @@ func TestStructToMap(t *testing.T) {
 					},
 				},
 			},
-		},
-	}
-
-	topNilOutput := map[string]interface{}{
-		"name":  "",
-		"value": 0,
-		"mymap": map[string]interface{}{},
-	}
-
-	cases := []struct {
-		name string
-		in   Top
-		out  map[string]interface{}
-	}{
-		{"notNil", top, topOutput},
-		{"nil", topNil, topNilOutput},
+			"mymap": map[string]interface{}{
+				"n1": map[string]interface{}{
+					"moreNested": []interface{}{
+						map[string]interface{}{
+							"id":          "toto",
+							"name":        "ms1",
+							"value":       float64(1),
+							"JSONLessStr": "42",
+						},
+						map[string]interface{}{
+							"name":        "ms2",
+							"value":       float64(2),
+							"JSONLessStr": "",
+						},
+					},
+				},
+			},
+		}},
+		{"sliceOfStructs", topSliceOfStructs, map[string]interface{}{}},
+		{"pointer", topPointer, map[string]interface{}{}},
+		{"nilPointer", nilPointerCase, map[string]interface{}{}},
 	}
 
 	for _, tc := range cases {
-		t.Run(fmt.Sprintf("%v", tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.out, StructToMap(tc.in))
 		})
 	}
