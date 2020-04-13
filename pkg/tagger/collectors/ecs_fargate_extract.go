@@ -10,6 +10,7 @@ package collectors
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -18,6 +19,8 @@ import (
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var doOnceOrchScope sync.Once
 
 // parseMetadata parses the task metadata and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
@@ -30,7 +33,7 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 	}
 	globalTags := config.Datadog.GetStringSlice("tags")
 
-	if parseAll {
+	doOnceOrchScope.Do(func() {
 		tags := utils.NewTagList()
 		tags.AddOrchestrator("task_arn", meta.TaskARN)
 		low, orch, high := tags.Compute()
@@ -42,7 +45,7 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 			LowCardTags:          low,
 		}
 		output = append(output, info)
-	}
+	})
 
 	for _, ctr := range meta.Containers {
 		if c.expire.Update(ctr.DockerID, now) || parseAll {
