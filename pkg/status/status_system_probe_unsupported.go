@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build zlib
+// +build !process
 
 package status
 
@@ -13,6 +13,6 @@ import (
 
 func getSystemProbeStats() map[string]interface{} {
 	return map[string]interface{}{
-		"Errors": fmt.Sprintf("System Probe is not supported when built without zstd support"),
+		"Errors": fmt.Sprintf("System Probe is not supported on systems not running the process agent"),
 	}
 }
