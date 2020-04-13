@@ -224,13 +224,19 @@ func initConfig(config Config) {
 	if IsContainerized() {
 		// In serverless-containerized environments (e.g Fargate)
 		// it's impossible to mount host volumes.
-		// Make sure the paths exist before setting-up the default values.
+		// Make sure the host paths exist before setting-up the default values.
+		// Fallback to the container paths if host paths aren't mounted.
 		if pathExists("/host/proc") {
 			config.SetDefault("procfs_path", "/host/proc")
 			config.SetDefault("container_proc_root", "/host/proc")
+		} else {
+			config.SetDefault("procfs_path", "/proc")
+			config.SetDefault("container_proc_root", "/proc")
 		}
 		if pathExists("/host/sys/fs/cgroup/") {
 			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		} else {
+			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
