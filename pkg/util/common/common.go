@@ -44,7 +44,7 @@ func StructToMap(obj interface{}) map[string]interface{} {
 		return nil
 	}
 
-	if rt != nil && rt.Kind() != reflect.Struct {
+	if rt.Kind() != reflect.Struct {
 		return make(map[string]interface{}, 0)
 	}
 
