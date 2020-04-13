@@ -48,10 +48,6 @@ func StructToMap(obj interface{}) map[string]interface{} {
 		return make(map[string]interface{}, 0)
 	}
 
-	if rt != nil && rt.Kind() != reflect.Struct {
-		return make(map[string]interface{}, 0)
-	}
-
 	out := make(map[string]interface{}, rt.NumField())
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
