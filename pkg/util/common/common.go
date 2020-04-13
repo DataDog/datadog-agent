@@ -40,11 +40,7 @@ func (s StringSet) GetAll() []string {
 func StructToMap(obj interface{}) map[string]interface{} {
 	rt, rv := reflect.TypeOf(obj), reflect.ValueOf(obj)
 
-	if rt == nil {
-		return nil
-	}
-
-	if rt.Kind() != reflect.Struct {
+	if rt == nil || rt.Kind() != reflect.Struct {
 		return make(map[string]interface{}, 0)
 	}
 
