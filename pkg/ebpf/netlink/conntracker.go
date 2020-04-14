@@ -291,7 +291,7 @@ func (ctr *realConntracker) DeleteConn(
 	)
 	now := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.unregisters, 1)
-	atomic.AddInt64(&ctr.stats.unregistersTotalTime, then-now)
+	atomic.AddInt64(&ctr.stats.unregistersTotalTime, now-then)
 	if misses > 0 {
 		atomic.AddInt64(&ctr.stats.missedRegisters, 1)
 	}
