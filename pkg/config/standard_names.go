@@ -22,15 +22,16 @@ var StandardStatsdPrefixes = []string{
 
 	"activemq",
 	"activemq_58",
+	"airflow",
 	"cassandra",
 	"confluent",
-	"flink",
 	"hazelcast",
 	"ignite",
 	"jboss",
 	"jvm",
 	"kafka",
 	"presto",
+	"sidekiq",
 	"solr",
 	"tomcat",
 

@@ -2,4 +2,5 @@
 other:
   - |
     The ``statsd_metric_namespace`` option now ignores the following metric
-    prefixes: ``confluent``, ``flink``, ``hazelcast``, ``ignite``, ``jboss``
+    prefixes: ``airflow``, ``confluent``, ``hazelcast``, ``ignite``,
+    ``jboss``, ``sidekiq``
