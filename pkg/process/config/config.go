@@ -193,7 +193,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		MaxTrackedConnections: defaultMaxTrackedConnections,
 		EnableConntrack:       true,
 		ClosedChannelSize:     500,
-		ConntrackMaxStateSize: defaultMaxTrackedConnections,
+		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
 
 		// Check config
 		EnabledChecks: enabledChecks,
