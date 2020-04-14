@@ -93,57 +93,64 @@ func TestStructToMap(t *testing.T) {
 		},
 	}
 
+	var defaultStruct Top
+	var nilPointer *Top = nil
+
 	cases := []struct {
 		testName string
 		input    interface{}
 		output   map[string]interface{}
 	}{
-		{testName: "nil interface ", input: nil, output: map[string]interface{}{}},
-		{testName: "integer ", input: 1, output: map[string]interface{}{}},
-		{testName: "string ", input: "a", output: map[string]interface{}{}},
-		{testName: "valid struct", input: Top{
-			Name:      "top",
-			Value:     0,
-			NestedPtr: &nested,
-			ID:        "top1",
-			MyMap: map[string]Nested{
-				"n1": Nested{
-					Foo: []MoreNested{
-						{
-							Name:         "ms1",
-							Value:        1,
-							ID:           &str,
-							JSONLessStr:  "42",
-							privateValue: 1000,
-						},
-						{
-							Name:  "ms2",
-							Value: 2,
-							ID:    nil,
+		{
+			testName: "nil interface",
+			input:    nil,
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "integer",
+			input:    1,
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "string",
+			input:    "a",
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "default struct",
+			input:    defaultStruct,
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "valid struct",
+			input: Top{
+				Name:      "top",
+				Value:     0,
+				NestedPtr: &nested,
+				ID:        "top1",
+				MyMap: map[string]Nested{
+					"n1": Nested{
+						Foo: []MoreNested{
+							{
+								Name:         "ms1",
+								Value:        1,
+								ID:           &str,
+								JSONLessStr:  "42",
+								privateValue: 1000,
+							},
+							{
+								Name:  "ms2",
+								Value: 2,
+								ID:    nil,
+							},
 						},
 					},
 				},
 			},
-		}, output: map[string]interface{}{
-			"name":  "top",
-			"value": 0,
-			"nested": map[string]interface{}{
-				"moreNested": []interface{}{
-					map[string]interface{}{
-						"id":          "toto",
-						"name":        "ms1",
-						"value":       float64(1),
-						"JSONLessStr": "42",
-					},
-					map[string]interface{}{
-						"name":        "ms2",
-						"value":       float64(2),
-						"JSONLessStr": "",
-					},
-				},
-			},
-			"mymap": map[string]interface{}{
-				"n1": map[string]interface{}{
+			output: map[string]interface{}{
+				"name":  "top",
+				"value": 0,
+				"nested": map[string]interface{}{
 					"moreNested": []interface{}{
 						map[string]interface{}{
 							"id":          "toto",
@@ -158,25 +165,55 @@ func TestStructToMap(t *testing.T) {
 						},
 					},
 				},
+				"mymap": map[string]interface{}{
+					"n1": map[string]interface{}{
+						"moreNested": []interface{}{
+							map[string]interface{}{
+								"id":          "toto",
+								"name":        "ms1",
+								"value":       float64(1),
+								"JSONLessStr": "42",
+							},
+							map[string]interface{}{
+								"name":        "ms2",
+								"value":       float64(2),
+								"JSONLessStr": "",
+							},
+						},
+					},
+				},
 			},
-		}},
-		{testName: "slice of structs", input: []Top{
-			Top{
-				Name:      "first",
-				Value:     0,
-				NestedPtr: nil,
-				ID:        "first1",
-				MyMap:     map[string]Nested{},
+		},
+		{
+			testName: "slice of structs",
+			input: []Top{
+				Top{
+					Name:      "first",
+					Value:     0,
+					NestedPtr: nil,
+					ID:        "first1",
+					MyMap:     map[string]Nested{},
+				},
+				Top{
+					Name:      "second",
+					Value:     0,
+					NestedPtr: nil,
+					ID:        "second2",
+					MyMap:     map[string]Nested{},
+				},
 			},
-			Top{
-				Name:      "second",
-				Value:     0,
-				NestedPtr: nil,
-				ID:        "second2",
-				MyMap:     map[string]Nested{},
-			},
-		}, output: map[string]interface{}{}},
-		{testName: "pointer", input: &top, output: map[string]interface{}{}},
+			output: map[string]interface{}{},
+		},
+		{
+			testName: "nil pointer",
+			input:    nilPointer,
+			output:   map[string]interface{}{},
+		},
+		{
+			testName: "pointer",
+			input:    &top,
+			output:   map[string]interface{}{},
+		},
 	}
 
 	for _, tc := range cases {
