@@ -72,13 +72,6 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
-	if err := apiserver.SyncInformers([]cache.SharedInformer{
-		endpointsInformer.Informer(),
-		serviceInformer.Informer(),
-	}); err != nil {
-		log.Errorf("Informers not synced properly: %v", err)
-	}
-
 	return &KubeEndpointsListener{
 		endpoints:         make(map[types.UID][]*KubeEndpointService),
 		endpointsInformer: endpointsInformer,

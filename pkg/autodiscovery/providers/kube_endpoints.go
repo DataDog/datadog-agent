@@ -76,13 +76,6 @@ func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (Confi
 		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
 	}
 
-	if err := apiserver.SyncInformers([]cache.SharedInformer{
-		endpointsInformer.Informer(),
-		servicesInformer.Informer(),
-	}); err != nil {
-		log.Errorf("Informers not synced properly: %v", err)
-	}
-
 	p.endpointsLister = endpointsInformer.Lister()
 
 	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

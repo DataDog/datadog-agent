@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
-$nupkgs = Get-ChildItem .\build-out\datadog-agent*.nupkg
+$nupkgs = Get-ChildItem .\nupkg\datadog-agent*.nupkg
 if (($nupkgs | Measure-Object).Count -gt 1) {
     Write-Host "More than 1 Chocolatey package exists - aborting"
     exit 1

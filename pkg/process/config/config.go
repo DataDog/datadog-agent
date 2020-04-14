@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -67,6 +68,8 @@ type AgentConfig struct {
 	StatsdHost            string
 	StatsdPort            int
 	ProcessExpVarPort     int
+	// host type of the agent, used to populate container payload with additional host information
+	ContainerHostType model.ContainerHostType
 
 	// System probe collection configuration
 	EnableSystemProbe              bool
@@ -176,6 +179,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		HostName:              "",
 		Transport:             NewDefaultTransport(),
 		ProcessExpVarPort:     6062,
+		ContainerHostType:     model.ContainerHostType_notSpecified,
 
 		// Statsd for internal instrumentation
 		StatsdHost: "127.0.0.1",
@@ -304,6 +308,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		}
 	}
 
+	cfg.ContainerHostType = getContainerHostType()
+
 	if cfg.proxy != nil {
 		cfg.Transport.Proxy = cfg.proxy
 	}
@@ -349,6 +355,17 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 	}
 
 	return cfg, nil
+}
+
+// getContainerHostType uses the fargate library to detect container environment and returns the protobuf version of it
+func getContainerHostType() model.ContainerHostType {
+	switch fargate.GetOrchestrator() {
+	case fargate.ECS:
+		return model.ContainerHostType_fargateECS
+	case fargate.EKS:
+		return model.ContainerHostType_fargateEKS
+	}
+	return model.ContainerHostType_notSpecified
 }
 
 func loadEnvVariables() {

@@ -99,12 +99,13 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	for i := 0; i < groupSize; i++ {
 		totalContainers += float64(len(chunked[i]))
 		messages = append(messages, &model.CollectorContainer{
-			HostName:   cfg.HostName,
-			NetworkId:  c.networkID,
-			Info:       c.sysInfo,
-			Containers: chunked[i],
-			GroupId:    groupID,
-			GroupSize:  int32(groupSize),
+			HostName:          cfg.HostName,
+			NetworkId:         c.networkID,
+			Info:              c.sysInfo,
+			Containers:        chunked[i],
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 

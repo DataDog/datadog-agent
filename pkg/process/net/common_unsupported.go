@@ -34,8 +34,3 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
-
-// ShouldLogTracerUtilError is not supported
-func ShouldLogTracerUtilError() bool {
-	return false
-}
