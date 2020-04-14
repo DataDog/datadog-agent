@@ -26,6 +26,7 @@ var StandardStatsdPrefixes = []string{
 	"cassandra",
 	"confluent",
 	"hazelcast",
+	"hive",
 	"ignite",
 	"jboss",
 	"jvm",
