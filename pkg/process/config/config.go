@@ -31,7 +31,7 @@ var (
 	// defaultSystemProbeFilePath is the default logging file for the system probe
 	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
 
-	defaultConntrackShortTermBufferSize = 10000
+	defaultConntrackShortTermBufferSize = 20000
 
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
