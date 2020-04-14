@@ -195,7 +195,6 @@ func TestTooManyEntries(t *testing.T) {
 // Example: go test -run TestConntrackerMemoryAllocation -memprofile mem.prof .
 func TestConntrackerMemoryAllocation(t *testing.T) {
 	rt := newConntracker()
-	rt.maxStateSize = 65536 * 2
 	ipGen := randomIPGen()
 
 	for i := 0; i < rt.maxStateSize; i++ {
