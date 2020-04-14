@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
-func getSystemProbeStats() map[string]interface{} {
+func GetSystemProbeStats() map[string]interface{} {
 
 	// TODO: Pull system-probe path from system-probe.yaml
 	net.SetSystemProbePath("/opt/datadog-agent/run/sysprobe.sock")

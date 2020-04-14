@@ -176,6 +176,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Errorf("Could not zip exp var: %s", err)
 	}
 
+	err = zipSystemProbeStats(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Coud not zip system probe exp var stats: %s", err)
+	}
+
 	err = zipDiagnose(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip diagnose: %s", err)
@@ -368,6 +373,20 @@ func zipExpVar(tempDir, hostname string) error {
 		return err
 	}
 	_, err = w.Write(v)
+	return err
+}
+
+func zipSystemProbeStats(tempDir, hostname string) error {
+	sysProbeStats := status.GetSystemProbeStats()
+	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
+	sysProbeWriter, err := newRedactingWriter(sysProbeFile, os.ModePerm, true)
+	defer sysProbeWriter.Close()
+
+	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
+	if err != nil {
+		return err
+	}
+	_, err = sysProbeWriter.Write(sysProbeBuf)
 	return err
 }
 
