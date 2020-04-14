@@ -43,7 +43,6 @@ type Conntracker interface {
 		dstIP util.Address,
 		dstPort uint16,
 		transport process.ConnectionType)
-	ClearShortLived()
 	GetStats() map[string]int64
 	Close()
 }
@@ -72,14 +71,6 @@ type realConntracker struct {
 
 	state map[connKey]*connValue
 
-	// a short term buffer of connections to IPTranslations. Since we cannot make sure that tracer.go
-	// will try to read the translation for an IP before the delete callback happens, we will
-	// safe a fixed number of connections
-	shortLivedBuffer map[connKey]*IPTranslation
-
-	// the maximum size of the short lived buffer
-	maxShortLivedBuffer int
-
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
 
@@ -99,7 +90,7 @@ type realConntracker struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(procRoot string, deleteBufferSize, maxStateSize int) (Conntracker, error) {
+func NewConntracker(procRoot string, maxStateSize int) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -108,7 +99,7 @@ func NewConntracker(procRoot string, deleteBufferSize, maxStateSize int) (Conntr
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(procRoot, deleteBufferSize, maxStateSize)
+		conntracker, err = newConntrackerOnce(procRoot, maxStateSize)
 		done <- struct{}{}
 	}()
 
@@ -120,11 +111,7 @@ func NewConntracker(procRoot string, deleteBufferSize, maxStateSize int) (Conntr
 	}
 }
 
-func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Conntracker, error) {
-	if deleteBufferSize <= 0 {
-		return nil, fmt.Errorf("short term buffer size is less than 0")
-	}
-
+func newConntrackerOnce(procRoot string, maxStateSize int) (Conntracker, error) {
 	netns := getGlobalNetNSFD(procRoot)
 	logger := getLogger()
 
@@ -137,8 +124,6 @@ func newConntrackerOnce(procRoot string, deleteBufferSize, maxStateSize int) (Co
 		nfct:                 nfct,
 		compactTicker:        time.NewTicker(compactInterval),
 		state:                make(map[connKey]*connValue),
-		shortLivedBuffer:     make(map[connKey]*IPTranslation),
-		maxShortLivedBuffer:  deleteBufferSize,
 		maxStateSize:         maxStateSize,
 		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
@@ -190,9 +175,7 @@ func (ctr *realConntracker) GetTranslationForConn(
 	}
 	var result *IPTranslation
 	value, ok := ctr.state[k]
-	if !ok {
-		result = ctr.shortLivedBuffer[k]
-	} else {
+	if ok {
 		value.expGeneration = getNthGeneration(generationLength, then, 3)
 		result = value.IPTranslation
 	}
@@ -203,24 +186,15 @@ func (ctr *realConntracker) GetTranslationForConn(
 	return result
 }
 
-func (ctr *realConntracker) ClearShortLived() {
-	ctr.Lock()
-	defer ctr.Unlock()
-
-	ctr.shortLivedBuffer = make(map[connKey]*IPTranslation, len(ctr.shortLivedBuffer))
-}
-
 func (ctr *realConntracker) GetStats() map[string]int64 {
 	// only a few stats are locked
 	ctr.Lock()
 	size := len(ctr.state)
-	stBufSize := len(ctr.shortLivedBuffer)
 	ctr.Unlock()
 
 	m := map[string]int64{
-		"state_size":             int64(size),
-		"short_term_buffer_size": int64(stBufSize),
-		"expires":                int64(ctr.stats.expiresTotal),
+		"state_size": int64(size),
+		"expires":    int64(ctr.stats.expiresTotal),
 	}
 
 	if ctr.stats.gets != 0 {
@@ -247,29 +221,11 @@ func (ctr *realConntracker) DeleteTranslation(
 	dstPort uint16,
 	transport process.ConnectionType,
 ) {
-	unregisterTuple := func(key connKey) {
-		translation, ok := ctr.state[key]
-		if !ok {
-			return
-		}
-
-		delete(ctr.state, key)
-		if len(ctr.shortLivedBuffer) >= ctr.maxShortLivedBuffer {
-			log.Warnf("exceeded maximum tracked short lived connections (%d)."+
-				"consider raising system_probe_config.conntrack_short_term_buffer_size.",
-				ctr.maxShortLivedBuffer,
-			)
-			return
-		}
-
-		// move the mapping from the permanent to "short lived" connection
-		ctr.shortLivedBuffer[key] = translation.IPTranslation
-	}
-
 	then := time.Now().UnixNano()
 	ctr.Lock()
 	defer ctr.Unlock()
-	unregisterTuple(
+	delete(
+		ctr.state,
 		connKey{
 			srcIP:     srcIP,
 			srcPort:   srcPort,
@@ -278,7 +234,8 @@ func (ctr *realConntracker) DeleteTranslation(
 			transport: transport,
 		},
 	)
-	unregisterTuple(
+	delete(
+		ctr.state,
 		connKey{
 			srcIP:     dstIP,
 			srcPort:   dstPort,

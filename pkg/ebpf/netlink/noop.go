@@ -33,8 +33,6 @@ func (*noOpConntracker) DeleteTranslation(
 
 }
 
-func (*noOpConntracker) ClearShortLived() {}
-
 func (*noOpConntracker) Close() {}
 
 func (*noOpConntracker) GetStats() map[string]int64 {

@@ -192,7 +192,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackShortTermBufferSize, config.ConntrackMaxStateSize); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
@@ -290,6 +290,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 						process.ConnectionType(cs.Type),
 					)
 
+					t.state.StoreClosedConnection(cs)
 					if cs.IPTranslation != nil {
 						t.conntracker.DeleteTranslation(
 							cs.Source,
@@ -299,7 +300,6 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 							process.ConnectionType(cs.Type),
 						)
 					}
-					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
 				if !ok {
@@ -444,8 +444,6 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
-
-	t.conntracker.ClearShortLived()
 
 	for _, key := range closedPortBindings {
 		t.portMapping.RemoveMapping(key)
