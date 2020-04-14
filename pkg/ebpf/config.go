@@ -96,7 +96,7 @@ func NewDefaultConfig() *Config {
 		UDPConnTimeout:               30 * time.Second,
 		TCPConnTimeout:               2 * time.Minute,
 		MaxTrackedConnections:        65536,
-		ConntrackMaxStateSize:        131072, // MaxTrackedConnections * 2
+		ConntrackMaxStateSize:        65636,
 		ConntrackShortTermBufferSize: 100,
 		ProcRoot:                     "/proc",
 		BPFDebug:                     false,
