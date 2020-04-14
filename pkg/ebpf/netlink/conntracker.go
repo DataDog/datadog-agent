@@ -91,7 +91,6 @@ type realConntracker struct {
 		registers            int64
 		registersDropped     int64
 		registersTotalTime   int64
-		missedRegisters      int64
 		unregisters          int64
 		unregistersTotalTime int64
 		expiresTotal         int64
@@ -232,7 +231,6 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 		m["registers_total"] = ctr.stats.registers
 		m["registers_dropped"] = ctr.stats.registersDropped
 		m["nanoseconds_per_register"] = ctr.stats.registersTotalTime / ctr.stats.registers
-		m["missed_registers"] = ctr.stats.missedRegisters
 	}
 	if ctr.stats.unregisters != 0 {
 		m["unregisters_total"] = ctr.stats.unregisters
@@ -249,11 +247,9 @@ func (ctr *realConntracker) DeleteConn(
 	dstPort uint16,
 	transport process.ConnectionType,
 ) {
-	misses := 0
 	unregisterTuple := func(key connKey) {
 		translation, ok := ctr.state[key]
 		if !ok {
-			misses++
 			return
 		}
 
@@ -294,9 +290,6 @@ func (ctr *realConntracker) DeleteConn(
 	now := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.unregisters, 1)
 	atomic.AddInt64(&ctr.stats.unregistersTotalTime, now-then)
-	if misses > 0 {
-		atomic.AddInt64(&ctr.stats.missedRegisters, 1)
-	}
 }
 
 func (ctr *realConntracker) Close() {

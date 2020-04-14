@@ -289,13 +289,16 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 						cs.DPort,
 						process.ConnectionType(cs.Type),
 					)
-					t.conntracker.DeleteConn(
-						cs.Source,
-						cs.SPort,
-						cs.Dest,
-						cs.DPort,
-						process.ConnectionType(cs.Type),
-					)
+
+					if cs.IPTranslation != nil {
+						t.conntracker.DeleteConn(
+							cs.Source,
+							cs.SPort,
+							cs.Dest,
+							cs.DPort,
+							process.ConnectionType(cs.Type),
+						)
+					}
 					t.state.StoreClosedConnection(cs)
 				}
 			case lostCount, ok := <-lostChannel:
