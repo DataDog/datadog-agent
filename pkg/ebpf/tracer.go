@@ -291,7 +291,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 					)
 
 					if cs.IPTranslation != nil {
-						t.conntracker.DeleteConn(
+						t.conntracker.DeleteTranslation(
 							cs.Source,
 							cs.SPort,
 							cs.Dest,

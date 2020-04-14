@@ -24,7 +24,7 @@ func (*noOpConntracker) GetTranslationForConn(
 	return nil
 }
 
-func (*noOpConntracker) DeleteConn(
+func (*noOpConntracker) DeleteTranslation(
 	srcIP util.Address,
 	srcPort uint16,
 	dstIP util.Address,

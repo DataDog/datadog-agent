@@ -37,7 +37,7 @@ type Conntracker interface {
 		dstIP util.Address,
 		dstPort uint16,
 		transport process.ConnectionType) *IPTranslation
-	DeleteConn(
+	DeleteTranslation(
 		srcIP util.Address,
 		srcPort uint16,
 		dstIP util.Address,
@@ -240,7 +240,7 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 	return m
 }
 
-func (ctr *realConntracker) DeleteConn(
+func (ctr *realConntracker) DeleteTranslation(
 	srcIP util.Address,
 	srcPort uint16,
 	dstIP util.Address,
