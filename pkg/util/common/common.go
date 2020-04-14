@@ -45,10 +45,10 @@ func StructToMap(obj interface{}) map[string]interface{} {
 	// using this in the next iteration: if rt != nil && (rt.Kind() == reflect.Struct || rt.Kind() == reflect.Ptr) && !rv.IsZero() {
 	if rt != nil && rt.Kind() == reflect.Struct && !rv.IsZero() {
 
-		if rt.Kind() == reflect.Ptr {
-			// obj = *obj
-			rt, rv = reflect.TypeOf(obj), reflect.ValueOf(obj)
-		}
+		// using this in  next iteration: if rt.Kind() == reflect.Ptr {
+		// 	// obj = *obj
+		// 	rt, rv = reflect.TypeOf(obj), reflect.ValueOf(obj)
+		// }
 
 		out = make(map[string]interface{}, rt.NumField())
 		for i := 0; i < rt.NumField(); i++ {
