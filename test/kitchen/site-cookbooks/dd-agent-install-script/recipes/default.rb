@@ -28,6 +28,7 @@ kitchen_environment_variables = {
   'DD_API_KEY' => node['dd-agent-install-script']['api_key'],
   'REPO_URL' => node['dd-agent-install-script']['repo_url'],
   'DD_URL' => node['dd-agent-install-script']['dd_url'],
+  'DD_SITE' => node['dd-agent-install-script']['dd_site'],
 
   'TESTING_APT_URL' => node['dd-agent-install-script']['repo_domain_apt'],
   'TESTING_YUM_URL' => node['dd-agent-install-script']['repo_domain_yum'],
