@@ -24,6 +24,15 @@ func (*noOpConntracker) GetTranslationForConn(
 	return nil
 }
 
+func (*noOpConntracker) DeleteConn(
+	srcIP util.Address,
+	srcPort uint16,
+	dstIP util.Address,
+	dstPort uint16,
+	transport process.ConnectionType) {
+
+}
+
 func (*noOpConntracker) ClearShortLived() {}
 
 func (*noOpConntracker) Close() {}

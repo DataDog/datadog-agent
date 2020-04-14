@@ -37,6 +37,12 @@ type Conntracker interface {
 		dstIP util.Address,
 		dstPort uint16,
 		transport process.ConnectionType) *IPTranslation
+	DeleteConn(
+		srcIP util.Address,
+		srcPort uint16,
+		dstIP util.Address,
+		dstPort uint16,
+		transport process.ConnectionType)
 	ClearShortLived()
 	GetStats() map[string]int64
 	Close()
@@ -80,12 +86,15 @@ type realConntracker struct {
 	statsTicker   *time.Ticker
 	compactTicker *time.Ticker
 	stats         struct {
-		gets               int64
-		getTimeTotal       int64
-		registers          int64
-		registersDropped   int64
-		registersTotalTime int64
-		expiresTotal       int64
+		gets                 int64
+		getTimeTotal         int64
+		registers            int64
+		registersDropped     int64
+		registersTotalTime   int64
+		missedRegisters      int64
+		unregisters          int64
+		unregistersTotalTime int64
+		expiresTotal         int64
 	}
 	exceededSizeLogLimit *util.LogLimit
 }
@@ -223,9 +232,69 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 		m["registers_total"] = ctr.stats.registers
 		m["registers_dropped"] = ctr.stats.registersDropped
 		m["nanoseconds_per_register"] = ctr.stats.registersTotalTime / ctr.stats.registers
+		m["missed_registers"] = ctr.stats.missedRegisters
+	}
+	if ctr.stats.unregisters != 0 {
+		m["unregisters_total"] = ctr.stats.unregisters
+		m["nanoseconds_per_unregister"] = ctr.stats.unregistersTotalTime / ctr.stats.unregisters
 	}
 
 	return m
+}
+
+func (ctr *realConntracker) DeleteConn(
+	srcIP util.Address,
+	srcPort uint16,
+	dstIP util.Address,
+	dstPort uint16,
+	transport process.ConnectionType,
+) {
+	misses := 0
+	unregisterTuple := func(key connKey) {
+		translation, ok := ctr.state[key]
+		if !ok {
+			misses++
+			return
+		}
+
+		// move the mapping from the permanent to "short lived" connection
+		delete(ctr.state, key)
+		if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer {
+			ctr.shortLivedBuffer[key] = translation.IPTranslation
+		} else {
+			log.Warnf("exceeded maximum tracked short lived connections (%d). consider raising system_probe_config.conntrack_short_term_buffer_size.",
+				ctr.maxShortLivedBuffer,
+			)
+		}
+	}
+
+	then := time.Now().UnixNano()
+	ctr.Lock()
+	defer ctr.Unlock()
+	unregisterTuple(
+		connKey{
+			srcIP:     srcIP,
+			srcPort:   srcPort,
+			dstIP:     dstIP,
+			dstPort:   dstPort,
+			transport: transport,
+		},
+	)
+	unregisterTuple(
+		connKey{
+			srcIP:     dstIP,
+			srcPort:   dstPort,
+			dstIP:     srcIP,
+			dstPort:   srcPort,
+			transport: transport,
+		},
+	)
+	now := time.Now().UnixNano()
+	atomic.AddInt64(&ctr.stats.unregisters, 1)
+	atomic.AddInt64(&ctr.stats.unregistersTotalTime, then-now)
+	if misses > 0 {
+		atomic.AddInt64(&ctr.stats.missedRegisters, 1)
+	}
 }
 
 func (ctr *realConntracker) Close() {
