@@ -257,15 +257,17 @@ func (ctr *realConntracker) DeleteConn(
 			return
 		}
 
-		// move the mapping from the permanent to "short lived" connection
 		delete(ctr.state, key)
-		if len(ctr.shortLivedBuffer) < ctr.maxShortLivedBuffer {
-			ctr.shortLivedBuffer[key] = translation.IPTranslation
-		} else {
-			log.Warnf("exceeded maximum tracked short lived connections (%d). consider raising system_probe_config.conntrack_short_term_buffer_size.",
+		if len(ctr.shortLivedBuffer) >= ctr.maxShortLivedBuffer {
+			log.Warnf("exceeded maximum tracked short lived connections (%d)."+
+				"consider raising system_probe_config.conntrack_short_term_buffer_size.",
 				ctr.maxShortLivedBuffer,
 			)
+			return
 		}
+
+		// move the mapping from the permanent to "short lived" connection
+		ctr.shortLivedBuffer[key] = translation.IPTranslation
 	}
 
 	then := time.Now().UnixNano()
