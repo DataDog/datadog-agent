@@ -35,8 +35,8 @@ kitchen_environment_variables = {
   'TESTING_YUM_VERSION_PATH' => node['dd-agent-install-script']['repo_branch_yum'],
 }.compact
 
-# Transform hash into bash syntax for assigning variables
-kitchen_script_prefix = kitchen_environment_variables.map{ |pair| pair.join('=') }.join(' ')
+# Transform hash into bash syntax for exporting environment variables
+kitchen_env_export = kitchen_environment_variables.map{ |pair| "export '#{pair.join('=')}'" }.join("\n")
 
 execute 'update Agent install script repository' do
   cwd wrk_dir
@@ -50,7 +50,8 @@ end
 execute 'run agent install script' do
   cwd wrk_dir
   command <<-EOF
-    #{kitchen_script_prefix} bash install-script
+    #{kitchen_env_export}
+    bash install-script
     sleep 10
   EOF
   live_stream true
