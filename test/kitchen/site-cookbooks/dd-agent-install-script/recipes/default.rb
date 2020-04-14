@@ -24,25 +24,23 @@ execute 'ignore "apt-get update" failure' do
   command "sed -i 's/apt-get update$/apt-get update || true/' install-script"
 end
 
+kitchen_environment_variables = {
+  'DD_API_KEY' => node['dd-agent-install-script']['api_key'],
+  'REPO_URL' => node['dd-agent-install-script']['repo_url'],
+  'DD_URL' => node['dd-agent-install-script']['dd_url'],
+
+  'TESTING_APT_URL' => node['dd-agent-install-script']['repo_domain_apt'],
+  'TESTING_YUM_URL' => node['dd-agent-install-script']['repo_domain_yum'],
+  'TESTING_APT_REPO_VERSION' => "#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}",
+  'TESTING_YUM_VERSION_PATH' => node['dd-agent-install-script']['repo_branch_yum'],
+}.compact
+
+# Transform hash into bash syntax for assigning variables
+kitchen_script_prefix = kitchen_environment_variables.map{ |pair| pair.join('=') }.join(' ')
+
 execute 'update Agent install script repository' do
   cwd wrk_dir
   command <<-EOF
-    sed -i 's/apt\\.datadoghq\\.com/#{node['dd-agent-install-script']['repo_domain_apt']}/' install-script
-    sed -i 's/yum\\.datadoghq\\.com/#{node['dd-agent-install-script']['repo_domain_yum']}/' install-script
-    sed -i 's/apt.${repo_url}/#{node['dd-agent-install-script']['repo_domain_apt']}/' install-script
-    sed -i 's/yum.${repo_url}/#{node['dd-agent-install-script']['repo_domain_yum']}/' install-script
-    sed -i 's~stable/x86_64~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~rpm/x86_64~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta/x86_64~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta/$ARCHI~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta/$ARCHI~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta/$ARCHI~#{node['dd-agent-install-script']['repo_branch_yum']}/x86_64~' install-script
-    sed -i 's~beta main~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
-    sed -i 's~stable main~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
-    sed -i 's~stable 6~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
-    sed -i 's~stable/6~#{node['dd-agent-install-script']['repo_branch_yum']}~' install-script
-    sed -i 's~${dd_agent_dist_channel} ${dd_agent_major_version}~#{node['dd-agent-install-script']['repo_branch_apt']} #{node['dd-agent-install-script']['repo_component_apt']}~' install-script
-    sed -i 's~${dd_agent_dist_channel}/${dd_agent_major_version}~#{node['dd-agent-install-script']['repo_branch_yum']}~' install-script
     sed -i 's~$sudo_cmd which service~sudo which service~' install-script
   EOF
 
@@ -52,10 +50,7 @@ end
 execute 'run agent install script' do
   cwd wrk_dir
   command <<-EOF
-    sed -i '1aDD_API_KEY=#{node['dd-agent-install-script']['api_key']}' install-script
-    sed -i '1aREPO_URL="datad0g.com"' install-script
-    sed -i '1aDD_URL="datad0g.com"' install-script
-    bash install-script
+    #{kitchen_script_prefix} bash install-script
     sleep 10
   EOF
   live_stream true
