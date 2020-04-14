@@ -21,7 +21,6 @@ DEFAULT_BUILD_TAGS = [
     "clusterchecks",
     "secrets",
     "orchestrator",
-    "zlib",
 ]
 
 
