@@ -92,7 +92,7 @@ func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 	if coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
-	if isForceHTTPUse() || (bool(httpConnectivity) && !(isForceTCPUse() || isSocks5ProxySet())) {
+	if isForceHTTPUse() || (bool(httpConnectivity) && !(isForceTCPUse() || isSocks5ProxySet() || hasAdditionalEndpoints())) {
 		return BuildHTTPEndpoints()
 	}
 	log.Warn("You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed) " +
@@ -111,6 +111,10 @@ func isForceTCPUse() bool {
 
 func isForceHTTPUse() bool {
 	return coreConfig.Datadog.GetBool("logs_config.use_http")
+}
+
+func hasAdditionalEndpoints() bool {
+	return len(getAdditionalEndpoints()) > 0
 }
 
 func buildTCPEndpoints() (*Endpoints, error) {
