@@ -305,8 +305,8 @@ func StartAgent() error {
 // StopAgent Tears down the agent process
 func StopAgent() {
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {

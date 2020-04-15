@@ -236,7 +236,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname, agentName st
 		hostnameUpdate:     make(chan string),
 		hostnameUpdateDone: make(chan struct{}),
 		stopChan:           make(chan struct{}),
-		health:             health.Register("aggregator"),
+		health:             health.RegisterLiveness("aggregator"),
 		agentName:          agentName,
 	}
 

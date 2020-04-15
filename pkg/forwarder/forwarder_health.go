@@ -71,7 +71,7 @@ func (fh *forwarderHealth) init() {
 }
 
 func (fh *forwarderHealth) Start() {
-	fh.health = health.Register("forwarder")
+	fh.health = health.RegisterReadiness("forwarder")
 	fh.init()
 	go fh.healthCheckLoop()
 }

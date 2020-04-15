@@ -155,7 +155,7 @@ func (d *dispatcher) run(ctx context.Context) {
 	d.store.active = true
 	d.store.Unlock()
 
-	healthProbe := health.Register("clusterchecks-dispatch")
+	healthProbe := health.RegisterLiveness("clusterchecks-dispatch")
 	defer health.Deregister(healthProbe)
 
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)

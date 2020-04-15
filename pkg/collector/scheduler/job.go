@@ -57,7 +57,7 @@ func newJobQueue(interval time.Duration) *jobQueue {
 		interval:     interval,
 		stop:         make(chan bool),
 		stopped:      make(chan bool),
-		health:       health.Register("collector-queue"),
+		health:       health.RegisterLiveness("collector-queue"),
 		bucketTicker: time.NewTicker(time.Second),
 	}
 

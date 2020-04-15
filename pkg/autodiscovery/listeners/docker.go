@@ -77,7 +77,7 @@ func NewDockerListener() (ServiceListener, error) {
 		filter:     filter,
 		services:   make(map[string]Service),
 		stop:       make(chan bool),
-		health:     health.Register("ad-dockerlistener"),
+		health:     health.RegisterLiveness("ad-dockerlistener"),
 	}, nil
 }
 
