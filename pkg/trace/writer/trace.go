@@ -216,7 +216,9 @@ func (w *TraceWriter) flush() {
 		if _, err := gzipw.Write(b); err != nil {
 			log.Errorf("Error gzipping trace payload: %v", err)
 		}
-		gzipw.Close()
+		if err := gzipw.Close(); err != nil {
+			log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+		}
 
 		sendPayloads(w.senders, p)
 	}()
