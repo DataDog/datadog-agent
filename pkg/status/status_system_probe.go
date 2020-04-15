@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
+// GetSystemProbeStats returns the expvar stats of the system probe
 func GetSystemProbeStats() map[string]interface{} {
 
 	// TODO: Pull system-probe path from system-probe.yaml
