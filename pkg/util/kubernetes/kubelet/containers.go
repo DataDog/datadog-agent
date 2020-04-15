@@ -96,6 +96,11 @@ func (ku *KubeUtil) getContainerMetrics(ctn *containers.Container) {
 	}
 	ctn.SetMetrics(metrics)
 
+	ctn.Pids, err = providers.ContainerImpl().GetPIDs(ctn.ID)
+	if err != nil {
+		log.Debugf("ContainerImplementation cannot get PIDs for container %s, err: %s", ctn.ID[:12], err)
+	}
+
 	networkMetrics, err := providers.ContainerImpl().GetNetworkMetrics(ctn.ID, nil)
 	if err != nil {
 		log.Debugf("Cannot get network stats for container %s: %s", ctn.ID, err)
