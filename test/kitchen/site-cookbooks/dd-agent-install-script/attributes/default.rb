@@ -7,9 +7,9 @@ default['dd-agent-install-script']['repo_url'] = 'datad0g.com'
 default['dd-agent-install-script']['dd_url'] = 'datad0g.com'
 default['dd-agent-install-script']['dd_site'] = 'datadoghq.eu'
 
-default['dd-agent-install-script']['yum_url'] = 'yumtesting.datad0g.com'
+default['dd-agent-install-script']['repo_domain_yum'] = 'yumtesting.datad0g.com'
 default['dd-agent-install-script']['repo_branch_yum'] = 'testing'
 
-default['dd-agent-install-script']['apt_url'] = 'apttesting.datad0g.com'
+default['dd-agent-install-script']['repo_domain_apt'] = 'apttesting.datad0g.com'
 default['dd-agent-install-script']['repo_branch_apt'] = 'testing'
 default['dd-agent-install-script']['repo_component_apt'] = 'main'
