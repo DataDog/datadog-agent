@@ -6,4 +6,4 @@ if (($nupkgs | Measure-Object).Count -gt 1) {
     exit 1
 }
 Write-Host "Publishing Chocolatey package for agent version $agentVersion"
-choco push $nupkgs[0].FullName -k $env:CHOCOLATEY_API_KEY --source https://push.chocolatey.org/
+choco push $nupkgs[0].FullName --verbose --key $env:CHOCOLATEY_API_KEY --source https://push.chocolatey.org/
