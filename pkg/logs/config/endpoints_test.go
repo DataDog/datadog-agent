@@ -287,6 +287,25 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 	endpoints, err = BuildEndpoints(HTTPConnectivityFailure)
 	suite.Nil(err)
 	suite.False(endpoints.UseHTTP)
+	suite.config.Set("logs_config.socks5_proxy_address", "")
+
+	// When additional_endpoints is not empty always create TCP endpoints
+	suite.config.Set("logs_config.use_http", "false")
+	suite.config.Set("logs_config.use_tcp", "false")
+	suite.config.Set("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"host":              "foo",
+			"api_key":           "1234",
+			"use_compression":   true,
+			"compression_level": 1,
+		},
+	})
+	endpoints, err = BuildEndpoints(HTTPConnectivitySuccess)
+	suite.Nil(err)
+	suite.False(endpoints.UseHTTP)
+	endpoints, err = BuildEndpoints(HTTPConnectivityFailure)
+	suite.Nil(err)
+	suite.False(endpoints.UseHTTP)
 }
 
 func (suite *EndpointsTestSuite) TestIsSetAndNotEmpty() {
