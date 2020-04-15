@@ -380,6 +380,9 @@ func zipSystemProbeStats(tempDir, hostname string) error {
 	sysProbeStats := status.GetSystemProbeStats()
 	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
 	sysProbeWriter, err := newRedactingWriter(sysProbeFile, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
 	defer sysProbeWriter.Close()
 
 	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
