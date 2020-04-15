@@ -294,6 +294,14 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		},
 	},
 	IntegrationEntry{
+		DisplayName:  "RethinkDB",
+		MetricPrefix: "rethinkdb.",
+		Name:         "rethinkdb",
+		Signatures: []string{
+			"rethinkdb",
+		},
+	},
+	IntegrationEntry{
 		DisplayName:  "Riak CS",
 		MetricPrefix: "riakcs.",
 		Name:         "riakcs",
@@ -360,6 +368,7 @@ var DefaultCatalog IntegrationCatalog = IntegrationCatalog{
 		Name:         "varnish",
 		Signatures: []string{
 			"service varnish start",
+			"varnishd",
 		},
 	},
 	IntegrationEntry{
