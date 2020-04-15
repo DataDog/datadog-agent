@@ -67,10 +67,6 @@ type Config struct {
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
 
-	// ConntrackShortTermBufferSize is the maximum number of short term conntracked connections that will
-	// held in memory at once
-	ConntrackShortTermBufferSize int
-
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
 
@@ -87,20 +83,19 @@ type Config struct {
 // NewDefaultConfig enables traffic collection for all connection types
 func NewDefaultConfig() *Config {
 	return &Config{
-		CollectTCPConns:              true,
-		CollectUDPConns:              true,
-		CollectIPv6Conns:             true,
-		CollectLocalDNS:              false,
-		DNSInspection:                true,
-		CollectDNSStats:              false,
-		UDPConnTimeout:               30 * time.Second,
-		TCPConnTimeout:               2 * time.Minute,
-		MaxTrackedConnections:        65536,
-		ConntrackMaxStateSize:        65536,
-		ConntrackShortTermBufferSize: 100,
-		ProcRoot:                     "/proc",
-		BPFDebug:                     false,
-		EnableConntrack:              true,
+		CollectTCPConns:       true,
+		CollectUDPConns:       true,
+		CollectIPv6Conns:      true,
+		CollectLocalDNS:       false,
+		DNSInspection:         true,
+		CollectDNSStats:       false,
+		UDPConnTimeout:        30 * time.Second,
+		TCPConnTimeout:        2 * time.Minute,
+		MaxTrackedConnections: 65536,
+		ConntrackMaxStateSize: 65536,
+		ProcRoot:              "/proc",
+		BPFDebug:              false,
+		EnableConntrack:       true,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
