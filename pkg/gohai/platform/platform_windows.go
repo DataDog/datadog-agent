@@ -130,11 +130,9 @@ func GetArchInfo() (systemInfo map[string]interface{}, err error) {
 
 	// do additional work so that we don't panic() when the library's
 	// not there (like in a container)
-	var family string
+	family := "Unknown"
 	si, sierr := netServerGetInfo()
-	if sierr != nil {
-		family = "Unknown"
-	else {
+	if sierr == nil {
 		if (si.sv101_type&SV_TYPE_WORKSTATION) == SV_TYPE_WORKSTATION ||
 			(si.sv101_type&SV_TYPE_SERVER) == SV_TYPE_SERVER {
 			if (si.sv101_type & SV_TYPE_WORKSTATION) == SV_TYPE_WORKSTATION {
