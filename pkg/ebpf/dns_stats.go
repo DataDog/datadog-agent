@@ -53,6 +53,7 @@ type dnsStatKeeper struct {
 func newDNSStatkeeper() *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
 		stats:            make(map[dnsKey]dnsStats),
+		state:            make(map[stateKey]time.Time),
 		expirationPeriod: 30 * time.Second, // TODO: make it configurable
 		exit:             make(chan struct{}),
 	}
