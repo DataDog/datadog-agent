@@ -3,11 +3,12 @@
 package ebpf
 
 import (
-	bpflib "github.com/iovisor/gobpf/elf"
 	"math/rand"
 	"net"
 	"testing"
 	"time"
+
+	bpflib "github.com/iovisor/gobpf/elf"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	mdns "github.com/miekg/dns"
@@ -129,7 +130,6 @@ func testDNSOverTCPSnooping(t *testing.T, domain string, shouldSucceed bool) {
 
 	rep, _, _ := dnsClient.Exchange(msg, dnsHost)
 	require.NotNil(t, rep)
-	time.Sleep(1 * time.Second)
 
 	if shouldSucceed {
 		require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
@@ -152,10 +152,23 @@ func testDNSOverTCPSnooping(t *testing.T, domain string, shouldSucceed bool) {
 		protocol:   TCP,
 	}
 
-	// Allow the DNS reply to be processed in the snooper
-	time.Sleep(time.Millisecond * 500)
+	var allStats = map[dnsKey]dnsStats{}
 
-	allStats := reverseDNS.GetDNSStats()
+	timeout := time.After(1 * time.Second)
+Loop:
+	// Wait until DNS stats becomes available
+	for {
+		select {
+		case <-timeout:
+			break Loop
+		default:
+			allStats = reverseDNS.GetDNSStats()
+			if len(allStats) >= 1 {
+				break Loop
+			}
+		}
+	}
+
 	require.Equal(t, 1, len(allStats))
 
 	if shouldSucceed {
