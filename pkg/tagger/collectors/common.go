@@ -13,7 +13,7 @@ import (
 )
 
 // OrchestratorScopeEntityID defines the orchestrator scope entity ID
-const OrchestratorScopeEntityID = "c843937b-8912-452c-be85-f50bd04ecc0f"
+const OrchestratorScopeEntityID = "orchestrator-scope-entity-id"
 
 var templateVariables = map[string]struct{}{
 	"label": {},
