@@ -18,7 +18,8 @@ const (
 	// - k8s.gcr.io/pause-amd64:3.1
 	// - asia.gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/google_containers/pause-amd64:3.0
-	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/)pause(.*)`
+	// - gcr.io/gke-release/pause-win:1.1.0
+	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/gke-release/|/)pause(.*)`
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
@@ -28,6 +29,8 @@ const (
 	// - gcrio.azureedge.net/google_containers/pause-amd64
 	pauseContainerAzure   = `image:(.*)azureedge\.net(/google_containers/|/)pause(.*)`
 	pauseContainerRancher = `image:rancher/pause(.*)`
+	pauseContainerAKS     = `image:mcr.microsoft.com/k8s/core/pause(.*)`
+	pauseContainerECR     = `image:ecr(.*)amazonaws.com/pause(.*)`
 )
 
 // Filter holds the state for the container filtering logic
@@ -132,6 +135,8 @@ func NewFilterFromConfig() (*Filter, error) {
 			pauseContainerECS,
 			pauseContainerEKS,
 			pauseContainerRancher,
+			pauseContainerAKS,
+			pauseContainerECR,
 		)
 	}
 	return NewFilter(whitelist, blacklist)
