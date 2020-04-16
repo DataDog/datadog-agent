@@ -34,6 +34,11 @@ type NetworkMeta struct {
 	ID string `json:"network-id"`
 }
 
+// LogsMeta is metadata about the host's logs agent
+type LogsMeta struct {
+	Transport string `json:"transport"`
+}
+
 type tags struct {
 	System              []string `json:"system,omitempty"`
 	GoogleCloudPlatform []string `json:"google cloud platform,omitempty"`
@@ -48,4 +53,5 @@ type Payload struct {
 	HostTags      *tags             `json:"host-tags"`
 	ContainerMeta map[string]string `json:"container-meta,omitempty"`
 	NetworkMeta   *NetworkMeta      `json:"network"`
+	LogsMeta      *LogsMeta         `json:"logs"`
 }

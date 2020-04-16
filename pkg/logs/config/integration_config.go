@@ -122,7 +122,7 @@ func (c *LogsConfig) Validate() error {
 func (c *LogsConfig) validateTailingMode() error {
 	mode, found := TailingModeFromString(c.TailingMode)
 	if !found && c.TailingMode != "" {
-		return fmt.Errorf("invalid tailing mode '%v' for %v", mode, c.Path)
+		return fmt.Errorf("invalid tailing mode '%v' for %v", c.TailingMode, c.Path)
 	}
 	if ContainsWildcard(c.Path) && (mode == Beginning || mode == ForceBeginning) {
 		return fmt.Errorf("tailing from the beginning is not supported for wildcard path %v", c.Path)

@@ -14,7 +14,7 @@ from invoke.exceptions import Exit, ParseError
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var, check_go111module_envvar
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, get_distro_exclude_tags, LINUX_ONLY_TAGS
+from .build_tags import get_build_tags, get_default_build_tags, get_distro_exclude_tags, LINUX_ONLY_TAGS, WINDOWS_32BIT_EXCLUDE_TAGS
 from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
@@ -62,6 +62,7 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "systemd",
+    "tcp_queue_length",
     "uptime",
     "winproc",
 ]
@@ -106,6 +107,11 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
+            if ex not in build_exclude:
+                build_exclude.append(ex)
+
+    if sys.platform == 'win32' and arch == "x86":
+        for ex in WINDOWS_32BIT_EXCLUDE_TAGS:
             if ex not in build_exclude:
                 build_exclude.append(ex)
 
@@ -338,7 +344,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base_dir=None, gem_path=None,
                   skip_deps=False, skip_sign=False, release_version="nightly", major_version='7',
                   python_runtimes='3', omnibus_s3_cache=False, hardened_runtime=False, system_probe_bin=None,
-                  libbcc_tarball=None):
+                  libbcc_tarball=None, with_bcc=True):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -427,6 +433,8 @@ def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base
             env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version, env=env)
             env['MAJOR_VERSION'] = major_version
             env['PY_RUNTIMES'] = python_runtimes
+            if with_bcc:
+                env['WITH_BCC'] = 'true'
             if system_probe_bin is not None:
                 env['SYSTEM_PROBE_BIN'] = system_probe_bin
             if libbcc_tarball is not None:

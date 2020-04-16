@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+features:
   - |
-    JMXFetch upgraded to `0.36.0 <https://github.com/DataDog/jmxfetch/releases/0.36.0>`_
+    Add an eBPF based check to measure the size of TCP queues.

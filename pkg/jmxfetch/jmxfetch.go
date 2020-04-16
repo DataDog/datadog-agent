@@ -48,6 +48,7 @@ var (
 		"error":    "ERROR",
 		"err":      "ERROR",
 		"critical": "FATAL",
+		"off":      "OFF",
 	}
 	jvmCgroupMemoryIncompatOptions = []string{
 		"Xmx",

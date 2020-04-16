@@ -213,29 +213,14 @@ func (w *TraceWriter) flush() {
 			log.Errorf("gzip.NewWriterLevel: %d", err)
 			return
 		}
-		gzipw.Write(b)
-		gzipw.Close()
-
-		if len(w.senders) == 1 {
-			// fast path
-			w.senders[0].Push(p)
-		} else {
-			// Create a clone for each payload because each sender places payloads
-			// back onto the pool after they are sent.
-			payloads := make([]*payload, 0, len(w.senders))
-			// Perform all the clones before any sends are to ensure the original
-			// payload body is completely unread.
-			for i := range w.senders {
-				if i == 0 {
-					payloads = append(payloads, p)
-				} else {
-					payloads = append(payloads, p.clone())
-				}
-			}
-			for i, sender := range w.senders {
-				sender.Push(payloads[i])
-			}
+		if _, err := gzipw.Write(b); err != nil {
+			log.Errorf("Error gzipping trace payload: %v", err)
 		}
+		if err := gzipw.Close(); err != nil {
+			log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+		}
+
+		sendPayloads(w.senders, p)
 	}()
 }
 

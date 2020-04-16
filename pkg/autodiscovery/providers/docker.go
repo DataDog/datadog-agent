@@ -89,6 +89,8 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 		go d.listen()
 	}
 
+	d.RLock()
+	defer d.RUnlock()
 	return parseDockerLabels(containers)
 }
 

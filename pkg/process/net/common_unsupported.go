@@ -10,14 +10,19 @@ import (
 // RemoteSysProbeUtil is not supported
 type RemoteSysProbeUtil struct{}
 
-// SetSystemProbeSocketPath is not supported
-func SetSystemProbeSocketPath(_ string) {
+// SetSystemProbePath is not supported
+func SetSystemProbePath(_ string) {
 	// no-op
+}
+
+// CheckPath is not supported
+func CheckPath() error {
+	return ebpf.ErrNotImplemented
 }
 
 // GetRemoteSystemProbeUtil is not supported
 func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
-	return &RemoteSysProbeUtil{}, nil
+	return &RemoteSysProbeUtil{}, ebpf.ErrNotImplemented
 }
 
 // GetConnections is not supported
@@ -25,7 +30,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return nil, ebpf.ErrNotImplemented
 }
 
-// ShouldLogTracerUtilError is not supported
-func ShouldLogTracerUtilError() bool {
-	return false
+// GetStats is not supported
+func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
 }

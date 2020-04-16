@@ -21,7 +21,7 @@ func TestConntracker(t *testing.T) {
 		t.Errorf("setup command output: %s", string(out))
 	}
 
-	ct, err := NewConntracker("/proc", 100, 100)
+	ct, err := NewConntracker("/proc", 100)
 	require.NoError(t, err)
 	defer ct.Close()
 
@@ -30,6 +30,7 @@ func TestConntracker(t *testing.T) {
 	<-startServerUDP(t, net.ParseIP("1.1.1.1"), 5432)
 
 	localAddr := pingTCP(t, "2.2.2.2:5432")
+	time.Sleep(1 * time.Second)
 
 	trans := ct.GetTranslationForConn(
 		util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port),

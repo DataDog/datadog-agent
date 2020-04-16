@@ -36,7 +36,7 @@ var (
 )
 
 func TestNewDefaultForwarder(t *testing.T) {
-	forwarder := NewDefaultForwarder(keysPerDomains)
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.NumberOfWorkers)
@@ -49,7 +49,7 @@ func TestNewDefaultForwarder(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	forwarder := NewDefaultForwarder(monoKeysDomains)
+	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
 	err := forwarder.Start()
 	defer forwarder.Stop()
 
@@ -77,7 +77,7 @@ func TestStopWithPurgingTransaction(t *testing.T) {
 }
 
 func testStop(t *testing.T) {
-	forwarder := NewDefaultForwarder(keysPerDomains)
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
 	assert.Equal(t, Stopped, forwarder.State())
 	forwarder.Stop() // this should be a noop
 	forwarder.Start()
@@ -92,7 +92,7 @@ func testStop(t *testing.T) {
 }
 
 func TestSubmitIfStopped(t *testing.T) {
-	forwarder := NewDefaultForwarder(monoKeysDomains)
+	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
 
 	require.NotNil(t, forwarder)
 	require.Equal(t, Stopped, forwarder.State())
@@ -108,7 +108,7 @@ func TestSubmitIfStopped(t *testing.T) {
 }
 
 func TestCreateHTTPTransactions(t *testing.T) {
-	forwarder := NewDefaultForwarder(keysPerDomains)
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
 	endpoint := endpoint{"/api/foo", "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
@@ -145,7 +145,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 }
 
 func TestSendHTTPTransactions(t *testing.T) {
-	forwarder := NewDefaultForwarder(keysPerDomains)
+	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
 	endpoint := endpoint{"/api/foo", "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
@@ -163,7 +163,7 @@ func TestSendHTTPTransactions(t *testing.T) {
 }
 
 func TestSubmitV1Intake(t *testing.T) {
-	forwarder := NewDefaultForwarder(monoKeysDomains)
+	forwarder := NewDefaultForwarder(NewOptions(monoKeysDomains))
 	forwarder.Start()
 	defer forwarder.Stop()
 
@@ -206,11 +206,11 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
 
-	f := NewDefaultForwarder(map[string][]string{
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
 		ts.URL:     {"api_key1", "api_key2"},
 		"invalid":  {},
 		"invalid2": nil,
-	})
+	}))
 
 	f.Start()
 	defer f.Stop()
@@ -253,9 +253,9 @@ func TestTransactionEventHandlers(t *testing.T) {
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
 
-	f := NewDefaultForwarder(map[string][]string{
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
 		ts.URL: {"api_key1"},
-	})
+	}))
 
 	_ = f.Start()
 	defer f.Stop()
@@ -311,9 +311,9 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
 
-	f := NewDefaultForwarder(map[string][]string{
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
 		ts.URL: {"api_key1"},
-	})
+	}))
 
 	_ = f.Start()
 	defer f.Stop()
@@ -365,9 +365,9 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	mockConfig.Set("dd_url", ts.URL)
 	defer mockConfig.Set("dd_url", ddURL)
 
-	f := NewDefaultForwarder(map[string][]string{
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
 		ts.URL: {"api_key1"},
-	})
+	}))
 
 	_ = f.Start()
 	defer f.Stop()
@@ -401,4 +401,47 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 	assert.Equal(t, int64(1), atomic.LoadInt64(&requests))
 	assert.Equal(t, int64(1), atomic.LoadInt64(&attempts))
+}
+
+func TestProcessLikePayloadResponseTimeout(t *testing.T) {
+	requests := int64(0)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requests, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	mockConfig := config.Mock()
+	ddURL := mockConfig.Get("dd_url")
+	numWorkers := mockConfig.Get("forwarder_num_workers")
+	responseTimeout := defaultResponseTimeout
+
+	defaultResponseTimeout = 5 * time.Second
+	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.Set("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
+	defer func() {
+		mockConfig.Set("dd_url", ddURL)
+		mockConfig.Set("forwarder_num_workers", numWorkers)
+		defaultResponseTimeout = responseTimeout
+	}()
+
+	f := NewDefaultForwarder(NewOptions(map[string][]string{
+		ts.URL: {"api_key1"},
+	}))
+
+	_ = f.Start()
+	defer f.Stop()
+
+	data := []byte("data payload 1")
+	payload := Payloads{&data}
+	headers := http.Header{}
+	headers.Set("key", "value")
+
+	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	require.Len(t, transactions, 1)
+
+	responses, err := f.submitProcessLikePayload(metadataEndpoint, payload, headers, true)
+	require.NoError(t, err)
+
+	_, ok := <-responses
+	require.False(t, ok) // channel should have been closed without receiving any responses
 }

@@ -44,6 +44,7 @@ import (
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -243,7 +244,7 @@ func StartAgent() error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	common.Forwarder = forwarder.NewDefaultForwarder(keysPerDomain)
+	common.Forwarder = forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	log.Debugf("Starting forwarder")
 	common.Forwarder.Start()
 	log.Debugf("Forwarder started")

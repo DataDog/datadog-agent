@@ -40,14 +40,14 @@
 
 [[projects]]
   branch = "mehedi.bakht/add-dns-failed-response-field"
-  digest = "1:f277f9fa1cf8af0a3363742b1a70a07d63f6ebb1148462fba46d80d73dd7a9fa"
+  digest = "1:89ebe70cd4d774d58d36fb74335411a7984843512d509b85e95431bb9d62b280"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "8273ec034d92a43d53f9e168478334bf1b1960fd"
+  revision = "001b6a51c4be087aba25f6c8bd6a84a40179d4aa"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -198,11 +198,12 @@
   revision = "de5bf2ad457846296e2031421a34e2568e304e35"
 
 [[projects]]
-  digest = "1:f82b8ac36058904227087141017bb82f4b0fc58272990a4cdae3e2d6d222644e"
+  digest = "1:6146fda730c18186631e91e818d995e759e7cbe27644d6871ccd469f6865c686"
   name = "github.com/StackExchange/wmi"
   packages = ["."]
   pruneopts = ""
-  revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
+  revision = "cbe66965904dbe8a6cd589e2298e5d8b986bd7dd"
+  version = "1.1.0"
 
 [[projects]]
   branch = "master"
@@ -900,6 +901,7 @@
   digest = "1:d113f3f920e4f5eb7890b7cb131aef30f6362ea9efbc06e5a7ca9de668e904f7"
   name = "github.com/iovisor/gobpf"
   packages = [
+    "bcc",
     "elf",
     "pkg/bpffs",
     "pkg/cpuonline",
@@ -2118,7 +2120,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "0:"
+  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
@@ -2219,7 +2221,6 @@
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1",
     "github.com/DataDog/zstd.v1.3",
     "github.com/Microsoft/go-winio",
-    "github.com/StackExchange/wmi",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/credentials",
     "github.com/aws/aws-sdk-go/aws/session",
@@ -2270,6 +2271,7 @@
     "github.com/hashicorp/consul/api",
     "github.com/hashicorp/golang-lru",
     "github.com/hectane/go-acl",
+    "github.com/iovisor/gobpf/bcc",
     "github.com/iovisor/gobpf/elf",
     "github.com/json-iterator/go",
     "github.com/kardianos/osext",
@@ -2309,6 +2311,7 @@
     "golang.org/x/mobile/asset",
     "golang.org/x/net/context",
     "golang.org/x/net/proxy",
+    "golang.org/x/sync/errgroup",
     "golang.org/x/sys/unix",
     "golang.org/x/sys/windows",
     "golang.org/x/sys/windows/registry",
@@ -2317,6 +2320,7 @@
     "golang.org/x/sys/windows/svc/eventlog",
     "golang.org/x/sys/windows/svc/mgr",
     "golang.org/x/text/unicode/norm",
+    "golang.org/x/time/rate",
     "google.golang.org/grpc",
     "gopkg.in/yaml.v2",
     "gopkg.in/zorkian/go-datadog-api.v2",

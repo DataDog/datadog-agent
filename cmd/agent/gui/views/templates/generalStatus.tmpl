@@ -104,6 +104,13 @@
   <div class="stat">
     <span class="stat_title">JMX Status</span>
     <span class="stat_data">
+      {{ if .JMXStartupError.LastError }}
+      <span class="stat_subtitle">JMX startup errors</span>
+        <span class="stat_subdata">
+          Error: {{ .JMXStartupError.LastError }} <br>
+          Date: {{ formatUnixTime .JMXStartupError.Timestamp }}
+        </span>
+      {{ end -}}
       {{- with .JMXStatus -}}
         {{- if and (not .timestamp) (not .checks)}}
           No JMX status available
@@ -224,7 +231,7 @@
       {{- end }}
       {{- if and (eq .use_http false) (.is_running) }}
 
-        You are currently sending Logs to Datadog through TCP. To benefit from increased reliability and better network performances, we strongly encourage to <a href="https://docs.datadoghq.com/agent/logs/?tab=compressionenabled#send-logs-over-https">switch over compressed HTTPS</a> which will become the default protocol in the Agent future version.</br>
+        You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.</br>
       {{- end }}
       {{- if .metrics }}
 

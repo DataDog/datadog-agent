@@ -121,31 +121,6 @@ func TestRegisterNat(t *testing.T) {
 	)
 	assert.Nil(t, udpTranslation)
 
-	// even after unregistering, we should be able to access the conn
-	rt.unregister(c)
-	translation2 := rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 12345,
-		util.AddressFromString("50.30.40.10"), 80,
-		process.ConnectionType_tcp,
-	)
-	assert.NotNil(t, translation2)
-
-	// double unregisters should never happen, though it will be treated as a no-op
-	rt.unregister(c)
-
-	rt.ClearShortLived()
-	translation3 := rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 12345,
-		util.AddressFromString("50.30.40.10"), 80,
-		process.ConnectionType_tcp,
-	)
-	assert.Nil(t, translation3)
-
-	// triple unregisters should never happen, though it will be treated as a no-op
-	rt.unregister(c)
-
-	assert.Equal(t, translation, translation2)
-
 }
 
 func TestRegisterNatUDP(t *testing.T) {
@@ -197,7 +172,6 @@ func TestGetUpdatesGen(t *testing.T) {
 	require.NotNil(t, iptr)
 
 	require.Len(t, rt.state, 2)
-	require.Len(t, rt.shortLivedBuffer, 0)
 	entry := rt.state[connKey{
 		srcIP: util.AddressFromString("10.0.0.0"), srcPort: 12345,
 		dstIP: util.AddressFromString("50.30.40.10"), dstPort: 80,
@@ -231,8 +205,6 @@ func TestConntrackerMemoryAllocation(t *testing.T) {
 func newConntracker() *realConntracker {
 	return &realConntracker{
 		state:                make(map[connKey]*connValue),
-		shortLivedBuffer:     make(map[connKey]*IPTranslation),
-		maxShortLivedBuffer:  10000,
 		compactTicker:        time.NewTicker(time.Hour),
 		maxStateSize:         10000,
 		exceededSizeLogLimit: util.NewLogLimit(1, time.Minute),
