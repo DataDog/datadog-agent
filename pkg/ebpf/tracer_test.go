@@ -25,6 +25,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -699,47 +700,42 @@ func TestTCPCollectionDisabled(t *testing.T) {
 
 func TestUDPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
-	tr, err := NewTracer(NewDefaultConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
+	cfg := NewDefaultConfig()
+	cfg.BPFDebug = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Create UDP Server which sends back serverMessageSize bytes
-	server := NewUDPServer(func(b []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
-
-	doneChan := make(chan struct{})
-	server.Run(doneChan, clientMessageSize)
-
-	// Connect to server
-	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
+	cmd := exec.Command("testdata/simulate_udp.sh")
+	if err := cmd.Run(); err != nil {
+		t.Errorf("simulate_udp failed: %s", err)
 	}
-	defer c.Close()
-
-	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
-
-	c.Read(make([]byte, serverMessageSize))
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
-	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, NONE, conn.Direction)
-	assert.True(t, conn.IntraHost)
+	incoming := searchConnections(connections, func(cs ConnectionStats) bool {
+		return cs.SPort == 8081
+	})
+	require.Len(t, incoming, 1)
+	assert.Equal(t, INCOMING, incoming[0].Direction)
 
-	doneChan <- struct{}{}
+	outgoing := searchConnections(connections, func(cs ConnectionStats) bool {
+		return cs.DPort == 8081
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, OUTGOING, outgoing[0].Direction)
+
+	// these values come from simulate_udp.sh
+	assert.Equal(t, 512, int(outgoing[0].MonotonicSentBytes))
+	assert.Equal(t, 256, int(outgoing[0].MonotonicRecvBytes))
+	assert.True(t, outgoing[0].IntraHost)
+
+	// make sure the inverse values are seen for the other message
+	assert.Equal(t, 256, int(incoming[0].MonotonicSentBytes))
+	assert.Equal(t, 512, int(incoming[0].MonotonicRecvBytes))
+	assert.True(t, incoming[0].IntraHost)
 }
 
 func TestUDPDisabled(t *testing.T) {
@@ -1115,6 +1111,12 @@ func TestConnectionExpirationRegression(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestIsSyscall(t *testing.T) {
+	assert.True(t, isSysCall("kprobe/sys_bind"))
+	assert.True(t, isSysCall("kretprobe/sys_socket"))
+	assert.False(t, isSysCall("kprobe/tcp_send"))
+}
+
 func removeConnection(t *testing.T, tr *Tracer, c *ConnectionStats) {
 	mp, err := tr.getMap(connMap)
 	require.NoError(t, err)
@@ -1369,8 +1371,12 @@ type UDPServer struct {
 }
 
 func NewUDPServer(onMessage func(b []byte, n int) []byte) *UDPServer {
+	return NewUDPServerOnAddress("127.0.0.1:0", onMessage)
+}
+
+func NewUDPServerOnAddress(addr string, onMessage func(b []byte, n int) []byte) *UDPServer {
 	return &UDPServer{
-		address:   "127.0.0.1:0",
+		address:   addr,
 		onMessage: onMessage,
 	}
 }
@@ -1470,4 +1476,52 @@ func teardown(t *testing.T) {
 		fmt.Printf("teardown command output: %s", string(out))
 		t.Errorf("error tearing down: %s", err)
 	}
+}
+
+func TestDNSStats(t *testing.T) {
+	config := NewDefaultConfig()
+	config.CollectDNSStats = true
+	config.CollectLocalDNS = true
+	tr, err := NewTracer(config)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53}
+
+	queryMsg := new(dns.Msg)
+	queryMsg.SetQuestion(dns.Fqdn("golang.org"), dns.TypeA)
+	queryMsg.RecursionDesired = true
+
+	// Get outbound IP
+	dummyConn, err := net.Dial("udp", "8.8.8.8:80")
+	require.NoError(t, err)
+	dummyConn.Close()
+	localAddr := dummyConn.LocalAddr().(*net.UDPAddr)
+
+	dnsClientAddr := &net.UDPAddr{IP: localAddr.IP, Port: 7777}
+	localAddrDialer := &net.Dialer{
+		LocalAddr: dnsClientAddr,
+	}
+
+	dnsClient := dns.Client{Net: "udp", Dialer: localAddrDialer}
+	_, _, err = dnsClient.Exchange(queryMsg, dnsServerAddr.String())
+
+	if err != nil {
+		t.Fatalf("Failed to get dns response %s\n", err.Error())
+	}
+
+	// Allow the DNS reply to be processed in the snooper
+	time.Sleep(time.Millisecond * 500)
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
+	require.True(t, ok)
+
+	assert.Equal(t, queryMsg.Len(), int(conn.MonotonicSentBytes))
+	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
+
+	// DNS Stats
+	assert.Equal(t, uint32(1), conn.DNSSuccessfulResponses)
 }

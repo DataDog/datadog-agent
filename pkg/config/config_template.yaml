@@ -16,8 +16,10 @@ api_key:
 # site: datadoghq.com
 
 ## @param dd_url - string - optional - default: https://app.datadoghq.com
-## The host of the Datadog intake server to send Agent data to, only set this option
-## if you need the Agent to send data to a custom URL, it overrides the site setting defined in "site".
+## The host of the Datadog intake server to send metrics to, only set this option
+## if you need the Agent to send metrics to a custom URL, it overrides the site
+## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
+## own "*_dd_url" settings.
 #
 # dd_url: https://app.datadoghq.com
 
@@ -435,6 +437,12 @@ api_key:
   ## to send logs in HTTPS batches to port 443
   #
   # use_http: true
+
+  ## @param use_tcp - boolean - optional - default: false
+  ## By default, logs are sent through HTTP if possible, use this parameter
+  ## to send logs in TCP
+  #
+  # use_tcp: true
 
   ## @param use_compression - boolean - optional - default: false
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
@@ -1466,7 +1474,7 @@ api_key:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
 
-## @param clustername - string - optional
+## @param cluster_name - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:
 ## * Lowercase letters, numbers, and hyphens only.

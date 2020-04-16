@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>datadog-agent</id>
+    <version>$package_version$</version>
+    <packageSourceUrl>https://github.com/DataDog/datadog-agent/tree/master/chocolatey</packageSourceUrl>
+    <owners>package@datadoghq.com</owners>
+    <title>Datadog Agent</title>
+    <authors>Datadog</authors>
+    <projectUrl>https://github.com/DataDog/datadog-agent</projectUrl>
+    <iconUrl>https://datadog-prod.imgix.net/img/dd_logo_70x75.png</iconUrl>
+    <copyright>$copyright$</copyright>
+    <licenseUrl>https://raw.githubusercontent.com/DataDog/datadog-agent/master/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <docsUrl>https://docs.datadoghq.com</docsUrl>
+    <tags>datadog agent monitoring admin</tags>
+    <summary>The Datadog Agent for Microsoft Windows</summary>
+    <description>The Datadog Agent faithfully collects events and metrics and brings them to Datadog on your behalf so that you can do something useful with your monitoring and performance data.</description>
+    <releaseNotes>$release_notes$</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

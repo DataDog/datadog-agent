@@ -139,7 +139,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *ddCo
 			continue
 		}
 		if split[1] == "images" {
-			if fil.IsExcluded("", e.ID) {
+			if fil.IsExcluded("", e.ID, "") {
 				continue
 			}
 		}
@@ -245,7 +245,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			pid := p.Pid
 			fdCount, err := cgroup.GetFileDescriptorLen(int(pid))
 			if err != nil {
-				log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, ctn.ID()[:12], err)
+				log.Debugf("Failed to get file desc length for pid %d, container %s: %s", pid, ctn.ID()[:12], err)
 				continue
 			}
 			fileDescCount += fdCount
@@ -256,7 +256,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 
 func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
 	// The container name is not available in Containerd, we only rely on image name based exclusion
-	return fil.IsExcluded("", ctn.Image)
+	return fil.IsExcluded("", ctn.Image, "")
 }
 
 func convertTasktoMetrics(metricTask *containerdTypes.Metric) (*cgroups.Metrics, error) {

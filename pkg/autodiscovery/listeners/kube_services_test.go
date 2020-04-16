@@ -9,6 +9,7 @@
 package listeners
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,11 @@ func TestProcessService(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
 			UID:             types.UID("test"),
+			Labels: map[string]string{
+				"tags.datadoghq.com/env":     "dev",
+				"tags.datadoghq.com/version": "1.0.0",
+				"tags.datadoghq.com/service": "my-http-service",
+			},
 			Annotations: map[string]string{
 				"ad.datadoghq.com/service.check_names":  "[\"http_check\"]",
 				"ad.datadoghq.com/service.init_configs": "[{}]",
@@ -59,7 +65,16 @@ func TestProcessService(t *testing.T) {
 
 	tags, err := svc.GetTags()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default"}, tags)
+	expectedTags := []string{
+		"kube_service:myservice",
+		"kube_namespace:default",
+		"env:dev",
+		"service:my-http-service",
+		"version:1.0.0",
+	}
+	sort.Strings(expectedTags)
+	sort.Strings(tags)
+	assert.Equal(t, expectedTags, tags)
 
 	svc = processService(ksvc, false)
 	assert.Equal(t, integration.After, svc.GetCreationTime())
@@ -250,6 +265,84 @@ func TestServicesDiffer(t *testing.T) {
 				},
 			},
 			result: true,
+		},
+		"Add standard tags": {
+			first: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+					},
+				},
+			},
+			second: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+				},
+			},
+			result: true,
+		},
+		"Remove standard tags": {
+			first: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+				},
+			},
+			second: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Labels: map[string]string{
+						"tags.datadoghq.com/env": "dev",
+					},
+				},
+			},
+			result: true,
+		},
+		"Same standard tags": {
+			first: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "123",
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			second: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "124",
+					Labels: map[string]string{
+						"tags.datadoghq.com/env":     "dev",
+						"tags.datadoghq.com/version": "1.0.0",
+						"tags.datadoghq.com/service": "my-http-service",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "test2", Port: 126},
+					},
+				},
+			},
+			result: false,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

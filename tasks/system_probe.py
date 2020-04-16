@@ -18,12 +18,13 @@ EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
 EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
 
 BPF_TAG = "linux_bpf"
+BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7',
-          python_runtimes='3'):
+          python_runtimes='3', with_bcc=True):
     """
     Build the system_probe
     """
@@ -62,6 +63,9 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
     build_tags = get_default_build_tags() + [BPF_TAG]
+
+    if with_bcc:
+        build_tags.append(BCC_TAG)
 
     # TODO static option
     cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
@@ -283,17 +287,21 @@ def build_object_files(ctx, install=True):
         file=debug_obj_file
     ))
 
+    cmds = []
+
     if install:
         # Now update the assets stored in the go code
         commands.append("go get -u github.com/jteeuwen/go-bindata/...")
 
-        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}'"
+        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}'"
         go_file = os.path.join(bpf_dir, "tracer-ebpf.go")
         commands.append(assets_cmd.format(
             c_dir=c_dir,
             go_file=go_file,
             obj_file=obj_file,
             debug_obj_file=debug_obj_file,
+            tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
+            tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
         ))
 
         commands.append("gofmt -w -s {go_file}".format(go_file=go_file))

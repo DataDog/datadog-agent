@@ -97,13 +97,14 @@ type NetworkDestination struct {
 // different container implementation (Linux cgroup, windows containers, etc.)
 type ContainerImplementation interface {
 	// Asks provider to fetch data from system APIs in bulk
-	// It's be required to call it before any other function
+	// It's required to call it before any other function
 	Prefetch() error
 
 	ContainerExists(containerID string) bool
 	GetContainerStartTime(containerID string) (int64, error)
 	DetectNetworkDestinations(pid int) ([]NetworkDestination, error)
 	GetAgentCID() (string, error)
+	GetPIDs(containerID string) ([]int32, error)
 	ContainerIDForPID(pid int) (string, error)
 	GetDefaultGateway() (net.IP, error)
 	GetDefaultHostIPs() ([]string, error)

@@ -1,5 +1,3 @@
-// +build linux
-
 package checks
 
 import (
@@ -52,9 +50,6 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 // Name returns the name of the ProcessCheck.
 func (c *ContainerCheck) Name() string { return "container" }
 
-// Endpoint returns the endpoint where this check is submitted.
-func (c *ContainerCheck) Endpoint() string { return "/api/v1/container" }
-
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ContainerCheck) RealTime() bool { return false }
 
@@ -104,12 +99,13 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	for i := 0; i < groupSize; i++ {
 		totalContainers += float64(len(chunked[i]))
 		messages = append(messages, &model.CollectorContainer{
-			HostName:   cfg.HostName,
-			NetworkId:  c.networkID,
-			Info:       c.sysInfo,
-			Containers: chunked[i],
-			GroupId:    groupID,
-			GroupSize:  int32(groupSize),
+			HostName:          cfg.HostName,
+			NetworkId:         c.networkID,
+			Info:              c.sysInfo,
+			Containers:        chunked[i],
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 

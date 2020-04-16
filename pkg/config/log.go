@@ -75,13 +75,9 @@ func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
 func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	seelogLogLevel := strings.ToLower(logLevel)
-	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
-		seelogLogLevel = "warn"
-	}
-
-	if _, found := seelog.LogLevelFromString(seelogLogLevel); !found {
-		return fmt.Errorf("unknown log level: %s", seelogLogLevel)
+	seelogLogLevel, err := validateLogLevel(logLevel)
+	if err != nil {
+		return err
 	}
 
 	formatID := "common"
@@ -320,8 +316,12 @@ func extractShortPathFromFullPath(fullPath string) string {
 }
 
 func changeLogLevel(level string) error {
+	seelogLogLevel, err := validateLogLevel(level)
+	if err != nil {
+		return err
+	}
 	// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
-	seelogConfig.SetLogLevel(level)
+	seelogConfig.SetLogLevel(seelogLogLevel)
 	configTemplate, err := seelogConfig.Render()
 	if err != nil {
 		return err
@@ -334,7 +334,19 @@ func changeLogLevel(level string) error {
 	seelog.ReplaceLogger(logger)
 
 	// We wire the new logger with the Datadog logic
-	return log.ChangeLogLevel(logger, level)
+	return log.ChangeLogLevel(logger, seelogLogLevel)
+}
+
+func validateLogLevel(logLevel string) (string, error) {
+	seelogLogLevel := strings.ToLower(logLevel)
+	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
+		seelogLogLevel = "warn"
+	}
+
+	if _, found := seelog.LogLevelFromString(seelogLogLevel); !found {
+		return "", fmt.Errorf("unknown log level: %s", seelogLogLevel)
+	}
+	return seelogLogLevel, nil
 }
 
 func init() {

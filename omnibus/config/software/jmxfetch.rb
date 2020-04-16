@@ -33,9 +33,9 @@ build do
     delete "jmxfetch.jar"
 
     if ENV['HARDENED_RUNTIME_MAC'] == 'true'
-      hardened_runtime = '-o runtime '
+      hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
     else
-      hardened_runtime = ''
+      hardened_runtime = ""
     end
 
     command "find . -type f | grep -E '(\\.so|\\.dylib|\\.jnilib)' | xargs codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'"

@@ -26,15 +26,12 @@ type RTProcessCheck struct {
 }
 
 // Init initializes a new RTProcessCheck instance.
-func (r *RTProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (r *RTProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	r.sysInfo = info
 }
 
 // Name returns the name of the RTProcessCheck.
 func (r *RTProcessCheck) Name() string { return "rtprocess" }
-
-// Endpoint returns the endpoint where this check is submitted.
-func (r *RTProcessCheck) Endpoint() string { return "/api/v1/collector" }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTProcessCheck) RealTime() bool { return true }
@@ -75,13 +72,14 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorRealTime{
-			HostName:       cfg.HostName,
-			Stats:          chunkedStats[i],
-			ContainerStats: chunkedCtrStats[i],
-			GroupId:        groupID,
-			GroupSize:      int32(groupSize),
-			NumCpus:        int32(len(r.sysInfo.Cpus)),
-			TotalMemory:    r.sysInfo.TotalMemory,
+			HostName:          cfg.HostName,
+			Stats:             chunkedStats[i],
+			ContainerStats:    chunkedCtrStats[i],
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			NumCpus:           int32(len(r.sysInfo.Cpus)),
+			TotalMemory:       r.sysInfo.TotalMemory,
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 

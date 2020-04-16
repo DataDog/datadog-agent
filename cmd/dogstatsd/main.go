@@ -17,8 +17,6 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -176,7 +174,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(keysPerDomain)
+	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start()
 	s := serializer.NewSerializer(f)
 
@@ -205,10 +203,8 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 		tagger.Init()
 	}
 
-	metricSamplePool := metrics.NewMetricSamplePool(32)
-	aggregatorInstance := aggregator.InitAggregator(s, metricSamplePool, hname, "agent")
-	sampleC, eventC, serviceCheckC := aggregatorInstance.GetBufferedChannels()
-	statsd, err = dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
+	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
+	statsd, err = dogstatsd.NewServer(aggregatorInstance)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return

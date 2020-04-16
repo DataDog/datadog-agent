@@ -5,8 +5,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 
 	_ "net/http/pprof"
 )
@@ -31,18 +32,18 @@ func runCheck(cfg *config.AgentConfig) {
 		err := opts.checkCmd.Parse(os.Args[2:])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 		if opts.checkType == "" {
 			opts.checkCmd.PrintDefaults()
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 		err = querySocketEndpoint(cfg, opts.checkType, opts.checkClient)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 
-		os.Exit(0)
+		cleanupAndExit(0)
 	}
 }

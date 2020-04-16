@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "=4.26.0"
+  version = "=4.30.0"
 
 [[constraint]]
   name = "github.com/google/gopacket"
@@ -174,10 +174,6 @@
 [[constraint]]
   branch = "master"
   name = "github.com/lxn/win"
-
-[[override]]
-  name = "github.com/StackExchange/wmi"
-  revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
 
 [[override]]
   name = "github.com/jhoonb/archivex"

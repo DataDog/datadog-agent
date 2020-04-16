@@ -11,8 +11,6 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
@@ -46,6 +44,7 @@ import (
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -245,22 +244,20 @@ func StartAgent() error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	common.Forwarder = forwarder.NewDefaultForwarder(keysPerDomain)
+	common.Forwarder = forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	log.Debugf("Starting forwarder")
 	common.Forwarder.Start()
 	log.Debugf("Forwarder started")
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
-	metricSamplePool := metrics.NewMetricSamplePool(32)
-	agg := aggregator.InitAggregator(s, metricSamplePool, hostname, "agent")
+	agg := aggregator.InitAggregator(s, hostname, "agent")
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		sampleC, eventC, serviceCheckC := agg.GetBufferedChannels()
-		common.DSD, err = dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
+		common.DSD, err = dogstatsd.NewServer(agg)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}

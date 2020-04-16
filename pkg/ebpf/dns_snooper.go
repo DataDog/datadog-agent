@@ -28,11 +28,13 @@ var _ ReverseDNS = &SocketFilterSnooper{}
 
 // SocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type SocketFilterSnooper struct {
-	source *packetSource
-	parser *dnsParser
-	cache  *reverseDNSCache
-	exit   chan struct{}
-	wg     sync.WaitGroup
+	source          *packetSource
+	parser          *dnsParser
+	cache           *reverseDNSCache
+	statKeeper      *dnsStatKeeper
+	exit            chan struct{}
+	wg              sync.WaitGroup
+	collectLocalDNS bool
 
 	// cache translation object to avoid allocations
 	translation *translation
@@ -47,7 +49,13 @@ type SocketFilterSnooper struct {
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
-func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter) (*SocketFilterSnooper, error) {
+func NewSocketFilterSnooper(
+	rootPath string,
+	filter *bpflib.SocketFilter,
+	collectDNSStats bool,
+	collectLocalDNS bool,
+) (*SocketFilterSnooper, error) {
+
 	var (
 		packetSrc *packetSource
 		srcErr    error
@@ -65,12 +73,18 @@ func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter) (*Sock
 	}
 
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
+	var statKeeper *dnsStatKeeper
+	if collectDNSStats {
+		statKeeper = newDNSStatkeeper()
+	}
 	snooper := &SocketFilterSnooper{
-		source:      packetSrc,
-		parser:      newDNSParser(),
-		cache:       cache,
-		translation: new(translation),
-		exit:        make(chan struct{}),
+		source:          packetSrc,
+		parser:          newDNSParser(collectDNSStats),
+		cache:           cache,
+		statKeeper:      statKeeper,
+		translation:     new(translation),
+		exit:            make(chan struct{}),
+		collectLocalDNS: collectLocalDNS,
 	}
 
 	// Start consuming packets
@@ -93,6 +107,13 @@ func NewSocketFilterSnooper(rootPath string, filter *bpflib.SocketFilter) (*Sock
 // Resolve IPs to DNS addresses
 func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Address][]string {
 	return s.cache.Get(connections, time.Now())
+}
+
+func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]dnsStats {
+	if s.statKeeper == nil {
+		return nil
+	}
+	return s.statKeeper.GetAndResetAllStats()
 }
 
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
@@ -121,7 +142,10 @@ func (s *SocketFilterSnooper) Close() {
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 func (s *SocketFilterSnooper) processPacket(data []byte) {
 	t := s.getCachedTranslation()
-	if err := s.parser.ParseInto(data, t); err != nil {
+	cKey := dnsKey{}
+	dnsTransactionID, err := s.parser.ParseInto(data, t, &cKey)
+
+	if err != nil {
 		switch err {
 		case skippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
@@ -131,6 +155,10 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 			log.Tracef("error decoding DNS payload: %v", err)
 		}
 		return
+	}
+
+	if s.statKeeper != nil && (s.collectLocalDNS || !cKey.serverIP.IsLoopback()) {
+		s.statKeeper.ProcessSuccessfulResponse(cKey, dnsTransactionID)
 	}
 
 	s.cache.Add(t, time.Now())

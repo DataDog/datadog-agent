@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Signature is a hash representation of trace or a service, used to identify
@@ -30,11 +31,11 @@ func sortHashes(hashes []spanHash)         { sort.Sort(spanHashSlice(hashes)) }
 // Signature based on the hash of (env, service, name, resource, is_error) for the root, plus the set of
 // (env, service, name, is_error) of each span.
 func computeSignatureWithRootAndEnv(trace pb.Trace, root *pb.Span, env string) Signature {
-	rootHash := computeRootHash(*root, env)
+	rootHash := computeSpanHash(root, env, true)
 	spanHashes := make([]spanHash, 0, len(trace))
 
 	for i := range trace {
-		spanHashes = append(spanHashes, computeSpanHash(trace[i], env))
+		spanHashes = append(spanHashes, computeSpanHash(trace[i], env, false))
 	}
 
 	// Now sort, dedupe then merge all the hashes to build the signature
@@ -71,23 +72,22 @@ func (s ServiceSignature) String() string {
 	return "service:" + s.Name + ",env:" + s.Env
 }
 
-func computeSpanHash(span *pb.Span, env string) spanHash {
+func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 	h := fnv.New32a()
 	h.Write([]byte(env))
 	h.Write([]byte(span.Service))
 	h.Write([]byte(span.Name))
 	h.Write([]byte{byte(span.Error)})
-
-	return spanHash(h.Sum32())
-}
-
-func computeRootHash(span pb.Span, env string) spanHash {
-	h := fnv.New32a()
-	h.Write([]byte(env))
-	h.Write([]byte(span.Service))
-	h.Write([]byte(span.Name))
-	h.Write([]byte(span.Resource))
-	h.Write([]byte{byte(span.Error)})
-
+	if withResource {
+		h.Write([]byte(span.Resource))
+	}
+	code, ok := traceutil.GetMeta(span, KeyHTTPStatusCode)
+	if ok {
+		h.Write([]byte(code))
+	}
+	typ, ok := traceutil.GetMeta(span, KeyErrorType)
+	if ok {
+		h.Write([]byte(typ))
+	}
 	return spanHash(h.Sum32())
 }

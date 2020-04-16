@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
+	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,17 +30,20 @@ var (
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
-	tracerClientID string
-	networkID      string
+	tracerClientID         string
+	networkID              string
+	notInitializedLogLimit *procutil.LogLimit
 }
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
+	c.notInitializedLogLimit = procutil.NewLogLimit(1, time.Minute*10)
+
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = fmt.Sprintf("%d", os.Getpid())
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
-	net.SetSystemProbeSocketPath(cfg.SystemProbeSocketPath)
+	net.SetSystemProbePath(cfg.SystemProbeSocketPath)
 	_, _ = net.GetRemoteSystemProbeUtil()
 
 	networkID, err := util.GetNetworkID()
@@ -54,9 +58,6 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 
 // Name returns the name of the ConnectionsCheck.
 func (c *ConnectionsCheck) Name() string { return "connections" }
-
-// Endpoint returns the endpoint where this check is submitted.
-func (c *ConnectionsCheck) Endpoint() string { return "/api/v1/collector" }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ConnectionsCheck) RealTime() bool { return false }
@@ -90,12 +91,11 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil()
 	if err != nil {
-		if net.ShouldLogTracerUtilError() {
-			return nil, err
+		if c.notInitializedLogLimit.ShouldLog() {
+			log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
 		}
 		return nil, ErrTracerStillNotInitialized
 	}
-
 	return tu.GetConnections(c.tracerClientID)
 }
 
@@ -140,13 +140,14 @@ func batchConnections(
 		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(batchConns))
 
 		batches = append(batches, &model.CollectorConnections{
-			HostName:        cfg.HostName,
-			NetworkId:       networkID,
-			Connections:     batchConns,
-			GroupId:         groupID,
-			GroupSize:       groupSize,
-			ContainerForPid: ctrIDForPID,
-			EncodedDNS:      dnsEncoder.Encode(batchDNS),
+			HostName:          cfg.HostName,
+			NetworkId:         networkID,
+			Connections:       batchConns,
+			GroupId:           groupID,
+			GroupSize:         groupSize,
+			ContainerForPid:   ctrIDForPID,
+			EncodedDNS:        dnsEncoder.Encode(batchDNS),
+			ContainerHostType: cfg.ContainerHostType,
 		})
 		cxs = cxs[batchSize:]
 	}

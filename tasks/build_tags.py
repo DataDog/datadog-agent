@@ -15,6 +15,7 @@ ALL_TAGS = set([
     "docker",
     "ec2",
     "etcd",
+    "fargateprocess",
     "gce",
     "jmx",
     "kubeapiserver",
@@ -35,6 +36,7 @@ PUPPY_TAGS = set([
 ])
 
 PROCESS_ONLY_TAGS = [
+    "fargateprocess",
     "orchestrator",
 ]
 
@@ -48,6 +50,13 @@ REDHAT_DEBIAN_SUSE_ONLY_TAGS = [
     "systemd",
 ]
 
+WINDOWS_32BIT_EXCLUDE_TAGS = [
+    "orchestrator",
+    "docker",
+    "kubeapiserver",
+    "kubelet",
+]
+
 REDHAT_DEBIAN_SUSE_DIST = [
     'centos',
     'debian',
@@ -58,7 +67,7 @@ REDHAT_DEBIAN_SUSE_DIST = [
 ]
 
 
-def get_default_build_tags(puppy=False, process=False):
+def get_default_build_tags(puppy=False, process=False, arch="x64"):
     """
     Build the default list of tags based on the current platform.
 
@@ -69,13 +78,17 @@ def get_default_build_tags(puppy=False, process=False):
         return PUPPY_TAGS
 
     include = ["all"]
-    exclude = [] if sys.platform.startswith('linux') else LINUX_ONLY_TAGS
+    exclude = [] if sys.platform.startswith("linux") else LINUX_ONLY_TAGS
     # if not process agent, ignore process only tags
     if not process:
         exclude = exclude + PROCESS_ONLY_TAGS
 
     # remove all tags that are not available for current distro
     exclude.extend(get_distro_exclude_tags())
+
+    # Force exclusion of Windows 32bits tag
+    if sys.platform == "win32" and arch == "x86":
+        exclude = exclude + WINDOWS_32BIT_EXCLUDE_TAGS
 
     return get_build_tags(include, exclude)
 

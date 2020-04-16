@@ -38,8 +38,11 @@ import "C"
 var (
 	pyLoaderStats    *expvar.Map
 	configureErrors  map[string][]string
+	py3Linted        map[string]struct{}
 	py3Warnings      map[string][]string
 	statsLock        sync.RWMutex
+	py3LintedLock    sync.Mutex
+	linterLock       sync.Mutex
 	agentVersionTags []string
 )
 
@@ -55,9 +58,10 @@ func init() {
 	factory := func() (check.Loader, error) {
 		return NewPythonCheckLoader()
 	}
-	loaders.RegisterLoader(10, factory)
+	loaders.RegisterLoader(20, factory)
 
 	configureErrors = map[string][]string{}
+	py3Linted = map[string]struct{}{}
 	py3Warnings = map[string][]string{}
 	pyLoaderStats = expvar.NewMap("pyLoader")
 	pyLoaderStats.Set("ConfigureErrors", expvar.Func(expvarConfigureErrors))
@@ -91,12 +95,11 @@ func getRtLoaderError() error {
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, error) {
+func (cl *PythonCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
 
-	checks := []check.Check{}
 	moduleName := config.Name
 
 	// Lock the GIL
@@ -182,27 +185,23 @@ func (cl *PythonCheckLoader) Load(config integration.Config) ([]check.Check, err
 		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	// Get an AgentCheck for each configuration instance and add it to the registry
-	for _, i := range config.Instances {
-		check := NewPythonCheck(moduleName, checkClass)
+	c := NewPythonCheck(moduleName, checkClass)
 
-		// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-		if err := check.Configure(i, config.InitConfig, config.Source); err != nil {
-			addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
-			continue
-		}
+	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
+	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
+		C.rtloader_decref(rtloader, checkClass)
+		C.rtloader_decref(rtloader, checkModule)
 
-		check.version = wheelVersion
-		checks = append(checks, check)
+		addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
+		return c, fmt.Errorf("could not configure check instance for python check %s: %s", moduleName, err.Error())
 	}
+
+	c.version = wheelVersion
 	C.rtloader_decref(rtloader, checkClass)
 	C.rtloader_decref(rtloader, checkModule)
 
-	if len(checks) == 0 {
-		return nil, fmt.Errorf("Could not configure any python check %s", moduleName)
-	}
 	log.Debugf("python loader: done loading check %s (version %s)", moduleName, wheelVersion)
-	return checks, nil
+	return c, nil
 }
 
 func (cl *PythonCheckLoader) String() string {
@@ -259,12 +258,14 @@ func expvarPy3Warnings() interface{} {
 func reportPy3Warnings(checkName string, checkFilePath string) {
 
 	// check if the check has already been linted
-	statsLock.RLock()
-	_, found := py3Warnings[checkName]
-	statsLock.RUnlock()
+	py3LintedLock.Lock()
+	_, found := py3Linted[checkName]
 	if found {
+		py3LintedLock.Unlock()
 		return
 	}
+	py3Linted[checkName] = struct{}{}
+	py3LintedLock.Unlock()
 
 	status := a7TagUnknown
 	metricValue := 0.0
@@ -278,20 +279,28 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			// the linter used by validatePython3 doesn't work when run from python3
 			status = a7TagPython3
 			metricValue = 1.0
-		} else if warnings, err := validatePython3(checkName, checkFilePath); err != nil {
-			status = a7TagUnknown
-			log.Errorf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
-		} else if len(warnings) == 0 {
-			status = a7TagReady
-			metricValue = 1.0
 		} else {
-			status = a7TagNotReady
-			log.Warnf("The Python 3 linter returned warnings for check '%s'. For more details, check the output of the 'status' command or the status page of the Agent GUI).", checkName)
-			statsLock.Lock()
-			defer statsLock.Unlock()
-			for _, warning := range warnings {
-				log.Debug(warning)
-				py3Warnings[checkName] = append(py3Warnings[checkName], warning)
+			// validatePython3 is CPU and memory hungry, make sure we only run one instance of it
+			// at once to avoid CPU and mem usage spikes
+			linterLock.Lock()
+			warnings, err := validatePython3(checkName, checkFilePath)
+			linterLock.Unlock()
+
+			if err != nil {
+				status = a7TagUnknown
+				log.Errorf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
+			} else if len(warnings) == 0 {
+				status = a7TagReady
+				metricValue = 1.0
+			} else {
+				status = a7TagNotReady
+				log.Warnf("The Python 3 linter returned warnings for check '%s'. For more details, check the output of the 'status' command or the status page of the Agent GUI).", checkName)
+				statsLock.Lock()
+				defer statsLock.Unlock()
+				for _, warning := range warnings {
+					log.Debug(warning)
+					py3Warnings[checkName] = append(py3Warnings[checkName], warning)
+				}
 			}
 		}
 	}

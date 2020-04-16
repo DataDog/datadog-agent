@@ -42,7 +42,7 @@ func TestProcessEndpoints(t *testing.T) {
 		},
 	}
 
-	eps := processEndpoints(kep, true)
+	eps := processEndpoints(kep, true, []string{"foo:bar"})
 
 	// Sort eps to impose the order
 	sort.Slice(eps, func(i, j int) bool {
@@ -75,7 +75,7 @@ func TestProcessEndpoints(t *testing.T) {
 
 	tags, err := eps[0].GetTags()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.1"}, tags)
+	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.1", "foo:bar"}, tags)
 
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetEntity())
 	assert.Equal(t, integration.Before, eps[1].GetCreationTime())
@@ -94,9 +94,9 @@ func TestProcessEndpoints(t *testing.T) {
 
 	tags, err = eps[1].GetTags()
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.2"}, tags)
+	assert.Equal(t, []string{"kube_service:myservice", "kube_namespace:default", "kube_endpoint_ip:10.0.0.2", "foo:bar"}, tags)
 
-	eps = processEndpoints(kep, false)
+	eps = processEndpoints(kep, false, []string{"foo:bar"})
 	assert.Equal(t, integration.After, eps[0].GetCreationTime())
 	assert.Equal(t, integration.After, eps[1].GetCreationTime())
 }

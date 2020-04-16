@@ -163,6 +163,13 @@ func (d *DockerUtil) getContainerMetrics(ctn *containers.Container) {
 	}
 	ctn.SetMetrics(metrics)
 
+	pids, err := providers.ContainerImpl().GetPIDs(ctn.ID)
+	if err != nil {
+		log.Debugf("ContainerImplementation cannot get PIDs for container %s, err: %s", ctn.ID[:12], err)
+		return
+	}
+	ctn.Pids = pids
+
 	if d.cfg.CollectNetwork {
 		d.Lock()
 		networks := d.networkMappings[ctn.ID]
@@ -219,7 +226,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 			log.Warnf("Can't resolve image name %s: %s", c.Image, err)
 		}
 
-		excluded := d.cfg.filter.IsExcluded(c.Names[0], image)
+		excluded := d.cfg.filter.IsExcluded(c.Names[0], image, "")
 		if excluded && !cfg.FlagExcluded {
 			continue
 		}

@@ -220,10 +220,24 @@ func initConfig(config Config) {
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+
 	if IsContainerized() {
-		config.SetDefault("procfs_path", "/host/proc")
-		config.SetDefault("container_proc_root", "/host/proc")
-		config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		// In serverless-containerized environments (e.g Fargate)
+		// it's impossible to mount host volumes.
+		// Make sure the host paths exist before setting-up the default values.
+		// Fallback to the container paths if host paths aren't mounted.
+		if pathExists("/host/proc") {
+			config.SetDefault("procfs_path", "/host/proc")
+			config.SetDefault("container_proc_root", "/host/proc")
+		} else {
+			config.SetDefault("procfs_path", "/proc")
+			config.SetDefault("container_proc_root", "/proc")
+		}
+		if pathExists("/host/sys/fs/cgroup/") {
+			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		} else {
+			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -368,6 +382,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
+	config.BindEnvAndSetDefault("cache_sync_timeout", 2) // in seconds
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
@@ -473,7 +488,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	config.BindEnv("logs_config.dd_url")
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
-	config.BindEnvAndSetDefault("logs_config.use_compression", false)
+	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
+	config.BindEnvAndSetDefault("logs_config.use_compression", true)
 	config.BindEnvAndSetDefault("logs_config.compression_level", 6) // Default level for the gzip/deflate algorithm
 	config.BindEnvAndSetDefault("logs_config.batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
@@ -1014,6 +1030,12 @@ func IsKubernetes() bool {
 		return true
 	}
 	return false
+}
+
+// pathExists returns true if the given path exists
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
 }
 
 // AddOverrides provides an externally accessible method for

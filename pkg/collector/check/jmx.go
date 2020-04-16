@@ -12,35 +12,59 @@ import (
 	agentconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// IsJMXConfig checks if a certain YAML config is a JMX config
-func IsJMXConfig(name string, initConf integration.Data) bool {
+// IsJMXConfig checks if a certain YAML config contains at least one instance of a JMX config
+func IsJMXConfig(config integration.Config) bool {
+	for _, instance := range config.Instances {
+		if IsJMXInstance(config.Name, instance, config.InitConfig) {
+			return true
+		}
+	}
 
+	return false
+}
+
+// IsJMXInstance checks if a certain YAML instance is a JMX config
+func IsJMXInstance(name string, instance integration.Data, initConfig integration.Data) bool {
 	if _, ok := agentconfig.StandardJMXIntegrations[name]; ok {
 		return true
 	}
 
-	rawInitConfig := integration.RawMap{}
-	err := yaml.Unmarshal(initConf, &rawInitConfig)
+	rawInstance := integration.RawMap{}
+	err := yaml.Unmarshal(instance, &rawInstance)
 	if err != nil {
 		return false
 	}
 
-	x, ok := rawInitConfig["is_jmx"]
+	x, ok := rawInstance["is_jmx"]
+	if ok {
+		isInstanceJMX, ok := x.(bool)
+		if ok && isInstanceJMX {
+			return true
+		}
+	}
+
+	rawInitConfig := integration.RawMap{}
+	err = yaml.Unmarshal(initConfig, &rawInitConfig)
+	if err != nil {
+		return false
+	}
+
+	x, ok = rawInitConfig["is_jmx"]
 	if !ok {
 		return false
 	}
 
-	isJMX, ok := x.(bool)
-	if !isJMX || !ok {
+	isInitConfigJMX, ok := x.(bool)
+	if !ok {
 		return false
 	}
 
-	return true
+	return isInitConfigJMX
 }
 
 // CollectDefaultMetrics returns if the config is for a JMX check which has collect_default_metrics: true
 func CollectDefaultMetrics(c integration.Config) bool {
-	if !IsJMXConfig(c.String(), c.InitConfig) {
+	if !IsJMXConfig(c) {
 		return false
 	}
 
