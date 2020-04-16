@@ -18,10 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	fakeAPIKey = "00000000000000000000000000000000"
+)
+
 var (
 	apiKeyStatusUnknown = expvar.String{}
 	apiKeyInvalid       = expvar.String{}
 	apiKeyValid         = expvar.String{}
+	apiKeyFake          = expvar.String{}
 
 	validateAPIKeyTimeout = 10 * time.Second
 
@@ -32,6 +37,7 @@ func init() {
 	apiKeyStatusUnknown.Set("Unable to validate API Key")
 	apiKeyInvalid.Set("API Key invalid")
 	apiKeyValid.Set("API Key valid")
+	apiKeyFake.Set("Fake API Key that skips validation")
 }
 
 func initForwarderHealthExpvars() {
@@ -134,6 +140,11 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status 
 }
 
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
+	if apiKey == fakeAPIKey {
+		fh.setAPIKeyStatus(apiKey, domain, &apiKeyFake)
+		return true, nil
+	}
+
 	url := fmt.Sprintf("%s%s?api_key=%s", domain, v1ValidateEndpoint, apiKey)
 
 	transport := httputils.CreateHTTPTransport()
