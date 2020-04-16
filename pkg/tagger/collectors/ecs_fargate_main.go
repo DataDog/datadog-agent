@@ -9,6 +9,7 @@ package collectors
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -25,11 +26,12 @@ const (
 
 // ECSFargateCollector polls the ecs metadata api.
 type ECSFargateCollector struct {
-	infoOut      chan<- []*TagInfo
-	expire       *taggerutil.Expire
-	lastExpire   time.Time
-	expireFreq   time.Duration
-	labelsAsTags map[string]string
+	infoOut         chan<- []*TagInfo
+	expire          *taggerutil.Expire
+	lastExpire      time.Time
+	expireFreq      time.Duration
+	labelsAsTags    map[string]string
+	doOnceOrchScope sync.Once
 }
 
 // Detect tries to connect to the ECS metadata API
