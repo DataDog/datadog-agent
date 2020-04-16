@@ -47,12 +47,16 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext) *Destination {
+	return newDestination(endpoint, contentType, destinationsContext, time.Second*10)
+}
+
+func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration) *Destination {
 	return &Destination{
 		url:             buildURL(endpoint),
 		contentType:     contentType,
 		contentEncoding: buildContentEncoding(endpoint),
 		client: &http.Client{
-			Timeout: time.Second * 10,
+			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
 			Transport: httputils.CreateHTTPTransport(),
 		},
@@ -167,7 +171,8 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	ctx := client.NewDestinationsContext()
 	ctx.Start()
 	defer ctx.Stop()
-	destination := NewDestination(endpoint, JSONContentType, ctx)
+	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := destination.Send(emptyPayload)
 	if err != nil {

@@ -94,7 +94,7 @@ func makeFlare(caseID string) error {
 	}
 
 	if _, err := os.Stat(filePath); err != nil {
-		fmt.Fprintln(color.Output, color.RedString("The flare zipfile \"%s\" does not exist."))
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", filePath)))
 		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
 		return err
 	}
@@ -122,14 +122,16 @@ func requestArchive(logFile string) (string, error) {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
-		return "", err
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
+		return createArchive(logFile)
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken()
 	if e != nil {
-		return "", e
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
+		return createArchive(logFile)
 	}
 
 	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))

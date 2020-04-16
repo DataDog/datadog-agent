@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build !zlib
+// +build process
 
 package status
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 

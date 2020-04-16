@@ -41,6 +41,10 @@ func TestMatchIntegration(t *testing.T) {
 			"supervisord"},
 		{"/usr/sbin/pgbouncer -d /etc/pgbouncer/pgbouncer.ini",
 			"pgbouncer"},
+		{"varnishd -j unix,user=vcache -F -a :6081 -T localhost:6082 -f /etc/varnish/default.vcl -S /etc/varnish/secret -s malloc,256m",
+			"varnish"},
+		{"rethinkdb --daemon --config-file /etc/rethinkdb/instances.d/instance1.conf --runuser rethinkdb --rungroup rethinkdb --pid-file /var/run/rethinkdb/instance1/pid_file --directory /var/lib/rethinkdb/instance1/data",
+			"rethinkdb"},
 	}
 
 	for _, c := range cases {

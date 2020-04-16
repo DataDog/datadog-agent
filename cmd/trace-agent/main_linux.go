@@ -3,16 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build !process
+// +build linux
 
-package status
+package main
 
 import (
-	"fmt"
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 )
-
-func getSystemProbeStats() map[string]interface{} {
-	return map[string]interface{}{
-		"Errors": fmt.Sprintf("System Probe is not supported on systems not running the process agent"),
-	}
-}

@@ -163,6 +163,9 @@ def publish(ctx, src, dst, signed_pull=False, signed_push=False):
 
         remaining_retries -= 1
 
+    ctx.run("docker rmi {src} {dst}".format(src=src, dst=dst))
+
+
 @task(iterable=['platform'])
 def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
     """

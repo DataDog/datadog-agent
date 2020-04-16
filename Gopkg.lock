@@ -39,15 +39,15 @@
   revision = "bbe0f8da39b3c59d42217afcc79019c754dabdfb"
 
 [[projects]]
-  digest = "1:827c97bbe64dc14ab134b48b8f1dce986e7636cfa9403f26f534a075c24679d6"
+  digest = "1:f08073405b4cdb6347ac44fdd06c0df556c99c74e271b76e213d947ed1455aeb"
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
-  revision = "43b76357e2c46480bbc04b9ccc1b1dd8424c58cb"
-  version = "4.29.0"
+  revision = "2c57260621e591efa4632d5d3462116111e532f3"
+  version = "4.30.0"
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"
@@ -198,11 +198,12 @@
   revision = "de5bf2ad457846296e2031421a34e2568e304e35"
 
 [[projects]]
-  digest = "1:f82b8ac36058904227087141017bb82f4b0fc58272990a4cdae3e2d6d222644e"
+  digest = "1:6146fda730c18186631e91e818d995e759e7cbe27644d6871ccd469f6865c686"
   name = "github.com/StackExchange/wmi"
   packages = ["."]
   pruneopts = ""
-  revision = "5d049714c4a64225c3c79a7cf7d02f7fb5b96338"
+  revision = "cbe66965904dbe8a6cd589e2298e5d8b986bd7dd"
+  version = "1.1.0"
 
 [[projects]]
   branch = "master"
@@ -897,7 +898,7 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:67cd1819192a5fed8a7378065f27cc4cec3022c36b3f0d6fface973a788cb642"
+  digest = "1:d113f3f920e4f5eb7890b7cb131aef30f6362ea9efbc06e5a7ca9de668e904f7"
   name = "github.com/iovisor/gobpf"
   packages = [
     "bcc",
@@ -2220,7 +2221,6 @@
     "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1",
     "github.com/DataDog/zstd.v1.3",
     "github.com/Microsoft/go-winio",
-    "github.com/StackExchange/wmi",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/credentials",
     "github.com/aws/aws-sdk-go/aws/session",
@@ -2311,6 +2311,7 @@
     "golang.org/x/mobile/asset",
     "golang.org/x/net/context",
     "golang.org/x/net/proxy",
+    "golang.org/x/sync/errgroup",
     "golang.org/x/sys/unix",
     "golang.org/x/sys/windows",
     "golang.org/x/sys/windows/registry",

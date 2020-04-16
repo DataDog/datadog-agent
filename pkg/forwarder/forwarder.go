@@ -152,6 +152,24 @@ type Forwarder interface {
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
 var _ Forwarder = &DefaultForwarder{}
 
+// Options contain the configuration options for the DefaultForwarder
+type Options struct {
+	NumberOfWorkers      int
+	RetryQueueSize       int
+	EnableHealthChecking bool
+	KeysPerDomain        map[string][]string
+}
+
+// NewOptions creates new Options with default values
+func NewOptions(keysPerDomain map[string][]string) *Options {
+	return &Options{
+		NumberOfWorkers:      config.Datadog.GetInt("forwarder_num_workers"),
+		RetryQueueSize:       config.Datadog.GetInt("forwarder_retry_queue_max_size"),
+		EnableHealthChecking: true,
+		KeysPerDomain:        keysPerDomain,
+	}
+}
+
 // DefaultForwarder is the default implementation of the Forwarder.
 type DefaultForwarder struct {
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
@@ -165,24 +183,25 @@ type DefaultForwarder struct {
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
-func NewDefaultForwarder(keysPerDomains map[string][]string) *DefaultForwarder {
+func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	f := &DefaultForwarder{
-		NumberOfWorkers:  config.Datadog.GetInt("forwarder_num_workers"),
+		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		keysPerDomains:   map[string][]string{},
 		internalState:    Stopped,
-		healthChecker:    &forwarderHealth{keysPerDomains: keysPerDomains},
 	}
-	numWorkers := config.Datadog.GetInt("forwarder_num_workers")
-	retryQueueMaxSize := config.Datadog.GetInt("forwarder_retry_queue_max_size")
 
-	for domain, keys := range keysPerDomains {
+	if options.EnableHealthChecking {
+		f.healthChecker = &forwarderHealth{keysPerDomains: options.KeysPerDomain}
+	}
+
+	for domain, keys := range options.KeysPerDomain {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
 		if keys == nil || len(keys) == 0 {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(domain, numWorkers, retryQueueMaxSize)
+			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize)
 		}
 	}
 
@@ -212,7 +231,9 @@ func (f *DefaultForwarder) Start() error {
 	log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
-	f.healthChecker.Start()
+	if f.healthChecker != nil {
+		f.healthChecker.Start()
+	}
 	f.internalState = Started
 	return nil
 }
@@ -260,7 +281,10 @@ func (f *DefaultForwarder) Stop() {
 		}
 	}
 
-	f.healthChecker.Stop()
+	if f.healthChecker != nil {
+		f.healthChecker.Stop()
+	}
+
 	f.healthChecker = nil
 	f.domainForwarders = map[string]*domainForwarder{}
 
