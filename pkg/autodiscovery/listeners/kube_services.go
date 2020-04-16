@@ -58,10 +58,12 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
+
 	return &KubeServiceListener{
 		services: make(map[types.UID]Service),
 		informer: servicesInformer,

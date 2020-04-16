@@ -19,6 +19,7 @@ import (
 	processcfg "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/process/util/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -75,7 +76,9 @@ func StartController(ctx ControllerContext) error {
 
 	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
 
-	return nil
+	return apiserver.SyncInformers(map[string]cache.SharedInformer{
+		"pods": ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
+	})
 }
 
 func newController(ctx ControllerContext) (*Controller, error) {
