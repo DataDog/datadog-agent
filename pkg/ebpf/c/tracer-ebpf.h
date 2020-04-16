@@ -24,6 +24,7 @@ typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u64 timestamp;
+    __u32 flags;
 } conn_stats_ts_t;
 
 // Metadata bit masks
@@ -36,12 +37,14 @@ typedef enum {
     // Connection family
     CONN_V4 = 0 << 1,
     CONN_V6 = 1 << 1,
-
-    // Connection state
-    CONN_L_INIT  = 1 << 2,
-    CONN_R_INIT  = 1 << 3,
-    CONN_ASSURED = 1 << 4
 } metadata_mask_t;
+
+// Connection flags
+typedef enum {
+    CONN_L_INIT  = 1 << 0,
+    CONN_R_INIT  = 1 << 1,
+    CONN_ASSURED = 1 << 2
+} conn_flags_t;
 
 typedef struct {
     /* Using the type unsigned __int128 generates an error in the ebpf verifier */

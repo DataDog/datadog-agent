@@ -55,6 +55,7 @@ func (t *ConnTuple) isTCP() bool {
 __u64 sent_bytes;
 __u64 recv_bytes;
 __u64 timestamp;
+__u32 flags;
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
 
@@ -72,6 +73,10 @@ type kernelTelemetry C.telemetry_t
 
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) bool {
 	return latestTime > timeout+uint64(cs.timestamp)
+}
+
+func (cs *ConnStatsWithTimestamp) isAssured() bool {
+	return uint(cs.flags)&C.CONN_ASSURED > 1
 }
 
 func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) ConnectionStats {

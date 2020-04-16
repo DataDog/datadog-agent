@@ -32,6 +32,10 @@ type Config struct {
 	//       between a source and destination IP and port.
 	UDPConnTimeout time.Duration
 
+	// UDPStreamTimeout is similar to UDPConnTimeout, but applies to cases in which UDP traffic is [ASSURED] as in Conntrack.
+	// For more information see Kernel configuration param nf_conntrack_udp_timeout_stream
+	UDPStreamTimeout time.Duration
+
 	// TCPConnTimeout is like UDPConnTimeout, but for TCP connections. TCP connections are cleared when
 	// the BPF module receives a tcp_close call, but TCP connections also age out to catch cases where
 	// tcp_close is not intercepted for some reason.
@@ -90,6 +94,7 @@ func NewDefaultConfig() *Config {
 		DNSInspection:         true,
 		CollectDNSStats:       false,
 		UDPConnTimeout:        30 * time.Second,
+		UDPStreamTimeout:      120 * time.Second,
 		TCPConnTimeout:        2 * time.Minute,
 		MaxTrackedConnections: 65536,
 		ConntrackMaxStateSize: 65536,

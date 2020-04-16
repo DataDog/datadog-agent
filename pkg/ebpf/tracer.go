@@ -412,8 +412,19 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
 		if !hasNext {
 			break
-		} else if stats.isExpired(latestTime, t.timeoutForConn(nextKey)) {
+		} else if stats.isExpired(latestTime, t.timeoutForConn(nextKey, stats.isAssured())) {
 			expired = append(expired, nextKey.copy())
+
+			// Delete associated translation
+			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey, seen))
+			t.conntracker.DeleteTranslation(
+				conn.Source,
+				conn.SPort,
+				conn.Dest,
+				conn.DPort,
+				process.ConnectionType(conn.Type),
+			)
+
 			if nextKey.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
 			}
@@ -593,10 +604,15 @@ func readBPFModule(debug bool) (*bpflib.Module, error) {
 	return m, nil
 }
 
-func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
+func (t *Tracer) timeoutForConn(c *ConnTuple, isAssured bool) uint64 {
 	if c.isTCP() {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
 	}
+
+	if isAssured {
+		return uint64(t.config.UDPStreamTimeout.Nanoseconds())
+	}
+
 	return uint64(t.config.UDPConnTimeout.Nanoseconds())
 }
 
