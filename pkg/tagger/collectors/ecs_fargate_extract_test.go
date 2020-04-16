@@ -252,6 +252,16 @@ func TestParseMetadataV10(t *testing.T) {
 
 	expectedUpdates := []*TagInfo{
 		{
+			Source:      "ecs_fargate",
+			Entity:      OrchestratorScopeEntityID,
+			LowCardTags: []string{},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+			},
+			HighCardTags: []string{},
+			DeleteEntity: false,
+		},
+		{
 			Source: "ecs_fargate",
 			Entity: "container_id://e8d4a9a20a0d931f8f632ec166b3f71a6ff00450aa7e99607f650e586df7d068",
 			LowCardTags: []string{
