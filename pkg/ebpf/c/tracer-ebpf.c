@@ -1091,6 +1091,7 @@ int socket__dns_filter(struct __sk_buff* skb) {
     __u8 l4_proto;
     size_t ip_hdr_size;
     size_t src_port_offset;
+    size_t dst_port_offset;
 
     switch (l3_proto) {
     case ETH_P_IP:
@@ -1108,16 +1109,19 @@ int socket__dns_filter(struct __sk_buff* skb) {
     switch (l4_proto) {
     case IPPROTO_UDP:
         src_port_offset = offsetof(struct udphdr, source);
+        dst_port_offset = offsetof(struct udphdr, dest);
         break;
     case IPPROTO_TCP:
         src_port_offset = offsetof(struct tcphdr, source);
+        dst_port_offset = offsetof(struct tcphdr, dest);
         break;
     default:
         return 0;
     }
 
     __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + src_port_offset);
-    if (src_port != 53)
+    __u16 dst_port = load_half(skb, ETH_HLEN + ip_hdr_size + dst_port_offset);
+    if (src_port != 53 && dst_port != 53)
         return 0;
 
     return -1;
