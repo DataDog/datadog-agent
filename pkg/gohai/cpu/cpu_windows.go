@@ -160,6 +160,8 @@ func GetCpuInfo() (cpuInfo map[string]string, err error) {
 	s, _, err := k.GetStringValue("ProcessorNameString")
 	cpuInfo["model_name"] = s
 
+	cpuInfo["cpu_pkgs"] = strconv.Itoa(cpus.pkgcount)
+	cpuInfo["cpu_numa_nodes"] = strconv.Itoa(cpus.numaNodeCount)
 	cpuInfo["cpu_cores"] = strconv.Itoa(cpus.corecount)
 	cpuInfo["cpu_logical_processors"] = strconv.Itoa(cpus.logicalcount)
 
@@ -171,6 +173,10 @@ func GetCpuInfo() (cpuInfo map[string]string, err error) {
 
 	cpuInfo["model"] = strconv.Itoa(int((si.wProcessorRevision >> 8) & 0xFF))
 	cpuInfo["stepping"] = strconv.Itoa(int(si.wProcessorRevision & 0xFF))
+
+	cpuInfo["cache_size_l1"] = strconv.Itoa(int(cpus.l1CacheSize))
+	cpuInfo["cache_size_l2"] = strconv.Itoa(int(cpus.l2CacheSize))
+	cpuInfo["cache_size_l3"] = strconv.Itoa(int(cpus.l3CacheSize))
 
 	return
 }
