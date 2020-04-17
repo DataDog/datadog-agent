@@ -2,9 +2,9 @@ package checks
 
 import (
 	"fmt"
-	"strconv"
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/platform"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
@@ -29,12 +29,12 @@ func CollectSystemInfo(cfg *config.AgentConfig) (*model.SystemInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	phys_count, err := strconv.ParseInt(cpuInfo["cpu_pkgs"], 10, 64)
-	logical_count, err := strconv.ParseInt(cpuInfo["cpu_logical_processors"], 10, 64)
-	clock_speed, err := strconv.ParseInt(cpuInfo["mhz"], 10, 64)
-	l2_cache, err := strconv.ParseInt(cpuInfo["cache_size_l2"], 10, 64)
+	physCount, _ := strconv.ParseInt(cpuInfo["cpu_pkgs"], 10, 64)
+	logicalCount, _ := strconv.ParseInt(cpuInfo["cpu_logical_processors"], 10, 64)
+	clockSpeed, _ := strconv.ParseInt(cpuInfo["mhz"], 10, 64)
+	l2Cache, _ := strconv.ParseInt(cpuInfo["cache_size_l2"], 10, 64)
 	cpus := make([]*model.CPUInfo, 0)
-	for i := int64(0) ; i < phys_count ; i++ {
+	for i := int64(0); i < physCount; i++ {
 		cpus = append(cpus, &model.CPUInfo{
 			Number:     int32(i),
 			Vendor:     cpuInfo["vendor_id"],
@@ -42,9 +42,9 @@ func CollectSystemInfo(cfg *config.AgentConfig) (*model.SystemInfo, error) {
 			Model:      cpuInfo["model"],
 			PhysicalId: "",
 			CoreId:     "",
-			Cores:      int32(logical_count),
-			Mhz:        int64(clock_speed),
-			CacheSize:  int32(l2_cache),
+			Cores:      int32(logicalCount),
+			Mhz:        int64(clockSpeed),
+			CacheSize:  int32(l2Cache),
 		})
 	}
 
