@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Support SNMP autodisovery via a new configuration listener and a configuration provider.
