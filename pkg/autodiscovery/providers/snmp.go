@@ -59,6 +59,16 @@ func (cf SNMPConfigProvider) Collect() ([]integration.Config, error) {
 		instanceContent = string(content)
 	}
 
+	initContent := ""
+	initFile := filepath.Join(cf.templateDir, "init_config.yaml")
+	if _, err := os.Stat(initFile); !os.IsNotExist(err) {
+		content, err := ioutil.ReadFile(initFile)
+		if err != nil {
+			return nil, err
+		}
+		initContent = string(content)
+	}
+
 	for _, conf := range snmpConfig.Configs {
 		adIdentifier := fmt.Sprintf("snmp:%s", conf.Digest(conf.Network))
 		log.Debugf("Building SNMP config for %s", adIdentifier)
@@ -115,7 +125,7 @@ func (cf SNMPConfigProvider) Collect() ([]integration.Config, error) {
 			instance = fmt.Sprintf("%s\n%s", instance, instanceContent)
 		}
 		instances := [][]integration.Data{{integration.Data(instance)}}
-		initConfigs := [][]integration.Data{{integration.Data("")}}
+		initConfigs := [][]integration.Data{{integration.Data(initContent)}}
 		newConfigs := buildTemplates(adIdentifier, []string{"snmp"}, initConfigs, instances)
 		for i := range newConfigs {
 			// Schedule cluster checks when running in k8s
