@@ -30,3 +30,7 @@ New-Service -Name "datadog-trace-agent" -StartupType "Manual" -BinaryPathName "C
 # Allow to run agent binaries as `agent`
 setx /m PATH "$Env:Path;C:/Program Files/Datadog/Datadog Agent/bin;C:/Program Files/Datadog/Datadog Agent/bin/agent"
 $Env:Path="$Env:Path;C:/Program Files/Datadog/Datadog Agent/bin;C:/Program Files/Datadog/Datadog Agent/bin/agent"
+
+# Set variable indicating we are running in a container
+setx /m DOCKER_DD_AGENT "true"
+$Env:DOCKER_DD_AGENT="true"
