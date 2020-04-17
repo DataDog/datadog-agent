@@ -42,13 +42,13 @@ var (
 		Use:   "set [setting] [value]",
 		Short: "Set, for the current runtime, the value of a given configuration setting",
 		Long:  ``,
-		RunE:  setConfigValue,
+		RunE:  setConfigValueCmd,
 	}
 	getCommand = &cobra.Command{
 		Use:   "get [setting]",
 		Short: "Get, for the current runtime, the value of a given configuration setting",
 		Long:  ``,
-		RunE:  getConfigValue,
+		RunE:  getConfigValueCmd,
 	}
 	agentConfigURLPath = "/agent/config"
 	listRuntimeURLPath = agentConfigURLPath + "/list-runtime"
@@ -144,7 +144,7 @@ func listRuntimeConfigurableValue(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func setConfigValue(cmd *cobra.Command, args []string) error {
+func setConfigValueCmd(cmd *cobra.Command, args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("Exactly two parameters are required: the setting name and its value")
 	}
@@ -152,13 +152,23 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	err = setConfigValue(args[0], args[1])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Configuration setting %s is now set to: %s\n", args[0], args[1])
+	return nil
+}
+
+func setConfigValue(key, value string) error {
 	c := util.GetClient(false)
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("https://%v:%v"+agentConfigURLPath+"/%v", ipcAddress, config.Datadog.GetInt("cmd_port"), args[0])
-	body := fmt.Sprintf("value=%s", html.EscapeString(args[1]))
+	url := fmt.Sprintf("https://%v:%v"+agentConfigURLPath+"/%v", ipcAddress, config.Datadog.GetInt("cmd_port"), key)
+	body := fmt.Sprintf("value=%s", html.EscapeString(value))
 	r, err := util.DoPost(c, url, "application/x-www-form-urlencoded", bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		var errMap = make(map[string]string)
@@ -169,11 +179,10 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 		}
 		return err
 	}
-	fmt.Printf("Configuration setting %s is now set to: %s\n", args[0], args[1])
 	return nil
 }
 
-func getConfigValue(cmd *cobra.Command, args []string) error {
+func getConfigValueCmd(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("A single setting name must be specified")
 	}
@@ -181,31 +190,41 @@ func getConfigValue(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	c := util.GetClient(false)
-	ipcAddress, err := config.GetIPCAddress()
+
+	value, err := getConfigValue(args[0])
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("https://%v:%v"+agentConfigURLPath+"/%v", ipcAddress, config.Datadog.GetInt("cmd_port"), args[0])
+	
+	fmt.Printf("%s is set to: %s\n", args[0], value)
+	return nil
+}
+
+func getConfigValue(key string) (string, error) {
+	c := util.GetClient(false)
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+	url := fmt.Sprintf("https://%v:%v"+agentConfigURLPath+"/%v", ipcAddress, config.Datadog.GetInt("cmd_port"), key)
 	r, err := util.DoGet(c, url)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			return fmt.Errorf(e)
+			return "", fmt.Errorf(e)
 		}
-		return err
+		return "", err
 	}
 
-	var setting = make(map[string]interface{})
+	var setting = make(map[string]string)
 	err = json.Unmarshal(r, &setting)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if value, found := setting["value"]; found {
-		fmt.Printf("%s is set to: %s\n", args[0], value)
-		return nil
+		return value, nil
 	}
-	return fmt.Errorf("unable to get value for this setting: %v", args[0])
+	return "", fmt.Errorf("unable to get value for this setting: %v", key)
 }

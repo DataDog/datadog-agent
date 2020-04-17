@@ -9,6 +9,9 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -23,7 +26,9 @@ import (
 var (
 	customerEmail string
 	autoconfirm   bool
+	debugLog      bool
 	forceLocal    bool
+	delay         int
 )
 
 func init() {
@@ -32,6 +37,9 @@ func init() {
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
+	flareCmd.Flags().BoolVarP(&debugLog, "debug-log", "d", false, "Switch the log level to debug during the flare, if used the flare command will wait for 30 seconds (it can be overriden using the delay option) to collect log at the debug level")
+	flareCmd.Flags().IntVarP(&delay, "delay", "w", 30, "Amount of time (in seconds) to wait for debug log collection when the --enable-debug-log option is used (default: 30)")
+
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -70,9 +78,47 @@ var flareCmd = &cobra.Command{
 				return err
 			}
 		}
-
+		if debugLog {
+			if e := switchLogLevelAndWait(); e != nil {
+				fmt.Printf("Error while changing log level: %v\n", e)
+			}
+		}
 		return makeFlare(caseID)
 	},
+}
+
+func switchLogLevelAndWait() error {
+	err := util.SetAuthToken()
+	if err != nil {
+		return err
+	}
+	currentLogLevel, err := getConfigValue("log_level")
+	if err != nil {
+		return err
+	}
+	defer setConfigValue("log_level", currentLogLevel)
+
+	// Setup a channel to catch OS signals as it very likely that some users will do CTRL+C while waiting for the delay
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		_ = <-signalCh
+		err = setConfigValue("log_level", currentLogLevel)
+		if err != nil {
+			fmt.Fprintln(color.Output, color.RedString("The flare command was interrupted, setting the log_level to its original value: %v failed because: %v"), currentLogLevel, err)
+		}
+		os.Exit(1)
+	}()
+
+	err = setConfigValue("log_level", "debug")
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintln(color.Output, color.BlueString("Waiting %v seconds to get debug logs...\n", delay))
+	time.Sleep(time.Duration(delay) * time.Second)
+	
+	return nil
 }
 
 func makeFlare(caseID string) error {
