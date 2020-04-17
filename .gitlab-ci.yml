@@ -1111,6 +1111,7 @@ windows_msi_x64-a7:
 
 windows_msi_x86-a7:
   extends: .windows_main_agent_base
+  allow_failure: true
   variables:
     ARCH: "x86"
     AGENT_MAJOR_VERSION: 7
@@ -1132,6 +1133,7 @@ windows_msi_x64-a6:
 
 windows_msi_x86-a6:
   extends: .windows_main_agent_base
+  allow_failure: true
   variables:
     ARCH: "x86"
     AGENT_MAJOR_VERSION: 6
