@@ -143,6 +143,7 @@ variables:
 
 # run when not triggered (for jobs we don't want to run on release pipelines)
 .skip_when_triggered: &skip_when_triggered
+  # TODO (with rules?): exclude triggered pipelines but not nightlies
   except:
     refs:
       - triggers
