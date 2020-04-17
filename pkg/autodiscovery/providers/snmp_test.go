@@ -6,11 +6,16 @@
 package providers
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSNMPConfigProvider(t *testing.T) {
@@ -65,4 +70,34 @@ func TestSNMPConfigProviderV3(t *testing.T) {
 	assert.Equal(t, 1, len(configs))
 	assert.Equal(t, 1, len(configs[0].Instances))
 	assert.Equal(t, "ip_address: %%host%%\nsnmp_version: 3\nuser: admin\nauthKey: secret\nauthProtocol: usmHMACSHAAuthProtocol\nprivKey: privSecret\nprivProtocol: usmAesCfb128Protocol", string(configs[0].Instances[0]))
+}
+
+func TestSNMPConfigProviderInstanceTemplate(t *testing.T) {
+	fakeDir, err := ioutil.TempDir("", "fake-template-dir")
+	require.Nil(t, err, fmt.Sprintf("%v", err))
+	defer os.RemoveAll(fakeDir)
+
+	instanceFile := filepath.Join(fakeDir, "instance.yaml")
+	err = ioutil.WriteFile(instanceFile, []byte("enforce_mib_constraints: false"), os.ModePerm)
+	require.Nil(t, err, fmt.Sprintf("%v", err))
+
+	snmpConfig := util.SNMPConfig{
+		Network:   "192.168.0.0/24",
+		Community: "public",
+	}
+	listenerConfig := util.SNMPListenerConfig{
+		Configs: []util.SNMPConfig{snmpConfig},
+	}
+
+	mockConfig := config.Mock()
+	mockConfig.Set("snmp_listener", listenerConfig)
+
+	p := SNMPConfigProvider{templateDir: fakeDir}
+
+	configs, err := p.Collect()
+	assert.Equal(t, nil, err)
+
+	assert.Equal(t, 1, len(configs))
+	assert.Equal(t, 1, len(configs[0].Instances))
+	assert.Equal(t, "ip_address: %%host%%\ncommunity_string: public\nenforce_mib_constraints: false", string(configs[0].Instances[0]))
 }

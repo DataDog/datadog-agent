@@ -7,6 +7,9 @@ package providers
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
@@ -17,11 +20,14 @@ import (
 
 // SNMPConfigProvider implements the Config Provider interface
 type SNMPConfigProvider struct {
+	templateDir string
 }
 
 // NewSNMPConfigProvider returns a new SNMPConfigProvider
 func NewSNMPConfigProvider(conf config.ConfigurationProviders) (ConfigProvider, error) {
-	cfp := SNMPConfigProvider{}
+	cfp := SNMPConfigProvider{
+		templateDir: conf.TemplateDir,
+	}
 	return cfp, nil
 }
 
@@ -42,6 +48,17 @@ func (cf SNMPConfigProvider) Collect() ([]integration.Config, error) {
 	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig); err != nil {
 		return nil, err
 	}
+
+	instanceContent := ""
+	instanceFile := filepath.Join(cf.templateDir, "instance.yaml")
+	if _, err := os.Stat(instanceFile); !os.IsNotExist(err) {
+		content, err := ioutil.ReadFile(instanceFile)
+		if err != nil {
+			return nil, err
+		}
+		instanceContent = string(content)
+	}
+
 	for _, conf := range snmpConfig.Configs {
 		adIdentifier := fmt.Sprintf("snmp:%s", conf.Digest(conf.Network))
 		log.Debugf("Building SNMP config for %s", adIdentifier)
@@ -93,6 +110,9 @@ func (cf SNMPConfigProvider) Collect() ([]integration.Config, error) {
 		}
 		if conf.ContextName != "" {
 			instance = fmt.Sprintf("%s\ncontext_name: %s", instance, conf.ContextName)
+		}
+		if instanceContent != "" {
+			instance = fmt.Sprintf("%s\n%s", instance, instanceContent)
 		}
 		instances := [][]integration.Data{{integration.Data(instance)}}
 		initConfigs := [][]integration.Data{{integration.Data("")}}
