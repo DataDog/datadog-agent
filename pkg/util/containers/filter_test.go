@@ -139,6 +139,30 @@ func TestFilter(t *testing.T) {
 			},
 			ns: "bar",
 		},
+		{
+			c: Container{
+				ID:    "16",
+				Name:  "foo",
+				Image: "gcr.io/gke-release/pause-win:1.1.0",
+			},
+			ns: "bar",
+		},
+		{
+			c: Container{
+				ID:    "17",
+				Name:  "foo",
+				Image: "mcr.microsoft.com/k8s/core/pause:1.2.0",
+			},
+			ns: "bar",
+		},
+		{
+			c: Container{
+				ID:    "18",
+				Name:  "foo",
+				Image: "ecr.us-east-1.amazonaws.com/pause",
+			},
+			ns: "bar",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -147,25 +171,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"},
 		},
 		{
 			blacklist:   []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"},
 		},
 		{
 			blacklist:   []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"},
 		},
 		{
 			whitelist:   []string{},
 			blacklist:   []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"},
 		},
 		{
 			whitelist:   []string{"name:mysql"},
 			blacklist:   []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18"},
 		},
 		{
 			blacklist:   []string{"kube_namespace:.*"},
@@ -184,6 +208,8 @@ func TestFilter(t *testing.T) {
 				pauseContainerKubernetes,
 				pauseContainerAzure,
 				pauseContainerRancher,
+				pauseContainerAKS,
+				pauseContainerECR,
 			},
 			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "14", "15"},
 		},

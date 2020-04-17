@@ -9,6 +9,8 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"io"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Payload represents the payload to be flushed to the stats endpoint
@@ -24,6 +26,10 @@ func EncodePayload(w io.Writer, payload *Payload) error {
 	if err != nil {
 		return err
 	}
-	defer gz.Close()
+	defer func() {
+		if err := gz.Close(); err != nil {
+			log.Errorf("Error closing gzip stream when writing stats payload: %v", err)
+		}
+	}()
 	return json.NewEncoder(gz).Encode(payload)
 }

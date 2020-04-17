@@ -46,9 +46,6 @@ const (
 
 	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
 	ClusterIDCacheKey = "orchestratorClusterID"
-
-	// defaultSystemProbeSocketPath is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
 )
 
 var overrideVars = make(map[string]interface{})
@@ -227,13 +224,19 @@ func initConfig(config Config) {
 	if IsContainerized() {
 		// In serverless-containerized environments (e.g Fargate)
 		// it's impossible to mount host volumes.
-		// Make sure the paths exist before setting-up the default values.
+		// Make sure the host paths exist before setting-up the default values.
+		// Fallback to the container paths if host paths aren't mounted.
 		if pathExists("/host/proc") {
 			config.SetDefault("procfs_path", "/host/proc")
 			config.SetDefault("container_proc_root", "/host/proc")
+		} else {
+			config.SetDefault("procfs_path", "/proc")
+			config.SetDefault("container_proc_root", "/proc")
 		}
 		if pathExists("/host/sys/fs/cgroup/") {
 			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+		} else {
+			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 		}
 	} else {
 		config.SetDefault("container_proc_root", "/proc")
@@ -385,6 +388,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
+	config.BindEnvAndSetDefault("cache_sync_timeout", 2) // in seconds
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
@@ -596,7 +600,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
-	config.BindEnvAndSetDefault("system_probe_config.sysprobe_socket", defaultSystemProbeSocketPath)
+	config.SetKnown("system_probe_config.sysprobe_socket")
 	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
 	config.SetKnown("system_probe_config.max_conns_per_message")
 	config.SetKnown("system_probe_config.max_tracked_connections")

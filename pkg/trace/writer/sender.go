@@ -388,6 +388,30 @@ func stopSenders(senders []*sender) {
 	wg.Wait()
 }
 
+// sendPayloads sends the payload p to all senders.
+func sendPayloads(senders []*sender, p *payload) {
+	if len(senders) == 1 {
+		// fast path
+		senders[0].Push(p)
+		return
+	}
+	// Create a clone for each payload because each sender places payloads
+	// back onto the pool after they are sent.
+	payloads := make([]*payload, 0, len(senders))
+	// Perform all the clones before any sends are to ensure the original
+	// payload body is completely unread.
+	for i := range senders {
+		if i == 0 {
+			payloads = append(payloads, p)
+		} else {
+			payloads = append(payloads, p.clone())
+		}
+	}
+	for i, sender := range senders {
+		sender.Push(payloads[i])
+	}
+}
+
 const (
 	// backoffBase specifies the multiplier base for the backoff duration algorithm.
 	backoffBase = 100 * time.Millisecond

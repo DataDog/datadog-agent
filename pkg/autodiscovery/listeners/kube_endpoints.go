@@ -62,14 +62,17 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
 		return nil, fmt.Errorf("cannot get endpoints informer: %s", err)
 	}
+
 	serviceInformer := ac.InformerFactory.Core().V1().Services()
 	if serviceInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
+
 	return &KubeEndpointsListener{
 		endpoints:         make(map[types.UID][]*KubeEndpointService),
 		endpointsInformer: endpointsInformer,
