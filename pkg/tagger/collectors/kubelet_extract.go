@@ -9,6 +9,7 @@ package collectors
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -74,8 +75,10 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 		}
 		if podTags, found := extractTagsFromMap(podTagsAnnotation, pod.Metadata.Annotations); found {
-			for tagName, value := range podTags {
-				tags.AddAuto(tagName, value)
+			for tagName, values := range podTags {
+				for _, val := range values {
+					tags.AddAuto(tagName, val)
+				}
 			}
 		}
 
@@ -172,8 +175,10 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				pod.Metadata.Annotations,
 			)
 			if found {
-				for tagName, value := range containerTags {
-					cTags.AddAuto(tagName, value)
+				for tagName, values := range containerTags {
+					for _, val := range values {
+						cTags.AddAuto(tagName, val)
+					}
 				}
 			}
 
@@ -273,7 +278,8 @@ func parseCronJobForJob(name string) string {
 // extractTagsFromMap extracts tags contained in a JSON string stored at the
 // given key. If no valid tag definition is found at this key, it will return
 // false. Otherwise it returns a map containing extracted tags.
-func extractTagsFromMap(key string, input map[string]string) (map[string]string, bool) {
+// The map values are string slices to support tag keys with multiple values.
+func extractTagsFromMap(key string, input map[string]string) (map[string][]string, bool) {
 	jsonTags, found := input[key]
 	if !found {
 		return nil, false
@@ -289,17 +295,29 @@ func extractTagsFromMap(key string, input map[string]string) (map[string]string,
 }
 
 // parseJSONValue returns a map from the given JSON string.
-func parseJSONValue(value string) (map[string]string, error) {
+func parseJSONValue(value string) (map[string][]string, error) {
 	if value == "" {
-		return nil, fmt.Errorf("value is empty")
+		return nil, errors.New("value is empty")
 	}
 
-	var result map[string]string
-
-	err := json.Unmarshal([]byte(value), &result)
-	if err != nil {
+	result := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(value), &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %s", err)
 	}
 
-	return result, nil
+	tags := map[string][]string{}
+	for key, value := range result {
+		switch v := value.(type) {
+		case string:
+			tags[key] = append(tags[key], v)
+		case []interface{}:
+			for _, tag := range v {
+				tags[key] = append(tags[key], fmt.Sprint(tag))
+			}
+		default:
+			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
+		}
+	}
+
+	return tags, nil
 }
