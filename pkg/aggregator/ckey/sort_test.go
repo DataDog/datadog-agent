@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,21 +39,29 @@ func TestSortOK(t *testing.T) {
 			stdSort := make([]string, len(toSort))
 			copy(stdSort, toSort)
 
-			selectionSort(selSort)
+			util.InsertionSort(selSort)
 			sort.Strings(stdSort)
 
 			assert.Equal(t, stdSort, selSort)
 		})
 	}
-
 }
 
-// Benchmark selection sort vs stdlib
-// Run with `go test -bench=. -benchmem ./pkg/aggregator/ckey/`
+// Benchmark insertion sort vs stdlib
+// Run with `go test -bench=. -count=5 -benchmem ./pkg/aggregator/ckey/`
+//
+// While running these benchmarks, you'll notice that the insertion sort benchmark
+// is allocating memory: it comes from its call to generate to re-generate a set
+// of tags to sort.
+// It's important to re-generate the tags slice between each run of the benchmark
+// in order to be sure to not bench the sort against one of its optimal scenario
+// (or sub-optimal).
+// You should observe the stdlib sort allocate 1 more byte per operation than the
+// insertion sort, that's the actual allocation cost of the stdlib sort.
 
 var benchmarkTags []string
 
-func init() {
+func generate() {
 	listSize, err := strconv.Atoi(os.Getenv("LISTSIZE"))
 	if err != nil {
 		listSize = 19
@@ -64,12 +73,13 @@ func init() {
 	benchmarkTags = generateRandomTags(tagSize, listSize)
 }
 
-func BenchmarkSelectionSort(b *testing.B) {
+func BenchmarkInsertionSort(b *testing.B) {
 	t := make([]string, len(benchmarkTags))
 
 	for n := 0; n < b.N; n++ {
+		generate()
 		copy(t, benchmarkTags)
-		selectionSort(t)
+		util.InsertionSort(t)
 	}
 }
 
@@ -77,6 +87,7 @@ func BenchmarkStdlibSort(b *testing.B) {
 	t := make([]string, len(benchmarkTags))
 
 	for n := 0; n < b.N; n++ {
+		generate()
 		copy(t, benchmarkTags)
 		sort.Strings(t)
 	}
