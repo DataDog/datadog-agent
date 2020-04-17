@@ -63,13 +63,12 @@ type EventC struct {
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
 	core.CheckBase
-	instance              *KubeASConfig
-	KubeAPIServerHostname string
-	eventCollection       EventC
-	ignoredEvents         string
-	ac                    *apiserver.APIClient
-	oshiftAPILevel        apiserver.OpenShiftAPILevel
-	providerIDCache       *cache.Cache
+	instance        *KubeASConfig
+	eventCollection EventC
+	ignoredEvents   string
+	ac              *apiserver.APIClient
+	oshiftAPILevel  apiserver.OpenShiftAPILevel
+	providerIDCache *cache.Cache
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -295,7 +294,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 				statusCheck = metrics.ServiceCheckCritical
 				message = condition.Error
 			}
-			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, k.KubeAPIServerHostname, tagComp, message)
+			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tagComp, message)
 		}
 	}
 	return nil

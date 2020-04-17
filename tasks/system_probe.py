@@ -1,6 +1,7 @@
 import datetime
 import glob
 import os
+import getpass
 import contextlib
 import shutil
 import tempfile
@@ -136,6 +137,13 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
 
     if only_check_bpf_bytes:
         cmd += " -run=TestEbpfBytesCorrect"
+    else:
+        if getpass.getuser()  != "root":
+            print("system-probe tests must be run as root")
+            raise Exit(code=1)
+        if os.getenv("GOPATH") is None:
+            print("GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment")
+            raise Exit(code=1)
 
     ctx.run(cmd.format(path=path, bpf_tag=BPF_TAG, pkg=pkg))
 

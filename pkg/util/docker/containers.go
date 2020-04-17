@@ -162,10 +162,13 @@ func (d *DockerUtil) getContainerMetrics(ctn *containers.Container) {
 		return
 	}
 	ctn.SetMetrics(metrics)
-	ctn.Pids, err = providers.ContainerImpl().GetPIDs(ctn.ID)
+
+	pids, err := providers.ContainerImpl().GetPIDs(ctn.ID)
 	if err != nil {
 		log.Debugf("ContainerImplementation cannot get PIDs for container %s, err: %s", ctn.ID[:12], err)
+		return
 	}
+	ctn.Pids = pids
 
 	if d.cfg.CollectNetwork {
 		d.Lock()
