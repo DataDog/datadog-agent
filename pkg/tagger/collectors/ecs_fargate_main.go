@@ -26,11 +26,12 @@ const (
 
 // ECSFargateCollector polls the ecs metadata api.
 type ECSFargateCollector struct {
-	infoOut         chan<- []*TagInfo
-	expire          *taggerutil.Expire
-	lastExpire      time.Time
-	expireFreq      time.Duration
-	labelsAsTags    map[string]string
+	infoOut      chan<- []*TagInfo
+	expire       *taggerutil.Expire
+	lastExpire   time.Time
+	expireFreq   time.Duration
+	labelsAsTags map[string]string
+	// Used to initialize the orchestrator scope tags which don't need to be refetched after
 	doOnceOrchScope sync.Once
 }
 
