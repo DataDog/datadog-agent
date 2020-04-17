@@ -7,21 +7,27 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
-	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 
 	_ "net/http/pprof"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+const (
+	// ErrLoadConfig - Load config error
+	ErrLoadConfig = "main - LoadConfig error: %v"
+	// ErrManagerStart - Probe Manager start error
+	ErrManagerStart = "main - ProbeManager start error: %v"
+	// ErrManagerStop - Probe Manager stop error
+	ErrManagerStop = "main - ProbeManager stop error: %v"
 )
+
+func main() {
+	// Parse flags
+	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
+	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
+	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 
 // All System Probe modules should register their factories here
 var factories = []api.Factory{
@@ -30,13 +36,18 @@ var factories = []api.Factory{
 	modules.OOMKillProbe,
 }
 
-// Flag values
-var opts struct {
-	configPath  string
-	pidFilePath string
-	debug       bool
-	version     bool
-	console     bool // windows only; execute on console rather than via SCM
+	agent := agent.NewAgent()
+	if err := agent.Start(); err != nil {
+		fmt.Printf(ErrManagerStart, err)
+		os.Exit(1)
+	}
+
+	runAgent()
+
+	if err := probe.Manager.Stop(); err != nil {
+		fmt.Printf(ErrManagerStop, err)
+		os.Exit(1)
+	}
 }
 
 // Version info sourced from build flags
