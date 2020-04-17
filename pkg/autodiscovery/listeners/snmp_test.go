@@ -24,14 +24,17 @@ func TestSNMPListener(t *testing.T) {
 	}
 	listenerConfig := util.SNMPListenerConfig{
 		Configs: []util.SNMPConfig{snmpConfig},
+		Workers: 1,
 	}
 
 	mockConfig := config.Mock()
 	mockConfig.Set("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpSubnet) {
-		subnet := <-jobs
-		testChan <- subnet
+		for {
+			subnet := <-jobs
+			testChan <- subnet
+		}
 	}
 
 	l, err := NewSNMPListener()
@@ -64,14 +67,17 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	}
 	listenerConfig := util.SNMPListenerConfig{
 		Configs: []util.SNMPConfig{snmpConfig},
+		Workers: 1,
 	}
 
 	mockConfig := config.Mock()
 	mockConfig.Set("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpSubnet) {
-		subnet := <-jobs
-		testChan <- subnet
+		for {
+			subnet := <-jobs
+			testChan <- subnet
+		}
 	}
 
 	l, err := NewSNMPListener()
