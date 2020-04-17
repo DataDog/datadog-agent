@@ -173,6 +173,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 			filter,
 			config.CollectDNSStats,
 			config.CollectLocalDNS,
+			config.DNSTimeout,
 		); err == nil {
 			reverseDNS = snooper
 		} else {

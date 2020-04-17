@@ -50,11 +50,11 @@ type dnsStatKeeper struct {
 	exit             chan struct{}
 }
 
-func newDNSStatkeeper() *dnsStatKeeper {
+func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
 		stats:            make(map[dnsKey]dnsStats),
 		state:            make(map[stateKey]time.Time),
-		expirationPeriod: 30 * time.Second, // TODO: make it configurable
+		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
 	}
 

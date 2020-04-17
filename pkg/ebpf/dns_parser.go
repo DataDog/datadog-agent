@@ -128,7 +128,7 @@ func (p *dnsParser) parseAnswerInto(
 	pktInfo *dnsPacketInfo,
 ) error {
 	// Only consider singleton, A-record questions
-	if dns.ResponseCode != 0 || len(dns.Questions) != 1 {
+	if len(dns.Questions) != 1 {
 		return skippedPayload
 	}
 

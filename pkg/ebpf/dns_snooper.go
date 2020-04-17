@@ -54,6 +54,7 @@ func NewSocketFilterSnooper(
 	filter *bpflib.SocketFilter,
 	collectDNSStats bool,
 	collectLocalDNS bool,
+	dnsTimeout time.Duration,
 ) (*SocketFilterSnooper, error) {
 
 	var (
@@ -75,7 +76,7 @@ func NewSocketFilterSnooper(
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if collectDNSStats {
-		statKeeper = newDNSStatkeeper()
+		statKeeper = newDNSStatkeeper(dnsTimeout)
 	}
 	snooper := &SocketFilterSnooper{
 		source:          packetSrc,
