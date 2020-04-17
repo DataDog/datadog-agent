@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -300,4 +301,10 @@ func (s *KubeServiceService) IsReady() bool {
 // KubeServiceService doesn't implement this method
 func (s *KubeServiceService) GetCheckNames() []string {
 	return nil
+}
+
+// HasFilter always return false
+// KubeServiceService doesn't implement this method
+func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
+	return false
 }

@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
@@ -396,4 +397,10 @@ func (s *KubeEndpointService) IsReady() bool {
 // KubeEndpointService doesn't implement this method
 func (s *KubeEndpointService) GetCheckNames() []string {
 	return nil
+}
+
+// HasFilter always return false
+// KubeEndpointService doesn't implement this method
+func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
+	return false
 }

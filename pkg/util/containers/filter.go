@@ -123,8 +123,16 @@ func NewFilter(whitelist, blacklist []string) (*Filter, error) {
 // NewFilterFromConfig creates a new container filter, sourcing patterns
 // from the pkg/config options
 func NewFilterFromConfig() (*Filter, error) {
-	whitelist := config.Datadog.GetStringSlice("ac_include")
-	blacklist := config.Datadog.GetStringSlice("ac_exclude")
+	whitelist := config.Datadog.GetStringSlice("container_include")
+	blacklist := config.Datadog.GetStringSlice("container_exclude")
+	if len(whitelist) == 0 {
+		// support legacy "ac_include" config
+		whitelist = config.Datadog.GetStringSlice("ac_include")
+	}
+	if len(blacklist) == 0 {
+		// support legacy "ac_exclude" config
+		blacklist = config.Datadog.GetStringSlice("ac_exclude")
+	}
 
 	if config.Datadog.GetBool("exclude_pause_container") {
 		blacklist = append(blacklist,
@@ -142,12 +150,32 @@ func NewFilterFromConfig() (*Filter, error) {
 	return NewFilter(whitelist, blacklist)
 }
 
-// NewFilterFromConfigIncludePause creates a new container filter, sourcing patterns
-// from the pkg/config options, but ignoring the exclude_pause_container option, for
-// use in autodiscovery
-func NewFilterFromConfigIncludePause() (*Filter, error) {
-	whitelist := config.Datadog.GetStringSlice("ac_include")
-	blacklist := config.Datadog.GetStringSlice("ac_exclude")
+// NewAutodiscoveryFilter creates a new container filter for Autodiscovery
+// It sources patterns from the pkg/config options but ignores the exclude_pause_container options
+// It allows to filter metrics and logs separately
+// For use in autodiscovery.
+func NewAutodiscoveryFilter(filter FilterType) (*Filter, error) {
+	whitelist := []string{}
+	blacklist := []string{}
+	switch filter {
+	case GlobalFilter:
+		whitelist = config.Datadog.GetStringSlice("container_include")
+		blacklist = config.Datadog.GetStringSlice("container_exclude")
+		if len(whitelist) == 0 {
+			// fallback and support legacy "ac_include" config
+			whitelist = config.Datadog.GetStringSlice("ac_include")
+		}
+		if len(blacklist) == 0 {
+			// fallback and support legacy "ac_exclude" config
+			blacklist = config.Datadog.GetStringSlice("ac_exclude")
+		}
+	case MetricsFilter:
+		whitelist = config.Datadog.GetStringSlice("container_include_metrics")
+		blacklist = config.Datadog.GetStringSlice("container_exclude_metrics")
+	case LogsFilter:
+		whitelist = config.Datadog.GetStringSlice("container_include_logs")
+		blacklist = config.Datadog.GetStringSlice("container_exclude_logs")
+	}
 	return NewFilter(whitelist, blacklist)
 }
 
