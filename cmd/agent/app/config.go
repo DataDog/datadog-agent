@@ -195,7 +195,7 @@ func getConfigValueCmd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	fmt.Printf("%s is set to: %s\n", args[0], value)
 	return nil
 }

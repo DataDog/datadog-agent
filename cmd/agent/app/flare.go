@@ -37,7 +37,7 @@ func init() {
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
-	flareCmd.Flags().BoolVarP(&debugLog, "debug-log", "d", false, "Switch the log level to debug during the flare, if used the flare command will wait for 30 seconds (it can be overriden using the delay option) to collect log at the debug level")
+	flareCmd.Flags().BoolVarP(&debugLog, "debug-log", "d", false, "Switch the log level to debug during the flare, if used the flare command will wait for 30 seconds (it can be overridden using the delay option) to collect log at the debug level")
 	flareCmd.Flags().IntVarP(&delay, "delay", "w", 30, "Amount of time (in seconds) to wait for debug log collection when the --enable-debug-log option is used (default: 30)")
 
 	flareCmd.SetArgs([]string{"caseID"})
@@ -117,7 +117,7 @@ func switchLogLevelAndWait() error {
 
 	fmt.Fprintln(color.Output, color.BlueString("Waiting %v seconds to get debug logs...\n", delay))
 	time.Sleep(time.Duration(delay) * time.Second)
-	
+
 	return nil
 }
 
