@@ -37,7 +37,7 @@ func TestStringError(t *testing.T) {
 		},
 	}
 
-	_, _, err := eval(t, event, `Process.Name != "/usr/bin/vipw" && Process.UID != 0 && Open.Pathname == 3`)
+	_, _, err := eval(t, event, `process.name != "/usr/bin/vipw" && process.uid != 0 && open.pathname == 3`)
 	if err == nil || err.(*AstToEvalError).Pos.Column != 73 {
 		t.Fatal("should report a string type error")
 	}
@@ -54,7 +54,7 @@ func TestIntError(t *testing.T) {
 		},
 	}
 
-	_, _, err := eval(t, event, `Process.Name != "/usr/bin/vipw" && Process.UID != "test" && Open.Pathname == "/etc/shadow"`)
+	_, _, err := eval(t, event, `process.name != "/usr/bin/vipw" && process.uid != "test" && open.pathname == "/etc/shadow"`)
 	if err == nil || err.(*AstToEvalError).Pos.Column != 51 {
 		t.Fatal("should report a string type error")
 	}
@@ -71,13 +71,12 @@ func TestBoolError(t *testing.T) {
 		},
 	}
 
-	_, _, err := eval(t, event, `(Process.Name != "/usr/bin/vipw") == "test"`)
+	_, _, err := eval(t, event, `(process.name != "/usr/bin/vipw") == "test"`)
 	if err == nil || err.(*AstToEvalError).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
 	}
 }
 
-/*
 func TestSimpleString(t *testing.T) {
 	event := &model.Event{
 		Process: model.Process{
@@ -89,10 +88,10 @@ func TestSimpleString(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `Process.Name != "/usr/bin/vipw"`, Expected: true},
-		{Expr: `Process.Name != "/usr/bin/cat"`, Expected: false},
-		{Expr: `Process.Name == "/usr/bin/cat"`, Expected: true},
-		{Expr: `Process.Name == "/usr/bin/vipw"`, Expected: false},
+		{Expr: `process.name != "/usr/bin/vipw"`, Expected: true},
+		{Expr: `process.name != "/usr/bin/cat"`, Expected: false},
+		{Expr: `process.name == "/usr/bin/cat"`, Expected: true},
+		{Expr: `process.name == "/usr/bin/vipw"`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -106,7 +105,6 @@ func TestSimpleString(t *testing.T) {
 		}
 	}
 }
-*/
 
 func TestSimpleInt(t *testing.T) {
 	event := &model.Event{
@@ -120,10 +118,10 @@ func TestSimpleInt(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `111 != 555`, Expected: true},
-		{Expr: `Process.UID != 555`, Expected: true},
-		{Expr: `Process.UID != 444`, Expected: false},
-		{Expr: `Process.UID == 444`, Expected: true},
-		{Expr: `Process.UID == 555`, Expected: false},
+		{Expr: `process.uid != 555`, Expected: true},
+		{Expr: `process.uid != 444`, Expected: false},
+		{Expr: `process.uid == 444`, Expected: true},
+		{Expr: `process.uid == 555`, Expected: false},
 		{Expr: `--3 == 3`, Expected: true},
 		{Expr: `3 ^ 3 == 0`, Expected: true},
 		{Expr: `^0 == -1`, Expected: true},
@@ -271,9 +269,9 @@ func TestRegexp(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `Process.Name =~ "/usr/bin/*"`, Expected: true},
-		{Expr: `Process.Name =~ "/usr/sbin/*"`, Expected: false},
-		{Expr: `Process.Name !~ "/usr/sbin/*"`, Expected: true},
+		{Expr: `process.name =~ "/usr/bin/*"`, Expected: true},
+		{Expr: `process.name =~ "/usr/sbin/*"`, Expected: false},
+		{Expr: `process.name !~ "/usr/sbin/*"`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -337,7 +335,7 @@ func TestComplex(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `Open.Pathname =~ "/var/lib/httpd/*" && Open.Flags & (O_CREAT | O_TRUNC | O_EXCL | O_RDWR | O_WRONLY) > 0`, Expected: true},
+		{Expr: `open.pathname =~ "/var/lib/httpd/*" && open.flags & (O_CREAT | O_TRUNC | O_EXCL | O_RDWR | O_WRONLY) > 0`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -364,7 +362,7 @@ func BenchmarkComplex(b *testing.B) {
 		Event: event,
 	}
 
-	base := `(Process.Name == "/usr/bin/ls" && Process.UID != 0)`
+	base := `(process.name == "/usr/bin/ls" && process.uid != 0)`
 	var exprs []string
 
 	for i := 0; i != 100; i++ {

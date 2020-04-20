@@ -3,38 +3,38 @@
 package model
 
 type OpenSyscall struct {
-	Pathname string `yaml:"pathname"`
-	Flags    int    `yaml:"flags"`
-	Mode     int    `yaml:"mode"`
+	Pathname string `yaml:"pathname" field:"pathname"`
+	Flags    int    `yaml:"flags" field:"flags"`
+	Mode     int    `yaml:"mode" field:"mode"`
 }
 
 type UnlinkSyscall struct {
-	Pathname string `yaml:"pathname"`
+	Pathname string `yaml:"pathname" field:"pathname"`
 }
 
 type RenameSyscall struct {
-	OldName string `yaml:"oldname"`
-	NewName string `yaml:"newname"`
+	OldName string `yaml:"oldname" field:"oldname"`
+	NewName string `yaml:"newname" field:"newname"`
 }
 
 type Process struct {
-	UID  int    `yaml:"UID"`
-	GID  int    `yaml:"GID"`
-	PID  int    `yaml:"PID"`
-	Name string `yaml:"name"`
+	UID  int    `yaml:"UID" field:"uid"`
+	GID  int    `yaml:"GID" field:"gid"`
+	PID  int    `yaml:"PID" field:"pid"`
+	Name string `yaml:"name" field:"name"`
 }
 
 type Container struct {
-	ID     string   `yaml:"id"`
-	Labels []string `yaml:"labels"`
+	ID     string   `yaml:"id" field:"id"`
+	Labels []string `yaml:"labels" field:"labels"`
 }
 
 // genaccessors
 type Event struct {
-	Process   Process       `yaml:"process"`
-	Container Container     `yaml:"container"`
-	Syscall   string        `yaml:"syscall"`
-	Open      OpenSyscall   `yaml:"open"`
-	Unlink    UnlinkSyscall `yaml:"unlink"`
-	Rename    RenameSyscall `yaml:"rename"`
+	Process   Process       `yaml:"process" field:"process"`
+	Container Container     `yaml:"container" field:"container"`
+	Syscall   string        `yaml:"syscall" field:"syscall"`
+	Open      OpenSyscall   `yaml:"open" field:"open"`
+	Unlink    UnlinkSyscall `yaml:"unlink" field:"unlink"`
+	Rename    RenameSyscall `yaml:"rename" field:"rename"`
 }
