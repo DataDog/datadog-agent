@@ -21,7 +21,7 @@ count: 10000
 		t.Fatal(err)
 	}
 
-	rule, err := ast.ParseRule(`Process.Name == "ls"`)
+	rule, err := ast.ParseRule(`process.name == "ls"`)
 	if err != nil {
 		t.Fatal(err)
 	}

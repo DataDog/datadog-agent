@@ -13,84 +13,84 @@ var (
 func GetAccessor(key string) (interface{}, error) {
 	switch key {
 
-	case "Container.ID":
+	case "container.id":
 
 		return &StringEvaluator{
 			Eval:      func(ctx *Context) string { return ctx.Event.Container.ID },
 			DebugEval: func(ctx *Context) string { return ctx.Event.Container.ID },
 		}, nil
 
-	case "Open.Flags":
+	case "open.flags":
 
 		return &IntEvaluator{
 			Eval:      func(ctx *Context) int { return int(ctx.Event.Open.Flags) },
 			DebugEval: func(ctx *Context) int { return int(ctx.Event.Open.Flags) },
 		}, nil
 
-	case "Open.Mode":
+	case "open.mode":
 
 		return &IntEvaluator{
 			Eval:      func(ctx *Context) int { return int(ctx.Event.Open.Mode) },
 			DebugEval: func(ctx *Context) int { return int(ctx.Event.Open.Mode) },
 		}, nil
 
-	case "Open.Pathname":
+	case "open.pathname":
 
 		return &StringEvaluator{
 			Eval:      func(ctx *Context) string { return ctx.Event.Open.Pathname },
 			DebugEval: func(ctx *Context) string { return ctx.Event.Open.Pathname },
 		}, nil
 
-	case "Process.GID":
+	case "process.gid":
 
 		return &IntEvaluator{
 			Eval:      func(ctx *Context) int { return int(ctx.Event.Process.GID) },
 			DebugEval: func(ctx *Context) int { return int(ctx.Event.Process.GID) },
 		}, nil
 
-	case "Process.Name":
+	case "process.name":
 
 		return &StringEvaluator{
 			Eval:      func(ctx *Context) string { return ctx.Event.Process.Name },
 			DebugEval: func(ctx *Context) string { return ctx.Event.Process.Name },
 		}, nil
 
-	case "Process.PID":
+	case "process.pid":
 
 		return &IntEvaluator{
 			Eval:      func(ctx *Context) int { return int(ctx.Event.Process.PID) },
 			DebugEval: func(ctx *Context) int { return int(ctx.Event.Process.PID) },
 		}, nil
 
-	case "Process.UID":
+	case "process.uid":
 
 		return &IntEvaluator{
 			Eval:      func(ctx *Context) int { return int(ctx.Event.Process.UID) },
 			DebugEval: func(ctx *Context) int { return int(ctx.Event.Process.UID) },
 		}, nil
 
-	case "Rename.NewName":
+	case "rename.newname":
 
 		return &StringEvaluator{
 			Eval:      func(ctx *Context) string { return ctx.Event.Rename.NewName },
 			DebugEval: func(ctx *Context) string { return ctx.Event.Rename.NewName },
 		}, nil
 
-	case "Rename.OldName":
+	case "rename.oldname":
 
 		return &StringEvaluator{
 			Eval:      func(ctx *Context) string { return ctx.Event.Rename.OldName },
 			DebugEval: func(ctx *Context) string { return ctx.Event.Rename.OldName },
 		}, nil
 
-	case "Syscall":
+	case "syscall":
 
 		return &StringEvaluator{
 			Eval:      func(ctx *Context) string { return ctx.Event.Syscall },
 			DebugEval: func(ctx *Context) string { return ctx.Event.Syscall },
 		}, nil
 
-	case "Unlink.Pathname":
+	case "unlink.pathname":
 
 		return &StringEvaluator{
 			Eval:      func(ctx *Context) string { return ctx.Event.Unlink.Pathname },

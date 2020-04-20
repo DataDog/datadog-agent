@@ -1,7 +1,6 @@
 package scenario
 
 import (
-	"fmt"
 	"io"
 	"os"
 
@@ -47,6 +46,5 @@ func NewScenario(r io.Reader) (*Scenario, error) {
 		return nil, err
 	}
 
-	fmt.Printf("SCENARIO %+v\n", scenario)
 	return scenario, nil
 }

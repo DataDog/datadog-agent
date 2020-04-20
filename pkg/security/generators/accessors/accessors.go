@@ -76,12 +76,12 @@ func resolveSymbol(pkg, symbol string) (types.Object, error) {
 	return nil, fmt.Errorf("Failed to retrieve package info for %s", pkg)
 }
 
-func handleBasic(name, kind string) {
-	// fmt.Printf("handleBasic %s %s\n", name, kind)
+func handleBasic(name, alias, kind string) {
+	fmt.Printf("handleBasic %s %s\n", name, kind)
 
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
-		module.Fields[name] = &field{Name: name, Type: "int", Public: true}
+		module.Fields[alias] = &field{Name: name, Type: "int", Public: true}
 	default:
 		public := false
 		firstChar := strings.TrimPrefix(kind, "[]")
@@ -91,7 +91,7 @@ func handleBasic(name, kind string) {
 		if unicode.IsUpper(rune(firstChar[0])) {
 			public = true
 		}
-		module.Fields[name] = &field{
+		module.Fields[alias] = &field{
 			Name:    name,
 			Type:    kind,
 			IsArray: strings.HasPrefix(kind, "[]"),
@@ -100,17 +100,18 @@ func handleBasic(name, kind string) {
 	}
 }
 
-func handleField(astFile *ast.File, ident *ast.Ident, fieldName, prefix, pkgName, fieldType string) error {
-	// fmt.Printf("handleField fieldName %s, ident %s, pkgName %s, prefix %s, fieldType, %s\n", fieldName, ident, pkgName, prefix, fieldType)
+func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident) error {
+	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 
-	switch fieldType {
+	switch fieldType.Name {
 	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64":
 		if prefix != "" {
-			fieldName = prefix + "." + fieldName
+			name = prefix + "." + name
+			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(fieldName, fieldType)
+		handleBasic(name, alias, fieldType.Name)
 	default:
-		symbol, err := resolveSymbol(pkgName, fieldType)
+		symbol, err := resolveSymbol(pkgName, fieldType.Name)
 		if err != nil {
 			return fmt.Errorf("Failed to resolve symbol for %+v: %s", fieldType, err)
 		}
@@ -118,30 +119,23 @@ func handleField(astFile *ast.File, ident *ast.Ident, fieldName, prefix, pkgName
 			return fmt.Errorf("Failed to resolve symbol for %+v", fieldType)
 		}
 
-		if named, ok := symbol.Type().(*types.Named); ok {
-			for i := 0; i < named.NumMethods(); i++ {
-				if named.Method(i).Name() == "String" {
-					handleBasic(fieldName, "stringer")
-					return nil
-				}
-			}
-		}
-
-		spec := astFile.Scope.Lookup(ident.Name)
 		if prefix != "" {
-			prefix = prefix + "." + fieldName
+			prefix = prefix + "." + name
+			aliasPrefix = aliasPrefix + "." + alias
 		} else {
-			prefix = fieldName
+			prefix = name
+			aliasPrefix = alias
 		}
 
-		handleSpec(astFile, spec.Decl, prefix)
+		spec := astFile.Scope.Lookup(fieldType.Name)
+		handleSpec(astFile, spec.Decl, prefix, aliasPrefix)
 	}
 
 	return nil
 }
 
-func handleSpec(astFile *ast.File, spec interface{}, prefix string) {
-	// fmt.Printf("handleSpec spec: %+v, prefix: %s\n", spec, prefix)
+func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string) {
+	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s\n", spec, prefix, aliasPrefix)
 
 	if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
@@ -149,21 +143,28 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix string) {
 			for _, field := range structType.Fields.List {
 				if len(field.Names) > 0 {
 					fieldName := field.Names[0].Name
+					fieldAlias := fieldName
+
 					var tag reflect.StructTag
 					if field.Tag != nil {
 						tag = reflect.StructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
 					}
 
-					if fieldType, found := tag.Lookup("field"); found && fieldType == "omit" {
-						continue FIELD
-					} else if fieldType, ok := field.Type.(*ast.Ident); ok {
-						if err := handleField(astFile, fieldType, fieldName, prefix, filepath.Base(pkgname), fieldType.Name); err != nil {
+					if fieldTag, found := tag.Lookup("field"); found {
+						if fieldTag == "omit" {
+							continue FIELD
+						}
+						fieldAlias = fieldTag
+					}
+
+					if fieldType, ok := field.Type.(*ast.Ident); ok {
+						if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType); err != nil {
 							log.Print(err)
 						}
 						continue
 					} else if fieldType, ok := field.Type.(*ast.StarExpr); ok {
 						if itemIdent, ok := fieldType.X.(*ast.Ident); ok {
-							handleField(astFile, itemIdent, fieldName, prefix, filepath.Base(pkgname), itemIdent.String())
+							handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), itemIdent)
 							continue
 						}
 					}
@@ -184,7 +185,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix string) {
 					if ident != nil {
 						embedded := astFile.Scope.Lookup(ident.Name)
 						if embedded != nil {
-							handleSpec(astFile, embedded.Decl, prefix)
+							handleSpec(astFile, embedded.Decl, prefix, aliasPrefix)
 						}
 					}
 				}
@@ -255,7 +256,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 
 			for _, spec := range decl.Specs {
 				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-					handleSpec(astFile, typeSpec, "")
+					handleSpec(astFile, typeSpec, "", "")
 				}
 			}
 		}
@@ -301,27 +302,27 @@ var (
 
 func GetAccessor(key string) (interface{}, error) {
 	switch key {
-	{{range .Fields}}
-	case "{{.Name}}":
-	{{if eq .Type "string"}}
+	{{range $Name, $Field := .Fields}}
+	case "{{$Name}}":
+	{{if eq $Field.Type "string"}}
 		return &StringEvaluator{
-			Eval: func(ctx *Context) string { return ctx.Event.{{.Name}} },
-			DebugEval: func(ctx *Context) string { return ctx.Event.{{.Name}} },
+			Eval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}} },
+			DebugEval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}} },
 		}, nil
-	{{else if eq .Type "stringer"}}
+	{{else if eq $Field.Type "stringer"}}
 		return &StringEvaluator{
-			Eval: func(ctx *Context) string { return ctx.Event.{{.Name}}.String() },
-			DebugEval: func(ctx *Context) string { return ctx.Event.{{.Name}}.String() },
+			Eval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}}.String() },
+			DebugEval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}}.String() },
 		}, nil
-	{{else if eq .Type "int"}}
+	{{else if eq $Field.Type "int"}}
 	return &IntEvaluator{
-		Eval: func(ctx *Context) int { return int(ctx.Event.{{.Name}}) },
-		DebugEval: func(ctx *Context) int { return int(ctx.Event.{{.Name}}) },
+		Eval: func(ctx *Context) int { return int(ctx.Event.{{$Field.Name}}) },
+		DebugEval: func(ctx *Context) int { return int(ctx.Event.{{$Field.Name}}) },
 	}, nil
-	{{else if eq .Type "bool"}}
+	{{else if eq $Field.Type "bool"}}
 	return &BoolEvaluator{
-		Eval: func(ctx *Context) bool { return ctx.Event.{{.Name}} },
-		DebugEval: func(ctx *Context) bool { return ctx.Event.{{.Name}} },
+		Eval: func(ctx *Context) bool { return ctx.Event.{{$Field.Name}} },
+		DebugEval: func(ctx *Context) bool { return ctx.Event.{{$Field.Name}} },
 	}, nil
 	{{end}}{{end}}
 	}
