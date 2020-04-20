@@ -83,19 +83,6 @@ func TestStructToMap(t *testing.T) {
 		},
 	}
 
-	top := Top{
-		Name:      "top",
-		Value:     0,
-		NestedPtr: &nested,
-		ID:        "top1",
-		MyMap: map[string]Nested{
-			"n1": nested,
-		},
-	}
-
-	var defaultStruct Top
-	var nilPointer *Top = nil
-
 	cases := []struct {
 		testName string
 		input    interface{}
@@ -118,7 +105,7 @@ func TestStructToMap(t *testing.T) {
 		},
 		{
 			testName: "default struct",
-			input:    defaultStruct,
+			input:    Top{},
 			output:   map[string]interface{}{},
 		},
 		{
@@ -129,7 +116,7 @@ func TestStructToMap(t *testing.T) {
 				NestedPtr: &nested,
 				ID:        "top1",
 				MyMap: map[string]Nested{
-					"n1": Nested{
+					"n1": {
 						Foo: []MoreNested{
 							{
 								Name:         "ms1",
@@ -187,14 +174,14 @@ func TestStructToMap(t *testing.T) {
 		{
 			testName: "slice of structs",
 			input: []Top{
-				Top{
+				{
 					Name:      "first",
 					Value:     0,
 					NestedPtr: nil,
 					ID:        "first1",
 					MyMap:     map[string]Nested{},
 				},
-				Top{
+				{
 					Name:      "second",
 					Value:     0,
 					NestedPtr: nil,
@@ -206,13 +193,71 @@ func TestStructToMap(t *testing.T) {
 		},
 		{
 			testName: "nil pointer",
-			input:    nilPointer,
+			input:    (*Top)(nil),
 			output:   map[string]interface{}{},
 		},
 		{
-			testName: "pointer",
-			input:    &top,
-			output:   map[string]interface{}{},
+			testName: "pointer to valid struct",
+			input: &Top{
+				Name:      "top",
+				Value:     0,
+				NestedPtr: &nested,
+				ID:        "top1",
+				MyMap: map[string]Nested{
+					"n1": {
+						Foo: []MoreNested{
+							{
+								Name:         "ms1",
+								Value:        1,
+								ID:           &str,
+								JSONLessStr:  "42",
+								privateValue: 1000,
+							},
+							{
+								Name:  "ms2",
+								Value: 2,
+								ID:    nil,
+							},
+						},
+					},
+				},
+			},
+			output: map[string]interface{}{
+				"name":  "top",
+				"value": 0,
+				"nested": map[string]interface{}{
+					"moreNested": []interface{}{
+						map[string]interface{}{
+							"id":          "toto",
+							"name":        "ms1",
+							"value":       float64(1),
+							"JSONLessStr": "42",
+						},
+						map[string]interface{}{
+							"name":        "ms2",
+							"value":       float64(2),
+							"JSONLessStr": "",
+						},
+					},
+				},
+				"mymap": map[string]interface{}{
+					"n1": map[string]interface{}{
+						"moreNested": []interface{}{
+							map[string]interface{}{
+								"id":          "toto",
+								"name":        "ms1",
+								"value":       float64(1),
+								"JSONLessStr": "42",
+							},
+							map[string]interface{}{
+								"name":        "ms2",
+								"value":       float64(2),
+								"JSONLessStr": "",
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
