@@ -589,11 +589,14 @@
   version = "v1.7.0"
 
 [[projects]]
-  digest = "1:31ce89581517f1d39a7486caca6e689b44f6ada079f23ce8f15cd7876174ced7"
+  digest = "1:52f8f42597abd1953cfb812e67fb8faaf5b6fff59d25c7bb33bb114805b107d0"
   name = "github.com/florianl/go-conntrack"
-  packages = ["."]
+  packages = [
+    ".",
+    "internal/unix",
+  ]
   pruneopts = ""
-  revision = "06743d3a59db658e0e9aaddc9acff6d01ce643fb"
+  revision = "39d61234c658935633b6d60fcd1d1ddaee0cec6c"
 
 [[projects]]
   digest = "1:eb53021a8aa3f599d29c7102e65026242bdedce998a54837dc67f14b6a97c5fd"
@@ -1019,15 +1022,15 @@
   version = "v1.0.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:d9ee5e12190ff796cadfad8a9aae2ad57a303b1d4d476518ace3a5dc01ae4c3a"
+  digest = "1:4f0792bf942a61626dfdc06d228aa79783e51f214faacba73992a73f9485c0a8"
   name = "github.com/mdlayher/netlink"
   packages = [
     ".",
     "nlenc",
   ]
   pruneopts = ""
-  revision = "4e5dd4017dae8175b908a6bd46b1cb7161664633"
+  revision = "ad88bf8eff5c1fd8d6a29299addeeb23d05f1ec1"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:46c2c64337672f517d7b6d68efe9e458aeb82fa683a08187fcdd7b22acde3253"
@@ -2309,6 +2312,7 @@
     "github.com/urfave/negroni",
     "github.com/vishvananda/netns",
     "golang.org/x/mobile/asset",
+    "golang.org/x/net/bpf",
     "golang.org/x/net/context",
     "golang.org/x/net/proxy",
     "golang.org/x/sys/unix",

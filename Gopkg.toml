@@ -224,7 +224,11 @@
 
 [[constraint]]
   name = "github.com/florianl/go-conntrack"
-  revision = "06743d3a59db658e0e9aaddc9acff6d01ce643fb"
+  revision = "39d61234c658935633b6d60fcd1d1ddaee0cec6c"
+
+[[constraint]]
+  name = "github.com/mdlayher/netlink"
+  version = "v1.1.0"
 
 [[override]]
   name = "golang.org/x/sys"
