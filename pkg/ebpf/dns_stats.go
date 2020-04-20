@@ -11,7 +11,8 @@ type dnsStats struct {
 	// More stats like latency, error, etc. will be added here later
 	successfulResponses uint32
 	failedResponses     uint32
-	latency             float64
+	successLatency      uint64 // Stored in µs
+	failureLatency      uint64
 	timeouts            uint32
 }
 
@@ -93,19 +94,21 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	delete(d.state, sk)
 
-	latency := ts.Sub(start).Seconds()
+	latency := ts.Sub(start).Nanoseconds()
 
 	stats := d.stats[info.key]
 
-	if latency > d.expirationPeriod.Seconds() {
+	if latency > d.expirationPeriod.Nanoseconds() {
 		stats.timeouts++
 	} else {
+		latency /= 1000 // convert to microseconds
 		if info.type_ == SuccessfulResponse {
 			stats.successfulResponses++
+			stats.successLatency += uint64(latency)
 		} else if info.type_ == FailedResponse {
 			stats.failedResponses++
+			stats.failureLatency += uint64(latency)
 		}
-		stats.latency += latency // Need to discuss, should we calculate latency for both successful and failed responses
 	}
 
 	d.stats[info.key] = stats

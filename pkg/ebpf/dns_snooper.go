@@ -135,7 +135,9 @@ func (s *SocketFilterSnooper) Close() {
 	s.wg.Wait()
 	s.source.Close()
 	s.cache.Close()
-	s.statKeeper.Close()
+	if s.statKeeper != nil {
+		s.statKeeper.Close()
+	}
 }
 
 // processPacket retrieves DNS information from the received packet data and adds it to
