@@ -1,8 +1,9 @@
 package ebpf
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 type dnsStats struct {
@@ -23,8 +24,8 @@ type dnsKey struct {
 type DNSPacketType uint8
 
 const (
-	SuccessfulResponse DNSPacketType = 0
-	FailedResponse     DNSPacketType = 1
+	SuccessfulResponse DNSPacketType = iota
+	FailedResponse
 )
 
 type dnsPacketInfo struct {

@@ -56,7 +56,7 @@ func newDNSParser(collectDNStats bool) *dnsParser {
 	}
 }
 
-func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInfo) (error) {
+func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInfo) error {
 	err := p.decoder.DecodeLayers(data, &p.layers)
 
 	if p.decoder.Truncated {
