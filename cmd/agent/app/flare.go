@@ -101,6 +101,7 @@ func switchLogLevelAndWait() error {
 	// Setup a channel to catch OS signals as it very likely that some users will do CTRL+C while waiting for the delay
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Reset(os.Interrupt, syscall.SIGTERM)
 	go func() {
 		_ = <-signalCh
 		err = setConfigValue("log_level", currentLogLevel)
@@ -115,7 +116,7 @@ func switchLogLevelAndWait() error {
 		return err
 	}
 
-	fmt.Fprintln(color.Output, color.BlueString("Waiting %v seconds to get debug logs...\n", delay))
+	fmt.Fprintln(color.Output, color.BlueString("Waiting %v seconds to get debug logs...", delay))
 	time.Sleep(time.Duration(delay) * time.Second)
 
 	return nil
