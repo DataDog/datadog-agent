@@ -330,6 +330,12 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
+	config.BindEnvAndSetDefault("container_include", []string{})
+	config.BindEnvAndSetDefault("container_exclude", []string{})
+	config.BindEnvAndSetDefault("container_include_metrics", []string{})
+	config.BindEnvAndSetDefault("container_exclude_metrics", []string{})
+	config.BindEnvAndSetDefault("container_include_logs", []string{})
+	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
@@ -452,6 +458,13 @@ func initConfig(config Config) {
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
+	// process_config.enabled is only used on Windows by the core agent to start the process agent service.
+	// it can be set from file, but not from env. Override it with value from DD_PROCESS_AGENT_ENABLED.
+	ddProcessAgentEnabled, found := os.LookupEnv("DD_PROCESS_AGENT_ENABLED")
+	if found {
+		overrideVars["process_config.enabled"] = ddProcessAgentEnabled
+	}
+
 	config.BindEnv("process_config.process_dd_url", "")
 	config.BindEnv("process_config.orchestrator_dd_url", "")
 

@@ -30,6 +30,20 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 	}
 	globalTags := config.Datadog.GetStringSlice("tags")
 
+	c.doOnceOrchScope.Do(func() {
+		tags := utils.NewTagList()
+		tags.AddOrchestrator("task_arn", meta.TaskARN)
+		low, orch, high := tags.Compute()
+		info := &TagInfo{
+			Source:               ecsFargateCollectorName,
+			Entity:               OrchestratorScopeEntityID,
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+		}
+		output = append(output, info)
+	})
+
 	for _, ctr := range meta.Containers {
 		if c.expire.Update(ctr.DockerID, now) || parseAll {
 			tags := utils.NewTagList()

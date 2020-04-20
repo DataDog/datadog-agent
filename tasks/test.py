@@ -378,16 +378,21 @@ def make_kitchen_gitlab_yml(ctx):
     with open('.gitlab-ci.yml') as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
-    data['stages'] = ['package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']
+    data['stages'] = ['deps_build', 'binary_build', 'package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']
     for k,v in data.items():
-        if isinstance(v, dict) and v.get('stage', None) not in [None, 'package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']:
+        if isinstance(v, dict) and v.get('stage', None) not in ([None] + data['stages']):
             del data[k]
+            continue
+        if isinstance(v, dict) and v.get('stage', None) == 'binary_build' and k != 'build_system-probe-arm64' and k != 'build_system-probe-x64' and k != 'build_system-probe_with-bcc-arm64' and k != 'build_system-probe_with-bcc-x64':
+            del data[k]
+            continue
         if 'except' in v:
             del v['except']
         if 'only' in v:
             del v['only']
         if len(v) == 0:
             del data[k]
+            continue
 
     for k,v in data.items():
         if 'extends' in v:
