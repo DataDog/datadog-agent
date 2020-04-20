@@ -1,0 +1,6 @@
+enhancements:
+  - |
+    Add an option to switch log level to debug and wait
+    30 seconds (can be overridden) to collect debug log
+    before creating the flare. The option is disabled by
+    default.
