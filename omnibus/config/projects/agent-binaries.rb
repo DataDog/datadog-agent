@@ -74,8 +74,8 @@ end
 dependency 'preparation'
 
 # Datadog agent
-dependency 'datadog-puppy'
 dependency 'datadog-dogstatsd'
+dependency 'datadog-puppy'
 
 # version manifest file
 dependency 'version-manifest'
