@@ -178,7 +178,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 
 	err = zipSystemProbeStats(tempDir, hostname)
 	if err != nil {
-		log.Errorf("Coud not zip system probe exp var stats: %s", err)
+		log.Errorf("Could not zip system probe exp var stats: %s", err)
 	}
 
 	err = zipDiagnose(tempDir, hostname)
