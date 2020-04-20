@@ -3,9 +3,7 @@
 package netlink
 
 import (
-	"context"
 	"fmt"
-	stdlog "log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
-	"github.com/mdlayher/netlink"
 )
 
 const (
@@ -65,11 +62,8 @@ type connValue struct {
 
 type realConntracker struct {
 	sync.Mutex
-
-	// we need two nfct handles because we can only register one callback per connection at a time
-	nfct *ct.Nfct
-
-	state map[connKey]*connValue
+	consumer *Consumer
+	state    map[connKey]*connValue
 
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
@@ -112,42 +106,38 @@ func NewConntracker(procRoot string, maxStateSize int) (Conntracker, error) {
 }
 
 func newConntrackerOnce(procRoot string, maxStateSize int) (Conntracker, error) {
-	netns := getGlobalNetNSFD(procRoot)
 	logger := getLogger()
-
-	nfct, err := createNetlinkSocket("register", netns, logger)
+	consumer, err := NewConsumer(procRoot, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	ctr := &realConntracker{
-		nfct:                 nfct,
+		consumer:             consumer,
 		compactTicker:        time.NewTicker(compactInterval),
 		state:                make(map[connKey]*connValue),
 		maxStateSize:         maxStateSize,
 		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 
-	// seed the state
-	sessions, err := nfct.Dump(ct.Conntrack, ct.IPv4)
-	if err != nil {
-		return nil, err
-	}
-	ctr.loadInitialState(sessions)
-	log.Debugf("seeded IPv4 state")
-
-	sessions, err = nfct.Dump(ct.Conntrack, ct.IPv6)
-	if err != nil {
-		// this is not fatal because we've already seeded with IPv4
-		log.Errorf("Failed to dump IPv6")
-	}
-	ctr.loadInitialState(sessions)
-	log.Debugf("seeded IPv6 state")
-
 	go ctr.run()
 
-	nfct.Register(context.Background(), ct.Conntrack, ct.NetlinkCtNew, ctr.register)
-	log.Debugf("initialized register hook")
+	events := consumer.Events()
+	go func() {
+		for e := range events {
+			conns, err := DecodeEvent(logger, e)
+
+			// TODO: Add error handling
+			if err != nil {
+				log.Errorf("error consuming event: %s", err)
+			}
+
+			for _, c := range conns {
+				ctr.register(c)
+			}
+			e.Done()
+		}
+	}()
 
 	log.Infof("initialized conntrack")
 
@@ -250,6 +240,7 @@ func (ctr *realConntracker) DeleteTranslation(
 }
 
 func (ctr *realConntracker) Close() {
+	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
 	ctr.exceededSizeLogLimit.Close()
 }
@@ -300,8 +291,6 @@ func (ctr *realConntracker) register(c ct.Con) int {
 	then := time.Now().UnixNano()
 	atomic.AddInt64(&ctr.stats.registers, 1)
 	atomic.AddInt64(&ctr.stats.registersTotalTime, then-now)
-
-	log.Tracef("registered %s", conDebug(c))
 	return 0
 }
 
@@ -406,27 +395,4 @@ func conDebug(c ct.Con) string {
 		c.Reply.Dst, *c.Reply.Proto.DstPort,
 		proto,
 	)
-}
-
-func createNetlinkSocket(name string, netns int, logger *stdlog.Logger) (*ct.Nfct, error) {
-	nfct, err := ct.Open(&ct.Config{NetNS: netns, Logger: logger})
-	if err != nil {
-		return nil, err
-	}
-
-	// Sometimes the conntrack flushes are larger than the socket recv buffer capacity.
-	// This ensures that in case of buffer overrun the `recvmsg` call will *not*
-	// receive an ENOBUF which is currently not handled properly by go-conntrack library.
-	nfct.Con.SetOption(netlink.NoENOBUFS, true)
-
-	// We also increase the socket buffer size to better handle bursts of events.
-	if err := setSocketBufferSize(netlinkBufferSize, nfct.Con); err != nil {
-		log.Errorf("error setting rcv buffer size for %s netlink socket: %s", name, err)
-	}
-
-	if size, err := getSocketBufferSize(nfct.Con); err == nil {
-		log.Debugf("rcv buffer size for %s netlink socket is %d bytes", name, size)
-	}
-
-	return nfct, nil
 }

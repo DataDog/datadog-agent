@@ -20,10 +20,14 @@ func TestConntracker(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("setup command output: %s", string(out))
 	}
+	defer teardown(t)
 
 	ct, err := NewConntracker("/proc", 100)
 	require.NoError(t, err)
 	defer ct.Close()
+
+	// TODO: Fix initialization race
+	time.Sleep(1 * time.Second)
 
 	<-startServerTCP(t, "1.1.1.1:5432")
 	<-startServerTCP(t, "1.1.1.1:9876")
@@ -60,8 +64,6 @@ func TestConntracker(t *testing.T) {
 		process.ConnectionType_tcp,
 	)
 	assert.Nil(t, trans)
-
-	defer teardown(t)
 }
 
 func startServerTCP(t *testing.T, addr string) <-chan struct{} {

@@ -24,9 +24,10 @@ type Socket struct {
 	fd   *os.File
 	pid  uint32
 	conn syscall.RawConn
+	pool *bufferPool
 }
 
-func NewSocket() (*Socket, error) {
+func NewSocket(pool *bufferPool) (*Socket, error) {
 	fd, err := unix.Socket(
 		unix.AF_NETLINK,
 		unix.SOCK_RAW|unix.SOCK_CLOEXEC,
@@ -64,7 +65,7 @@ func NewSocket() (*Socket, error) {
 		return nil, err
 	}
 
-	return &Socket{fd: file, pid: pid, conn: conn}, nil
+	return &Socket{fd: file, pid: pid, conn: conn, pool: pool}, nil
 }
 
 func (s *Socket) Send(m netlink.Message) error {
@@ -89,7 +90,7 @@ func (s *Socket) Send(m netlink.Message) error {
 }
 
 func (s *Socket) Receive() ([]netlink.Message, error) {
-	b := make([]byte, os.Getpagesize())
+	b := s.pool.Get()
 	return s.ReceiveInto(b)
 }
 
