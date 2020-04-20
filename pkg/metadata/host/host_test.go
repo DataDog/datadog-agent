@@ -7,6 +7,9 @@
 package host
 
 import (
+	"io/ioutil"
+	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -27,6 +30,7 @@ func TestGetPayload(t *testing.T) {
 	assert.NotNil(t, p.SystemStats)
 	assert.NotNil(t, p.Meta)
 	assert.NotNil(t, p.HostTags)
+	assert.NotNil(t, p.InstallMethod)
 }
 
 func TestGetSystemStats(t *testing.T) {
@@ -112,4 +116,52 @@ func TestGetLogsMeta(t *testing.T) {
 	logs.CurrentTransport = logs.TransportHTTP
 	meta = getLogsMeta()
 	assert.Equal(t, &LogsMeta{Transport: "HTTP"}, meta)
+}
+
+func TestGetInstallMethod(t *testing.T) {
+	dir, err := ioutil.TempDir("", "test_install_method")
+	assert.Nil(t, err)
+	defer os.RemoveAll(dir)
+
+	installInfoPath := path.Join(dir, "install_info")
+
+	// ------------- Without file, the install is considered private
+	installMethod := getInstallMethod(installInfoPath)
+	require.Equal(t, "private", installMethod.Name)
+	require.Equal(t, "n/a", installMethod.Tool)
+	require.Equal(t, "n/a", installMethod.Version)
+
+	// ------------- with a correct file
+	var installInfoContent = `
+---
+install_method:
+  name: chef-15
+  tool: chef
+  version: chef-4.2.1
+`
+	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+	// time.Sleep(100 * time.Second)
+
+	// the install is considered coming from chef (example)
+	installMethod = getInstallMethod(installInfoPath)
+	require.Equal(t, "chef-15", installMethod.Name)
+	require.Equal(t, "chef", installMethod.Tool)
+	require.Equal(t, "chef-4.2.1", installMethod.Version)
+
+	// ------------- with an incorrect file
+	installInfoContent = `
+---
+install_methodlol:
+  name: chef-15
+  tool: chef
+  version: chef-4.2.1
+`
+	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+	// time.Sleep(100 * time.Second)
+
+	// the parsing does not occur and the install is considered private
+	installMethod = getInstallMethod(installInfoPath)
+	require.Equal(t, "private", installMethod.Name)
+	require.Equal(t, "n/a", installMethod.Tool)
+	require.Equal(t, "n/a", installMethod.Version)
 }
