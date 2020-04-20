@@ -26,9 +26,9 @@ type dnsKey struct {
 type DNSPacketType uint8
 
 const (
-	SuccessfulResponse DNSPacketType = 0
-	FailedResponse     DNSPacketType = 1
-	Query              DNSPacketType = 2
+	SuccessfulResponse DNSPacketType = iota
+	FailedResponse
+	Query
 )
 
 type dnsPacketInfo struct {

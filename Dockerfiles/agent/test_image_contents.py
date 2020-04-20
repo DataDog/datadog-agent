@@ -20,7 +20,9 @@ EXPECTED_ABSENT = [
 
 EXPECTED_CHECKSUMS = {
     # See https://github.com/DataDog/datadog-agent/pull/1337
-    "/etc/s6/init/init-stage3": "710c5b63d7bf1d23897991cba43b8de68aef163e570a2a676db2d897bb09baf7",
+    # and https://github.com/DataDog/datadog-agent/pull/5362
+    "/etc/s6/init/init-stage3":          "ea2d995df5a28709b2a040d2a212ebaa1e351c8233cc26cd4803fdc6df52d2b3",
+    "/etc/s6/init/init-stage3-host-pid": "710c5b63d7bf1d23897991cba43b8de68aef163e570a2a676db2d897bb09baf7",
 }
 
 
