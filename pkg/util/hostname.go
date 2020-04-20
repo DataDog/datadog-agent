@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -133,6 +134,12 @@ func GetHostnameData() (HostnameData, error) {
 	cacheHostnameKey := cache.BuildAgentKey("hostname")
 	if cacheHostname, found := cache.Cache.Get(cacheHostnameKey); found {
 		return cacheHostname.(HostnameData), nil
+	}
+
+	// in AAS we strip the hostname
+	if aas := os.Getenv("DD_AZURE_APP_SERVICES"); aas == "1" || strings.ToLower(aas) == "true" {
+		hostnameData := saveHostnameData(cacheHostnameKey, "", "")
+		return hostnameData, nil
 	}
 
 	var hostName string
