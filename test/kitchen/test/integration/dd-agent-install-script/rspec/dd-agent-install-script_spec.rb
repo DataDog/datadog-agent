@@ -23,11 +23,7 @@ describe 'dd-agent-installation-script' do
 
   context 'when testing the install infos' do
     let(:install_info_path) do
-      if os == :windows
-        conf_path = "#{ENV['ProgramData']}\\Datadog\\install_info"
-      else
-        conf_path = '/etc/datadog-agent/install_info'
-      end
+      '/etc/datadog-agent/install_info'
     end
 
     let(:install_info) do
