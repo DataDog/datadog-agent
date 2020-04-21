@@ -108,7 +108,7 @@ func GetAPMStatus() map[string]interface{} {
 		port = config.Datadog.GetInt("apm_config.receiver_port")
 	}
 	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
-	resp, err := (&http.Client{Timeout: 1 * time.Second}).Get(url)
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Get(url)
 	if err != nil {
 		return map[string]interface{}{
 			"port":  port,
