@@ -81,7 +81,13 @@ func NewDriverInterface() (*DriverInterface, error) {
 
 func (di *DriverInterface) close() error {
 	err := windows.CloseHandle(di.driverFlowHandle.handle)
+	if err != nil {
+		log.Errorf("error closing flow file handle %v", err)
+	}
 	err = windows.CloseHandle(di.driverStatsHandle.handle)
+	if err != nil {
+		log.Errorf("error closing stat file handle %v", err)
+	}
 	return err
 }
 
