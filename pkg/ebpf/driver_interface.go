@@ -15,6 +15,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -57,7 +59,8 @@ type DriverInterface struct {
 	driverFlowHandle  *DriverHandle
 	driverStatsHandle *DriverHandle
 
-	path string
+	path       string
+	totalFlows int64
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
@@ -173,11 +176,45 @@ func (di *DriverInterface) getStats() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	totalFlows := atomic.LoadInt64(&di.totalFlows)
 
 	return map[string]interface{}{
 		"driver_total_flow_stats":  totalDriverStats,
 		"driver_flow_handle_stats": flowHandleStats,
+		"total_flows": map[string]int64{
+			"total": totalFlows,
+		},
 	}, nil
+}
+
+func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) (flows []C.struct__perFlowData, error error) {
+	waitgroup.Add(1)
+	defer waitgroup.Done()
+
+	readbuffer := make([]uint8, 1024)
+
+	for {
+		var count uint32
+		bytesused := int(0)
+		err := windows.ReadFile(di.driverFlowHandle.handle, readbuffer, &count, nil)
+		if err != nil {
+			if err != windows.ERROR_MORE_DATA {
+				log.Info(err)
+				break
+			}
+		}
+		var buf []byte
+		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
+			buf = readbuffer[bytesused:]
+			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
+			flows = append(flows, *pfd)
+			atomic.AddInt64(&di.totalFlows, 1)
+		}
+		if err == nil {
+			break
+		}
+	}
+	return
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set

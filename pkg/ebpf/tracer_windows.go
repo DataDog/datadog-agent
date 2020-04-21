@@ -11,15 +11,12 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"golang.org/x/sys/windows"
 )
 
 const (
@@ -42,7 +39,6 @@ func init() {
 type Tracer struct {
 	config          *Config
 	driverInterface *DriverInterface
-	totalFlows      int64
 	stopChan        chan struct{}
 
 	timerInterval int
@@ -120,67 +116,41 @@ func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 				return
 			case <-t.inTicker.C:
 				log.Infof("getFlowsruns")
-				err = t.getFlows()
+				flows, err := t.driverInterface.getFlows(&t.waitgroup)
+				if err != nil {
+					return
+				}
+				printFlows(flows)
 			}
 		}
 	}()
 	return nil
 }
 
-func (t *Tracer) getFlows() error {
-	t.waitgroup.Add(1)
+func printFlows(pfds []C.struct__perFlowData) {
+	for _, pfd := range pfds {
+		var local net.IP
+		var remot net.IP
+		var len C.int
 
-	defer t.waitgroup.Done()
-
-	readbuffer := make([]uint8, 1024)
-
-	for {
-		var count uint32
-		bytesused := int(0)
-		// TODO: Move into driverinterface?
-		err := windows.ReadFile(t.driverInterface.driverFlowHandle.handle, readbuffer, &count, nil)
-		if err != nil {
-			if err != windows.ERROR_MORE_DATA {
-				log.Info(err)
-				break
-			}
+		if pfd.addressFamily == syscall.AF_INET {
+			len = 4
+		} else {
+			len = 16
 		}
-		var buf []byte
-		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
-			buf = readbuffer[bytesused:]
-			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
-			printPerFlowData(*pfd)
-			t.totalFlows++
+		local = C.GoBytes(unsafe.Pointer(&pfd.localAddress), len)
+		remot = C.GoBytes(unsafe.Pointer(&pfd.remoteAddress), len)
+
+		state := "Open  "
+		if (pfd.flags & 0x10) == 0x10 {
+			state = "Closed"
 		}
-		if err == nil {
-			break
-		}
+		log.Infof("    %v  FH:  %8v    PID:  %8v   AF: %2v    P: %3v        Flags:  0x%v\n",
+			state, pfd.flowHandle, pfd.processId, pfd.addressFamily, pfd.protocol, pfd.flags)
+		log.Infof("    L:  %16s:%5d     R: %16s:%5d\n", local.String(), pfd.localPort, remot.String(), pfd.remotePort)
+		log.Infof("    PktIn:  %8v  BytesIn:  %8v    PktOut:  %8v:  BytesOut:  %8v\n", pfd.packetsIn, pfd.bytesIn, pfd.packetsOut, pfd.bytesOut)
+		return
 	}
-	return nil
-}
-
-func printPerFlowData(pfd C.struct__perFlowData) {
-	var local net.IP
-	var remot net.IP
-	var len C.int
-
-	if pfd.addressFamily == syscall.AF_INET {
-		len = 4
-	} else {
-		len = 16
-	}
-	local = C.GoBytes(unsafe.Pointer(&pfd.localAddress), len)
-	remot = C.GoBytes(unsafe.Pointer(&pfd.remoteAddress), len)
-
-	state := "Open  "
-	if (pfd.flags & 0x10) == 0x10 {
-		state = "Closed"
-	}
-	log.Infof("    %v  FH:  %8v    PID:  %8v   AF: %2v    P: %3v        Flags:  0x%v\n",
-		state, pfd.flowHandle, pfd.processId, pfd.addressFamily, pfd.protocol, pfd.flags)
-	log.Infof("    L:  %16s:%5d     R: %16s:%5d\n", local.String(), pfd.localPort, remot.String(), pfd.remotePort)
-	log.Infof("    PktIn:  %8v  BytesIn:  %8v    PktOut:  %8v:  BytesOut:  %8v\n", pfd.packetsIn, pfd.bytesIn, pfd.packetsOut, pfd.bytesOut)
-	return
 }
 
 // GetActiveConnections returns all active connections
@@ -209,16 +179,13 @@ func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, ui
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	totalFlows := atomic.LoadInt64(&t.totalFlows)
 	driverStats, err := t.driverInterface.getStats()
 	if err != nil {
 		log.Errorf("not printing driver stats: %v", err)
 	}
 
 	return map[string]interface{}{
-		"total_flows": map[string]int64{
-			"total": totalFlows,
-		},
+		"total_flows":              driverStats["total_flows"],
 		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
 		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
 	}, nil
