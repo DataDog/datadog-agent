@@ -2,9 +2,10 @@ package ebpf
 
 import (
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -209,6 +210,9 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
 			conn.DNSSuccessfulResponses = dnsStats.successfulResponses
 			conn.DNSFailedResponses = dnsStats.failedResponses
+			conn.DNSTimeouts = dnsStats.timeouts
+			conn.DNSSuccessLatency = dnsStats.successLatency
+			conn.DNSFailureLatency = dnsStats.failureLatency
 		}
 		seen[key] = struct{}{}
 	}
@@ -275,6 +279,9 @@ func (ns *networkState) storeDNSStats(stats map[dnsKey]dnsStats) {
 			if prev, ok := client.dnsStats[key]; ok {
 				prev.successfulResponses += dns.successfulResponses
 				prev.failedResponses += dns.failedResponses
+				prev.timeouts += dns.timeouts
+				prev.successLatency += dns.successLatency
+				prev.failureLatency += dns.failureLatency
 				client.dnsStats[key] = prev
 			} else if len(client.dnsStats) >= ns.maxDNSStats {
 				ns.telemetry.dnsStatsDropped++

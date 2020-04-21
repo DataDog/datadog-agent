@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "=4.31.0"
+  branch = "mehedi.bakht/add-fields-for-dns-latency"
 
 [[constraint]]
   name = "github.com/google/gopacket"

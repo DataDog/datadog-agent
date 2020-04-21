@@ -166,7 +166,7 @@ func getStats(
 
 	var allStats = map[dnsKey]dnsStats{}
 
-	timeout := time.After(30 * time.Second)
+	timeout := time.After(1 * time.Second)
 Loop:
 	// Wait until DNS stats becomes available
 	for {
