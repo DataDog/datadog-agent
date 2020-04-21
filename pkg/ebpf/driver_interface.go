@@ -99,6 +99,9 @@ func (di *DriverInterface) SetupFlowHandle() error {
 		return err
 	}
 	dh, err := NewDriverHandle(h, FlowHandle)
+	if err != nil {
+		return err
+	}
 
 	// Prepare handle filters for each interface
 	err = dh.createDriverHandleFilters()
