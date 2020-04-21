@@ -173,7 +173,7 @@ var checkCmd = &cobra.Command{
 					return nil
 				}
 
-				conf.Instances = instances
+				//conf.Instances = instances
 			}
 		}
 
