@@ -16,13 +16,22 @@ import (
 var _ netlink.Socket = &Socket{}
 var errNotImplemented = errors.New("not implemented")
 
-// Socket is pretty much a copy of netlink.conn without the unnecessary cruft.
-// We introduce a `ReceiveInto` method aimed at reducing memory allocations
-// and remove all synchronization points and go-routines from it.
+// Socket is pretty much a copy of netlink.conn without the unnecessary cruft
+// and a some optimizations based on our use-case (see comments below)
 type Socket struct {
 	fd   *os.File
 	pid  uint32
 	conn syscall.RawConn
+
+	// A 32KB buffer which we use for polling the socket.
+	// Since a netlink message can't exceed that size
+	// (in *theory* it could be as large as 4GB (u32), but see link below)
+	// we can avoid message peeks and and essentially cut recvmsg syscalls by half
+	// which is currently a perf bottleneck in certain workloads.
+	// https://www.spinics.net/lists/netdev/msg431592.html
+	recvbuf []byte
+
+	// A pool of pre-allocated buffer objects which is used upstream
 	pool *bufferPool
 }
 
@@ -64,7 +73,14 @@ func NewSocket(pool *bufferPool) (*Socket, error) {
 		return nil, err
 	}
 
-	return &Socket{fd: file, pid: pid, conn: conn, pool: pool}, nil
+	socket := &Socket{
+		fd:      file,
+		pid:     pid,
+		conn:    conn,
+		recvbuf: make([]byte, 32*1024),
+		pool:    pool,
+	}
+	return socket, nil
 }
 
 func (s *Socket) Send(m netlink.Message) error {
@@ -89,37 +105,21 @@ func (s *Socket) Send(m netlink.Message) error {
 }
 
 func (s *Socket) Receive() ([]netlink.Message, error) {
-	b := s.pool.Get()
-	return s.ReceiveInto(b)
-}
-
-// ReceiveInto takes in buffer and returns the netlink messages in the socket.
-// Notice the use of the pre-allocated buffer is just a best effort, as the message might not
-// fit in it. In that case we allocate a new buffer doubling it's capacity.
-func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, error) {
-	for {
-		// Peek at the buffer to see how many bytes are available.
-		n, err := s.recvmsg(b, unix.MSG_PEEK)
-		if err != nil {
-			return nil, os.NewSyscallError("recvmsg", err)
-		}
-
-		// Break when we can read all messages
-		if n < len(b) {
-			break
-		}
-
-		// Double in size if not enough bytes
-		b = make([]byte, len(b)*2)
-	}
-
-	// Read out all available messages
-	n, err := s.recvmsg(b, 0)
+	n, err := s.recvmsg(s.recvbuf, 0)
 	if err != nil {
 		return nil, os.NewSyscallError("recvmsg", err)
 	}
 
 	n = nlmsgAlign(n)
+
+	// Copy data to a buffer that can be used upstream
+	var b []byte
+	if n < os.Getpagesize() {
+		b = s.pool.Get()
+	} else {
+		b = make([]byte, n)
+	}
+	copy(b, s.recvbuf[:n])
 
 	raw, err := syscall.ParseNetlinkMessage(b[:n])
 	if err != nil {
