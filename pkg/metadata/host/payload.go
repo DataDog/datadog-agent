@@ -46,9 +46,9 @@ type tags struct {
 
 // InstallMethod is metadata about the agent's installation
 type InstallMethod struct {
-	Name    string `json:"method"`
-	Tool    string `json:"tool"`
-	Version string `json:"version"`
+	Name    string  `json:"method"`
+	Tool    *string `json:"tool"`
+	Version *string `json:"version"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload

@@ -127,41 +127,40 @@ func TestGetInstallMethod(t *testing.T) {
 
 	// ------------- Without file, the install is considered private
 	installMethod := getInstallMethod(installInfoPath)
-	require.Equal(t, "private", installMethod.Name)
-	require.Equal(t, "n/a", installMethod.Tool)
-	require.Equal(t, "n/a", installMethod.Version)
+	require.Equal(t, "undefined", installMethod.Name)
+	assert.Nil(t, installMethod.Tool)
+	assert.Nil(t, installMethod.Version)
 
 	// ------------- with a correct file
 	var installInfoContent = `
 ---
 install_method:
   name: chef-15
-  tool: chef
-  version: chef-4.2.1
+  version: datadog-cookbook-4.2.1
 `
 	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
-	// time.Sleep(100 * time.Second)
 
 	// the install is considered coming from chef (example)
 	installMethod = getInstallMethod(installInfoPath)
 	require.Equal(t, "chef-15", installMethod.Name)
-	require.Equal(t, "chef", installMethod.Tool)
-	require.Equal(t, "chef-4.2.1", installMethod.Version)
+	assert.NotNil(t, installMethod.Tool)
+	require.Equal(t, "chef", *installMethod.Tool)
+	assert.NotNil(t, installMethod.Version)
+	require.Equal(t, "datadog-cookbook-4.2.1", *installMethod.Version)
 
 	// ------------- with an incorrect file
 	installInfoContent = `
 ---
 install_methodlol:
   name: chef-15
-  tool: chef
-  version: chef-4.2.1
+  version: datadog-cookbook-4.2.1
 `
 	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
 	// time.Sleep(100 * time.Second)
 
 	// the parsing does not occur and the install is considered private
 	installMethod = getInstallMethod(installInfoPath)
-	require.Equal(t, "private", installMethod.Name)
-	require.Equal(t, "n/a", installMethod.Tool)
-	require.Equal(t, "n/a", installMethod.Version)
+	require.Equal(t, "undefined", installMethod.Name)
+	assert.Nil(t, installMethod.Tool)
+	assert.Nil(t, installMethod.Version)
 }
