@@ -1,23 +1,31 @@
 package agent
 
 import (
+	"log"
+	"reflect"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/fim"
 )
 
 type Agent struct {
+	probe *probe.Probe
 }
 
 func (a *Agent) Start() error {
-	return probe.Manager.Start()
+	return a.probe.Start()
+}
+
+func (a *Agent) Stop() error {
+	a.probe.Stop()
+	return nil
+}
+
+func (a *Agent) HandleEvent(event interface{}) {
+	log.Printf("Handling event %s\n", reflect.TypeOf(event))
 }
 
 func NewAgent() *Agent {
-	var monitors = []probe.EventMonitor{
-		fim.Monitor,
-	}
-
-	probe.Manager = probe.NewProbeManager(probe.ProbeManagerOptions{}, monitors)
-
-	return &Agent{}
+	agent := &Agent{}
+	agent.probe = probe.NewProbe(agent)
+	return agent
 }

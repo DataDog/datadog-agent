@@ -1,4 +1,4 @@
-package fim
+package probe
 
 // source - eBPF Probe C source
 const source string = `
