@@ -478,7 +478,7 @@ build_puppy_agent-deb_arm64:
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
-    - GOOS=linux GOARCH=arm inv -e agent.build --puppy --major-version 7
+    - inv -e agent.build --puppy --major-version 7
 
 .cluster_agent-build_common: &cluster_agent-build_common
   stage: binary_build
