@@ -13,6 +13,28 @@ import (
 	"github.com/dustin/go-humanize"
 )
 
+// EventMonitorName - Event Monitor names
+type EventMonitorName string
+
+const (
+	// FimMonitor - eBPF FIM probe
+	FimMonitor EventMonitorName = "fim"
+	// ProcessMonitor - eBPF Process probe
+	ProcessMonitor EventMonitorName = "process"
+)
+
+// EventMonitorType - Probe type
+type EventMonitorType string
+
+const (
+	// EBPF - eBPF probe
+	EBPF EventMonitorType = "ebpf"
+	// Perf - Perf probe
+	Perf EventMonitorType = "perf"
+	// Container - container probe
+	Container EventMonitorType = "container"
+)
+
 // ProbeEventType - ProbeEventType enum
 type ProbeEventType string
 

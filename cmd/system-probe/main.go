@@ -10,18 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 
 	_ "net/http/pprof"
-
-const (
-	// ErrLoadConfig - Load config error
-	ErrLoadConfig = "main - LoadConfig error: %v"
-	// ErrManagerStart - Probe Manager start error
-	ErrManagerStart = "main - ProbeManager start error: %v"
-	// ErrManagerStop - Probe Manager stop error
-	ErrManagerStop = "main - ProbeManager stop error: %v"
-)
 
 func main() {
 	// Parse flags
@@ -38,14 +28,14 @@ var factories = []api.Factory{
 
 	agent := agent.NewAgent()
 	if err := agent.Start(); err != nil {
-		fmt.Printf(ErrManagerStart, err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	runAgent()
 
-	if err := probe.Manager.Stop(); err != nil {
-		fmt.Printf(ErrManagerStop, err)
+	if err := agent.Stop(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
