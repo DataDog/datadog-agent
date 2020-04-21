@@ -339,6 +339,7 @@ func zipExpVar(tempDir, hostname string) error {
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		apmPort = config.Datadog.GetString("apm_config.receiver_port")
 	}
+	// TODO(gbbr): Remove this once we use BindEnv for trace-agent
 	if v := os.Getenv("DD_APM_RECEIVER_PORT"); v != "" {
 		apmPort = v
 	}
