@@ -44,28 +44,14 @@ LINUX_ONLY_TAGS = [
     "containerd",
     "cri",
     "netcgo",
-]
-
-REDHAT_DEBIAN_SUSE_ONLY_TAGS = [
     "systemd",
 ]
-
 WINDOWS_32BIT_EXCLUDE_TAGS = [
     "orchestrator",
     "docker",
     "kubeapiserver",
     "kubelet",
 ]
-
-REDHAT_DEBIAN_SUSE_DIST = [
-    'centos',
-    'debian',
-    'rhel',
-    'ubuntu',
-    'sles',
-    'opensuse',
-]
-
 
 def get_default_build_tags(puppy=False, process=False, arch="x64"):
     """
@@ -83,26 +69,11 @@ def get_default_build_tags(puppy=False, process=False, arch="x64"):
     if not process:
         exclude = exclude + PROCESS_ONLY_TAGS
 
-    # remove all tags that are not available for current distro
-    exclude.extend(get_distro_exclude_tags())
-
     # Force exclusion of Windows 32bits tag
     if sys.platform == "win32" and arch == "x86":
         exclude = exclude + WINDOWS_32BIT_EXCLUDE_TAGS
 
     return get_build_tags(include, exclude)
-
-
-def get_distro_exclude_tags():
-    """
-    Get tags that should be excluded for current distro.
-    """
-    distro_name = distro.id().lower()
-    exclude = []
-    if distro_name not in REDHAT_DEBIAN_SUSE_DIST:
-        exclude.extend(REDHAT_DEBIAN_SUSE_ONLY_TAGS)
-    return exclude
-
 
 def get_build_tags(include, exclude):
     """
