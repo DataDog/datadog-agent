@@ -46,7 +46,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 	a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
-	a.DNSTimeout = config.Datadog.GetInt(key(spNS, "dns_timeout"))
+	a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")

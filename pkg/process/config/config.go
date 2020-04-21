@@ -92,7 +92,7 @@ type AgentConfig struct {
 
 	// DNS stats configuration
 	CollectDNSStats bool
-	DNSTimeout      int
+	DNSTimeout      time.Duration
 
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool

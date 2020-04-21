@@ -49,6 +49,9 @@ type dnsStatKeeper struct {
 	state            map[stateKey]time.Time
 	expirationPeriod time.Duration
 	exit             chan struct{}
+	maxSize          int // maximum size of the state map
+	deleteCount      int
+	deleteThreshold  int
 }
 
 func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
@@ -57,6 +60,8 @@ func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 		state:            make(map[stateKey]time.Time),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
+		maxSize:          10000,
+		deleteThreshold:  5000,
 	}
 
 	ticker := time.NewTicker(statsKeeper.expirationPeriod)
@@ -66,6 +71,7 @@ func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 			case now := <-ticker.C:
 				statsKeeper.removeExpiredStates(now.Add(-statsKeeper.expirationPeriod))
 			case <-statsKeeper.exit:
+				ticker.Stop()
 				return
 			}
 		}
@@ -79,6 +85,10 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	sk := stateKey{key: info.key, id: info.transactionID}
 
 	if info.type_ == Query {
+		if len(d.state) == d.maxSize {
+			return
+		}
+
 		if _, ok := d.state[sk]; !ok {
 			d.state[sk] = ts
 		}
@@ -93,6 +103,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	}
 
 	delete(d.state, sk)
+	d.deleteCount++
 
 	latency := ts.Sub(start).Nanoseconds()
 
@@ -128,11 +139,23 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 	for k, v := range d.state {
 		if v.Before(earliestTs) {
 			delete(d.state, k)
+			d.deleteCount++
 			stats := d.stats[k.key]
 			stats.timeouts++
 			d.stats[k.key] = stats
 		}
 	}
+
+	if d.deleteCount < d.deleteThreshold {
+		return
+	}
+
+	// golang/go#20135 : maps do not shrink after elements removal (delete)
+	copied := make(map[stateKey]time.Time, len(d.state))
+	for k, v := range d.state {
+		copied[k] = v
+	}
+	d.state = copied
 }
 
 func (d *dnsStatKeeper) Close() {

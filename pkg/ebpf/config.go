@@ -106,7 +106,7 @@ func NewDefaultConfig() *Config {
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations
 		CollectDNSStats: false,
-		DNSTimeout:      30 * time.Second,
+		DNSTimeout:      15 * time.Second,
 	}
 }
 

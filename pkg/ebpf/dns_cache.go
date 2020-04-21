@@ -52,6 +52,7 @@ func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseD
 			case now := <-ticker.C:
 				cache.Expire(now)
 			case <-cache.exit:
+				ticker.Stop()
 				return
 			}
 		}
