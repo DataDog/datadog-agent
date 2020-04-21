@@ -10,7 +10,6 @@ import (
 	"unsafe"
 
 	"github.com/mdlayher/netlink"
-	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -166,14 +165,6 @@ func (s *Socket) LeaveGroup(group uint32) error {
 		unix.NETLINK_DROP_MEMBERSHIP,
 		int(group),
 	))
-}
-
-func (s *Socket) SetBPF(filter []bpf.RawInstruction) error {
-	return nil
-}
-
-func (s *Socket) RemoveBPF() error {
-	return nil
 }
 
 func (s *Socket) setSockoptInt(level, opt, value int) error {
