@@ -115,7 +115,6 @@ func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 			case <-t.stopInTickerRoutine:
 				return
 			case <-t.inTicker.C:
-				log.Infof("getFlowsruns")
 				flows, err := t.driverInterface.getFlows(&t.waitgroup)
 				if err != nil {
 					return
