@@ -11,47 +11,68 @@ import (
 
 var (
 	containerCacheDuration = 10 * time.Second
-	detector               *collectors.Detector
+	detectors              []*collectors.Detector
+	dedupe                 = false
 )
 
-// SetContainerSource allows config to force a single container source
-func SetContainerSource(name string) {
-	detector = collectors.NewDetector(name)
+// SetContainerSources allows config to force one or multiple container sources
+func SetContainerSources(names []string) {
+	detectors = []*collectors.Detector{}
+	for _, name := range names {
+		detectors = append(detectors, collectors.NewDetector(name))
+	}
+	dedupe = len(detectors) > 1
 }
 
-// GetContainers returns containers found on the machine, autodetecting
-// the best backend from available sources
+// GetContainers returns containers found on the machine
+// GetContainers autodetects the best backend from available sources
+// if the users don't specify the preferred container sources
 func GetContainers() ([]*containers.Container, error) {
-	// Detect source
-	if detector == nil {
-		detector = collectors.NewDetector("")
-	}
-	l, name, err := detector.GetPreferred()
-	if err != nil {
-		return nil, err
+	// Detect sources
+	if detectors == nil {
+		// Container sources aren't configured, autodetect the best available source
+		detectors = []*collectors.Detector{collectors.NewDetector("")}
 	}
 
-	// Get containers from cache and update metrics
-	cacheKey := cache.BuildAgentKey("containers", name)
-	cached, hit := cache.Cache.Get(cacheKey)
-	if hit {
-		containers, ok := cached.([]*containers.Container)
-		if ok {
-			err := l.UpdateMetrics(containers)
-			log.Tracef("Got %d containers from cache", len(containers))
-			return containers, err
+	result := []*containers.Container{}
+	for _, detector := range detectors {
+		l, name, err := detector.GetPreferred()
+		if err != nil {
+			return nil, err
 		}
-		log.Errorf("Invalid container list cache format, forcing a cache miss")
+		// Get containers from cache and update metrics
+		cacheKey := cache.BuildAgentKey("containers", name)
+		cached, hit := cache.Cache.Get(cacheKey)
+		if hit {
+			containers, ok := cached.([]*containers.Container)
+			if ok {
+				err := l.UpdateMetrics(containers)
+				if err != nil {
+					log.Debugf("Cannot update container metrics via %s: %s", name, err)
+					continue
+				}
+				log.Tracef("Got %d containers from cache", len(containers))
+				result = append(result, containers...)
+				continue
+			}
+			log.Errorf("Invalid container list cache format, forcing a cache miss")
+		}
+
+		// If cache empty/expired, get a new container list
+		containers, err := l.List()
+		if err != nil {
+			log.Errorf("Cannot list containers via %s: %s", name, err)
+			continue
+		}
+		cache.Cache.Set(cacheKey, containers, containerCacheDuration)
+		log.Tracef("Got %d containers from source %s", len(containers), name)
+		result = append(result, containers...)
 	}
 
-	// If cache empty/expired, get a new container list
-	containers, err := l.List()
-	if err != nil {
-		return nil, err
+	if dedupe {
+		return dedupeContainers(result), nil
 	}
-	cache.Cache.Set(cacheKey, containers, containerCacheDuration)
-	log.Tracef("Got %d containers from source %s", len(containers), name)
-	return containers, nil
+	return result, nil
 }
 
 // ExtractContainerRateMetric extracts relevant rate values from a container list
@@ -67,4 +88,17 @@ func ExtractContainerRateMetric(containers []*containers.Container) map[string]C
 		out[c.ID] = m
 	}
 	return out
+}
+
+// dedupeContainers remove duplicated containers in a slice
+func dedupeContainers(ctrs []*containers.Container) []*containers.Container {
+	m := map[string]*containers.Container{}
+	deduped := []*containers.Container{}
+	for _, ctr := range ctrs {
+		m[ctr.ID] = ctr
+	}
+	for _, ctr := range m {
+		deduped = append(deduped, ctr)
+	}
+	return deduped
 }
