@@ -3,6 +3,7 @@ package config
 import (
 	"io/ioutil"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,6 +48,7 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 
 	tracerConfig.CollectLocalDNS = cfg.CollectLocalDNS
 	tracerConfig.CollectDNSStats = cfg.CollectDNSStats
+	tracerConfig.DNSTimeout = time.Duration(cfg.DNSTimeout) * time.Second
 
 	tracerConfig.MaxTrackedConnections = cfg.MaxTrackedConnections
 	tracerConfig.ProcRoot = util.GetProcRoot()
