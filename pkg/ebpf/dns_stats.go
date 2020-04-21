@@ -156,6 +156,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 		copied[k] = v
 	}
 	d.state = copied
+	d.deleteCount = 0
 }
 
 func (d *dnsStatKeeper) Close() {
