@@ -61,7 +61,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 
 	globalUtilOnce.Do(func() {
 		globalUtil = newSystemProbe()
-		globalUtil.initRetry.SetupRetrier(&retry.Config{
+		globalUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:          "system-probe-util",
 			AttemptMethod: globalUtil.init,
 			Strategy:      retry.RetryCount,
