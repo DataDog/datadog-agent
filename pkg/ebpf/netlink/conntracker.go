@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -120,25 +121,8 @@ func newConntrackerOnce(procRoot string, maxStateSize int) (Conntracker, error) 
 		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 
-	go ctr.run()
-
-	events := consumer.Events()
-	go func() {
-		for e := range events {
-			conns, err := DecodeEvent(logger, e)
-
-			// TODO: Add error handling
-			if err != nil {
-				log.Errorf("error consuming event: %s", err)
-			}
-
-			for _, c := range conns {
-				ctr.register(c)
-			}
-			e.Done()
-		}
-	}()
-
+	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
+	ctr.run()
 	log.Infof("initialized conntrack")
 
 	return ctr, nil
@@ -245,17 +229,25 @@ func (ctr *realConntracker) Close() {
 	ctr.exceededSizeLogLimit.Close()
 }
 
-func (ctr *realConntracker) loadInitialState(sessions []ct.Con) {
+func (ctr *realConntracker) loadInitialState(events chan Event) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
-	for _, c := range sessions {
-		if isNAT(c) {
-			if k, ok := formatKey(c.Origin); ok {
-				ctr.state[k] = formatIPTranslation(c.Reply, gen)
-			}
-			if k, ok := formatKey(c.Reply); ok {
-				ctr.state[k] = formatIPTranslation(c.Origin, gen)
+	for e := range events {
+		conns, err := DecodeEvent(nil, e)
+		if err != nil {
+			log.Warnf("error decoding conntrack event during initial load: %s", err)
+			continue
+		}
+		for _, c := range conns {
+			if isNAT(c) {
+				if k, ok := formatKey(c.Origin); ok {
+					ctr.state[k] = formatIPTranslation(c.Reply, gen)
+				}
+				if k, ok := formatKey(c.Reply); ok {
+					ctr.state[k] = formatIPTranslation(c.Origin, gen)
+				}
 			}
 		}
+		e.Done()
 	}
 }
 
@@ -301,9 +293,28 @@ func (ctr *realConntracker) logExceededSize() {
 }
 
 func (ctr *realConntracker) run() {
-	for range ctr.compactTicker.C {
-		ctr.compact()
-	}
+	events := ctr.consumer.Events()
+	go func() {
+		for e := range events {
+			conns, err := DecodeEvent(nil, e)
+			if err != nil {
+				log.Errorf("error decoding conntrack event: %s", err)
+				e.Done()
+				continue
+			}
+
+			for _, c := range conns {
+				ctr.register(c)
+			}
+			e.Done()
+		}
+	}()
+
+	go func() {
+		for range ctr.compactTicker.C {
+			ctr.compact()
+		}
+	}()
 }
 
 func (ctr *realConntracker) compact() {
