@@ -32,24 +32,50 @@ var (
 	EmptyContext = &Context{}
 )
 
-type Evaluator func(ctx *Context) bool
+type RuleEvaluator struct {
+	Eval        func(ctx *Context) bool
+	PartialEval map[string]func(ctx *Context) bool
+	Tags        []string
+}
+
+type IdentEvaluator struct {
+	Eval func(ctx *Context) bool
+}
+
+type State struct {
+	tags   map[string]bool
+	fields map[string]bool
+}
+
+type Opts struct {
+	PartialField string
+}
 
 type BoolEvaluator struct {
 	Eval      func(ctx *Context) bool
 	DebugEval func(ctx *Context) bool
 	Value     bool
+
+	ModelField string
+	IsOpLeaf   bool
 }
 
 type IntEvaluator struct {
 	Eval      func(ctx *Context) int
 	DebugEval func(ctx *Context) int
 	Value     int
+
+	ModelField string
+	IsOpLeaf   bool
 }
 
 type StringEvaluator struct {
 	Eval      func(ctx *Context) string
 	DebugEval func(ctx *Context) string
 	Value     string
+
+	ModelField string
+	IsOpLeaf   bool
 }
 
 type StringArrayEvaluator struct {
@@ -115,6 +141,34 @@ var (
 	}
 )
 
+func (s *State) UpdateTags(tags []string) {
+	for _, tag := range tags {
+		s.tags[tag] = true
+	}
+}
+
+func (s *State) UpdateField(ident string) {
+	s.fields[ident] = true
+}
+
+func (s *State) Tags() []string {
+	var tags []string
+
+	for tag := range s.tags {
+		tags = append(tags, tag)
+	}
+	sort.Strings(tags)
+
+	return tags
+}
+
+func NewState() *State {
+	return &State{
+		tags:   make(map[string]bool),
+		fields: make(map[string]bool),
+	}
+}
+
 func (r *AstToEvalError) Error() string {
 	return fmt.Sprintf("%s: %s", r.Text, r.Pos)
 }
@@ -131,7 +185,7 @@ func NewOpError(pos lexer.Position, op string) *AstToEvalError {
 	return NewError(pos, fmt.Sprintf("unknown operator %s", op))
 }
 
-func IntNot(a *IntEvaluator) *IntEvaluator {
+func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	if a.Eval != nil {
 		ea := a.Eval
 		return &IntEvaluator{
@@ -156,7 +210,7 @@ func IntNot(a *IntEvaluator) *IntEvaluator {
 	}
 }
 
-func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool) (*BoolEvaluator, error) {
+func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts, state *State) (*BoolEvaluator, error) {
 	if b.Eval != nil {
 		return nil, errors.New("regex has to be a scalar string")
 	}
@@ -202,7 +256,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool) (*BoolEvalu
 	}, nil
 }
 
-func Not(a *BoolEvaluator) *BoolEvaluator {
+func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	if a.Eval != nil {
 		ea := a.Eval
 		return &BoolEvaluator{
@@ -225,7 +279,7 @@ func Not(a *BoolEvaluator) *BoolEvaluator {
 	}
 }
 
-func Minus(a *IntEvaluator) *IntEvaluator {
+func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	if a.Eval != nil {
 		ea := a.Eval
 		return &IntEvaluator{
@@ -250,7 +304,7 @@ func Minus(a *IntEvaluator) *IntEvaluator {
 	}
 }
 
-func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool) *BoolEvaluator {
+func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool, opts *Opts, state *State) *BoolEvaluator {
 	if a.Eval != nil {
 		ea := a.Eval
 		return &BoolEvaluator{
@@ -302,7 +356,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool) 
 	}
 }
 
-func IntArrayContains(a *IntEvaluator, b *IntArrayEvaluator, not bool) *BoolEvaluator {
+func IntArrayContains(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts, state *State) *BoolEvaluator {
 	if a.Eval != nil {
 		ea := a.Eval
 		return &BoolEvaluator{
@@ -356,251 +410,257 @@ func IntArrayContains(a *IntEvaluator, b *IntArrayEvaluator, not bool) *BoolEval
 	}
 }
 
-func nodeToEvaluator(obj interface{}) (interface{}, lexer.Position, error) {
+func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, interface{}, lexer.Position, error) {
 	switch obj := obj.(type) {
 	case *ast.BooleanExpression:
-		return nodeToEvaluator(obj.Expression)
+		return nodeToEvaluator(obj.Expression, opts, state)
 	case *ast.Expression:
-		cmp, pos, err := nodeToEvaluator(obj.Comparison)
+		cmp, _, pos, err := nodeToEvaluator(obj.Comparison, opts, state)
 		if err != nil {
-			return nil, pos, err
+			return nil, nil, pos, err
 		}
 
 		if obj.Op != nil {
 			cmpBool, ok := cmp.(*BoolEvaluator)
 			if !ok {
-				return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Bool)
+				return nil, nil, obj.Pos, NewTypeError(obj.Pos, reflect.Bool)
 			}
 
-			next, pos, err := nodeToEvaluator(obj.Next)
+			next, _, pos, err := nodeToEvaluator(obj.Next, opts, state)
 			if err != nil {
-				return nil, pos, err
+				return nil, nil, pos, err
 			}
 
 			nextBool, ok := next.(*BoolEvaluator)
 			if !ok {
-				return nil, pos, NewTypeError(pos, reflect.Bool)
+				return nil, nil, pos, NewTypeError(pos, reflect.Bool)
 			}
 
 			switch *obj.Op {
 			case "||":
-				return Or(cmpBool, nextBool), obj.Pos, nil
+				return Or(cmpBool, nextBool, opts, state), nil, obj.Pos, nil
 			case "&&":
-				return And(cmpBool, nextBool), obj.Pos, nil
+				return And(cmpBool, nextBool, opts, state), nil, obj.Pos, nil
 			}
-			return nil, pos, NewOpError(obj.Pos, *obj.Op)
+			return nil, nil, pos, NewOpError(obj.Pos, *obj.Op)
 		}
-		return cmp, obj.Pos, nil
+		return cmp, nil, obj.Pos, nil
 	case *ast.BitOperation:
-		unary, pos, err := nodeToEvaluator(obj.Unary)
+		unary, _, pos, err := nodeToEvaluator(obj.Unary, opts, state)
 		if err != nil {
-			return nil, pos, err
+			return nil, nil, pos, err
 		}
 
 		if obj.Op != nil {
 			bitInt, ok := unary.(*IntEvaluator)
 			if !ok {
-				return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Int)
+				return nil, nil, obj.Pos, NewTypeError(obj.Pos, reflect.Int)
 			}
 
-			next, pos, err := nodeToEvaluator(obj.Next)
+			next, _, pos, err := nodeToEvaluator(obj.Next, opts, state)
 			if err != nil {
-				return nil, pos, err
+				return nil, nil, pos, err
 			}
 
 			nextInt, ok := next.(*IntEvaluator)
 			if !ok {
-				return nil, pos, NewTypeError(pos, reflect.Int)
+				return nil, nil, pos, NewTypeError(pos, reflect.Int)
 			}
 
 			switch *obj.Op {
 			case "&":
-				return IntAnd(bitInt, nextInt), obj.Pos, nil
+				return IntAnd(bitInt, nextInt, opts, state), nil, obj.Pos, nil
 			case "|":
-				return IntOr(bitInt, nextInt), obj.Pos, nil
+				return IntOr(bitInt, nextInt, opts, state), nil, obj.Pos, nil
 			case "^":
-				return IntXor(bitInt, nextInt), obj.Pos, nil
+				return IntXor(bitInt, nextInt, opts, state), nil, obj.Pos, nil
 			}
-			return nil, pos, NewOpError(obj.Pos, *obj.Op)
+			return nil, nil, pos, NewOpError(obj.Pos, *obj.Op)
 		}
-		return unary, obj.Pos, nil
+		return unary, nil, obj.Pos, nil
 
 	case *ast.Comparison:
-		unary, pos, err := nodeToEvaluator(obj.BitOperation)
+		unary, _, pos, err := nodeToEvaluator(obj.BitOperation, opts, state)
 		if err != nil {
-			return nil, pos, err
+			return nil, nil, pos, err
 		}
 
 		if obj.ArrayComparison != nil {
-			next, pos, err := nodeToEvaluator(obj.ArrayComparison)
+			next, _, pos, err := nodeToEvaluator(obj.ArrayComparison, opts, state)
 			if err != nil {
-				return nil, pos, err
+				return nil, nil, pos, err
 			}
 
 			switch unary := unary.(type) {
 			case *StringEvaluator:
 				nextStringArray, ok := next.(*StringArrayEvaluator)
 				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Array)
+					return nil, nil, pos, NewTypeError(pos, reflect.Array)
 				}
 
-				return StringArrayContains(unary, nextStringArray, *obj.ArrayComparison.Op == "notin"), obj.Pos, nil
+				return StringArrayContains(unary, nextStringArray, *obj.ArrayComparison.Op == "notin", opts, state), nil, obj.Pos, nil
 			case *IntEvaluator:
 				nextIntArray, ok := next.(*IntArrayEvaluator)
 				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Array)
+					return nil, nil, pos, NewTypeError(pos, reflect.Array)
 				}
 
-				return IntArrayContains(unary, nextIntArray, *obj.ArrayComparison.Op == "notin"), obj.Pos, nil
+				return IntArrayContains(unary, nextIntArray, *obj.ArrayComparison.Op == "notin", opts, state), nil, obj.Pos, nil
 			default:
-				return nil, pos, NewTypeError(pos, reflect.Array)
+				return nil, nil, pos, NewTypeError(pos, reflect.Array)
 			}
 		} else if obj.ScalarComparison != nil {
-			next, pos, err := nodeToEvaluator(obj.ScalarComparison)
+			next, _, pos, err := nodeToEvaluator(obj.ScalarComparison, opts, state)
 			if err != nil {
-				return nil, pos, err
+				return nil, nil, pos, err
 			}
 
 			switch unary := unary.(type) {
 			case *BoolEvaluator:
 				nextBool, ok := next.(*BoolEvaluator)
 				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Bool)
+					return nil, nil, pos, NewTypeError(pos, reflect.Bool)
 				}
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					return BoolNotEquals(unary, nextBool), obj.Pos, nil
+					return BoolNotEquals(unary, nextBool, opts, state), nil, obj.Pos, nil
 				case "==":
-					return BoolEquals(unary, nextBool), obj.Pos, nil
+					return BoolEquals(unary, nextBool, opts, state), nil, obj.Pos, nil
 				}
-				return nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
+				return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
 			case *StringEvaluator:
 				nextString, ok := next.(*StringEvaluator)
 				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.String)
+					return nil, nil, pos, NewTypeError(pos, reflect.String)
 				}
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					return StringNotEquals(unary, nextString), pos, nil
+					return StringNotEquals(unary, nextString, opts, state), nil, pos, nil
 				case "==":
-					return StringEquals(unary, nextString), pos, nil
+					fmt.Println("dsdqs")
+					return StringEquals(unary, nextString, opts, state), nil, pos, nil
 				case "=~", "!~":
-					eval, err := StringMatches(unary, nextString, *obj.ScalarComparison.Op == "!~")
+					eval, err := StringMatches(unary, nextString, *obj.ScalarComparison.Op == "!~", opts, state)
 					if err != nil {
-						return nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
+						return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
 					}
-					return eval, obj.Pos, nil
+					return eval, nil, obj.Pos, nil
 				}
-				return nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
+				return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
 			case *IntEvaluator:
 				nextInt, ok := next.(*IntEvaluator)
 				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Int)
+					return nil, nil, pos, NewTypeError(pos, reflect.Int)
 				}
 
 				switch *obj.ScalarComparison.Op {
 				case "<":
-					return LesserThan(unary, nextInt), obj.Pos, nil
+					return LesserThan(unary, nextInt, opts, state), nil, obj.Pos, nil
 				case "<=":
-					return LesserOrEqualThan(unary, nextInt), obj.Pos, nil
+					return LesserOrEqualThan(unary, nextInt, opts, state), nil, obj.Pos, nil
 				case ">":
-					return GreaterThan(unary, nextInt), obj.Pos, nil
+					return GreaterThan(unary, nextInt, opts, state), nil, obj.Pos, nil
 				case ">=":
-					return GreaterOrEqualThan(unary, nextInt), obj.Pos, nil
+					return GreaterOrEqualThan(unary, nextInt, opts, state), nil, obj.Pos, nil
 				case "!=":
-					return IntNotEquals(unary, nextInt), obj.Pos, nil
+					return IntNotEquals(unary, nextInt, opts, state), nil, obj.Pos, nil
 				case "==":
-					return IntEquals(unary, nextInt), obj.Pos, nil
+					return IntEquals(unary, nextInt, opts, state), nil, obj.Pos, nil
 				}
-				return nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
+				return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
 			}
 
 		} else {
-			return unary, pos, nil
+			return unary, nil, pos, nil
 		}
 
 	case *ast.ArrayComparison:
 		if len(obj.Array.Numbers) != 0 {
 			ints := obj.Array.Numbers
 			sort.Ints(ints)
-			return &IntArrayEvaluator{Values: ints}, obj.Pos, nil
+			return &IntArrayEvaluator{Values: ints}, nil, obj.Pos, nil
 		} else if len(obj.Array.Strings) != 0 {
 			strings := obj.Array.Strings
 			sort.Strings(strings)
-			return &StringArrayEvaluator{Values: strings}, obj.Pos, nil
+			return &StringArrayEvaluator{Values: strings}, nil, obj.Pos, nil
 		}
 
 	case *ast.ScalarComparison:
-		return nodeToEvaluator(obj.Next)
+		return nodeToEvaluator(obj.Next, opts, state)
 
 	case *ast.Unary:
 		if obj.Op != nil {
-			unary, pos, err := nodeToEvaluator(obj.Unary)
+			unary, _, pos, err := nodeToEvaluator(obj.Unary, opts, state)
 			if err != nil {
-				return nil, pos, err
+				return nil, nil, pos, err
 			}
 
 			switch *obj.Op {
 			case "!":
 				unaryBool, ok := unary.(*BoolEvaluator)
 				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Bool)
+					return nil, nil, pos, NewTypeError(pos, reflect.Bool)
 				}
 
-				return Not(unaryBool), obj.Pos, nil
+				return Not(unaryBool, opts, state), nil, obj.Pos, nil
 			case "-":
 				unaryInt, ok := unary.(*IntEvaluator)
 				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Int)
+					return nil, nil, pos, NewTypeError(pos, reflect.Int)
 				}
 
-				return Minus(unaryInt), pos, nil
+				return Minus(unaryInt, opts, state), nil, pos, nil
 			case "^":
 				unaryInt, ok := unary.(*IntEvaluator)
 				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Int)
+					return nil, nil, pos, NewTypeError(pos, reflect.Int)
 				}
 
-				return IntNot(unaryInt), pos, nil
+				return IntNot(unaryInt, opts, state), nil, pos, nil
 			}
-			return nil, pos, NewOpError(obj.Pos, *obj.Op)
+			return nil, nil, pos, NewOpError(obj.Pos, *obj.Op)
 		}
 
-		return nodeToEvaluator(obj.Primary)
+		return nodeToEvaluator(obj.Primary, opts, state)
 	case *ast.Primary:
 		switch {
 		case obj.Ident != nil:
 			if accessor, ok := constants[*obj.Ident]; ok {
-				return accessor, obj.Pos, nil
+				return accessor, nil, obj.Pos, nil
 			}
 
-			accessor, err := GetAccessor(*obj.Ident)
+			accessor, tags, err := GetAccessor(*obj.Ident)
 			if err != nil {
-				return nil, obj.Pos, err
+				return nil, nil, obj.Pos, err
 			}
-			return accessor, obj.Pos, nil
+
+			state.UpdateTags(tags)
+			state.UpdateField(*obj.Ident)
+
+			return accessor, nil, obj.Pos, nil
 		case obj.Number != nil:
 			return &IntEvaluator{
 				Value: *obj.Number,
-			}, obj.Pos, nil
+			}, nil, obj.Pos, nil
 		case obj.String != nil:
 			return &StringEvaluator{
 				Value: *obj.String,
-			}, obj.Pos, nil
+			}, nil, obj.Pos, nil
 		case obj.SubExpression != nil:
-			return nodeToEvaluator(obj.SubExpression)
+			return nodeToEvaluator(obj.SubExpression, opts, state)
 		default:
-			return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("unknown primary '%s'", reflect.TypeOf(obj)))
+			return nil, nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("unknown primary '%s'", reflect.TypeOf(obj)))
 		}
 	}
 
-	return nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
+	return nil, nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
 }
 
-func RuleToEvaluator(rule *ast.Rule, debug bool) (Evaluator, error) {
-	eval, _, err := nodeToEvaluator(rule.BooleanExpression)
+func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
+	state := NewState()
+	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{}, state)
 	if err != nil {
 		return nil, err
 	}
@@ -610,14 +670,39 @@ func RuleToEvaluator(rule *ast.Rule, debug bool) (Evaluator, error) {
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
+	partials := make(map[string]func(ctx *Context) bool)
+	for field := range state.fields {
+		eval, _, _, err = nodeToEvaluator(rule.BooleanExpression, &Opts{PartialField: field}, NewState())
+		if err != nil {
+			return nil, err
+		}
+
+		evalBool, ok = eval.(*BoolEvaluator)
+		if !ok {
+			return nil, NewTypeError(rule.Pos, reflect.Bool)
+		}
+	}
+
 	if evalBool.Eval == nil {
-		return Evaluator(func(ctx *Context) bool {
-			return evalBool.Value
-		}), nil
+		return &RuleEvaluator{
+			Eval: func(ctx *Context) bool {
+				return evalBool.Value
+			},
+			PartialEval: partials,
+			Tags:        state.Tags(),
+		}, nil
 	}
 
 	if debug {
-		return Evaluator(evalBool.DebugEval), nil
+		return &RuleEvaluator{
+			Eval:        evalBool.DebugEval,
+			PartialEval: partials,
+			Tags:        state.Tags(),
+		}, nil
 	}
-	return Evaluator(evalBool.Eval), nil
+	return &RuleEvaluator{
+		Eval:        evalBool.Eval,
+		PartialEval: partials,
+		Tags:        state.Tags(),
+	}, nil
 }

@@ -18,68 +18,130 @@ func main() {
 
 package	eval
 
-{{range .}}
+import ("fmt")
 
-func {{.FuncName}}(a *{{.Arg1Type}}, b *{{.Arg2Type}}) *{{.FuncReturnType}} {
+{{ range . }}
+
+func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) *{{ .FuncReturnType }} {
+	{{ $bool := "false" }}
+	{{ if eq .FuncName "And" }}
+		{{ $bool = "true" }}
+	{{ end }}
+
+	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
+		fmt.Printf("YYYYYYYYYYYYYYYYYYYYYYY\n")
+	{{ end }}
+
+	var isOpLeaf bool
+	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
+		isOpLeaf = true
+	}
+
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-		return &{{.FuncReturnType}}{
-			DebugEval: func(ctx *Context) {{.EvalReturnType}} {
+
+		eval := func(ctx *Context) {{ .EvalReturnType }} {
+			return ea(ctx) {{ .Op }} eb(ctx)
+		}
+
+		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
+			if opts.PartialField != "" {
+				if a.IsOpLeaf && !b.IsOpLeaf {
+					eval = func(ctx *Context) {{ .EvalReturnType }} {
+						return ea(ctx) {{ .Op }} {{ $bool }}
+					}
+				} else if !a.IsOpLeaf && b.IsOpLeaf {
+					eval = func(ctx *Context) {{ .EvalReturnType }} {
+						return {{ $bool }} {{ .Op }} eb(ctx)
+					}
+				}
+			}
+		{{ end }}
+
+		return &{{ .FuncReturnType }}{
+			DebugEval: func(ctx *Context) {{ .EvalReturnType }} {
 				ctx.evalDepth++
 				op1, op2 := dea(ctx), deb(ctx)
 				result := op1 {{.Op}} op2
-				ctx.Logf("Evaluating %v {{.Op}} %v => %v", op1, op2, result)
+				ctx.Logf("Evaluating %v {{ .Op }} %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
 			},
-			Eval: func(ctx *Context) {{.EvalReturnType}} {
-				return ea(ctx) {{.Op}} eb(ctx)
-			},
+			Eval: eval,
+			IsOpLeaf: isOpLeaf,
 		}
 	}
 
 	if a.Eval == nil && b.Eval == nil {
-		return &{{.FuncReturnType}}{
-			Value: a.Value {{.Op}} b.Value,
+		return &{{ .FuncReturnType }}{
+			Value: a.Value {{ .Op }} b.Value,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
-		return &{{.FuncReturnType}}{
-			DebugEval: func(ctx *Context) {{.EvalReturnType}} {
+
+		eval := func(ctx *Context) {{ .EvalReturnType }} {
+			return ea(ctx) {{ .Op }} eb
+		}
+
+		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
+			if opts.PartialField != "" {
+				if !a.IsOpLeaf {
+					eval = func(ctx *Context) {{ .EvalReturnType }} {
+						return {{ $bool }} {{ .Op }} eb
+					}
+				}
+			}
+		{{ end }}
+
+		return &{{ .FuncReturnType }}{
+			DebugEval: func(ctx *Context) {{ .EvalReturnType }} {
 				ctx.evalDepth++
 				op1, op2 := dea(ctx), eb
-				result := op1 {{.Op}} op2
+				result := op1 {{ .Op }} op2
 				ctx.Logf("Evaluating %v {{.Op}} %v => %v", op1, op2, result)
 				ctx.evalDepth--
 				return result
 			},
-			Eval: func(ctx *Context) {{.EvalReturnType}} {
-				return ea(ctx) {{.Op}} eb
-			},
+			Eval: eval,
+			IsOpLeaf: isOpLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-	return &{{.FuncReturnType}}{
-		DebugEval: func(ctx *Context) {{.EvalReturnType}} {
+
+	eval := func(ctx *Context) {{ .EvalReturnType }} {
+		return ea {{ .Op }} eb(ctx)
+	}
+
+	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
+		if opts.PartialField != "" {
+			if !b.IsOpLeaf {
+				eval = func(ctx *Context) {{ .EvalReturnType }} {
+					return ea {{ .Op }} {{ $bool }}
+				}
+			}
+		}
+	{{ end }}
+
+	return &{{ .FuncReturnType }}{
+		DebugEval: func(ctx *Context) {{ .EvalReturnType }} {
 			ctx.evalDepth++
 			op1, op2 := ea, deb(ctx)
-			result := op1 {{.Op}} op2
-			ctx.Logf("Evaluating %v {{.Op}} %v => %v", op1, op2, result)
+			result := op1 {{ .Op }} op2
+			ctx.Logf("Evaluating %v {{ .Op }} %v => %v", op1, op2, result)
 			ctx.evalDepth--
 			return result
 		},
-		Eval: func(ctx *Context) {{.EvalReturnType}} {
-			return ea {{.Op}} eb(ctx)
-		},
+		Eval: eval,
+		IsOpLeaf: isOpLeaf,
 	}
 }
-{{end}}
+{{ end }}
 `))
 
 	outputFile, err := os.Create(output)

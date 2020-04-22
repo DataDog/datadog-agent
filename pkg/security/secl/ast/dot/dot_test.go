@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"gitlab.com/safchain/secpoc/pkg/secl/ast"
 )
 
 func TestDotWriterParenthesis(t *testing.T) {
