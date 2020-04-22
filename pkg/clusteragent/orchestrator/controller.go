@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -37,6 +38,7 @@ import (
 type ControllerContext struct {
 	IsLeaderFunc                 func() bool
 	UnassignedPodInformerFactory informers.SharedInformerFactory
+	InformerFactory              informers.SharedInformerFactory
 	Client                       kubernetes.Interface
 	StopCh                       chan struct{}
 	Hostname                     string
@@ -48,6 +50,10 @@ type ControllerContext struct {
 type Controller struct {
 	unassignedPodLister     corelisters.PodLister
 	unassignedPodListerSync cache.InformerSynced
+	deployLister            appslisters.DeploymentLister
+	deployListerSync        cache.InformerSynced
+	rsLister                appslisters.ReplicaSetLister
+	rsListerSync            cache.InformerSynced
 	groupID                 int32
 	hostName                string
 	clusterName             string
@@ -76,9 +82,12 @@ func StartController(ctx ControllerContext) error {
 	go orchestratorController.Run(ctx.StopCh)
 
 	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
+	ctx.InformerFactory.Start(ctx.StopCh)
 
 	return apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
-		apiserver.PodsInformer: ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
+		apiserver.PodsInformer:        ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
+		apiserver.DeploysInformer:     ctx.InformerFactory.Apps().V1().Deployments().Informer(),
+		apiserver.ReplicasetsInformer: ctx.InformerFactory.Apps().V1().ReplicaSets().Informer(),
 	})
 }
 
@@ -88,6 +97,9 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	deployInformer := ctx.InformerFactory.Apps().V1().Deployments()
+	rsInformer := ctx.InformerFactory.Apps().V1().ReplicaSets()
 
 	cfg := processcfg.NewDefaultAgentConfig(true)
 	if err := cfg.LoadProcessYamlConfig(ctx.ConfigPath); err != nil {
@@ -105,6 +117,10 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	oc := &Controller{
 		unassignedPodLister:     podInformer.Lister(),
 		unassignedPodListerSync: podInformer.Informer().HasSynced,
+		deployLister:            deployInformer.Lister(),
+		deployListerSync:        deployInformer.Informer().HasSynced,
+		rsLister:                rsInformer.Lister(),
+		rsListerSync:            rsInformer.Informer().HasSynced,
 		groupID:                 rand.Int31(),
 		hostName:                ctx.Hostname,
 		clusterName:             ctx.ClusterName,
@@ -133,18 +149,65 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 	}
 
 	go wait.Until(o.processPods, 10*time.Second, stopCh)
+	// spread the processing of other resources
+	time.AfterFunc(2*time.Second, func() {
+		go wait.Until(o.processReplicasets, 10*time.Second, stopCh)
+	})
+	time.AfterFunc(4*time.Second, func() {
+		go wait.Until(o.processDeploys, 10*time.Second, stopCh)
+	})
 
 	<-stopCh
 
 	o.forwarder.Stop()
 }
 
+func (o *Controller) processDeploys() {
+	if !o.IsLeaderFunc() {
+		return
+	}
+
+	deployList, err := o.deployLister.List(labels.Everything())
+	if err != nil {
+		log.Errorf("Unable to list deployments: %s", err)
+		return
+	}
+
+	msg, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	if err != nil {
+		log.Errorf("Unable to process deployments list: %v", err)
+		return
+	}
+
+	o.sendMessages(msg)
+}
+
+func (o *Controller) processReplicasets() {
+	if !o.IsLeaderFunc() {
+		return
+	}
+
+	rsList, err := o.rsLister.List(labels.Everything())
+	if err != nil {
+		log.Errorf("Unable to list replica sets: %s", err)
+		return
+	}
+
+	msg, err := processReplicasetList(rsList, atomic.AddInt32(&o.groupID, 1), o.processConfig, o.clusterName, o.clusterID)
+	if err != nil {
+		log.Errorf("Unable to process replica sets list: %v", err)
+		return
+	}
+
+	o.sendMessages(msg)
+}
+
 func (o *Controller) processPods() {
 	if !o.isLeaderFunc() {
 		return
 	}
-	podList, err := o.unassignedPodLister.List(labels.Everything())
 
+	podList, err := o.unassignedPodLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Unable to list pods: %s", err)
 		return
@@ -157,6 +220,10 @@ func (o *Controller) processPods() {
 		return
 	}
 
+	o.sendMessages(msg)
+}
+
+func (o *Controller) sendMessages(msg []model.MessageBody) {
 	for _, m := range msg {
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(api.HostHeader, o.hostName)
