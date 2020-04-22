@@ -126,7 +126,7 @@ func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 	return nil
 }
 
-func printFlows(pfds []C.struct__perFlowData) {
+func printFlows(pfds []*C.struct__perFlowData) {
 	for _, pfd := range pfds {
 		var local net.IP
 		var remot net.IP

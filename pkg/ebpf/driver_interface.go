@@ -187,7 +187,7 @@ func (di *DriverInterface) getStats() (map[string]interface{}, error) {
 	}, nil
 }
 
-func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) (flows []C.struct__perFlowData, error error) {
+func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) (flows []*C.struct__perFlowData, error error) {
 	waitgroup.Add(1)
 	defer waitgroup.Done()
 
@@ -207,7 +207,7 @@ func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) (flows []C.struct
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
 			buf = readbuffer[bytesused:]
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
-			flows = append(flows, *pfd)
+			flows = append(flows, pfd)
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
 		if err == nil {
