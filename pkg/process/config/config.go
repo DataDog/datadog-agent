@@ -85,6 +85,7 @@ type AgentConfig struct {
 	ExcludedSourceConnections      map[string][]string
 	ExcludedDestinationConnections map[string][]string
 	EnableConntrack                bool
+	EnableENOBUFS                  bool
 	ConntrackMaxStateSize          int
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
@@ -192,6 +193,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		SystemProbeLogFile:    defaultSystemProbeFilePath,
 		MaxTrackedConnections: defaultMaxTrackedConnections,
 		EnableConntrack:       true,
+		EnableENOBUFS:         false,
 		ClosedChannelSize:     500,
 		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
 
@@ -377,6 +379,7 @@ func loadEnvVariables() {
 		// System probe specific configuration (Beta)
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
+		{"DD_SYSTEM_PROBE_ENABLE_ENOBUFS", "system_probe_config.enable_enobufs"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
 		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
