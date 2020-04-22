@@ -1,4 +1,4 @@
-package probe
+package model
 
 import (
 	"fmt"
@@ -10,7 +10,6 @@ import (
 	"docker.io/go-docker/api/types/container"
 	"docker.io/go-docker/api/types/strslice"
 	"github.com/docker/go-connections/nat"
-	"github.com/dustin/go-humanize"
 )
 
 // EventMonitorName - Event Monitor names
@@ -31,8 +30,6 @@ const (
 	EBPF EventMonitorType = "ebpf"
 	// Perf - Perf probe
 	Perf EventMonitorType = "perf"
-	// Container - container probe
-	Container EventMonitorType = "container"
 )
 
 // ProbeEventType - ProbeEventType enum
@@ -179,13 +176,13 @@ type ProbeEvent interface {
 // ProcessCacheEntry - Process cache entry
 type ProcessCacheEntry struct {
 	sync.RWMutex
-	IsUnexpectedProcess  bool       `json:"is_unexpected_process"`
-	ForkThresholdReached bool       `json:"fork_threshold_reached"`
-	BinaryPath           string     `json:"binary_path"`
-	Comm                 string     `json:"comm,omitempty"`
-	Ppid                 uint32     `json:"ppid"`
-	Pid                  uint32     `json:"pid"`
-	TTYName              string     `json:"tty_name,omitempty"`
+	IsUnexpectedProcess  bool       `json:"is_unexpected_process" field:"is_unexpected_process"`
+	ForkThresholdReached bool       `json:"fork_threshold_reached" field:"fork_threshold_reached"`
+	BinaryPath           string     `json:"binary_path" field:"binary"`
+	Comm                 string     `json:"comm,omitempty" field:"comm"`
+	Ppid                 uint32     `json:"ppid" field:"ppid"`
+	Pid                  uint32     `json:"pid" field:"pid"`
+	TTYName              string     `json:"tty_name,omitempty" field:"tty"`
 	ExecveTime           *time.Time `json:"execve_time"`
 	ForkTime             *time.Time `json:"fork_time"`
 	ExitTime             *time.Time `json:"-"`
@@ -257,11 +254,11 @@ func (pce *ProcessCacheEntry) IsInCache() bool {
 // NamespaceCacheEntry - Namespace cache entry
 type NamespaceCacheEntry struct {
 	sync.RWMutex
-	IsUnexpectedNamespace bool       `json:"is_unexpected_namespace"`
-	Name                  string     `json:"name"`
-	ID                    string     `json:"id"`
-	Base                  string     `json:"base"`
-	Digest                string     `json:"digest"`
+	IsUnexpectedNamespace bool       `json:"is_unexpected_namespace" field:"is_unexpected_namespace"`
+	Name                  string     `json:"name" field:"name"`
+	ID                    string     `json:"id" field:"id"`
+	Base                  string     `json:"base" field:"base"`
+	Digest                string     `json:"digest" field:"digest"`
 	ExitTime              *time.Time `json:"-"`
 }
 
@@ -344,16 +341,16 @@ func (erf EventRoutingFlag) HasRoutingFlag(flag EventRoutingFlag) bool {
 
 // EventBase - Base struct for a probe event
 type EventBase struct {
-	ProcessData       *ProcessCacheEntry   `json:"process_data,omitempty"`
-	NamespaceData     *NamespaceCacheEntry `json:"namespace_data,omitempty"`
-	MountData         []*MountCacheEntry   `json:"mount_data,omitempty"`
-	UserData          *UserCacheEntry      `json:"user_data,omitempty"`
-	HasSecurityAlerts bool                 `json:"has_security_alerts"`
+	ProcessData       *ProcessCacheEntry   `json:"process_data,omitempty" field:"process"`
+	NamespaceData     *NamespaceCacheEntry `json:"namespace_data,omitempty" field:"namespace"`
+	MountData         []*MountCacheEntry   `json:"mount_data,omitempty" field:"-"`
+	UserData          *UserCacheEntry      `json:"user_data,omitempty" field:"-"`
+	HasSecurityAlerts bool                 `json:"has_security_alerts" field:"has_security_alerts"`
 	RoutingFlag       EventRoutingFlag     `json:"-"`
-	EventType         ProbeEventType       `json:"event_type"`
-	EventMonitorName  EventMonitorName     `json:"event_monitor_name"`
-	EventMonitorType  EventMonitorType     `json:"event_monitor_type"`
-	Timestamp         time.Time            `json:"timestamp"`
+	EventType         ProbeEventType       `json:"event_type" field:"type"`
+	// EventMonitorName  EventMonitorName     `json:"event_monitor_name" field:"monitor"`
+	// EventMonitorType  EventMonitorType     `json:"event_monitor_type" field:"monitor_type"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // GetTimestamp - Returns the event timestamp
@@ -367,6 +364,7 @@ func (eb *EventBase) GetEventType() ProbeEventType {
 }
 
 // GetEventMonitorName - Returns the event monitor name
+/*
 func (eb *EventBase) GetEventMonitorName() EventMonitorName {
 	return eb.EventMonitorName
 }
@@ -375,6 +373,7 @@ func (eb *EventBase) GetEventMonitorName() EventMonitorName {
 func (eb *EventBase) GetEventMonitorType() EventMonitorType {
 	return eb.EventMonitorType
 }
+*/
 
 // SetProcessCacheData - Sets the process cache data
 func (eb *EventBase) SetProcessCacheData(pce *ProcessCacheEntry) {
@@ -633,23 +632,23 @@ func (ttyw *TTYWriteEvent) String() string {
 // DentryEventRaw - Raw event definition (used to parse data from probe).
 // (!) => members order matter
 type DentryEventRaw struct {
-	Pidns             uint64   `json:"pidns"`
-	TimestampRaw      uint64   `json:"-"`
-	TTYNameRaw        [64]byte `json:"-"`
-	Pid               uint32   `json:"pid"`
-	Tid               uint32   `json:"tid"`
-	UID               uint32   `json:"uid"`
-	GID               uint32   `json:"gid"`
-	Flags             int32    `json:"flags,omitempty"`
-	Mode              int32    `json:"mode,omitempty"`
-	SrcInode          uint32   `json:"src_inode,omitempty"`
-	SrcPathnameKey    uint32   `json:"-"`
-	SrcMountID        int32    `json:"src_mount_id,omitempty"`
-	TargetInode       uint32   `json:"target_inode,omitempty"`
-	TargetPathnameKey uint32   `json:"-"`
-	TargetMountID     int32    `json:"target_mount_id,omitempty"`
-	Retval            int32    `json:"retval"`
-	Event             uint32   `json:"-"`
+	Pidns             uint64   `json:"pidns" field:"pidns"`
+	TimestampRaw      uint64   `json:"-" field:"-"`
+	TTYNameRaw        [64]byte `json:"-" field:"-"`
+	Pid               uint32   `json:"pid" field:"pid"`
+	Tid               uint32   `json:"tid" field:"tid"`
+	UID               uint32   `json:"uid" field:"uid"`
+	GID               uint32   `json:"gid" field:"gid"`
+	Flags             int32    `json:"flags,omitempty" field:"flags"`
+	Mode              int32    `json:"mode,omitempty" field:"mode"`
+	SrcInode          uint32   `json:"src_inode,omitempty" field:"source_inode"`
+	SrcPathnameKey    uint32   `json:"-" field:"-"`
+	SrcMountID        int32    `json:"src_mount_id,omitempty" field:"source_mount_id"`
+	TargetInode       uint32   `json:"target_inode,omitempty" field:"target_inode"`
+	TargetPathnameKey uint32   `json:"-" field:"-"`
+	TargetMountID     int32    `json:"target_mount_id,omitempty" field:"target_mount_id"`
+	Retval            int32    `json:"retval" field:"retval"`
+	Event             uint32   `json:"-" field:"-"`
 }
 
 // GetProbeEventType - Returns the probe event type
@@ -672,15 +671,6 @@ func (der DentryEventRaw) GetProbeEventType() ProbeEventType {
 	default:
 		return UnknownEventType
 	}
-}
-
-// DentryEvent - Dentry event definition
-type DentryEvent struct {
-	EventBase
-	*DentryEventRaw
-	TTYName        string `json:"tty_name,omitempty"`
-	SrcFilename    string `json:"src_filename,omitempty"`
-	TargetFilename string `json:"target_filename,omitempty"`
 }
 
 // GetUID - Returns the event UID
@@ -713,395 +703,6 @@ func (de *DentryEvent) GetPid() uint32 {
 // GetPidns - Returns the event pidns
 func (de *DentryEvent) GetPidns() uint64 {
 	return de.Pidns
-}
-
-func (de DentryEvent) String() string {
-	prefix := fmt.Sprintf(
-		"pid:%v tid:%v pidns:%v uid:%v gid:%v event:%v",
-		de.Pid,
-		de.Tid,
-		de.Pidns,
-		de.UID,
-		de.GID,
-		de.EventType,
-	)
-	switch de.EventType {
-	case FileOpenEventType:
-		return fmt.Sprintf(
-			"%v filename:%v mount_id:%v inode:%v flags:%v mode:%v retval:%v",
-			prefix,
-			de.SrcFilename,
-			de.SrcMountID,
-			de.SrcInode,
-			strings.Join(OpenFlagsToStrings(de.Flags), ","),
-			strings.Join(AccModesToStrings(de.Mode), ","),
-			ErrValueToString(de.Retval),
-		)
-	case FileUnlinkEventType, FileModifyEventType:
-		return fmt.Sprintf(
-			"%v filename:%v mount_id:%v inode:%v retval:%v",
-			prefix,
-			de.SrcFilename,
-			de.SrcMountID,
-			de.SrcInode,
-			ErrValueToString(de.Retval),
-		)
-	case FileMkdirEventType:
-		return fmt.Sprintf(
-			"%v directory:%v mount_id:%v inode:%v mode:%v retval:%v",
-			prefix,
-			de.SrcFilename,
-			de.SrcMountID,
-			de.SrcInode,
-			strings.Join(AccModesToStrings(de.Mode), ","),
-			ErrValueToString(de.Retval),
-		)
-	case FileRmdirEventType:
-		return fmt.Sprintf(
-			"%v directory:%v mount_id:%v inode:%v retval:%v",
-			prefix,
-			de.SrcFilename,
-			de.SrcMountID,
-			de.SrcInode,
-			ErrValueToString(de.Retval),
-		)
-	case FileHardLinkEventType, FileRenameEventType:
-		return fmt.Sprintf(
-			"%v src_filename:%v src_mount_id:%v src_inode:%v target_filename:%v target_mount_id:%v target_inode:%v retval:%v",
-			prefix,
-			de.SrcFilename,
-			de.SrcMountID,
-			de.SrcInode,
-			de.TargetFilename,
-			de.TargetMountID,
-			de.TargetInode,
-			ErrValueToString(de.Retval),
-		)
-	}
-	return ""
-}
-
-// NetworkEventInterface - Network event
-type NetworkEventInterface interface {
-	ProbeEvent
-	GetFullSrcAddr() string
-	GetFullDestAddr() string
-	GetNetworkEventBase() *NetworkEvent
-}
-
-// NetworkEventRaw - Raw event definition (used to parse data from probe).
-// (!) => members order matter
-type NetworkEventRaw struct {
-	// Event type
-	Event        uint64 `json:"event"`
-	TimestampRaw uint64 `json:"-"`
-
-	// Interface data
-	IfnameRaw  [16]byte `json:"-"`
-	SKBuffAddr uint64   `json:"sk_buff_addr"`
-
-	// Process data
-	Netns uint64 `json:"netns"`
-	Pidns uint64 `json:"pidns"`
-	Pid   uint32 `json:"pid"`
-	Tid   uint32 `json:"tid"`
-	UID   uint32 `json:"uid"`
-	GID   uint32 `json:"gid"`
-
-	// Data link layer data (L2)
-	HType      uint64  `json:"h_type"`
-	HDestRaw   [6]byte `json:"-"`
-	HSourceRaw [6]byte `json:"-"`
-
-	// Network layer data (L3)
-	IPVersion   int32    `json:"ip_version"`
-	Protocol    int64    `json:"protocol"`
-	TotLen      int64    `json:"tot_len"`
-	ID          int64    `json:"id"`
-	SrcAddrRaw  [2]int64 `json:"-"`
-	DestAddrRaw [2]int64 `json:"-"`
-
-	// Transport layer data (L4)
-	TFlags    uint64 `json:"t_flags"`
-	SPort     uint16 `json:"s_port"`
-	DPort     uint16 `json:"d_port"`
-	TChecksum uint16 `json:"t_checksum"`
-}
-
-// GetProbeEventType - Returns the probe event type
-func (ner NetworkEventRaw) GetProbeEventType() ProbeEventType {
-	switch ner.Event {
-	case 0:
-		return NetworkNetDevXmitEventType
-	case 1:
-		return NetworkCopyDatagramIovecEventType
-	case 2:
-		return NetworkConsumeSKBEventType
-	default:
-		return UnknownEventType
-	}
-}
-
-// NetworkEvent - Network event base
-type NetworkEvent struct {
-	EventBase
-	*NetworkEventRaw
-	Ifname   string `json:"interface_name"`
-	HDest    string `json:"h_dest"`
-	HSource  string `json:"h_source"`
-	SrcAddr  string `json:"src_addr"`
-	DestAddr string `json:"dest_addr"`
-}
-
-// GetUID - Returns the event UID
-func (ne *NetworkEvent) GetUID() int {
-	return int(ne.UID)
-}
-
-// GetGID - Returns the event GID
-func (ne *NetworkEvent) GetGID() int {
-	return int(ne.GID)
-}
-
-// GetMountIDs - Returns the event Mount ID
-func (ne *NetworkEvent) GetMountIDs() []int {
-	return []int{}
-}
-
-// GetPidns - Returns the namespace id
-func (ne *NetworkEvent) GetPidns() uint64 {
-	return ne.Pidns
-}
-
-// GetPid - Returns the pid
-func (ne *NetworkEvent) GetPid() uint32 {
-	return ne.Pid
-}
-
-// GetFullSrcAddr - Returns the full source address
-func (ne *NetworkEvent) GetFullSrcAddr() string {
-	return ne.SrcAddr
-}
-
-// GetFullDestAddr - Returns the full destination address
-func (ne *NetworkEvent) GetFullDestAddr() string {
-	return ne.DestAddr
-}
-
-// GetNetworkEventBase - Returns the network event base
-func (ne *NetworkEvent) GetNetworkEventBase() *NetworkEvent {
-	return ne
-}
-
-// GetNetworkProtocol - Returns HType flag as a flag string
-func (ne *NetworkEvent) GetNetworkProtocol() string {
-	return NetworkProtocolToString(ne.HType)
-}
-
-// GetTransportProtocol - Returns Protocol as a flag string
-func (ne *NetworkEvent) GetTransportProtocol() string {
-	return TransportProtocolToString(ne.Protocol)
-}
-
-// ProcessDataStr - Returns the process related data as a formated string
-func (ne *NetworkEvent) ProcessDataStr() string {
-	return fmt.Sprintf(
-		"pid:%v (Pidns:%v, NetNS:%v, uid:%v)",
-		ne.Pid,
-		ne.Pidns,
-		ne.Netns,
-		ne.UID,
-	)
-}
-
-// DataLinkLayerStr - Returns the data link layer as a formated string
-func (ne *NetworkEvent) DataLinkLayerStr() string {
-	if ne.HDest != "00:00:00:00:00:00" && ne.HSource != "00:00:00:00:00:00" {
-		return fmt.Sprintf(
-			"[%v] -> [%v] (%v)",
-			ne.HSource,
-			ne.HDest,
-			ne.GetNetworkProtocol(),
-		)
-	}
-	return fmt.Sprintf(
-		"(%v)",
-		ne.GetNetworkProtocol(),
-	)
-}
-
-// NetworkLayerStr - Returns the network layer as a formated string
-func (ne *NetworkEvent) NetworkLayerStr() string {
-	return fmt.Sprintf(
-		"[%v] -> [%v] (%v - %v) (id:%v)",
-		ne.SrcAddr,
-		ne.DestAddr,
-		ne.GetTransportProtocol(),
-		humanize.Bytes(uint64(ne.TotLen)),
-		ne.ID,
-	)
-}
-
-func (ne *NetworkEvent) String() string {
-	rep := ""
-	rep += ne.NetworkLayerStr()
-	rep += " " + ne.ProcessDataStr()
-	rep += " " + ne.DataLinkLayerStr()
-	return rep
-}
-
-// GetEventType - Returns the Network event type
-func (ne *NetworkEvent) GetEventType() ProbeEventType {
-	return ne.EventType
-}
-
-// ToNetworkEvent - Transforms the current network event into the correct network event
-func (ne *NetworkEvent) ToNetworkEvent() NetworkEventInterface {
-	switch TransportProtocol(ne.Protocol) {
-	case IPPROTO_ICMP, IPPROTO_ICMPV6:
-		return &ICMPEvent{
-			NetworkEvent: ne,
-		}
-	case IPPROTO_TCP:
-		return &TCPEvent{
-			NetworkEvent: ne,
-			CWR:          TCPFlag(ne.TFlags)|CWR == CWR,
-			ECE:          TCPFlag(ne.TFlags)|ECE == ECE,
-			URG:          TCPFlag(ne.TFlags)|URG == URG,
-			ACK:          TCPFlag(ne.TFlags)|ACK == ACK,
-			PSH:          TCPFlag(ne.TFlags)|PSH == PSH,
-			RST:          TCPFlag(ne.TFlags)|RST == RST,
-			SYN:          TCPFlag(ne.TFlags)|SYN == SYN,
-			FIN:          TCPFlag(ne.TFlags)|FIN == FIN,
-		}
-	case IPPROTO_UDP:
-		return &UDPEvent{
-			NetworkEvent: ne,
-		}
-	default:
-		return ne
-	}
-}
-
-// TCPEvent - TPC event
-type TCPEvent struct {
-	*NetworkEvent
-	CWR bool `json:"CWR"`
-	ECE bool `json:"ECE"`
-	URG bool `json:"URG"`
-	ACK bool `json:"ACK"`
-	PSH bool `json:"PSH"`
-	RST bool `json:"RST"`
-	SYN bool `json:"SYN"`
-	FIN bool `json:"FIN"`
-}
-
-// GetFullSrcAddr - Returns the full source address
-func (tcp *TCPEvent) GetFullSrcAddr() string {
-	return fmt.Sprintf("%v:%v", tcp.SrcAddr, tcp.SPort)
-}
-
-// GetFullDestAddr - Returns the full destination address
-func (tcp *TCPEvent) GetFullDestAddr() string {
-	return fmt.Sprintf("%v:%v", tcp.DestAddr, tcp.DPort)
-}
-
-// NetworkLayerStr - Returns the network layer as a formated string
-func (tcp TCPEvent) NetworkLayerStr() string {
-	return fmt.Sprintf(
-		"[%v:%v] -> [%v:%v] (%v, %v, %v) (sum:%v, id:%v)",
-		tcp.SrcAddr,
-		tcp.SPort,
-		tcp.DestAddr,
-		tcp.DPort,
-		tcp.GetTransportProtocol(),
-		humanize.Bytes(uint64(tcp.TotLen)),
-		strings.Join(tcp.ListFlags(), "+"),
-		tcp.TChecksum,
-		tcp.ID,
-	)
-}
-
-func (tcp TCPEvent) String() string {
-	rep := ""
-	rep += tcp.NetworkLayerStr()
-	rep += " " + tcp.ProcessDataStr()
-	rep += " " + tcp.DataLinkLayerStr()
-	return rep
-}
-
-// ListFlags - Returns a string list of flags
-func (tcp TCPEvent) ListFlags() []string {
-	return TCPFLagsToStrings(tcp.TFlags)
-}
-
-// UDPEvent - UDP event
-type UDPEvent struct {
-	*NetworkEvent
-}
-
-// GetFullSrcAddr - Returns the full source address
-func (udp *UDPEvent) GetFullSrcAddr() string {
-	return fmt.Sprintf("%v:%v", udp.SrcAddr, udp.SPort)
-}
-
-// GetFullDestAddr - Returns the full destination address
-func (udp *UDPEvent) GetFullDestAddr() string {
-	return fmt.Sprintf("%v:%v", udp.DestAddr, udp.DPort)
-}
-
-// NetworkLayerStr - Returns the network layer as a formated string
-func (udp UDPEvent) NetworkLayerStr() string {
-	return fmt.Sprintf(
-		"[%v:%v] -> [%v:%v] (%v, %v) (sum:%v, id:%v)",
-		udp.SrcAddr,
-		udp.SPort,
-		udp.DestAddr,
-		udp.DPort,
-		udp.GetTransportProtocol(),
-		humanize.Bytes(uint64(udp.TotLen)),
-		udp.TChecksum,
-		udp.ID,
-	)
-}
-
-func (udp UDPEvent) String() string {
-	rep := ""
-	rep += udp.NetworkLayerStr()
-	rep += " " + udp.ProcessDataStr()
-	rep += " " + udp.DataLinkLayerStr()
-	return rep
-}
-
-// ICMPEvent - ICMP event
-type ICMPEvent struct {
-	*NetworkEvent
-}
-
-// GetICMPFlag - Returns the ICMP flag as a string
-func (icmp *ICMPEvent) GetICMPFlag() string {
-	return ICMPFlagToString(icmp.TFlags)
-}
-
-// NetworkLayerStr - Returns the network layer as a formated string
-func (icmp *ICMPEvent) NetworkLayerStr() string {
-	return fmt.Sprintf(
-		"[%v] -> [%v] (%v, %v, %v) (id:%v)",
-		icmp.SrcAddr,
-		icmp.DestAddr,
-		icmp.GetTransportProtocol(),
-		humanize.Bytes(uint64(icmp.TotLen)),
-		icmp.GetICMPFlag(),
-		icmp.ID,
-	)
-}
-
-func (icmp *ICMPEvent) String() string {
-	rep := ""
-	rep += icmp.NetworkLayerStr()
-	rep += " " + icmp.ProcessDataStr()
-	rep += " " + icmp.DataLinkLayerStr()
-	return rep
 }
 
 // ExecveEventRaw - Raw event definition (used to parse data from probe).
@@ -1140,218 +741,6 @@ type ExecveEvent struct {
 	BinaryHash string   `json:"binary_hash,omitempty"`
 	Comm       string   `json:"comm,omitempty"`
 	TTYName    string   `json:"tty_name,omitempty"`
-}
-
-// GetUID - Returns the event UID
-func (ee *ExecveEvent) GetUID() int {
-	return int(ee.UID)
-}
-
-// GetGID - Returns the event GID
-func (ee *ExecveEvent) GetGID() int {
-	return int(ee.GID)
-}
-
-// GetMountIDs - Returns the event Mount ID
-func (ee *ExecveEvent) GetMountIDs() []int {
-	switch ee.EventType {
-	case ProcessExecEventType:
-		if ee.PathnameInode > 0 {
-			return []int{int(ee.MountID)}
-		}
-	}
-	return []int{}
-}
-
-// GetPid - Returns the event pid
-func (ee *ExecveEvent) GetPid() uint32 {
-	return ee.Pid
-}
-
-// GetPidns - Returns the event pidns
-func (ee *ExecveEvent) GetPidns() uint64 {
-	return ee.Pidns
-}
-
-func (ee ExecveEvent) String() string {
-	switch ee.EventType {
-	case ProcessExecEventType:
-		return fmt.Sprintf(
-			"pid:%v tid:%v ppid:%v pidns:%v netns:%v mntns:%v userns:%v cgroup:%v uid:%v gid:%v binary_path:%v mount_id:%v inode:%v ret:%v flag:%v argv:%v tty:%v hash:%v",
-			ee.Pid,
-			ee.Tid,
-			ee.Ppid,
-			ee.Pidns,
-			ee.Netns,
-			ee.Mntns,
-			ee.Userns,
-			ee.Cgroup,
-			ee.UID,
-			ee.GID,
-			ee.BinaryPath,
-			ee.MountID,
-			ee.PathnameInode,
-			ee.Retval,
-			strings.Join(ExecveFlagToStrings(ee.Flag), ","),
-			strings.Join(ee.Argv, ","),
-			ee.TTYName,
-			ee.BinaryHash,
-		)
-	case ProcessExitEventType:
-		return fmt.Sprintf(
-			"pid:%v tid:%v pidns:%v ppid:%v exit_code:%v (%v)",
-			ee.Pid,
-			ee.Tid,
-			ee.Pidns,
-			ee.Ppid,
-			ee.Retval,
-			SignalInfoToString(ee.SigInfo),
-		)
-	default:
-		return fmt.Sprintf("unknown_event:%v", ee.EventType)
-	}
-}
-
-// CommitCredsRaw - Commit creds raw event (used to parse data from probe).
-// (!) => members order matter
-type CommitCredsRaw struct {
-	Pidns          uint64   `json:"pidns"`
-	Pid            uint32   `json:"pid"`
-	Tid            uint32   `json:"tid"`
-	TimestampRaw   uint64   `json:"-"`
-	TTYNameRaw     [64]byte `json:"-"`
-	UID            uint32   `json:"uid"`             /* real UID of the task */
-	GID            uint32   `json:"gid"`             /* real GID of the task */
-	Suid           uint32   `json:"suid"`            /* saved UID of the task */
-	Sgid           uint32   `json:"sgid"`            /* saved GID of the task */
-	Euid           uint32   `json:"euid"`            /* effective UID of the task */
-	Egid           uint32   `json:"egid"`            /* effective GID of the task */
-	Fsuid          uint32   `json:"fsuid"`           /* UID for VFS ops */
-	Fsgid          uint32   `json:"fsgid"`           /* GID for VFS ops */
-	Securebits     uint32   `json:"secure_bits"`     /* SUID-less security management */
-	CapInheritable uint64   `json:"cap_inheritable"` /* caps our children can inherit */
-	CapPermitted   uint64   `json:"cap_premitted"`   /* caps we're permitted */
-	CapEffective   uint64   `json:"cap_effective"`   /* caps we can actually use */
-}
-
-// CommitCredsEvent - Commit creds event
-type CommitCredsEvent struct {
-	EventBase
-	*CommitCredsRaw
-	TTYName string `json:"tty_name"`
-}
-
-// GetUID - Returns the event UID
-func (cce *CommitCredsEvent) GetUID() int {
-	return int(cce.UID)
-}
-
-// GetGID - Returns the event GID
-func (cce *CommitCredsEvent) GetGID() int {
-	return int(cce.GID)
-}
-
-// GetMountIDs - Returns the event Mount ID
-func (cce *CommitCredsEvent) GetMountIDs() []int {
-	return []int{}
-}
-
-// GetPid - Returns the event pid
-func (cce *CommitCredsEvent) GetPid() uint32 {
-	return cce.Pid
-}
-
-// GetPidns - Returns the event pidns
-func (cce *CommitCredsEvent) GetPidns() uint64 {
-	return cce.Pidns
-}
-
-func (cce *CommitCredsEvent) String() string {
-	return fmt.Sprintf(
-		"pid:%v tid:%v pidns:%v uid:%v gid:%v fsuid:%v fsgid:%v secure_bits:%v cap_inheritable:%v cap_permitted:%v cap_effective:%v tty:%v",
-		cce.Pid,
-		cce.Tid,
-		cce.Pidns,
-		cce.UID,
-		cce.GID,
-		cce.Fsuid,
-		cce.Fsgid,
-		// cce.Securebits,
-		strings.Join(SecurebitsFlagToStrings(cce.Securebits), ","),
-		// cce.CapInheritable,
-		// cce.CapPermitted,
-		// cce.CapEffective,
-		strings.Join(KernelCapabilityToStrings(cce.CapInheritable), ","),
-		strings.Join(KernelCapabilityToStrings(cce.CapPermitted), ","),
-		strings.Join(KernelCapabilityToStrings(cce.CapEffective), ","),
-		cce.TTYName,
-	)
-}
-
-// ForkRaw - Fork raw event (used to parse data from probe).
-// (!) => members order matter
-type ForkRaw struct {
-	Pidns        uint64   `json:"pidns"`
-	Pid          uint32   `json:"pid"`
-	Tid          uint32   `json:"tid"`
-	TimestampRaw uint64   `json:"-"`
-	TTYNameRaw   [64]byte `json:"-"`
-	CloneFlags   uint64   `json:"clone_flags"`
-	StackStart   uint64   `json:"stack_start"`
-	ChildPid     uint32   `json:"child_pid"`
-}
-
-// ForkEvent - Commit creds event
-type ForkEvent struct {
-	EventBase
-	*ForkRaw
-	TTYName string `json:"tty_name"`
-}
-
-// GetUID - Returns the event UID
-func (fe *ForkEvent) GetUID() int {
-	return -1
-}
-
-// GetGID - Returns the event GID
-func (fe *ForkEvent) GetGID() int {
-	return -1
-}
-
-// GetMountIDs - Returns the event Mount ID
-func (fe *ForkEvent) GetMountIDs() []int {
-	return []int{}
-}
-
-// GetPid - Returns the event pid
-func (fe *ForkEvent) GetPid() uint32 {
-	return fe.Pid
-}
-
-// GetPidns - Returns the event pidns
-func (fe *ForkEvent) GetPidns() uint64 {
-	return fe.Pidns
-}
-
-func (fe *ForkEvent) String() string {
-	return fmt.Sprintf(
-		"pid:%v tid:%v pidns:%v child_pid:%v clone_flags:%v stack_start:0x%x tty:%v",
-		fe.Pid,
-		fe.Tid,
-		fe.Pidns,
-		fe.ChildPid,
-		strings.Join(CloneFlagToStrings(fe.CloneFlags), ","),
-		fe.StackStart,
-		fe.TTYName,
-	)
-}
-
-// IsNewProcess - Returns true if the clone call created a new process
-func (fe *ForkEvent) IsNewProcess() bool {
-	if fe.CloneFlags&uint64(SIGCHLD) == uint64(SIGCHLD) {
-		return true
-	}
-	return false
 }
 
 // CwdRaw - Cwd raw event (used to parse data from probe).
@@ -1611,6 +1000,64 @@ func (sae *SetAttrEvent) GetPidns() uint64 {
 	return sae.Pidns
 }
 
+// SetAttrFlagsToString - Returns the string list representation of SetAttr flags
+func (sae *SetAttrEvent) SetAttrFlagsToString(input uint32) []string {
+	flag := SetAttrFlag(input)
+	rep := []string{}
+	if flag&AttrMode == AttrMode {
+		rep = append(rep, "AttrMode")
+	}
+	if flag&AttrUID == AttrUID {
+		rep = append(rep, "AttrUID")
+	}
+	if flag&AttrGID == AttrGID {
+		rep = append(rep, "AttrGID")
+	}
+	if flag&AttrSize == AttrSize {
+		rep = append(rep, "AttrSize")
+	}
+	if flag&AttrAtime == AttrAtime {
+		rep = append(rep, "AttrAtime")
+	}
+	if flag&AttrMtime == AttrMtime {
+		rep = append(rep, "AttrMtime")
+	}
+	if flag&AttrCtime == AttrCtime {
+		rep = append(rep, "AttrCtime")
+	}
+	if flag&AttrAtimeSet == AttrAtimeSet {
+		rep = append(rep, "AttrAtimeSet")
+	}
+	if flag&AttrMTimeSet == AttrMTimeSet {
+		rep = append(rep, "AttrMTimeSet")
+	}
+	if flag&AttrForce == AttrForce {
+		rep = append(rep, "AttrForce")
+	}
+	if flag&AttrKillSUID == AttrKillSUID {
+		rep = append(rep, "AttrKillSUID")
+	}
+	if flag&AttrKillSGID == AttrKillSGID {
+		rep = append(rep, "AttrKillSGID")
+	}
+	if flag&AttrFile == AttrFile {
+		rep = append(rep, "AttrFile")
+	}
+	if flag&AttrKillPriv == AttrKillPriv {
+		rep = append(rep, "AttrKillPriv")
+	}
+	if flag&AttrOpen == AttrOpen {
+		rep = append(rep, "AttrOpen")
+	}
+	if flag&AttrTimesSet == AttrTimesSet {
+		rep = append(rep, "AttrTimesSet")
+	}
+	if flag&AttrTouch == AttrTouch {
+		rep = append(rep, "AttrTouch")
+	}
+	return rep
+}
+
 func (sae *SetAttrEvent) String() string {
 	return fmt.Sprintf(
 		"pid:%v tid:%v pidns:%v pathname:%v mount_id:%v inode:%v flags:%v mode:%o uid:%v gid:%v atime:%v mtime:%v ctime:%v retval:%v",
@@ -1620,7 +1067,7 @@ func (sae *SetAttrEvent) String() string {
 		sae.Pathname,
 		sae.MountID,
 		sae.Inode,
-		strings.Join(SetAttrFlagsToString(sae.Flags), ","),
+		strings.Join(sae.SetAttrFlagsToString(sae.Flags), ","),
 		sae.Mode,
 		sae.NewUID,
 		sae.NewGID,
@@ -1679,6 +1126,7 @@ func (se *SocketEvent) GetPidns() uint64 {
 	return se.Pidns
 }
 
+/*
 func (se *SocketEvent) String() string {
 	return fmt.Sprintf(
 		"SocketCreate - family:%v type:%v protocol:%v pid:%v ret:%v",
@@ -1689,6 +1137,7 @@ func (se *SocketEvent) String() string {
 		ErrValueToString(se.Retval),
 	)
 }
+*/
 
 // SocketManipulationEventRaw - Raw event definition (used to parse data from probe).
 // (!) => members order matter
@@ -1742,6 +1191,7 @@ func (sme *SocketManipulationEvent) GetPidns() uint64 {
 	return sme.Pidns
 }
 
+/*
 func (sme SocketManipulationEvent) String() string {
 	addrStr := ""
 	switch SocketFamily(sme.Family) {
@@ -1768,6 +1218,7 @@ func (sme SocketManipulationEvent) String() string {
 		postfix,
 	)
 }
+*/
 
 // SyscallEventRaw - Raw event definition (used to parse data from probe).
 // (!) => members order matter
@@ -1820,6 +1271,7 @@ func (se *SyscallEvent) GetPidns() uint64 {
 	return se.Pidns
 }
 
+/*
 func (se *SyscallEvent) String() string {
 	return fmt.Sprintf(
 		"syscall:%v pid:%v pidns:%v retval:%v comm:%v arg0:0x%x arg1:0x%x arg2:0x%x arg3:0x%v arg4:0x%x arg5:0x%x",
@@ -1836,6 +1288,7 @@ func (se *SyscallEvent) String() string {
 		se.Args[5],
 	)
 }
+*/
 
 // ContainerEvent - Container event
 type ContainerEvent struct {

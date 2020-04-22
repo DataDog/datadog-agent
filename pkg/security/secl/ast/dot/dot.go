@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.com/safchain/secpoc/pkg/secl/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
 type node struct {

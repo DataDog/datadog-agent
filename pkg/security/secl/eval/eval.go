@@ -490,6 +490,7 @@ func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
 			partialEval: partialEval,
 		}, nil
 	}
+
 	return &RuleEvaluator{
 		Eval:        evalBool.Eval,
 		Tags:        state.Tags(),

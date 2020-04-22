@@ -18,6 +18,7 @@ type Policy struct {
 }
 
 type Config struct {
+	Debug            bool
 	PerfMapPageCount int
 	Policies         []Policy
 }
@@ -25,6 +26,7 @@ type Config struct {
 func NewConfig() (*Config, error) {
 	c := &Config{
 		PerfMapPageCount: agent.Datadog.GetInt("security_agent.perf_map_page_count"),
+		Debug:            agent.Datadog.GetBool("security_agent.debug"),
 	}
 
 	policies, ok := agent.Datadog.Get("security_agent.policies").([]interface{})
