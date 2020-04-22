@@ -76,6 +76,7 @@ PUPPY_CORECHECKS = [
     "network",
     "ntp",
     "uptime",
+    "systemd",
 ]
 
 
