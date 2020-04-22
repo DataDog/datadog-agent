@@ -33,9 +33,10 @@ var (
 )
 
 type RuleEvaluator struct {
-	Eval        func(ctx *Context) bool
-	PartialEval map[string]func(ctx *Context) bool
-	Tags        []string
+	Eval func(ctx *Context) bool
+	Tags []string
+
+	partialEval map[string]func(ctx *Context) bool
 }
 
 type IdentEvaluator struct {
@@ -48,7 +49,7 @@ type State struct {
 }
 
 type Opts struct {
-	PartialField string
+	Field string
 }
 
 type BoolEvaluator struct {
@@ -56,8 +57,8 @@ type BoolEvaluator struct {
 	DebugEval func(ctx *Context) bool
 	Value     bool
 
-	ModelField string
-	IsOpLeaf   bool
+	Field         string
+	IsPartialLeaf bool
 }
 
 type IntEvaluator struct {
@@ -65,8 +66,8 @@ type IntEvaluator struct {
 	DebugEval func(ctx *Context) int
 	Value     int
 
-	ModelField string
-	IsOpLeaf   bool
+	Field         string
+	IsPartialLeaf bool
 }
 
 type StringEvaluator struct {
@@ -74,8 +75,8 @@ type StringEvaluator struct {
 	DebugEval func(ctx *Context) string
 	Value     string
 
-	ModelField string
-	IsOpLeaf   bool
+	Field         string
+	IsPartialLeaf bool
 }
 
 type StringArrayEvaluator struct {
@@ -147,8 +148,8 @@ func (s *State) UpdateTags(tags []string) {
 	}
 }
 
-func (s *State) UpdateField(ident string) {
-	s.fields[ident] = true
+func (s *State) UpdateFields(field string) {
+	s.fields[field] = true
 }
 
 func (s *State) Tags() []string {
@@ -539,7 +540,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 				case "!=":
 					return StringNotEquals(unary, nextString, opts, state), nil, pos, nil
 				case "==":
-					fmt.Println("dsdqs")
 					return StringEquals(unary, nextString, opts, state), nil, pos, nil
 				case "=~", "!~":
 					eval, err := StringMatches(unary, nextString, *obj.ScalarComparison.Op == "!~", opts, state)
@@ -637,7 +637,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 			}
 
 			state.UpdateTags(tags)
-			state.UpdateField(*obj.Ident)
+			state.UpdateFields(*obj.Ident)
 
 			return accessor, nil, obj.Pos, nil
 		case obj.Number != nil:
@@ -658,6 +658,15 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 	return nil, nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
 }
 
+func (r *RuleEvaluator) PartialEval(ctx *Context, field string) (bool, error) {
+	eval, ok := r.partialEval[field]
+	if !ok {
+		return false, errors.New("field not found")
+	}
+
+	return eval(ctx), nil
+}
+
 func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
 	state := NewState()
 	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{}, state)
@@ -670,9 +679,9 @@ func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
-	partials := make(map[string]func(ctx *Context) bool)
+	partialEval := make(map[string]func(ctx *Context) bool)
 	for field := range state.fields {
-		eval, _, _, err = nodeToEvaluator(rule.BooleanExpression, &Opts{PartialField: field}, NewState())
+		eval, _, _, err = nodeToEvaluator(rule.BooleanExpression, &Opts{Field: field}, NewState())
 		if err != nil {
 			return nil, err
 		}
@@ -681,6 +690,8 @@ func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
 		if !ok {
 			return nil, NewTypeError(rule.Pos, reflect.Bool)
 		}
+
+		partialEval[field] = evalBool.Eval
 	}
 
 	if evalBool.Eval == nil {
@@ -688,21 +699,21 @@ func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
 			Eval: func(ctx *Context) bool {
 				return evalBool.Value
 			},
-			PartialEval: partials,
 			Tags:        state.Tags(),
+			partialEval: partialEval,
 		}, nil
 	}
 
 	if debug {
 		return &RuleEvaluator{
 			Eval:        evalBool.DebugEval,
-			PartialEval: partials,
 			Tags:        state.Tags(),
+			partialEval: partialEval,
 		}, nil
 	}
 	return &RuleEvaluator{
 		Eval:        evalBool.Eval,
-		PartialEval: partials,
 		Tags:        state.Tags(),
+		partialEval: partialEval,
 	}, nil
 }

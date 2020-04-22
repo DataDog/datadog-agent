@@ -317,25 +317,25 @@ func GetAccessor(key string) (interface{}, []string, error) {
 		return &StringEvaluator{
 			Eval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}} },
 			DebugEval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}} },
-			ModelField: "{{$Field.Name}}",
+			Field: key,
 		}, []string{ {{$Field.Tags}} }, nil
 	{{else if eq $Field.Type "stringer"}}
 		return &StringEvaluator{
 			Eval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}}.String() },
 			DebugEval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}}.String() },
-			ModelField: "{{$Field.Name}}",
+			Field: key,
 		}, []string{ {{$Field.Tags}} }, nil
 	{{else if eq .Type "int"}}
 	return &IntEvaluator{
 		Eval: func(ctx *Context) int { return int(ctx.Event.{{$Field.Name}}) },
 		DebugEval: func(ctx *Context) int { return int(ctx.Event.{{$Field.Name}}) },
-		ModelField: "{{$Field.Name}}",
+		Field: key,
 	}, []string{ {{$Field.Tags}} }, nil
 	{{else if eq .Type "bool"}}
 	return &BoolEvaluator{
 		Eval: func(ctx *Context) bool { return ctx.Event.{{$Field.Name}} },
 		DebugEval: func(ctx *Context) bool { return ctx.Event.{{$Field.Name}} },
-		ModelField: "{{$Field.Name}}",
+		Field: key,
 	}, []string{ {{$Field.Tags}} }, nil
 	{{end}}{{end}}
 	}

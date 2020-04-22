@@ -375,10 +375,10 @@ func TestTags(t *testing.T) {
 	}
 }
 
-/*func TestPartial(t *testing.T) {
+func TestPartial(t *testing.T) {
 	event := &model.Event{
 		Process: model.Process{
-			Name: "/usr/bin/cat",
+			Name: "abc",
 		},
 	}
 
@@ -386,7 +386,28 @@ func TestTags(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.name == "/usr/bin/cat"`, Expected: true},
+		{Expr: `true || process.name == "/usr/bin/cat"`, Expected: true},
+		{Expr: `false || process.name == "/usr/bin/cat"`, Expected: false},
+		{Expr: `true || process.name == "abc"`, Expected: true},
+		{Expr: `false || process.name == "abc"`, Expected: true},
+		{Expr: `true && process.name == "/usr/bin/cat"`, Expected: false},
+		{Expr: `false && process.name == "/usr/bin/cat"`, Expected: false},
+		{Expr: `true && process.name == "abc"`, Expected: true},
+		{Expr: `false && process.name == "abc"`, Expected: false},
+
+		{Expr: `open.filename == "toto" && process.name == "/usr/bin/cat"`, Expected: false},
+		{Expr: `open.filename == "toto" && process.name != "/usr/bin/cat"`, Expected: true},
+
+		{Expr: `open.filename == "toto" || process.name == "/usr/bin/cat"`, Expected: true},
+		{Expr: `open.filename == "toto" || process.name != "/usr/bin/cat"`, Expected: true},
+
+		{Expr: `open.filename == "toto" && !(process.name == "/usr/bin/cat")`, Expected: true},
+		{Expr: `open.filename == "toto" && !(process.name != "/usr/bin/cat")`, Expected: false},
+
+		{Expr: `open.filename == "toto" && (process.name =~ "/usr/bin/*" )`, Expected: false},
+		{Expr: `open.filename == "toto" && (process.name =~ "ab*" )`, Expected: true},
+
+		{Expr: `open.filename == "toto" && (process.name == open.filename)`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -395,12 +416,12 @@ func TestTags(t *testing.T) {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
 
-		result := evaluator.PartialEval(&Context{Event: event})
+		result, _ := evaluator.PartialEval(&Context{Event: event}, "process.name")
 		if result != test.Expected {
 			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
 		}
 	}
-}*/
+}
 
 func BenchmarkComplex(b *testing.B) {
 	event := &model.Event{

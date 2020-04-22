@@ -18,42 +18,34 @@ func main() {
 
 package	eval
 
-import ("fmt")
-
 {{ range . }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) *{{ .FuncReturnType }} {
-	{{ $bool := "false" }}
-	{{ if eq .FuncName "And" }}
-		{{ $bool = "true" }}
-	{{ end }}
+	var isPartialLeaf bool
 
-	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-		fmt.Printf("YYYYYYYYYYYYYYYYYYYYYYY\n")
-	{{ end }}
-
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
 
-		eval := func(ctx *Context) {{ .EvalReturnType }} {
-			return ea(ctx) {{ .Op }} eb(ctx)
-		}
-
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-			if opts.PartialField != "" {
-				if a.IsOpLeaf && !b.IsOpLeaf {
-					eval = func(ctx *Context) {{ .EvalReturnType }} {
-						return ea(ctx) {{ .Op }} {{ $bool }}
+			if opts.Field != "" {
+				if a.IsPartialLeaf {
+					ea = func(ctx *Context) {{ .EvalReturnType }} {
+						return true
 					}
-				} else if !a.IsOpLeaf && b.IsOpLeaf {
-					eval = func(ctx *Context) {{ .EvalReturnType }} {
-						return {{ $bool }} {{ .Op }} eb(ctx)
+				}
+				if b.IsPartialLeaf {
+					eb = func(ctx *Context) {{ .EvalReturnType }} {
+						return true
 					}
 				}
 			}
@@ -68,8 +60,10 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 				ctx.evalDepth--
 				return result
 			},
-			Eval: eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) {{ .EvalReturnType }} {
+				return ea(ctx) {{ .Op }} eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -83,16 +77,10 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) {{ .EvalReturnType }} {
-			return ea(ctx) {{ .Op }} eb
-		}
-
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-			if opts.PartialField != "" {
-				if !a.IsOpLeaf {
-					eval = func(ctx *Context) {{ .EvalReturnType }} {
-						return {{ $bool }} {{ .Op }} eb
-					}
+			if opts.Field != "" && a.IsPartialLeaf {
+				ea = func(ctx *Context) {{ .EvalReturnType }} {
+					return true
 				}
 			}
 		{{ end }}
@@ -106,24 +94,20 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 				ctx.evalDepth--
 				return result
 			},
-			Eval: eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) {{ .EvalReturnType }} {
+				return ea(ctx) {{ .Op }} eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
 
-	eval := func(ctx *Context) {{ .EvalReturnType }} {
-		return ea {{ .Op }} eb(ctx)
-	}
-
 	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
-		if opts.PartialField != "" {
-			if !b.IsOpLeaf {
-				eval = func(ctx *Context) {{ .EvalReturnType }} {
-					return ea {{ .Op }} {{ $bool }}
-				}
+		if opts.Field != "" && b.IsPartialLeaf {
+			eb = func(ctx *Context) {{ .EvalReturnType }} {
+				return true
 			}
 		}
 	{{ end }}
@@ -137,8 +121,10 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			ctx.evalDepth--
 			return result
 		},
-		Eval: eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) {{ .EvalReturnType }} {
+			return ea {{ .Op }} eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 {{ end }}

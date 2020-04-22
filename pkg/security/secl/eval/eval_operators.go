@@ -2,35 +2,31 @@
 
 package eval
 
-import (
-	"fmt"
-)
-
 func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	fmt.Printf("YYYYYYYYYYYYYYYYYYYYYYY\n")
-
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) || eb(ctx)
-		}
-
-		if opts.PartialField != "" {
-			if a.IsOpLeaf && !b.IsOpLeaf {
-				eval = func(ctx *Context) bool {
-					return ea(ctx) || false
+		if opts.Field != "" {
+			if a.IsPartialLeaf {
+				ea = func(ctx *Context) bool {
+					return true
 				}
-			} else if !a.IsOpLeaf && b.IsOpLeaf {
-				eval = func(ctx *Context) bool {
-					return false || eb(ctx)
+			}
+			if b.IsPartialLeaf {
+				eb = func(ctx *Context) bool {
+					return true
 				}
 			}
 		}
@@ -44,8 +40,10 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) || eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -59,15 +57,9 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) || eb
-		}
-
-		if opts.PartialField != "" {
-			if !a.IsOpLeaf {
-				eval = func(ctx *Context) bool {
-					return false || eb
-				}
+		if opts.Field != "" && a.IsPartialLeaf {
+			ea = func(ctx *Context) bool {
+				return true
 			}
 		}
 
@@ -80,23 +72,19 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) || eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
 
-	eval := func(ctx *Context) bool {
-		return ea || eb(ctx)
-	}
-
-	if opts.PartialField != "" {
-		if !b.IsOpLeaf {
-			eval = func(ctx *Context) bool {
-				return ea || false
-			}
+	if opts.Field != "" && b.IsPartialLeaf {
+		eb = func(ctx *Context) bool {
+			return true
 		}
 	}
 
@@ -109,36 +97,38 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea || eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	fmt.Printf("YYYYYYYYYYYYYYYYYYYYYYY\n")
-
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) && eb(ctx)
-		}
-
-		if opts.PartialField != "" {
-			if a.IsOpLeaf && !b.IsOpLeaf {
-				eval = func(ctx *Context) bool {
-					return ea(ctx) && true
+		if opts.Field != "" {
+			if a.IsPartialLeaf {
+				ea = func(ctx *Context) bool {
+					return true
 				}
-			} else if !a.IsOpLeaf && b.IsOpLeaf {
-				eval = func(ctx *Context) bool {
-					return true && eb(ctx)
+			}
+			if b.IsPartialLeaf {
+				eb = func(ctx *Context) bool {
+					return true
 				}
 			}
 		}
@@ -152,8 +142,10 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) && eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -167,15 +159,9 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) && eb
-		}
-
-		if opts.PartialField != "" {
-			if !a.IsOpLeaf {
-				eval = func(ctx *Context) bool {
-					return true && eb
-				}
+		if opts.Field != "" && a.IsPartialLeaf {
+			ea = func(ctx *Context) bool {
+				return true
 			}
 		}
 
@@ -188,23 +174,19 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) && eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
 
-	eval := func(ctx *Context) bool {
-		return ea && eb(ctx)
-	}
-
-	if opts.PartialField != "" {
-		if !b.IsOpLeaf {
-			eval = func(ctx *Context) bool {
-				return ea && true
-			}
+	if opts.Field != "" && b.IsPartialLeaf {
+		eb = func(ctx *Context) bool {
+			return true
 		}
 	}
 
@@ -217,25 +199,28 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea && eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) == eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -246,8 +231,10 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) == eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -261,10 +248,6 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) == eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -274,17 +257,15 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) == eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea == eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -295,25 +276,28 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea == eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) != eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -324,8 +308,10 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) != eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -339,10 +325,6 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) != eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -352,17 +334,15 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) != eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea != eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -373,25 +353,28 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea != eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) int {
-			return ea(ctx) & eb(ctx)
-		}
 
 		return &IntEvaluator{
 			DebugEval: func(ctx *Context) int {
@@ -402,8 +385,10 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) int {
+				return ea(ctx) & eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -417,10 +402,6 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) int {
-			return ea(ctx) & eb
-		}
-
 		return &IntEvaluator{
 			DebugEval: func(ctx *Context) int {
 				ctx.evalDepth++
@@ -430,17 +411,15 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) int {
+				return ea(ctx) & eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) int {
-		return ea & eb(ctx)
-	}
 
 	return &IntEvaluator{
 		DebugEval: func(ctx *Context) int {
@@ -451,25 +430,28 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) int {
+			return ea & eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) int {
-			return ea(ctx) | eb(ctx)
-		}
 
 		return &IntEvaluator{
 			DebugEval: func(ctx *Context) int {
@@ -480,8 +462,10 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) int {
+				return ea(ctx) | eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -495,10 +479,6 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) int {
-			return ea(ctx) | eb
-		}
-
 		return &IntEvaluator{
 			DebugEval: func(ctx *Context) int {
 				ctx.evalDepth++
@@ -508,17 +488,15 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) int {
+				return ea(ctx) | eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) int {
-		return ea | eb(ctx)
-	}
 
 	return &IntEvaluator{
 		DebugEval: func(ctx *Context) int {
@@ -529,25 +507,28 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) int {
+			return ea | eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) int {
-			return ea(ctx) ^ eb(ctx)
-		}
 
 		return &IntEvaluator{
 			DebugEval: func(ctx *Context) int {
@@ -558,8 +539,10 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) int {
+				return ea(ctx) ^ eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -573,10 +556,6 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) int {
-			return ea(ctx) ^ eb
-		}
-
 		return &IntEvaluator{
 			DebugEval: func(ctx *Context) int {
 				ctx.evalDepth++
@@ -586,17 +565,15 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) int {
+				return ea(ctx) ^ eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) int {
-		return ea ^ eb(ctx)
-	}
 
 	return &IntEvaluator{
 		DebugEval: func(ctx *Context) int {
@@ -607,25 +584,28 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) int {
+			return ea ^ eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) == eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -636,8 +616,10 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) == eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -651,10 +633,6 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) == eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -664,17 +642,15 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) == eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea == eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -685,25 +661,28 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea == eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) != eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -714,8 +693,10 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) != eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -729,10 +710,6 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) != eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -742,17 +719,15 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) != eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea != eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -763,25 +738,28 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea != eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) == eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -792,8 +770,10 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) == eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -807,10 +787,6 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) == eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -820,17 +796,15 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) == eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea == eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -841,25 +815,28 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea == eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) != eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -870,8 +847,10 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) != eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -885,10 +864,6 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) != eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -898,17 +873,15 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) != eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea != eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -919,25 +892,28 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea != eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) > eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -948,8 +924,10 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) > eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -963,10 +941,6 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) > eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -976,17 +950,15 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) > eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea > eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -997,25 +969,28 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea > eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) >= eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -1026,8 +1001,10 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) >= eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -1041,10 +1018,6 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) >= eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -1054,17 +1027,15 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) >= eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea >= eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -1075,25 +1046,28 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea >= eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) < eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -1104,8 +1078,10 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) < eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -1119,10 +1095,6 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) < eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -1132,17 +1104,15 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) < eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea < eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -1153,25 +1123,28 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea < eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
 
 func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
+	var isPartialLeaf bool
 
-	var isOpLeaf bool
-	if opts.PartialField != "" && (a.ModelField != "" || b.ModelField != "") {
-		isOpLeaf = true
+	if a.Field != "" || b.Field != "" {
+		if a.Field != opts.Field && b.Field != opts.Field {
+			isPartialLeaf = true
+		}
+		if a.Field != "" && b.Field != "" {
+			isPartialLeaf = true
+		}
 	}
 
 	if a.Eval != nil && b.Eval != nil {
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
-
-		eval := func(ctx *Context) bool {
-			return ea(ctx) <= eb(ctx)
-		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -1182,8 +1155,10 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) <= eb(ctx)
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
@@ -1197,10 +1172,6 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		eval := func(ctx *Context) bool {
-			return ea(ctx) <= eb
-		}
-
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
 				ctx.evalDepth++
@@ -1210,17 +1181,15 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 				ctx.evalDepth--
 				return result
 			},
-			Eval:     eval,
-			IsOpLeaf: isOpLeaf,
+			Eval: func(ctx *Context) bool {
+				return ea(ctx) <= eb
+			},
+			IsPartialLeaf: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
-
-	eval := func(ctx *Context) bool {
-		return ea <= eb(ctx)
-	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -1231,7 +1200,9 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 			ctx.evalDepth--
 			return result
 		},
-		Eval:     eval,
-		IsOpLeaf: isOpLeaf,
+		Eval: func(ctx *Context) bool {
+			return ea <= eb(ctx)
+		},
+		IsPartialLeaf: isPartialLeaf,
 	}
 }
