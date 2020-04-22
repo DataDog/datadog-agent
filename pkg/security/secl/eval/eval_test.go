@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"syscall"
 	"testing"
@@ -10,20 +11,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
-func eval(t *testing.T, event *model.Event, expr string) (bool, *ast.Rule, error) {
+func parse(t *testing.T, expr string) (*RuleEvaluator, *ast.Rule, error) {
 	rule, err := ast.ParseRule(expr)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	ctx := &Context{Event: event}
+	evaluator, err := RuleToEvaluator(rule, true)
+	if err != nil {
+		return nil, rule, err
+	}
 
-	eval, err := RuleToEvaluator(rule, true)
+	return evaluator, rule, err
+}
+
+func eval(t *testing.T, event *model.Event, expr string) (bool, *ast.Rule, error) {
+	evaluator, rule, err := parse(t, expr)
 	if err != nil {
 		return false, rule, err
 	}
 
-	return eval(ctx), rule, nil
+	ctx := &Context{Event: event}
+
+	return evaluator.Eval(ctx), rule, nil
 }
 
 func TestStringError(t *testing.T) {
@@ -33,11 +43,11 @@ func TestStringError(t *testing.T) {
 			UID:  1,
 		},
 		Open: model.OpenSyscall{
-			Pathname: "/etc/shadow",
+			Filename: "/etc/shadow",
 		},
 	}
 
-	_, _, err := eval(t, event, `process.name != "/usr/bin/vipw" && process.uid != 0 && open.pathname == 3`)
+	_, _, err := eval(t, event, `process.name != "/usr/bin/vipw" && process.uid != 0 && open.filename == 3`)
 	if err == nil || err.(*AstToEvalError).Pos.Column != 73 {
 		t.Fatal("should report a string type error")
 	}
@@ -50,11 +60,11 @@ func TestIntError(t *testing.T) {
 			UID:  1,
 		},
 		Open: model.OpenSyscall{
-			Pathname: "/etc/shadow",
+			Filename: "/etc/shadow",
 		},
 	}
 
-	_, _, err := eval(t, event, `process.name != "/usr/bin/vipw" && process.uid != "test" && open.pathname == "/etc/shadow"`)
+	_, _, err := eval(t, event, `process.name != "/usr/bin/vipw" && process.uid != "test" && Open.Filename == "/etc/shadow"`)
 	if err == nil || err.(*AstToEvalError).Pos.Column != 51 {
 		t.Fatal("should report a string type error")
 	}
@@ -67,7 +77,7 @@ func TestBoolError(t *testing.T) {
 			UID:  1,
 		},
 		Open: model.OpenSyscall{
-			Pathname: "/etc/shadow",
+			Filename: "/etc/shadow",
 		},
 	}
 
@@ -194,6 +204,7 @@ func TestPrecedence(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `false || (true != true)`, Expected: false},
+		{Expr: `false || true`, Expected: true},
 		{Expr: `1 == 1 & 1`, Expected: true},
 	}
 
@@ -326,7 +337,7 @@ func TestInArray(t *testing.T) {
 func TestComplex(t *testing.T) {
 	event := &model.Event{
 		Open: model.OpenSyscall{
-			Pathname: "/var/lib/httpd/htpasswd",
+			Filename: "/var/lib/httpd/htpasswd",
 			Flags:    syscall.O_CREAT | syscall.O_TRUNC | syscall.O_EXCL | syscall.O_RDWR | syscall.O_WRONLY,
 		},
 	}
@@ -335,7 +346,7 @@ func TestComplex(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `open.pathname =~ "/var/lib/httpd/*" && open.flags & (O_CREAT | O_TRUNC | O_EXCL | O_RDWR | O_WRONLY) > 0`, Expected: true},
+		{Expr: `open.filename =~ "/var/lib/httpd/*" && open.flags & (O_CREAT | O_TRUNC | O_EXCL | O_RDWR | O_WRONLY) > 0`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -349,6 +360,47 @@ func TestComplex(t *testing.T) {
 		}
 	}
 }
+
+func TestTags(t *testing.T) {
+	expr := `process.name != "/usr/bin/vipw" && open.filename == "/etc/passwd"`
+	evaluator, _, err := parse(t, expr)
+	if err != nil {
+		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+	}
+
+	expected := []string{"fs", "process"}
+
+	if !reflect.DeepEqual(evaluator.Tags, expected) {
+		t.Errorf("tags expected not %+v != %+v", expected, evaluator.Tags)
+	}
+}
+
+/*func TestPartial(t *testing.T) {
+	event := &model.Event{
+		Process: model.Process{
+			Name: "/usr/bin/cat",
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.name == "/usr/bin/cat"`, Expected: true},
+	}
+
+	for _, test := range tests {
+		evaluator, _, err := parse(t, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		result := evaluator.PartialEval(&Context{Event: event})
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}*/
 
 func BenchmarkComplex(b *testing.B) {
 	event := &model.Event{
@@ -376,12 +428,12 @@ func BenchmarkComplex(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	eval, err := RuleToEvaluator(rule, false)
+	evaluator, err := RuleToEvaluator(rule, false)
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
 	for i := 0; i < b.N; i++ {
-		eval(ctx)
+		evaluator.Eval(ctx)
 	}
 }
