@@ -677,6 +677,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
 
+	config.SetDefault("security_agent.debug", false)
 	config.SetDefault("security_agent.perf_map_page_count", 128)
 	config.SetDefault("security_agent.policies", []interface{}{})
 

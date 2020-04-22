@@ -4,20 +4,33 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"reflect"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-	"github.com/pkg/errors"
 )
+
+type Rule struct {
+	evaluator *eval.RuleEvaluator
+	astRule   *ast.Rule
+	name      string
+}
+
+type SignalListener interface {
+	HandleSignal(rule *Rule, ctx *eval.Context)
+}
 
 type Agent struct {
 	probe           *probe.Probe
 	config          *config.Config
-	policies        []*policy.Policy
-	rulesEvaluators []eval.Evaluator
+	rules           []*Rule
+	signalListeners []SignalListener
 }
 
 func (a *Agent) Start() error {
@@ -29,19 +42,30 @@ func (a *Agent) Stop() error {
 	return nil
 }
 
-func (a *Agent) TriggerSignal() {
+func (a *Agent) AddSignalListener(listener SignalListener) {
+	a.signalListeners = append(a.signalListeners, listener)
+}
+
+func (a *Agent) TriggerSignal(rule *Rule, ctx *eval.Context) {
+	log.Printf("Rule %s was triggered (event: %+v)\n", rule.name, spew.Sdump(ctx.Event))
+
+	for _, listener := range a.signalListeners {
+		listener.HandleSignal(rule, ctx)
+	}
 }
 
 func (a *Agent) HandleEvent(event interface{}) {
-	context := &eval.Context{}
+	context := &eval.Context{Event: &model.Event{}}
 
-	for _, evaluator := range a.rulesEvaluators {
-		if evaluator(context) {
-			a.TriggerSignal()
-		}
+	if dentryEvent, ok := event.(*model.DentryEvent); ok {
+		context.Event.DentryEvent = dentryEvent
 	}
 
-	log.Printf("Handling event %s\n", reflect.TypeOf(event))
+	for _, rule := range a.rules {
+		if rule.evaluator.Eval(context) {
+			a.TriggerSignal(rule, context)
+		}
+	}
 }
 
 func (a *Agent) LoadPolicies() error {
@@ -57,7 +81,23 @@ func (a *Agent) LoadPolicies() error {
 				return err
 			}
 
-			a.policies = append(a.policies, policy)
+			for _, ruleDef := range policy.Rules {
+				astRule, err := ast.ParseRule(ruleDef.Expression)
+				if err != nil {
+					return errors.Wrap(err, "invalid rule")
+				}
+
+				evaluator, err := eval.RuleToEvaluator(astRule, a.config.Debug)
+				if err != nil {
+					return err
+				}
+
+				a.rules = append(a.rules, &Rule{
+					astRule:   astRule,
+					evaluator: evaluator,
+					name:      ruleDef.Name,
+				})
+			}
 		}
 	}
 	return nil
@@ -73,7 +113,10 @@ func NewAgent() (*Agent, error) {
 		config: config,
 	}
 
-	agent.probe = probe.NewProbe(agent)
+	agent.probe, err = probe.NewProbe(agent)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := agent.LoadPolicies(); err != nil {
 		return nil, err

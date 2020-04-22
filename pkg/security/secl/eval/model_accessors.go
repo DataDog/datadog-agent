@@ -93,11 +93,35 @@ func GetAccessor(key string) (interface{}, []string, error) {
 			Field:     key,
 		}, []string{"fs"}, nil
 
+	case "source_filename":
+
+		return &StringEvaluator{
+			Eval:      func(ctx *Context) string { return ctx.Event.SrcFilename },
+			DebugEval: func(ctx *Context) string { return ctx.Event.SrcFilename },
+			Field:     key,
+		}, []string{}, nil
+
 	case "syscall":
 
 		return &StringEvaluator{
 			Eval:      func(ctx *Context) string { return ctx.Event.Syscall },
 			DebugEval: func(ctx *Context) string { return ctx.Event.Syscall },
+			Field:     key,
+		}, []string{}, nil
+
+	case "target_filename":
+
+		return &StringEvaluator{
+			Eval:      func(ctx *Context) string { return ctx.Event.TargetFilename },
+			DebugEval: func(ctx *Context) string { return ctx.Event.TargetFilename },
+			Field:     key,
+		}, []string{}, nil
+
+	case "tty":
+
+		return &StringEvaluator{
+			Eval:      func(ctx *Context) string { return ctx.Event.TTYName },
+			DebugEval: func(ctx *Context) string { return ctx.Event.TTYName },
 			Field:     key,
 		}, []string{}, nil
 

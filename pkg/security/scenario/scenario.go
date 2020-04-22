@@ -27,7 +27,7 @@ func (s *Scenario) Evaluate(r *ast.Rule) (bool, error) {
 		Event: &s.Event,
 	}
 
-	return evaluator(context), nil
+	return evaluator.Eval(context), nil
 }
 
 func NewScenarioFromFile(filename string) (*Scenario, error) {

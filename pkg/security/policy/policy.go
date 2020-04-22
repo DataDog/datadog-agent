@@ -4,18 +4,27 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
+)
+
+var (
+	ErrUnnamedRule = errors.New("policy has no name")
+	ErrEmptyRule   = errors.New("policy has no expression")
 )
 
 type Section struct {
 	Type string
 }
 
+type RuleDefinition struct {
+	Name       string
+	Expression string
+}
+
 type Policy struct {
-	Rules []*ast.Rule
+	Rules []*RuleDefinition
 }
 
 func LoadPolicy(r io.Reader) (*Policy, error) {
@@ -35,11 +44,20 @@ func LoadPolicy(r io.Reader) (*Policy, error) {
 		for key, value := range m {
 			switch key {
 			case "rule":
-				rule := &ast.Rule{}
-				if err := mapstructure.Decode(value, rule); err != nil {
+				ruleDef := &RuleDefinition{}
+				if err := mapstructure.Decode(value, ruleDef); err != nil {
 					return nil, errors.Wrap(err, "invalid policy")
 				}
-				policy.Rules = append(policy.Rules, rule)
+
+				if ruleDef.Name == "" {
+					return nil, ErrUnnamedRule
+				}
+
+				if ruleDef.Expression == "" {
+					return nil, ErrEmptyRule
+				}
+
+				policy.Rules = append(policy.Rules, ruleDef)
 			default:
 				return nil, fmt.Errorf("invalid policy item '%s'", key)
 			}

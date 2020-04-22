@@ -160,7 +160,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 					}
 
 					if fieldTag, found := tag.Lookup("field"); found {
-						if fieldTag == "omit" {
+						if fieldTag == "-" {
 							continue FIELD
 						}
 						fieldAlias = fieldTag
