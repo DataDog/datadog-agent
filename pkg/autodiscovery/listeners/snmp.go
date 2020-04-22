@@ -42,6 +42,7 @@ type SNMPService struct {
 	entityID     string
 	deviceIP     string
 	creationTime integration.CreationTime
+	config       util.SNMPConfig
 }
 
 // Make sure SNMPService implements the Service interface
@@ -96,7 +97,7 @@ func (l *SNMPListener) loadCache(config util.SNMPConfig, adIdentifier string, ca
 	}
 	for _, deviceIP := range devices {
 		entityID := config.Digest(deviceIP.String())
-		l.createService(deviceIP.String(), adIdentifier, entityID)
+		l.createService(deviceIP.String(), adIdentifier, entityID, config)
 	}
 }
 
@@ -148,7 +149,7 @@ func (l *SNMPListener) checkDevice(adIdentifier string, deviceIP string, config 
 			l.deleteService(entityID)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
-			l.createService(deviceIP, adIdentifier, entityID)
+			l.createService(deviceIP, adIdentifier, entityID, config)
 		}
 	}
 }
@@ -234,7 +235,7 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
-func (l *SNMPListener) createService(deviceIP string, adIdentifier string, entityID string) {
+func (l *SNMPListener) createService(deviceIP string, adIdentifier string, entityID string, config util.SNMPConfig) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
@@ -245,6 +246,7 @@ func (l *SNMPListener) createService(deviceIP string, adIdentifier string, entit
 		entityID:     entityID,
 		deviceIP:     deviceIP,
 		creationTime: integration.Before,
+		config:       config,
 	}
 	l.services[entityID] = svc
 	l.devices[adIdentifier] = append(l.devices[adIdentifier], deviceIP)
@@ -300,7 +302,7 @@ func (s *SNMPService) GetHosts() (map[string]string, error) {
 
 // GetPorts returns the device ports - currently not supported
 func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
-	return []ContainerPort{}, ErrNotSupported
+	return []ContainerPort{{int(s.config.Port), fmt.Sprintf("p%d", s.config.Port)}}, nil
 }
 
 // GetTags returns the list of container tags - currently always empty
