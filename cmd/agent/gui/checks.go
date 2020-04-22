@@ -56,12 +56,12 @@ func checkHandler(r *mux.Router) {
 func sendRunningChecks(w http.ResponseWriter, r *http.Request) {
 	html, e := renderRunningChecks()
 	if e != nil {
-		w.Write([]byte("Error generating status html: " + e.Error()))
+		w.Write([]byte("Error generating status html: " + e.Error())) //nolint:errcheck
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	w.Write([]byte(html)) //nolint:errcheck
 }
 
 // Schedules a specific check
@@ -71,10 +71,10 @@ func runCheck(w http.ResponseWriter, r *http.Request) {
 	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
 
 	for _, ch := range instances {
-		common.Coll.RunCheck(ch)
+		common.Coll.RunCheck(ch) //nolint:errcheck
 	}
 	log.Infof("Scheduled new check: " + name)
-	w.Write([]byte("Scheduled new check:" + name))
+	w.Write([]byte("Scheduled new check:" + name)) //nolint:errcheck
 }
 
 // Runs a specified check once
@@ -93,7 +93,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 		response["html"] = html
 		res, _ := json.Marshal(response)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(res)
+		w.Write(res) //nolint:errcheck
 		return
 	}
 
@@ -121,7 +121,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 		response["html"] = "Error generating html: " + e.Error()
 		res, _ := json.Marshal(response)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(res)
+		w.Write(res) //nolint:errcheck
 		return
 	}
 
@@ -129,7 +129,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 	response["html"] = html
 	res, _ := json.Marshal(response)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(res)
+	w.Write(res) //nolint:errcheck
 }
 
 // Reloads a running check
@@ -138,19 +138,19 @@ func reloadCheck(w http.ResponseWriter, r *http.Request) {
 	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
 	if len(instances) == 0 {
 		log.Errorf("Can't reload " + name + ": check has no new instances.")
-		w.Write([]byte("Can't reload " + name + ": check has no new instances"))
+		w.Write([]byte("Can't reload " + name + ": check has no new instances")) //nolint:errcheck
 		return
 	}
 
 	killed, e := common.Coll.ReloadAllCheckInstances(name, instances)
 	if e != nil {
 		log.Errorf("Error reloading check: " + e.Error())
-		w.Write([]byte("Error reloading check: " + e.Error()))
+		w.Write([]byte("Error reloading check: " + e.Error())) //nolint:errcheck
 		return
 	}
 
 	log.Infof("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
-	w.Write([]byte(fmt.Sprintf("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)))
+	w.Write([]byte(fmt.Sprintf("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name))) //nolint:errcheck
 }
 
 // Sends the specified config (.yaml) file
@@ -170,12 +170,12 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if file == nil {
-		w.Write([]byte("Error: Couldn't find " + fileName))
+		w.Write([]byte("Error: Couldn't find " + fileName)) //nolint:errcheck
 		return
 	}
 
 	w.Header().Set("Content-Type", "text")
-	w.Write(file)
+	w.Write(file) //nolint:errcheck
 }
 
 type configFormat struct {
@@ -205,7 +205,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		payload, e := parseBody(r)
 		if e != nil {
-			w.Write([]byte(e.Error()))
+			w.Write([]byte(e.Error())) //nolint:errcheck
 		}
 		data := []byte(payload.Config)
 
@@ -213,34 +213,34 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		cf := configFormat{}
 		e = yaml.Unmarshal(data, &cf)
 		if e != nil {
-			w.Write([]byte("Error: " + e.Error()))
+			w.Write([]byte("Error: " + e.Error())) //nolint:errcheck
 			return
 		}
 		if cf.MetricConfig == nil && cf.LogsConfig == nil && len(cf.Instances) < 1 {
-			w.Write([]byte("Configuration file contains no valid instances or log configuration"))
+			w.Write([]byte("Configuration file contains no valid instances or log configuration")) //nolint:errcheck
 			return
 		}
 
 		// Attempt to write new configs to custom checks directory
 		path := filepath.Join(checkConfFolderPath, fileName)
-		os.MkdirAll(checkConfFolderPath, os.FileMode(0755))
+		os.MkdirAll(checkConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 		e = ioutil.WriteFile(path, data, 0600)
 
 		// If the write didn't work, try writing to the default checks directory
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
 			path = filepath.Join(defaultCheckConfFolderPath, fileName)
-			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755))
+			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 			e = ioutil.WriteFile(path, data, 0600)
 		}
 
 		if e != nil {
-			w.Write([]byte("Error saving config file: " + e.Error()))
+			w.Write([]byte("Error saving config file: " + e.Error())) //nolint:errcheck
 			log.Debug("Error saving config file: " + e.Error())
 			return
 		}
 
 		log.Infof("Successfully wrote new " + fileName + " config file.")
-		w.Write([]byte("Success"))
+		w.Write([]byte("Success")) //nolint:errcheck
 	} else if r.Method == "DELETE" {
 		// Attempt to write new configs to custom checks directory
 		path := filepath.Join(checkConfFolderPath, fileName)
@@ -253,13 +253,13 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if e != nil {
-			w.Write([]byte("Error disabling config file: " + e.Error()))
+			w.Write([]byte("Error disabling config file: " + e.Error())) //nolint:errcheck
 			log.Errorf("Error disabling config file (%v): %v ", path, e)
 			return
 		}
 
 		log.Infof("Successfully disabled integration " + fileName + " config file.")
-		w.Write([]byte("Success"))
+		w.Write([]byte("Success")) //nolint:errcheck
 	}
 }
 
@@ -301,7 +301,7 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	wheelsIntegrations, err := getWheelsChecks()
 	if err != nil {
 		log.Errorf("Unable to compile list of installed integrations: %v", err)
-		w.Write([]byte("Unable to compile list of installed integrations."))
+		w.Write([]byte("Unable to compile list of installed integrations.")) //nolint:errcheck
 		return
 	}
 
@@ -318,13 +318,13 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(integrations) == 0 {
-		w.Write([]byte("No check (.py) files found."))
+		w.Write([]byte("No check (.py) files found.")) //nolint:errcheck
 		return
 	}
 
 	res, _ := json.Marshal(integrations)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(res)
+	w.Write(res) //nolint:errcheck
 }
 
 // collects the configs in the specified path
@@ -375,13 +375,13 @@ func listConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(filenames) == 0 {
-		w.Write([]byte("No configuration (.yaml) files found."))
+		w.Write([]byte("No configuration (.yaml) files found.")) //nolint:errcheck
 		return
 	}
 
 	res, _ := json.Marshal(filenames)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(res)
+	w.Write(res) //nolint:errcheck
 }
 
 // Helper function which returns all the filenames in a check config directory

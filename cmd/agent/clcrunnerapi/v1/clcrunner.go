@@ -53,7 +53,7 @@ func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(jsonStats)
+	w.Write(jsonStats) //nolint:errcheck
 }
 
 // flattenCLCStats simplifies the status.CLCChecks struct by making it a map

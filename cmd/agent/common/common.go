@@ -66,5 +66,5 @@ func GetVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.Agent()
 	j, _ := json.Marshal(av)
-	w.Write(j)
+	w.Write(j) //nolint:errcheck
 }

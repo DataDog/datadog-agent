@@ -61,14 +61,14 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
 		return
 	}
-	w.Write(jsonStats)
+	w.Write(jsonStats) //nolint:errcheck
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
-	w.Write(j)
+	w.Write(j) //nolint:errcheck
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +83,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
 		return
 	}
-	w.Write(j)
+	w.Write(j) //nolint:errcheck
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +98,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
 		return
 	}
-	w.Write(j)
+	w.Write(j) //nolint:errcheck
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +117,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, err.Error(), 500)
 	}
-	w.Write([]byte(filePath))
+	w.Write([]byte(filePath)) //nolint:errcheck
 }
 
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +151,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(jsonConfig)
+	w.Write(jsonConfig) //nolint:errcheck
 }
 
 func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
@@ -162,5 +162,5 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	w.Write(runtimeConfig)
+	w.Write(runtimeConfig) //nolint:errcheck
 }

@@ -183,7 +183,7 @@ func StartAgent() error {
 	if config.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -246,7 +246,7 @@ func StartAgent() error {
 	}
 	common.Forwarder = forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	log.Debugf("Starting forwarder")
-	common.Forwarder.Start()
+	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
 
 	// setup the aggregator

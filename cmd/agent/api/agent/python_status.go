@@ -29,5 +29,5 @@ func getPythonStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	j, _ := json.Marshal(pyStats)
-	w.Write(j)
+	w.Write(j) //nolint:errcheck
 }

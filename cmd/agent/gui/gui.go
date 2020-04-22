@@ -77,7 +77,7 @@ func StartGUIServer(port string) error {
 	if e != nil {
 		return e
 	}
-	go http.Serve(listener, router)
+	go http.Serve(listener, router) //nolint:errcheck
 	log.Infof("GUI server is listening at 127.0.0.1:" + port)
 
 	// Create a CSRF token (unique to each session)
