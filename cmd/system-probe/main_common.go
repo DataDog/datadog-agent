@@ -1,31 +1,33 @@
-// +build linux windows
-
 package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
-	"net/http"
 	"os"
+	"strings"
+	"time"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	_ "net/http/pprof"
+)
 
-func main() {
-	// Parse flags
-	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/system-probe.yaml", "Path to system-probe config formatted as YAML")
-	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
-	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
-
-// All System Probe modules should register their factories here
-var factories = []api.Factory{
-	modules.NetworkTracer,
-	modules.TCPQueueLength,
-	modules.OOMKillProbe,
-}
-
-	runAgent()
+// Flag values
+var opts struct {
+	configPath  string
+	pidFilePath string
+	debug       bool
+	version     bool
+	checkCmd    *flag.FlagSet
+	checkType   string
+	checkClient string
 }
 
 // Version info sourced from build flags
@@ -39,7 +41,7 @@ var (
 
 const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
-func runAgent(exit <-chan struct{}) {
+func runAgent() {
 	// --version
 	if opts.version {
 		fmt.Println(versionString("\n"))
@@ -73,6 +75,9 @@ func runAgent(exit <-chan struct{}) {
 		gracefulExit()
 	}
 
+	// Check if socket is available on unix, or Pipe is available on windows
+	runCheck(cfg)
+
 	log.Infof("running system-probe with version: %s", versionString(", "))
 
 	// configure statsd
@@ -81,60 +86,36 @@ func runAgent(exit <-chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	conn, err := net.NewListener(cfg)
-	if err != nil {
-		log.Criticalf("Error creating IPC socket: %s", err)
-		cleanupAndExit(1)
-	}
-
-	// if a debug port is specified, we expose the default handler to that port
-	if cfg.SystemProbeDebugPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
-	}
-
-	loader := NewLoader()
-	httpMux := http.NewServeMux()
-
-	err = loader.Register(cfg, httpMux, factories)
-	if err != nil && strings.HasPrefix(err.Error(), modules.ErrSysprobeUnsupported.Error()) {
+	sysprobe, err := CreateSystemProbe(cfg)
+	if err != nil && strings.HasPrefix(err.Error(), ErrSysprobeUnsupported.Error()) {
 		// If tracer is unsupported by this operating system, then exit gracefully
 		log.Infof("%s, exiting.", err)
 		gracefulExit()
-	}
-	if err != nil {
+	} else if err != nil {
 		log.Criticalf("failed to create system probe: %s", err)
 		cleanupAndExit(1)
 	}
-	defer loader.Close()
+	defer sysprobe.Close()
 
-	// Register stats endpoint
-	httpMux.HandleFunc("/debug/stats", func(w http.ResponseWriter, req *http.Request) {
-		stats := loader.GetStats()
-		utils.WriteAsJSON(w, stats)
-	})
+	securityAgent, err := secagent.NewAgent()
+	if err != nil {
+		log.Criticalf("failed to create security agent: %s", err)
+		os.Exit(1)
+	}
 
-	go func() {
-		err = http.Serve(conn.GetListener(), httpMux)
-		if err != nil {
-			log.Criticalf("Error creating HTTP server: %s", err)
-			cleanupAndExit(1)
-		}
-	}()
+	if err := securityAgent.Start(); err != nil {
+		log.Criticalf("failed to start security agent: %s", err)
+		os.Exit(1)
+	}
+	defer securityAgent.Stop()
 
+	go sysprobe.Run()
 	log.Infof("system probe successfully started")
 
-	go func() {
-		tags := []string{
-			fmt.Sprintf("version:%s", Version),
-			fmt.Sprintf("revision:%s", GitCommit),
-		}
-		heartbeat := time.NewTicker(15 * time.Second)
-		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1) //nolint:errcheck
-		}
-	}()
-
-	<-exit
+	// Handles signals, which tells us whether we should exit.
+	e := make(chan bool)
+	go util.HandleSignals(e)
+	<-e
 }
 
 func gracefulExit() {
