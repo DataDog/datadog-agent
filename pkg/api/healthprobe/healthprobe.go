@@ -39,7 +39,7 @@ func Serve(ctx context.Context, port int) error {
 		WriteTimeout:      defaultTimeout,
 	}
 
-	go srv.Serve(ln)
+	go srv.Serve(ln) //nolint:errcheck
 	go closeOnContext(ctx, srv)
 	return nil
 }
@@ -51,7 +51,7 @@ func closeOnContext(ctx context.Context, srv *http.Server) {
 	// Shutdown the server, it will close the listener
 	timeout, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	srv.Shutdown(timeout)
+	srv.Shutdown(timeout) //nolint:errcheck
 }
 
 type healthHandler struct{}
@@ -75,5 +75,5 @@ func (h healthHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	w.Write(jsonHealth)
+	w.Write(jsonHealth) //nolint:errcheck
 }

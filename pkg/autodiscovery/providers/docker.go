@@ -148,7 +148,7 @@ CONNECT:
 
 	d.Lock()
 	d.streaming = false
-	d.health.Deregister()
+	d.health.Deregister() //nolint:errcheck
 	d.Unlock()
 }
 

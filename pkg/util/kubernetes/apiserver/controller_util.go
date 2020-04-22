@@ -167,7 +167,7 @@ func (h *AutoscalersController) updateExternalMetrics() {
 		toDelete := &custommetrics.MetricsBundle{
 			Deprecated: emList.Deprecated,
 		}
-		h.store.DeleteExternalMetricValues(toDelete)
+		h.store.DeleteExternalMetricValues(toDelete) //nolint:errcheck
 		// need to return here or to recall list as external might contain wrong data.
 	}
 

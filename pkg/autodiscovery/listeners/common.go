@@ -106,9 +106,9 @@ func standardTagsDigest(labels map[string]string) string {
 		return ""
 	}
 	h := fnv.New64()
-	h.Write([]byte(labels[labelKeyEnv]))
-	h.Write([]byte(labels[labelKeyVersion]))
-	h.Write([]byte(labels[labelKeyService]))
+	h.Write([]byte(labels[labelKeyEnv]))     //nolint:errcheck
+	h.Write([]byte(labels[labelKeyVersion])) //nolint:errcheck
+	h.Write([]byte(labels[labelKeyService])) //nolint:errcheck
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 

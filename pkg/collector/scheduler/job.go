@@ -160,7 +160,7 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 
 	select {
 	case <-jq.stop:
-		jq.health.Deregister()
+		jq.health.Deregister() //nolint:errcheck
 		return false
 	case t := <-jq.bucketTicker.C:
 		log.Tracef("Bucket ticked... current index: %v", jq.currentBucketIdx)
@@ -190,7 +190,7 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 			// blocking, we'll be here as long as it takes
 			case s.checksPipe <- check:
 			case <-jq.stop:
-				jq.health.Deregister()
+				jq.health.Deregister() //nolint:errcheck
 				return false
 			}
 		}

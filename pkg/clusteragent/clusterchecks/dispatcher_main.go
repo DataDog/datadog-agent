@@ -156,7 +156,7 @@ func (d *dispatcher) run(ctx context.Context) {
 	d.store.Unlock()
 
 	healthProbe := health.Register("clusterchecks-dispatch")
-	defer health.Deregister(healthProbe)
+	defer health.Deregister(healthProbe) //nolint:errcheck
 
 	cleanupTicker := time.NewTicker(time.Duration(d.nodeExpirationSeconds/2) * time.Second)
 	defer cleanupTicker.Stop()

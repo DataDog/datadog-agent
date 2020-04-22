@@ -73,7 +73,7 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 		select {
 		case <-pd.healthHandle.C:
 		case <-pd.stopChan:
-			pd.healthHandle.Deregister()
+			pd.healthHandle.Deregister() //nolint:errcheck
 			ticker.Stop()
 			return
 		case <-ticker.C:

@@ -66,7 +66,7 @@ func (c *DockerCollector) Stream() error {
 	for {
 		select {
 		case <-c.stop:
-			healthHandle.Deregister()
+			healthHandle.Deregister() //nolint:errcheck
 			return c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
 		case <-healthHandle.C:
 		case msg := <-messages:
