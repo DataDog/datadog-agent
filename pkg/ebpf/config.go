@@ -64,6 +64,11 @@ type Config struct {
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
+	// EnableENOBUFS will enable ENOBUF errors on the netlink socket, causing conntrack event processing
+	// to be halted when the socket buffer overruns. If enabled, this acts as a circuit breaker when we're
+	// not processing conntrack events fast enough.
+	EnableENOBUFS bool
+
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
 

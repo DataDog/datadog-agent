@@ -21,7 +21,7 @@ func TestConntracker(t *testing.T) {
 		t.Errorf("setup command output: %s", string(out))
 	}
 
-	ct, err := NewConntracker("/proc", 100)
+	ct, err := NewConntracker("/proc", 100, false)
 	require.NoError(t, err)
 	defer ct.Close()
 

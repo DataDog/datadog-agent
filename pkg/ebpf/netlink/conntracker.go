@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
+	"github.com/mdlayher/netlink"
 )
 
 const (
@@ -95,7 +96,7 @@ type realConntracker struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(procRoot string, maxStateSize int) (Conntracker, error) {
+func NewConntracker(procRoot string, maxStateSize int, enableENOBUFS bool) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -104,7 +105,7 @@ func NewConntracker(procRoot string, maxStateSize int) (Conntracker, error) {
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(procRoot, maxStateSize)
+		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, enableENOBUFS)
 		done <- struct{}{}
 	}()
 
@@ -116,11 +117,11 @@ func NewConntracker(procRoot string, maxStateSize int) (Conntracker, error) {
 	}
 }
 
-func newConntrackerOnce(procRoot string, maxStateSize int) (Conntracker, error) {
+func newConntrackerOnce(procRoot string, maxStateSize int, enableENOBUFS bool) (Conntracker, error) {
 	netns := getGlobalNetNSFD(procRoot)
 	logger := getLogger()
 
-	nfct, err := createNetlinkSocket("register", netns, logger)
+	nfct, err := createNetlinkSocket("register", netns, logger, enableENOBUFS)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +156,7 @@ func newConntrackerOnce(procRoot string, maxStateSize int) (Conntracker, error) 
 	nfct.Register(context.Background(), ct.Conntrack, ct.NetlinkCtNew, ctr.register)
 	log.Debugf("initialized register hook")
 
-	log.Infof("initialized conntrack")
+	log.Infof("initialized conntrack with enableENOBUFS=%v", enableENOBUFS)
 
 	return ctr, nil
 }
@@ -425,10 +426,17 @@ func conDebug(c ct.Con) string {
 	)
 }
 
-func createNetlinkSocket(name string, netns int, logger *stdlog.Logger) (*ct.Nfct, error) {
+func createNetlinkSocket(name string, netns int, logger *stdlog.Logger, enableENOBUFS bool) (*ct.Nfct, error) {
 	nfct, err := ct.Open(&ct.Config{NetNS: netns, Logger: logger})
 	if err != nil {
 		return nil, err
+	}
+
+	if !enableENOBUFS {
+		// Sometimes the conntrack flushes are larger than the socket recv buffer capacity.
+		// This ensures that in case of buffer overrun the `recvmsg` call will *not*
+		// receive an ENOBUF which is currently not handled properly by go-conntrack library.
+		nfct.Con.SetOption(netlink.NoENOBUFS, true)
 	}
 
 	// We also increase the socket buffer size to better handle bursts of events.
