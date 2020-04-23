@@ -21,7 +21,7 @@ package	eval
 {{ range . }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) *{{ .FuncReturnType }} {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
