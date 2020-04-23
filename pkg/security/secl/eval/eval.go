@@ -432,13 +432,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 	return nil, nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
 }
 
-func (r *RuleEvaluator) PartialEval(ctx *Context, field string) (bool, error) {
+func (r *RuleEvaluator) IsDiscrimator(ctx *Context, field string) (bool, error) {
 	eval, ok := r.partialEval[field]
 	if !ok {
 		return false, errors.New("field not found")
 	}
 
-	return eval(ctx), nil
+	return !eval(ctx), nil
 }
 
 func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
@@ -453,19 +453,24 @@ func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
+	// Generates an evaluator which allows to guarranty that a value for a given parameter will cause the evaluation of an expression to always
+	// return false regardless of the other parameters.
+	// The evaluator is a function that accepts only one argument : the value of the selected parameter.
+	// If the return value of this function is "false", the argument is called a discriminator :
+	// if we see this discriminator for the selected parameter, we can skip the evaluation of the whole rule.
 	partialEval := make(map[string]func(ctx *Context) bool)
 	for field := range state.fields {
-		eval, _, _, err = nodeToEvaluator(rule.BooleanExpression, &Opts{Field: field}, NewState())
+		pEval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{Field: field}, NewState())
 		if err != nil {
 			return nil, err
 		}
 
-		evalBool, ok = eval.(*BoolEvaluator)
+		pEvalBool, ok := pEval.(*BoolEvaluator)
 		if !ok {
 			return nil, NewTypeError(rule.Pos, reflect.Bool)
 		}
 
-		partialEval[field] = evalBool.Eval
+		partialEval[field] = pEvalBool.Eval
 	}
 
 	if evalBool.Eval == nil {
