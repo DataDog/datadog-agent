@@ -144,32 +144,57 @@ func (l *Launcher) removeSource(service *service.Service) {
 	}
 }
 
-// kubernetesIntegration represents the name of the integration.
-const kubernetesIntegration = "kubernetes"
+const (
+	// kubernetesIntegration represents the name of the integration.
+	kubernetesIntegration   = "kubernetes"
+	podStandardLabelPrefix  = "tags.datadoghq.com/"
+	tagKeyService           = "service"
+	podStandardLabelService = podStandardLabelPrefix + tagKeyService
+)
 
 // getSource returns a new source for the container in pod.
 func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
+	standardServicelabel := l.getServiceLabel(pod, container)
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
 		if err != nil || len(configs) == 0 {
 			return nil, fmt.Errorf("could not parse kubernetes annotation %v", annotation)
 		}
 		cfg = configs[0]
+		// fmt.Println(cfg.Service)
+		// cfg.Service = "test"
+		if cfg.Service == "" && standardServicelabel != "" {
+			cfg.Service = standardServicelabel
+		}
 	} else {
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
 		shortImageName, err := l.getShortImageName(container)
 		if err != nil {
-			cfg = &config.LogsConfig{
-				Source:  kubernetesIntegration,
-				Service: kubernetesIntegration,
+			if standardServicelabel != "" {
+				cfg = &config.LogsConfig{
+					Source:  kubernetesIntegration,
+					Service: standardServicelabel,
+				}
+			} else {
+				cfg = &config.LogsConfig{
+					Source:  kubernetesIntegration,
+					Service: kubernetesIntegration,
+				}
 			}
 		} else {
-			cfg = &config.LogsConfig{
-				Source:  shortImageName,
-				Service: shortImageName,
+			if standardServicelabel != "" {
+				cfg = &config.LogsConfig{
+					Source:  shortImageName,
+					Service: standardServicelabel,
+				}
+			} else {
+				cfg = &config.LogsConfig{
+					Source:  shortImageName,
+					Service: shortImageName,
+				}
 			}
 		}
 	}
@@ -214,6 +239,14 @@ func (l *Launcher) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerSt
 	configPath := l.getConfigPath(container)
 	if annotation, exists := pod.Metadata.Annotations[configPath]; exists {
 		return annotation
+	}
+	return ""
+}
+
+//getServiceLabel returns the standard service label for container if present
+func (l *Launcher) getServiceLabel(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+	if serviceLabel, exists := pod.Metadata.Labels[podStandardLabelService]; exists {
+		return serviceLabel
 	}
 	return ""
 }
