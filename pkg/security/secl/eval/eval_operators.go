@@ -3,7 +3,7 @@
 package eval
 
 func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -105,7 +105,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 }
 
 func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -207,7 +207,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 }
 
 func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -284,7 +284,7 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 }
 
 func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -361,7 +361,7 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 }
 
 func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -438,7 +438,7 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 }
 
 func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -515,7 +515,7 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 }
 
 func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -592,7 +592,7 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 }
 
 func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -669,7 +669,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 }
 
 func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -746,7 +746,7 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 }
 
 func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -823,7 +823,7 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 }
 
 func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -900,7 +900,7 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 }
 
 func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -977,7 +977,7 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 }
 
 func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -1054,7 +1054,7 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 }
 
 func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {
@@ -1131,7 +1131,7 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 }
 
 func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
+	isPartialLeaf := a.IsPartialLeaf || b.IsPartialLeaf
 
 	if a.Field != "" || b.Field != "" {
 		if a.Field != opts.Field && b.Field != opts.Field {

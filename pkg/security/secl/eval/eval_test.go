@@ -298,24 +298,29 @@ func TestRegexp(t *testing.T) {
 }
 
 func TestInArray(t *testing.T) {
-	event := &model.Event{}
+	event := &model.Event{
+		Process: model.Process{
+			Name: "a",
+			UID:  3,
+		},
+	}
 
 	tests := []struct {
 		Expr     string
 		Expected bool
 	}{
 		{Expr: `"a" in [ "a", "b", "c" ]`, Expected: true},
-		{Expr: `"a" in [ "c", "b", "a" ]`, Expected: true},
+		{Expr: `process.name in [ "c", "b", "a" ]`, Expected: true},
 		{Expr: `"d" in [ "a", "b", "c" ]`, Expected: false},
-		{Expr: `"d" in [ "c", "b", "a" ]`, Expected: false},
+		{Expr: `process.name in [ "c", "b", "z" ]`, Expected: false},
 		{Expr: `"a" not in [ "a", "b", "c" ]`, Expected: false},
-		{Expr: `"a" not in [ "c", "b", "a" ]`, Expected: false},
+		{Expr: `process.name not in [ "c", "b", "a" ]`, Expected: false},
 		{Expr: `"d" not in [ "a", "b", "c" ]`, Expected: true},
-		{Expr: `"d" not in [ "c", "b", "a" ]`, Expected: true},
+		{Expr: `process.name not in [ "c", "b", "z" ]`, Expected: true},
 		{Expr: `3 in [ 1, 2, 3 ]`, Expected: true},
-		{Expr: `3 in [ 1, 2, 3 ]`, Expected: true},
+		{Expr: `process.uid in [ 1, 2, 3 ]`, Expected: true},
 		{Expr: `4 in [ 1, 2, 3 ]`, Expected: false},
-		{Expr: `4 in [ 3, 2, 1 ]`, Expected: false},
+		{Expr: `process.uid in [ 4, 2, 1 ]`, Expected: false},
 		{Expr: `3 not in [ 1, 2, 3 ]`, Expected: false},
 		{Expr: `3 not in [ 1, 2, 3 ]`, Expected: false},
 		{Expr: `4 not in [ 1, 2, 3 ]`, Expected: true},
@@ -380,34 +385,43 @@ func TestPartial(t *testing.T) {
 		Process: model.Process{
 			Name: "abc",
 		},
+		Open: model.OpenSyscall{
+			Filename: "xyz",
+		},
 	}
 
 	tests := []struct {
 		Expr     string
+		Field    string
 		Expected bool
 	}{
-		{Expr: `true || process.name == "/usr/bin/cat"`, Expected: true},
-		{Expr: `false || process.name == "/usr/bin/cat"`, Expected: false},
-		{Expr: `true || process.name == "abc"`, Expected: true},
-		{Expr: `false || process.name == "abc"`, Expected: true},
-		{Expr: `true && process.name == "/usr/bin/cat"`, Expected: false},
-		{Expr: `false && process.name == "/usr/bin/cat"`, Expected: false},
-		{Expr: `true && process.name == "abc"`, Expected: true},
-		{Expr: `false && process.name == "abc"`, Expected: false},
-
-		{Expr: `open.filename == "toto" && process.name == "/usr/bin/cat"`, Expected: false},
-		{Expr: `open.filename == "toto" && process.name != "/usr/bin/cat"`, Expected: true},
-
-		{Expr: `open.filename == "toto" || process.name == "/usr/bin/cat"`, Expected: true},
-		{Expr: `open.filename == "toto" || process.name != "/usr/bin/cat"`, Expected: true},
-
-		{Expr: `open.filename == "toto" && !(process.name == "/usr/bin/cat")`, Expected: true},
-		{Expr: `open.filename == "toto" && !(process.name != "/usr/bin/cat")`, Expected: false},
-
-		{Expr: `open.filename == "toto" && (process.name =~ "/usr/bin/*" )`, Expected: false},
-		{Expr: `open.filename == "toto" && (process.name =~ "ab*" )`, Expected: true},
-
-		{Expr: `open.filename == "toto" && (process.name == open.filename)`, Expected: true},
+		{Expr: `true || process.name == "/usr/bin/cat"`, Field: "process.name", Expected: true},
+		{Expr: `false || process.name == "/usr/bin/cat"`, Field: "process.name", Expected: false},
+		{Expr: `true || process.name == "abc"`, Field: "process.name", Expected: true},
+		{Expr: `false || process.name == "abc"`, Field: "process.name", Expected: true},
+		{Expr: `true && process.name == "/usr/bin/cat"`, Field: "process.name", Expected: false},
+		{Expr: `false && process.name == "/usr/bin/cat"`, Field: "process.name", Expected: false},
+		{Expr: `true && process.name == "abc"`, Field: "process.name", Expected: true},
+		{Expr: `false && process.name == "abc"`, Field: "process.name", Expected: false},
+		{Expr: `open.filename == "test1" && process.name == "/usr/bin/cat"`, Field: "process.name", Expected: false},
+		{Expr: `open.filename == "test1" && process.name != "/usr/bin/cat"`, Field: "process.name", Expected: true},
+		{Expr: `open.filename == "test1" || process.name == "/usr/bin/cat"`, Field: "process.name", Expected: true},
+		{Expr: `open.filename == "test1" || process.name != "/usr/bin/cat"`, Field: "process.name", Expected: true},
+		{Expr: `open.filename == "test1" && !(process.name == "/usr/bin/cat")`, Field: "process.name", Expected: true},
+		{Expr: `open.filename == "test1" && !(process.name != "/usr/bin/cat")`, Field: "process.name", Expected: false},
+		{Expr: `open.filename == "test1" && (process.name =~ "/usr/bin/*" )`, Field: "process.name", Expected: false},
+		{Expr: `open.filename == "test1" && process.name =~ "ab*" `, Field: "process.name", Expected: true},
+		{Expr: `open.filename == "test1" && process.name == open.filename`, Field: "process.name", Expected: true},
+		{Expr: `open.filename =~ "test1" && process.name == "abc"`, Field: "process.name", Expected: true},
+		{Expr: `open.filename in [ "test1", "test2" ] && (process.name == open.filename)`, Field: "process.name", Expected: true},
+		{Expr: `open.filename in [ "test1", "test2" ] && process.name == "abc"`, Field: "process.name", Expected: true},
+		{Expr: `!(open.filename in [ "test1", "test2" ]) && process.name == "abc"`, Field: "process.name", Expected: true},
+		{Expr: `!(open.filename in [ "test1", "xyz" ]) && process.name == "abc"`, Field: "process.name", Expected: true},
+		{Expr: `!(open.filename in [ "test1", "xyz" ] && true) && process.name == "abc"`, Field: "process.name", Expected: true},
+		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && process.name == "abc"`, Field: "process.name", Expected: true},
+		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "process.name", Expected: false},
+		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "open.filename", Expected: true},
+		{Expr: `(open.filename not in [ "test1", "xyz" ] && true) && !(process.name == "abc")`, Field: "open.filename", Expected: false},
 	}
 
 	for _, test := range tests {
@@ -416,9 +430,13 @@ func TestPartial(t *testing.T) {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
 
-		result, _ := evaluator.PartialEval(&Context{Event: event}, "process.name")
+		result, err := evaluator.PartialEval(&Context{Event: event}, test.Field)
+		if err != nil {
+			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
+		}
+
 		if result != test.Expected {
-			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+			t.Fatalf("expected result `%t` for `%s`not found, got `%t`\n%s", test.Expected, test.Field, result, test.Expr)
 		}
 	}
 }
