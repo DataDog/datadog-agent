@@ -195,7 +195,7 @@ func start(cmd *cobra.Command, args []string) error {
 			WPAClient:          apiCl.WPAClient,
 			WPAInformerFactory: apiCl.WPAInformerFactory,
 			Client:             apiCl.Cl,
-			LeaderElector:      le,
+			IsLeaderFunc:       le.IsLeader,
 			EventRecorder:      eventRecorder,
 			StopCh:             stopCh,
 		}
