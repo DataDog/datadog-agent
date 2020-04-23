@@ -238,7 +238,7 @@ func (ctr *realConntracker) loadInitialState(events chan Event) {
 			continue
 		}
 		for _, c := range conns {
-			if isNAT(c) {
+			if ctr.len(state) < ctr.maxStateSize && isNAT(c) {
 				if k, ok := formatKey(c.Origin); ok {
 					ctr.state[k] = formatIPTranslation(c.Reply, gen)
 				}
