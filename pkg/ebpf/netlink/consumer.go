@@ -163,10 +163,10 @@ func (c *Consumer) do(sync bool, fn func()) {
 	<-done
 }
 
-// based on of https://github.com/mdlayher/netlink/conn.go
-// however in our context we don't care about multi-part messages in the sense
-// that is better to flush their parts the output channel and create back-pressure
-// instead of buffering them in memory. when dump is set to true we terminate
+// Based on of https://github.com/mdlayher/netlink/conn.go
+// In our context we don't care about multi-part messages in the sense
+// that is better to flush their parts to the output channel (and generate back-pressure)
+// instead of buffering the whole thing in memory. When dump is set to true we terminate
 // after processing the first multi-part message.
 func (c *Consumer) receive(output chan Event, dump bool) {
 	for {
@@ -193,7 +193,7 @@ func (c *Consumer) receive(output chan Event, dump bool) {
 
 		output <- c.eventFor(msgs, nil)
 
-		// if we're doing a conntrack dump it means we are done after reading the multi-part message
+		// If we're doing a conntrack dump it means we are done after reading the multi-part message
 		if dump && multiPartDone {
 			return
 		}
@@ -234,7 +234,7 @@ func (b *bufferPool) Reset() {
 	b.inUse = nil
 }
 
-// source: https://github.com/mdlayher/netlink/message.go
+// Copied from https://github.com/mdlayher/netlink/message.go
 // checkMessage checks a single Message for netlink errors.
 func checkMessage(m netlink.Message) error {
 	const success = 0

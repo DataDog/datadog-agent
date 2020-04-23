@@ -25,7 +25,7 @@ type Socket struct {
 
 	// A 32KB buffer which we use for polling the socket.
 	// Since a netlink message can't exceed that size
-	// (in *theory* it could be as large as 4GB (u32), but see link below)
+	// (in *theory* they can be as large as 4GB (u32), but see link below)
 	// we can avoid message peeks and and essentially cut recvmsg syscalls by half
 	// which is currently a perf bottleneck in certain workloads.
 	// https://www.spinics.net/lists/netdev/msg431592.html

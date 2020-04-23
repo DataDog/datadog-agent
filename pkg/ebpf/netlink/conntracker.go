@@ -232,7 +232,7 @@ func (ctr *realConntracker) Close() {
 func (ctr *realConntracker) loadInitialState(events chan Event) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 	for e := range events {
-		conns, err := DecodeEvent(nil, e)
+		conns, err := DecodeEvent(e)
 		if err != nil {
 			log.Warnf("error decoding conntrack event during initial load: %s", err)
 			continue
@@ -296,7 +296,7 @@ func (ctr *realConntracker) run() {
 	events := ctr.consumer.Events()
 	go func() {
 		for e := range events {
-			conns, err := DecodeEvent(nil, e)
+			conns, err := DecodeEvent(e)
 			if err != nil {
 				log.Errorf("error decoding conntrack event: %s", err)
 				e.Done()

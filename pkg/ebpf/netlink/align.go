@@ -6,8 +6,9 @@ import (
 	"github.com/mdlayher/netlink"
 )
 
+// Copied from github.com/mdlayher/netlink/align.go
 // Functions and values used to properly align netlink messages, headers,
-// and attributes.  Definitions taken from Linux kernel source.
+// and attributes. Definitions taken from Linux kernel source.
 
 // #define NLMSG_ALIGNTO   4U
 const nlmsgAlignTo = 4

@@ -1,41 +1,17 @@
 package netlink
 
 import (
-	"bytes"
 	"encoding/binary"
-	"log"
 	"net"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
-	"github.com/mdlayher/netlink"
-	"golang.org/x/sys/unix"
 )
 
 const (
 	ctaUnspec = iota
 	ctaTupleOrig
 	ctaTupleReply
-	ctaStatus
-	ctaProtoinfo
-	ctaHelp
-	ctaNatSrc
-	ctaTimeout
-	ctaMark
-	ctaCountersOrig
-	ctaCountersReply
-	ctaUse
-	ctaID
-	ctaNatDst
-	ctaTupleMaster
-	ctaSeqAdjOrig
-	ctaSeqAdjRepl
-	ctaSecmark
-	ctaZone
-	ctaSecCtx
-	ctaTimestamp
-	ctaMarkMask
-	ctaLables
-	ctaLablesMask
 )
 
 const (
@@ -52,192 +28,127 @@ const (
 )
 
 const (
-	ctaProtoNum        = 1
-	ctaProtoSrcPort    = 2
-	ctaProtoDstPort    = 3
-	ctaProtoIcmpID     = 4
-	ctaProtoIcmpType   = 5
-	ctaProtoIcmpCode   = 6
-	ctaProtoIcmpv6ID   = 7
-	ctaProtoIcmpv6Type = 8
-	ctaProtoIcmpv6Code = 9
+	ctaProtoNum     = 1
+	ctaProtoSrcPort = 2
+	ctaProtoDstPort = 3
 )
 
-func DecodeEvent(logger *log.Logger, e Event) ([]ct.Con, error) {
+var scanner = NewAttributeScanner()
+
+// TODO: In a future PR we should stop using go-conntrack `Con` altogether
+// and decode message into the same format we use in the conntracker state cache
+func DecodeEvent(e Event) ([]ct.Con, error) {
 	// Propagate socket error upstream
+	// TODO: I think it might make more sense for the caller to check the Error field before
+	// caling DecodeEvent. In that case there is no confusion whether the error returned here
+	// is a socket error or a decoding error
 	if e.Error != nil {
 		return nil, e.Error
 	}
 
 	conns := make([]ct.Con, 0, len(e.Reply))
-	for _, msg := range e.Reply {
-		orig, reply, err := decodeMessage(msg)
 
-		if err != nil || !isNATRaw(orig, reply) {
+	for _, msg := range e.Reply {
+		c := new(ct.Con)
+		scanner.ResetTo(msg.Data)
+
+		err := unmarshalCon(scanner, c)
+		if err != nil {
+			log.Debugf("error decoding netlink message: %s", err)
 			continue
 		}
-
-		c := ct.Con{Origin: orig.IPTuple(), Reply: reply.IPTuple()}
-		conns = append(conns, c)
+		conns = append(conns, ct.Con(*c))
 	}
 
 	return conns, nil
 }
 
-func decodeMessage(msg netlink.Message) (orig, reply *rawIPTuple, err error) {
-	offset := messageOffset(msg.Data[:2])
-	ad, err := netlink.NewAttributeDecoder(msg.Data[offset:])
-	if err != nil {
-		return nil, nil, err
-	}
+func unmarshalCon(s *AttributeScanner, c *ct.Con) error {
+	c.Origin = &ct.IPTuple{}
+	c.Reply = &ct.IPTuple{}
 
-	ad.ByteOrder = binary.BigEndian
-
-	var (
-		origTuple  = &rawIPTuple{}
-		replyTuple = &rawIPTuple{}
-	)
-
-	toDecode := 2
-
-Loop:
-	for ad.Next() {
-		switch ad.Type() {
+	for toDecode := 2; toDecode > 0 && s.Next(); {
+		switch s.Type() {
 		case ctaTupleOrig:
-			ad.Nested(origTuple.unmarshall)
 			toDecode--
-			if toDecode == 0 {
-				break Loop
-			}
+			s.Nested(func() error {
+				return unmarshalTuple(s, c.Origin)
+			})
 		case ctaTupleReply:
-			ad.Nested(replyTuple.unmarshall)
 			toDecode--
-			if toDecode == 0 {
-				break Loop
-			}
+			s.Nested(func() error {
+				return unmarshalTuple(s, c.Reply)
+			})
 		}
 	}
 
-	return origTuple, replyTuple, ad.Err()
+	return s.Err()
 }
 
-func messageOffset(data []byte) int {
-	if (data[0] == unix.AF_INET || data[0] == unix.AF_INET6) && data[1] == unix.NFNETLINK_V0 {
-		return 4
-	}
-	return 0
-}
-
-func isNATRaw(orig, reply *rawIPTuple) bool {
-	if len(orig.srcIP) == 0 || len(orig.dstIP) == 0 || orig.proto == 0 {
-		return false
-	}
-
-	if len(reply.srcIP) == 0 || len(reply.dstIP) == 0 || reply.proto == 0 {
-		return false
-	}
-
-	return !bytes.Equal(orig.srcIP, reply.dstIP) ||
-		!bytes.Equal(orig.dstIP, reply.srcIP) ||
-		orig.srcPort != reply.dstPort ||
-		orig.dstPort != reply.srcPort
-}
-
-type rawIPTuple struct {
-	srcIP   []byte
-	dstIP   []byte
-	srcPort uint16
-	dstPort uint16
-	proto   uint8
-}
-
-func (r *rawIPTuple) IPTuple() *ct.IPTuple {
-	srcIP := net.IP(r.srcIP)
-	dstIP := net.IP(r.dstIP)
-	return &ct.IPTuple{
-		Src: &srcIP,
-		Dst: &dstIP,
-		Proto: &ct.ProtoTuple{
-			Number:  &r.proto,
-			SrcPort: &r.srcPort,
-			DstPort: &r.dstPort,
-		},
-	}
-}
-
-func (r *rawIPTuple) unmarshall(ad *netlink.AttributeDecoder) error {
-	toDecode := 2
-
-Loop:
-	for ad.Next() {
-		switch ad.Type() {
+func unmarshalTuple(s *AttributeScanner, t *ct.IPTuple) error {
+	for toDecode := 2; toDecode > 0 && s.Next(); {
+		switch s.Type() {
 		case ctaTupleIP:
-			ad.Nested(r.unmarshallIP)
 			toDecode--
-			if toDecode == 0 {
-				break Loop
-			}
+			s.Nested(func() error {
+				return unmarshalTupleIP(s, t)
+			})
 		case ctaTupleProto:
-			ad.Nested(r.unmarshallProto)
 			toDecode--
-			if toDecode == 0 {
-				break Loop
-			}
+			s.Nested(func() error {
+				return unmarshalProto(s, t)
+			})
 		}
 	}
-	return ad.Err()
+	return s.Err()
 }
 
-func (r *rawIPTuple) unmarshallIP(ad *netlink.AttributeDecoder) error {
-	toDecode := 2
-
-Loop:
-	for ad.Next() {
-		switch ad.Type() {
+// TODO: Double check if a message can contain both IPv4 and IPv6 IPs
+// We might also want to consider deferring the allocation of the IP byte slice
+func unmarshalTupleIP(s *AttributeScanner, t *ct.IPTuple) error {
+	for toDecode := 2; toDecode > 0 && s.Next(); {
+		switch s.Type() {
 		case ctaIPv4Src, ctaIPv6Src:
-			r.srcIP = ad.Bytes()
 			toDecode--
-			if toDecode == 0 {
-				break Loop
-			}
+			data := copySlice(s.Bytes())
+			ip := net.IP(data)
+			t.Src = &ip
 		case ctaIPv4Dst, ctaIPv6Dst:
-			r.dstIP = ad.Bytes()
 			toDecode--
-			if toDecode == 0 {
-				break Loop
-			}
+			data := copySlice(s.Bytes())
+			ip := net.IP(data)
+			t.Dst = &ip
 		}
 	}
 
-	return ad.Err()
+	return s.Err()
 }
 
-func (r *rawIPTuple) unmarshallProto(ad *netlink.AttributeDecoder) error {
-	toDecode := 3
+func unmarshalProto(s *AttributeScanner, t *ct.IPTuple) error {
+	t.Proto = &ct.ProtoTuple{}
 
-Loop:
-	for ad.Next() {
-		switch ad.Type() {
+	for toDecode := 3; toDecode > 0 && s.Next(); {
+		switch s.Type() {
 		case ctaProtoNum:
-			r.proto = ad.Uint8()
 			toDecode--
-			if toDecode == 0 {
-				break Loop
-			}
+			protoNum := uint8(s.Bytes()[0])
+			t.Proto.Number = &protoNum
 		case ctaProtoSrcPort:
-			r.srcPort = ad.Uint16()
 			toDecode--
-			if toDecode == 0 {
-				break Loop
-			}
+			port := binary.BigEndian.Uint16(s.Bytes())
+			t.Proto.SrcPort = &port
 		case ctaProtoDstPort:
-			r.dstPort = ad.Uint16()
 			toDecode--
-			if toDecode == 0 {
-				break Loop
-			}
+			port := binary.BigEndian.Uint16(s.Bytes())
+			t.Proto.DstPort = &port
 		}
 	}
 
-	return ad.Err()
+	return s.Err()
+}
+
+func copySlice(src []byte) []byte {
+	dst := make([]byte, len(src))
+	copy(dst, src)
+	return dst
 }
