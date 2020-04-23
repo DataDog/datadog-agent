@@ -2,6 +2,7 @@ package gui
 
 import (
 	"encoding/json"
+	"fmt"
 	"html"
 	"io/ioutil"
 	"net/http"
@@ -30,6 +31,7 @@ func agentHandler(r *mux.Router) {
 	r.HandleFunc("/flare", http.HandlerFunc(makeFlare)).Methods("POST")
 	r.HandleFunc("/restart", http.HandlerFunc(restartAgent)).Methods("POST")
 	r.HandleFunc("/getConfig", http.HandlerFunc(getConfigFile)).Methods("POST")
+	r.HandleFunc("/getConfig/{setting}", http.HandlerFunc(getConfigSetting)).Methods("GET")
 	r.HandleFunc("/setConfig", http.HandlerFunc(setConfigFile)).Methods("POST")
 }
 
@@ -165,6 +167,17 @@ func restartAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Infof("restart success")
 	w.Write([]byte("Success"))
+}
+
+func getConfigSetting(w http.ResponseWriter, r *http.Request) {
+	setting := mux.Vars(r)["setting"]
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		setting: config.Datadog.Get(setting),
+	}); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, `"error": "%v"`, err)
+	}
 }
 
 // Sends the configuration (aka datadog.yaml) file

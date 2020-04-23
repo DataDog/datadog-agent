@@ -153,6 +153,28 @@ function loadStatus(page) {
   sendMessage("agent/status/" + page, "", "post",
   function(data, status, xhr){
       $("#" + page + "_status").html(data);
+
+      // Get the trace-agent status
+      sendMessage("agent/getConfig/apm_config.receiver_port", "", "GET",
+          function(data, status, xhr) {
+              var apmPort = data["apm_config.receiver_port"];
+              if (apmPort == null) {
+                  apmPort = "8126";
+              }
+              var url = "http://127.0.0.1:"+apmPort+"/status/html"
+              $.ajax({
+                url: url,
+                type: "GET",
+                success: function(data) {
+                    $("#apmStats > .stat_data").html(data);
+                },
+                error: function() {
+                    $("#apmStats > .stat_data").text("Error getting APM status...");
+                }
+              })
+          }, function() {
+              console.log(arguments);
+          })
   },function(){
       $("#" + page + "_status").html("<span class='center'>An error occurred.</span>");
   });

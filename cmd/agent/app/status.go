@@ -10,6 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -99,7 +103,7 @@ func requestStatus() error {
 	// attach trace-agent status, if obtainable
 	temp := make(map[string]interface{})
 	if err := json.Unmarshal(r, &temp); err == nil {
-		temp["apmStats"] = status.GetAPMStatus()
+		temp["apmStats"] = getAPMStatus()
 		if newr, err := json.Marshal(temp); err == nil {
 			r = newr
 		}
@@ -127,6 +131,40 @@ func requestStatus() error {
 	}
 
 	return nil
+}
+
+// getAPMStatus returns a set of key/value pairs summarizing the status of the trace-agent.
+// If the status can not be obtained for any reason, the returned map will contain an "error"
+// key with an explanation.
+func getAPMStatus() map[string]interface{} {
+	port := 8126
+	// TODO(gbbr): This should be handled by the shared config package once
+	// we migrate APM env. vars there.
+	if p, ok := os.LookupEnv("DD_APM_RECEIVER_PORT"); ok {
+		if v, err := strconv.Atoi(p); err == nil {
+			port = v
+		}
+	}
+	if config.Datadog.IsSet("apm_config.receiver_port") {
+		port = config.Datadog.GetInt("apm_config.receiver_port")
+	}
+	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Get(url)
+	if err != nil {
+		return map[string]interface{}{
+			"port":  port,
+			"error": err.Error(),
+		}
+	}
+	defer resp.Body.Close()
+	status := make(map[string]interface{})
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return map[string]interface{}{
+			"port":  port,
+			"error": err.Error(),
+		}
+	}
+	return status
 }
 
 func componentStatus(component string) error {

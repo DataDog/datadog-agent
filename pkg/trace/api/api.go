@@ -127,6 +127,7 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
+	mux.HandleFunc("/status/html", r.reportStatus)
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
