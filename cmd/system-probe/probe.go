@@ -79,7 +79,7 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 func (nt *SystemProbe) Run() {
 	// if a debug port is specified, we expose the default handler to that port
 	if nt.cfg.SystemProbeDebugPort > 0 {
-		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeDebugPort), http.DefaultServeMux)
+		go http.ListenAndServe(fmt.Sprintf("localhost:%d", nt.cfg.SystemProbeDebugPort), http.DefaultServeMux) //nolint:errcheck
 	}
 
 	var runCounter uint64
@@ -160,7 +160,7 @@ func (nt *SystemProbe) Run() {
 		}
 		heartbeat := time.NewTicker(15 * time.Second)
 		for range heartbeat.C {
-			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1)
+			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1) //nolint:errcheck
 		}
 	}()
 
@@ -172,7 +172,7 @@ func (nt *SystemProbe) Run() {
 		}
 	})
 
-	http.Serve(nt.conn.GetListener(), httpMux)
+	http.Serve(nt.conn.GetListener(), httpMux) //nolint:errcheck
 }
 
 func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
@@ -203,7 +203,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *e
 	}
 
 	w.Header().Set("Content-type", marshaler.ContentType())
-	w.Write(buf)
+	w.Write(buf) //nolint:errcheck
 	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
 }
 
@@ -214,7 +214,7 @@ func writeAsJSON(w http.ResponseWriter, data interface{}) {
 		w.WriteHeader(500)
 		return
 	}
-	w.Write(buf)
+	w.Write(buf) //nolint:errcheck
 }
 
 // Close will stop all system probe activities
