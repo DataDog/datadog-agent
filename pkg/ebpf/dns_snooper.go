@@ -160,7 +160,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 		s.statKeeper.ProcessPacketInfo(pktInfo)
 	}
 
-	if pktInfo.type_ == SuccessfulResponse {
+	if pktInfo.pktType == SuccessfulResponse {
 		s.cache.Add(t, time.Now())
 	}
 }

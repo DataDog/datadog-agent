@@ -112,7 +112,7 @@ func (p *dnsParser) parseAnswerInto(
 	}
 
 	if dns.ResponseCode != 0 {
-		pktInfo.type_ = FailedResponse
+		pktInfo.pktType = FailedResponse
 		return nil
 	}
 
@@ -140,7 +140,7 @@ func (p *dnsParser) parseAnswerInto(
 	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
 	t.dns = string(domainQueried)
 
-	pktInfo.type_ = SuccessfulResponse
+	pktInfo.pktType = SuccessfulResponse
 	return nil
 }
 

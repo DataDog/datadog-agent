@@ -17,21 +17,24 @@ type dnsKey struct {
 	serverIP   util.Address
 	clientIP   util.Address
 	clientPort uint16
-	protocol   ConnectionType
+	// ConnectionType will be either TCP or UDP
+	protocol ConnectionType
 }
 
-// ConnectionType will be either TCP or UDP
+// DNSPacketType tells us whether the packet is a query or a reply (successful/failed)
 type DNSPacketType uint8
 
 const (
+	// SuccessfulResponse indicates that the response code of the DNS reply is 0
 	SuccessfulResponse DNSPacketType = iota
+	// FailedResponse indicates that the response code of the DNS reply is anything other than 0
 	FailedResponse
 )
 
 type dnsPacketInfo struct {
 	transactionID uint16
 	key           dnsKey
-	type_         DNSPacketType
+	pktType       DNSPacketType
 }
 
 type dnsStatKeeper struct {
@@ -57,7 +60,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo) {
 		return
 	}
 
-	if info.type_ == SuccessfulResponse {
+	if info.pktType == SuccessfulResponse {
 		stats.successfulResponses++
 	} else {
 		stats.failedResponses++
