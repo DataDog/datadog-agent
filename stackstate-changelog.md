@@ -1,5 +1,15 @@
 # StackState Agent v2 releases
 
+## 2.4.0 (2020-04-23)
+
+**Features**
+
+- StaticTopology check [(STAC-8524)](https://stackstate.atlassian.net/browse/STAC-8524) provides support to visualize the topology ingested through CSV files.
+    * Gathers Topology from CSV files and allows visualization of your ingested components and relations.
+
+- Enable Client Certificate Authentication for SAP integration check [(STAC-8396)](https://stackstate.atlassian.net/browse/STAC-8396).
+
+
 ## 2.3.1 (2020-04-03)
 
 **Bug**
