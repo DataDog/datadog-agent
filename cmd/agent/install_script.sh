@@ -73,13 +73,13 @@ fi
 if [ -n "$TESTING_YUM_URL" ]; then
   yum_url=$TESTING_YUM_URL
 else
-  yum_url="yum.${repo_url}"
+  yum_url="yum.${repository_url}"
 fi
 
 if [ -n "$TESTING_APT_URL" ]; then
   apt_url=$TESTING_APT_URL
 else
-  apt_url="apt.${repo_url}"
+  apt_url="apt.${repository_url}"
 fi
 
 upgrade=
@@ -183,7 +183,7 @@ if [ "$OS" = "RedHat" ]; then
     if [ "$agent_major_version" -eq 7 ]; then
       gpgkeys="https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
     else
-      gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public\n       https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
+      gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public\n       https://$yum_url/DATADOG_RPM_KEY_E09422B3.public"
     fi
 
     $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=0\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
@@ -254,16 +254,16 @@ elif [ "$OS" = "SUSE" ]; then
   if [ "$SUSE11" == "yes" ]; then
     # SUSE 11 special case
     if [ "$agent_major_version" -lt 7 ]; then
-      $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public https://${yum_url}/DATADOG_RPM_KEY.public
+      $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public "https://${yum_url}/DATADOG_RPM_KEY.public"
       $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY.public
     fi
-    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public
+    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public "https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
     $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public
   else
     if [ "$agent_major_version" -lt 7 ]; then
-      $sudo_cmd rpm --import https://${yum_url}/DATADOG_RPM_KEY.public
+      $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY.public"
     fi
-    $sudo_cmd rpm --import https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public
+    $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
   fi
 
   if [ "$agent_major_version" -eq 7 ]; then
