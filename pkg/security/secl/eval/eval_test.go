@@ -17,7 +17,7 @@ func parse(t *testing.T, expr string) (*RuleEvaluator, *ast.Rule, error) {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, true)
+	evaluator, err := RuleToEvaluator(rule, false)
 	if err != nil {
 		return nil, rule, err
 	}
@@ -91,6 +91,7 @@ func TestSimpleString(t *testing.T) {
 	event := &model.Event{
 		Process: model.Process{
 			Name: "/usr/bin/cat",
+			UID:  1,
 		},
 	}
 
@@ -102,6 +103,8 @@ func TestSimpleString(t *testing.T) {
 		{Expr: `process.name != "/usr/bin/cat"`, Expected: false},
 		{Expr: `process.name == "/usr/bin/cat"`, Expected: true},
 		{Expr: `process.name == "/usr/bin/vipw"`, Expected: false},
+		{Expr: `(process.name == "/usr/bin/cat" && process.uid == 0) && (process.name == "/usr/bin/cat" && process.uid == 0)`, Expected: false},
+		{Expr: `(process.name == "/usr/bin/cat" && process.uid == 1) && (process.name == "/usr/bin/cat" && process.uid == 1)`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -391,37 +394,39 @@ func TestPartial(t *testing.T) {
 	}
 
 	tests := []struct {
-		Expr     string
-		Field    string
-		Expected bool
+		Expr          string
+		Field         string
+		IsDiscrimator bool
 	}{
-		{Expr: `true || process.name == "/usr/bin/cat"`, Field: "process.name", Expected: true},
-		{Expr: `false || process.name == "/usr/bin/cat"`, Field: "process.name", Expected: false},
-		{Expr: `true || process.name == "abc"`, Field: "process.name", Expected: true},
-		{Expr: `false || process.name == "abc"`, Field: "process.name", Expected: true},
-		{Expr: `true && process.name == "/usr/bin/cat"`, Field: "process.name", Expected: false},
-		{Expr: `false && process.name == "/usr/bin/cat"`, Field: "process.name", Expected: false},
-		{Expr: `true && process.name == "abc"`, Field: "process.name", Expected: true},
-		{Expr: `false && process.name == "abc"`, Field: "process.name", Expected: false},
-		{Expr: `open.filename == "test1" && process.name == "/usr/bin/cat"`, Field: "process.name", Expected: false},
-		{Expr: `open.filename == "test1" && process.name != "/usr/bin/cat"`, Field: "process.name", Expected: true},
-		{Expr: `open.filename == "test1" || process.name == "/usr/bin/cat"`, Field: "process.name", Expected: true},
-		{Expr: `open.filename == "test1" || process.name != "/usr/bin/cat"`, Field: "process.name", Expected: true},
-		{Expr: `open.filename == "test1" && !(process.name == "/usr/bin/cat")`, Field: "process.name", Expected: true},
-		{Expr: `open.filename == "test1" && !(process.name != "/usr/bin/cat")`, Field: "process.name", Expected: false},
-		{Expr: `open.filename == "test1" && (process.name =~ "/usr/bin/*" )`, Field: "process.name", Expected: false},
-		{Expr: `open.filename == "test1" && process.name =~ "ab*" `, Field: "process.name", Expected: true},
-		{Expr: `open.filename == "test1" && process.name == open.filename`, Field: "process.name", Expected: true},
-		{Expr: `open.filename =~ "test1" && process.name == "abc"`, Field: "process.name", Expected: true},
-		{Expr: `open.filename in [ "test1", "test2" ] && (process.name == open.filename)`, Field: "process.name", Expected: true},
-		{Expr: `open.filename in [ "test1", "test2" ] && process.name == "abc"`, Field: "process.name", Expected: true},
-		{Expr: `!(open.filename in [ "test1", "test2" ]) && process.name == "abc"`, Field: "process.name", Expected: true},
-		{Expr: `!(open.filename in [ "test1", "xyz" ]) && process.name == "abc"`, Field: "process.name", Expected: true},
-		{Expr: `!(open.filename in [ "test1", "xyz" ] && true) && process.name == "abc"`, Field: "process.name", Expected: true},
-		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && process.name == "abc"`, Field: "process.name", Expected: true},
-		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "process.name", Expected: false},
-		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "open.filename", Expected: true},
-		{Expr: `(open.filename not in [ "test1", "xyz" ] && true) && !(process.name == "abc")`, Field: "open.filename", Expected: false},
+		{Expr: `true || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `false || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscrimator: true},
+		{Expr: `true || process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `false || process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `true && process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscrimator: true},
+		{Expr: `false && process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscrimator: true},
+		{Expr: `true && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `false && process.name == "abc"`, Field: "process.name", IsDiscrimator: true},
+		{Expr: `open.filename == "test1" && process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscrimator: true},
+		{Expr: `open.filename == "test1" && process.name != "/usr/bin/cat"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `open.filename == "test1" || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `open.filename == "test1" || process.name != "/usr/bin/cat"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `open.filename == "test1" && !(process.name == "/usr/bin/cat")`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `open.filename == "test1" && !(process.name != "/usr/bin/cat")`, Field: "process.name", IsDiscrimator: true},
+		{Expr: `open.filename == "test1" && (process.name =~ "/usr/bin/*" )`, Field: "process.name", IsDiscrimator: true},
+		{Expr: `open.filename == "test1" && process.name =~ "ab*" `, Field: "process.name", IsDiscrimator: false},
+		{Expr: `open.filename == "test1" && process.name == open.filename`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `open.filename =~ "test1" && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `open.filename in [ "test1", "test2" ] && (process.name == open.filename)`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `open.filename in [ "test1", "test2" ] && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `!(open.filename in [ "test1", "test2" ]) && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `!(open.filename in [ "test1", "xyz" ]) && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `!(open.filename in [ "test1", "xyz" ] && true) && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "process.name", IsDiscrimator: true},
+		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "open.filename", IsDiscrimator: false},
+		{Expr: `(open.filename not in [ "test1", "xyz" ] && true) && !(process.name == "abc")`, Field: "open.filename", IsDiscrimator: true},
+		{Expr: `open.filename == open.filename`, Field: "open.filename", IsDiscrimator: false},
+		{Expr: `open.filename != open.filename`, Field: "open.filename", IsDiscrimator: true},
 	}
 
 	for _, test := range tests {
@@ -430,13 +435,13 @@ func TestPartial(t *testing.T) {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
 
-		result, err := evaluator.PartialEval(&Context{Event: event}, test.Field)
+		result, err := evaluator.IsDiscrimator(&Context{Event: event}, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
 		}
 
-		if result != test.Expected {
-			t.Fatalf("expected result `%t` for `%s`not found, got `%t`\n%s", test.Expected, test.Field, result, test.Expr)
+		if result != test.IsDiscrimator {
+			t.Fatalf("expected result `%t` for `%s`not found, got `%t`\n%s", test.IsDiscrimator, test.Field, result, test.Expr)
 		}
 	}
 }
@@ -445,6 +450,44 @@ func BenchmarkComplex(b *testing.B) {
 	event := &model.Event{
 		Process: model.Process{
 			Name: "/usr/bin/ls",
+			UID:  1,
+		},
+	}
+
+	ctx := &Context{
+		Event: event,
+	}
+
+	base := `(process.name == "/usr/bin/ls" && process.uid == 1)`
+	var exprs []string
+
+	for i := 0; i != 100; i++ {
+		exprs = append(exprs, base)
+	}
+
+	expr := strings.Join(exprs, " && ")
+
+	rule, err := ast.ParseRule(expr)
+	if err != nil {
+		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+	}
+
+	evaluator, err := RuleToEvaluator(rule, false)
+	if err != nil {
+		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+	}
+
+	for i := 0; i < b.N; i++ {
+		if evaluator.Eval(ctx) != true {
+			b.Fatal("unexpected result")
+		}
+	}
+}
+
+func BenchmarkPartial(b *testing.B) {
+	event := &model.Event{
+		Process: model.Process{
+			Name: "abc",
 			UID:  1,
 		},
 	}
@@ -473,6 +516,8 @@ func BenchmarkComplex(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		evaluator.Eval(ctx)
+		if ok, _ := evaluator.IsDiscrimator(ctx, "process.name"); ok {
+			b.Fatal("unexpected result")
+		}
 	}
 }
