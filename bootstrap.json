@@ -11,7 +11,7 @@
             "golang.org/x/tools/go/gcexportdata",
             "github.com/golangci/golangci-lint",
             "github.com/frapposelli/wwhrd",
-            "github.com/clamoriniere/modvendor",
+            "github.com/goware/modvendor",
             "github.com/shuLhan/go-bindata/cmd/go-bindata"
         ],
         "golang.org/x/tools/go/ast/astutil": {
@@ -57,12 +57,11 @@
             "type": "go"
         },
         "github.com/frapposelli/wwhrd": {
-            "version": "0.2.4",
-            "cmd": "./tools/licenses/install-wwhrd.sh $BOOTSTRAPPED_VERSION",
-            "type": "shell"
+            "version": "v0.2.4",
+            "type": "go"
         },
-        "github.com/clamoriniere/modvendor": {
-            "version": "master",
+        "github.com/goware/modvendor": {
+            "version": "892bf4ecb805b052575eb45070a60f9db471df8e",
             "type": "go"
         }
     }
