@@ -125,8 +125,12 @@ func (gu *GardenUtil) ListContainers() ([]*containers.Container, error) {
 	}
 
 	for _, container := range cList {
-		if container.State != containers.ContainerActiveState || !providers.ContainerImpl().ContainerExists(container.ID) {
+		if container.State != containers.ContainerActiveState {
 			log.Debugf("Container %s not in state %s, skipping", container.ID[:12], containers.ContainerActiveState)
+			continue
+		}
+		if !providers.ContainerImpl().ContainerExists(container.ID) {
+			log.Debugf("Container %s not found, skipping", container.ID[:12])
 			continue
 		}
 		limits, err := providers.ContainerImpl().GetContainerLimits(container.ID)
@@ -146,8 +150,12 @@ func (gu *GardenUtil) UpdateContainerMetrics(cList []*containers.Container) erro
 		return fmt.Errorf("could not fetch container metrics: %s", err)
 	}
 	for _, container := range cList {
-		if container.State != containers.ContainerActiveState || !providers.ContainerImpl().ContainerExists(container.ID) {
+		if container.State != containers.ContainerActiveState {
 			log.Debugf("Container %s not in state %s, skipping", container.ID[:12], containers.ContainerActiveState)
+			continue
+		}
+		if !providers.ContainerImpl().ContainerExists(container.ID) {
+			log.Debugf("Container %s not found, skipping", container.ID[:12])
 			continue
 		}
 
