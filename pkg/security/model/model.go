@@ -7,9 +7,8 @@ import (
 
 	"bytes"
 	"encoding/binary"
-
-	"github.com/iovisor/gobpf/bcc"
 )
+import "unsafe"
 
 var byteOrder binary.ByteOrder
 
@@ -64,7 +63,7 @@ type Event struct {
 func (e *DentryEventRaw) UnmarshalBinary(data []byte) error {
 	e.Pidns = byteOrder.Uint64(data[0:8])
 	e.TimestampRaw = byteOrder.Uint64(data[8:16])
-	binary.Read(bytes.NewBuffer(data[16:80]), bcc.GetHostByteOrder(), &e.TTYNameRaw)
+	binary.Read(bytes.NewBuffer(data[16:80]), byteOrder, &e.TTYNameRaw)
 	e.Pid = byteOrder.Uint32(data[80:84])
 	e.Tid = byteOrder.Uint32(data[84:88])
 	e.UID = byteOrder.Uint32(data[88:92])
@@ -85,7 +84,7 @@ func (e *DentryEventRaw) UnmarshalBinary(data []byte) error {
 func (e *SetAttrRaw) UnmarshalBinary(data []byte) error {
 	e.Pidns = byteOrder.Uint64(data[0:8])
 	e.TimestampRaw = byteOrder.Uint64(data[8:16])
-	binary.Read(bytes.NewBuffer(data[16:80]), bcc.GetHostByteOrder(), &e.TTYNameRaw)
+	binary.Read(bytes.NewBuffer(data[16:80]), byteOrder, &e.TTYNameRaw)
 	e.Pid = byteOrder.Uint32(data[80:84])
 	e.Tid = byteOrder.Uint32(data[84:88])
 	e.UID = byteOrder.Uint32(data[88:92])
@@ -102,6 +101,18 @@ func (e *SetAttrRaw) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func getHostByteOrder() binary.ByteOrder {
+	var i int32 = 0x01020304
+	u := unsafe.Pointer(&i)
+	pb := (*byte)(u)
+	b := *pb
+	if b == 0x04 {
+		return binary.LittleEndian
+	}
+
+	return binary.BigEndian
+}
+
 func init() {
-	byteOrder = bcc.GetHostByteOrder()
+	byteOrder = getHostByteOrder()
 }
