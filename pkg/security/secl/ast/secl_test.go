@@ -7,8 +7,8 @@ import (
 	"github.com/alecthomas/participle/lexer"
 )
 
-func printRule(t *testing.T, r *Rule) {
-	b, err := json.MarshalIndent(r, "", "  ")
+func print(t *testing.T, i interface{}) {
+	b, err := json.MarshalIndent(i, "", "  ")
 	if err != nil {
 		t.Error(err)
 	}
@@ -29,7 +29,7 @@ func TestCompareNumbers(t *testing.T) {
 		t.Error(err)
 	}
 
-	printRule(t, rule)
+	print(t, rule)
 }
 
 func TestCompareSimpleIdent(t *testing.T) {
@@ -38,7 +38,7 @@ func TestCompareSimpleIdent(t *testing.T) {
 		t.Error(err)
 	}
 
-	printRule(t, rule)
+	print(t, rule)
 }
 
 func TestCompareCompositeIdent(t *testing.T) {
@@ -47,7 +47,7 @@ func TestCompareCompositeIdent(t *testing.T) {
 		t.Error(err)
 	}
 
-	printRule(t, rule)
+	print(t, rule)
 }
 
 func TestCompareString(t *testing.T) {
@@ -56,7 +56,7 @@ func TestCompareString(t *testing.T) {
 		t.Error(err)
 	}
 
-	printRule(t, rule)
+	print(t, rule)
 }
 
 func TestCompareComplex(t *testing.T) {
@@ -65,7 +65,7 @@ func TestCompareComplex(t *testing.T) {
 		t.Error(err)
 	}
 
-	printRule(t, rule)
+	print(t, rule)
 }
 func TestExprAt(t *testing.T) {
 	rule, err := ParseRule(`process.name != "/usr/bin/vipw" && open.pathname == "/etc/passwd" && (open.mode == O_TRUNC || open.mode == O_CREAT || open.mode == O_WRONLY)`)
@@ -82,7 +82,7 @@ func TestBoolAnd(t *testing.T) {
 		t.Error(err)
 	}
 
-	printRule(t, rule)
+	print(t, rule)
 }
 
 func TestInArrayString(t *testing.T) {
@@ -91,7 +91,7 @@ func TestInArrayString(t *testing.T) {
 		t.Error(err)
 	}
 
-	printRule(t, rule)
+	print(t, rule)
 }
 
 func TestInArrayInteger(t *testing.T) {
@@ -100,5 +100,32 @@ func TestInArrayInteger(t *testing.T) {
 		t.Error(err)
 	}
 
-	printRule(t, rule)
+	print(t, rule)
+}
+
+func TestMacroList(t *testing.T) {
+	macro, err := ParseMacro(`[ 1, 2, 3 ]`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, macro)
+}
+
+func TestMacroPrimary(t *testing.T) {
+	macro, err := ParseMacro(`true`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, macro)
+}
+
+func TestMacroExpression(t *testing.T) {
+	macro, err := ParseMacro(`1 in [ 1, 2, 3 ]`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, macro)
 }
