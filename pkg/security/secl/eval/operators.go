@@ -156,7 +156,7 @@ func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	}
 }
 
-func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool, opts *Opts, state *State) *BoolEvaluator {
+func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opts, state *State) *BoolEvaluator {
 	var isPartialLeaf bool
 	if a.Field != "" && a.Field != opts.Field {
 		isPartialLeaf = true
@@ -200,7 +200,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool, 
 	}
 }
 
-func IntArrayContains(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts, state *State) *BoolEvaluator {
+func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state *State) *BoolEvaluator {
 	var isPartialLeaf bool
 	if a.Field != "" && a.Field != opts.Field {
 		isPartialLeaf = true

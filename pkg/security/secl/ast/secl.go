@@ -10,19 +10,21 @@ import (
 	"github.com/alecthomas/participle/lexer/ebnf"
 )
 
+var (
+	seclLexer = lexer.Must(ebnf.New(`
+Ident = (alpha | "_") { "_" | alpha | digit | "." } .
+String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
+Int = [ "-" | "+" ] digit { digit } .
+Punct = "!"…"/" | ":"…"@" | "["…` + "\"`\"" + ` | "{"…"~" .
+Whitespace = ( " " | "\t" ) { " " | "\t" } .
+alpha = "a"…"z" | "A"…"Z" .
+digit = "0"…"9" .
+any = "\u0000"…"\uffff" .
+`))
+)
+
 // Parse a SECL rule.
 func ParseRule(expr string) (*Rule, error) {
-	seclLexer := lexer.Must(ebnf.New(`
-	Ident = (alpha | "_") { "_" | alpha | digit | "." } .
-	String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-	Int = [ "-" | "+" ] digit { digit } .
-	Punct = "!"…"/" | ":"…"@" | "["…` + "\"`\"" + ` | "{"…"~" .
-	Whitespace = ( " " | "\t" ) { " " | "\t" } .
-	alpha = "a"…"z" | "A"…"Z" .
-	digit = "0"…"9" .
-	any = "\u0000"…"\uffff" .
-	`))
-
 	parser, err := participle.Build(&Rule{},
 		participle.Lexer(seclLexer),
 		participle.Elide("Whitespace"),
@@ -54,6 +56,33 @@ func (r *Rule) ExprAt(pos lexer.Position) string {
 	str += strings.Repeat(" ", pos.Column-1)
 	str += "^"
 	return str
+}
+
+func ParseMacro(expr string) (*Macro, error) {
+	parser, err := participle.Build(&Macro{},
+		participle.Lexer(seclLexer),
+		participle.Elide("Whitespace"),
+		participle.Unquote("String"))
+	if err != nil {
+		return nil, err
+	}
+
+	macro := &Macro{}
+
+	err = parser.Parse(bytes.NewBufferString(expr), macro)
+	if err != nil {
+		return nil, err
+	}
+
+	return macro, nil
+}
+
+type Macro struct {
+	Pos lexer.Position
+
+	Expression *Expression `@@`
+	Array      *Array      `| @@`
+	Primary    *Primary    `| @@`
 }
 
 type BooleanExpression struct {
@@ -122,4 +151,5 @@ type Array struct {
 
 	Strings []string `"[" @String { "," @String } "]"`
 	Numbers []int    `| "[" @Int { "," @Int } "]"`
+	Ident   *string  `| @Ident`
 }

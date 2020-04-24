@@ -87,7 +87,7 @@ func (a *Agent) LoadPolicies() error {
 					return errors.Wrap(err, "invalid rule")
 				}
 
-				evaluator, err := eval.RuleToEvaluator(astRule, a.config.Debug)
+				evaluator, err := eval.RuleToEvaluator(astRule, nil, a.config.Debug)
 				if err != nil {
 					return err
 				}

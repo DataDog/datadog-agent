@@ -47,7 +47,12 @@ type State struct {
 }
 
 type Opts struct {
-	Field string
+	Field  string
+	Macros map[string]*MacroEvaluator
+}
+
+type MacroEvaluator struct {
+	Value interface{}
 }
 
 type BoolEvaluator struct {
@@ -77,16 +82,12 @@ type StringEvaluator struct {
 	IsPartialLeaf bool
 }
 
-type StringArrayEvaluator struct {
+type StringArray struct {
 	Values []string
 }
 
-type IntArrayEvaluator struct {
+type IntArray struct {
 	Values []int
-}
-
-type ArrayEvaluator struct {
-	Value *ast.Array
 }
 
 type AstToEvalError struct {
@@ -221,14 +222,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 
 			switch unary := unary.(type) {
 			case *StringEvaluator:
-				nextStringArray, ok := next.(*StringArrayEvaluator)
+				nextStringArray, ok := next.(*StringArray)
 				if !ok {
 					return nil, nil, pos, NewTypeError(pos, reflect.Array)
 				}
 
 				return StringArrayContains(unary, nextStringArray, *obj.ArrayComparison.Op == "notin", opts, state), nil, obj.Pos, nil
 			case *IntEvaluator:
-				nextIntArray, ok := next.(*IntArrayEvaluator)
+				nextIntArray, ok := next.(*IntArray)
 				if !ok {
 					return nil, nil, pos, NewTypeError(pos, reflect.Array)
 				}
@@ -298,21 +299,12 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 				}
 				return nil, nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op)
 			}
-
 		} else {
 			return unary, nil, pos, nil
 		}
 
 	case *ast.ArrayComparison:
-		if len(obj.Array.Numbers) != 0 {
-			ints := obj.Array.Numbers
-			sort.Ints(ints)
-			return &IntArrayEvaluator{Values: ints}, nil, obj.Pos, nil
-		} else if len(obj.Array.Strings) != 0 {
-			strings := obj.Array.Strings
-			sort.Strings(strings)
-			return &StringArrayEvaluator{Values: strings}, nil, obj.Pos, nil
-		}
+		return nodeToEvaluator(obj.Array, opts, state)
 
 	case *ast.ScalarComparison:
 		return nodeToEvaluator(obj.Next, opts, state)
@@ -358,6 +350,12 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 				return accessor, nil, obj.Pos, nil
 			}
 
+			if opts.Macros != nil {
+				if macro, ok := opts.Macros[*obj.Ident]; ok {
+					return macro.Value, nil, obj.Pos, nil
+				}
+			}
+
 			accessor, tags, err := GetAccessor(*obj.Ident)
 			if err != nil {
 				return nil, nil, obj.Pos, err
@@ -380,6 +378,22 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 		default:
 			return nil, nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("unknown primary '%s'", reflect.TypeOf(obj)))
 		}
+	case *ast.Array:
+		if len(obj.Numbers) != 0 {
+			ints := obj.Numbers
+			sort.Ints(ints)
+			return &IntArray{Values: ints}, nil, obj.Pos, nil
+		} else if len(obj.Strings) != 0 {
+			strings := obj.Strings
+			sort.Strings(strings)
+			return &StringArray{Values: strings}, nil, obj.Pos, nil
+		} else if obj.Ident != nil {
+			if opts.Macros != nil {
+				if macro, ok := opts.Macros[*obj.Ident]; ok {
+					return macro.Value, nil, obj.Pos, nil
+				}
+			}
+		}
 	}
 
 	return nil, nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
@@ -394,9 +408,50 @@ func (r *RuleEvaluator) IsDiscrimator(ctx *Context, field string) (bool, error) 
 	return !eval(ctx), nil
 }
 
-func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
+func MacroToEvaluator(macro *ast.Macro, opts *Opts, state *State) (*MacroEvaluator, error) {
+	var eval interface{}
+	var err error
+
+	switch {
+	case macro.Expression != nil:
+		eval, _, _, err = nodeToEvaluator(macro.Expression, opts, state)
+	case macro.Array != nil:
+		eval, _, _, err = nodeToEvaluator(macro.Array, opts, state)
+	case macro.Primary != nil:
+		eval, _, _, err = nodeToEvaluator(macro.Primary, opts, state)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &MacroEvaluator{
+		Value: eval,
+	}, nil
+}
+
+func macroEvaluators(macros map[string]*ast.Macro, field string, state *State) (map[string]*MacroEvaluator, error) {
+	m := make(map[string]*MacroEvaluator)
+	for name, macro := range macros {
+		eval, err := MacroToEvaluator(macro, &Opts{Field: field}, state)
+		if err != nil {
+			return nil, err
+		}
+		m[name] = eval
+	}
+
+	return m, nil
+}
+
+func RuleToEvaluator(rule *ast.Rule, macros map[string]*ast.Macro, debug bool) (*RuleEvaluator, error) {
 	state := NewState()
-	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{}, state)
+
+	m, err := macroEvaluators(macros, "", state)
+	if err != nil {
+		return nil, err
+	}
+
+	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{Macros: m}, state)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +468,14 @@ func RuleToEvaluator(rule *ast.Rule, debug bool) (*RuleEvaluator, error) {
 	// if we see this discriminator for the selected parameter, we can skip the evaluation of the whole rule.
 	partialEval := make(map[string]func(ctx *Context) bool)
 	for field := range state.fields {
-		pEval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{Field: field}, NewState())
+		state = NewState()
+
+		m, err := macroEvaluators(macros, field, state)
+		if err != nil {
+			return nil, err
+		}
+
+		pEval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{Field: field, Macros: m}, state)
 		if err != nil {
 			return nil, err
 		}

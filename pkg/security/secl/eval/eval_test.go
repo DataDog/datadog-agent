@@ -11,13 +11,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
-func parse(t *testing.T, expr string, debug bool) (*RuleEvaluator, *ast.Rule, error) {
+func parse(t *testing.T, expr string, macros map[string]*ast.Macro, debug bool) (*RuleEvaluator, *ast.Rule, error) {
 	rule, err := ast.ParseRule(expr)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, debug)
+	evaluator, err := RuleToEvaluator(rule, macros, debug)
 	if err != nil {
 		return nil, rule, err
 	}
@@ -28,13 +28,13 @@ func parse(t *testing.T, expr string, debug bool) (*RuleEvaluator, *ast.Rule, er
 func eval(t *testing.T, event *model.Event, expr string) (bool, *ast.Rule, error) {
 	ctx := &Context{Event: event}
 
-	evaluator, rule, err := parse(t, expr, false)
+	evaluator, rule, err := parse(t, expr, nil, false)
 	if err != nil {
 		return false, rule, err
 	}
 	r1 := evaluator.Eval(ctx)
 
-	evaluator, _, err = parse(t, expr, true)
+	evaluator, _, err = parse(t, expr, nil, true)
 	if err != nil {
 		return false, rule, err
 	}
@@ -382,7 +382,7 @@ func TestComplex(t *testing.T) {
 
 func TestTags(t *testing.T) {
 	expr := `process.name != "/usr/bin/vipw" && open.filename == "/etc/passwd"`
-	evaluator, _, err := parse(t, expr, false)
+	evaluator, _, err := parse(t, expr, nil, false)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -441,7 +441,7 @@ func TestPartial(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		evaluator, _, err := parse(t, test.Expr, false)
+		evaluator, _, err := parse(t, test.Expr, nil, false)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -454,6 +454,95 @@ func TestPartial(t *testing.T) {
 		if result != test.IsDiscrimator {
 			t.Fatalf("expected result `%t` for `%s`not found, got `%t`\n%s", test.IsDiscrimator, test.Field, result, test.Expr)
 		}
+	}
+}
+
+func TestMacroList(t *testing.T) {
+	expr := `[ "/etc/shadow", "/etc/password" ]`
+
+	macro, err := ast.ParseMacro(expr)
+	if err != nil {
+		t.Fatalf("%s\n%s", err, expr)
+	}
+
+	macros := map[string]*ast.Macro{
+		"list": macro,
+	}
+
+	expr = `"/etc/shadow" in list`
+	evaluator, _, err := parse(t, expr, macros, false)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+	}
+
+	event := &model.Event{}
+	if !evaluator.Eval(&Context{Event: event}) {
+		t.Fatalf("should return true")
+	}
+}
+
+func TestMacroExpression(t *testing.T) {
+	expr := `open.filename in [ "/etc/shadow", "/etc/passwd" ]`
+
+	macro, err := ast.ParseMacro(expr)
+	if err != nil {
+		t.Fatalf("%s\n%s", err, expr)
+	}
+
+	macros := map[string]*ast.Macro{
+		"is_passwd": macro,
+	}
+
+	expr = `process.name == "httpd" && is_passwd`
+	evaluator, _, err := parse(t, expr, macros, false)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+	}
+
+	event := &model.Event{
+		Process: model.Process{
+			Name: "httpd",
+		},
+		Open: model.OpenSyscall{
+			Filename: "/etc/passwd",
+		},
+	}
+	if !evaluator.Eval(&Context{Event: event}) {
+		t.Fatalf("should return true")
+	}
+}
+
+func TestMacroPartial(t *testing.T) {
+	expr := `open.filename in [ "/etc/shadow", "/etc/passwd" ]`
+
+	macro, err := ast.ParseMacro(expr)
+	if err != nil {
+		t.Fatalf("%s\n%s", err, expr)
+	}
+
+	macros := map[string]*ast.Macro{
+		"is_passwd": macro,
+	}
+
+	expr = `is_passwd`
+	evaluator, _, err := parse(t, expr, macros, false)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+	}
+
+	event := &model.Event{
+		Open: model.OpenSyscall{
+			Filename: "/etc/hosts",
+		},
+	}
+
+	result, err := evaluator.IsDiscrimator(&Context{Event: event}, "open.filename")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !result {
+		t.Fatal("should be a discriminator")
 	}
 }
 
@@ -483,7 +572,7 @@ func BenchmarkComplex(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, false)
+	evaluator, err := RuleToEvaluator(rule, nil, false)
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -521,7 +610,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, false)
+	evaluator, err := RuleToEvaluator(rule, nil, false)
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
