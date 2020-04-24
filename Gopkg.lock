@@ -39,15 +39,24 @@
   revision = "bbe0f8da39b3c59d42217afcc79019c754dabdfb"
 
 [[projects]]
+<<<<<<< HEAD
   branch = "mehedi.bakht/add-fields-for-dns-latency"
   digest = "1:37adccf4ca014eed08e68bd4805f971f3250b6393d9922182ffd9db203291dc5"
+=======
+  digest = "1:89ebe70cd4d774d58d36fb74335411a7984843512d509b85e95431bb9d62b280"
+>>>>>>> master
   name = "github.com/DataDog/agent-payload"
   packages = [
     "gogen",
     "process",
   ]
   pruneopts = ""
+<<<<<<< HEAD
   revision = "f7c635fe88635be9b9c81865edd041df3f29c829"
+=======
+  revision = "13d2aa7ab86f680fbc915c06a6ca13869dd9645f"
+  version = "4.31.0"
+>>>>>>> master
 
 [[projects]]
   digest = "1:e9846ece10d1701db72a5add936bb9edc81353cdccb19be27078ca32f6c3f5d8"

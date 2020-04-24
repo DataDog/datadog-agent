@@ -70,6 +70,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.IsSet(key(spNS, "enable_conntrack")) {
 		a.EnableConntrack = config.Datadog.GetBool(key(spNS, "enable_conntrack"))
 	}
+	if config.Datadog.IsSet(key(spNS, "conntrack_ignore_enobufs")) {
+		a.ConntrackIgnoreENOBUFS = config.Datadog.GetBool(key(spNS, "conntrack_ignore_enobufs"))
+	}
 	if s := config.Datadog.GetInt(key(spNS, "conntrack_max_state_size")); s > 0 {
 		a.ConntrackMaxStateSize = s
 	}
@@ -312,10 +315,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Used to override container source auto-detection.
-	// "docker", "ecs_fargate", "kubelet", etc
-	if containerSource := config.Datadog.GetString(key(ns, "container_source")); containerSource != "" {
-		util.SetContainerSource(containerSource)
+	// Used to override container source auto-detection
+	// and to enable multiple collector sources if needed.
+	// "docker", "ecs_fargate", "kubelet", "kubelet docker", etc.
+	if sources := config.Datadog.GetStringSlice(key(ns, "container_source")); len(sources) > 0 {
+		util.SetContainerSources(sources)
 	}
 
 	// Pull additional parameters from the global config file.

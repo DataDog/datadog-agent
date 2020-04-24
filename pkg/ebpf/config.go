@@ -67,6 +67,11 @@ type Config struct {
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
+	// ConntrackIgnoreENOBUFS: When set to true, the system-probe will ignore ENOBUF errors
+	// and continue processing Conntrack events when/if the netlink recv buffer overruns.
+	// Enabling this can have an adverse effect on CPU utilization for high-throughput systems.
+	ConntrackIgnoreENOBUFS bool
+
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
 

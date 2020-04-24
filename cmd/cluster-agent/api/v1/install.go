@@ -168,7 +168,7 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("Fetching metadata map on all pods of the node %s", nodeName)
 	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
-		log.Errorf("Could not collect the service map for %s, err: %v", nodeName, errNodes)
+		log.Warnf("Could not collect the service map for %s, err: %v", nodeName, errNodes)
 	}
 	slcB, err := json.Marshal(metaList)
 	if err != nil {

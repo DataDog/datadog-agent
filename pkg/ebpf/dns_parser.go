@@ -83,7 +83,7 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 	for _, layer := range p.layers {
 		switch layer {
 		case layers.LayerTypeIPv4:
-			if pktInfo.type_ == Query {
+			if pktInfo.pktType == Query {
 				pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv4Payload.SrcIP)
 				pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
 			} else {
@@ -91,7 +91,7 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 				pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
 			}
 		case layers.LayerTypeIPv6:
-			if pktInfo.type_ == Query {
+			if pktInfo.pktType == Query {
 				pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv6Payload.SrcIP)
 				pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
 			} else {
@@ -100,7 +100,7 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 
 			}
 		case layers.LayerTypeUDP:
-			if pktInfo.type_ == Query {
+			if pktInfo.pktType == Query {
 				pktInfo.key.clientPort = uint16(p.udpPayload.SrcPort)
 			} else {
 				pktInfo.key.clientPort = uint16(p.udpPayload.DstPort)
@@ -108,7 +108,7 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 			}
 			pktInfo.key.protocol = UDP
 		case layers.LayerTypeTCP:
-			if pktInfo.type_ == Query {
+			if pktInfo.pktType == Query {
 				pktInfo.key.clientPort = uint16(p.tcpPayload.SrcPort)
 			} else {
 				pktInfo.key.clientPort = uint16(p.tcpPayload.DstPort)
@@ -139,12 +139,12 @@ func (p *dnsParser) parseAnswerInto(
 
 	// Only consider responses
 	if !dns.QR {
-		pktInfo.type_ = Query
+		pktInfo.pktType = Query
 		return nil
 	}
 
 	if dns.ResponseCode != 0 {
-		pktInfo.type_ = FailedResponse
+		pktInfo.pktType = FailedResponse
 		return nil
 	}
 
@@ -162,7 +162,7 @@ func (p *dnsParser) parseAnswerInto(
 	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
 	t.dns = string(domainQueried)
 
-	pktInfo.type_ = SuccessfulResponse
+	pktInfo.pktType = SuccessfulResponse
 	return nil
 }
 

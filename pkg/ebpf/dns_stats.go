@@ -20,22 +20,26 @@ type dnsKey struct {
 	serverIP   util.Address
 	clientIP   util.Address
 	clientPort uint16
-	protocol   ConnectionType
+	// ConnectionType will be either TCP or UDP
+	protocol ConnectionType
 }
 
-// ConnectionType will be either TCP or UDP
+// DNSPacketType tells us whether the packet is a query or a reply (successful/failed)
 type DNSPacketType uint8
 
 const (
+	// SuccessfulResponse indicates that the response code of the DNS reply is 0
 	SuccessfulResponse DNSPacketType = iota
+	// FailedResponse indicates that the response code of the DNS reply is anything other than 0
 	FailedResponse
+	// Query
 	Query
 )
 
 type dnsPacketInfo struct {
 	transactionID uint16
 	key           dnsKey
-	type_         DNSPacketType
+	pktType       DNSPacketType
 }
 
 type stateKey struct {
@@ -84,7 +88,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	defer d.mux.Unlock()
 	sk := stateKey{key: info.key, id: info.transactionID}
 
-	if info.type_ == Query {
+	if info.pktType == Query {
 		if len(d.state) == d.maxSize {
 			return
 		}
@@ -113,10 +117,10 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		stats.timeouts++
 	} else {
 		latency /= 1000 // convert to microseconds
-		if info.type_ == SuccessfulResponse {
+		if info.pktType == SuccessfulResponse {
 			stats.successfulResponses++
 			stats.successLatency += uint64(latency)
-		} else if info.type_ == FailedResponse {
+		} else if info.pktType == FailedResponse {
 			stats.failedResponses++
 			stats.failureLatency += uint64(latency)
 		}

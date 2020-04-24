@@ -191,6 +191,7 @@ func TestDNSOverTCPSnoopingWithSuccessfulResposne(t *testing.T) {
 
 	queryIP, queryPort, rep := sendDNSQuery(t, "golang.org", validDNSServerIP, TCP)
 	require.NotNil(t, rep)
+
 	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
 
 	for _, r := range rep.Answer {

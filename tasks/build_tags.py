@@ -31,9 +31,10 @@ ALL_TAGS = set([
 ])
 
 # PUPPY_TAGS lists the tags needed when building the Puppy Agent
-PUPPY_TAGS = set([
+PUPPY_TAGS = [
     "zlib",
-])
+    "systemd",
+]
 
 PROCESS_ONLY_TAGS = [
     "fargateprocess",
@@ -74,10 +75,10 @@ def get_default_build_tags(puppy=False, process=False, arch="x64"):
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    if puppy:
-        return PUPPY_TAGS
-
     include = ["all"]
+    if puppy:
+        include = PUPPY_TAGS
+
     exclude = [] if sys.platform.startswith("linux") else LINUX_ONLY_TAGS
     # if not process agent, ignore process only tags
     if not process:
