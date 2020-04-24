@@ -11,13 +11,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
-func parse(t *testing.T, expr string) (*RuleEvaluator, *ast.Rule, error) {
+func parse(t *testing.T, expr string, debug bool) (*RuleEvaluator, *ast.Rule, error) {
 	rule, err := ast.ParseRule(expr)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, false)
+	evaluator, err := RuleToEvaluator(rule, debug)
 	if err != nil {
 		return nil, rule, err
 	}
@@ -26,14 +26,25 @@ func parse(t *testing.T, expr string) (*RuleEvaluator, *ast.Rule, error) {
 }
 
 func eval(t *testing.T, event *model.Event, expr string) (bool, *ast.Rule, error) {
-	evaluator, rule, err := parse(t, expr)
+	ctx := &Context{Event: event}
+
+	evaluator, rule, err := parse(t, expr, false)
 	if err != nil {
 		return false, rule, err
 	}
+	r1 := evaluator.Eval(ctx)
 
-	ctx := &Context{Event: event}
+	evaluator, _, err = parse(t, expr, true)
+	if err != nil {
+		return false, rule, err
+	}
+	r2 := evaluator.Eval(ctx)
 
-	return evaluator.Eval(ctx), rule, nil
+	if r1 != r2 {
+		t.Fatalf("different result for non-debug and debug evalutators with rule `%s`", expr)
+	}
+
+	return r1, rule, nil
 }
 
 func TestStringError(t *testing.T) {
@@ -371,7 +382,7 @@ func TestComplex(t *testing.T) {
 
 func TestTags(t *testing.T) {
 	expr := `process.name != "/usr/bin/vipw" && open.filename == "/etc/passwd"`
-	evaluator, _, err := parse(t, expr)
+	evaluator, _, err := parse(t, expr, false)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -430,7 +441,7 @@ func TestPartial(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		evaluator, _, err := parse(t, test.Expr)
+		evaluator, _, err := parse(t, test.Expr, false)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
