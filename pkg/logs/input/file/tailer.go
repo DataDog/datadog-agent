@@ -37,6 +37,7 @@ type Tailer struct {
 	decodedOffset int64
 
 	path           string
+	fullpath       string
 	file           *os.File
 	isWildcardPath bool
 	tags           []string
@@ -118,39 +119,6 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	return nil
 }
 
-// setup sets up the file tailer
-func (t *Tailer) setup(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.path)
-	if err != nil {
-		return err
-	}
-
-	// adds metadata to enable users to filter logs by filename
-	t.tags = t.buildTailerTags()
-
-	log.Info("Opening ", t.path)
-	f, err := openFile(fullpath)
-	if err != nil {
-		return err
-	}
-
-	t.file = f
-	ret, _ := f.Seek(offset, whence)
-	t.readOffset = ret
-	t.decodedOffset = ret
-
-	return nil
-}
-
-// buildTailerTags groups the file tag, directory (if wildcard path) and user tags
-func (t *Tailer) buildTailerTags() []string {
-	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
-	if t.isWildcardPath {
-		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.path)))
-	}
-	return tags
-}
-
 // readForever lets the tailer tail the content of a file
 // until it is closed or the tailer is stopped.
 func (t *Tailer) readForever() {
@@ -161,24 +129,22 @@ func (t *Tailer) readForever() {
 			// stop reading data from file
 			return
 		default:
-			// keep reading data from file
-			inBuf := make([]byte, 4096)
-			n, err := t.file.Read(inBuf)
-			if err != nil && err != io.EOF {
-				// an unexpected error occurred, stop the tailor
-				t.source.Status.Error(err)
-				log.Error("Unexpected error occurred while reading file: ", err)
+			if err := t.read(); err != nil {
 				return
 			}
-			if n == 0 {
-				// wait for new data to come
-				t.wait()
-				continue
-			}
-			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-			t.incrementReadOffset(n)
+			// wait for new data to come
+			t.wait()
 		}
 	}
+}
+
+// buildTailerTags groups the file tag, directory (if wildcard path) and user tags
+func (t *Tailer) buildTailerTags() []string {
+	tags := []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
+	if t.isWildcardPath {
+		tags = append(tags, fmt.Sprintf("dirname:%s", filepath.Dir(t.path)))
+	}
+	return tags
 }
 
 // StartFromBeginning lets the tailer start tailing its file
@@ -254,9 +220,21 @@ func (t *Tailer) incrementReadOffset(n int) {
 	atomic.AddInt64(&t.readOffset, int64(n))
 }
 
+// SetReadOffset sets the position of the last byte read in the
+// file
+func (t *Tailer) SetReadOffset(off int64) {
+	atomic.StoreInt64(&t.readOffset, off)
+}
+
 // GetReadOffset returns the position of the last byte read in file
 func (t *Tailer) GetReadOffset() int64 {
 	return atomic.LoadInt64(&t.readOffset)
+}
+
+// SetDecodedOffset sets the position of the last byte decoded in the
+// file
+func (t *Tailer) SetDecodedOffset(off int64) {
+	atomic.StoreInt64(&t.decodedOffset, off)
 }
 
 // shouldTrackOffset returns whether the tailer should track the file offset or not
