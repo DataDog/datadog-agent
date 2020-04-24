@@ -228,7 +228,7 @@ func (ctr *realConntracker) Close() {
 	ctr.exceededSizeLogLimit.Close()
 }
 
-func (ctr *realConntracker) loadInitialState(events chan Event) {
+func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 
 	for e := range events {

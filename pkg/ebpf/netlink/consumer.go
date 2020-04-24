@@ -107,7 +107,7 @@ func NewConsumer(procRoot string) (*Consumer, error) {
 	return c, nil
 }
 
-func (c *Consumer) Events() chan Event {
+func (c *Consumer) Events() <-chan Event {
 	output := make(chan Event, outputBuffer)
 
 	c.do(false, func() {
@@ -118,7 +118,7 @@ func (c *Consumer) Events() chan Event {
 	return output
 }
 
-func (c *Consumer) DumpTable(family uint8) chan Event {
+func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	output := make(chan Event, outputBuffer)
 
 	c.do(false, func() {

@@ -2123,7 +2123,7 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "0:"
+  digest = "1:f27698f7ae7864893ebcfb843e44d821263ac1dcf0ba1d5c2353f9d319a2f28d"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/kubelet/remote/fake",
@@ -2284,6 +2284,7 @@
     "github.com/lxn/walk",
     "github.com/lxn/win",
     "github.com/mdlayher/netlink",
+    "github.com/mdlayher/netlink/nlenc",
     "github.com/mholt/archiver",
     "github.com/miekg/dns",
     "github.com/openshift/api/quota/v1",
@@ -2312,7 +2313,6 @@
     "github.com/urfave/negroni",
     "github.com/vishvananda/netns",
     "golang.org/x/mobile/asset",
-    "golang.org/x/net/bpf",
     "golang.org/x/net/context",
     "golang.org/x/net/proxy",
     "golang.org/x/sys/unix",
