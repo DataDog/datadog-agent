@@ -18,7 +18,10 @@ var (
 	errMissingNestedAttr = errors.New("netlink message is missing nested attribute")
 )
 
-// Adapted from from https://github.com/mdlayher/netlink/blob/master/attribute.go
+// Based on https://github.com/mdlayher/netlink/blob/master/attribute.go
+// The main optimizations here are:
+// * We don't allocate a slice for the field data when we're scanning the attributes;
+// * The AttributeScanner itself can be reused when scanning nested fields and decoding different messages;
 type AttributeScanner struct {
 	level  int
 	frames []*NestedFrame

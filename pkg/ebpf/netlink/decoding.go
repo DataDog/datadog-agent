@@ -35,32 +35,26 @@ const (
 
 var scanner = NewAttributeScanner()
 
-// TODO: In a future PR we should stop using go-conntrack `Con` altogether
-// and decode message into the same format we use in the conntracker state cache
-func DecodeEvent(e Event) ([]ct.Con, error) {
-	// Propagate socket error upstream
-	// TODO: I think it might make more sense for the caller to check the Error field before
-	// caling DecodeEvent. In that case there is no confusion whether the error returned here
-	// is a socket error or a decoding error
-	if e.Error != nil {
-		return nil, e.Error
-	}
+// TODO: Replace the intermediate ct.Con object by the same format we use in the cache
+func DecodeEvent(e Event) []ct.Con {
+	msgs := e.Messages()
+	conns := make([]ct.Con, 0, len(msgs))
 
-	conns := make([]ct.Con, 0, len(e.Reply))
-
-	for _, msg := range e.Reply {
-		c := new(ct.Con)
+	for _, msg := range msgs {
+		c := &ct.Con{}
 		scanner.ResetTo(msg.Data)
-
 		err := unmarshalCon(scanner, c)
 		if err != nil {
 			log.Debugf("error decoding netlink message: %s", err)
 			continue
 		}
-		conns = append(conns, ct.Con(*c))
+		conns = append(conns, *c)
 	}
 
-	return conns, nil
+	// Return buffers to the pool
+	e.Done()
+
+	return conns
 }
 
 func unmarshalCon(s *AttributeScanner, c *ct.Con) error {

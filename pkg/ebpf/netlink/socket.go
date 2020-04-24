@@ -16,8 +16,11 @@ import (
 var _ netlink.Socket = &Socket{}
 var errNotImplemented = errors.New("not implemented")
 
-// Socket is pretty much a copy of netlink.conn without the unnecessary cruft
-// and a some optimizations based on our use-case (see comments below)
+// Socket is an implementation of netlink.Socket (github.com/mdlayher/netlink)
+// It's mostly a copy of the original implementation (netlink.conn) with a few optimizations:
+// * We don't MSG_PEEK as we use a pre-allocated buffer large enough to fit any netlink message;
+// * We use a buffer pool for the message data;
+// * We remove all the synchronization & go-channels cruft and bring it upstream in a cheaper/simpler way (Consumer)
 type Socket struct {
 	fd   *os.File
 	pid  uint32
@@ -114,7 +117,7 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 
 	// Copy data to a buffer that can be used upstream
 	var b []byte
-	if n < os.Getpagesize() {
+	if n < msgBufferSize {
 		b = s.pool.Get()
 	} else {
 		b = make([]byte, n)
@@ -202,6 +205,7 @@ func (s *Socket) recvmsg(b []byte, flags int) (int, error) {
 	return n, err
 }
 
+// Copied from github.com/mdlayher/netlink
 // ready indicates readiness based on the value of err.
 func ready(err error) bool {
 	// When a socket is in non-blocking mode, we might see

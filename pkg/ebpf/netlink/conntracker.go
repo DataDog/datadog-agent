@@ -107,8 +107,7 @@ func NewConntracker(procRoot string, maxStateSize int) (Conntracker, error) {
 }
 
 func newConntrackerOnce(procRoot string, maxStateSize int) (Conntracker, error) {
-	logger := getLogger()
-	consumer, err := NewConsumer(procRoot, logger)
+	consumer, err := NewConsumer(procRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -231,14 +230,16 @@ func (ctr *realConntracker) Close() {
 
 func (ctr *realConntracker) loadInitialState(events chan Event) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
+
 	for e := range events {
-		conns, err := DecodeEvent(e)
-		if err != nil {
-			log.Warnf("error decoding conntrack event during initial load: %s", err)
-			continue
+		// TODO: Add error handling
+		if err := e.Error(); err != nil {
+			log.Errorf("netlink error: %s", err)
 		}
+
+		conns := DecodeEvent(e)
 		for _, c := range conns {
-			if ctr.len(state) < ctr.maxStateSize && isNAT(c) {
+			if len(ctr.state) < ctr.maxStateSize && isNAT(c) {
 				if k, ok := formatKey(c.Origin); ok {
 					ctr.state[k] = formatIPTranslation(c.Reply, gen)
 				}
@@ -247,7 +248,6 @@ func (ctr *realConntracker) loadInitialState(events chan Event) {
 				}
 			}
 		}
-		e.Done()
 	}
 }
 
@@ -294,19 +294,20 @@ func (ctr *realConntracker) logExceededSize() {
 
 func (ctr *realConntracker) run() {
 	events := ctr.consumer.Events()
+
+	// This is just an example how we can integrate the new Consumer code with the existing code
+	// TODO: Add termination logic
 	go func() {
 		for e := range events {
-			conns, err := DecodeEvent(e)
-			if err != nil {
-				log.Errorf("error decoding conntrack event: %s", err)
-				e.Done()
-				continue
+			if err := e.Error(); err != nil {
+				// TODO: Add error handling
+				log.Errorf("netlink error: %s", err)
 			}
 
+			conns := DecodeEvent(e)
 			for _, c := range conns {
 				ctr.register(c)
 			}
-			e.Done()
 		}
 	}()
 
