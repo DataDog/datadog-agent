@@ -127,26 +127,27 @@ func TestGetInstallMethod(t *testing.T) {
 
 	// ------------- Without file, the install is considered private
 	installMethod := getInstallMethod(installInfoPath)
-	require.Equal(t, "undefined", installMethod.Name)
+	require.Equal(t, "undefined", installMethod.ToolVersion)
 	assert.Nil(t, installMethod.Tool)
-	assert.Nil(t, installMethod.Version)
+	assert.Nil(t, installMethod.InstallerVersion)
 
 	// ------------- with a correct file
 	var installInfoContent = `
 ---
 install_method:
-  name: chef-15
-  version: datadog-cookbook-4.2.1
+  tool_version: chef-15
+  tool: chef
+  installer_version: datadog-cookbook-4.2.1
 `
 	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
 
 	// the install is considered coming from chef (example)
 	installMethod = getInstallMethod(installInfoPath)
-	require.Equal(t, "chef-15", installMethod.Name)
+	require.Equal(t, "chef-15", installMethod.ToolVersion)
 	assert.NotNil(t, installMethod.Tool)
 	require.Equal(t, "chef", *installMethod.Tool)
-	assert.NotNil(t, installMethod.Version)
-	require.Equal(t, "datadog-cookbook-4.2.1", *installMethod.Version)
+	assert.NotNil(t, installMethod.InstallerVersion)
+	require.Equal(t, "datadog-cookbook-4.2.1", *installMethod.InstallerVersion)
 
 	// ------------- with an incorrect file
 	installInfoContent = `
@@ -160,7 +161,7 @@ install_methodlol:
 
 	// the parsing does not occur and the install is considered private
 	installMethod = getInstallMethod(installInfoPath)
-	require.Equal(t, "undefined", installMethod.Name)
+	require.Equal(t, "undefined", installMethod.ToolVersion)
 	assert.Nil(t, installMethod.Tool)
-	assert.Nil(t, installMethod.Version)
+	assert.Nil(t, installMethod.InstallerVersion)
 }

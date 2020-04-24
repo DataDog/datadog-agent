@@ -8,7 +8,6 @@ package host
 import (
 	"os"
 	"path"
-	"strings"
 	"sync"
 	"time"
 
@@ -36,8 +35,9 @@ const packageCachePrefix = "host"
 
 type installInfo struct {
 	Method struct {
-		Name    string `yaml:"name"`
-		Version string `yaml:"version"`
+		Tool             string `yaml:"tool"`
+		ToolVersion      string `yaml:"tool_version"`
+		InstallerVersion string `yaml:"installer_version"`
 	} `yaml:"install_method"`
 }
 
@@ -258,20 +258,15 @@ func getInstallMethod(infoPath string) *InstallMethod {
 	if err != nil {
 		// consider install info as private
 		return &InstallMethod{
-			Name:    "undefined",
-			Tool:    nil,
-			Version: nil,
+			ToolVersion:      "undefined",
+			Tool:             nil,
+			InstallerVersion: nil,
 		}
 	}
 
-	tool := install.Method.Name
-	if dashIndex := strings.Index(tool, "-"); dashIndex >= 0 {
-		tool = tool[0:dashIndex]
-	}
-
 	return &InstallMethod{
-		Name:    install.Method.Name,
-		Tool:    &tool,
-		Version: &install.Method.Version,
+		ToolVersion:      install.Method.ToolVersion,
+		Tool:             &install.Method.Tool,
+		InstallerVersion: &install.Method.InstallerVersion,
 	}
 }

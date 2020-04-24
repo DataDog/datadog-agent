@@ -347,9 +347,9 @@ fi
 # Creating or overriding the install information
 echo "---
 install_method:
-  name: install_script
   tool: install_script
-  version: $install_script_version
+  tool_version: install_script
+  installer_version: $install_script_version
 " > $ETCDIR/install_info
 
 # On SUSE 11, sudo service datadog-agent start fails (because /sbin is not in a base user's path)
