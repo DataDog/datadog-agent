@@ -9,9 +9,10 @@ Dogstatsd doesn't support reading malformed or incomplete packets from the netwo
 that this parameter should not be set at a value less than the size of your metrics name + tags
 + a few other bytes. In most of the Dogstatsd clients, the maximum size of a packet is configurable.
 
-This default value rarely has to be changed, however, if you have report of a lot of malformed
-or incomplete packets received by the Dogstatsd server, you can try increasing the size of this
-buffer to ensure that your clients are not creating too large packets.
+If you have reports of malformed or incomplete packets received by the Dogstatsd server, it could mean
+that the clients are sending packets larger than the size of this buffer. If the maximum size of the
+packets sent by the clients can't be changed, consider increasing the size of `dogstatsd_buffer_size`
+as a fallback.
 
 The default value of this field is `8192`.
 
