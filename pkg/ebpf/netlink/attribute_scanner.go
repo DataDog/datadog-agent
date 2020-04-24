@@ -18,18 +18,21 @@ var (
 	errMissingNestedAttr = errors.New("netlink message is missing nested attribute")
 )
 
-// Based on https://github.com/mdlayher/netlink/blob/master/attribute.go
-// The main optimizations here are:
-// * We don't allocate a slice for the field data when we're scanning the attributes;
-// * The AttributeScanner itself can be reused when scanning nested fields and decoding different messages;
+// Based on https://github.com/mdlayher/netlink/blob/c558cf25207e57bc9cc026d2dd69e2ea2f6abd0e/attribute.go
+// The purpose of AttributeScanner is to provide an iterator API to traverse each field in a netlink message.
+// The same AttributeScanner instance can be used multiple times with different messages by calling ResetTo().
+// When scanning a netlink message, every time we "enter" in a nested field, a new NestedFrame is created.
 type AttributeScanner struct {
-	level  int
+	// level of nesting we're currently in
+	level int
+	// when we're scanning nested fields, each field level will have an associated frame
 	frames []*NestedFrame
 }
 
 // A NestedFrame encapsulates the decoding information of a certain nesting level
 type NestedFrame struct {
-	a netlink.Attribute
+	// The current attribute we're looking at
+	attr netlink.Attribute
 
 	// The slice of input bytes and its iterator index.
 	b []byte
@@ -41,6 +44,7 @@ type NestedFrame struct {
 
 // NewAttributeScanner returns a new instance of AttributeScanner
 func NewAttributeScanner() *AttributeScanner {
+	// We pre-allocate 3 frames since the Conntrack messages have 3 levels of nesting
 	scanner := &AttributeScanner{
 		frames: make([]*NestedFrame, 3),
 	}
@@ -52,10 +56,10 @@ func NewAttributeScanner() *AttributeScanner {
 	return scanner
 }
 
-// Next advances the decoder to the next netlink attribute.  It returns false
-// when no more attributes are present, or an error was encountered.
+// Next advances the scanner to the next netlink attribute (within the same NestedFrame).
+// It returns false when no more attributes are present, or an error was encountered.
 func (s *AttributeScanner) Next() bool {
-	f := s.currentFrame()
+	f := s.frame()
 
 	if f.err != nil {
 		// Hit an error, stop iteration.
@@ -73,10 +77,10 @@ func (s *AttributeScanner) Next() bool {
 	}
 
 	// Advance the pointer by at least one header's length.
-	if int(f.a.Length) < nlaHeaderLen {
+	if int(f.attr.Length) < nlaHeaderLen {
 		f.i += nlaHeaderLen
 	} else {
-		f.i += nlaAlign(int(f.a.Length))
+		f.i += nlaAlign(int(f.attr.Length))
 	}
 
 	return true
@@ -89,40 +93,30 @@ func (s *AttributeScanner) Next() bool {
 // the Nested and NetByteOrder flags. These can be obtained by calling TypeFlags.
 func (s *AttributeScanner) Type() uint16 {
 	// Mask off any flags stored in the high bits.
-	return s.currentFrame().a.Type & attrTypeMask
+	return s.frame().attr.Type & attrTypeMask
 }
 
 // Err returns the first error encountered by the scanner.
 func (s *AttributeScanner) Err() error {
-	return s.currentFrame().err
+	return s.frame().err
 }
 
 // Bytes returns the raw bytes of the current Attribute's data.
 func (s *AttributeScanner) Bytes() []byte {
-	return s.currentFrame().a.Data
+	return s.frame().attr.Data
 }
 
 // Nested executes the given function within a new NestedFrame
 func (s *AttributeScanner) Nested(fn func() error) {
-	if len(s.frames) <= s.level {
-		s.frames = append(s.frames, &NestedFrame{})
-	}
-
-	prev := s.currentFrame()
-
-	// Create new frame
-	s.level++
-	current := s.currentFrame()
-	current.b = prev.a.Data
-	current.i = 0
-	current.err = nil
+	// Push new frame
+	s.push()
 
 	// Execute function within new frame
 	err := fn()
-	prev.err = err
 
-	// Pop frame
-	s.level--
+	// Pop frame and assign error
+	s.pop()
+	s.frame().err = err
 }
 
 // ResetTo makes the current AttributeScanner ready for another netlink message
@@ -145,8 +139,35 @@ func (s *AttributeScanner) ResetTo(data []byte) error {
 		return errMessageTooShort
 	}
 
-	s.currentFrame().b = data[offset:]
+	s.frame().b = data[offset:]
 	return nil
+}
+
+// frame returns the current frame
+func (s *AttributeScanner) frame() *NestedFrame {
+	return s.frames[s.level]
+}
+
+// push a new nested frame
+func (s *AttributeScanner) push() {
+	prev := s.frame()
+
+	// Create a new frame object if necessary
+	if len(s.frames) <= s.level {
+		s.frames = append(s.frames, &NestedFrame{})
+	}
+
+	s.level++
+
+	current := s.frame()
+	current.b = prev.attr.Data
+	current.i = 0
+	current.err = nil
+}
+
+// pop nested frame
+func (s *AttributeScanner) pop() {
+	s.level--
 }
 
 // Nearly identical to netlink.Attribute.Unmarshal, but the Data field of the current
@@ -158,30 +179,26 @@ func (f *NestedFrame) unmarshal() error {
 		return errInvalidAttribute
 	}
 
-	f.a.Length = nlenc.Uint16(b[0:2])
-	f.a.Type = nlenc.Uint16(b[2:4])
+	f.attr.Length = nlenc.Uint16(b[0:2])
+	f.attr.Type = nlenc.Uint16(b[2:4])
 
-	if int(f.a.Length) > len(b) {
+	if int(f.attr.Length) > len(b) {
 		return errInvalidAttribute
 	}
 
 	switch {
 	// No length, no data
-	case f.a.Length == 0:
-		f.a.Data = nil
+	case f.attr.Length == 0:
+		f.attr.Data = nil
 	// Not enough length for any data
-	case int(f.a.Length) < nlaHeaderLen:
+	case int(f.attr.Length) < nlaHeaderLen:
 		return errInvalidAttribute
 	// Data present
-	case int(f.a.Length) >= nlaHeaderLen:
-		f.a.Data = b[nlaHeaderLen:f.a.Length]
+	case int(f.attr.Length) >= nlaHeaderLen:
+		f.attr.Data = b[nlaHeaderLen:f.attr.Length]
 	}
 
 	return nil
-}
-
-func (s *AttributeScanner) currentFrame() *NestedFrame {
-	return s.frames[s.level]
 }
 
 func messageOffset(data []byte) int {
