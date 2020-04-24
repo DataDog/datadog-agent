@@ -269,7 +269,8 @@ if [ "$upgrade" ]; then
   if [ -e $LEGACY_CONF ]; then
     # try to import the config file from the previous version
     icmd="datadog-agent import $LEGACY_ETCDIR $ETCDIR"
-    $sudo_cmd "$icmd" || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
+    # shellcheck disable=SC2086
+    $sudo_cmd $icmd || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
     # fix file owner and permissions since the script moves around some files
     $sudo_cmd chown -R dd-agent:dd-agent $ETCDIR
     $sudo_cmd find $ETCDIR/ -type f -exec chmod 640 {} \;
