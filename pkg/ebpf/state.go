@@ -208,6 +208,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 		if dnsStats, ok := ns.clients[id].dnsStats[key]; ok {
 			conn.DNSSuccessfulResponses = dnsStats.successfulResponses
+			conn.DNSFailedResponses = dnsStats.failedResponses
 		}
 		seen[key] = struct{}{}
 	}
@@ -273,6 +274,7 @@ func (ns *networkState) storeDNSStats(stats map[dnsKey]dnsStats) {
 			// If we've seen DNS stats for this key already, lets combine the two
 			if prev, ok := client.dnsStats[key]; ok {
 				prev.successfulResponses += dns.successfulResponses
+				prev.failedResponses += dns.failedResponses
 				client.dnsStats[key] = prev
 			} else if len(client.dnsStats) >= ns.maxDNSStats {
 				ns.telemetry.dnsStatsDropped++

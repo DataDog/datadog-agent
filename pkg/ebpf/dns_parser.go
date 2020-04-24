@@ -56,55 +56,71 @@ func newDNSParser(collectDNStats bool) *dnsParser {
 	}
 }
 
-func (p *dnsParser) ParseInto(data []byte, t *translation, cKey *dnsKey) (uint16, error) {
+func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInfo) error {
 	err := p.decoder.DecodeLayers(data, &p.layers)
 
 	if p.decoder.Truncated {
-		return 0, errTruncated
+		return errTruncated
 	}
 
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	// If there is a DNS layer then it would be the last layer
 	if p.layers[len(p.layers)-1] != layers.LayerTypeDNS {
-		return 0, skippedPayload
+		return skippedPayload
 	}
 
-	if err := p.parseAnswerInto(p.dnsPayload, t); err != nil {
-		return 0, err
+	if err := p.parseAnswerInto(p.dnsPayload, t, pktInfo); err != nil {
+		return err
 	}
 
 	if !p.collectDNSStats {
-		return p.dnsPayload.ID, nil
+		return nil
 	}
 
 	for _, layer := range p.layers {
 		switch layer {
 		case layers.LayerTypeIPv4:
-			cKey.serverIP = util.AddressFromNetIP(p.ipv4Payload.SrcIP)
-			cKey.clientIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
+			pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv4Payload.SrcIP)
+			pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
 		case layers.LayerTypeIPv6:
-			cKey.serverIP = util.AddressFromNetIP(p.ipv6Payload.SrcIP)
-			cKey.clientIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
+			pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv6Payload.SrcIP)
+			pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
 		case layers.LayerTypeUDP:
-			cKey.clientPort = uint16(p.udpPayload.DstPort)
-			cKey.protocol = UDP
+			pktInfo.key.clientPort = uint16(p.udpPayload.DstPort)
+			pktInfo.key.protocol = UDP
 		case layers.LayerTypeTCP:
-			cKey.clientPort = uint16(p.tcpPayload.DstPort)
-			cKey.protocol = TCP
+			pktInfo.key.clientPort = uint16(p.tcpPayload.DstPort)
+			pktInfo.key.protocol = TCP
 		}
 	}
-	return p.dnsPayload.ID, nil
+	pktInfo.transactionID = p.dnsPayload.ID
+	return nil
 }
 
 // source: https://github.com/weaveworks/scope
-func (p *dnsParser) parseAnswerInto(dns *layers.DNS, t *translation) error {
-	// Only consider responses to singleton, A-record questions
-	if !dns.QR || dns.ResponseCode != 0 || len(dns.Questions) != 1 {
+func (p *dnsParser) parseAnswerInto(
+	dns *layers.DNS,
+	t *translation,
+	pktInfo *dnsPacketInfo,
+) error {
+	// Only consider responses
+	if !dns.QR {
 		return skippedPayload
 	}
+
+	if dns.ResponseCode != 0 {
+		pktInfo.pktType = FailedResponse
+		return nil
+	}
+
+	// Only consider responses to singleton, A-record questions
+	if dns.ResponseCode != 0 || len(dns.Questions) != 1 {
+		return skippedPayload
+	}
+
 	question := dns.Questions[0]
 	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
 		return skippedPayload
@@ -124,6 +140,7 @@ func (p *dnsParser) parseAnswerInto(dns *layers.DNS, t *translation) error {
 	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
 	t.dns = string(domainQueried)
 
+	pktInfo.pktType = SuccessfulResponse
 	return nil
 }
 

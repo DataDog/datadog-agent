@@ -25,6 +25,7 @@ func FormatConnection(conn ebpf.ConnectionStats) *model.Connection {
 		IpTranslation:          formatIPTranslation(conn.IPTranslation),
 		IntraHost:              conn.IntraHost,
 		DnsSuccessfulResponses: conn.DNSSuccessfulResponses,
+		DnsFailedResponses:     conn.DNSFailedResponses,
 	}
 }
 
