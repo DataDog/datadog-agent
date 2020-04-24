@@ -155,7 +155,7 @@ func (s *Socket) SendMessages(m []netlink.Message) error {
 }
 
 func (s *Socket) JoinGroup(group uint32) error {
-	return os.NewSyscallError("setsockopt", s.setSockoptInt(
+	return os.NewSyscallError("setsockopt", s.SetSockoptInt(
 		unix.SOL_NETLINK,
 		unix.NETLINK_ADD_MEMBERSHIP,
 		int(group),
@@ -163,14 +163,14 @@ func (s *Socket) JoinGroup(group uint32) error {
 }
 
 func (s *Socket) LeaveGroup(group uint32) error {
-	return os.NewSyscallError("setsockopt", s.setSockoptInt(
+	return os.NewSyscallError("setsockopt", s.SetSockoptInt(
 		unix.SOL_NETLINK,
 		unix.NETLINK_DROP_MEMBERSHIP,
 		int(group),
 	))
 }
 
-func (s *Socket) setSockoptInt(level, opt, value int) error {
+func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	// Value must be in range of a C integer.
 	if value < math.MinInt32 || value > math.MaxInt32 {
 		return unix.EINVAL
