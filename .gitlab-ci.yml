@@ -3438,6 +3438,7 @@ tag_release_7_manifests:
   <<: *docker_tag_job_definition
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7-manifests
+  when: manual
   needs:
     - tag_release_7_linux
     - tag_release_7_windows
