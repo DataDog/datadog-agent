@@ -2386,8 +2386,7 @@ docker_build_agent7_windows1809:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - fail_on_non_triggered_tag
-    - job: windows_msi_x64-a7
-      artifacts: false
+    - windows_msi_x64-a7
   <<: *skip_when_unwanted_on_7
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
@@ -2412,8 +2411,7 @@ docker_build_agent7_windows1809_jmx:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - fail_on_non_triggered_tag
-    - job: windows_msi_x64-a7
-      artifacts: false
+    - windows_msi_x64-a7
   <<: *skip_when_unwanted_on_7
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
@@ -2439,8 +2437,7 @@ docker_build_agent7_windows1909:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - fail_on_non_triggered_tag
-    - job: windows_msi_x64-a7
-      artifacts: false
+    - windows_msi_x64-a7
   <<: *skip_when_unwanted_on_7
   tags: ["runner:windows-docker", "windowsversion:1909"]
   variables:
@@ -2465,8 +2462,7 @@ docker_build_agent7_windows1909_jmx:
   before_script: [ "# noop" ] # Override top level entry
   needs:
     - fail_on_non_triggered_tag
-    - job: windows_msi_x64-a7
-      artifacts: false
+    - windows_msi_x64-a7
   <<: *skip_when_unwanted_on_7
   tags: ["runner:windows-docker", "windowsversion:1909"]
   variables:
