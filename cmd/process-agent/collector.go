@@ -66,10 +66,10 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 	}
 
 	forwarderOpts := forwarder.NewOptions(keysPerDomains(cfg.APIEndpoints))
-	forwarderOpts.EnableHealthChecking = false
+	forwarderOpts.DisableAPIKeyChecking = true
 
 	podForwarderOpts := forwarder.NewOptions(keysPerDomains(cfg.OrchestratorEndpoints))
-	podForwarderOpts.EnableHealthChecking = false
+	podForwarderOpts.DisableAPIKeyChecking = true
 
 	return Collector{
 		send:          make(chan checkPayload, cfg.QueueSize),

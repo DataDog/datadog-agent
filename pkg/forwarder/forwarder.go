@@ -154,19 +154,19 @@ var _ Forwarder = &DefaultForwarder{}
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
-	NumberOfWorkers      int
-	RetryQueueSize       int
-	EnableHealthChecking bool
-	KeysPerDomain        map[string][]string
+	NumberOfWorkers       int
+	RetryQueueSize        int
+	DisableAPIKeyChecking bool
+	KeysPerDomain         map[string][]string
 }
 
 // NewOptions creates new Options with default values
 func NewOptions(keysPerDomain map[string][]string) *Options {
 	return &Options{
-		NumberOfWorkers:      config.Datadog.GetInt("forwarder_num_workers"),
-		RetryQueueSize:       config.Datadog.GetInt("forwarder_retry_queue_max_size"),
-		EnableHealthChecking: true,
-		KeysPerDomain:        keysPerDomain,
+		NumberOfWorkers:       config.Datadog.GetInt("forwarder_num_workers"),
+		RetryQueueSize:        config.Datadog.GetInt("forwarder_retry_queue_max_size"),
+		DisableAPIKeyChecking: false,
+		KeysPerDomain:         keysPerDomain,
 	}
 }
 
@@ -189,10 +189,10 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		domainForwarders: map[string]*domainForwarder{},
 		keysPerDomains:   map[string][]string{},
 		internalState:    Stopped,
-	}
-
-	if options.EnableHealthChecking {
-		f.healthChecker = &forwarderHealth{keysPerDomains: options.KeysPerDomain}
+		healthChecker: &forwarderHealth{
+			keysPerDomains:        options.KeysPerDomain,
+			disableAPIKeyChecking: options.DisableAPIKeyChecking,
+		},
 	}
 
 	for domain, keys := range options.KeysPerDomain {
@@ -231,9 +231,7 @@ func (f *DefaultForwarder) Start() error {
 	log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
-	if f.healthChecker != nil {
-		f.healthChecker.Start()
-	}
+	f.healthChecker.Start()
 	f.internalState = Started
 	return nil
 }
@@ -281,9 +279,7 @@ func (f *DefaultForwarder) Stop() {
 		}
 	}
 
-	if f.healthChecker != nil {
-		f.healthChecker.Stop()
-	}
+	f.healthChecker.Stop()
 
 	f.healthChecker = nil
 	f.domainForwarders = map[string]*domainForwarder{}

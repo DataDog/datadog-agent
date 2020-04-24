@@ -165,7 +165,13 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
+	forwarderOpts := forwarder.NewOptions(keysPerDomain)
+	// If a cluster-agent looses the connectivity to DataDog, we still want it to remain ready so that its endpoint remains in the service because:
+	// * It is still able to serve metrics to the WPA controller and
+	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
+	// Serving stale data is better than serving no data at all.
+	forwarderOpts.DisableAPIKeyChecking = true
+	f := forwarder.NewDefaultForwarder(forwarderOpts)
 	f.Start()
 	s := serializer.NewSerializer(f)
 

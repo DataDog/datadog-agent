@@ -96,7 +96,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 	}
 
 	podForwarderOpts := forwarder.NewOptions(keysPerDomain)
-	podForwarderOpts.EnableHealthChecking = false
+	podForwarderOpts.DisableAPIKeyChecking = true
 
 	oc := &Controller{
 		unassignedPodLister:     podInformer.Lister(),

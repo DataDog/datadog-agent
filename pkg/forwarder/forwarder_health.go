@@ -48,12 +48,13 @@ func initForwarderHealthExpvars() {
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
 // unhealthy if the API keys are not longer valid
 type forwarderHealth struct {
-	health             *health.Handle
-	stop               chan bool
-	stopped            chan struct{}
-	timeout            time.Duration
-	keysPerDomains     map[string][]string
-	keysPerAPIEndpoint map[string][]string
+	health                *health.Handle
+	stop                  chan bool
+	stopped               chan struct{}
+	timeout               time.Duration
+	keysPerDomains        map[string][]string
+	keysPerAPIEndpoint    map[string][]string
+	disableAPIKeyChecking bool
 }
 
 func (fh *forwarderHealth) init() {
@@ -77,12 +78,20 @@ func (fh *forwarderHealth) init() {
 }
 
 func (fh *forwarderHealth) Start() {
+	if fh.disableAPIKeyChecking {
+		return
+	}
+
 	fh.health = health.RegisterReadiness("forwarder")
 	fh.init()
 	go fh.healthCheckLoop()
 }
 
 func (fh *forwarderHealth) Stop() {
+	if fh.disableAPIKeyChecking {
+		return
+	}
+
 	fh.health.Deregister()
 	fh.stop <- true
 	<-fh.stopped
