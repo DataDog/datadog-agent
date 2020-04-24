@@ -1,11 +1,13 @@
 package netlink
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,6 +21,10 @@ const (
 	netlinkCtNew   = uint32(1)
 	ipctnlMsgCtGet = 1
 	outputBuffer   = 100
+
+	// Minimum BPF sampling rate before we give up
+	// See ENOBUF handling below
+	minSamplingThreshold = 0.2
 )
 
 var msgBufferSize int
@@ -28,14 +34,16 @@ func init() {
 }
 
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
+var errMaxSamplingAttempts = errors.New("netlink socket creation: too many attempts")
 
 // Consumer is responsible for encapsulating all the logic of hooking into Conntrack
 // consuming [NEW] connection events, and exposing a stream of the NAT connections.
 type Consumer struct {
-	conn      *netlink.Conn
-	socket    *Socket
-	pool      *bufferPool
-	workQueue chan func()
+	conn         *netlink.Conn
+	socket       *Socket
+	pool         *bufferPool
+	workQueue    chan func()
+	samplingRate float64
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -74,30 +82,10 @@ func NewConsumer(procRoot string) (*Consumer, error) {
 	}
 	c.initWorker(procRoot)
 
-	// Create netlink socket within root namespace
 	var err error
 	c.do(true, func() {
-		c.socket, err = NewSocket(c.pool)
-		if err != nil {
-			return
-		}
-
-		c.conn = netlink.NewConn(c.socket, c.socket.pid)
-
-		// Sometimes the conntrack flushes are larger than the socket recv buffer capacity.
-		// This ensures that in case of buffer overrun the `recvmsg` call will *not*
-		// receive an ENOBUF.
-		// TODO: Handle ENOBUFs instead of disabling them
-		c.socket.SetSockoptInt(unix.SOL_NETLINK, unix.NETLINK_NO_ENOBUFS, 1)
-
-		// We also increase the socket buffer size to better handle bursts of events.
-		if err := setSocketBufferSize(netlinkBufferSize, c.conn); err != nil {
-			log.Errorf("error setting rcv buffer size for netlink socket: %s", err)
-		}
-
-		if size, err := getSocketBufferSize(c.conn); err == nil {
-			log.Debugf("rcv buffer size for netlink socket is %d bytes", size)
-		}
+		samplingRate := 1.0 // Start sampling everything
+		err = c.initNetlinkSocket(samplingRate)
 	})
 
 	if err != nil {
@@ -182,20 +170,96 @@ func (c *Consumer) do(sync bool, fn func()) {
 	<-done
 }
 
-// Based on of https://github.com/mdlayher/netlink/conn.go
-// In our context we don't care about multi-part messages in the sense
-// that is better to flush their parts to the output channel (and generate back-pressure)
-// instead of buffering the whole thing in memory. When dump is set to true we terminate
-// after processing the first multi-part message.
+func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
+	var err error
+
+	// This is a safeguard against too many attempts to re-create a socket
+	if samplingRate <= samplingThreshold {
+		return errMaxSamplingAttempts
+	}
+
+	c.socket, err = NewSocket(c.pool)
+	if err != nil {
+		return err
+	}
+
+	if err := setSocketBufferSize(netlinkBufferSize, c.conn); err != nil {
+		log.Errorf("error setting rcv buffer size for netlink socket: %s", err)
+	}
+
+	if size, err := getSocketBufferSize(c.conn); err == nil {
+		log.Debugf("rcv buffer size for netlink socket is %d bytes", size)
+	}
+
+	c.conn = netlink.NewConn(c.socket, c.socket.pid)
+
+	// Attach BPF sampling filter if necessary
+	c.samplingRate = samplingRate
+	if c.samplingRate >= 1.0 {
+		return nil
+	}
+
+	log.Info("attaching netlink BPF filter with sampling rate: %v", c.samplingRate)
+	sampler, _ := GenerateBPFSampler(c.samplingRate)
+	err = c.socket.SetBPF(sampler)
+	if err != nil {
+		return fmt.Errorf("failed to attach BPF filter: %w", err)
+	}
+
+	return nil
+}
+
+// receive netlink messages and flushes them to the Event channel.
+// This method gets called in two different contexts:
+//
+// - During system-probe startup, when we're loading all entries from the Conntrack table.
+// In this casee the `dump` param is set to true, and once we detect the end of the multi-part
+// message we stop calling socket.Receive() and close the output channel to signal upstream
+// consumers we're done.
+//
+// - When we're streaming new connection events from the netlink socket. In this case, `dump`
+// param is set to false, and only when we detect an EOF we close the output channel.
+// It's also worth noting that in the event of an ENOBUF error, we'll re-create a new netlink socket,
+// and attach a BPF sampler to it, to lower the the read throughput and save CPU.
 func (c *Consumer) receive(output chan Event, dump bool) {
 	for {
 		c.pool.Reset()
 		msgs, err := c.socket.Receive()
 		if err != nil {
-			if !isEOF(err) {
+			switch socketError(err) {
+			case errEOF:
+				// EOFs are usually indicative of normal program termination, so we simply exit
+				return
+			case errENOBUF:
+				// If we detect an ENOBUF, it means we're not coping with the netlink socket throughput
+				// and the receive buffer is overflowing. In that case we throw away the current socket
+				// and create a new one with a more aggressive sampling rate.
+				log.Warnf("netlink: detected enobuf. will re-create socket with a lower sampling rate.")
+				leaveErr := c.conn.LeaveGroup(netlinkCtNew)
+				if leaveErr != nil {
+					log.Errorf("netlink: error leaving group: %s", leaveErr)
+				}
+
+				c.socket.Close()
+				err := c.initNetlinkSocket(c.samplingRate / 2)
+				if err != nil {
+					log.Error("failed re-create netlink socket. exiting conntrack: %s", err)
+					return
+				}
+
+				// Additionally if the ENOBUF happened during the conntrack dump we just move on as there
+				// is no point re-attempting the table dump with a a lower sampling rate
+				if dump {
+					return
+				} else {
+					// re-subscribe netlinkCtNew messages
+					c.conn.JoinGroup(netlinkCtNew)
+					continue
+				}
+			default:
+				// Everything else is propagated upstream
 				output <- c.eventFor(nil, err)
 			}
-			return
 		}
 
 		for _, m := range msgs {
@@ -205,6 +269,7 @@ func (c *Consumer) receive(output chan Event, dump bool) {
 			}
 		}
 
+		// Skip multi-part "done" message
 		multiPartDone := len(msgs) > 0 && msgs[len(msgs)-1].Header.Type == netlink.Done
 		if multiPartDone {
 			msgs = msgs[:len(msgs)-1]
@@ -286,7 +351,20 @@ func checkMessage(m netlink.Message) error {
 	return nil
 }
 
-// TODO: Validate if there is a better way to check for EOF
-func isEOF(err error) bool {
-	return strings.Contains(err.Error(), "closed file")
+var (
+	errEOF    = errors.New("EOF")
+	errENOBUF = errors.New("ENOBUF")
+)
+
+// TODO: There is probably a more idiomatic way to do this
+func socketError(err error) error {
+	if strings.Contains(err.Error(), "closed file") {
+		return errEOF
+	}
+
+	if strings.Contains(err.Error(), "no buffer space") {
+		return errENOBUF
+	}
+
+	return err
 }

@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/mdlayher/netlink"
+	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -179,6 +180,24 @@ func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	var err error
 	ctrlErr := s.conn.Control(func(fd uintptr) {
 		err = unix.SetsockoptInt(int(fd), level, opt, value)
+	})
+	if ctrlErr != nil {
+		return ctrlErr
+	}
+
+	return err
+}
+
+// SetBPF attaches an assembled BPF program to the socket
+func (s *Socket) SetBPF(filter []bpf.RawInstruction) error {
+	prog := unix.SockFprog{
+		Len:    uint16(len(filter)),
+		Filter: (*unix.SockFilter)(unsafe.Pointer(&filter[0])),
+	}
+
+	var err error
+	ctrlErr := s.conn.Control(func(fd uintptr) {
+		err = unix.SetsockoptSockFprog(int(fd), unix.SOL_SOCKET, unix.SO_ATTACH_FILTER, &prog)
 	})
 	if ctrlErr != nil {
 		return ctrlErr
