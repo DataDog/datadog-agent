@@ -371,7 +371,6 @@ func contains(list []string, items ...string) bool {
 }
 
 func TestGetServiceLabel(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -473,7 +472,7 @@ func TestGetServiceLabel(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.testName, func(t *testing.T) {
-			assert.Equal(t, tc.expected, launcher.getServiceLabel(tc.pod, container))
+			assert.Equal(t, tc.expected, getServiceLabel(tc.pod, container))
 		})
 	}
 

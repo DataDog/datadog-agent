@@ -155,7 +155,7 @@ const (
 // getSource returns a new source for the container in pod.
 func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
-	standardServicelabel := l.getServiceLabel(pod, container)
+	standardServicelabel := getServiceLabel(pod, container)
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
 		if err != nil || len(configs) == 0 {
@@ -243,7 +243,7 @@ func (l *Launcher) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerSt
 
 //getServiceLabel returns the standard service label for container if present
 //Order of preference is first "tags.datadoghq.com/<container-name>.service" then "tags.datadoghq.com/service"
-func (l *Launcher) getServiceLabel(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+func getServiceLabel(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	if pod.Metadata.Labels != nil {
 		//container name should never be a zero value (?)
 		if containerServiceLabel, exists := pod.Metadata.Labels[fmt.Sprintf(podContainerLabelServiceFormat, container.Name)]; exists {
