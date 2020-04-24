@@ -1,13 +1,9 @@
 ## `dogstatsd_buffer_size`
 
-The `dogstatsd_buffer_size` parameter is indicating two things in Dogstatsd:
+The `dogstatsd_buffer_size` parameter is configuring two things in Dogstatsd:
 
 * how many bytes must be read each time the socket is read
 * how many bytes maximum the PacketAssembler should put into one packet
-
-Dogstatsd doesn't support reading malformed or incomplete packets from the network, meaning
-that this parameter should not be set at a value less than the size of your metrics name + tags
-+ a few other bytes. In most of the Dogstatsd clients, the maximum size of a packet is configurable.
 
 If you have reports of malformed or incomplete packets received by the Dogstatsd server, it could mean
 that the clients are sending packets larger than the size of this buffer. If the maximum size of the
@@ -18,8 +14,10 @@ The default value of this field is `8192`.
 
 ## `dogstatsd_packet_buffer_size` and `dogstatsd_packet_buffer_flush_timeout`
 
+**Please note that this is an internal configuration field subject to change (or to removal) without any notice**
+
 In order to batch the parsing of the metrics instead of parsing them one after the other every time
-a metric is received, Dogstatsd is using a PacketsBuffer to pack packets together.
+a metric is received, Dogstatsd is using a PacketsBuffer to group packets together.
 
 This configuration field represents how many packets the packets buffer is batching. Decreasing the
 size of this buffer will result in the packets buffer flushing more often the packets to the parser.
@@ -37,6 +35,8 @@ are an issue.
 
 ## dogstatsd_queue_size
 
+**Please note that this is an internal configuration field subject to change (or to removal) without any notice**
+
 This parameter represents how many packet sets flushed from the packets buffer to the parser could be
 buffered. The idea is to read as fast as possible on the socket and to store packets here if the rest
 of the pipeline is having slow-down for any reasons.
@@ -48,6 +48,8 @@ increase.
 The default value of this field is `1024`.
 
 ## dogstatsd_string_interner_size
+
+**Please note that this is an internal configuration field subject to change (or to removal) without any notice**
 
 Dogstatsd relies on the Go garbage-collector for its memory management.
 Garbage collection is not the most optimal solution in every cases, for instance
