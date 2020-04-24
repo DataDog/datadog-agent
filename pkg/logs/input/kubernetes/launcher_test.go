@@ -384,7 +384,33 @@ func TestGetServiceLabel(t *testing.T) {
 		expected string
 	}{
 		{
-			testName: "notZero",
+			testName: "hasContainerServiceLabel",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Labels: map[string]string{
+						"component":                      "kube-proxy",
+						"tags.datadoghq.com/foo.env":     "foo-production",
+						"tags.datadoghq.com/foo.service": "foo-agent",
+						"tags.datadoghq.com/foo.version": "1.1.0",
+						"tags.datadoghq.com/env":         "production",
+						"tags.datadoghq.com/service":     "dd-agent",
+						"tags.datadoghq.com/version":     "1.1.0",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "foo-agent",
+		},
+		{
+			testName: "hasOnlyStandardServiceLavel",
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
 					Name:      "fuz",
@@ -407,14 +433,31 @@ func TestGetServiceLabel(t *testing.T) {
 			expected: "dd-agent",
 		},
 		{
-			testName: "zero",
+			testName: "noLabels",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "",
+		},
+		{
+			testName: "labelsExistButNoService",
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
 					Name:      "fuz",
 					Namespace: "buu",
 					UID:       "baz",
 					Labels: map[string]string{
-						"component": "kube-proxy",
+						"tags.datadoghq.com/env": "kube-proxy",
 					},
 					Annotations: map[string]string{
 						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,

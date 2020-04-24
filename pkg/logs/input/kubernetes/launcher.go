@@ -12,12 +12,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 const (
@@ -146,10 +145,11 @@ func (l *Launcher) removeSource(service *service.Service) {
 
 const (
 	// kubernetesIntegration represents the name of the integration.
-	kubernetesIntegration   = "kubernetes"
-	podStandardLabelPrefix  = "tags.datadoghq.com/"
-	tagKeyService           = "service"
-	podStandardLabelService = podStandardLabelPrefix + tagKeyService
+	kubernetesIntegration          = "kubernetes"
+	podStandardLabelPrefix         = "tags.datadoghq.com/"
+	tagKeyService                  = "service"
+	podContainerLabelServiceFormat = podStandardLabelPrefix + "%s." + tagKeyService
+	podStandardLabelService        = podStandardLabelPrefix + tagKeyService
 )
 
 // getSource returns a new source for the container in pod.
@@ -162,8 +162,6 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 			return nil, fmt.Errorf("could not parse kubernetes annotation %v", annotation)
 		}
 		cfg = configs[0]
-		// fmt.Println(cfg.Service)
-		// cfg.Service = "test"
 		if cfg.Service == "" && standardServicelabel != "" {
 			cfg.Service = standardServicelabel
 		}
@@ -244,10 +242,20 @@ func (l *Launcher) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerSt
 }
 
 //getServiceLabel returns the standard service label for container if present
+//Order of preference is first "tags.datadoghq.com/<container-name>.service" then "tags.datadoghq.com/service"
 func (l *Launcher) getServiceLabel(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
-	if serviceLabel, exists := pod.Metadata.Labels[podStandardLabelService]; exists {
-		return serviceLabel
+	if pod.Metadata.Labels != nil {
+		//container name should never be a zero value (?)
+		if containerServiceLabel, exists := pod.Metadata.Labels[fmt.Sprintf(podContainerLabelServiceFormat, container.Name)]; exists {
+			return containerServiceLabel
+		}
+
+		if standardServiceLabel, exists := pod.Metadata.Labels[podStandardLabelService]; exists {
+			return standardServiceLabel
+		}
+
 	}
+
 	return ""
 }
 
