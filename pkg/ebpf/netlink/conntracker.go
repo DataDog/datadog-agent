@@ -25,9 +25,6 @@ const (
 	// generationLength must be greater than compactInterval to ensure we have multiple compactions per generation
 	generationLength = compactInterval + 30*time.Second
 
-	// netlink socket buffer size in bytes
-	netlinkBufferSize = 1024 * 1024
-
 	// stale conntrack TTL
 	staleConntrackTTL = time.Minute
 )
@@ -437,11 +434,6 @@ func createNetlinkSocket(name string, netns int, logger *stdlog.Logger, ignoreEN
 		// This ensures that in case of buffer overrun the `recvmsg` call will *not*
 		// receive an ENOBUF which is currently not handled properly by go-conntrack library.
 		nfct.Con.SetOption(netlink.NoENOBUFS, true)
-	}
-
-	// We also increase the socket buffer size to better handle bursts of events.
-	if err := setSocketBufferSize(netlinkBufferSize, nfct.Con); err != nil {
-		log.Errorf("error setting rcv buffer size for %s netlink socket: %s", name, err)
 	}
 
 	if size, err := getSocketBufferSize(nfct.Con); err == nil {
