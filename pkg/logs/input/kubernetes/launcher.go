@@ -155,26 +155,24 @@ const (
 // getSource returns a new source for the container in pod.
 func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
-	standardServicelabel := getServiceLabel(pod, container)
+	serviceLabel := getServiceLabel(pod, container)
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
 		if err != nil || len(configs) == 0 {
 			return nil, fmt.Errorf("could not parse kubernetes annotation %v", annotation)
 		}
 		cfg = configs[0]
-		if cfg.Service == "" && standardServicelabel != "" {
-			cfg.Service = standardServicelabel
-		}
+
 	} else {
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
 		shortImageName, err := l.getShortImageName(container)
 		if err != nil {
-			if standardServicelabel != "" {
+			if serviceLabel != "" {
 				cfg = &config.LogsConfig{
 					Source:  kubernetesIntegration,
-					Service: standardServicelabel,
+					Service: serviceLabel,
 				}
 			} else {
 				cfg = &config.LogsConfig{
@@ -183,10 +181,10 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 				}
 			}
 		} else {
-			if standardServicelabel != "" {
+			if serviceLabel != "" {
 				cfg = &config.LogsConfig{
 					Source:  shortImageName,
-					Service: standardServicelabel,
+					Service: serviceLabel,
 				}
 			} else {
 				cfg = &config.LogsConfig{
@@ -195,6 +193,10 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 				}
 			}
 		}
+	}
+
+	if cfg.Service == "" && serviceLabel != "" {
+		cfg.Service = serviceLabel
 	}
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(basePath, pod, container)
