@@ -170,8 +170,15 @@ func restartAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func getConfigSetting(w http.ResponseWriter, r *http.Request) {
-	setting := mux.Vars(r)["setting"]
 	w.Header().Set("Content-Type", "application/json")
+	setting := mux.Vars(r)["setting"]
+	if _, ok := map[string]bool{
+		// only allow whitelisted settings:
+		"apm_config.receiver_port": true,
+	}[setting]; !ok {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(w, `"error": "requested setting is not whitelisted"`)
+	}
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		setting: config.Datadog.Get(setting),
 	}); err != nil {

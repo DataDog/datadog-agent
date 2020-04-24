@@ -161,19 +161,19 @@ function loadStatus(page) {
               if (apmPort == null) {
                   apmPort = "8126";
               }
-              var url = "http://127.0.0.1:"+apmPort+"/status/html"
+              var url = "http://127.0.0.1:"+apmPort+"/debug/vars"
               $.ajax({
                 url: url,
                 type: "GET",
                 success: function(data) {
-                    $("#apmStats > .stat_data").html(data);
+                    $("#apmStats > .stat_data").html(ejs.render(apmTemplate, data));
                 },
                 error: function() {
-                    $("#apmStats > .stat_data").text("Error getting APM status...");
+                    $("#apmStats > .stat_data").text("Status: Not running or not on localhost.");
                 }
               })
           }, function() {
-              console.log(arguments);
+              $("#apmStats > .stat_data").html("Could not obtain trace-agent port from API.");
           })
   },function(){
       $("#" + page + "_status").html("<span class='center'>An error occurred.</span>");
