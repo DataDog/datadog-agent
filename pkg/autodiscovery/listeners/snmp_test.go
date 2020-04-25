@@ -8,6 +8,8 @@ package listeners
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/stretchr/testify/assert"
@@ -93,4 +95,72 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	subnet = <-testChan
 	assert.Equal(t, "192.168.0.2", subnet.currentIP.String())
 	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
+}
+
+func TestSNMPInfo(t *testing.T) {
+	snmpConfig := util.SNMPConfig{
+		Network:   "192.168.0.0/24",
+		Community: "public",
+		Timeout:   5,
+		Retries:   2,
+	}
+
+	svc := SNMPService{
+		adIdentifier: "snmp",
+		entityID:     "id",
+		deviceIP:     "192.168.0.1",
+		creationTime: integration.Before,
+		config:       snmpConfig,
+	}
+
+	info, err := svc.GetSNMPInfo("community")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "public", info)
+
+	info, err = svc.GetSNMPInfo("timeout")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "5", info)
+
+	info, err = svc.GetSNMPInfo("retries")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "2", info)
+}
+
+func TestSNMPInfov3(t *testing.T) {
+	snmpConfig := util.SNMPConfig{
+		Network:      "192.168.0.0/24",
+		User:         "admin",
+		AuthKey:      "secret",
+		AuthProtocol: "SHA",
+		PrivKey:      "private",
+		PrivProtocol: "DES",
+	}
+
+	svc := SNMPService{
+		adIdentifier: "snmp",
+		entityID:     "id",
+		deviceIP:     "192.168.0.1",
+		creationTime: integration.Before,
+		config:       snmpConfig,
+	}
+
+	info, err := svc.GetSNMPInfo("user")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "admin", info)
+
+	info, err = svc.GetSNMPInfo("auth_key")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "secret", info)
+
+	info, err = svc.GetSNMPInfo("auth_protocol")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "usmHMACSHAAuthProtocol", info)
+
+	info, err = svc.GetSNMPInfo("priv_key")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "private", info)
+
+	info, err = svc.GetSNMPInfo("priv_protocol")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "usmDESPrivProtocol", info)
 }
