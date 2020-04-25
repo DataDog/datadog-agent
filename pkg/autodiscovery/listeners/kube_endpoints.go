@@ -427,3 +427,8 @@ func (s *KubeEndpointService) GetCheckNames() []string {
 func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
+
+// GetSNMPInfo isn't supported
+func (s *KubeEndpointService) GetSNMPInfo(key string) (string, error) {
+	return "", ErrNotSupported
+}

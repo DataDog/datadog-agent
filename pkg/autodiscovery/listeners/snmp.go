@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/soniah/gosnmp"
@@ -333,4 +334,14 @@ func (s *SNMPService) IsReady() bool {
 // GetCheckNames returns an empty slice
 func (s *SNMPService) GetCheckNames() []string {
 	return []string{}
+}
+
+// HasFilter returns false on SNMP
+func (s *SNMPService) HasFilter(filter containers.FilterType) bool {
+	return false
+}
+
+// GetSNMPInfo returns data from configuration
+func (s *SNMPService) GetSNMPInfo(key string) (string, error) {
+	return "", nil
 }

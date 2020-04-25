@@ -121,3 +121,8 @@ func (s *DockerKubeletService) GetCheckNames() []string {
 func (s *DockerKubeletService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
+
+// GetSNMPInfo isn't supported
+func (s *DockerKubeletService) GetSNMPInfo(key string) (string, error) {
+	return "", ErrNotSupported
+}

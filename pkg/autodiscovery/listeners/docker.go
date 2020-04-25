@@ -634,3 +634,8 @@ func (s *DockerService) HasFilter(filter containers.FilterType) bool {
 	}
 	return false
 }
+
+// GetSNMPInfo isn't supported
+func (s *DockerService) GetSNMPInfo(key string) (string, error) {
+	return "", ErrNotSupported
+}

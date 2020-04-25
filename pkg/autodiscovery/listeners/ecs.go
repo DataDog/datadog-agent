@@ -283,3 +283,8 @@ func (s *ECSService) HasFilter(filter containers.FilterType) bool {
 	}
 	return false
 }
+
+// GetSNMPInfo isn't supported
+func (s *ECSService) GetSNMPInfo(key string) (string, error) {
+	return "", ErrNotSupported
+}

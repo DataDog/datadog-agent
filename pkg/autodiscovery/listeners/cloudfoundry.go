@@ -248,3 +248,8 @@ func (s *CloudFoundryService) GetCheckNames() []string {
 func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
+
+// GetSNMPInfo isn't supported
+func (s *CloudFoundryService) GetSNMPInfo(key string) (string, error) {
+	return "", ErrNotSupported
+}

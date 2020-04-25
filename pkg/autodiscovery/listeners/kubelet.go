@@ -394,6 +394,11 @@ func (s *KubeContainerService) IsReady() bool {
 	return s.ready
 }
 
+// GetSNMPInfo isn't supported
+func (s *KubeContainerService) GetSNMPInfo(key string) (string, error) {
+	return "", ErrNotSupported
+}
+
 // GetCheckNames returns names of checks defined in pod annotations
 func (s *KubeContainerService) GetCheckNames() []string {
 	return s.checkNames
@@ -475,4 +480,9 @@ func (s *KubePodService) GetCheckNames() []string {
 // KubePodService doesn't implement this method
 func (s *KubePodService) HasFilter(filter containers.FilterType) bool {
 	return false
+}
+
+// GetSNMPInfo isn't supported
+func (s *KubePodService) GetSNMPInfo(key string) (string, error) {
+	return "", ErrNotSupported
 }
