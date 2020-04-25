@@ -27,6 +27,7 @@ var templateVariables = map[string]variableGetter{
 	"pid":      getPid,
 	"port":     getPort,
 	"hostname": getHostname,
+	"snmp":     getSNMP,
 }
 
 // SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
@@ -241,6 +242,15 @@ func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		return nil, fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetEntity(), err)
 	}
 	return []byte(name), nil
+}
+
+// getSNMP returns SNMP specific data
+func getSNMP(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	value, err := svc.GetSNMPInfo(string(tplVar))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get SNMP info for service %s, skipping config - %s", svc.GetEntity(), err)
+	}
+	return []byte(value), nil
 }
 
 // getEnvvar returns a system environment variable if found
