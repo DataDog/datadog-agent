@@ -301,7 +301,7 @@ func (s *SNMPService) GetHosts() (map[string]string, error) {
 	return ips, nil
 }
 
-// GetPorts returns the device ports - currently not supported
+// GetPorts returns the device port
 func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
 	return []ContainerPort{{int(s.config.Port), fmt.Sprintf("p%d", s.config.Port)}}, nil
 }

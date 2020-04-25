@@ -38,7 +38,7 @@ type Service interface {
 	IsReady() bool                             // is the service ready
 	GetCheckNames() []string                   // slice of check names defined in kubernetes annotations or docker labels
 	HasFilter(containers.FilterType) bool      // whether the service is excluded by metrics or logs exclusion config
-	GetSNMPInfo(string) (string, error)        // snmp specific configuration value
+	GetSNMPInfo(string) (string, error)        // SNMP specific configuration values
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling
