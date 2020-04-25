@@ -81,3 +81,8 @@ func (s *dummyService) GetCheckNames() []string {
 func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
+
+// GetSNMPInfo returns SNMP specific info
+func (s *dummyService) GetSNMPInfo(key string) (string, error) {
+	return "", nil
+}
