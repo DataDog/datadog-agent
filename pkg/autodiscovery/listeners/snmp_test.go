@@ -18,7 +18,7 @@ import (
 func TestSNMPListener(t *testing.T) {
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	testChan := make(chan snmpSubnet, 10)
+	testChan := make(chan snmpJob, 10)
 
 	snmpConfig := util.SNMPConfig{
 		Network:   "192.168.0.0/24",
@@ -32,10 +32,10 @@ func TestSNMPListener(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("snmp_listener", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpSubnet) {
+	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 		for {
-			subnet := <-jobs
-			testChan <- subnet
+			job := <-jobs
+			testChan <- job
 		}
 	}
 
@@ -43,24 +43,24 @@ func TestSNMPListener(t *testing.T) {
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
-	subnet := <-testChan
+	job := <-testChan
 
-	assert.Equal(t, "snmp:6678be1bb70de3a2", subnet.adIdentifier)
-	assert.Equal(t, "192.168.0.0", subnet.currentIP.String())
-	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
-	assert.Equal(t, "192.168.0.0/24", subnet.network.String())
-	assert.Equal(t, "public", subnet.config.Community)
-	assert.Equal(t, "public", subnet.defaultParams.Community)
+	assert.Equal(t, "snmp", job.subnet.adIdentifier)
+	assert.Equal(t, "192.168.0.0", job.currentIP.String())
+	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
+	assert.Equal(t, "192.168.0.0/24", job.subnet.network.String())
+	assert.Equal(t, "public", job.subnet.config.Community)
+	assert.Equal(t, "public", job.subnet.defaultParams.Community)
 
-	subnet = <-testChan
-	assert.Equal(t, "192.168.0.1", subnet.currentIP.String())
-	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
+	job = <-testChan
+	assert.Equal(t, "192.168.0.1", job.currentIP.String())
+	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 }
 
 func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	testChan := make(chan snmpSubnet, 10)
+	testChan := make(chan snmpJob, 10)
 
 	snmpConfig := util.SNMPConfig{
 		Network:            "192.168.0.0/24",
@@ -75,10 +75,10 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("snmp_listener", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpSubnet) {
+	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 		for {
-			subnet := <-jobs
-			testChan <- subnet
+			job := <-jobs
+			testChan <- job
 		}
 	}
 
@@ -86,15 +86,15 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
-	subnet := <-testChan
+	job := <-testChan
 
-	assert.Equal(t, "snmp:397144ca61fd76d3", subnet.adIdentifier)
-	assert.Equal(t, "192.168.0.1", subnet.currentIP.String())
-	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
+	assert.Equal(t, "snmp", job.subnet.adIdentifier)
+	assert.Equal(t, "192.168.0.1", job.currentIP.String())
+	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 
-	subnet = <-testChan
-	assert.Equal(t, "192.168.0.2", subnet.currentIP.String())
-	assert.Equal(t, "192.168.0.0", subnet.startingIP.String())
+	job = <-testChan
+	assert.Equal(t, "192.168.0.2", job.currentIP.String())
+	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 }
 
 func TestSNMPInfo(t *testing.T) {

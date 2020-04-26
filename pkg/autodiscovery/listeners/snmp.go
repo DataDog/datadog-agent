@@ -34,7 +34,6 @@ type SNMPListener struct {
 	stop       chan bool
 	config     util.SNMPListenerConfig
 	services   map[string]Service
-	devices    map[string][]string
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -54,9 +53,14 @@ type snmpSubnet struct {
 	config        util.SNMPConfig
 	defaultParams *gosnmp.GoSNMP
 	startingIP    net.IP
-	currentIP     net.IP
 	network       net.IPNet
 	cacheKey      string
+	devices       map[string]string
+}
+
+type snmpJob struct {
+	subnet    snmpSubnet
+	currentIP net.IP
 }
 
 // NewSNMPListener creates a SNMPListener
@@ -67,7 +71,6 @@ func NewSNMPListener() (ServiceListener, error) {
 	}
 	return &SNMPListener{
 		services: map[string]Service{},
-		devices:  map[string][]string{},
 		stop:     make(chan bool),
 		config:   snmpConfig,
 	}, nil
@@ -82,10 +85,10 @@ func (l *SNMPListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	go l.checkDevices()
 }
 
-func (l *SNMPListener) loadCache(config util.SNMPConfig, adIdentifier string, cacheKey string) {
-	cacheValue, err := persistentcache.Read(cacheKey)
+func (l *SNMPListener) loadCache(subnet snmpSubnet) {
+	cacheValue, err := persistentcache.Read(subnet.cacheKey)
 	if err != nil {
-		log.Errorf("Couldn't read cache for %s: %s", cacheKey, err)
+		log.Errorf("Couldn't read cache for %s: %s", subnet.cacheKey, err)
 		return
 	}
 	if cacheValue == "" {
@@ -93,50 +96,57 @@ func (l *SNMPListener) loadCache(config util.SNMPConfig, adIdentifier string, ca
 	}
 	var devices []net.IP
 	if err = json.Unmarshal([]byte(cacheValue), &devices); err != nil {
-		log.Errorf("Couldn't unmarshal cache for %s: %s", cacheKey, err)
+		log.Errorf("Couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
 		return
 	}
 	for _, deviceIP := range devices {
-		entityID := config.Digest(deviceIP.String())
-		l.createService(deviceIP.String(), adIdentifier, entityID, config)
+		entityID := subnet.config.Digest(deviceIP.String())
+		l.createService(entityID, subnet, deviceIP.String())
 	}
 }
 
-func (l *SNMPListener) writeCache(cacheKey string, adIdentifier string) {
+func (l *SNMPListener) writeCache(subnet snmpSubnet) {
 	l.Lock()
 	defer l.Unlock()
-	devices := l.devices[adIdentifier]
+
+	devices := make([]string, 0, len(subnet.devices))
+	for _, v := range subnet.devices {
+		devices = append(devices, v)
+	}
+
 	cacheValue, err := json.Marshal(devices)
 	if err != nil {
 		log.Errorf("Couldn't marshal cache: %s", err)
 		return
 	}
-	if err = persistentcache.Write(cacheKey, string(cacheValue)); err != nil {
+
+	if err = persistentcache.Write(subnet.cacheKey, string(cacheValue)); err != nil {
 		log.Errorf("Couldn't write cache: %s", err)
 	}
 }
 
 // Don't make it a method, to be overridden in tests
-var worker = func(l *SNMPListener, jobs <-chan snmpSubnet) {
+var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 	for {
 		select {
 		case <-l.stop:
 			log.Debug("Stopping SNMP worker")
 			return
-		case subnet := <-jobs:
-			log.Debugf("Handling IP %s", subnet.currentIP.String())
-			l.checkDevice(subnet.adIdentifier, subnet.currentIP.String(), subnet.config, subnet.defaultParams)
+		case job := <-jobs:
+			log.Debugf("Handling IP %s", job.currentIP.String())
+			l.checkDevice(job)
 		}
 	}
 }
 
-func (l *SNMPListener) checkDevice(adIdentifier string, deviceIP string, config util.SNMPConfig, defaultParams *gosnmp.GoSNMP) {
-	params := *defaultParams
+func (l *SNMPListener) checkDevice(job snmpJob) {
+	params := *job.subnet.defaultParams
+	deviceIP := job.currentIP.String()
 	params.Target = deviceIP
-	entityID := config.Digest(deviceIP)
+	entityID := job.subnet.config.Digest(deviceIP)
 	if err := params.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
-		l.deleteService(entityID)
+		l.deleteService(entityID, job.subnet)
 	} else {
 		defer params.Conn.Close()
 
@@ -144,13 +154,13 @@ func (l *SNMPListener) checkDevice(adIdentifier string, deviceIP string, config 
 		value, err := params.Get(oids)
 		if err != nil {
 			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
-			l.deleteService(entityID)
+			l.deleteService(entityID, job.subnet)
 		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
 			log.Debugf("SNMP get to %s no data", deviceIP)
-			l.deleteService(entityID)
+			l.deleteService(entityID, job.subnet)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
-			l.createService(deviceIP, adIdentifier, entityID, config)
+			l.createService(entityID, job.subnet, deviceIP)
 		}
 	}
 }
@@ -174,8 +184,10 @@ func (l *SNMPListener) checkDevices() {
 
 		configHash := config.Digest(config.Network)
 		cacheKey := fmt.Sprintf("snmp:%s", configHash)
-		adIdentifier := cacheKey
-		l.loadCache(config, adIdentifier, cacheKey)
+		adIdentifier := config.ADIdentifier
+		if adIdentifier == "" {
+			adIdentifier = "snmp"
+		}
 
 		subnet := snmpSubnet{
 			adIdentifier:  adIdentifier,
@@ -184,8 +196,11 @@ func (l *SNMPListener) checkDevices() {
 			startingIP:    startingIP,
 			network:       *ipNet,
 			cacheKey:      cacheKey,
+			devices:       map[string]string{},
 		}
 		subnets = append(subnets, subnet)
+
+		l.loadCache(subnet)
 	}
 
 	if l.config.Workers == 0 {
@@ -196,7 +211,7 @@ func (l *SNMPListener) checkDevices() {
 		l.config.DiscoveryInterval = 3600
 	}
 
-	jobs := make(chan snmpSubnet)
+	jobs := make(chan snmpJob)
 	for w := 0; w < l.config.Workers; w++ {
 		go worker(l, jobs)
 	}
@@ -213,10 +228,13 @@ func (l *SNMPListener) checkDevices() {
 					continue
 				}
 
-				jobSubnet := subnet
-				jobSubnet.currentIP = make(net.IP, len(currentIP))
-				copy(jobSubnet.currentIP, currentIP)
-				jobs <- jobSubnet
+				jobIP := make(net.IP, len(currentIP))
+				copy(jobIP, currentIP)
+				job := snmpJob{
+					subnet:    subnet,
+					currentIP: jobIP,
+				}
+				jobs <- job
 
 				select {
 				case <-l.stop:
@@ -225,7 +243,7 @@ func (l *SNMPListener) checkDevices() {
 				}
 			}
 			// XXX write the cache a bit more often
-			l.writeCache(subnet.cacheKey, subnet.adIdentifier)
+			l.writeCache(subnet)
 		}
 
 		select {
@@ -236,31 +254,32 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
-func (l *SNMPListener) createService(deviceIP string, adIdentifier string, entityID string, config util.SNMPConfig) {
+func (l *SNMPListener) createService(entityID string, subnet snmpSubnet, deviceIP string) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
 		return
 	}
 	svc := &SNMPService{
-		adIdentifier: adIdentifier,
+		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
 		creationTime: integration.Before,
-		config:       config,
+		config:       subnet.config,
 	}
 	l.services[entityID] = svc
-	l.devices[adIdentifier] = append(l.devices[adIdentifier], deviceIP)
+	subnet.devices[entityID] = deviceIP
 	l.newService <- svc
 }
 
-func (l *SNMPListener) deleteService(entityID string) {
+func (l *SNMPListener) deleteService(entityID string, subnet snmpSubnet) {
 	l.Lock()
 	defer l.Unlock()
 	// XXX don't delete on first failure
 	if svc, present := l.services[entityID]; present {
 		l.delService <- svc
 		delete(l.services, entityID)
+		delete(subnet.devices, entityID)
 	}
 }
 
@@ -303,7 +322,11 @@ func (s *SNMPService) GetHosts() (map[string]string, error) {
 
 // GetPorts returns the device port
 func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
-	return []ContainerPort{{int(s.config.Port), fmt.Sprintf("p%d", s.config.Port)}}, nil
+	port := int(s.config.Port)
+	if port == 0 {
+		port = 161
+	}
+	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
 
 // GetTags returns the list of container tags - currently always empty
@@ -362,6 +385,7 @@ func (s *SNMPService) GetSNMPInfo(key string) (string, error) {
 		} else if s.config.AuthProtocol == "SHA" {
 			return "usmHMACSHAAuthProtocol", nil
 		}
+		return "", nil
 	case "priv_key":
 		return s.config.PrivKey, nil
 	case "priv_protocol":
@@ -370,6 +394,7 @@ func (s *SNMPService) GetSNMPInfo(key string) (string, error) {
 		} else if s.config.PrivProtocol == "AES" {
 			return "usmAesCfb128Protocol", nil
 		}
+		return "", nil
 	case "context_engine_id":
 		return s.config.ContextEngineID, nil
 	case "context_name":

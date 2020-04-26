@@ -39,6 +39,7 @@ type SNMPConfig struct {
 	ContextEngineID    string   `mapstructure:"context_engine_id"`
 	ContextName        string   `mapstructure:"context_name"`
 	IgnoredIPAddresses []string `mapstructure:"ignored_ip_addresses"`
+	ADIdentifier       string   `mapstructure:"ad_identifier"`
 }
 
 // Digest returns an hash value representing the data stored in this configuration, minus the network address
