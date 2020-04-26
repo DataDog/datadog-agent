@@ -101,13 +101,15 @@ func (l *SNMPListener) loadCache(subnet snmpSubnet) {
 	}
 	for _, deviceIP := range devices {
 		entityID := subnet.config.Digest(deviceIP.String())
-		l.createService(entityID, subnet, deviceIP.String())
+		l.createService(entityID, subnet, deviceIP.String(), false)
 	}
 }
 
-func (l *SNMPListener) writeCache(subnet snmpSubnet) {
-	l.Lock()
-	defer l.Unlock()
+func (l *SNMPListener) writeCache(subnet snmpSubnet, lock bool) {
+	if lock {
+		l.Lock()
+		defer l.Unlock()
+	}
 
 	devices := make([]string, 0, len(subnet.devices))
 	for _, v := range subnet.devices {
@@ -160,7 +162,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			l.deleteService(entityID, job.subnet)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
-			l.createService(entityID, job.subnet, deviceIP)
+			l.createService(entityID, job.subnet, deviceIP, true)
 		}
 	}
 }
@@ -242,8 +244,7 @@ func (l *SNMPListener) checkDevices() {
 				default:
 				}
 			}
-			// XXX write the cache a bit more often
-			l.writeCache(subnet)
+			l.writeCache(subnet, true)
 		}
 
 		select {
@@ -254,7 +255,7 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
-func (l *SNMPListener) createService(entityID string, subnet snmpSubnet, deviceIP string) {
+func (l *SNMPListener) createService(entityID string, subnet snmpSubnet, deviceIP string, writeCache bool) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
@@ -269,6 +270,9 @@ func (l *SNMPListener) createService(entityID string, subnet snmpSubnet, deviceI
 	}
 	l.services[entityID] = svc
 	subnet.devices[entityID] = deviceIP
+	if writeCache {
+		l.writeCache(subnet, false)
+	}
 	l.newService <- svc
 }
 
@@ -280,6 +284,7 @@ func (l *SNMPListener) deleteService(entityID string, subnet snmpSubnet) {
 		l.delService <- svc
 		delete(l.services, entityID)
 		delete(subnet.devices, entityID)
+		l.writeCache(subnet, false)
 	}
 }
 
