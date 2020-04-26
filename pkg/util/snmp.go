@@ -20,6 +20,7 @@ import (
 type SNMPListenerConfig struct {
 	Workers           int          `mapstructure:"workers"`
 	DiscoveryInterval int          `mapstructure:"discovery_interval"`
+	AllowedFailures   int          `mapstructure:"allowed_failures"`
 	Configs           []SNMPConfig `mapstructure:"configs"`
 }
 

@@ -49,13 +49,14 @@ type SNMPService struct {
 var _ Service = &SNMPService{}
 
 type snmpSubnet struct {
-	adIdentifier  string
-	config        util.SNMPConfig
-	defaultParams *gosnmp.GoSNMP
-	startingIP    net.IP
-	network       net.IPNet
-	cacheKey      string
-	devices       map[string]string
+	adIdentifier   string
+	config         util.SNMPConfig
+	defaultParams  *gosnmp.GoSNMP
+	startingIP     net.IP
+	network        net.IPNet
+	cacheKey       string
+	devices        map[string]string
+	deviceFailures map[string]int
 }
 
 type snmpJob struct {
@@ -192,13 +193,14 @@ func (l *SNMPListener) checkDevices() {
 		}
 
 		subnet := snmpSubnet{
-			adIdentifier:  adIdentifier,
-			config:        config,
-			defaultParams: defaultParams,
-			startingIP:    startingIP,
-			network:       *ipNet,
-			cacheKey:      cacheKey,
-			devices:       map[string]string{},
+			adIdentifier:   adIdentifier,
+			config:         config,
+			defaultParams:  defaultParams,
+			startingIP:     startingIP,
+			network:        *ipNet,
+			cacheKey:       cacheKey,
+			devices:        map[string]string{},
+			deviceFailures: map[string]int{},
 		}
 		subnets = append(subnets, subnet)
 
@@ -207,6 +209,10 @@ func (l *SNMPListener) checkDevices() {
 
 	if l.config.Workers == 0 {
 		l.config.Workers = 2
+	}
+
+	if l.config.AllowedFailures == 0 {
+		l.config.AllowedFailures = 3
 	}
 
 	if l.config.DiscoveryInterval == 0 {
@@ -270,6 +276,7 @@ func (l *SNMPListener) createService(entityID string, subnet snmpSubnet, deviceI
 	}
 	l.services[entityID] = svc
 	subnet.devices[entityID] = deviceIP
+	subnet.deviceFailures[entityID] = 0
 	if writeCache {
 		l.writeCache(subnet, false)
 	}
@@ -279,12 +286,22 @@ func (l *SNMPListener) createService(entityID string, subnet snmpSubnet, deviceI
 func (l *SNMPListener) deleteService(entityID string, subnet snmpSubnet) {
 	l.Lock()
 	defer l.Unlock()
-	// XXX don't delete on first failure
 	if svc, present := l.services[entityID]; present {
-		l.delService <- svc
-		delete(l.services, entityID)
-		delete(subnet.devices, entityID)
-		l.writeCache(subnet, false)
+		failure, present := subnet.deviceFailures[entityID]
+		if !present {
+			subnet.deviceFailures[entityID] = 1
+			failure = 1
+		} else {
+			subnet.deviceFailures[entityID]++
+			failure++
+		}
+
+		if l.config.AllowedFailures != -1 && failure >= l.config.AllowedFailures {
+			l.delService <- svc
+			delete(l.services, entityID)
+			delete(subnet.devices, entityID)
+			l.writeCache(subnet, false)
+		}
 	}
 }
 

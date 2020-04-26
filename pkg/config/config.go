@@ -387,6 +387,7 @@ func initConfig(config Config) {
 
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
+	config.SetKnown("snmp_listener.allowed_failures")
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 
