@@ -3429,9 +3429,16 @@ tag_release_7_manifests:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7-manifests
   when: manual
-  needs:
-    - tag_release_7_linux
-    - tag_release_7_windows
+  # HACK: a job should not depend on manual jobs, otherwise it blocks
+  # the next stages of the pipeline until said manual jobs are run
+  # (the job remains in a pending state until all its dependencies
+  # are run).
+  # However, this job implicitly still needs both of the below jobs,
+  # and thus should be run after these two manual jobs.
+  # needs:
+  #   - tag_release_7_linux
+  #   - tag_release_7_windows
+  dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7)
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag ${VERSION}
