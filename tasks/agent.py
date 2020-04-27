@@ -389,7 +389,7 @@ def omnibus_build(ctx, iot=False, agent_binaries=False, log_level="info", base_d
         bundle_elapsed = bundle_done - bundle_start
         target_project = "agent"
         if iot:
-            target_project = "iot"
+            target_project = "iot-agent"
         elif agent_binaries:
             target_project = "agent-binaries"
 
