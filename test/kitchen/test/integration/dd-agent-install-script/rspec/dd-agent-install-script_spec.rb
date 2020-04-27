@@ -20,22 +20,4 @@ describe 'dd-agent-installation-script' do
       expect(config['site']).to eq 'datadoghq.eu'
     end
   end
-
-  context 'when testing the install infos' do
-    let(:install_info_path) do
-      '/etc/datadog-agent/install_info'
-    end
-
-    let(:install_info) do
-      YAML.load_file(install_info_path)
-    end
-
-    it 'adds an install_info' do
-      expect(install_info['install_method']).to match(
-        'tool' => 'install_script',
-        'tool_version' => 'install_script',
-        'installer_version' => /^install_script-\d+\.\d+\.\d+$/
-      )
-    end
-  end
 end
