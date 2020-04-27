@@ -108,6 +108,8 @@ func populateDeviceField(serie *Serie) {
 	for _, tag := range serie.Tags {
 		if strings.HasPrefix(tag, "device:") {
 			serie.Device = tag[7:]
+		} else if strings.HasPrefix(tag, "device_name:") {
+			serie.Device = tag[12:]
 		} else {
 			filteredTags = append(filteredTags, tag)
 		}
@@ -118,7 +120,7 @@ func populateDeviceField(serie *Serie) {
 // hasDeviceTag checks whether a series contains a device tag
 func hasDeviceTag(serie *Serie) bool {
 	for _, tag := range serie.Tags {
-		if strings.HasPrefix(tag, "device:") {
+		if strings.HasPrefix(tag, "device:") || strings.HasPrefix(tag, "device_name:") {
 			return true
 		}
 	}
