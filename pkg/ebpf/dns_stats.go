@@ -11,8 +11,8 @@ type dnsStats struct {
 	// More stats like latency, error, etc. will be added here later
 	successfulResponses uint32
 	failedResponses     uint32
-	successLatency      uint64 // Stored in µs
-	failureLatency      uint64
+	successLatencySum   uint64 // Stored in µs
+	failureLatencySum   uint64
 	timeouts            uint32
 }
 
@@ -50,22 +50,20 @@ type stateKey struct {
 type dnsStatKeeper struct {
 	mux              sync.Mutex
 	stats            map[dnsKey]dnsStats
-	state            map[stateKey]time.Time
+	state            map[stateKey]uint64
 	expirationPeriod time.Duration
 	exit             chan struct{}
 	maxSize          int // maximum size of the state map
 	deleteCount      int
-	deleteThreshold  int
 }
 
 func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
 		stats:            make(map[dnsKey]dnsStats),
-		state:            make(map[stateKey]time.Time),
+		state:            make(map[stateKey]uint64),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
 		maxSize:          10000,
-		deleteThreshold:  5000,
 	}
 
 	ticker := time.NewTicker(statsKeeper.expirationPeriod)
@@ -83,6 +81,10 @@ func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 	return statsKeeper
 }
 
+func microSecs(t time.Time) uint64 {
+	return uint64(t.Nanosecond() / 1000)
+}
+
 func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
@@ -94,7 +96,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		}
 
 		if _, ok := d.state[sk]; !ok {
-			d.state[sk] = ts
+			d.state[sk] = microSecs(ts)
 		}
 		return
 	}
@@ -109,20 +111,20 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	delete(d.state, sk)
 	d.deleteCount++
 
-	latency := ts.Sub(start).Nanoseconds()
+	latency := microSecs(ts) - start
 
 	stats := d.stats[info.key]
 
-	if latency > d.expirationPeriod.Nanoseconds() {
+	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
+	if latency > uint64(d.expirationPeriod.Nanoseconds()/1000) {
 		stats.timeouts++
 	} else {
-		latency /= 1000 // convert to microseconds
 		if info.pktType == SuccessfulResponse {
 			stats.successfulResponses++
-			stats.successLatency += uint64(latency)
+			stats.successLatencySum += latency
 		} else if info.pktType == FailedResponse {
 			stats.failedResponses++
-			stats.failureLatency += uint64(latency)
+			stats.failureLatencySum += latency
 		}
 	}
 
@@ -138,10 +140,12 @@ func (d *dnsStatKeeper) GetAndResetAllStats() map[dnsKey]dnsStats {
 }
 
 func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
+	deleteThreshold := 5000
 	d.mux.Lock()
 	defer d.mux.Unlock()
+	threshold := microSecs(earliestTs)
 	for k, v := range d.state {
-		if v.Before(earliestTs) {
+		if v < threshold {
 			delete(d.state, k)
 			d.deleteCount++
 			stats := d.stats[k.key]
@@ -150,12 +154,12 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 		}
 	}
 
-	if d.deleteCount < d.deleteThreshold {
+	if d.deleteCount < deleteThreshold {
 		return
 	}
 
 	// golang/go#20135 : maps do not shrink after elements removal (delete)
-	copied := make(map[stateKey]time.Time, len(d.state))
+	copied := make(map[stateKey]uint64, len(d.state))
 	for k, v := range d.state {
 		copied[k] = v
 	}

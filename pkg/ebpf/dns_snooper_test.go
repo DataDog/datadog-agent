@@ -207,8 +207,8 @@ func TestDNSOverTCPSnoopingWithSuccessfulResposne(t *testing.T) {
 	assert.Equal(t, uint32(1), allStats[key].successfulResponses)
 	assert.Equal(t, uint32(0), allStats[key].failedResponses)
 	assert.Equal(t, uint32(0), allStats[key].timeouts)
-	assert.True(t, allStats[key].successLatency >= uint64(1))
-	assert.Equal(t, uint64(0), allStats[key].failureLatency)
+	assert.True(t, allStats[key].successLatencySum >= uint64(1))
+	assert.Equal(t, uint64(0), allStats[key].failureLatencySum)
 }
 
 func TestDNSOverTCPSnoopingWithFailedResponse(t *testing.T) {
@@ -225,8 +225,8 @@ func TestDNSOverTCPSnoopingWithFailedResponse(t *testing.T) {
 	assert.Equal(t, uint32(0), allStats[key].successfulResponses)
 	assert.Equal(t, uint32(1), allStats[key].failedResponses)
 	assert.Equal(t, uint32(0), allStats[key].timeouts)
-	assert.Equal(t, uint64(0), allStats[key].successLatency)
-	assert.True(t, allStats[key].failureLatency > uint64(0))
+	assert.Equal(t, uint64(0), allStats[key].successLatencySum)
+	assert.True(t, allStats[key].failureLatencySum > uint64(0))
 }
 
 func TestDNSOverUDPSnoopingWithTimedOutResponse(t *testing.T) {
@@ -243,8 +243,8 @@ func TestDNSOverUDPSnoopingWithTimedOutResponse(t *testing.T) {
 	assert.Equal(t, uint32(0), allStats[key].successfulResponses)
 	assert.Equal(t, uint32(0), allStats[key].failedResponses)
 	assert.Equal(t, uint32(1), allStats[key].timeouts)
-	assert.Equal(t, uint64(0), allStats[key].successLatency)
-	assert.Equal(t, uint64(0), allStats[key].failureLatency)
+	assert.Equal(t, uint64(0), allStats[key].successLatencySum)
+	assert.Equal(t, uint64(0), allStats[key].failureLatencySum)
 }
 
 func TestParsingError(t *testing.T) {

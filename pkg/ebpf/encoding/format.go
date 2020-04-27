@@ -27,8 +27,8 @@ func FormatConnection(conn ebpf.ConnectionStats) *model.Connection {
 		DnsSuccessfulResponses: conn.DNSSuccessfulResponses,
 		DnsFailedResponses:     conn.DNSFailedResponses,
 		DnsTimeouts:            conn.DNSTimeouts,
-		DnsSuccessLatency:      conn.DNSSuccessLatency,
-		DnsFailureLatency:      conn.DNSFailureLatency,
+		DnsSuccessLatencySum:   conn.DNSSuccessLatencySum,
+		DnsFailureLatencySum:   conn.DNSFailureLatencySum,
 	}
 }
 
