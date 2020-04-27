@@ -93,10 +93,10 @@ func (s *PriorityEngine) Stop() {
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (sampled bool, rate float64) {
+func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (decision SampleDecision) {
 	// Extra safety, just in case one trace is empty
 	if len(trace) == 0 {
-		return false, 0
+		return SampleDecision{Sampled: false, Rate: 0, Reason: "PriorityEngine"}
 	}
 
 	samplingPriority, _ := GetSamplingPriority(root)
@@ -104,16 +104,16 @@ func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (samp
 	// Regardless of rates, sampling here is based on the metadata set
 	// by the client library. Which, is turn, is based on agent hints,
 	// but the rule of thumb is: respect client choice.
-	sampled = samplingPriority > 0
+	sampled := samplingPriority > 0
 
 	// Short-circuit and return without counting the trace in the sampling rate logic
 	// if its value has not been set automaticallt by the client lib.
 	// The feedback loop should be scoped to the values it can act upon.
 	if samplingPriority < 0 {
-		return sampled, 0
+		return SampleDecision{Sampled: sampled, Rate: 0, Reason: "PriorityEngine"}
 	}
 	if samplingPriority > 1 {
-		return sampled, 1
+		return SampleDecision{Sampled: sampled, Rate: 1, Reason: "PriorityEngine"}
 	}
 
 	signature := s.catalog.register(ServiceSignature{root.Service, env})
@@ -122,8 +122,7 @@ func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (samp
 	s.Sampler.Backend.CountSignature(signature)
 
 	// fetching applied sample rate
-	var ok bool
-	rate, ok = root.Metrics[SamplingPriorityRateKey]
+	rate, ok := root.Metrics[SamplingPriorityRateKey]
 	if !ok || rate > prioritySamplingRateThresholdTo1 {
 		rate = s.Sampler.GetSignatureSampleRate(signature)
 		root.Metrics[SamplingPriorityRateKey] = rate
@@ -134,7 +133,7 @@ func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (samp
 		// It has to happen before the maxTPS sampling.
 		s.Sampler.Backend.CountSample()
 	}
-	return sampled, rate
+	return SampleDecision{Sampled: sampled, Rate: rate, Reason: "PriorityEngine"}
 }
 
 // GetState collects and return internal statistics and coefficients for indication purposes

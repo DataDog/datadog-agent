@@ -5,7 +5,9 @@
 
 package sampler
 
-import "github.com/DataDog/datadog-agent/pkg/trace/pb"
+import (
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+)
 
 const (
 	// errorSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
@@ -61,10 +63,10 @@ func applySampleRate(root *pb.Span, rate float64) bool {
 }
 
 // Sample counts an incoming trace and tells if it is a sample which has to be kept
-func (s *ScoreEngine) Sample(trace pb.Trace, root *pb.Span, env string) (sampled bool, rate float64) {
+func (s *ScoreEngine) Sample(trace pb.Trace, root *pb.Span, env string) (decision SampleDecision) {
 	// Extra safety, just in case one trace is empty
 	if len(trace) == 0 {
-		return false, 0
+		return SampleDecision{Sampled: false, Rate: 0, Reason: "ScoreEngine"}
 	}
 
 	signature := computeSignatureWithRootAndEnv(trace, root, env)
@@ -72,9 +74,9 @@ func (s *ScoreEngine) Sample(trace pb.Trace, root *pb.Span, env string) (sampled
 	// Update sampler state by counting this trace
 	s.Sampler.Backend.CountSignature(signature)
 
-	rate = s.Sampler.GetSampleRate(trace, root, signature)
+	rate := s.Sampler.GetSampleRate(trace, root, signature)
 
-	sampled = applySampleRate(root, rate)
+	sampled := applySampleRate(root, rate)
 
 	if sampled {
 		// Count the trace to allow us to check for the maxTPS limit.
@@ -89,7 +91,7 @@ func (s *ScoreEngine) Sample(trace pb.Trace, root *pb.Span, env string) (sampled
 		}
 	}
 
-	return sampled, rate
+	return SampleDecision{Sampled: sampled, Rate: rate, Reason: "ScoreEngine"}
 }
 
 // GetState collects and return internal statistics and coefficients for indication purposes

@@ -246,9 +246,9 @@ func (a *Agent) Process(t *api.Trace) {
 func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
 	var ss writer.SampledSpans
 
-	sampled, rate := a.runSamplers(pt)
-	if sampled {
-		sampler.AddGlobalRate(pt.Root, rate)
+	decision := a.runSamplers(pt)
+	if decision.Sampled {
+		sampler.AddGlobalRate(pt.Root, decision.Rate)
 		ss.Trace = pt.Trace
 	}
 
@@ -265,7 +265,7 @@ func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) {
 
 // runSamplers runs all the agent's samplers on pt and returns the sampling decision
 // along with the sampling rate.
-func (a *Agent) runSamplers(pt ProcessedTrace) (bool, float64) {
+func (a *Agent) runSamplers(pt ProcessedTrace) sampler.SampleDecision {
 	if _, ok := pt.GetSamplingPriority(); ok {
 		return a.samplePriorityTrace(pt)
 	}
@@ -275,21 +275,27 @@ func (a *Agent) runSamplers(pt ProcessedTrace) (bool, float64) {
 // samplePriorityTrace samples traces with priority set on them. PrioritySampler and
 // ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
-func (a *Agent) samplePriorityTrace(pt ProcessedTrace) (sampled bool, rate float64) {
-	sampledPriority, ratePriority := a.PrioritySampler.Add(pt)
+func (a *Agent) samplePriorityTrace(pt ProcessedTrace) (decision sampler.SampleDecision) {
+	priorityDecision := a.PrioritySampler.Add(pt)
 	if traceContainsError(pt.Trace) {
-		sampledError, rateError := a.ErrorsScoreSampler.Add(pt)
-		return sampledError || sampledPriority, sampler.CombineRates(ratePriority, rateError)
+		errorDecision := a.ErrorsScoreSampler.Add(pt)
+		if errorDecision.Sampled {
+			errorDecision.Rate = sampler.CombineRates(priorityDecision.Rate, errorDecision.Rate)
+			return errorDecision
+		} else {
+			priorityDecision.Rate = sampler.CombineRates(priorityDecision.Rate, errorDecision.Rate)
+			return priorityDecision
+		}
 	}
-	if sampled := a.ExceptionSampler.Add(pt.Env, pt.Root, pt.Trace); sampled {
-		return sampled, 1
+	if decision := a.ExceptionSampler.Add(pt.Env, pt.Root, pt.Trace); decision.Sampled {
+		return decision
 	}
-	return sampledPriority, ratePriority
+	return priorityDecision
 }
 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
 // get sampled by either the score sampler or the error sampler if they have an error.
-func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) (sampled bool, rate float64) {
+func (a *Agent) sampleNoPriorityTrace(pt ProcessedTrace) (decision sampler.SampleDecision) {
 	if traceContainsError(pt.Trace) {
 		return a.ErrorsScoreSampler.Add(pt)
 	}

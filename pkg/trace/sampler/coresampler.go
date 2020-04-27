@@ -41,6 +41,12 @@ const (
 	PriorityEngineType
 )
 
+type SampleDecision struct {
+	Sampled bool
+	Rate    float64
+	Reason  string
+}
+
 // Engine is a common basic interface for sampler engines.
 type Engine interface {
 	// Run the sampler.
@@ -48,7 +54,7 @@ type Engine interface {
 	// Stop the sampler.
 	Stop()
 	// Sample a trace.
-	Sample(trace pb.Trace, root *pb.Span, env string) (sampled bool, samplingRate float64)
+	Sample(trace pb.Trace, root *pb.Span, env string) (decision SampleDecision)
 	// GetState returns information about the sampler.
 	GetState() interface{}
 	// GetType returns the type of the sampler.

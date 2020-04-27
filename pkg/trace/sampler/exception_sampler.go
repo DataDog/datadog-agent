@@ -61,8 +61,8 @@ func NewExceptionSampler() *ExceptionSampler {
 }
 
 // Add samples a trace and returns true if trace was sampled (should be kept)
-func (e *ExceptionSampler) Add(env string, root *pb.Span, t pb.Trace) (sampled bool) {
-	return e.add(time.Now(), env, root, t)
+func (e *ExceptionSampler) Add(env string, root *pb.Span, t pb.Trace) (decision SampleDecision) {
+	return SampleDecision{Sampled: e.add(time.Now(), env, root, t), Rate: 1, Reason: "ExceptionSampler"}
 }
 
 func (e *ExceptionSampler) add(now time.Time, env string, root *pb.Span, t pb.Trace) (sampled bool) {
