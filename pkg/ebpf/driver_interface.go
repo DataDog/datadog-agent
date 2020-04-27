@@ -24,11 +24,12 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// HandleType expresses what of DriverHandle one is - implicitly implies if filters have been placed on the driver for the handle
+// HandleType represents what type of data the windows handle created on the driver is intended to return. It implicitly implies if there are filters set for a handle
 type HandleType string
 
 const (
-	driverFile = `\\.\ddfilter`
+	// deviceName identifies the name and location of the windows driver
+	deviceName = `\\.\ddfilter`
 
 	// FlowHandle is keyed to return 5-tuples from the driver that represents a flow. Used with: (#define FILTER_LAYER_TRANSPORT ((uint64_t) 1)
 	FlowHandle HandleType = "Flow"
@@ -66,7 +67,7 @@ type DriverInterface struct {
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface() (*DriverInterface, error) {
 	dc := &DriverInterface{
-		path: driverFile,
+		path: deviceName,
 	}
 
 	err := dc.SetupFlowHandle()
@@ -97,7 +98,7 @@ func (di *DriverInterface) close() error {
 // SetupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
 // by setting the necessary filters
 func (di *DriverInterface) SetupFlowHandle() error {
-	h, err := di.GenerateDriverHandle()
+	h, err := di.generateDriverHandle()
 	if err != nil {
 		return err
 	}
@@ -124,7 +125,7 @@ func (di *DriverInterface) SetupFlowHandle() error {
 
 // SetupStatsHandle generates a windows Driver Handle, and creates a DriverHandle struct
 func (di *DriverInterface) SetupStatsHandle() error {
-	h, err := di.GenerateDriverHandle()
+	h, err := di.generateDriverHandle()
 	if err != nil {
 		return err
 	}
@@ -139,8 +140,8 @@ func (di *DriverInterface) SetupStatsHandle() error {
 
 }
 
-// GenerateDriverHandle creates a new windows handle attached to the driver
-func (di *DriverInterface) GenerateDriverHandle() (windows.Handle, error) {
+// generateDriverHandle creates a new windows handle attached to the driver
+func (di *DriverInterface) generateDriverHandle() (windows.Handle, error) {
 	p, err := windows.UTF16PtrFromString(di.path)
 	if err != nil {
 		return windows.InvalidHandle, err
@@ -156,7 +157,6 @@ func (di *DriverInterface) GenerateDriverHandle() (windows.Handle, error) {
 	if err != nil {
 		return windows.InvalidHandle, err
 	}
-	log.Info("Connected to driver and handle created")
 	return h, nil
 }
 
@@ -187,21 +187,19 @@ func (di *DriverInterface) getStats() (map[string]interface{}, error) {
 	}, nil
 }
 
-func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) (flows []*C.struct__perFlowData, error error) {
+func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) ([]*C.struct__perFlowData, error) {
 	waitgroup.Add(1)
 	defer waitgroup.Done()
 
 	readbuffer := make([]uint8, 1024)
+	flows := make([]*C.struct__perFlowData, 0)
 
 	for {
 		var count uint32
-		bytesused := int(0)
+		var bytesused int
 		err := windows.ReadFile(di.driverFlowHandle.handle, readbuffer, &count, nil)
-		if err != nil {
-			if err != windows.ERROR_MORE_DATA {
-				log.Info(err)
-				break
-			}
+		if err != nil && err != windows.ERROR_MORE_DATA {
+			return nil, err
 		}
 		var buf []byte
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
@@ -214,7 +212,7 @@ func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) (flows []*C.struc
 			break
 		}
 	}
-	return
+	return flows, nil
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set
