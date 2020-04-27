@@ -36,25 +36,21 @@ func connType(protocol C.uint16_t) ConnectionType {
 	return UDP
 }
 
-func convertV4Addresses(local [16]C.uint8_t, remote [16]C.uint8_t) (localAddress util.Address, remoteAddress util.Address) {
+func convertV4Addr(addr [16]C.uint8_t) util.Address {
 	// We only read the first 4 bytes for v4 address
-	localAddress = util.V4AddressFromBytes(C.GoBytes(unsafe.Pointer(&local), net.IPv4len))
-	remoteAddress = util.V4AddressFromBytes(C.GoBytes(unsafe.Pointer(&remote), net.IPv4len))
-	return
+	return util.V4AddressFromBytes(C.GoBytes(unsafe.Pointer(&addr), net.IPv4len))
 }
 
-func convertV6Addresses(local [16]C.uint8_t, remote [16]C.uint8_t) (localAddress util.Address, remoteAddress util.Address) {
+func convertV6Addr(addr [16]C.uint8_t) util.Address {
 	// We read all 16 bytes for v6 address
-	localAddress = util.V6AddressFromBytes(C.GoBytes(unsafe.Pointer(&local), net.IPv6len))
-	remoteAddress = util.V6AddressFromBytes(C.GoBytes(unsafe.Pointer(&remote), net.IPv6len))
-	return
+	return util.V6AddressFromBytes(C.GoBytes(unsafe.Pointer(&addr), net.IPv6len))
 }
 
 func flowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 	var (
 		family         ConnectionFamily
-		source         util.Address
-		dest           util.Address
+		srcAddr        util.Address
+		dstAddr        util.Address
 		connectionType ConnectionType
 	)
 	family = connFamily(flow.addressFamily)
@@ -62,15 +58,15 @@ func flowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 
 	// V4 Address
 	if family == AFINET {
-		source, dest = convertV4Addresses(flow.localAddress, flow.remoteAddress)
+		srcAddr, dstAddr = convertV4Addr(flow.localAddress), convertV4Addr(flow.remoteAddress)
 	} else {
 		// V6 Address
-		source, dest = convertV6Addresses(flow.localAddress, flow.remoteAddress)
+		srcAddr, dstAddr = convertV6Addr(flow.localAddress), convertV6Addr(flow.remoteAddress)
 	}
 
 	return ConnectionStats{
-		Source:             source,
-		Dest:               dest,
+		Source:             srcAddr,
+		Dest:               dstAddr,
 		MonotonicSentBytes: uint64(flow.monotonicSentBytes),
 		MonotonicRecvBytes: uint64(flow.monotonicRecvBytes),
 		LastUpdateEpoch:    0,
