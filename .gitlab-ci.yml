@@ -3274,8 +3274,6 @@ deploy_dsd:
   <<: *skip_when_unwanted_on_7
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
@@ -3289,8 +3287,6 @@ deploy_puppy:
   <<: *skip_when_unwanted_on_7
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
@@ -3564,8 +3560,6 @@ latest_release_7:
   <<: *run_only_when_triggered
   stage: deploy_invalidate
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
