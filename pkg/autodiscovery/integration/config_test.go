@@ -209,6 +209,23 @@ func TestDigest(t *testing.T) {
 
 	// assert the ClusterCheck field is not taken into account
 	assert.Equal(t, simpleConfig.Digest(), simpleClusterCheckConfig.Digest())
+
+	configWithEntity := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Entity:     "docker://f556178a47cf65fb70cd5772a9e80e661f71e021da49d3dc99565b861707041c",
+	}
+	assert.Equal(t, "41b0c2b6f9c4f3e0", configWithEntity.Digest())
+
+	configWithAnotherEntity := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Entity:     "docker://ddcd8a64616772f7ad4524f09fd75c9e3a265144050fc077563e63ea2eb46db0",
+	}
+	assert.Equal(t, "b5c2d0fd13694bf0", configWithAnotherEntity.Digest())
+
+	// assert an entity change produces different hash
+	assert.NotEqual(t, configWithEntity.Digest(), configWithAnotherEntity.Digest())
 }
 
 func TestGetNameForInstance(t *testing.T) {
