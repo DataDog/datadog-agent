@@ -8,6 +8,14 @@ $releasePattern = "(\d+\.\d+\.\d+)"
 $releaseCandidatePattern = "(\d+\.\d+\.\d+)-rc\.(\d+)"
 $develPattern = "(\d+\.\d+\.\d+)-devel\+git\.\d+\.(.+)"
 
+$installMethod = "online"
+$nuspecFile = c:\mnt\chocolatey\datadog-agent-online.nuspec
+$nupkgs = Get-ChildItem c:\mnt\chocolatey\datadog-agent*.msi
+if (($nupkgs | Measure-Object).Count -gt 0) {
+    $installMethod = "offline"
+    $nuspecFile = c:\mnt\chocolatey\datadog-agent-offline.nuspec
+}
+
 if ($rawAgentVersion -match $releaseCandidatePattern) {
     $agentVersionMatches = $rawAgentVersion | Select-String -Pattern $releaseCandidatePattern
     $agentVersion = "{0}-rc-{1}" -f $agentVersionMatches.Matches.Groups[1], $agentVersionMatches.Matches.Groups[2].Value
@@ -29,10 +37,10 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
 
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/master/LICENSE" -OutFile .\chocolatey\tools\LICENSE.txt
 
-Write-Host "Generating Chocolatey package version $agentVersion in $outputDirectory"
+Write-Host "Generating Chocolatey $installMethod package version $agentVersion in $outputDirectory"
 
 if (!(Test-Path $outputDirectory)) {
     New-Item -ItemType Directory -Path $outputDirectory
 }
 
-choco pack --out=$outputDirectory c:\mnt\chocolatey\datadog-agent.nuspec package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
+choco pack --out=$outputDirectory $nuspecFile package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
