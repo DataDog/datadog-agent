@@ -135,3 +135,102 @@ func TestExtractDeployment(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractReplicaSet(t *testing.T) {
+	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
+	testInt32 := int32(2)
+	tests := map[string]struct {
+		input    v1.ReplicaSet
+		expected model.ReplicaSet
+	}{
+		"full rs": {
+			input: v1.ReplicaSet{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:               types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
+					Name:              "replicaset",
+					Namespace:         "namespace",
+					CreationTimestamp: timestamp,
+					Labels: map[string]string{
+						"label": "foo",
+					},
+					Annotations: map[string]string{
+						"annotation": "bar",
+					},
+				},
+				Spec: v1.ReplicaSetSpec{
+					Replicas: &testInt32,
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"app": "test-deploy",
+						},
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "cluster",
+								Operator: "NotIn",
+								Values:   []string{"staging", "prod"},
+							},
+						},
+					},
+				},
+				Status: v1.ReplicaSetStatus{
+					Replicas:             2,
+					FullyLabeledReplicas: 2,
+					ReadyReplicas:        1,
+					AvailableReplicas:    1,
+				},
+			}, expected: model.ReplicaSet{
+				Metadata: &model.Metadata{
+					Name:              "replicaset",
+					Namespace:         "namespace",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+					CreationTimestamp: 1389744000,
+					Labels:            []string{"label:foo"},
+					Annotations:       []string{"annotation:bar"},
+				},
+				Selectors: []*model.LabelSelectorRequirement{
+					{
+						Key:      "app",
+						Operator: "In",
+						Values:   []string{"test-deploy"},
+					},
+					{
+						Key:      "cluster",
+						Operator: "NotIn",
+						Values:   []string{"staging", "prod"},
+					},
+				},
+				ReplicasDesired:      2,
+				Replicas:             2,
+				FullyLabeledReplicas: 2,
+				ReadyReplicas:        1,
+				AvailableReplicas:    1,
+			},
+		},
+		"empty rs": {input: v1.ReplicaSet{}, expected: model.ReplicaSet{Metadata: &model.Metadata{}, ReplicasDesired: 1}},
+		"partial rs": {
+			input: v1.ReplicaSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "deploy",
+					Namespace: "namespace",
+				},
+				Status: v1.ReplicaSetStatus{
+					ReadyReplicas:     1,
+					AvailableReplicas: 0,
+				},
+			}, expected: model.ReplicaSet{
+				Metadata: &model.Metadata{
+					Name:      "deploy",
+					Namespace: "namespace",
+				},
+				ReplicasDesired:   1,
+				ReadyReplicas:     1,
+				AvailableReplicas: 0,
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractReplicaSet(&tc.input))
+		})
+	}
+}

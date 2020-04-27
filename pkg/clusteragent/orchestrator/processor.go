@@ -86,7 +86,7 @@ func processReplicasetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 
 	for d := 0; d < len(rsList); d++ {
 		// extract replica set info
-		rsModel := model.ReplicaSet{}
+		rsModel := extractReplicaSet(rsList[d])
 
 		// k8s objects only have json "omitempty" annotations
 		// we're doing json<>yaml to get rid of the null properties
@@ -100,7 +100,7 @@ func processReplicasetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 		yamlDeploy, _ := yaml.Marshal(jsonObj)
 		rsModel.Yaml = yamlDeploy
 
-		rsMsgs = append(rsMsgs, &rsModel)
+		rsMsgs = append(rsMsgs, rsModel)
 	}
 
 	groupSize := len(rsMsgs) / cfg.MaxPerMessage

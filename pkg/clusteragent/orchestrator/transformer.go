@@ -50,12 +50,15 @@ func extractDeployment(d *v1.Deployment) *model.Deployment {
 	return &deploy
 }
 
-func extractReplicaset(rs *v1.ReplicaSet) *model.ReplicaSet {
+func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	replicaSet := model.ReplicaSet{
 		Metadata: orchestrator.ExtractMetadata(&rs.ObjectMeta),
 	}
 	// spec
-	replicaSet.ReplicasDesired = *rs.Spec.Replicas
+	replicaSet.ReplicasDesired = 1 // default
+	if rs.Spec.Replicas != nil {
+		replicaSet.ReplicasDesired = *rs.Spec.Replicas
+	}
 	if rs.Spec.Selector != nil {
 		replicaSet.Selectors = extractLabelSelector(rs.Spec.Selector)
 	}
