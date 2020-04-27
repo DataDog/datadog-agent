@@ -37,7 +37,7 @@ var errShortErrorMessage = errors.New("not enough data for netlink error code")
 var errMaxSamplingAttempts = errors.New("netlink socket creation: too many attempts")
 
 // Consumer is responsible for encapsulating all the logic of hooking into Conntrack
-// consuming [NEW] connection events, and exposing a stream of the NAT connections.
+// and streaming new connection events.
 type Consumer struct {
 	conn         *netlink.Conn
 	socket       *Socket
@@ -223,11 +223,17 @@ ReadLoop:
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				// If we detect an ENOBUF it means we're not coping with the netlink socket throughput
-				// and the receive buffer is overflowing. In that case we throw away the current socket
-				// and create a new one with a more aggressive sampling rate.
+				// If we detect an ENOBUF during the initial Conntrack table dump it likely means
+				// the netlink socket recv buffer doesn't have enough capacity for the existing connections.
+				if dump {
+					log.Warnf("netlink: detected enobuf during conntrack table dump. consider raising rcvbuf capacity.")
+					return
+				}
 
-				log.Warnf("netlink: detected enobuf. will re-create socket with a lower sampling rate.")
+				// Alternatively, if we detect an ENOBUF during streaming context it means we're not
+				// coping with the netlink socket throughput and the receive buffer is overflowing.
+				// In that case we throw away the current socket and create a new one with a more aggressive sampling rate.
+				log.Warnf("netlink: detected enobuf during streaming. will re-create socket with a lower sampling rate.")
 
 				// TODO: validate if we need to leave the group before creating a new socket
 				leaveErr := c.conn.LeaveGroup(netlinkCtNew)
@@ -242,15 +248,9 @@ ReadLoop:
 					return
 				}
 
-				// Additionally if the ENOBUF happened during the Conntrack dump we just move on as there
-				// is no point in re-attempting dump the table with a lower sampling rate
-				if dump {
-					return
-				} else {
-					// re-subscribe netlinkCtNew messages
-					c.conn.JoinGroup(netlinkCtNew)
-					continue
-				}
+				// Re-subscribe netlinkCtNew messages
+				c.conn.JoinGroup(netlinkCtNew)
+				continue
 			}
 		}
 
