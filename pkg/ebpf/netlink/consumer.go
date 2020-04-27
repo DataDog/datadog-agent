@@ -131,6 +131,8 @@ func (c *Consumer) Stop() {
 	c.conn.Close()
 }
 
+// initWorker creates a go-routine *within the root network namespace*.
+// This go-routine is responsible for all socket system calls.
 func (c *Consumer) initWorker(procRoot string) {
 	go func() {
 		util.WithRootNS(procRoot, func() {
@@ -145,6 +147,8 @@ func (c *Consumer) initWorker(procRoot string) {
 	}()
 }
 
+// do simply dispatches an action to the go-routine running within the root network
+// namespace. the caller can wait for the execution to finish by setting sync to true.
 func (c *Consumer) do(sync bool, fn func()) {
 	if !sync {
 		c.workQueue <- fn
