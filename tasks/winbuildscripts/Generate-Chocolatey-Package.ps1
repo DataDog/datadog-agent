@@ -9,11 +9,11 @@ $releaseCandidatePattern = "(\d+\.\d+\.\d+)-rc\.(\d+)"
 $develPattern = "(\d+\.\d+\.\d+)-devel\+git\.\d+\.(.+)"
 
 $installMethod = "online"
-$nuspecFile = c:\mnt\chocolatey\datadog-agent-online.nuspec
+$nuspecFile = "c:\mnt\chocolatey\datadog-agent-online.nuspec"
 $nupkgs = Get-ChildItem c:\mnt\chocolatey\datadog-agent*.msi
 if (($nupkgs | Measure-Object).Count -gt 0) {
     $installMethod = "offline"
-    $nuspecFile = c:\mnt\chocolatey\datadog-agent-offline.nuspec
+    $nuspecFile = "c:\mnt\chocolatey\datadog-agent-offline.nuspec"
 }
 
 if ($rawAgentVersion -match $releaseCandidatePattern) {
