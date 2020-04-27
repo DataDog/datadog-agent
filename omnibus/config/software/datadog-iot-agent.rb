@@ -6,7 +6,7 @@
 require './lib/ostools.rb'
 require 'pathname'
 
-name 'datadog-puppy'
+name 'datadog-iot-agent'
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -34,12 +34,12 @@ build do
   end
 
   if linux?
-    command "invoke agent.build --puppy --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
+    command "invoke agent.build --iot --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
     copy('bin', install_dir)
 
     mkdir "#{install_dir}/run/"
 
-  
+
     # Config
     mkdir '/etc/datadog-agent'
     mkdir "/var/log/datadog"
@@ -80,7 +80,7 @@ build do
     command "invoke -e process-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin/agent"
-  
+
 
   end
   block do

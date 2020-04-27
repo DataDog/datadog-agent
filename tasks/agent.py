@@ -67,7 +67,7 @@ AGENT_CORECHECKS = [
     "winproc",
 ]
 
-PUPPY_CORECHECKS = [
+IOT_CORECHECKS = [
     "cpu",
     "disk",
     "io",
@@ -82,7 +82,7 @@ PUPPY_CORECHECKS = [
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          puppy=False, development=True, precompile_only=False, skip_assets=False,
+          iot=False, development=True, precompile_only=False, skip_assets=False,
           embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
           major_version='7', python_runtimes='3', arch='x64', exclude_rtloader=False, go_mod="vendor"):
     """
@@ -93,7 +93,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         inv agent.build --build-exclude=systemd
     """
 
-    if not exclude_rtloader and not puppy:
+    if not exclude_rtloader and not iot:
         rtloader_make(ctx, python_runtimes=python_runtimes)
         rtloader_install(ctx)
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
@@ -148,9 +148,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
 
-    if puppy:
-        # Puppy mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(puppy=True)
+    if iot:
+        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
+        build_tags = get_default_build_tags(iot=True)
     else:
         build_tags = get_build_tags(build_include, build_exclude)
 
@@ -196,10 +196,10 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         ctx.run(cmd, env=env)
 
     if not skip_assets:
-        refresh_assets(ctx, build_tags, development=development, puppy=puppy)
+        refresh_assets(ctx, build_tags, development=development, iot=iot)
 
 @task
-def refresh_assets(ctx, build_tags, development=True, puppy=False):
+def refresh_assets(ctx, build_tags, development=True, iot=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -216,7 +216,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
         copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
-    if not puppy:
+    if not iot:
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
         # copy the dd-agent placeholder to the bin folder
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
@@ -227,7 +227,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
       shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in AGENT_CORECHECKS if not puppy else PUPPY_CORECHECKS:
+    for check in AGENT_CORECHECKS if not iot else IOT_CORECHECKS:
         check_dir = os.path.join(dist_folder, "conf.d/{}.d/".format(check))
         copy_tree("./cmd/agent/dist/conf.d/{}.d/".format(check), check_dir)
     if "apm" in build_tags:
@@ -242,7 +242,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
 
 @task
 def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-        puppy=False, skip_build=False):
+        iot=False, skip_build=False):
     """
     Execute the agent binary.
 
@@ -250,7 +250,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, puppy)
+        build(ctx, rebuild, race, build_include, build_exclude, iot)
 
     ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
 
@@ -341,7 +341,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
     'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands"
 })
-def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base_dir=None, gem_path=None,
+def omnibus_build(ctx, iot=False, agent_binaries=False, log_level="info", base_dir=None, gem_path=None,
                   skip_deps=False, skip_sign=False, release_version="nightly", major_version='7',
                   python_runtimes='3', omnibus_s3_cache=False, hardened_runtime=False, system_probe_bin=None,
                   libbcc_tarball=None, with_bcc=True):
@@ -388,8 +388,8 @@ def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base
         bundle_done = datetime.datetime.now()
         bundle_elapsed = bundle_done - bundle_start
         target_project = "agent"
-        if puppy:
-            target_project = "puppy"
+        if iot:
+            target_project = "iot"
         elif agent_binaries:
             target_project = "agent-binaries"
 
