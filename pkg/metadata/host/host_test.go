@@ -157,9 +157,8 @@ install_methodlol:
   version: datadog-cookbook-4.2.1
 `
 	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
-	// time.Sleep(100 * time.Second)
 
-	// the parsing does not occur and the install is considered private
+	// the parsing does not occur and the install is kept undefined
 	installMethod = getInstallMethod(installInfoPath)
 	require.Equal(t, "undefined", installMethod.ToolVersion)
 	assert.Nil(t, installMethod.Tool)

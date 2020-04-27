@@ -34,7 +34,7 @@ describe 'dd-agent-installation-script' do
       expect(install_info['install_method']).to match(
         'tool' => 'install_script',
         'tool_version' => 'install_script',
-        'installer_version' => /^\d+\.\d+\.\d+$/
+        'installer_version' => /^install_script-\d+\.\d+\.\d+$/
       )
     end
   end

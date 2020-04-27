@@ -256,7 +256,7 @@ func getInstallMethod(infoPath string) *InstallMethod {
 
 	// if we could not get install info
 	if err != nil {
-		// consider install info as private
+		// consider install info is kept "undefined"
 		return &InstallMethod{
 			ToolVersion:      "undefined",
 			Tool:             nil,
