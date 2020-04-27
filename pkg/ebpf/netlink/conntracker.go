@@ -232,11 +232,6 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 
 	for e := range events {
-		// TODO: Add error handling
-		if err := e.Error(); err != nil {
-			log.Errorf("netlink error: %s", err)
-		}
-
 		conns := DecodeEvent(e)
 		for _, c := range conns {
 			if len(ctr.state) < ctr.maxStateSize && isNAT(c) {
@@ -299,11 +294,6 @@ func (ctr *realConntracker) run() {
 	// TODO: Add termination logic
 	go func() {
 		for e := range events {
-			if err := e.Error(); err != nil {
-				// TODO: Add error handling
-				log.Errorf("netlink error: %s", err)
-			}
-
 			conns := DecodeEvent(e)
 			for _, c := range conns {
 				ctr.register(c)

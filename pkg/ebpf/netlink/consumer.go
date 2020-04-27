@@ -49,7 +49,6 @@ type Consumer struct {
 // Event encapsulates the result of a single netlink.Con.Receive() call
 type Event struct {
 	msgs   []netlink.Message
-	err    error
 	buffer *[]byte
 	pool   *bufferPool
 }
@@ -57,15 +56,6 @@ type Event struct {
 // Messages returned from the socket read
 func (e *Event) Messages() []netlink.Message {
 	return e.msgs
-}
-
-// Error associated to the socket read
-func (e *Event) Error() error {
-	err := e.err
-	if err != nil {
-		e.Done()
-	}
-	return err
 }
 
 // Done must be called after decoding events so the underlying buffers can be reclaimed.
@@ -122,12 +112,12 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 
 		verify, err := c.conn.Send(req)
 		if err != nil {
-			output <- c.eventFor(nil, err)
+			log.Errorf("netlink dump error: %s", err)
 			return
 		}
 
 		if err := netlink.Validate(req, []netlink.Message{verify}); err != nil {
-			output <- c.eventFor(nil, err)
+			log.Errorf("netlink dump message validation error: %s", err)
 			return
 		}
 
@@ -174,7 +164,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	var err error
 
 	// This is a safeguard against too many attempts to re-create a socket
-	if samplingRate <= samplingThreshold {
+	if samplingRate <= minSamplingThreshold {
 		return errMaxSamplingAttempts
 	}
 
@@ -183,6 +173,8 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 		return err
 	}
 
+	c.conn = netlink.NewConn(c.socket, c.socket.pid)
+
 	if err := setSocketBufferSize(netlinkBufferSize, c.conn); err != nil {
 		log.Errorf("error setting rcv buffer size for netlink socket: %s", err)
 	}
@@ -190,8 +182,6 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	if size, err := getSocketBufferSize(c.conn); err == nil {
 		log.Debugf("rcv buffer size for netlink socket is %d bytes", size)
 	}
-
-	c.conn = netlink.NewConn(c.socket, c.socket.pid)
 
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
@@ -222,19 +212,24 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 // It's also worth noting that in the event of an ENOBUF error, we'll re-create a new netlink socket,
 // and attach a BPF sampler to it, to lower the the read throughput and save CPU.
 func (c *Consumer) receive(output chan Event, dump bool) {
+ReadLoop:
 	for {
 		c.pool.Reset()
 		msgs, err := c.socket.Receive()
+
 		if err != nil {
 			switch socketError(err) {
 			case errEOF:
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				// If we detect an ENOBUF, it means we're not coping with the netlink socket throughput
+				// If we detect an ENOBUF it means we're not coping with the netlink socket throughput
 				// and the receive buffer is overflowing. In that case we throw away the current socket
 				// and create a new one with a more aggressive sampling rate.
+
 				log.Warnf("netlink: detected enobuf. will re-create socket with a lower sampling rate.")
+
+				// TODO: validate if we need to leave the group before creating a new socket
 				leaveErr := c.conn.LeaveGroup(netlinkCtNew)
 				if leaveErr != nil {
 					log.Errorf("netlink: error leaving group: %s", leaveErr)
@@ -243,12 +238,12 @@ func (c *Consumer) receive(output chan Event, dump bool) {
 				c.socket.Close()
 				err := c.initNetlinkSocket(c.samplingRate / 2)
 				if err != nil {
-					log.Error("failed re-create netlink socket. exiting conntrack: %s", err)
+					log.Errorf("failed re-create netlink socket. exiting conntrack: %s", err)
 					return
 				}
 
-				// Additionally if the ENOBUF happened during the conntrack dump we just move on as there
-				// is no point re-attempting the table dump with a a lower sampling rate
+				// Additionally if the ENOBUF happened during the Conntrack dump we just move on as there
+				// is no point in re-attempting dump the table with a lower sampling rate
 				if dump {
 					return
 				} else {
@@ -256,26 +251,25 @@ func (c *Consumer) receive(output chan Event, dump bool) {
 					c.conn.JoinGroup(netlinkCtNew)
 					continue
 				}
-			default:
-				// Everything else is propagated upstream
-				output <- c.eventFor(nil, err)
 			}
 		}
 
+		// Messages with error codes are simply skipped
 		for _, m := range msgs {
 			if err := checkMessage(m); err != nil {
-				output <- c.eventFor(nil, err)
-				return
+				// TODO: Add some telemetry here
+				log.Debugf("netlink message error: %s", err)
+				continue ReadLoop
 			}
 		}
 
-		// Skip multi-part "done" message
+		// Skip multi-part "done" messages
 		multiPartDone := len(msgs) > 0 && msgs[len(msgs)-1].Header.Type == netlink.Done
 		if multiPartDone {
 			msgs = msgs[:len(msgs)-1]
 		}
 
-		output <- c.eventFor(msgs, nil)
+		output <- c.eventFor(msgs)
 
 		// If we're doing a conntrack dump it means we are done after reading the multi-part message
 		if dump && multiPartDone {
@@ -284,10 +278,9 @@ func (c *Consumer) receive(output chan Event, dump bool) {
 	}
 }
 
-func (c *Consumer) eventFor(msgs []netlink.Message, err error) Event {
+func (c *Consumer) eventFor(msgs []netlink.Message) Event {
 	return Event{
 		msgs:   msgs,
-		err:    err,
 		buffer: c.pool.inUse,
 		pool:   c.pool,
 	}
