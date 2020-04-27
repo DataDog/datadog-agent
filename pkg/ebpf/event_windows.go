@@ -50,7 +50,7 @@ func convertV6Addresses(local [16]C.uint8_t, remote [16]C.uint8_t) (localAddress
 	return
 }
 
-func flowToConnStat(flow *C.struct__perFlowData) (connStat ConnectionStats) {
+func flowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 	var (
 		family         ConnectionFamily
 		source         util.Address
@@ -88,9 +88,10 @@ func flowToConnStat(flow *C.struct__perFlowData) (connStat ConnectionStats) {
 	}
 }
 
-func flowsToConnStats(pfds []*C.struct__perFlowData) (connStats []ConnectionStats) {
-	for _, pfd := range pfds {
-		connStats = append(connStats, flowToConnStat(pfd))
+func flowsToConnStats(pfds []*C.struct__perFlowData) []ConnectionStats {
+	connStats := make([]ConnectionStats, len(pfds))
+	for i, pfd := range pfds {
+		connStats[i] = flowToConnStat(pfd)
 	}
-	return
+	return connStats
 }
