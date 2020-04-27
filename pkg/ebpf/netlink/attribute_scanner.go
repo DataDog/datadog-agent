@@ -87,10 +87,7 @@ func (s *AttributeScanner) Next() bool {
 }
 
 // Type returns the Attribute.Type field of the current netlink attribute
-// pointed to by the decoder.
-//
-// Type masks off the high bits of the netlink attribute type which may contain
-// the Nested and NetByteOrder flags. These can be obtained by calling TypeFlags.
+// pointed to by the scanner.
 func (s *AttributeScanner) Type() uint16 {
 	// Mask off any flags stored in the high bits.
 	return s.frame().attr.Type & attrTypeMask
