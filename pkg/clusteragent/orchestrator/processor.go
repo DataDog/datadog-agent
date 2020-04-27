@@ -25,7 +25,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 
 	for d := 0; d < len(deploymentList); d++ {
 		// extract deployment info
-		deployModel := model.Deployment{}
+		deployModel := extractDeployment(deploymentList[d])
 
 		// k8s objects only have json "omitempty" annotations
 		// we're doing json<>yaml to get rid of the null properties
@@ -39,7 +39,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		yamlDeploy, _ := yaml.Marshal(jsonObj)
 		deployModel.Yaml = yamlDeploy
 
-		deployMsgs = append(deployMsgs, &deployModel)
+		deployMsgs = append(deployMsgs, deployModel)
 	}
 
 	groupSize := len(deployMsgs) / cfg.MaxPerMessage
