@@ -20,12 +20,6 @@ const (
 
 	// UDPProtocol represents the IANA protocol number for UDP
 	UDPProtocol = 6
-
-	// TCPFlowDataLen represents the bytes filled for the protocol_u struct in _perFlowData.
-	TCPFlowDataLen = 24
-
-	// UDPFlowDataLen represents the bytes filled for the protocol_u struct in _perFlowData
-	UDPFlowDataLen = 4
 )
 
 func connFamily(addressFamily C.uint16_t) ConnectionFamily {
