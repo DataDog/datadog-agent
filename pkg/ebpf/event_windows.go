@@ -20,6 +20,12 @@ const (
 
 	// UDPProtocol represents the IANA protocol number for UDP
 	UDPProtocol = 6
+
+	// TCPFlowDataLen represents the bytes filled for the protocol_u struct in _perFlowData.
+	TCPFlowDataLen = 24
+
+	// UDPFlowDataLen represents the bytes filled for the protocol_u struct in _perFlowData
+	UDPFlowDataLen = 4
 )
 
 func connFamily(addressFamily C.uint16_t) ConnectionFamily {
@@ -52,42 +58,39 @@ func convertV6Addresses(local [16]C.uint8_t, remote [16]C.uint8_t) (localAddress
 
 func flowToConnStat(flow *C.struct__perFlowData) (connStat ConnectionStats) {
 	var (
-		family ConnectionFamily
-		source util.Address
-		dest   util.Address
+		family         ConnectionFamily
+		source         util.Address
+		dest           util.Address
+		connectionType ConnectionType
 	)
 	family = connFamily(flow.addressFamily)
+	connectionType = connType(flow.protocol)
 
 	// V4 Address
 	if family == AFINET {
 		source, dest = convertV4Addresses(flow.localAddress, flow.remoteAddress)
-		// V6 Address
 	} else {
+		// V6 Address
 		source, dest = convertV6Addresses(flow.localAddress, flow.remoteAddress)
 	}
 
 	return ConnectionStats{
-		Source:                 source,
-		Dest:                   dest,
-		MonotonicSentBytes:     0,
-		LastSentBytes:          0,
-		MonotonicRecvBytes:     0,
-		LastRecvBytes:          0,
-		LastUpdateEpoch:        0,
-		MonotonicRetransmits:   0,
-		LastRetransmits:        0,
-		RTT:                    0,
-		RTTVar:                 0,
-		Pid:                    uint32(flow.processId),
-		NetNS:                  0,
-		SPort:                  uint16(flow.localPort),
-		DPort:                  uint16(flow.remotePort),
-		Type:                   connType(flow.protocol),
-		Family:                 family,
-		Direction:              0,
-		IPTranslation:          nil,
-		IntraHost:              false,
-		DNSSuccessfulResponses: 0,
+		Source:             source,
+		Dest:               dest,
+		MonotonicSentBytes: uint64(flow.monotonicSentBytes),
+		MonotonicRecvBytes: uint64(flow.monotonicRecvBytes),
+		LastUpdateEpoch:    0,
+		// TODO: Driver needs to be updated to get retransmit values
+		MonotonicRetransmits: 0,
+		RTT:                  0,
+		RTTVar:               0,
+		Pid:                  uint32(flow.processId),
+		SPort:                uint16(flow.localPort),
+		DPort:                uint16(flow.remotePort),
+		Type:                 connectionType,
+		Family:               family,
+		// TODO: Driver needs to be updated to send Direction
+		Direction: 0,
 	}
 }
 

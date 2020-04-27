@@ -189,11 +189,11 @@ typedef struct _perFlowData {
     // stats common to all
 
     uint64_t packetsOut;
-    uint64_t bytesOut;              // total bytes including ip header
+    uint64_t monotonicSentBytes;              // total bytes including ip header
     uint64_t transportBytesOut;     // payload (not including ip or transport header)
 
     uint64_t packetsIn;
-    uint64_t bytesIn;
+    uint64_t monotonicRecvBytes;
     uint64_t transportBytesIn;
 
     uint16_t        localPort;      // host byte order
