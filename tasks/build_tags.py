@@ -31,9 +31,15 @@ ALL_TAGS = set([
 ])
 
 # PUPPY_TAGS lists the tags needed when building the Puppy Agent
-PUPPY_TAGS = set([
+PUPPY_TAGS = [
     "zlib",
-])
+    "systemd",
+]
+
+ANDROID_TAGS = [
+    "zlib",
+    "android",
+]
 
 PROCESS_ONLY_TAGS = [
     "fargateprocess",
@@ -67,17 +73,21 @@ REDHAT_DEBIAN_SUSE_DIST = [
 ]
 
 
-def get_default_build_tags(puppy=False, process=False, arch="x64"):
+def get_default_build_tags(puppy=False, process=False, arch="x64", android=False):
     """
     Build the default list of tags based on the current platform.
 
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    if puppy:
-        return PUPPY_TAGS
-
     include = ["all"]
+    if puppy:
+        include = PUPPY_TAGS
+
+    # android has its own set of tags
+    if android:
+        include = ANDROID_TAGS
+
     exclude = [] if sys.platform.startswith("linux") else LINUX_ONLY_TAGS
     # if not process agent, ignore process only tags
     if not process:

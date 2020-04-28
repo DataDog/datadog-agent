@@ -150,7 +150,7 @@ func TestUpdateWPA(t *testing.T) {
 
 }
 
-func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client wpa_client.Interface, itf LeaderElectorInterface, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.SharedInformerFactory) {
+func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client wpa_client.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.SharedInformerFactory) {
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(t.Logf)
@@ -160,7 +160,7 @@ func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client 
 	autoscalerController, _ := NewAutoscalersController(
 		kubeClient,
 		eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "FakeWPAController"}),
-		itf,
+		isLeaderFunc,
 		dcl,
 	)
 
@@ -496,11 +496,10 @@ func TestWPAGC(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
-			i := &fakeLeaderElector{}
 			d := &fakeDatadogClient{}
 			wpaCl := fake.NewSimpleClientset()
 
-			hctrl, _ := newFakeAutoscalerController(t, client, i, d)
+			hctrl, _ := newFakeAutoscalerController(t, client, alwaysLeader, d)
 			hctrl.wpaEnabled = true
 			inf := wpa_informers.NewSharedInformerFactory(wpaCl, 0)
 			hctrl.enableWPA(inf)

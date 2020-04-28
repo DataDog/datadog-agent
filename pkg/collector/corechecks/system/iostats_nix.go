@@ -8,7 +8,6 @@
 package system
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"regexp"
@@ -85,16 +84,15 @@ func (c *IOCheck) nixIO() error {
 	delta := float64(now - c.ts)
 	deltaSecond := delta / 1000
 
-	var tagbuff bytes.Buffer
 	for device, ioStats := range iomap {
 		if c.blacklist != nil && c.blacklist.MatchString(device) {
 			continue
 		}
 
-		tagbuff.Reset()
-		tagbuff.WriteString("device:")
-		tagbuff.WriteString(device)
-		tags := []string{tagbuff.String()}
+		tags := []string{}
+		tags = append(tags, fmt.Sprintf("device:%s", device))
+		tags = append(tags, fmt.Sprintf("device_name:%s", device))
+
 		if ioStats.Label != "" {
 			tags = append(tags, fmt.Sprintf("device_label:%s", ioStats.Label))
 		}

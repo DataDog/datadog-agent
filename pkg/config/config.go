@@ -429,6 +429,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
 
+	// Cloud Foundry Garden
+	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
+	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_address", "/var/vcap/data/garden/garden.sock")
+
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
@@ -607,6 +611,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
+	config.SetKnown("system_probe_config.conntrack_ignore_enobufs")
 	config.SetKnown("system_probe_config.sysprobe_socket")
 	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
 	config.SetKnown("system_probe_config.max_conns_per_message")

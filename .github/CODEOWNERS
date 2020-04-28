@@ -23,6 +23,7 @@
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integration-tools-and-libraries
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
+/cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
 /cmd/system-probe/                      @DataDog/networks
 
@@ -35,8 +36,8 @@
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
 
-/Gopkg.lock                             @DataDog/agent-all
-/Gopkg.toml                             @DataDog/agent-all
+/go.mod                                 @DataDog/agent-all
+/go.sum                                 @DataDog/agent-all
 
 /Makefile.trace                         @DataDog/apm-agent
 
@@ -71,9 +72,11 @@
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
 /pkg/tagger/                            @DataDog/container-integrations
+/pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
 /pkg/util/cloudfoundry/                 @DataDog/integrations-tools-and-libraries
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
+/pkg/util/containers/collectors/cloudfoundry.go              @DataDog/integrations-tools-and-libraries
 /pkg/util/docker/                       @DataDog/container-integrations @DataDog/processes
 /pkg/util/ecs/                          @DataDog/container-integrations @DataDog/processes
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/processes @DataDog/container-app
@@ -83,6 +86,7 @@
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
 /pkg/quantile                           @DataDog/metrics-aggregation
 

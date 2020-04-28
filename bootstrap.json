@@ -5,12 +5,13 @@
             "github.com/fzipp/gocyclo",
             "github.com/gordonklaus/ineffassign",
             "github.com/client9/misspell/cmd/misspell",
-            "github.com/golang/dep/cmd/dep",
             "golang.org/x/mobile/cmd/gomobile",
             "golang.org/x/tools/go/ast/astutil",
             "golang.org/x/tools/go/internal",
             "golang.org/x/tools/go/gcexportdata",
             "github.com/golangci/golangci-lint",
+            "github.com/frapposelli/wwhrd",
+            "github.com/goware/modvendor",
             "github.com/shuLhan/go-bindata/cmd/go-bindata"
         ],
         "golang.org/x/tools/go/ast/astutil": {
@@ -24,10 +25,6 @@
         },
         "golang.org/x/tools/go/gcexportdata": {
             "version": "release-branch.go1.10",
-            "type": "go"
-        },
-        "github.com/golang/dep/cmd/dep": {
-            "version": "v0.5.0",
             "type": "go"
         },
         "golang.org/x/lint/golint": {
@@ -57,6 +54,14 @@
         },
         "github.com/shuLhan/go-bindata/cmd/go-bindata" : {
             "version": "v3.4.0",
+            "type": "go"
+        },
+        "github.com/frapposelli/wwhrd": {
+            "version": "v0.2.4",
+            "type": "go"
+        },
+        "github.com/goware/modvendor": {
+            "version": "892bf4ecb805b052575eb45070a60f9db471df8e",
             "type": "go"
         }
     }
