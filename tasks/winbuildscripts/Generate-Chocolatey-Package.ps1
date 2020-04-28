@@ -10,11 +10,13 @@ $develPattern = "(\d+\.\d+\.\d+)-devel\+git\.\d+\.(.+)"
 
 $installMethod = "online"
 $nuspecFile = "c:\mnt\chocolatey\datadog-agent-online.nuspec"
+$licensePath = "c:\mnt\chocolatey\tools-online\LICENSE.txt"
 $msis = Get-ChildItem c:\mnt\chocolatey\datadog-agent*.msi
 $msiCount = ($msis | Measure-Object).Count
 if ($msiCount -eq 1) {
     $installMethod = "offline"
     $nuspecFile = "c:\mnt\chocolatey\datadog-agent-offline.nuspec"
+    $licensePath = "c:\mnt\chocolatey\tools-offline\LICENSE.txt"
 } elseif ($msiCount -gt 1) {
     Write-Host "Too many MSI found, aborting: '$msis'"
     exit 1
@@ -39,7 +41,7 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
     exit 2
 }
 
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/master/LICENSE" -OutFile .\chocolatey\tools\LICENSE.txt
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/master/LICENSE" -OutFile $licensePath
 
 Write-Host "Generating Chocolatey $installMethod package version $agentVersion in $outputDirectory"
 
