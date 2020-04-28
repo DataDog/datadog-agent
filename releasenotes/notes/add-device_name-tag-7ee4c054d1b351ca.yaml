@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add a new `device_name` tag on IOstats and disk checks.

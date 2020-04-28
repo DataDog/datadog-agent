@@ -142,10 +142,9 @@ func (s *SocketFilterSnooper) Close() {
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 func (s *SocketFilterSnooper) processPacket(data []byte) {
 	t := s.getCachedTranslation()
-	cKey := dnsKey{}
-	dnsTransactionID, err := s.parser.ParseInto(data, t, &cKey)
+	pktInfo := dnsPacketInfo{}
 
-	if err != nil {
+	if err := s.parser.ParseInto(data, t, &pktInfo); err != nil {
 		switch err {
 		case skippedPayload: // no need to count or log cases where the packet is valid but has no relevant content
 		case errTruncated:
@@ -157,11 +156,13 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 		return
 	}
 
-	if s.statKeeper != nil && (s.collectLocalDNS || !cKey.serverIP.IsLoopback()) {
-		s.statKeeper.ProcessSuccessfulResponse(cKey, dnsTransactionID)
+	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.serverIP.IsLoopback()) {
+		s.statKeeper.ProcessPacketInfo(pktInfo)
 	}
 
-	s.cache.Add(t, time.Now())
+	if pktInfo.pktType == SuccessfulResponse {
+		s.cache.Add(t, time.Now())
+	}
 }
 
 func (s *SocketFilterSnooper) pollPackets() {

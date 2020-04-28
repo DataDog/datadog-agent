@@ -7,7 +7,6 @@
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
-INSTALL_DIR=/opt/datadog-agent
 SERVICE_NAME=datadog-agent
 
 stop_agent()
@@ -41,7 +40,7 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
     stop_agent
     deregister_agent
 else
-    echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+    echo "[ FAILED ]\tYour system is currently not supported by this script.";
 fi
 
 exit 0
