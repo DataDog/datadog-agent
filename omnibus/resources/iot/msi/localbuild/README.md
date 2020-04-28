@@ -1,6 +1,6 @@
 ## LocalInstall
 
-The files here provide a means to more quickly test iterations of the Windows IOT Agent installer by creating an environment in which an installer can be recreated without an entire omnibus build.
+The files here provide a means to more quickly test iterations of the Windows IoT Agent installer by creating an environment in which an installer can be recreated without an entire omnibus build.
 
 ### Requirements
 
@@ -15,5 +15,4 @@ place.  Executes `light` (which creates an XML representation of the directory s
 and the configuration files directory, `c:\omnibus-ruby\src\etc\datadog-agent\extra_package_files`
 
 It includes `parameters.wxi`, where the variables such as the installation version can be changed (note that the included binaries will not be rebuilt, so the included binaries will not necessarily report the version specified in `parameters.wxi`.  However, the MSI itself will report itself as that version).
-
 

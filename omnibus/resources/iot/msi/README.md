@@ -1,6 +1,6 @@
 # Windows Installation Guide
 
-Welcome to the Datadog IOT installer for Windows.
+Welcome to the Datadog IoT installer for Windows.
 
 Installation instructions are available on the dedicated [docs website page](https://docs.datadoghq.com/agent/basic_agent_usage/windows/?tab=agentv6#installation)
 
