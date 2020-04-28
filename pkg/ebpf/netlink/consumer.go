@@ -22,8 +22,21 @@ const (
 	ipctnlMsgCtGet = 1
 	outputBuffer   = 100
 
-	// Minimum BPF sampling rate before we give up
-	// See ENOBUF handling below
+	// The maximum number of messages we're willing to read off the socket per second
+	// This number is enforced to keep CPU usage at an appropriate level
+	// If the number of messages is above that "throttle" the socket using BPF
+	// multiple times until we reach the desired throughput.
+	// TODO: expose this as a configuration param
+	maxMessagesPerSecond = 1000
+
+	// This represents the percentage of sampling we apply to the netlink
+	// socket each time we call throttle(). So for a throttling factor of 0.8
+	// the sampling rates would look like 100%, 80%, 64%, 51% etc.
+	throttlingFactor = 0.8
+
+	// minSamplingThreshold represents the minimum sampling rate we attempt
+	// to apply to the socket to stabilize its throughput. If the sampling rate
+	// falls below it we give up and stop consuming conntrack events altogether.
 	minSamplingThreshold = 0.2
 )
 
@@ -44,6 +57,7 @@ type Consumer struct {
 	pool         *bufferPool
 	workQueue    chan func()
 	samplingRate float64
+	breaker      *CircuitBreaker
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -69,6 +83,7 @@ func NewConsumer(procRoot string) (*Consumer, error) {
 	c := &Consumer{
 		pool:      newBufferPool(),
 		workQueue: make(chan func()),
+		breaker:   NewCircuitBreaker(maxMessagesPerSecond),
 	}
 	c.initWorker(procRoot)
 
@@ -239,21 +254,29 @@ ReadLoop:
 				// In that case we throw away the current socket and create a new one with a more aggressive sampling rate.
 				log.Warnf("netlink: detected enobuf during streaming. will re-create socket with a lower sampling rate.")
 
-				// TODO: validate if we need to leave the group before creating a new socket
-				leaveErr := c.conn.LeaveGroup(netlinkCtNew)
-				if leaveErr != nil {
-					log.Errorf("netlink: error leaving group: %s", leaveErr)
-				}
-
-				c.socket.Close()
-				err := c.initNetlinkSocket(c.samplingRate / 2)
-				if err != nil {
-					log.Errorf("failed re-create netlink socket. exiting conntrack: %s", err)
+				throttlingErr := c.throttle()
+				if throttlingErr != nil {
 					return
 				}
 
-				// Re-subscribe netlinkCtNew messages
-				c.conn.JoinGroup(netlinkCtNew)
+				continue
+			}
+		}
+
+		// If the circuit breaker trips we throttle the netlink socket
+		if !dump {
+			c.breaker.Tick(len(msgs))
+			if c.breaker.IsOpen() {
+				log.Warnf(
+					"exceeded maximum number of netlink messages per second (%d) will re-create socket with a lower sampling rate.",
+					maxMessagesPerSecond,
+				)
+
+				throttlingErr := c.throttle()
+				if throttlingErr != nil {
+					return
+				}
+
 				continue
 			}
 		}
@@ -288,6 +311,31 @@ func (c *Consumer) eventFor(msgs []netlink.Message) Event {
 		buffer: c.pool.inUse,
 		pool:   c.pool,
 	}
+}
+
+// throttle is called when we hit an ENOBUF or trip the circuit breaker.
+// each time this method gets called we create a new netlink socket and attach
+// a BPF filter to it with a lower sampling rate.
+func (c *Consumer) throttle() error {
+	// TODO: validate if we need to leave the group before creating a new socket
+	leaveErr := c.conn.LeaveGroup(netlinkCtNew)
+	if leaveErr != nil {
+		log.Errorf("netlink: error leaving group: %s", leaveErr)
+	}
+
+	c.socket.Close()
+	err := c.initNetlinkSocket(c.samplingRate * throttlingFactor)
+	if err != nil {
+		log.Errorf("failed to re-create netlink socket. exiting conntrack: %s", err)
+		return err
+	}
+
+	// Reset circuit breaker
+	c.breaker.Reset()
+
+	// Re-subscribe netlinkCtNew messages
+	c.conn.JoinGroup(netlinkCtNew)
+	return nil
 }
 
 type bufferPool struct {
