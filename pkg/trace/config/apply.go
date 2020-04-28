@@ -9,6 +9,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"regexp"
 	"strings"
@@ -111,6 +112,10 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	if config.Datadog.IsSet("api_key") {
 		c.Endpoints[0].APIKey = config.Datadog.GetString("api_key")
+	} else if apiKeyFile := config.Datadog.GetString("api_key_file"); apiKeyFile != "" {
+		if apiKey, err := ioutil.ReadFile(apiKeyFile); err == nil {
+			c.Endpoints[0].APIKey = string(apiKey)
+		}
 	}
 	if config.Datadog.IsSet("hostname") {
 		c.Hostname = config.Datadog.GetString("hostname")
