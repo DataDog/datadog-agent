@@ -49,7 +49,7 @@ func Run(ctx context.Context) {
 
 	if flags.Info {
 		if err := info.Info(os.Stdout, cfg); err != nil {
-			osutil.Exitf("failed to print info: %s", err)
+			osutil.Exitf("Failed to print info: %s", err)
 		}
 		return
 	}
@@ -63,7 +63,7 @@ func Run(ctx context.Context) {
 		coreconfig.Datadog.GetBool("log_to_console"),
 		coreconfig.Datadog.GetBool("log_format_json"),
 	); err != nil {
-		osutil.Exitf("cannot create logger: %v", err)
+		osutil.Exitf("Cannot create logger: %v", err)
 	}
 	defer log.Flush()
 

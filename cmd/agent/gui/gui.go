@@ -1,3 +1,6 @@
+//go:generate go-bindata -pkg gui -prefix views/ -o ./templates.go views/...
+//go:generate go fmt ./templates.go
+
 package gui
 
 import (
@@ -7,13 +10,15 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"mime"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
@@ -60,7 +65,7 @@ func StartGUIServer(port string) error {
 	router.Handle("/", authorizeAccess(http.HandlerFunc(generateIndex)))
 
 	// Mount our (secured) filesystem at the view/{path} route
-	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", authorizeAccess(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private"))))))
+	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", authorizeAccess(http.HandlerFunc(serveAssets))))
 
 	// Set up handlers for the API
 	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
@@ -106,7 +111,12 @@ func createCSRFToken() error {
 }
 
 func generateIndex(w http.ResponseWriter, r *http.Request) {
-	t, e := template.New("index.tmpl").ParseFiles(filepath.Join(common.GetViewsPath(), "templates/index.tmpl"))
+	data, err := Asset("templates/index.tmpl")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	t, e := template.New("index.tmpl").Parse(string(data))
 	if e != nil {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
@@ -120,7 +130,12 @@ func generateIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
-	t, e := template.New("auth.tmpl").ParseFiles(filepath.Join(common.GetViewsPath(), "templates/auth.tmpl"))
+	data, err := Asset("templates/auth.tmpl")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	t, e := template.New("auth.tmpl").Parse(string(data))
 	if e != nil {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
@@ -131,6 +146,26 @@ func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func serveAssets(w http.ResponseWriter, req *http.Request) {
+	path := filepath.Join("private", req.URL.Path)
+	data, err := Asset(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	ctype := mime.TypeByExtension(filepath.Ext(path))
+	if ctype == "" {
+		ctype = http.DetectContentType(data)
+	}
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Write(data)
 }
 
 // Middleware which blocks access to secured files from unauthorized clients
