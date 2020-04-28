@@ -67,7 +67,7 @@ AGENT_CORECHECKS = [
     "winproc",
 ]
 
-IOT_CORECHECKS = [
+IOT_AGENT_CORECHECKS = [
     "cpu",
     "disk",
     "io",
@@ -227,7 +227,7 @@ def refresh_assets(ctx, build_tags, development=True, iot=False):
       shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in AGENT_CORECHECKS if not iot else IOT_CORECHECKS:
+    for check in AGENT_CORECHECKS if not iot else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, "conf.d/{}.d/".format(check))
         copy_tree("./cmd/agent/dist/conf.d/{}.d/".format(check), check_dir)
     if "apm" in build_tags:
