@@ -9,7 +9,6 @@ import "C"
 import (
 	"expvar"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -39,8 +38,6 @@ type Tracer struct {
 	stopChan        chan struct{}
 
 	timerInterval int
-	// waitgroup for all of the running goroutines
-	waitgroup sync.WaitGroup
 
 	// ticker for the polling interval for writing
 	inTicker            *time.Ticker
@@ -60,6 +57,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		timerInterval:   defaultPollInterval,
 	}
 
+	log.Infof("Starting flow polling")
 	err = tr.initFlowPolling(tr.stopChan)
 	if err != nil {
 		return nil, fmt.Errorf("issue polling packets from driver: %v", err)
@@ -102,8 +100,6 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 	log.Debugf("Started flow polling")
 	go func() {
-		t.waitgroup.Add(1)
-		defer t.waitgroup.Done()
 		t.inTicker = time.NewTicker(time.Second * time.Duration(t.timerInterval))
 		defer t.inTicker.Stop()
 		for {
@@ -111,12 +107,11 @@ func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 			case <-t.stopInTickerRoutine:
 				return
 			case <-t.inTicker.C:
-				flows, err := t.driverInterface.getFlows(&t.waitgroup)
+				connStats, err := t.driverInterface.getConnectionStats()
 				if err != nil {
 					return
 				}
-				stats := flowsToConnStats(flows)
-				printStats(stats)
+				printStats(connStats)
 			}
 		}
 	}()

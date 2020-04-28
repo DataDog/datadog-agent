@@ -15,20 +15,22 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"sync"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"golang.org/x/sys/windows"
 )
 
-// HandleType expresses what of DriverHandle one is - implicitly implies if filters have been placed on the driver for the handle
+// HandleType represents what type of data the windows handle created on the driver is intended to return. It implicitly implies if there are filters set for a handle
 type HandleType string
 
 const (
-	driverFile = `\\.\ddfilter`
+	// deviceName identifies the name and location of the windows driver
+	deviceName = `\\.\ddfilter`
 
 	// FlowHandle is keyed to return 5-tuples from the driver that represents a flow. Used with: (#define FILTER_LAYER_TRANSPORT ((uint64_t) 1)
 	FlowHandle HandleType = "Flow"
@@ -66,17 +68,17 @@ type DriverInterface struct {
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
 func NewDriverInterface() (*DriverInterface, error) {
 	dc := &DriverInterface{
-		path: driverFile,
+		path: deviceName,
 	}
 
 	err := dc.SetupFlowHandle()
 	if err != nil {
-		return nil, fmt.Errorf("%s : %s", "error creating driver flow handle", err)
+		return nil, errors.Wrap(err, "error creating driver flow handle")
 	}
 
 	err = dc.SetupStatsHandle()
 	if err != nil {
-		return nil, fmt.Errorf("%s : %s", "error creating driver stats handle", err)
+		return nil, errors.Wrap(err, "Error creating stats handle")
 	}
 
 	return dc, nil
@@ -97,7 +99,7 @@ func (di *DriverInterface) close() error {
 // SetupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
 // by setting the necessary filters
 func (di *DriverInterface) SetupFlowHandle() error {
-	h, err := di.GenerateDriverHandle()
+	h, err := di.generateDriverHandle()
 	if err != nil {
 		return err
 	}
@@ -105,26 +107,25 @@ func (di *DriverInterface) SetupFlowHandle() error {
 	if err != nil {
 		return err
 	}
-
-	// Prepare handle filters for each interface
-	err = dh.createDriverHandleFilters()
-	if err != nil {
-		return err
-	}
-
-	// Set handle filters
-	err = dh.setFilters()
-	if err != nil {
-		return err
-	}
-
 	di.driverFlowHandle = dh
+
+	filters, err := createFlowHandleFilters()
+	if err != nil {
+		return err
+	}
+
+	// Create and set flow filters for each interface
+	err = di.driverFlowHandle.setFilters(filters)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // SetupStatsHandle generates a windows Driver Handle, and creates a DriverHandle struct
 func (di *DriverInterface) SetupStatsHandle() error {
-	h, err := di.GenerateDriverHandle()
+	h, err := di.generateDriverHandle()
 	if err != nil {
 		return err
 	}
@@ -139,8 +140,8 @@ func (di *DriverInterface) SetupStatsHandle() error {
 
 }
 
-// GenerateDriverHandle creates a new windows handle attached to the driver
-func (di *DriverInterface) GenerateDriverHandle() (windows.Handle, error) {
+// generateDriverHandle creates a new windows handle attached to the driver
+func (di *DriverInterface) generateDriverHandle() (windows.Handle, error) {
 	p, err := windows.UTF16PtrFromString(di.path)
 	if err != nil {
 		return windows.InvalidHandle, err
@@ -156,7 +157,6 @@ func (di *DriverInterface) GenerateDriverHandle() (windows.Handle, error) {
 	if err != nil {
 		return windows.InvalidHandle, err
 	}
-	log.Info("Connected to driver and handle created")
 	return h, nil
 }
 
@@ -187,41 +187,35 @@ func (di *DriverInterface) getStats() (map[string]interface{}, error) {
 	}, nil
 }
 
-func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) (flows []*C.struct__perFlowData, error error) {
-	waitgroup.Add(1)
-	defer waitgroup.Done()
-
+// getConnectionStats will read all flows from the driver and convert them into ConnectionStats
+func (di *DriverInterface) getConnectionStats() ([]ConnectionStats, error) {
 	readbuffer := make([]uint8, 1024)
+	connStats := make([]ConnectionStats, 0)
 
 	for {
 		var count uint32
-		bytesused := int(0)
+		var bytesused int
 		err := windows.ReadFile(di.driverFlowHandle.handle, readbuffer, &count, nil)
-		if err != nil {
-			if err != windows.ERROR_MORE_DATA {
-				log.Info(err)
-				break
-			}
+		if err != nil && err != windows.ERROR_MORE_DATA {
+			return nil, err
 		}
 		var buf []byte
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
 			buf = readbuffer[bytesused:]
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
-			flows = append(flows, pfd)
+			connStats = append(connStats, flowToConnStat(pfd))
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
 		if err == nil {
 			break
 		}
 	}
-	return
+	return connStats, nil
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set
 type DriverHandle struct {
 	handle     windows.Handle
-	filters    []C.struct__filterDefinition
-	filterIds  []int64
 	handleType HandleType
 }
 
@@ -230,25 +224,9 @@ func NewDriverHandle(h windows.Handle, handleType HandleType) (*DriverHandle, er
 	return &DriverHandle{handle: h, handleType: handleType}, nil
 }
 
-func (dh *DriverHandle) createDriverHandleFilters() error {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return fmt.Errorf("error getting interfaces: %s", err.Error())
-	}
-
-	for _, i := range ifaces {
-		log.Debugf("Creating filters for interface: %s [%+v]", i.Name, i)
-
-		for _, filter := range createFiltersForInterface(i, dh.handleType) {
-			dh.filters = append(dh.filters, filter)
-		}
-	}
-	return nil
-}
-
-func (dh *DriverHandle) setFilters() error {
+func (dh *DriverHandle) setFilters(filters []C.struct__filterDefinition) error {
 	var id int64
-	for _, filter := range dh.filters {
+	for _, filter := range filters {
 		err := windows.DeviceIoControl(dh.handle,
 			C.DDFILTER_IOCTL_SET_FLOW_FILTER,
 			(*byte)(unsafe.Pointer(&filter)),
@@ -258,7 +236,6 @@ func (dh *DriverHandle) setFilters() error {
 		if err != nil {
 			return fmt.Errorf("failed to set filter: %v", err)
 		}
-		dh.filterIds = append(dh.filterIds, id)
 	}
 	return nil
 }
@@ -335,26 +312,28 @@ func (dh *DriverHandle) getStatsForHandle() (map[string]int64, error) {
 	}
 }
 
-// To capture all traffic for an interface, we create an inbound/outbound traffic filter
-// for both IPV4 and IPV6 traffic going to that interface
-func createFiltersForInterface(iface net.Interface, handleType HandleType) (filters []C.struct__filterDefinition) {
-	switch handleType {
-	//Currently unsupported
-	case DataHandle:
-		return nil
-	case FlowHandle:
-		// TODO Remove address family setting once this has been moved to the driver
+func createFlowHandleFilters() (filters []C.struct__filterDefinition, err error) {
+	ifaces, err := net.Interfaces()
 
-		// Set ipv4 traffic
+	// Two filters per iface
+	if err != nil {
+		return nil, fmt.Errorf("error getting interfaces: %s", err.Error())
+	}
+
+	for _, iface := range ifaces {
+		log.Debugf("Creating filters for interface: %s [%+v]", iface.Name, iface)
+		// Set ipv4 Traffic
 		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, true))
-		// Set ipv6 traffic
+		// Set ipv6
 		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, false))
 	}
-	return
+
+	return filters, nil
 }
 
 // NewDDAPIFilter returns a filter we can apply to the driver
-func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) (fd C.struct__filterDefinition) {
+func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.struct__filterDefinition {
+	var fd C.struct__filterDefinition
 	fd.filterVersion = C.DD_FILTER_SIGNATURE
 	fd.size = C.sizeof_struct__filterDefinition
 	// TODO Remove direction setting for flow filters once all verification code has been removed from driver

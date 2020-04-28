@@ -83,11 +83,3 @@ func flowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 		Direction: 0,
 	}
 }
-
-func flowsToConnStats(pfds []*C.struct__perFlowData) []ConnectionStats {
-	connStats := make([]ConnectionStats, len(pfds))
-	for i, pfd := range pfds {
-		connStats[i] = flowToConnStat(pfd)
-	}
-	return connStats
-}
