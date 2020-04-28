@@ -10,10 +10,14 @@ $develPattern = "(\d+\.\d+\.\d+)-devel\+git\.\d+\.(.+)"
 
 $installMethod = "online"
 $nuspecFile = "c:\mnt\chocolatey\datadog-agent-online.nuspec"
-$nupkgs = Get-ChildItem c:\mnt\chocolatey\datadog-agent*.msi
-if (($nupkgs | Measure-Object).Count -gt 0) {
+$msis = Get-ChildItem c:\mnt\chocolatey\datadog-agent*.msi
+$msiCount = ($msis | Measure-Object).Count
+if ($msiCount -eq 1) {
     $installMethod = "offline"
     $nuspecFile = "c:\mnt\chocolatey\datadog-agent-offline.nuspec"
+} elseif ($msiCount -gt 1) {
+    Write-Host "Too many MSI found, aborting: '$msis'"
+    exit 1
 }
 
 if ($rawAgentVersion -match $releaseCandidatePattern) {
@@ -32,7 +36,7 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
     $releaseNotes = "https://github.com/DataDog/datadog-agent/releases/tag/$agentVersion"
 } else {
     Write-Host "Unknown agent version '$rawAgentVersion', aborting"
-    exit 1
+    exit 2
 }
 
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/master/LICENSE" -OutFile .\chocolatey\tools\LICENSE.txt
