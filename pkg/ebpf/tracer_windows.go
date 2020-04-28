@@ -10,7 +10,6 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -42,8 +41,6 @@ type Tracer struct {
 	stopChan        chan struct{}
 
 	timerInterval int
-	// waitgroup for all of the running goroutines
-	waitgroup sync.WaitGroup
 
 	// ticker for the polling interval for writing
 	inTicker            *time.Ticker
@@ -105,8 +102,6 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 	log.Debugf("Started flow polling")
 	go func() {
-		t.waitgroup.Add(1)
-		defer t.waitgroup.Done()
 		t.inTicker = time.NewTicker(time.Second * time.Duration(t.timerInterval))
 		defer t.inTicker.Stop()
 		for {
@@ -114,7 +109,7 @@ func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 			case <-t.stopInTickerRoutine:
 				return
 			case <-t.inTicker.C:
-				flows, err := t.driverInterface.getFlows(&t.waitgroup)
+				flows, err := t.driverInterface.getFlows()
 				if err != nil {
 					return
 				}

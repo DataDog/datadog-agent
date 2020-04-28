@@ -15,7 +15,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -183,10 +182,7 @@ func (di *DriverInterface) getStats() (map[string]interface{}, error) {
 	}, nil
 }
 
-func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) ([]*C.struct__perFlowData, error) {
-	waitgroup.Add(1)
-	defer waitgroup.Done()
-
+func (di *DriverInterface) getFlows() ([]*C.struct__perFlowData, error) {
 	readbuffer := make([]uint8, 1024)
 	flows := make([]*C.struct__perFlowData, 0)
 
