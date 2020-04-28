@@ -5,6 +5,7 @@ package ebpf
 import (
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -48,7 +49,7 @@ func (t *ConnTuple) copy() *ConnTuple {
 }
 
 func (t *ConnTuple) isTCP() bool {
-	return connType(uint(t.metadata)) == TCP
+	return connType(uint(t.metadata)) == network.TCP
 }
 
 /* conn_stats_ts_t
@@ -74,12 +75,12 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) b
 	return latestTime > timeout+uint64(cs.timestamp)
 }
 
-func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) ConnectionStats {
+func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) network.ConnectionStats {
 	metadata := uint(t.metadata)
 	family := connFamily(metadata)
 
 	var source, dest util.Address
-	if family == AFINET {
+	if family == network.AFINET {
 		source = util.V4Address(uint32(t.saddr_l))
 		dest = util.V4Address(uint32(t.daddr_l))
 	} else {
@@ -87,7 +88,7 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) Conn
 		dest = util.V6Address(uint64(t.daddr_l), uint64(t.daddr_h))
 	}
 
-	return ConnectionStats{
+	return network.ConnectionStats{
 		Pid:                  uint32(t.pid),
 		Type:                 connType(metadata),
 		Family:               family,
@@ -105,24 +106,24 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) Conn
 	}
 }
 
-func connType(m uint) ConnectionType {
+func connType(m uint) network.ConnectionType {
 	// First bit of metadata indicates if the connection is TCP or UDP
 	if m&C.CONN_TYPE_TCP == 0 {
-		return UDP
+		return network.UDP
 	}
-	return TCP
+	return network.TCP
 }
 
-func connFamily(m uint) ConnectionFamily {
+func connFamily(m uint) network.ConnectionFamily {
 	// Second bit of metadata indicates if the connection is IPv6 or IPv4
 	if m&C.CONN_V6 == 0 {
-		return AFINET
+		return network.AFINET
 	}
 
-	return AFINET6
+	return network.AFINET6
 }
 
-func decodeRawTCPConn(data []byte) ConnectionStats {
+func decodeRawTCPConn(data []byte) network.ConnectionStats {
 	ct := TCPConn(*(*C.tcp_conn_t)(unsafe.Pointer(&data[0])))
 	tup := ConnTuple(ct.tup)
 	cst := ConnStatsWithTimestamp(ct.conn_stats)

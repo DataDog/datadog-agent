@@ -36,6 +36,11 @@ PUPPY_TAGS = [
     "systemd",
 ]
 
+ANDROID_TAGS = [
+    "zlib",
+    "android",
+]
+
 PROCESS_ONLY_TAGS = [
     "fargateprocess",
     "orchestrator",
@@ -68,7 +73,7 @@ REDHAT_DEBIAN_SUSE_DIST = [
 ]
 
 
-def get_default_build_tags(puppy=False, process=False, arch="x64"):
+def get_default_build_tags(puppy=False, process=False, arch="x64", android=False):
     """
     Build the default list of tags based on the current platform.
 
@@ -78,6 +83,10 @@ def get_default_build_tags(puppy=False, process=False, arch="x64"):
     include = ["all"]
     if puppy:
         include = PUPPY_TAGS
+
+    # android has its own set of tags
+    if android:
+        include = ANDROID_TAGS
 
     exclude = [] if sys.platform.startswith("linux") else LINUX_ONLY_TAGS
     # if not process agent, ignore process only tags

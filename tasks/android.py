@@ -57,7 +57,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
-    build_tags = get_default_build_tags(puppy=True)
+    build_tags = get_default_build_tags(android=True)
 
     build_tags.append("android")
     cmd = "gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
