@@ -310,6 +310,7 @@ func (c *Config) Digest() string {
 	}
 	h.Write([]byte(c.NodeName))
 	h.Write([]byte(c.LogsConfig))
+	h.Write([]byte(c.Entity))
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

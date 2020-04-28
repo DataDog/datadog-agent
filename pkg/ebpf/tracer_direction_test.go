@@ -28,11 +28,21 @@ func TestOutgoingTCPDirection(t *testing.T) {
 	assert.Equal(t, OUTGOING, connStat.Direction)
 }
 
-func TestUDPConnectionDirection(t *testing.T) {
+func TestIncomingUDPConnectionDirection(t *testing.T) {
 	tr := &Tracer{
-		portMapping: NewPortMapping(NewDefaultConfig().ProcRoot, NewDefaultConfig()),
+		udpPortMapping: NewPortMapping(NewDefaultConfig().ProcRoot, NewDefaultConfig()),
+	}
+	tr.udpPortMapping.AddMapping(5323)
+	connStat := CreateConnectionStat("10.2.25.1", "38.122.226.210", 5323, 8125, UDP)
+	connStat.Direction = tr.determineConnectionDirection(&connStat)
+	assert.Equal(t, INCOMING, connStat.Direction)
+}
+
+func TestOutgoingUDPConnectionDirection(t *testing.T) {
+	tr := &Tracer{
+		udpPortMapping: NewPortMapping(NewDefaultConfig().ProcRoot, NewDefaultConfig()),
 	}
 	connStat := CreateConnectionStat("10.2.25.1", "38.122.226.210", 5323, 8125, UDP)
 	connStat.Direction = tr.determineConnectionDirection(&connStat)
-	assert.Equal(t, NONE, connStat.Direction)
+	assert.Equal(t, OUTGOING, connStat.Direction)
 }

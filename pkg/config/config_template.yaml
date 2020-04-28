@@ -1141,6 +1141,21 @@ api_key:
 #
 # ad_config_poll_interval: 10
 
+## @param cloud_foundry_garden - custom object - optional
+## Settings for Cloudfoundry application container autodiscovery.
+#
+# cloud_foundry_garden:
+
+  ## @param listen_network - string - optional - default: unix
+  ## The network on which the garden API is listening. Possible values are `unix` or `tcp`
+  #
+  # listen_network: unix
+
+  ## @param listen_address - string - optional - default: /var/vcap/data/garden/garden.sock
+  ## The address on which the garden API is listening.
+  #
+  # listen_address: /var/vcap/data/garden/garden.sock
+
 {{ end -}}
 {{- if .ClusterChecks }}
 

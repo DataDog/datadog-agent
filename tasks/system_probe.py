@@ -9,7 +9,7 @@ import tempfile
 from invoke import task
 from subprocess import check_output, CalledProcessError
 
-from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, check_go111module_envvar
+from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -25,13 +25,10 @@ GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7',
-          python_runtimes='3', with_bcc=True):
+          python_runtimes='3', with_bcc=True, go_mod="vendor"):
     """
     Build the system_probe
     """
-
-    # bail out if GO111MODULE is set to on
-    check_go111module_envvar("system-probe.build")
 
     build_object_files(ctx, install=True)
 
@@ -69,10 +66,11 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
         build_tags.append(BCC_TAG)
 
     # TODO static option
-    cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
@@ -131,7 +129,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']
 
-    cmd = 'go test -v -tags "{bpf_tag}" {pkg}'
+    cmd = 'go test -mod={go_mod} -v -tags "{bpf_tag}" {pkg}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -145,7 +143,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
             print("GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment")
             raise Exit(code=1)
 
-    ctx.run(cmd.format(path=path, bpf_tag=BPF_TAG, pkg=pkg))
+    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=BPF_TAG, pkg=pkg))
 
 
 @task
@@ -155,12 +153,13 @@ def nettop(ctx, incremental_build=False):
     """
     build_object_files(ctx, install=True)
 
-    cmd = 'go build {build_type} -tags "linux_bpf" -o {bin_path} {path}'
+    cmd = 'go build -mod={go_mod} {build_type} -tags "linux_bpf" -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
     ctx.run(cmd.format(
         path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
         bin_path=bin_path,
+        go_mod=go_mod,
         build_type="-i" if incremental_build else "-a",
     ))
 
