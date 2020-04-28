@@ -70,7 +70,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v0.0.0-20200416172112-13d2aa7ab86f // 4.31.0
+	github.com/DataDog/agent-payload v0.0.0-20200427190743-c19937ab1cc6 // mehedi.bakht/add-fields-for-dns-latency
 	github.com/DataDog/datadog-go v3.5.0+incompatible
 	github.com/DataDog/gohai v0.0.0-20200124154531-8cbe900337f1
 	github.com/DataDog/gopsutil v0.0.0-20191127151039-7e1a4eadb59e
@@ -136,7 +136,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.1
 	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4 // indirect
-	github.com/prometheus/procfs v0.0.0-20190104112138-b1a0a9a36d74 // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil v2.20.3+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
@@ -154,7 +153,6 @@ require (
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netns v0.0.0-20171111001504-be1fbeda1936
 	github.com/vito/go-sse v1.0.0 // indirect
-	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
 	go.etcd.io/bbolt v1.3.4 // indirect
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect

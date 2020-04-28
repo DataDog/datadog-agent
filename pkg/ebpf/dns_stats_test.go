@@ -12,8 +12,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-func testLatency(t *testing.T, isSuccess bool) {
-	sk := newDNSStatkeeper(10 * time.Second)
+const (
+	DNSTimeoutSecs = 10
+)
+
+func testLatency(
+	t *testing.T,
+	respType DNSPacketType,
+	delta time.Duration,
+	expectedSuccessLatency uint64,
+	expectedFailureLatency uint64,
+	expectedTimeouts uint32,
+) {
+	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
 	key := dnsKey{
 		serverIP:   util.AddressFromString("8.8.8.8"),
 		clientIP:   util.AddressFromString("1.1.1.1"),
@@ -26,34 +37,31 @@ func testLatency(t *testing.T, isSuccess bool) {
 	stats := sk.GetAndResetAllStats()
 	assert.NotContains(t, stats, key)
 
-	delta := 10 * time.Microsecond
 	now := then.Add(delta)
-	rPkt := dnsPacketInfo{transactionID: 1, key: key}
-	if isSuccess {
-		rPkt.pktType = SuccessfulResponse
-	} else {
-		rPkt.pktType = FailedResponse
-	}
+	rPkt := dnsPacketInfo{transactionID: 1, key: key, pktType: respType}
 
 	sk.ProcessPacketInfo(rPkt, now)
 	stats = sk.GetAndResetAllStats()
 	require.Contains(t, stats, key)
 
-	if isSuccess {
-		assert.Equal(t, uint64(delta.Nanoseconds()/1000), stats[key].successLatencySum)
-		assert.Equal(t, uint64(0), stats[key].failureLatencySum)
-	} else {
-		assert.Equal(t, uint64(0), stats[key].successLatencySum)
-		assert.Equal(t, uint64(delta.Nanoseconds()/1000), stats[key].failureLatencySum)
-	}
+	assert.Equal(t, expectedSuccessLatency, stats[key].successLatencySum)
+	assert.Equal(t, expectedFailureLatency, stats[key].failureLatencySum)
+	assert.Equal(t, expectedTimeouts, stats[key].timeouts)
 }
 
 func TestSuccessLatency(t *testing.T) {
-	testLatency(t, true)
+	delta := 10 * time.Microsecond
+	testLatency(t, SuccessfulResponse, delta, uint64(delta.Microseconds()), 0, 0)
 }
 
 func TestFailureLatency(t *testing.T) {
-	testLatency(t, false)
+	delta := 10 * time.Microsecond
+	testLatency(t, FailedResponse, delta, 0, uint64(delta.Microseconds()), 0)
+}
+
+func TestTimeout(t *testing.T) {
+	delta := DNSTimeoutSecs*time.Second + 10*time.Microsecond
+	testLatency(t, SuccessfulResponse, delta, 0, 0, 1)
 }
 
 func BenchmarkStats(b *testing.B) {

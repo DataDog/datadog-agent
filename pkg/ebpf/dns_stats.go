@@ -88,7 +88,7 @@ func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 }
 
 func microSecs(t time.Time) uint64 {
-	return uint64(t.Nanosecond() / 1000)
+	return uint64(t.UnixNano() / 1000)
 }
 
 func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
@@ -122,7 +122,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	stats := d.stats[info.key]
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
-	if latency > uint64(d.expirationPeriod.Nanoseconds()/1000) {
+	if latency > uint64(d.expirationPeriod.Microseconds()) {
 		stats.timeouts++
 	} else {
 		if info.pktType == SuccessfulResponse {
