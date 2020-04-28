@@ -3222,8 +3222,8 @@ deploy_dsd:
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy iot binary to staging bucket
-deploy_iot:
+# deploy iot-agent binary to staging bucket
+deploy_iot_agent:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
