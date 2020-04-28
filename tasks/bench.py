@@ -35,9 +35,10 @@ def build_aggregator(ctx, rebuild=False):
             # if you want to be able to use the delve debugger.
             ldflags += " -linkmode internal"
 
-    cmd = "go build {build_type} -tags \"{build_tags}\" -o {bin_name} "
+    cmd = "go build -mod={go_mod} {build_type} -tags \"{build_tags}\" -o {bin_name} "
     cmd += "{ldflags} {gcflags} {REPO_PATH}/test/benchmarks/aggregator"
     args = {
+        "go_mod": "vendor",
         "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("aggregator")),
@@ -55,8 +56,9 @@ def build_dogstatsd(ctx):
     """
     build_tags = get_default_build_tags()  # pass all the build flags
 
-    cmd = "go build -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/dogstatsd"
+    cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/dogstatsd"
     args = {
+        "go_mod": "vendor",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("dogstatsd")),
         "REPO_PATH": REPO_PATH,
