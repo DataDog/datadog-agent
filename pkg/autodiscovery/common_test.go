@@ -82,7 +82,7 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
-// GetSNMPInfo returns SNMP specific info
-func (s *dummyService) GetSNMPInfo(key string) (string, error) {
+// GetExtraConfig isn't supported
+func (s *dummyService) GetExtraConfig(key string) (string, error) {
 	return "", nil
 }

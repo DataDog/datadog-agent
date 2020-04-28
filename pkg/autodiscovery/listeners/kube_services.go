@@ -309,7 +309,7 @@ func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
-// GetSNMPInfo isn't supported
-func (s *KubeServiceService) GetSNMPInfo(key string) (string, error) {
+// GetExtraConfig isn't supported
+func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }

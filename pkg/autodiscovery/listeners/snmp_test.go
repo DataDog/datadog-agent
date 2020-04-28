@@ -97,7 +97,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 }
 
-func TestSNMPInfo(t *testing.T) {
+func TestExtraConfig(t *testing.T) {
 	snmpConfig := util.SNMPConfig{
 		Network:   "192.168.0.0/24",
 		Community: "public",
@@ -113,20 +113,20 @@ func TestSNMPInfo(t *testing.T) {
 		config:       snmpConfig,
 	}
 
-	info, err := svc.GetSNMPInfo("community")
+	info, err := svc.GetExtraConfig("community")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "public", info)
 
-	info, err = svc.GetSNMPInfo("timeout")
+	info, err = svc.GetExtraConfig("timeout")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "5", info)
 
-	info, err = svc.GetSNMPInfo("retries")
+	info, err = svc.GetExtraConfig("retries")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "2", info)
 }
 
-func TestSNMPInfov3(t *testing.T) {
+func TestExtraConfigv3(t *testing.T) {
 	snmpConfig := util.SNMPConfig{
 		Network:      "192.168.0.0/24",
 		User:         "admin",
@@ -144,23 +144,23 @@ func TestSNMPInfov3(t *testing.T) {
 		config:       snmpConfig,
 	}
 
-	info, err := svc.GetSNMPInfo("user")
+	info, err := svc.GetExtraConfig("user")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "admin", info)
 
-	info, err = svc.GetSNMPInfo("auth_key")
+	info, err = svc.GetExtraConfig("auth_key")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "secret", info)
 
-	info, err = svc.GetSNMPInfo("auth_protocol")
+	info, err = svc.GetExtraConfig("auth_protocol")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "usmHMACSHAAuthProtocol", info)
 
-	info, err = svc.GetSNMPInfo("priv_key")
+	info, err = svc.GetExtraConfig("priv_key")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "private", info)
 
-	info, err = svc.GetSNMPInfo("priv_protocol")
+	info, err = svc.GetExtraConfig("priv_protocol")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "usmDESPrivProtocol", info)
 }

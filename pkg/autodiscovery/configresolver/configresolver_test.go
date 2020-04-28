@@ -30,7 +30,7 @@ type dummyService struct {
 	Hostname      string
 	CreationTime  integration.CreationTime
 	CheckNames    []string
-	SNMPInfos     map[string]string
+	ExtraConfig   map[string]string
 }
 
 // GetEntity returns the service entity name
@@ -93,9 +93,9 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
-// GetSNMPInfo returns SNMP specific value
-func (s *dummyService) GetSNMPInfo(key string) (string, error) {
-	return s.SNMPInfos[key], nil
+// GetExtraConfig returns extra configuration
+func (s *dummyService) GetExtraConfig(key string) (string, error) {
+	return s.ExtraConfig[key], nil
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -544,12 +544,12 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"snmp"},
-				SNMPInfos:     map[string]string{"user": "admin", "auth_key": "secret"},
+				ExtraConfig:   map[string]string{"user": "admin", "auth_key": "secret"},
 			},
 			tpl: integration.Config{
 				Name:          "device",
 				ADIdentifiers: []string{"snmp"},
-				Instances:     []integration.Data{integration.Data("user: %%snmp_user%%\nauthKey: %%snmp_auth_key%%")},
+				Instances:     []integration.Data{integration.Data("user: %%extra_user%%\nauthKey: %%extra_auth_key%%")},
 			},
 			out: integration.Config{
 				Name:          "device",

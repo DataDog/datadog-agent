@@ -394,8 +394,8 @@ func (s *KubeContainerService) IsReady() bool {
 	return s.ready
 }
 
-// GetSNMPInfo isn't supported
-func (s *KubeContainerService) GetSNMPInfo(key string) (string, error) {
+// GetExtraConfig isn't supported
+func (s *KubeContainerService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -482,7 +482,7 @@ func (s *KubePodService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
-// GetSNMPInfo isn't supported
-func (s *KubePodService) GetSNMPInfo(key string) (string, error) {
+// GetExtraConfig isn't supported
+func (s *KubePodService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }

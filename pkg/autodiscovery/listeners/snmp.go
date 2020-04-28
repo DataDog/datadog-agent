@@ -386,8 +386,8 @@ func (s *SNMPService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
-// GetSNMPInfo returns data from configuration
-func (s *SNMPService) GetSNMPInfo(key string) (string, error) {
+// GetExtraConfig returns data from configuration
+func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 	switch key {
 	case "version":
 		return s.config.Version, nil
