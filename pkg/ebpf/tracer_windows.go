@@ -103,7 +103,6 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 }
 
 func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
-
 	log.Debugf("Started flow polling")
 	go func() {
 		t.waitgroup.Add(1)
@@ -147,7 +146,7 @@ func printFlows(pfds []*C.struct__perFlowData) {
 		log.Infof("    %v  FH:  %8v    PID:  %8v   AF: %2v    P: %3v        Flags:  0x%v\n",
 			state, pfd.flowHandle, pfd.processId, pfd.addressFamily, pfd.protocol, pfd.flags)
 		log.Infof("    L:  %16s:%5d     R: %16s:%5d\n", local.String(), pfd.localPort, remot.String(), pfd.remotePort)
-		log.Infof("    PktIn:  %8v  BytesIn:  %8v    PktOut:  %8v:  BytesOut:  %8v\n", pfd.packetsIn, pfd.bytesIn, pfd.packetsOut, pfd.bytesOut)
+		log.Infof("    PktIn:  %8v  BytesIn:  %8v    PktOut:  %8v:  BytesOut:  %8v\n", pfd.packetsIn, pfd.monotonicRecvBytes, pfd.packetsOut, pfd.monotonicSentBytes)
 		return
 	}
 }

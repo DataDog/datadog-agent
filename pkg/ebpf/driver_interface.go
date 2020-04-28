@@ -109,8 +109,12 @@ func (di *DriverInterface) SetupFlowHandle() error {
 	di.driverFlowHandle = dh
 
 	filters, err := createFlowHandleFilters()
+
 	// Create and set flow filters for each interface
 	err = di.driverFlowHandle.setFilters(filters)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -209,9 +213,7 @@ func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) ([]*C.struct__per
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set
 type DriverHandle struct {
-	handle windows.Handle
-
-	filterIds  []int64
+	handle     windows.Handle
 	handleType HandleType
 }
 
@@ -232,7 +234,6 @@ func (dh *DriverHandle) setFilters(filters []C.struct__filterDefinition) error {
 		if err != nil {
 			return fmt.Errorf("failed to set filter: %v", err)
 		}
-		dh.filterIds = append(dh.filterIds, id)
 	}
 	return nil
 }
@@ -309,34 +310,23 @@ func (dh *DriverHandle) getStatsForHandle() (map[string]int64, error) {
 	}
 }
 
-func createFlowHandleFilters() ([]C.struct__filterDefinition, error) {
-	filters := make([]C.struct__filterDefinition, 2)
+func createFlowHandleFilters() (filters []C.struct__filterDefinition, err error) {
 	ifaces, err := net.Interfaces()
+
+	// Two filters per iface
 	if err != nil {
 		return nil, fmt.Errorf("error getting interfaces: %s", err.Error())
 	}
 
-	for _, i := range ifaces {
-		log.Debugf("Creating filters for interface: %s [%+v]", i.Name, i)
+	for _, iface := range ifaces {
+		log.Debugf("Creating filters for interface: %s [%+v]", iface.Name, iface)
 		// Set ipv4 Traffic
-		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, i.Index, true))
+		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, true))
 		// Set ipv6
-		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, i.Index, false))
+		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, false))
 	}
 
 	return filters, nil
-}
-
-// To capture all traffic for an interface, we create an inbound/outbound traffic filter
-// for both IPV4 and IPV6 traffic going to that interface
-func createFlowFiltersForInterface(iface net.Interface) []C.struct__filterDefinition {
-	filters := make([]C.struct__filterDefinition, 2)
-
-	// Set ipv4 traffic
-	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, true))
-	// Set ipv6 traffic
-	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, false))
-	return filters
 }
 
 // NewDDAPIFilter returns a filter we can apply to the driver
