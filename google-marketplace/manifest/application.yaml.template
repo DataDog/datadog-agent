@@ -60,14 +60,14 @@ spec:
 
       ```
       env:
-      - name: DOGSTATSD_HOST_IP
+      - name: DD_AGENT_HOST
         valueFrom:
           fieldRef:
             fieldPath: status.hostIP
       ```
 
       Now any pod running the application will be able to send DogStatsD metrics
-      via port 8125 on $DOGSTATSD_HOST_IP.
+      via port 8125 on $DD_AGENT_HOST.
   selector:
     matchLabels:
       app.kubernetes.io/name: "$name"

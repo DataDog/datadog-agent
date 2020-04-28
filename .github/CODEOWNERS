@@ -36,6 +36,8 @@
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
 
+/google-marketplace                     @Datadog/container-integrations
+
 /Gopkg.lock                             @DataDog/agent-all
 /Gopkg.toml                             @DataDog/agent-all
 
