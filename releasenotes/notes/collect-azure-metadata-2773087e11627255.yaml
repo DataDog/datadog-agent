@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Azure VM instance metadata may now be included as host
+    tags by using the ``collect_azure_tags``` configuration
+    option.

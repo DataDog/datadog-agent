@@ -245,6 +245,11 @@ api_key:
 #
 # gce_metadata_timeout: 1000
 
+## @param collect_azure_tags - boolean - optional - default: false
+## Collect Azure VM metadata as host tags.
+#
+# collect_azure_tags: false
+
 ## @param flare_stripped_keys - list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
 ## including them in the flare.
