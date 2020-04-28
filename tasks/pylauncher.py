@@ -20,8 +20,9 @@ def build(ctx, rebuild=False):
     """
     build_tags = get_default_build_tags()  # pass all the build flags
 
-    cmd = "go build {build_type} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/cmd/py-launcher/"
+    cmd = "go build -mod={go_mod} {build_type} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/cmd/py-launcher/"
     args = {
+        "go_mod": "vendor",
         "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(PYLAUNCHER_BIN_PATH, bin_name("pylauncher")),

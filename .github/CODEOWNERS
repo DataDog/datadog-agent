@@ -36,8 +36,8 @@
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
 
-/Gopkg.lock                             @DataDog/agent-all
-/Gopkg.toml                             @DataDog/agent-all
+/go.mod                                 @DataDog/agent-all
+/go.sum                                 @DataDog/agent-all
 
 /Makefile.trace                         @DataDog/apm-agent
 
