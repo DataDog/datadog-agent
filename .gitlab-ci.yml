@@ -81,7 +81,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2287129-4816dc7
-  DATADOG_AGENT_BUILDERS: v2311927-0e261ab
+  DATADOG_AGENT_BUILDERS: v2441729-d4ed0d1
   DATADOG_AGENT_WINBUILDIMAGES: v2348149-ba6640d
   DATADOG_AGENT_ARMBUILDIMAGES: v2287129-4816dc7
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2336045-3227a35
@@ -1299,7 +1299,7 @@ agent_android_apk:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # for now do the steps manually.  Should eventually move this to an invoke
     # task
-    - env GO111MODULE=off inv -e android.build --major-version 7
+    - inv -e android.build --major-version 7
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - cp ./bin/agent/ddagent-*-unsigned.apk $OMNIBUS_PACKAGE_DIR
   artifacts:
