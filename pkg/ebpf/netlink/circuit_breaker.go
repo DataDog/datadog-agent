@@ -10,7 +10,7 @@ import (
 const (
 	tickInterval  = 1 * time.Second
 	breakerOpen   = int64(1)
-	breakerClosed = int64(1)
+	breakerClosed = int64(0)
 
 	// The lower this number is the more amortized the average is
 	// For example, if ewmaWeight is 1, a single burst of events might
