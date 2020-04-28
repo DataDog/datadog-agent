@@ -28,11 +28,11 @@ type dnsKey struct {
 type DNSPacketType uint8
 
 const (
-	// SuccessfulResponse indicates that the response code of the DNS reply is 0
+	// SuccessfulResponse means the packet contains a DNS response and the response code is 0 (no error)
 	SuccessfulResponse DNSPacketType = iota
-	// FailedResponse indicates that the response code of the DNS reply is anything other than 0
+	// FailedResponse means the packet contains a DNS response and the response code is not 0
 	FailedResponse
-	// Query
+	// Query means the packet contains a DNS query
 	Query
 )
 

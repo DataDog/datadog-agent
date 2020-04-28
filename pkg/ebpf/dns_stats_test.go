@@ -1,6 +1,7 @@
 package ebpf
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -56,18 +57,31 @@ func TestFailureLatency(t *testing.T) {
 }
 
 func BenchmarkStats(b *testing.B) {
-	sk := newDNSStatkeeper(1000 * time.Second)
 	key := dnsKey{
 		serverIP:   util.AddressFromString("8.8.8.8"),
 		clientIP:   util.AddressFromString("1.1.1.1"),
 		clientPort: 1000,
 		protocol:   UDP,
 	}
-	qPkt := dnsPacketInfo{pktType: Query, key: key}
+	var packets []dnsPacketInfo
+	for j := 0; j < 20000; j++ {
+		qPkt := dnsPacketInfo{pktType: Query, key: key}
+		qPkt.transactionID = uint16(j)
+		packets = append(packets, qPkt)
+	}
 	ts := time.Now()
-	b.ReportAllocs()
-	for i := 0; i < 5000000; i++ {
-		qPkt.transactionID = uint16(i)
-		sk.ProcessPacketInfo(qPkt, ts)
+
+	// Benchmark map size with different number of packets
+	for _, numPackets := range []int{1000, 5000, 10000, 20000} {
+		b.Run(fmt.Sprintf("Packets#-%d", numPackets), func(b *testing.B) {
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				sk := newDNSStatkeeper(1000 * time.Second)
+				for j := 0; j < numPackets; j++ {
+					sk.ProcessPacketInfo(packets[j], ts)
+				}
+			}
+		})
 	}
 }
