@@ -106,20 +106,12 @@ func (di *DriverInterface) SetupFlowHandle() error {
 	if err != nil {
 		return err
 	}
-
-	// Prepare handle filters for each interface
-	err = dh.createDriverHandleFilters()
-	if err != nil {
-		return err
-	}
-
-	// Set handle filters
-	err = dh.setFilters()
-	if err != nil {
-		return err
-	}
-
 	di.driverFlowHandle = dh
+
+	filters, err := createFlowHandleFilters()
+	// Create and set flow filters for each interface
+	err = di.driverFlowHandle.setFilters(filters)
+
 	return nil
 }
 
@@ -217,8 +209,8 @@ func (di *DriverInterface) getFlows(waitgroup *sync.WaitGroup) ([]*C.struct__per
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set
 type DriverHandle struct {
-	handle     windows.Handle
-	filters    []C.struct__filterDefinition
+	handle windows.Handle
+
 	filterIds  []int64
 	handleType HandleType
 }
@@ -228,25 +220,9 @@ func NewDriverHandle(h windows.Handle, handleType HandleType) (*DriverHandle, er
 	return &DriverHandle{handle: h, handleType: handleType}, nil
 }
 
-func (dh *DriverHandle) createDriverHandleFilters() error {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return fmt.Errorf("error getting interfaces: %s", err.Error())
-	}
-
-	for _, i := range ifaces {
-		log.Debugf("Creating filters for interface: %s [%+v]", i.Name, i)
-
-		for _, filter := range createFiltersForInterface(i, dh.handleType) {
-			dh.filters = append(dh.filters, filter)
-		}
-	}
-	return nil
-}
-
-func (dh *DriverHandle) setFilters() error {
+func (dh *DriverHandle) setFilters(filters []C.struct__filterDefinition) error {
 	var id int64
-	for _, filter := range dh.filters {
+	for _, filter := range filters {
 		err := windows.DeviceIoControl(dh.handle,
 			C.DDFILTER_IOCTL_SET_FLOW_FILTER,
 			(*byte)(unsafe.Pointer(&filter)),
@@ -333,26 +309,39 @@ func (dh *DriverHandle) getStatsForHandle() (map[string]int64, error) {
 	}
 }
 
+func createFlowHandleFilters() ([]C.struct__filterDefinition, error) {
+	filters := make([]C.struct__filterDefinition, 2)
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf("error getting interfaces: %s", err.Error())
+	}
+
+	for _, i := range ifaces {
+		log.Debugf("Creating filters for interface: %s [%+v]", i.Name, i)
+		// Set ipv4 Traffic
+		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, i.Index, true))
+		// Set ipv6
+		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, i.Index, false))
+	}
+
+	return filters, nil
+}
+
 // To capture all traffic for an interface, we create an inbound/outbound traffic filter
 // for both IPV4 and IPV6 traffic going to that interface
-func createFiltersForInterface(iface net.Interface, handleType HandleType) (filters []C.struct__filterDefinition) {
-	switch handleType {
-	//Currently unsupported
-	case DataHandle:
-		return nil
-	case FlowHandle:
-		// TODO Remove address family setting once this has been moved to the driver
+func createFlowFiltersForInterface(iface net.Interface) []C.struct__filterDefinition {
+	filters := make([]C.struct__filterDefinition, 2)
 
-		// Set ipv4 traffic
-		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, true))
-		// Set ipv6 traffic
-		filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, false))
-	}
-	return
+	// Set ipv4 traffic
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, true))
+	// Set ipv6 traffic
+	filters = append(filters, newDDAPIFilter(C.DIRECTION_OUTBOUND, C.FILTER_LAYER_TRANSPORT, iface.Index, false))
+	return filters
 }
 
 // NewDDAPIFilter returns a filter we can apply to the driver
-func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) (fd C.struct__filterDefinition) {
+func newDDAPIFilter(direction, layer C.uint64_t, ifaceIndex int, isIPV4 bool) C.struct__filterDefinition {
+	var fd C.struct__filterDefinition
 	fd.filterVersion = C.DD_FILTER_SIGNATURE
 	fd.size = C.sizeof_struct__filterDefinition
 	// TODO Remove direction setting for flow filters once all verification code has been removed from driver
