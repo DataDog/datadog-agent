@@ -18,6 +18,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"golang.org/x/sys/windows"
@@ -71,12 +73,12 @@ func NewDriverInterface() (*DriverInterface, error) {
 
 	err := dc.SetupFlowHandle()
 	if err != nil {
-		return nil, fmt.Errorf("%s : %s", "error creating driver flow handle", err)
+		return nil, errors.Wrap(err, "error creating driver flow handle")
 	}
 
 	err = dc.SetupStatsHandle()
 	if err != nil {
-		return nil, fmt.Errorf("%s : %s", "error creating driver stats handle", err)
+		return nil, errors.Wrap(err, "Error creating stats handle")
 	}
 
 	return dc, nil
@@ -108,6 +110,9 @@ func (di *DriverInterface) SetupFlowHandle() error {
 	di.driverFlowHandle = dh
 
 	filters, err := createFlowHandleFilters()
+	if err != nil {
+		return err
+	}
 
 	// Create and set flow filters for each interface
 	err = di.driverFlowHandle.setFilters(filters)
