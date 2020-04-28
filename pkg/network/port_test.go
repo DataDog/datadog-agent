@@ -1,6 +1,6 @@
 // +build linux
 
-package ebpf
+package network
 
 import (
 	"net"
@@ -23,7 +23,7 @@ func TestReadInitialState(t *testing.T) {
 	tcpPort := getPort(t, l)
 	tcp6Port := getPort(t, l6)
 
-	ports := NewPortMapping("/proc", NewDefaultConfig())
+	ports := NewPortMapping("/proc", true, true)
 
 	err = ports.ReadInitialState()
 	require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestReadInitialState(t *testing.T) {
 }
 
 func TestAddRemove(t *testing.T) {
-	ports := NewPortMapping("/proc", NewDefaultConfig())
+	ports := NewPortMapping("/proc", true, true)
 
 	require.False(t, ports.IsListening(123))
 

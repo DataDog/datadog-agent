@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/gogo/protobuf/jsonpb"
 )
 
@@ -19,7 +19,7 @@ var (
 
 // Marshaler is an interface implemented by all Connections serializers
 type Marshaler interface {
-	Marshal(conns *ebpf.Connections) ([]byte, error)
+	Marshal(conns *network.Connections) ([]byte, error)
 	ContentType() string
 }
 

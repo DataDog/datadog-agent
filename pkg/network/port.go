@@ -1,4 +1,4 @@
-package ebpf
+package network
 
 import (
 	"path"
@@ -10,18 +10,20 @@ import (
 
 // PortMapping tracks which ports a pid is listening on
 type PortMapping struct {
-	procRoot string
-	config   *Config
-	ports    map[uint16]struct{}
+	procRoot    string
+	collectTCP  bool
+	collectIPv6 bool
+	ports       map[uint16]struct{}
 	sync.RWMutex
 }
 
 //NewPortMapping creates a new PortMapping instance
-func NewPortMapping(procRoot string, config *Config) *PortMapping {
+func NewPortMapping(procRoot string, collectTCP, collectIPv6 bool) *PortMapping {
 	return &PortMapping{
-		procRoot: procRoot,
-		config:   config,
-		ports:    make(map[uint16]struct{}),
+		procRoot:    procRoot,
+		collectTCP:  collectTCP,
+		collectIPv6: collectIPv6,
+		ports:       make(map[uint16]struct{}),
 	}
 }
 
@@ -57,7 +59,7 @@ func (pm *PortMapping) ReadInitialState() error {
 
 	start := time.Now()
 
-	if pm.config.CollectTCPConns {
+	if pm.collectTCP {
 		if ports, err := readProcNet(path.Join(pm.procRoot, "net/tcp")); err != nil {
 			log.Errorf("error reading tcp state: %s", err)
 		} else {
@@ -66,7 +68,7 @@ func (pm *PortMapping) ReadInitialState() error {
 			}
 		}
 
-		if pm.config.CollectIPv6Conns {
+		if pm.collectIPv6 {
 			if ports, err := readProcNet(path.Join(pm.procRoot, "net/tcp6")); err != nil {
 				log.Errorf("error reading tcp6 state: %s", err)
 			} else {
@@ -97,7 +99,7 @@ func (pm *PortMapping) ReadInitialUDPState() error {
 		}
 	}
 
-	if pm.config.CollectIPv6Conns {
+	if pm.collectIPv6 {
 		if ports, err := readProcNetWithStatus(path.Join(pm.procRoot, "net/udp6"), 7); err != nil {
 			log.Errorf("error reading UDPv6 state: %s", err)
 		} else {

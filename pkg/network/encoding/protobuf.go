@@ -2,7 +2,7 @@ package encoding
 
 import (
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/gogo/protobuf/proto"
 )
 
@@ -11,7 +11,7 @@ const ContentTypeProtobuf = "application/protobuf"
 
 type protoSerializer struct{}
 
-func (protoSerializer) Marshal(conns *ebpf.Connections) ([]byte, error) {
+func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 
 	for i, conn := range conns.Conns {

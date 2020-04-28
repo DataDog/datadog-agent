@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 func main() {
@@ -44,7 +45,7 @@ func main() {
 			fmt.Println(err)
 		}
 		for _, c := range cs.Conns {
-			fmt.Println(ebpf.ConnectionSummary(c, cs.DNS))
+			fmt.Println(network.ConnectionSummary(c, cs.DNS))
 		}
 	}
 

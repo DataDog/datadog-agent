@@ -1,11 +1,12 @@
-package ebpf
+package network
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

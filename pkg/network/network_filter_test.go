@@ -1,10 +1,11 @@
-package ebpf
+package network
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/stretchr/testify/assert"
 )
 
 var testSourceFilters = map[string][]string{

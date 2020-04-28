@@ -1,4 +1,4 @@
-package ebpf
+package network
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ func BenchmarkStoreClosedConnection(b *testing.B) {
 		},
 	} {
 		b.Run(fmt.Sprintf("StoreClosedConnection-%d", bench.connCount), func(b *testing.B) {
-			ns := NewDefaultNetworkState()
+			ns := newDefaultState()
 			ns.Connections(DEBUGCLIENT, latestEpochTime(), nil, nil) // Initial fetch to set up client
 
 			b.ResetTimer()
@@ -108,7 +108,7 @@ func BenchmarkConnectionsGet(b *testing.B) {
 		},
 	} {
 		b.Run(fmt.Sprintf("ConnectionsGet-%d-%d", bench.connCount, bench.closedCount), func(b *testing.B) {
-			ns := NewDefaultNetworkState()
+			ns := newDefaultState()
 
 			// Initial fetch to set up client
 			ns.Connections(DEBUGCLIENT, latestTime, nil, nil)
@@ -149,7 +149,7 @@ func TestRemoveConnections(t *testing.T) {
 	require.NoError(t, err)
 
 	clientID := "1"
-	state := NewDefaultNetworkState().(*networkState)
+	state := newDefaultState().(*networkState)
 	conns := state.Connections(clientID, latestEpochTime(), nil, nil)
 	assert.Equal(t, 0, len(conns))
 
@@ -185,7 +185,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 	clientID := "1"
 
 	t.Run("without prior registration", func(t *testing.T) {
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 		state.StoreClosedConnection(conn)
 		conns := state.Connections(clientID, latestEpochTime(), nil, nil)
 
@@ -193,7 +193,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 	})
 
 	t.Run("with registration", func(t *testing.T) {
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 
 		conns := state.Connections(clientID, latestEpochTime(), nil, nil)
 		assert.Equal(t, 0, len(conns))
@@ -217,15 +217,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	wait := 100 * time.Millisecond
-
-	defaultC := NewDefaultConfig()
-	state := NewNetworkState(
-		wait,
-		defaultC.MaxClosedConnectionsBuffered,
-		defaultC.MaxConnectionsStateBuffered,
-		defaultC.MaxDNSStatsBufferred,
-	)
+	state := NewState(100*time.Millisecond, 50000, 75000, 75000)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -249,7 +241,7 @@ func TestCleanupClient(t *testing.T) {
 func TestLastStats(t *testing.T) {
 	client1 := "1"
 	client2 := "2"
-	state := NewDefaultNetworkState()
+	state := newDefaultState()
 
 	dSent := uint64(42)
 	dRecv := uint64(133)
@@ -329,7 +321,7 @@ func TestLastStats(t *testing.T) {
 
 func TestLastStatsForClosedConnection(t *testing.T) {
 	clientID := "1"
-	state := NewDefaultNetworkState()
+	state := newDefaultState()
 
 	dSent := uint64(42)
 	dRecv := uint64(133)
@@ -404,7 +396,7 @@ func TestRaceConditions(t *testing.T) {
 		return conns
 	}
 
-	state := NewDefaultNetworkState()
+	state := newDefaultState()
 	nConns := uint32(100)
 
 	var wg sync.WaitGroup
@@ -457,7 +449,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// We expect:
 		// c0: Nothing
 		// c1: Monotonic: 3 bytes, Last seen: 3 bytes
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 
 		// First get, we should have nothing
 		conns := state.Connections(client, latestEpochTime(), nil, nil)
@@ -486,7 +478,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// c0: Nothing
 		// c1: Monotonic: 8 bytes, Last seenL 8 bytes
 
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 
 		// First get, we should have nothing
 		conns := state.Connections(client, latestEpochTime(), nil, nil)
@@ -523,7 +515,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// c2: Monotonic: 3 bytes, Last seen: 2 bytes
 		// c3: Monotonic: 2 bytes, Last seen: 1 bytes
 
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 
 		// First get for client c, we should have nothing
 		conns := state.Connections(client, latestEpochTime(), nil, nil)
@@ -585,7 +577,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// c2: Monotonic: 6 bytes, Last seen: 4 bytes
 		// c3: Monotonic: 3 bytes, Last seen: 2 bytes
 
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 
 		// First get, we should have nothing
 		conns := state.Connections(client, latestEpochTime(), nil, nil)
@@ -647,7 +639,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		// c0: Monotonic: 3 bytes, Last seen: 3 bytes
 		// c1: Monotonic: 8 bytes, Last seen: 5 bytes
 
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 
 		// this is to register we should not have anything
 		conns := state.Connections(client, latestEpochTime(), nil, nil)
@@ -705,7 +697,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		clientD := "d"
 
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 
 		// First get for client c, we should have nothing
 		conns := state.Connections(client, latestEpochTime(), nil, nil)
@@ -832,7 +824,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		clientD := "d"
 		clientE := "e"
 
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 
 		// First get for client c, we should have nothing
 		conns := state.Connections(client, latestEpochTime(), nil, nil)
@@ -936,7 +928,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		clientD := "d"
 
-		state := NewDefaultNetworkState()
+		state := newDefaultState()
 
 		// First get for client c, we should have nothing
 		conns := state.Connections(client, latestEpochTime(), nil, nil)
@@ -993,7 +985,7 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 
 	client := "client"
 
-	state := NewDefaultNetworkState()
+	state := newDefaultState()
 
 	// Register the client
 	assert.Len(t, state.Connections(client, latestEpochTime(), nil, nil), 0)
@@ -1036,7 +1028,7 @@ func TestDoubleCloseOnTwoClients(t *testing.T) {
 	client1 := "1"
 	client2 := "2"
 
-	state := NewDefaultNetworkState()
+	state := newDefaultState()
 
 	// Register the clients
 	assert.Len(t, state.Connections(client1, latestEpochTime(), nil, nil), 0)
@@ -1070,7 +1062,7 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	}
 
 	client := "client"
-	state := NewDefaultNetworkState()
+	state := newDefaultState()
 
 	// Register the client
 	assert.Len(t, state.Connections(client, latestEpochTime(), nil, nil), 0)
@@ -1123,7 +1115,7 @@ func TestAggregateClosedConnectionsTimestamp(t *testing.T) {
 	}
 
 	client := "client"
-	state := NewDefaultNetworkState()
+	state := newDefaultState()
 
 	// Register the client
 	assert.Len(t, state.Connections(client, latestEpochTime(), nil, nil), 0)
@@ -1159,7 +1151,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	client1 := "client1"
 	client2 := "client2"
 	client3 := "client3"
-	state := NewDefaultNetworkState()
+	state := newDefaultState()
 
 	// Register the first two clients
 	assert.Len(t, state.Connections(client1, latestEpochTime(), nil, nil), 0)
@@ -1200,7 +1192,7 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 	stats[dKey] = dnsStats{successfulResponses: 1}
 
 	client := "client"
-	state := NewDefaultNetworkState()
+	state := newDefaultState()
 
 	// Register the client
 	assert.Len(t, state.Connections(client, latestEpochTime(), nil, nil), 0)
@@ -1240,4 +1232,9 @@ var latestTime uint64
 
 func latestEpochTime() uint64 {
 	return atomic.AddUint64(&latestTime, 1)
+}
+
+func newDefaultState() State {
+	// Using values from ebpf.NewDefaultConfig()
+	return NewState(2*time.Minute, 50000, 75000, 75000)
 }
