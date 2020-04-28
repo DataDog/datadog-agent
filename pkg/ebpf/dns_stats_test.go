@@ -64,7 +64,7 @@ func BenchmarkStats(b *testing.B) {
 		protocol:   UDP,
 	}
 	var packets []dnsPacketInfo
-	for j := 0; j < 20000; j++ {
+	for j := 0; j < MaxStateMapSize*2; j++ {
 		qPkt := dnsPacketInfo{pktType: Query, key: key}
 		qPkt.transactionID = uint16(j)
 		packets = append(packets, qPkt)
@@ -72,7 +72,7 @@ func BenchmarkStats(b *testing.B) {
 	ts := time.Now()
 
 	// Benchmark map size with different number of packets
-	for _, numPackets := range []int{1000, 5000, 10000, 20000} {
+	for _, numPackets := range []int{MaxStateMapSize / 10, MaxStateMapSize / 2, MaxStateMapSize, MaxStateMapSize * 2} {
 		b.Run(fmt.Sprintf("Packets#-%d", numPackets), func(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()

@@ -36,6 +36,12 @@ const (
 	Query
 )
 
+// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
+// for 10000 entries.
+const (
+	MaxStateMapSize = 10000
+)
+
 type dnsPacketInfo struct {
 	transactionID uint16
 	key           dnsKey
@@ -63,7 +69,7 @@ func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
 		state:            make(map[stateKey]uint64),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
-		maxSize:          10000,
+		maxSize:          MaxStateMapSize,
 	}
 
 	ticker := time.NewTicker(statsKeeper.expirationPeriod)
