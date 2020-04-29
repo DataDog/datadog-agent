@@ -41,13 +41,15 @@ New Features
 
 - Add an eBPF based check to measure the size of TCP queues.
 
-- Add --full-sketches option to agent check command that displays bins information
+- Add ``--full-sketches`` option to agent check command that displays bins information
 
 - Support logs collection from Kubernetes log files with old Kubernetes versions (< v1.10).
 
 - Expose the new JMXFetch rate with metrics method to test JMX based checks.
 
-- The ``ac_include`` and ``ac_exclude`` auto-discovery parameters now support the ``kube_namespace:`` prefix to collect or discard logs and metrics for whole namespaces in addition to the ``name:`` and ``image:`` prefixes to filter on container name and image name.
+- The ``ac_include`` and ``ac_exclude`` auto-discovery parameters now support the
+  ``kube_namespace:`` prefix to collect or discard logs and metrics for whole namespaces
+  in addition to the ``name:`` and ``image:`` prefixes to filter on container name and image name.
 
 - EKS Fargate containers now appear in the live containers view.
   All processes running inside the EKS Fargate Pod appear in the live processes view
@@ -94,7 +96,8 @@ Enhancement Notes
 
 - Network information is collected when the agent is running in docker (host mode only).
 
-- Make sure we don't recognize `sha256:...` as a valid image name and add fallback to .Config.Image in case it's impossible to map `sha256:...` to a proper image name
+- Make sure we don't recognize ``sha256:...`` as a valid image name and add fallback to
+  .Config.Image in case it's impossible to map ``sha256:...`` to a proper image name
 
 - Extract env, version and service tags from Docker containers
 
@@ -135,9 +138,9 @@ Bug Fixes
 
 - Fix panic due to concurrent map access in Docker AD provider
 
-- Fix the `flare` command not being able to be created for the non-core agents (trace,
+- Fix the ``flare`` command not being able to be created for the non-core agents (trace,
   network, ...) when running in a separated container, such as in Helm. A new
-  option, `--local`, has been added to the `flare` command to force the
+  option, ``--local``, has been added to the ``flare`` command to force the
   creation of the archive using the local filesystem and not the one where
   the core agent process is in.
 
@@ -154,7 +157,7 @@ Bug Fixes
 
 - When a DNS name with ".local" is specifed in the parameter DDAGENTUSER_NAME, the correctly finds the corresponding domain.
 
-- Fix an issue where `conf.yaml.example` can be missing from `Add a check` menu in the Web user interface.
+- Fix an issue where ``conf.yaml.example`` can be missing from ``Add a check`` menu in the Web user interface.
 
 - process-agent and system-probe now clean up their PID files when exiting.
 
