@@ -187,9 +187,10 @@ func (di *DriverInterface) getStats() (map[string]interface{}, error) {
 	}, nil
 }
 
-func (di *DriverInterface) getFlows() ([]*C.struct__perFlowData, error) {
+// getConnectionStats will read all flows from the driver and convert them into ConnectionStats
+func (di *DriverInterface) getConnectionStats() ([]ConnectionStats, error) {
 	readbuffer := make([]uint8, 1024)
-	flows := make([]*C.struct__perFlowData, 0)
+	connStats := make([]ConnectionStats, 0)
 
 	for {
 		var count uint32
@@ -202,14 +203,14 @@ func (di *DriverInterface) getFlows() ([]*C.struct__perFlowData, error) {
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
 			buf = readbuffer[bytesused:]
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
-			flows = append(flows, pfd)
+			connStats = append(connStats, flowToConnStat(pfd))
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
 		if err == nil {
 			break
 		}
 	}
-	return flows, nil
+	return connStats, nil
 }
 
 // DriverHandle struct stores the windows handle for the driver as well as information about what type of filter is set
