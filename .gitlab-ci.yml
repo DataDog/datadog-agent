@@ -1315,9 +1315,7 @@ agent_android_apk:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # for now do the steps manually.  Should eventually move this to an invoke
     # task
-    # the android.build tasks should be started without go modules because
-    # gomobile doesn't support them, see https://go-review.googlesource.com/c/mobile/+/167659/
-    - env GO111MODULE=off inv -e android.build --major-version 7
+    - inv -e android.build --major-version 7
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - cp ./bin/agent/ddagent-*-unsigned.apk $OMNIBUS_PACKAGE_DIR
   artifacts:
