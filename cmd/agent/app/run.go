@@ -153,6 +153,9 @@ func StartAgent() error {
 			s = config.DefaultSite
 		}
 		site := fmt.Sprintf("https://intake.profile.%s/v1/input", s)
+		if config.Datadog.IsSet("profiling.profile_dd_url") {
+			site = config.Datadog.GetString("profiling.profile_dd_url")
+		}
 
 		err := profiler.Start(
 			profiler.WithURL(site),
