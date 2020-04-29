@@ -145,7 +145,9 @@ func StartAgent() error {
 	// TODO: make this runtime configurable
 	if config.Datadog.GetBool("profiling.enabled") {
 		v, _ := version.Agent()
+		site := fmt.Sprintf("https://intake.profile.%s/v1/input", config.Datadog.GetString("site"))
 		err := profiler.Start(
+			profiler.WithURL(site),
 			profiler.WithAPIKey(config.Datadog.GetString("api_key")),
 			profiler.WithService("agent"),
 			profiler.WithEnv(config.Datadog.GetString("env")),
