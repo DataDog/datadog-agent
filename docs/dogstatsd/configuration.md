@@ -1,6 +1,6 @@
 ## `dogstatsd_buffer_size`
 
-The `dogstatsd_buffer_size` parameter is configuring two things in Dogstatsd:
+The `dogstatsd_buffer_size` parameter configures two things in Dogstatsd:
 
 * How many bytes must be read each time the socket is read
 * How many bytes maximum the PacketAssembler should put into one packet
