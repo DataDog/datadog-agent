@@ -5,10 +5,12 @@ package netlink
 import (
 	"sync/atomic"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	tickInterval  = 1 * time.Second
+	tickInterval  = 3 * time.Second
 	breakerOpen   = int64(1)
 	breakerClosed = int64(0)
 
@@ -88,6 +90,11 @@ func (c *CircuitBreaker) update(now time.Time) {
 
 	// Update circuit breaker status accordingly
 	if int(newEventRate) > c.maxEventsPerSec {
+		log.Warnf(
+			"exceeded maximum number of netlink messages per second. expected=%d actual=%d",
+			c.maxEventsPerSec,
+			int(newEventRate),
+		)
 		atomic.StoreInt64(&c.status, breakerOpen)
 	}
 

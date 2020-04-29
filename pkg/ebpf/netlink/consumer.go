@@ -208,7 +208,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 		return nil
 	}
 
-	log.Info("attaching netlink BPF filter with sampling rate: %v", c.samplingRate)
+	log.Infof("attaching netlink BPF filter with sampling rate: %.2f", c.samplingRate)
 	sampler, _ := GenerateBPFSampler(c.samplingRate)
 	err = c.socket.SetBPF(sampler)
 	if err != nil {
@@ -267,11 +267,6 @@ ReadLoop:
 		if !dump {
 			c.breaker.Tick(len(msgs))
 			if c.breaker.IsOpen() {
-				log.Warnf(
-					"exceeded maximum number of netlink messages per second (%d) will re-create socket with a lower sampling rate.",
-					maxMessagesPerSecond,
-				)
-
 				throttlingErr := c.throttle()
 				if throttlingErr != nil {
 					return
