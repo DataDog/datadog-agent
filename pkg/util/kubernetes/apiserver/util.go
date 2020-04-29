@@ -22,7 +22,7 @@ var syncTimeout = config.Datadog.GetDuration("cache_sync_timeout") * time.Second
 
 // SyncInformers should be called after the instanciation of new informers.
 // It's blocking until the informers are synced or the timeout exceeded.
-func SyncInformers(informers map[string]cache.SharedInformer) error {
+func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	var g errgroup.Group
 	for name, inf := range informers {
 		g.Go(func() error {

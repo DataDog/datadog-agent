@@ -25,22 +25,26 @@ type controllerFuncs struct {
 	start   func(ControllerContext) error
 }
 
-var controllerCatalog = map[string]controllerFuncs{
-	"metadata": {
+var controllerCatalog = map[controllerName]controllerFuncs{
+	metadataController: {
 		func() bool { return config.Datadog.GetBool("kubernetes_collect_metadata_tags") },
 		startMetadataController,
 	},
-	"autoscalers": {
+	autoscalersController: {
 		func() bool { return config.Datadog.GetBool("external_metrics_provider.enabled") },
 		startAutoscalersController,
 	},
-	"services": {
+	servicesController: {
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		startServicesInformer,
 	},
-	"endpoints": {
+	endpointsController: {
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		startEndpointsInformer,
+	},
+	secretsController: {
+		func() bool { return config.Datadog.GetBool("admission_controller.enabled") },
+		startSecretsInformer,
 	},
 }
 
@@ -90,9 +94,9 @@ func startMetadataController(ctx ControllerContext) error {
 	go metaController.Run(ctx.StopCh)
 
 	// Wait for the cache to sync
-	return SyncInformers(map[string]cache.SharedInformer{
-		"nodes":     ctx.InformerFactory.Core().V1().Nodes().Informer(),
-		"endpoints": ctx.InformerFactory.Core().V1().Endpoints().Informer(),
+	return SyncInformers(map[InformerName]cache.SharedInformer{
+		nodesInformer:     ctx.InformerFactory.Core().V1().Nodes().Informer(),
+		endpointsInformer: ctx.InformerFactory.Core().V1().Endpoints().Informer(),
 	})
 }
 
@@ -112,15 +116,15 @@ func startAutoscalersController(ctx ControllerContext) error {
 	if err != nil {
 		return err
 	}
-	informers := map[string]cache.SharedInformer{}
+	informers := map[InformerName]cache.SharedInformer{}
 	if ctx.WPAInformerFactory != nil {
 		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, ctx.WPAInformerFactory)
-		informers["wpa"] = ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers().Informer()
+		informers[wpaInformer] = ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers().Informer()
 	}
 	// mutate the Autoscaler controller to embed an informer against the HPAs
 	autoscalersController.EnableHPA(ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
 	go autoscalersController.RunHPA(ctx.StopCh)
-	informers["hpa"] = ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers().Informer()
+	informers[hpaInformer] = ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers().Informer()
 
 	autoscalersController.RunControllerLoop(ctx.StopCh)
 
@@ -136,8 +140,8 @@ func startServicesInformer(ctx ControllerContext) error {
 	go ctx.InformerFactory.Core().V1().Services().Informer().Run(ctx.StopCh)
 
 	// Wait for the cache to sync
-	return SyncInformers(map[string]cache.SharedInformer{
-		"services": ctx.InformerFactory.Core().V1().Services().Informer(),
+	return SyncInformers(map[InformerName]cache.SharedInformer{
+		servicesInformer: ctx.InformerFactory.Core().V1().Services().Informer(),
 	})
 }
 
@@ -149,7 +153,20 @@ func startEndpointsInformer(ctx ControllerContext) error {
 	go ctx.InformerFactory.Core().V1().Endpoints().Informer().Run(ctx.StopCh)
 
 	// Wait for the cache to sync
-	return SyncInformers(map[string]cache.SharedInformer{
-		"endpoints": ctx.InformerFactory.Core().V1().Endpoints().Informer(),
+	return SyncInformers(map[InformerName]cache.SharedInformer{
+		endpointsInformer: ctx.InformerFactory.Core().V1().Endpoints().Informer(),
+	})
+}
+
+// startSecretsInformer starts the secrets informer.
+// The synchronization of the secrets informer is handled in this function.
+func startSecretsInformer(ctx ControllerContext) error {
+	// Just start the shared informer, the admission
+	// controller will access it when needed.
+	go ctx.InformerFactory.Core().V1().Secrets().Informer().Run(ctx.StopCh)
+
+	// Wait for the cache to sync
+	return SyncInformers(map[InformerName]cache.SharedInformer{
+		secretsInformer: ctx.InformerFactory.Core().V1().Endpoints().Informer(),
 	})
 }
