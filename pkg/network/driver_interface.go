@@ -1,6 +1,6 @@
 // +build windows
 
-package ebpf
+package network
 
 /*
 //! These includes are needed to use constants defined in the ddfilterapi
@@ -8,7 +8,7 @@ package ebpf
 #include <WinIoCtl.h>
 
 //! Defines the objects used to communicate with the driver as well as its control codes
-#include "c/ddfilterapi.h"
+#include "../ebpf/c/ddfilterapi.h"
 */
 import "C"
 import (
@@ -18,9 +18,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 
 	"golang.org/x/sys/windows"
 )
@@ -71,12 +70,12 @@ func NewDriverInterface() (*DriverInterface, error) {
 		path: deviceName,
 	}
 
-	err := dc.SetupFlowHandle()
+	err := dc.setupFlowHandle()
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating driver flow handle")
 	}
 
-	err = dc.SetupStatsHandle()
+	err = dc.setupStatsHandle()
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating stats handle")
 	}
@@ -84,7 +83,8 @@ func NewDriverInterface() (*DriverInterface, error) {
 	return dc, nil
 }
 
-func (di *DriverInterface) close() error {
+// Close shuts down the driver interface
+func (di *DriverInterface) Close() error {
 	err := windows.CloseHandle(di.driverFlowHandle.handle)
 	if err != nil {
 		log.Errorf("error closing flow file handle %v", err)
@@ -96,9 +96,9 @@ func (di *DriverInterface) close() error {
 	return err
 }
 
-// SetupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
+// setupFlowHandle generates a windows Driver Handle, and creates a DriverHandle struct to pull flows from the driver
 // by setting the necessary filters
-func (di *DriverInterface) SetupFlowHandle() error {
+func (di *DriverInterface) setupFlowHandle() error {
 	h, err := di.generateDriverHandle()
 	if err != nil {
 		return err
@@ -123,8 +123,8 @@ func (di *DriverInterface) SetupFlowHandle() error {
 	return nil
 }
 
-// SetupStatsHandle generates a windows Driver Handle, and creates a DriverHandle struct
-func (di *DriverInterface) SetupStatsHandle() error {
+// setupStatsHandle generates a windows Driver Handle, and creates a DriverHandle struct
+func (di *DriverInterface) setupStatsHandle() error {
 	h, err := di.generateDriverHandle()
 	if err != nil {
 		return err
@@ -160,12 +160,13 @@ func (di *DriverInterface) generateDriverHandle() (windows.Handle, error) {
 	return h, nil
 }
 
-// CloseDriverHandle closes an open handle on the driver
-func (di *DriverInterface) CloseDriverHandle(handle windows.Handle) error {
+// closeDriverHandle closes an open handle on the driver
+func (di *DriverInterface) closeDriverHandle(handle windows.Handle) error {
 	return windows.CloseHandle(handle)
 }
 
-func (di *DriverInterface) getStats() (map[string]interface{}, error) {
+// GetStats returns statistics for the driver interface used by the windows tracer
+func (di *DriverInterface) GetStats() (map[string]interface{}, error) {
 
 	flowHandleStats, err := di.driverFlowHandle.getStatsForHandle()
 	if err != nil {
@@ -187,8 +188,8 @@ func (di *DriverInterface) getStats() (map[string]interface{}, error) {
 	}, nil
 }
 
-// getConnectionStats will read all flows from the driver and convert them into ConnectionStats
-func (di *DriverInterface) getConnectionStats() ([]ConnectionStats, error) {
+// GetConnectionStats will read all flows from the driver and convert them into ConnectionStats
+func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, error) {
 	readbuffer := make([]uint8, 1024)
 	connStats := make([]ConnectionStats, 0)
 
@@ -203,7 +204,7 @@ func (di *DriverInterface) getConnectionStats() ([]ConnectionStats, error) {
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
 			buf = readbuffer[bytesused:]
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
-			connStats = append(connStats, flowToConnStat(pfd))
+			connStats = append(connStats, FlowToConnStat(pfd))
 			atomic.AddInt64(&di.totalFlows, 1)
 		}
 		if err == nil {

@@ -1,9 +1,9 @@
 // +build windows
 
-package ebpf
+package network
 
 /*
-#include "c/ddfilterapi.h"
+#include "../ebpf/c/ddfilterapi.h"
 */
 import "C"
 import (
@@ -46,7 +46,8 @@ func convertV6Addr(addr [16]C.uint8_t) util.Address {
 	return util.V6AddressFromBytes(C.GoBytes(unsafe.Pointer(&addr), net.IPv6len))
 }
 
-func flowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
+// FlowToConnStat converts a C.struct__perFlowData into a ConnectionStats struct for use with the tracer
+func FlowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 	var (
 		family         ConnectionFamily
 		srcAddr        util.Address

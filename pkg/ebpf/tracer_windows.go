@@ -35,7 +35,7 @@ func init() {
 // Tracer struct for tracking network state and connections
 type Tracer struct {
 	config          *Config
-	driverInterface *DriverInterface
+	driverInterface *network.DriverInterface
 	stopChan        chan struct{}
 
 	timerInterval int
@@ -47,7 +47,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	di, err := NewDriverInterface()
+	di, err := network.NewDriverInterface()
 	if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
@@ -70,7 +70,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
-	t.driverInterface.close()
+	t.driverInterface.Close()
 }
 
 func (t *Tracer) expvarStats(exit <-chan struct{}) {
@@ -108,7 +108,7 @@ func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 			case <-t.stopInTickerRoutine:
 				return
 			case <-t.inTicker.C:
-				connStats, err := t.driverInterface.getConnectionStats()
+				connStats, err := t.driverInterface.GetConnectionStats()
 				if err != nil {
 					return
 				}
@@ -119,7 +119,7 @@ func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 	return nil
 }
 
-func printStats(stats []ConnectionStats) {
+func printStats(stats []network.ConnectionStats) {
 	for _, stat := range stats {
 		log.Infof("%v", stat)
 	}
@@ -151,7 +151,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	driverStats, err := t.driverInterface.getStats()
+	driverStats, err := t.driverInterface.GetStats()
 	if err != nil {
 		log.Errorf("not printing driver stats: %v", err)
 	}
