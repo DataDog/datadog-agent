@@ -124,7 +124,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     if not skip_object_files:
         build_object_files(ctx, install=False)
 
-    pkg = "./pkg/ebpf/..."
+    pkg = "./pkg/ebpf/... ./pkg/network/..."
 
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']
@@ -294,14 +294,12 @@ def build_object_files(ctx, install=True):
         file=debug_obj_file
     ))
 
-    cmds = []
-
     if install:
         # Now update the assets stored in the go code
         commands.append("go get -u github.com/jteeuwen/go-bindata/...")
 
-        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}'"
-        go_file = os.path.join(bpf_dir, "tracer-ebpf.go")
+        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}'"
+        go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
         commands.append(assets_cmd.format(
             c_dir=c_dir,
             go_file=go_file,

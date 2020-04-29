@@ -86,6 +86,7 @@
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
 /pkg/quantile                           @DataDog/metrics-aggregation
 
