@@ -63,6 +63,10 @@ func (c *CircuitBreaker) Tick(n int) {
 	atomic.AddInt64(&c.eventCount, int64(n))
 }
 
+func (c *CircuitBreaker) Rate() int64 {
+	return atomic.LoadInt64(&c.eventRate)
+}
+
 func (c *CircuitBreaker) Reset() {
 	atomic.StoreInt64(&c.eventCount, 0)
 	atomic.StoreInt64(&c.status, breakerClosed)
