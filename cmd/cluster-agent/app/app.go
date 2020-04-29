@@ -196,14 +196,12 @@ func start(cmd *cobra.Command, args []string) error {
 			WPAClient:          apiCl.WPAClient,
 			WPAInformerFactory: apiCl.WPAInformerFactory,
 			Client:             apiCl.Cl,
-			LeaderElector:      le,
+			IsLeaderFunc:       le.IsLeader,
 			EventRecorder:      eventRecorder,
 			StopCh:             stopCh,
 		}
 
-		if err := apiserver.StartControllers(ctx); err != nil {
-			log.Errorf("Could not start controllers: %v", err)
-		}
+		apiserver.StartControllers(ctx)
 
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster
@@ -285,9 +283,6 @@ func start(cmd *cobra.Command, args []string) error {
 			errServ := admission.RunServer(mainCtx)
 			if errServ != nil {
 				log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
-			} else {
-				// TODO: remove this
-				log.Info("The Admission Controller Webhook Server shutdown gracefully")
 			}
 		}()
 	}

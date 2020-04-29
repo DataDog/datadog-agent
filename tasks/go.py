@@ -52,7 +52,8 @@ MISSPELL_IGNORED_TARGETS = [
 
 # Packages that need go:generate
 GO_GENERATE_TARGETS = [
-    "./pkg/status"
+    "./pkg/status",
+    "./cmd/agent/gui"
 ]
 
 @task

@@ -9,30 +9,42 @@ package admission
 
 import (
 	"context"
-	"io"
+	"crypto/tls"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	admiv1beta1 "k8s.io/api/admission/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
+
+const jsonContentType = "application/json"
+
+var deserializer = serializer.NewCodecFactory(runtime.NewScheme()).UniversalDeserializer()
 
 // RunServer creates and start a k8s admission webhook server
 func RunServer(mainCtx context.Context) error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/mutate", mutateFunc)
+	mux.HandleFunc("/mutate", mutateHandler)
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
 		Handler: mux,
-		// TLSConfig: &tls.Config{
-		// 	GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		// 		// TODO
-		// 		return &tls.Certificate{}, nil
-		// 	},
-		// },
+		TLSConfig: &tls.Config{
+			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				// TODO: implement me
+				return &tls.Certificate{}, nil
+			},
+		},
 	}
 	go func() error {
-		// return log.Error(server.ListenAndServeTLS("", ""))
-		return log.Error(server.ListenAndServe())
+		return log.Error(server.ListenAndServeTLS("", ""))
 	}()
 
 	<-mainCtx.Done()
@@ -42,6 +54,61 @@ func RunServer(mainCtx context.Context) error {
 	return server.Shutdown(shutdownCtx)
 }
 
-func mutateFunc(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "hello world\n")
+func mutateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		log.Warnf("Invalid method %s, only POST requests are allowed", r.Method)
+		return
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Warnf("Could not read request body: %v", err)
+		return
+	}
+	defer r.Body.Close()
+
+	if contentType := r.Header.Get("Content-Type"); contentType != jsonContentType {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Warnf("Unsupported content type %s, only %s is supported", contentType, jsonContentType)
+		return
+	}
+
+	var admissionReviewReq admiv1beta1.AdmissionReview
+	if _, _, err := deserializer.Decode(body, nil, &admissionReviewReq); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Warnf("Could not deserialize request: %v", err)
+		return
+	} else if admissionReviewReq.Request == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Warn("Malformed admission review: request is nil")
+		return
+	}
+
+	var admissionReviewResp admiv1beta1.AdmissionReview
+	resp, err := admission.Mutate(admissionReviewReq.Request)
+	if err != nil {
+		log.Warnf("Failed to mutate: %v", err)
+		admissionReviewResp = admiv1beta1.AdmissionReview{
+			Response: &admiv1beta1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+				Allowed: false,
+			},
+		}
+	} else {
+		admissionReviewResp = admiv1beta1.AdmissionReview{
+			Response: resp,
+		}
+	}
+	admissionReviewResp.Response.UID = admissionReviewReq.Request.UID
+
+	encoder := json.NewEncoder(w)
+	err = encoder.Encode(&admissionReviewResp)
+	if err != nil {
+		log.Warnf("Failed to encode the response: %v", err)
+		return
+	}
 }

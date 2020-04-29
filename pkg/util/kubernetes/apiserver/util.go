@@ -9,6 +9,7 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -26,11 +27,13 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	var g errgroup.Group
 	for name, inf := range informers {
 		g.Go(func() error {
-			ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(syncTimeout))
+			ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
 			defer cancel()
+			log.Debugf("Sync started for informer %s", name)
 			if !cache.WaitForCacheSync(ctx.Done(), inf.HasSynced) {
-				return log.Errorf("cache sync timed out for the %s informer", name)
+				return fmt.Errorf("cache sync timed out for informer %s", name)
 			}
+			log.Debugf("Sync done for informer %s", name)
 			return nil
 		})
 	}

@@ -180,16 +180,16 @@ jobs:
           name: build agent
           command: inv -e agent.build --exclude-rtloader
 
-  build_puppy:
+  build_iot_agent:
     <<: *job_template
     steps:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: build puppy
-          command: inv -e agent.build --puppy
+          name: build iot agent
+          command: inv -e agent.build --iot
       - run:
-          name: test puppy
+          name: test iot agent
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
   documentation_generation:
@@ -238,7 +238,7 @@ workflows:
             - unit_tests
             - integration_tests
             - docker_tests
-      - build_puppy:
+      - build_iot_agent:
           requires:
             - unit_tests
             - integration_tests

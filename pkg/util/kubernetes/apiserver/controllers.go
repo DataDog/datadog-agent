@@ -8,6 +8,8 @@
 package apiserver
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,7 +24,7 @@ import (
 
 type controllerFuncs struct {
 	enabled func() bool
-	start   func(ControllerContext) error
+	start   func(ControllerContext, *sync.WaitGroup, chan error)
 }
 
 var controllerCatalog = map[controllerName]controllerFuncs{
@@ -53,22 +55,35 @@ type ControllerContext struct {
 	WPAClient          wpa_client.Interface
 	WPAInformerFactory externalversions.SharedInformerFactory
 	Client             kubernetes.Interface
-	LeaderElector      LeaderElectorInterface
+	IsLeaderFunc       func() bool
 	EventRecorder      record.EventRecorder
 	StopCh             chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
-func StartControllers(ctx ControllerContext) error {
+func StartControllers(ctx ControllerContext) {
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(controllerCatalog))
+	defer close(errChan)
 	for name, cntrlFuncs := range controllerCatalog {
 		if !cntrlFuncs.enabled() {
 			log.Infof("%q is disabled", name)
 			continue
 		}
-		err := cntrlFuncs.start(ctx)
+
+		// controllers should be started in parallel as their start functions are
+		// blocking until the informers are sync'ed or the sync period timed-out.
+		// for error propagation we rely on a buffered channel to gather errors
+		// from the spawned goroutines.
+		wg.Add(1)
+		go cntrlFuncs.start(ctx, &wg, errChan)
+	}
+
+	wg.Wait()
+	for err := range errChan {
 		if err != nil {
-			log.Errorf("Error starting %q: %s", name, err.Error())
+			log.Warnf("Error while starting controller: %v", err)
 		}
 	}
 
@@ -80,13 +95,12 @@ func StartControllers(ctx ControllerContext) error {
 	// FIXME: We may want to initialize each of these controllers separately via their respective
 	// `<informer>.Run()`
 	ctx.InformerFactory.Start(ctx.StopCh)
-
-	return nil
 }
 
 // startMetadataController starts the informers needed for metadata collection.
 // The synchronization of the informers is handled in this function.
-func startMetadataController(ctx ControllerContext) error {
+func startMetadataController(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
+	defer wg.Done()
 	metaController := NewMetadataController(
 		ctx.InformerFactory.Core().V1().Nodes(),
 		ctx.InformerFactory.Core().V1().Endpoints(),
@@ -94,7 +108,7 @@ func startMetadataController(ctx ControllerContext) error {
 	go metaController.Run(ctx.StopCh)
 
 	// Wait for the cache to sync
-	return SyncInformers(map[InformerName]cache.SharedInformer{
+	c <- SyncInformers(map[InformerName]cache.SharedInformer{
 		nodesInformer:     ctx.InformerFactory.Core().V1().Nodes().Informer(),
 		endpointsInformer: ctx.InformerFactory.Core().V1().Endpoints().Informer(),
 	})
@@ -102,19 +116,22 @@ func startMetadataController(ctx ControllerContext) error {
 
 // startAutoscalersController starts the informers needed for autoscaling.
 // The synchronization of the informers is handled in this function.
-func startAutoscalersController(ctx ControllerContext) error {
+func startAutoscalersController(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
+	defer wg.Done()
 	dogCl, err := autoscalers.NewDatadogClient()
 	if err != nil {
-		return err
+		c <- err
+		return
 	}
 	autoscalersController, err := NewAutoscalersController(
 		ctx.Client,
 		ctx.EventRecorder,
-		ctx.LeaderElector,
+		ctx.IsLeaderFunc,
 		dogCl,
 	)
 	if err != nil {
-		return err
+		c <- err
+		return
 	}
 	informers := map[InformerName]cache.SharedInformer{}
 	if ctx.WPAInformerFactory != nil {
@@ -129,44 +146,50 @@ func startAutoscalersController(ctx ControllerContext) error {
 	autoscalersController.RunControllerLoop(ctx.StopCh)
 
 	// Wait for the cache to sync
-	return SyncInformers(informers)
+	c <- SyncInformers(informers)
 }
 
 // startServicesInformer starts the service informer.
 // The synchronization of the service informer is handled in this function.
-func startServicesInformer(ctx ControllerContext) error {
+func startServicesInformer(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
+	defer wg.Done()
+
 	// Just start the shared informer, the autodiscovery
 	// components will access it when needed.
 	go ctx.InformerFactory.Core().V1().Services().Informer().Run(ctx.StopCh)
 
 	// Wait for the cache to sync
-	return SyncInformers(map[InformerName]cache.SharedInformer{
+	c <- SyncInformers(map[InformerName]cache.SharedInformer{
 		servicesInformer: ctx.InformerFactory.Core().V1().Services().Informer(),
 	})
 }
 
 // startEndpointsInformer starts the endpoints informer.
 // The synchronization of the endpoints informer is handled in this function.
-func startEndpointsInformer(ctx ControllerContext) error {
+func startEndpointsInformer(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
+	defer wg.Done()
+
 	// Just start the shared informer, the autodiscovery
 	// components will access it when needed.
 	go ctx.InformerFactory.Core().V1().Endpoints().Informer().Run(ctx.StopCh)
 
 	// Wait for the cache to sync
-	return SyncInformers(map[InformerName]cache.SharedInformer{
+	c <- SyncInformers(map[InformerName]cache.SharedInformer{
 		endpointsInformer: ctx.InformerFactory.Core().V1().Endpoints().Informer(),
 	})
 }
 
 // startSecretsInformer starts the secrets informer.
 // The synchronization of the secrets informer is handled in this function.
-func startSecretsInformer(ctx ControllerContext) error {
+func startSecretsInformer(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
+	defer wg.Done()
+
 	// Just start the shared informer, the admission
 	// controller will access it when needed.
 	go ctx.InformerFactory.Core().V1().Secrets().Informer().Run(ctx.StopCh)
 
 	// Wait for the cache to sync
-	return SyncInformers(map[InformerName]cache.SharedInformer{
-		secretsInformer: ctx.InformerFactory.Core().V1().Endpoints().Informer(),
+	c <- SyncInformers(map[InformerName]cache.SharedInformer{
+		secretsInformer: ctx.InformerFactory.Core().V1().Secrets().Informer(),
 	})
 }

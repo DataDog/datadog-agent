@@ -500,7 +500,12 @@ func initConfig(config Config) {
 	// additional config to ensure initial logs are tagged with kubelet tags
 	// wait (seconds) for tagger before start fetching tags of new AD services
 	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
-
+	// Configurable docker client timeout while communicating with the docker daemon.
+	// It could happen that the docker daemon takes a lot of time gathering timestamps
+	// before starting to send any data when it has stored several large log files.
+	// This field lets you increase the read timeout to prevent the client from
+	// timing out too early in such a situation. Value in seconds.
+	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	config.BindEnv("logs_config.dd_url")
@@ -558,7 +563,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 	// Admission controller
-	config.BindEnvAndSetDefault("admission_controller.enabled", true) // TODO: make it false
+	config.BindEnvAndSetDefault("admission_controller.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.port", 8000)
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
