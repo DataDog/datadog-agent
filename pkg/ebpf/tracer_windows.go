@@ -9,10 +9,7 @@ import "C"
 import (
 	"expvar"
 	"fmt"
-	"net"
-	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -61,6 +58,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		timerInterval:   defaultPollInterval,
 	}
 
+	log.Infof("Starting flow polling")
 	err = tr.initFlowPolling(tr.stopChan)
 	if err != nil {
 		return nil, fmt.Errorf("issue polling packets from driver: %v", err)
@@ -110,40 +108,20 @@ func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
 			case <-t.stopInTickerRoutine:
 				return
 			case <-t.inTicker.C:
-				flows, err := t.driverInterface.getFlows()
+				connStats, err := t.driverInterface.getConnectionStats()
 				if err != nil {
 					return
 				}
-				printFlows(flows)
+				printStats(connStats)
 			}
 		}
 	}()
 	return nil
 }
 
-func printFlows(pfds []*C.struct__perFlowData) {
-	for _, pfd := range pfds {
-		var local net.IP
-		var remot net.IP
-		var len C.int
-
-		if pfd.addressFamily == syscall.AF_INET {
-			len = 4
-		} else {
-			len = 16
-		}
-		local = C.GoBytes(unsafe.Pointer(&pfd.localAddress), len)
-		remot = C.GoBytes(unsafe.Pointer(&pfd.remoteAddress), len)
-
-		state := "Open  "
-		if (pfd.flags & 0x10) == 0x10 {
-			state = "Closed"
-		}
-		log.Infof("    %v  FH:  %8v    PID:  %8v   AF: %2v    P: %3v        Flags:  0x%v\n",
-			state, pfd.flowHandle, pfd.processId, pfd.addressFamily, pfd.protocol, pfd.flags)
-		log.Infof("    L:  %16s:%5d     R: %16s:%5d\n", local.String(), pfd.localPort, remot.String(), pfd.remotePort)
-		log.Infof("    PktIn:  %8v  BytesIn:  %8v    PktOut:  %8v:  BytesOut:  %8v\n", pfd.packetsIn, pfd.monotonicRecvBytes, pfd.packetsOut, pfd.monotonicSentBytes)
-		return
+func printStats(stats []ConnectionStats) {
+	for _, stat := range stats {
+		log.Infof("%v", stat)
 	}
 }
 
