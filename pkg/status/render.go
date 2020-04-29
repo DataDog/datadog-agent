@@ -38,7 +38,6 @@ func FormatStatus(data []byte) (string, error) {
 	dcaStats := stats["clusterAgentStatus"]
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
-	systemProbeStats := stats["systemProbeStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
