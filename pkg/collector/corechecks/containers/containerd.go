@@ -235,8 +235,8 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 		sender.Gauge("containerd.image.size", float64(size), "", tags)
 
 		// Collect open file descriptor counts
-		processes, err := cu.TaskPids(ctn)
-		if err != nil {
+		processes, errTask := cu.TaskPids(ctn)
+		if errTask != nil {
 			log.Tracef("Could not retrieve pids from task %s: %s", ctn.ID()[:12], errTask.Error())
 			continue
 		}
