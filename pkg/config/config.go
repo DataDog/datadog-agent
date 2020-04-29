@@ -473,6 +473,9 @@ func initConfig(config Config) {
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
 
+	// Profiling
+	config.BindEnvAndSetDefault("profiling.enabled", true)
+
 	// Trace agent
 	// Note that trace-agent environment variables are parsed in pkg/trace/config/env.go
 	// since some of them require custom parsing algorithms. DO NOT add environment variable

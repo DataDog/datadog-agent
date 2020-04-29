@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
@@ -138,6 +139,22 @@ func StartAgent() error {
 	if err != nil {
 		log.Errorf("Failed to setup config %v", err)
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
+
+	// Setup Profiling
+	// TODO: make this runtime configurable
+	if config.Datadog.GetBool("profiling.enabled") {
+		v, _ := version.Agent()
+		err := profiler.Start(
+			profiler.WithAPIKey(config.Datadog.GetString("api_key")),
+			profiler.WithService("agent"),
+			profiler.WithEnv(config.Datadog.GetString("env")),
+			profiler.WithTags(fmt.Sprintf("version:%s", v)),
+		)
+		if err != nil {
+			log.Errorf("Error starting profiler: ", err)
+		}
+		defer profiler.Stop()
 	}
 
 	// Setup logger
