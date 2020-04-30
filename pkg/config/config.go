@@ -677,6 +677,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
+	// Datadog security agent (compliance)
+	config.BindEnvAndSetDefault("compliance_config.enabled", true)
+	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
+
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
