@@ -3,12 +3,17 @@
 # Perform necessary datadog-agent setup steps before package is installed.
 #
 # .deb: STEP 2 of 5
+# .rpm: STEP 2 of 6
 
+INSTALL_DIR=/opt/datadog-agent
+LOG_DIR=/var/log/datadog
 SERVICE_NAME=datadog-agent
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
-
+if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
+    DISTRIBUTION_FAMILY="Debian"
+fi
 # Linux installation
 if [ "$DISTRIBUTION" != "Darwin" ]; then
     set -e
@@ -20,6 +25,12 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             systemctl stop $SERVICE_NAME || true
         elif command -v initctl >/dev/null 2>&1; then
             initctl stop $SERVICE_NAME || true
+        elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
+            if command -v service >/dev/null 2>&1; then
+                service $SERVICE_NAME stop || true
+            else
+                echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
+            fi
         else
             echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
         fi
@@ -29,10 +40,26 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Nothing specific on Debian
         :
         #DEBHELPER#
+    elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
+        # RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
+        # So let's stop the Agent 5 service here until we don't want to support upgrades from Agents < 5.18.0 anymore
+        if [ -f "/etc/init.d/datadog-agent" ]; then
+            /etc/init.d/datadog-agent stop || true
+        fi
+
+        # Set up `dd-agent` user and group
+        getent group dd-agent >/dev/null || groupadd -r dd-agent
+        getent passwd dd-agent >/dev/null || \
+            useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin \
+                -c "Datadog Agent" dd-agent && \
+                { usermod -L dd-agent || echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"; }
     else
         echo "[ FAILED ]\tYour system is currently not supported by this script.";
         exit 1;
     fi
+else
+	echo "The IoT Agent is not supported on MacOS"
+	exit 0
 fi
 
 exit 0

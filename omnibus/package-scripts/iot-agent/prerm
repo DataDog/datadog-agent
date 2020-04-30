@@ -36,6 +36,11 @@ deregister_agent()
     fi
 }
 
+if [ "$DISTRIBUTION" = "Darwin" ]; then
+	echo "The IoT Agent is not supported on MacOS"
+	exit 0
+fi
+
 if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     stop_agent
     deregister_agent
