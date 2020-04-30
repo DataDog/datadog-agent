@@ -26,7 +26,7 @@ func TestConntracker(t *testing.T) {
 	}
 	defer teardown(t)
 
-	ct, err := NewConntracker("/proc", 100, false)
+	ct, err := NewConntracker("/proc", 100)
 	require.NoError(t, err)
 	defer ct.Close()
 

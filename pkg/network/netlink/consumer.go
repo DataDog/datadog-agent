@@ -18,10 +18,11 @@ import (
 )
 
 const (
-	netlinkCtNew    = uint32(1)
-	ipctnlMsgCtGet  = 1
-	outputBuffer    = 100
-	overshootFactor = 0.9
+	netlinkCtNew      = uint32(1)
+	ipctnlMsgCtGet    = 1
+	outputBuffer      = 100
+	overshootFactor   = 0.9
+	netlinkBufferSize = 1024 * 1024 // 1Mb
 
 	// The maximum number of messages we're willing to read off the socket per second
 	// This number is enforced to keep CPU usage at an appropriate level
