@@ -71,6 +71,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
+    # gomobile is not supporting go modules
+    # https://go-review.googlesource.com/c/mobile/+/167659/
+    env["GO111MODULE"] = "off"
     ctx.run(cmd.format(**args), env=env)
 
     pwd = os.getcwd()

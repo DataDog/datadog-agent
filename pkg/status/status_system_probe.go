@@ -13,9 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
-//nolint:unused temporarily disabling system probe status
-func getSystemProbeStats() map[string]interface{} {
-
+// GetSystemProbeStats returns the expvar stats of the system probe
+func GetSystemProbeStats() map[string]interface{} {
 	// TODO: Pull system-probe path from system-probe.yaml
 	net.SetSystemProbePath("/opt/datadog-agent/run/sysprobe.sock")
 	probeUtil, err := net.GetRemoteSystemProbeUtil()
