@@ -7,17 +7,89 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"github.com/pkg/errors"
 )
 
-func parse(t *testing.T, expr string, macros map[string]*ast.Macro, debug bool) (*RuleEvaluator, *ast.Rule, error) {
+type testProcess struct {
+	name   string
+	uid    int
+	isRoot bool
+}
+
+type testOpen struct {
+	filename string
+	flags    int
+}
+
+type testEvent struct {
+	process testProcess
+	open    testOpen
+}
+
+type testModel struct {
+	data testEvent
+}
+
+func (m *testModel) SetData(data interface{}) {
+	m.data = data.(testEvent)
+}
+
+func (m *testModel) GetEvaluator(key string) (interface{}, []string, error) {
+	switch key {
+
+	case "process.name":
+
+		return &StringEvaluator{
+			Eval:      func(ctx *Context) string { return m.data.process.name },
+			DebugEval: func(ctx *Context) string { return m.data.process.name },
+			Field:     key,
+		}, []string{"process"}, nil
+
+	case "process.uid":
+
+		return &IntEvaluator{
+			Eval:      func(ctx *Context) int { return m.data.process.uid },
+			DebugEval: func(ctx *Context) int { return m.data.process.uid },
+			Field:     key,
+		}, []string{"process"}, nil
+
+	case "process.is_root":
+
+		return &BoolEvaluator{
+			Eval:      func(ctx *Context) bool { return m.data.process.isRoot },
+			DebugEval: func(ctx *Context) bool { return m.data.process.isRoot },
+			Field:     key,
+		}, []string{"process"}, nil
+
+	case "open.filename":
+
+		return &StringEvaluator{
+			Eval:      func(ctx *Context) string { return m.data.open.filename },
+			DebugEval: func(ctx *Context) string { return m.data.open.filename },
+			Field:     key,
+		}, []string{"fs"}, nil
+
+	case "open.flags":
+
+		return &IntEvaluator{
+			Eval:      func(ctx *Context) int { return m.data.open.flags },
+			DebugEval: func(ctx *Context) int { return m.data.open.flags },
+			Field:     key,
+		}, []string{"fs"}, nil
+
+	}
+
+	return nil, nil, errors.Wrap(ErrFieldNotFound, key)
+}
+
+func parse(t *testing.T, expr string, macros map[string]*ast.Macro, model Model, debug bool) (*RuleEvaluator, *ast.Rule, error) {
 	rule, err := ast.ParseRule(expr)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, macros, debug)
+	evaluator, err := RuleToEvaluator(rule, macros, model, debug)
 	if err != nil {
 		return nil, rule, err
 	}
@@ -25,16 +97,18 @@ func parse(t *testing.T, expr string, macros map[string]*ast.Macro, debug bool) 
 	return evaluator, rule, err
 }
 
-func eval(t *testing.T, event *model.Event, expr string) (bool, *ast.Rule, error) {
-	ctx := &Context{Event: event}
+func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
+	model := &testModel{data: *event}
 
-	evaluator, rule, err := parse(t, expr, nil, false)
+	ctx := &Context{}
+
+	evaluator, rule, err := parse(t, expr, nil, model, false)
 	if err != nil {
 		return false, rule, err
 	}
 	r1 := evaluator.Eval(ctx)
 
-	evaluator, _, err = parse(t, expr, nil, true)
+	evaluator, _, err = parse(t, expr, nil, model, true)
 	if err != nil {
 		return false, rule, err
 	}
@@ -48,13 +122,13 @@ func eval(t *testing.T, event *model.Event, expr string) (bool, *ast.Rule, error
 }
 
 func TestStringError(t *testing.T) {
-	event := &model.Event{
-		Process: model.Process{
-			Name: "/usr/bin/cat",
-			UID:  1,
+	event := &testEvent{
+		process: testProcess{
+			name: "/usr/bin/cat",
+			uid:  1,
 		},
-		Open: model.OpenSyscall{
-			Filename: "/etc/shadow",
+		open: testOpen{
+			filename: "/etc/shadow",
 		},
 	}
 
@@ -65,13 +139,13 @@ func TestStringError(t *testing.T) {
 }
 
 func TestIntError(t *testing.T) {
-	event := &model.Event{
-		Process: model.Process{
-			Name: "/usr/bin/cat",
-			UID:  1,
+	event := &testEvent{
+		process: testProcess{
+			name: "/usr/bin/cat",
+			uid:  1,
 		},
-		Open: model.OpenSyscall{
-			Filename: "/etc/shadow",
+		open: testOpen{
+			filename: "/etc/shadow",
 		},
 	}
 
@@ -82,13 +156,13 @@ func TestIntError(t *testing.T) {
 }
 
 func TestBoolError(t *testing.T) {
-	event := &model.Event{
-		Process: model.Process{
-			Name: "/usr/bin/cat",
-			UID:  1,
+	event := &testEvent{
+		process: testProcess{
+			name: "/usr/bin/cat",
+			uid:  1,
 		},
-		Open: model.OpenSyscall{
-			Filename: "/etc/shadow",
+		open: testOpen{
+			filename: "/etc/shadow",
 		},
 	}
 
@@ -99,10 +173,10 @@ func TestBoolError(t *testing.T) {
 }
 
 func TestSimpleString(t *testing.T) {
-	event := &model.Event{
-		Process: model.Process{
-			Name: "/usr/bin/cat",
-			UID:  1,
+	event := &testEvent{
+		process: testProcess{
+			name: "/usr/bin/cat",
+			uid:  1,
 		},
 	}
 
@@ -131,9 +205,9 @@ func TestSimpleString(t *testing.T) {
 }
 
 func TestSimpleInt(t *testing.T) {
-	event := &model.Event{
-		Process: model.Process{
-			UID: 444,
+	event := &testEvent{
+		process: testProcess{
+			uid: 444,
 		},
 	}
 
@@ -164,7 +238,7 @@ func TestSimpleInt(t *testing.T) {
 }
 
 func TestSimpleBool(t *testing.T) {
-	event := &model.Event{}
+	event := &testEvent{}
 
 	tests := []struct {
 		Expr     string
@@ -189,7 +263,7 @@ func TestSimpleBool(t *testing.T) {
 }
 
 func TestSyscallConst(t *testing.T) {
-	event := &model.Event{}
+	event := &testEvent{}
 
 	tests := []struct {
 		Expr     string
@@ -211,7 +285,7 @@ func TestSyscallConst(t *testing.T) {
 }
 
 func TestPrecedence(t *testing.T) {
-	event := &model.Event{}
+	event := &testEvent{}
 
 	tests := []struct {
 		Expr     string
@@ -235,7 +309,7 @@ func TestPrecedence(t *testing.T) {
 }
 
 func TestParenthesis(t *testing.T) {
-	event := &model.Event{}
+	event := &testEvent{}
 
 	tests := []struct {
 		Expr     string
@@ -257,7 +331,7 @@ func TestParenthesis(t *testing.T) {
 }
 
 func TestSimpleBitOperations(t *testing.T) {
-	event := &model.Event{}
+	event := &testEvent{}
 
 	tests := []struct {
 		Expr     string
@@ -284,9 +358,9 @@ func TestSimpleBitOperations(t *testing.T) {
 }
 
 func TestRegexp(t *testing.T) {
-	event := &model.Event{
-		Process: model.Process{
-			Name: "/usr/bin/cat",
+	event := &testEvent{
+		process: testProcess{
+			name: "/usr/bin/cat",
 		},
 	}
 
@@ -312,10 +386,10 @@ func TestRegexp(t *testing.T) {
 }
 
 func TestInArray(t *testing.T) {
-	event := &model.Event{
-		Process: model.Process{
-			Name: "a",
-			UID:  3,
+	event := &testEvent{
+		process: testProcess{
+			name: "a",
+			uid:  3,
 		},
 	}
 
@@ -354,10 +428,10 @@ func TestInArray(t *testing.T) {
 }
 
 func TestComplex(t *testing.T) {
-	event := &model.Event{
-		Open: model.OpenSyscall{
-			Filename: "/var/lib/httpd/htpasswd",
-			Flags:    syscall.O_CREAT | syscall.O_TRUNC | syscall.O_EXCL | syscall.O_RDWR | syscall.O_WRONLY,
+	event := &testEvent{
+		open: testOpen{
+			filename: "/var/lib/httpd/htpasswd",
+			flags:    syscall.O_CREAT | syscall.O_TRUNC | syscall.O_EXCL | syscall.O_RDWR | syscall.O_WRONLY,
 		},
 	}
 
@@ -382,7 +456,7 @@ func TestComplex(t *testing.T) {
 
 func TestTags(t *testing.T) {
 	expr := `process.name != "/usr/bin/vipw" && open.filename == "/etc/passwd"`
-	evaluator, _, err := parse(t, expr, nil, false)
+	evaluator, _, err := parse(t, expr, nil, &testModel{}, false)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -395,12 +469,14 @@ func TestTags(t *testing.T) {
 }
 
 func TestPartial(t *testing.T) {
-	event := &model.Event{
-		Process: model.Process{
-			Name: "abc",
+	event := testEvent{
+		process: testProcess{
+			name:   "abc",
+			uid:    123,
+			isRoot: true,
 		},
-		Open: model.OpenSyscall{
-			Filename: "xyz",
+		open: testOpen{
+			filename: "xyz",
 		},
 	}
 
@@ -431,6 +507,7 @@ func TestPartial(t *testing.T) {
 		{Expr: `open.filename in [ "test1", "test2" ] && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
 		{Expr: `!(open.filename in [ "test1", "test2" ]) && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
 		{Expr: `!(open.filename in [ "test1", "xyz" ]) && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
+		{Expr: `!(open.filename in [ "test1", "xyz" ]) && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
 		{Expr: `!(open.filename in [ "test1", "xyz" ] && true) && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
 		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && process.name == "abc"`, Field: "process.name", IsDiscrimator: false},
 		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "process.name", IsDiscrimator: true},
@@ -438,21 +515,25 @@ func TestPartial(t *testing.T) {
 		{Expr: `(open.filename not in [ "test1", "xyz" ] && true) && !(process.name == "abc")`, Field: "open.filename", IsDiscrimator: true},
 		{Expr: `open.filename == open.filename`, Field: "open.filename", IsDiscrimator: false},
 		{Expr: `open.filename != open.filename`, Field: "open.filename", IsDiscrimator: true},
+		{Expr: `open.filename == "test1" && process.uid == 456`, Field: "process.uid", IsDiscrimator: true},
+		{Expr: `open.filename == "test1" && process.uid == 123`, Field: "process.uid", IsDiscrimator: false},
+		{Expr: `open.filename == "test1" && !process.is_root`, Field: "process.is_root", IsDiscrimator: true},
+		{Expr: `open.filename == "test1" && process.is_root`, Field: "process.is_root", IsDiscrimator: false},
 	}
 
 	for _, test := range tests {
-		evaluator, _, err := parse(t, test.Expr, nil, false)
+		evaluator, _, err := parse(t, test.Expr, nil, &testModel{data: event}, false)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
 
-		result, err := evaluator.IsDiscrimator(&Context{Event: event}, test.Field)
+		result, err := evaluator.IsDiscrimator(&Context{}, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
 		}
 
 		if result != test.IsDiscrimator {
-			t.Fatalf("expected result `%t` for `%s`not found, got `%t`\n%s", test.IsDiscrimator, test.Field, result, test.Expr)
+			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscrimator, test.Field, result, test.Expr)
 		}
 	}
 }
@@ -470,13 +551,12 @@ func TestMacroList(t *testing.T) {
 	}
 
 	expr = `"/etc/shadow" in list`
-	evaluator, _, err := parse(t, expr, macros, false)
+	evaluator, _, err := parse(t, expr, macros, &testModel{data: testEvent{}}, false)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	event := &model.Event{}
-	if !evaluator.Eval(&Context{Event: event}) {
+	if !evaluator.Eval(&Context{}) {
 		t.Fatalf("should return true")
 	}
 }
@@ -493,21 +573,22 @@ func TestMacroExpression(t *testing.T) {
 		"is_passwd": macro,
 	}
 
+	event := testEvent{
+		process: testProcess{
+			name: "httpd",
+		},
+		open: testOpen{
+			filename: "/etc/passwd",
+		},
+	}
+
 	expr = `process.name == "httpd" && is_passwd`
-	evaluator, _, err := parse(t, expr, macros, false)
+	evaluator, _, err := parse(t, expr, macros, &testModel{data: event}, false)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	event := &model.Event{
-		Process: model.Process{
-			Name: "httpd",
-		},
-		Open: model.OpenSyscall{
-			Filename: "/etc/passwd",
-		},
-	}
-	if !evaluator.Eval(&Context{Event: event}) {
+	if !evaluator.Eval(&Context{}) {
 		t.Fatalf("should return true")
 	}
 }
@@ -524,19 +605,19 @@ func TestMacroPartial(t *testing.T) {
 		"is_passwd": macro,
 	}
 
+	event := testEvent{
+		open: testOpen{
+			filename: "/etc/hosts",
+		},
+	}
+
 	expr = `is_passwd`
-	evaluator, _, err := parse(t, expr, macros, false)
+	evaluator, _, err := parse(t, expr, macros, &testModel{data: event}, false)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	event := &model.Event{
-		Open: model.OpenSyscall{
-			Filename: "/etc/hosts",
-		},
-	}
-
-	result, err := evaluator.IsDiscrimator(&Context{Event: event}, "open.filename")
+	result, err := evaluator.IsDiscrimator(&Context{}, "open.filename")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -547,16 +628,14 @@ func TestMacroPartial(t *testing.T) {
 }
 
 func BenchmarkComplex(b *testing.B) {
-	event := &model.Event{
-		Process: model.Process{
-			Name: "/usr/bin/ls",
-			UID:  1,
+	event := testEvent{
+		process: testProcess{
+			name: "/usr/bin/ls",
+			uid:  1,
 		},
 	}
 
-	ctx := &Context{
-		Event: event,
-	}
+	ctx := &Context{}
 
 	base := `(process.name == "/usr/bin/ls" && process.uid == 1)`
 	var exprs []string
@@ -572,7 +651,7 @@ func BenchmarkComplex(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, nil, false)
+	evaluator, err := RuleToEvaluator(rule, nil, &testModel{data: event}, false)
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -585,16 +664,14 @@ func BenchmarkComplex(b *testing.B) {
 }
 
 func BenchmarkPartial(b *testing.B) {
-	event := &model.Event{
-		Process: model.Process{
-			Name: "abc",
-			UID:  1,
+	event := testEvent{
+		process: testProcess{
+			name: "abc",
+			uid:  1,
 		},
 	}
 
-	ctx := &Context{
-		Event: event,
-	}
+	ctx := &Context{}
 
 	base := `(process.name == "/usr/bin/ls" && process.uid != 0)`
 	var exprs []string
@@ -610,7 +687,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, nil, false)
+	evaluator, err := RuleToEvaluator(rule, nil, &testModel{data: event}, false)
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
