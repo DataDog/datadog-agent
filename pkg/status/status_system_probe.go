@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
+//nolint:unused temporarily disabling system probe status
 func getSystemProbeStats() map[string]interface{} {
 
 	// TODO: Pull system-probe path from system-probe.yaml
