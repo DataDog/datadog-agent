@@ -1312,6 +1312,50 @@ func TestRebalance(t *testing.T) {
 				},
 			},
 		},
+		{
+			in: map[string]*nodeStore{
+				"A": {
+					name: "A",
+					clcRunnerStats: types.CLCRunnersStats{
+						"checkA0": types.CLCRunnerStats{
+							AverageExecutionTime: 1000,
+							MetricSamples:        1000,
+							LastExecFailed:       true,
+						},
+						"checkA1": types.CLCRunnerStats{
+							AverageExecutionTime: 10,
+							MetricSamples:        10,
+							LastExecFailed:       false,
+						},
+					},
+				},
+				"B": {
+					name:           "B",
+					clcRunnerStats: types.CLCRunnersStats{},
+				},
+			},
+			out: map[string]*nodeStore{
+				"A": {
+					name: "A",
+					clcRunnerStats: types.CLCRunnersStats{
+						"checkA0": types.CLCRunnerStats{
+							AverageExecutionTime: 1000,
+							MetricSamples:        1000,
+							LastExecFailed:       true,
+						},
+						"checkA1": types.CLCRunnerStats{
+							AverageExecutionTime: 10,
+							MetricSamples:        10,
+							LastExecFailed:       false,
+						},
+					},
+				},
+				"B": {
+					name:           "B",
+					clcRunnerStats: types.CLCRunnersStats{},
+				},
+			},
+		},
 	} {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
 			dispatcher := newDispatcher()
