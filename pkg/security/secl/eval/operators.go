@@ -9,8 +9,8 @@ import (
 )
 
 func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
-	var isPartialLeaf bool
-	if a.Field != "" && a.Field != opts.Field {
+	isPartialLeaf := a.IsPartial
+	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
 		isPartialLeaf = true
 	}
 
@@ -28,12 +28,13 @@ func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 				ctx.evalDepth--
 				return result
 			},
-			IsPartialLeaf: isPartialLeaf,
+			IsPartial: isPartialLeaf,
 		}
 	}
 
 	return &IntEvaluator{
-		Value: ^a.Value,
+		Value:     ^a.Value,
+		IsPartial: isPartialLeaf,
 	}
 }
 
@@ -42,8 +43,8 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 		return nil, errors.New("regex has to be a scalar string")
 	}
 
-	var isPartialLeaf bool
-	if a.Field != "" && a.Field != opts.Field {
+	isPartialLeaf := a.IsPartial
+	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
 		isPartialLeaf = true
 	}
 
@@ -74,24 +75,30 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 				ctx.evalDepth--
 				return result
 			},
-			IsPartialLeaf: isPartialLeaf,
+			IsPartial: isPartialLeaf,
 		}, nil
 	}
 
-	ea := re.MatchString(a.Value)
-	if not {
-		return &BoolEvaluator{
-			Value: !ea,
-		}, nil
+	ea := true
+	if !isPartialLeaf {
+		ea = re.MatchString(a.Value)
+		if not {
+			return &BoolEvaluator{
+				Value:     !ea,
+				IsPartial: isPartialLeaf,
+			}, nil
+		}
 	}
+
 	return &BoolEvaluator{
-		Value: ea,
+		Value:     ea,
+		IsPartial: isPartialLeaf,
 	}, nil
 }
 
 func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
-	if a.Field != "" && a.Field != opts.Field {
+	isPartialLeaf := a.IsPartial
+	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
 		isPartialLeaf = true
 	}
 
@@ -101,7 +108,7 @@ func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 		}
 
 		if opts.Field != "" {
-			if a.IsPartialLeaf {
+			if a.IsPartial {
 				ea = func(ctx *Context) bool {
 					return true
 				}
@@ -118,18 +125,24 @@ func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 				ctx.evalDepth--
 				return result
 			},
-			IsPartialLeaf: isPartialLeaf,
+			IsPartial: isPartialLeaf,
 		}
 	}
 
+	value := true
+	if !isPartialLeaf {
+		value = !a.Value
+	}
+
 	return &BoolEvaluator{
-		Value: !a.Value,
+		Value:     value,
+		IsPartial: isPartialLeaf,
 	}
 }
 
 func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
-	var isPartialLeaf bool
-	if a.Field != "" && a.Field != opts.Field {
+	isPartialLeaf := a.IsPartial
+	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
 		isPartialLeaf = true
 	}
 
@@ -147,18 +160,19 @@ func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 				ctx.evalDepth--
 				return result
 			},
-			IsPartialLeaf: isPartialLeaf,
+			IsPartial: isPartialLeaf,
 		}
 	}
 
 	return &IntEvaluator{
-		Value: -a.Value,
+		Value:     -a.Value,
+		IsPartial: isPartialLeaf,
 	}
 }
 
 func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
-	if a.Field != "" && a.Field != opts.Field {
+	isPartialLeaf := a.IsPartial
+	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
 		isPartialLeaf = true
 	}
 
@@ -186,23 +200,28 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 				ctx.evalDepth--
 				return result
 			},
-			IsPartialLeaf: isPartialLeaf,
+			IsPartial: isPartialLeaf,
 		}
 	}
 
-	i := sort.SearchStrings(b.Values, a.Value)
-	ea := i < len(b.Values) && b.Values[i] == a.Value
-	if not {
-		ea = !ea
+	ea := true
+	if !isPartialLeaf {
+		i := sort.SearchStrings(b.Values, a.Value)
+		ea = i < len(b.Values) && b.Values[i] == a.Value
+		if not {
+			ea = !ea
+		}
 	}
+
 	return &BoolEvaluator{
-		Value: ea,
+		Value:     ea,
+		IsPartial: isPartialLeaf,
 	}
 }
 
 func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state *State) *BoolEvaluator {
-	var isPartialLeaf bool
-	if a.Field != "" && a.Field != opts.Field {
+	isPartialLeaf := a.IsPartial
+	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
 		isPartialLeaf = true
 	}
 
@@ -232,16 +251,21 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 				ctx.evalDepth--
 				return result
 			},
-			IsPartialLeaf: isPartialLeaf,
+			IsPartial: isPartialLeaf,
 		}
 	}
 
-	i := sort.SearchInts(b.Values, a.Value)
-	ea := i < len(b.Values) && b.Values[i] == a.Value
-	if not {
-		ea = !ea
+	ea := true
+	if !isPartialLeaf {
+		i := sort.SearchInts(b.Values, a.Value)
+		ea = i < len(b.Values) && b.Values[i] == a.Value
+		if not {
+			ea = !ea
+		}
 	}
+
 	return &BoolEvaluator{
-		Value: ea,
+		Value:     ea,
+		IsPartial: isPartialLeaf,
 	}
 }
