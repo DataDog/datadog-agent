@@ -22,7 +22,7 @@ const (
 	secretsController     controllerName = "secrets"
 )
 
-// InformerName represents the kubernetes controller names
+// InformerName represents the kubernetes informer names
 // TODO: make it private
 type InformerName string
 

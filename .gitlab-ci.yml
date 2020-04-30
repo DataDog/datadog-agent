@@ -81,7 +81,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2424505-0439a40
-  DATADOG_AGENT_BUILDERS: v2441729-d4ed0d1
+  DATADOG_AGENT_BUILDERS: v2448672-5304c3c
   DATADOG_AGENT_WINBUILDIMAGES: v2348149-ba6640d
   DATADOG_AGENT_ARMBUILDIMAGES: v2424505-0439a40
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2424505-0439a40
@@ -322,7 +322,7 @@ run_tests_ebpf:
   before_script:
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
-    - pip3 install distro -c requirements.txt # needed for some of our invoke tasks until the builders image contain it
+    - pip3 install -r requirements.txt
     - inv -e deps --verbose --dep-vendor-only --no-checks
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz

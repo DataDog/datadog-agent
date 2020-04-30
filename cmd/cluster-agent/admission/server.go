@@ -27,8 +27,6 @@ import (
 
 const jsonContentType = "application/json"
 
-var deserializer = serializer.NewCodecFactory(runtime.NewScheme()).UniversalDeserializer()
-
 // RunServer creates and start a k8s admission webhook server
 func RunServer(mainCtx context.Context) error {
 	mux := http.NewServeMux()
@@ -76,6 +74,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var admissionReviewReq admiv1beta1.AdmissionReview
+	deserializer := serializer.NewCodecFactory(runtime.NewScheme()).UniversalDeserializer()
 	if _, _, err := deserializer.Decode(body, nil, &admissionReviewReq); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Warnf("Could not deserialize request: %v", err)
