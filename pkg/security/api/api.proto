@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package api;
+
+message GetParams{}
+
+message SecurityEventMessage {
+    string RuleName = 1;
+    bytes Data = 2;
+}
+
+service SecurityModule {
+    rpc GetEvents(GetParams) returns (stream SecurityEventMessage) {}
+}

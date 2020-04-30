@@ -19,6 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -180,6 +183,14 @@ func start(cmd *cobra.Command, args []string) error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 	defer srv.Stop()
+
+	client, err := agent.NewEventClient()
+	if err != nil {
+		return err
+	}
+
+	go client.Start()
+	defer client.Stop()
 
 	log.Infof("Datadog Security Agent is now running.")
 
