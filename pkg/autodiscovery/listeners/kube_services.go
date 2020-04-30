@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -58,10 +59,12 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
+
 	return &KubeServiceListener{
 		services: make(map[types.UID]Service),
 		informer: servicesInformer,
@@ -298,4 +301,10 @@ func (s *KubeServiceService) IsReady() bool {
 // KubeServiceService doesn't implement this method
 func (s *KubeServiceService) GetCheckNames() []string {
 	return nil
+}
+
+// HasFilter always return false
+// KubeServiceService doesn't implement this method
+func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
+	return false
 }

@@ -21,6 +21,7 @@ import (
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
@@ -103,6 +104,56 @@ type checkInitCfg struct {
 	ToolsJarPath   string   `yaml:"tools_jar_path,omitempty"`
 	JavaBinPath    string   `yaml:"java_bin_path,omitempty"`
 	JavaOptions    string   `yaml:"java_options,omitempty"`
+}
+
+func (j *JMXFetch) Monitor() {
+	idx := 0
+	maxRestarts := config.Datadog.GetInt("jmx_max_restarts")
+	ival := float64(config.Datadog.GetInt("jmx_restart_interval"))
+	stopTimes := make([]time.Time, maxRestarts)
+	ticker := time.NewTicker(500 * time.Millisecond)
+
+	defer ticker.Stop()
+	defer close(j.stopped)
+
+	go j.heartbeat(ticker)
+
+	for {
+		err := j.Wait()
+		if err == nil {
+			log.Infof("JMXFetch stopped and exited sanely.")
+			break
+		}
+
+		stopTimes[idx] = time.Now()
+		oldestIdx := (idx + maxRestarts + 1) % maxRestarts
+
+		// Please note that the zero value for `time.Time` is `0001-01-01 00:00:00 +0000 UTC`
+		// therefore for the first iteration (the initial launch attempt), the interval will
+		// always be biger than ival (jmx_restart_interval). In fact, this sub operation with
+		// stopTimes here will only start yielding values potentially <= ival _after_ the first
+		// maxRestarts attempts, which is fine and consistent.
+		if stopTimes[idx].Sub(stopTimes[oldestIdx]).Seconds() <= ival {
+			msg := fmt.Sprintf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", maxRestarts, ival)
+			log.Errorf(msg)
+			s := status.JMXStartupError{LastError: msg, Timestamp: time.Now().Unix()}
+			status.SetJMXStartupError(s)
+			return
+		}
+
+		idx = (idx + 1) % maxRestarts
+
+		select {
+		case <-j.shutdown:
+			return
+		default:
+			// restart
+			log.Warnf("JMXFetch process had to be restarted.")
+			j.Start(false)
+		}
+	}
+
+	<-j.shutdown
 }
 
 func (j *JMXFetch) setDefaults() {

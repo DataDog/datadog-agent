@@ -28,12 +28,11 @@ import (
 )
 
 // NewAutoscalersController returns a new AutoscalersController
-func NewAutoscalersController(client kubernetes.Interface, eventRecorder record.EventRecorder, le LeaderElectorInterface, dogCl autoscalers.DatadogClient) (*AutoscalersController, error) {
+func NewAutoscalersController(client kubernetes.Interface, eventRecorder record.EventRecorder, isLeaderFunc func() bool, dogCl autoscalers.DatadogClient) (*AutoscalersController, error) {
 	var err error
-
 	h := &AutoscalersController{
 		clientSet:     client,
-		le:            le, // only trigger GC and updateExternalMetrics by the Leader.
+		isLeaderFunc:  isLeaderFunc, // only trigger GC and updateExternalMetrics by the Leader.
 		HPAqueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
 		EventRecorder: eventRecorder,
 	}
@@ -212,14 +211,14 @@ func (h *AutoscalersController) processingLoop() {
 		for {
 			select {
 			case <-tickerAutoscalerRefreshProcess.C:
-				if !h.le.IsLeader() {
+				if !h.isLeaderFunc() {
 					continue
 				}
 				// Updating the metrics against Datadog should not affect the Ref pipeline.
 				// If metrics are temporarily unavailable for too long, they will become `Valid=false` and won't be evaluated.
 				h.updateExternalMetrics()
 			case <-gcPeriodSeconds.C:
-				if !h.le.IsLeader() {
+				if !h.isLeaderFunc() {
 					continue
 				}
 				h.gc()

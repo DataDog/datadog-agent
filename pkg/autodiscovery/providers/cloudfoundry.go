@@ -60,7 +60,7 @@ func (cf CloudFoundryConfigProvider) Collect() ([]integration.Config, error) {
 	for _, desiredLRP := range desiredLRPs {
 		actualLRPs, ok := allActualLRPs[desiredLRP.AppGUID]
 		if !ok {
-			actualLRPs = []cloudfoundry.ActualLRP{}
+			actualLRPs = []*cloudfoundry.ActualLRP{}
 		}
 		newConfigs := cf.getConfigsForApp(desiredLRP, actualLRPs)
 		log.Debugf("Successfully got %d configs for app %s", len(newConfigs), desiredLRP.AppGUID)
@@ -69,13 +69,13 @@ func (cf CloudFoundryConfigProvider) Collect() ([]integration.Config, error) {
 	return allConfigs, nil
 }
 
-func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP cloudfoundry.DesiredLRP, actualLRPs []cloudfoundry.ActualLRP) []integration.Config {
+func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP *cloudfoundry.DesiredLRP, actualLRPs []*cloudfoundry.ActualLRP) []integration.Config {
 	allConfigs := []integration.Config{}
 
 	for adName, adVal := range desiredLRP.EnvAD {
 		// initially, let's assume a non-container service; we'll change to container service in
 		// `expandPerContainerChecks` if necessary
-		id := cloudfoundry.NewADNonContainerIdentifier(desiredLRP, adName)
+		id := cloudfoundry.NewADNonContainerIdentifier(*desiredLRP, adName)
 		// we need to convert adVal to map[string]string to pass it to extractTemplatesFromMap
 		convertedADVal := map[string]string{}
 		for k, v := range adVal {
@@ -132,7 +132,7 @@ func (cf CloudFoundryConfigProvider) getConfigsForApp(desiredLRP cloudfoundry.De
 	return allConfigs
 }
 
-func (cf CloudFoundryConfigProvider) assignNodeNameToNonContainerChecks(configs []integration.Config, desiredLRP cloudfoundry.DesiredLRP, actualLRPs []cloudfoundry.ActualLRP) {
+func (cf CloudFoundryConfigProvider) assignNodeNameToNonContainerChecks(configs []integration.Config, desiredLRP *cloudfoundry.DesiredLRP, actualLRPs []*cloudfoundry.ActualLRP) {
 	if len(actualLRPs) > 0 {
 		aLRP := actualLRPs[0]
 		log.Debugf("All non-container checks for app %s will run on Cell %s", desiredLRP.AppGUID, aLRP.CellID)
@@ -145,13 +145,13 @@ func (cf CloudFoundryConfigProvider) assignNodeNameToNonContainerChecks(configs 
 }
 
 func (cf CloudFoundryConfigProvider) expandPerContainerChecks(
-	configs []integration.Config, desiredLRP cloudfoundry.DesiredLRP, actualLRPs []cloudfoundry.ActualLRP, svcName string) []integration.Config {
+	configs []integration.Config, desiredLRP *cloudfoundry.DesiredLRP, actualLRPs []*cloudfoundry.ActualLRP, svcName string) []integration.Config {
 	res := []integration.Config{}
 	for _, cfg := range configs {
 		for _, aLRP := range actualLRPs {
 			// we append container index to AD Identifier distinguish configs for different containers
 			newCfg := integration.Config{
-				ADIdentifiers: []string{cloudfoundry.NewADContainerIdentifier(desiredLRP, svcName, aLRP).String()},
+				ADIdentifiers: []string{cloudfoundry.NewADContainerIdentifier(*desiredLRP, svcName, *aLRP).String()},
 				ClusterCheck:  cfg.ClusterCheck,
 				InitConfig:    cfg.InitConfig,
 				Instances:     cfg.Instances,

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -499,6 +500,16 @@ func findOriginTags(origin string) []string {
 			log.Errorf(err.Error())
 		} else {
 			tags = append(tags, originTags...)
+		}
+	}
+
+	// Include orchestrator scope tags if the cardinality is set to orchestrator
+	if tagger.DogstatsdCardinality == collectors.OrchestratorCardinality {
+		orchestratorScopeTags, err := tagger.OrchestratorScopeTag()
+		if err != nil {
+			log.Error(err.Error())
+		} else {
+			tags = append(tags, orchestratorScopeTags...)
 		}
 	}
 	return tags

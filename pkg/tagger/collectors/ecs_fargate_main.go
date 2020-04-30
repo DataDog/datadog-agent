@@ -9,6 +9,7 @@ package collectors
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -30,6 +31,8 @@ type ECSFargateCollector struct {
 	lastExpire   time.Time
 	expireFreq   time.Duration
 	labelsAsTags map[string]string
+	// Used to initialize the orchestrator scope tags which don't need to be refetched after
+	doOnceOrchScope sync.Once
 }
 
 // Detect tries to connect to the ECS metadata API

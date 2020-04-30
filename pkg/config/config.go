@@ -330,6 +330,12 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
+	config.BindEnvAndSetDefault("container_include", []string{})
+	config.BindEnvAndSetDefault("container_exclude", []string{})
+	config.BindEnvAndSetDefault("container_include_metrics", []string{})
+	config.BindEnvAndSetDefault("container_exclude_metrics", []string{})
+	config.BindEnvAndSetDefault("container_include_logs", []string{})
+	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
@@ -382,6 +388,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
+	config.BindEnvAndSetDefault("cache_sync_timeout", 2) // in seconds
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
@@ -409,6 +416,7 @@ func initConfig(config Config) {
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
 	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys"})
+	config.BindEnvAndSetDefault("gce_metadata_timeout", 1*time.Second)
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
@@ -421,6 +429,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
+
+	// Cloud Foundry Garden
+	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
+	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_address", "/var/vcap/data/garden/garden.sock")
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
@@ -451,6 +463,13 @@ func initConfig(config Config) {
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
+	// process_config.enabled is only used on Windows by the core agent to start the process agent service.
+	// it can be set from file, but not from env. Override it with value from DD_PROCESS_AGENT_ENABLED.
+	ddProcessAgentEnabled, found := os.LookupEnv("DD_PROCESS_AGENT_ENABLED")
+	if found {
+		overrideVars["process_config.enabled"] = ddProcessAgentEnabled
+	}
+
 	config.BindEnv("process_config.process_dd_url", "")
 	config.BindEnv("process_config.orchestrator_dd_url", "")
 
@@ -482,7 +501,12 @@ func initConfig(config Config) {
 	// additional config to ensure initial logs are tagged with kubelet tags
 	// wait (seconds) for tagger before start fetching tags of new AD services
 	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
-
+	// Configurable docker client timeout while communicating with the docker daemon.
+	// It could happen that the docker daemon takes a lot of time gathering timestamps
+	// before starting to send any data when it has stored several large log files.
+	// This field lets you increase the read timeout to prevent the client from
+	// timing out too early in such a situation. Value in seconds.
+	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	config.BindEnv("logs_config.dd_url")
@@ -593,6 +617,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
+	config.SetKnown("system_probe_config.conntrack_ignore_enobufs")
 	config.SetKnown("system_probe_config.sysprobe_socket")
 	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
 	config.SetKnown("system_probe_config.max_conns_per_message")

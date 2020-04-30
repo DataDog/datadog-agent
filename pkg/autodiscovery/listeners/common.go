@@ -31,6 +31,13 @@ const (
 	tagKeyService = "service"
 )
 
+// containerFilters holds container filters for AD listeners
+type containerFilters struct {
+	global  *containers.Filter
+	metrics *containers.Filter
+	logs    *containers.Filter
+}
+
 // ComputeContainerServiceIDs takes an entity name, an image (resolved to an actual name) and labels
 // and computes the service IDs for this container service.
 func ComputeContainerServiceIDs(entity string, image string, labels map[string]string) []string {
@@ -111,6 +118,39 @@ func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
 		if _, found := ksvc.GetAnnotations()[annotationKey]; found {
 			return true
 		}
+	}
+	return false
+}
+
+// newContainerFilters instantiates the required container filters for AD listeners
+func newContainerFilters() (*containerFilters, error) {
+	global, err := containers.NewAutodiscoveryFilter(containers.GlobalFilter)
+	if err != nil {
+		return nil, err
+	}
+	metrics, err := containers.NewAutodiscoveryFilter(containers.MetricsFilter)
+	if err != nil {
+		return nil, err
+	}
+	logs, err := containers.NewAutodiscoveryFilter(containers.LogsFilter)
+	if err != nil {
+		return nil, err
+	}
+	return &containerFilters{
+		global:  global,
+		metrics: metrics,
+		logs:    logs,
+	}, nil
+}
+
+func (f *containerFilters) IsExcluded(filter containers.FilterType, name, image, ns string) bool {
+	switch filter {
+	case containers.GlobalFilter:
+		return f.global.IsExcluded(name, image, ns)
+	case containers.MetricsFilter:
+		return f.metrics.IsExcluded(name, image, ns)
+	case containers.LogsFilter:
+		return f.logs.IsExcluded(name, image, ns)
 	}
 	return false
 }

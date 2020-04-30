@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
@@ -61,14 +62,17 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
 		return nil, fmt.Errorf("cannot get endpoints informer: %s", err)
 	}
+
 	serviceInformer := ac.InformerFactory.Core().V1().Services()
 	if serviceInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
+
 	return &KubeEndpointsListener{
 		endpoints:         make(map[types.UID][]*KubeEndpointService),
 		endpointsInformer: endpointsInformer,
@@ -393,4 +397,10 @@ func (s *KubeEndpointService) IsReady() bool {
 // KubeEndpointService doesn't implement this method
 func (s *KubeEndpointService) GetCheckNames() []string {
 	return nil
+}
+
+// HasFilter always return false
+// KubeEndpointService doesn't implement this method
+func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
+	return false
 }
