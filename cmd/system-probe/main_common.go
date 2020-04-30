@@ -4,17 +4,20 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/module"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"google.golang.org/grpc"
 
 	_ "net/http/pprof"
 )
@@ -97,17 +100,30 @@ func runAgent() {
 	}
 	defer sysprobe.Close()
 
-	securityAgent, err := secagent.NewAgent()
+	// WIP(safchain) modules draft
+	lis, err := net.Listen("tcp", ":8787")
 	if err != nil {
-		log.Criticalf("failed to create security agent: %s", err)
+		log.Criticalf("failed to create system probe: %s", err)
 		os.Exit(1)
+	}
+	grpcServer := grpc.NewServer()
+
+	specs := []module.Spec{
+		module.Spec{
+			Name: "security-module",
+			New:  secmodule.NewModule,
+		},
 	}
 
-	if err := securityAgent.Start(); err != nil {
-		log.Criticalf("failed to start security agent: %s", err)
+	factory := module.NewFactory()
+	if err := factory.Run(cfg, specs, module.Opts{GRPCServer: grpcServer}); err != nil {
+		log.Criticalf("failed to instantiate modules: %s", err)
 		os.Exit(1)
 	}
-	defer securityAgent.Stop()
+	defer factory.Stop()
+
+	go grpcServer.Serve(lis)
+	// /WIP(safchain) modules draft
 
 	go sysprobe.Run()
 	log.Infof("system probe successfully started")

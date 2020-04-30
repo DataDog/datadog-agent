@@ -20,7 +20,7 @@ type RuleSetListener interface {
 }
 
 type Rule struct {
-	name      string
+	Name      string
 	evaluator *RuleEvaluator
 }
 
@@ -62,8 +62,8 @@ func (rs *RuleSet) AddRule(name, expression string) (*Rule, error) {
 	}
 
 	rule := &Rule{
+		Name:      name,
 		evaluator: evaluator,
-		name:      name,
 	}
 
 	for _, tag := range evaluator.Tags {
@@ -80,7 +80,7 @@ func (rs *RuleSet) AddRule(name, expression string) (*Rule, error) {
 }
 
 func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event Event) {
-	log.Printf("Rule %s was triggered (event: %+v)\n", rule.name, spew.Sdump(event))
+	log.Printf("Rule %s was triggered (event: %+v)\n", rule.Name, spew.Sdump(event))
 
 	for _, listener := range rs.listeners {
 		listener.RuleMatch(rule, event)

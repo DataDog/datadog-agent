@@ -18,7 +18,7 @@ type Scenario struct {
 }
 
 func (s *Scenario) Evaluate(r *ast.Rule) (bool, error) {
-	evaluator, err := eval.RuleToEvaluator(r, false)
+	evaluator, err := eval.RuleToEvaluator(r, nil, false)
 	if err != nil {
 		return false, err
 	}
