@@ -1,3 +1,4 @@
+Component,Origin,License
 core,"code.cloudfoundry.org/bbs",Apache-2.0
 core,"code.cloudfoundry.org/bbs/encryption",Apache-2.0
 core,"code.cloudfoundry.org/bbs/events",Apache-2.0
@@ -361,7 +362,11 @@ core,"github.com/shirou/gopsutil/net",NewBSD
 core,"github.com/shirou/gopsutil/process",NewBSD
 core,"github.com/shirou/w32",FreeBSD
 core,"github.com/sirupsen/logrus",MIT
+<<<<<<< HEAD
 core "github.com/soniah/gosnmp",BSD-2-Clause
+=======
+core,"github.com/soniah/gosnmp",NewBSD
+>>>>>>> fcaa822d7... Update go modules
 core,"github.com/spf13/afero",Apache-2.0
 core,"github.com/spf13/afero/mem",Apache-2.0
 core,"github.com/spf13/cast",MIT
