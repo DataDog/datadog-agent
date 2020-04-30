@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -37,12 +38,12 @@ type Module struct {
 	Name      string
 	PkgPrefix string
 	BuildTags []string
-	Fields    map[string]*field
+	Fields    map[string]*structField
 }
 
 var module *Module
 
-type field struct {
+type structField struct {
 	Name    string
 	Type    string
 	IsArray bool
@@ -50,14 +51,14 @@ type field struct {
 	Tags    string
 }
 
-func (f *field) ElemType() string {
+func (f *structField) ElemType() string {
 	return strings.TrimLeft(f.Type, "[]")
 }
 
 type accessor struct {
 	Name    string
 	IsArray bool
-	Fields  []field
+	Fields  []structField
 }
 
 func (g *accessor) Has(kind string) bool {
@@ -82,7 +83,7 @@ func handleBasic(name, alias, kind string, tags string) {
 
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
-		module.Fields[alias] = &field{Name: name, Type: "int", Public: true}
+		module.Fields[alias] = &structField{Name: "m.event." + name, Type: "int", Public: true, Tags: tags}
 	default:
 		public := false
 		firstChar := strings.TrimPrefix(kind, "[]")
@@ -92,8 +93,8 @@ func handleBasic(name, alias, kind string, tags string) {
 		if unicode.IsUpper(rune(firstChar[0])) {
 			public = true
 		}
-		module.Fields[alias] = &field{
-			Name:    name,
+		module.Fields[alias] = &structField{
+			Name:    "m.event." + name,
 			Type:    kind,
 			IsArray: strings.HasPrefix(kind, "[]"),
 			Public:  public,
@@ -160,10 +161,43 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 					}
 
 					if fieldTag, found := tag.Lookup("field"); found {
-						if fieldTag == "-" {
+						split := strings.Split(fieldTag, ",")
+
+						if fieldAlias = split[0]; fieldAlias == "-" {
 							continue FIELD
 						}
-						fieldAlias = fieldTag
+
+						if len(split) > 2 {
+							tmpl, err := template.New("field").Parse(split[2])
+							if err != nil {
+								panic(err)
+							}
+
+							params := map[string]interface{}{
+								"Field": fieldName,
+								"Type":  split[1],
+							}
+
+							fieldPrefix := "m.event."
+							if prefix != "" {
+								params["FieldPrefix"] = fieldPrefix + prefix + "."
+							}
+
+							buffer := new(bytes.Buffer)
+							tmpl.Execute(buffer, params)
+
+							if aliasPrefix != "" {
+								fieldAlias = aliasPrefix + "." + fieldAlias
+							}
+
+							module.Fields[fieldAlias] = &structField{
+								Name:   buffer.String(),
+								Type:   split[1],
+								Public: true,
+								Tags:   tags,
+							}
+							continue
+						}
 					}
 
 					if fieldType, ok := field.Type.(*ast.Ident); ok {
@@ -188,7 +222,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 					// Embedded field
 					ident, _ := field.Type.(*ast.Ident)
 					if starExpr, ok := field.Type.(*ast.StarExpr); ident == nil && ok {
-						ident, _ = starExpr.X.(*ast.Ident)
+						ident, ok = starExpr.X.(*ast.Ident)
 					}
 
 					if ident != nil {
@@ -246,7 +280,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 		Name:      astFile.Name.Name,
 		PkgPrefix: pkgPrefix,
 		BuildTags: buildTags,
-		Fields:    make(map[string]*field),
+		Fields:    make(map[string]*structField),
 	}
 
 	for _, decl := range astFile.Decls {
@@ -275,69 +309,69 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 }
 
 func main() {
-	inputInfo, err := os.Stat(filename)
-	if err != nil {
-		panic(err)
-	}
-
-	if output == "" {
-		output = strings.TrimSuffix(filename, ".go") + "_genaccessors.go"
-	}
-
-	outputInfo, err := os.Stat(output)
-	if err == nil {
-		if inputInfo.ModTime().Before(outputInfo.ModTime()) {
-			// Skipping file
-			if verbose {
-				log.Printf("Skipping %s as %s is newer", filename, output)
-			}
-			return
+	var err error
+	/*
+		inputInfo, err := os.Stat(filename)
+		if err != nil {
+			panic(err)
 		}
-	}
+
+		if output == "" {
+			output = strings.TrimSuffix(filename, ".go") + "_genaccessors.go"
+		}
+
+		outputInfo, err := os.Stat(output)
+		if err == nil {
+			if inputInfo.ModTime().Before(outputInfo.ModTime()) {
+				// Skipping file
+				if verbose {
+					log.Printf("Skipping %s as %s is newer", filename, output)
+				}
+				return
+			}
+		}
+	*/
 
 	tmpl := template.Must(template.New("header").Parse(`{{- range .BuildTags }}// {{.}}{{end}}
 
 // Code generated - DO NOT EDIT.
 
-package	eval
+package {{.Name}}
 
 import (
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 var (
 	ErrFieldNotFound = errors.New("field not found")
 )
 
-func GetAccessor(key string) (interface{}, []string, error) {
+func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 	switch key {
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
 	{{if eq $Field.Type "string"}}
-		return &StringEvaluator{
-			Eval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}} },
-			DebugEval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}} },
-			Field: key,
-		}, []string{ {{$Field.Tags}} }, nil
+		return &eval.StringEvaluator{
+			Eval: func(ctx *eval.Context) string { return {{$Field.Name}} },
+			DebugEval: func(ctx *eval.Context) string { return {{$Field.Name}} },
 	{{else if eq $Field.Type "stringer"}}
-		return &StringEvaluator{
-			Eval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}}.String() },
-			DebugEval: func(ctx *Context) string { return ctx.Event.{{$Field.Name}}.String() },
+		return &eval.StringEvaluator{
+			Eval: func(ctx *eval.Context) string { return {{$Field.Name}}.String() },
+			DebugEval: func(ctx *eval.Context) string { return {{$Field.Name}}.String() },
+	{{else if eq .Type "int"}}
+		return &eval.IntEvaluator{
+			Eval: func(ctx *eval.Context) int { return int({{$Field.Name}}) },
+			DebugEval: func(ctx *eval.Context) int { return int({{$Field.Name}}) },
+	{{else if eq .Type "bool"}}
+		return &eval.BoolEvaluator{
+			Eval: func(ctx *eval.Context) bool { return {{$Field.Name}} },
+			DebugEval: func(ctx *eval.Context) bool { return {{$Field.Name}} },
+	{{end}}
 			Field: key,
 		}, []string{ {{$Field.Tags}} }, nil
-	{{else if eq .Type "int"}}
-	return &IntEvaluator{
-		Eval: func(ctx *Context) int { return int(ctx.Event.{{$Field.Name}}) },
-		DebugEval: func(ctx *Context) int { return int(ctx.Event.{{$Field.Name}}) },
-		Field: key,
-	}, []string{ {{$Field.Tags}} }, nil
-	{{else if eq .Type "bool"}}
-	return &BoolEvaluator{
-		Eval: func(ctx *Context) bool { return ctx.Event.{{$Field.Name}} },
-		DebugEval: func(ctx *Context) bool { return ctx.Event.{{$Field.Name}} },
-		Field: key,
-	}, []string{ {{$Field.Tags}} }, nil
-	{{end}}{{end}}
+	{{end}}
 	}
 
 	return nil, nil, errors.Wrap(ErrFieldNotFound, key)
