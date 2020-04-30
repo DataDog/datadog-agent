@@ -1,96 +1,112 @@
 package probe
 
 import (
-	ebpf "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"bytes"
+	"log"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/gobpf"
+	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/probe/types"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 type EventHandler interface {
-	HandleEvent(event interface{})
+	HandleEvent(event *Event)
 }
 
 type Probe struct {
-	*ebpf.Probe
-	handler EventHandler
+	*eprobe.Probe
+	model         *Model
+	handler       EventHandler
+	kernelFilters *KernelFilters
 }
 
-func NewProbe(handler EventHandler) (*Probe, error) {
-	p := &Probe{handler: handler}
+func NewProbe(config *config.Config) (*Probe, error) {
+	bytecode, err := Asset("probe.o") // ioutil.ReadFile("pkg/security/ebpf/probe.o")
+	if err != nil {
+		return nil, err
+	}
 
-	p.Probe = &ebpf.Probe{
-		Source: source,
-		Tables: map[string]*ebpf.Table{
-			"pathnames":       &ebpf.Table{},
-			"process_filter":  &ebpf.Table{},
-			"filter_settings": &ebpf.Table{},
-			"pid_filter":      &ebpf.Table{},
-			"pidns_filter":    &ebpf.Table{},
-		},
-		Hooks: []ebpf.Hook{
-			&ebpf.KProbe{
-				Name:       "may_open",
-				EntryFunc:  "trace_may_open",
-				EntryEvent: "may_open.isra.0",
-				ExitFunc:   "trace_ret_may_open",
-				ExitEvent:  "may_open.isra.0",
+	module, err := gobpf.NewModuleFromReader(bytes.NewReader(bytecode))
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Loaded security agent eBPF module: %+v", module)
+
+	p := &Probe{}
+
+	ebpfProbe := &eprobe.Probe{
+		Module: module,
+		Tables: []*types.Table{
+			{
+				Name: "pathnames",
 			},
-			&ebpf.KProbe{
+			{
+				Name: "process_discriminators",
+			},
+			{
+				Name: "dentry_cache",
+			},
+		},
+		Kprobes: []*types.KProbe{
+			&eprobe.KProbe{
 				Name:       "vfs_mkdir",
-				EntryFunc:  "trace_vfs_mkdir",
+				EntryFunc:  "kprobe/security_inode_mkdir",
 				EntryEvent: "vfs_mkdir",
-				ExitFunc:   "trace_ret_vfs_mkdir",
+				ExitFunc:   "kretprobe/security_inode_mkdir",
 				ExitEvent:  "vfs_mkdir",
 			},
-			&ebpf.KProbe{
-				Name:       "vfs_link",
-				EntryFunc:  "trace_vfs_link",
-				EntryEvent: "vfs_link",
-				ExitFunc:   "trace_ret_vfs_link",
-				ExitEvent:  "vfs_link",
-			},
-			&ebpf.KProbe{
-				Name:       "vfs_rename",
-				EntryFunc:  "trace_vfs_rename",
-				EntryEvent: "vfs_rename",
-				ExitFunc:   "trace_ret_vfs_rename",
-				ExitEvent:  "vfs_rename",
-			},
-			&ebpf.KProbe{
-				Name:       "unlink_tracker",
-				EntryFunc:  "trace_vfs_unlink",
-				EntryEvent: "vfs_unlink",
-				ExitFunc:   "trace_ret_vfs_unlink",
-				ExitEvent:  "vfs_unlink",
-			},
-			&ebpf.KProbe{
-				Name:       "rmdir_tracker",
-				EntryFunc:  "trace_vfs_rmdir",
-				EntryEvent: "vfs_rmdir",
-				ExitFunc:   "trace_ret_vfs_rmdir",
-				ExitEvent:  "vfs_rmdir",
-			},
-			&ebpf.KProbe{
-				Name:       "setattr_tracker",
-				EntryFunc:  "trace_security_inode_setattr",
-				EntryEvent: "security_inode_setattr",
-				ExitFunc:   "trace_ret_security_inode_setattr",
-				ExitEvent:  "security_inode_setattr",
-			},
 		},
-		PerfMaps: []*ebpf.PerfMap{
-			&ebpf.PerfMap{
+		PerfMaps: []*types.PerfMap{
+			&types.PerfMap{
 				Name:    "dentry_events",
 				Handler: p.handleDentryEvent,
-			},
-			&ebpf.PerfMap{
-				Name:    "setattr_events",
-				Handler: p.handleSecurityInodeSetattr,
 			},
 		},
 	}
 
+	if err := ebpfProbe.Load(); err != nil {
+		return nil, err
+	}
+	p.Probe = ebpfProbe
+
+	p.kernelFilters, err = NewKernelFilters(config.MaxKernelFilters, []string{
+		"process_discriminators",
+	}, ebpfProbe)
+	if err != nil {
+		return nil, err
+	}
+
+	dentryResolver, err := NewDentryResolver(ebpfProbe)
+	if err != nil {
+		return nil, err
+	}
+
+	p.model = &Model{dentryResolver: dentryResolver}
+
 	return p, nil
 }
 
-func (p *Probe) DispatchEvent(event interface{}) {
-	p.handler.HandleEvent(event)
+func (p *Probe) GetModel() eval.Model {
+	return p.model
+}
+
+func (p *Probe) SetEventHandler(handler EventHandler) {
+	p.handler = handler
+}
+
+func (p *Probe) DispatchEvent(event *Event) {
+	if p.handler != nil {
+		p.handler.HandleEvent(event)
+	}
+}
+
+func (p *Probe) AddKernelFilter(event *Event, field string) {
+	switch field {
+	case "process.name":
+		processName := event.Process.GetComm()
+		p.kernelFilters.Push("process_discriminators", CommTableKey(processName))
+		log.Printf("Push in-kernel process discriminator '%s'", processName)
+	}
 }

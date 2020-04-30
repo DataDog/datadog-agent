@@ -21,12 +21,14 @@ type Config struct {
 	Debug            bool
 	PerfMapPageCount int
 	Policies         []Policy
+	MaxKernelFilters int
 }
 
 func NewConfig() (*Config, error) {
 	c := &Config{
 		PerfMapPageCount: agent.Datadog.GetInt("security_agent.perf_map_page_count"),
 		Debug:            agent.Datadog.GetBool("security_agent.debug"),
+		MaxKernelFilters: agent.Datadog.GetInt("security_agent.max_kernel_filters"),
 	}
 
 	policies, ok := agent.Datadog.Get("security_agent.policies").([]interface{})

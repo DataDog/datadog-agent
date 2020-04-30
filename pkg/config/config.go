@@ -679,6 +679,7 @@ func InitConfig(config Config) {
 
 	config.SetDefault("security_agent.debug", false)
 	config.SetDefault("security_agent.perf_map_page_count", 128)
+	config.SetDefault("security_agent.max_kernel_filters", 128)
 	config.SetDefault("security_agent.policies", []interface{}{})
 
 	// Network

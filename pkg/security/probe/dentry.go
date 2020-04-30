@@ -7,57 +7,60 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/iovisor/gobpf/bcc"
+
+	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 )
 
 // handleDentryEvent - Handles a dentry event
 func (p *Probe) handleDentryEvent(data []byte) {
-	eventRaw := &model.DentryEventRaw{}
-	err := eventRaw.UnmarshalBinary(data)
+	log.Println("Handling dentry event")
+
+	offset := 0
+	event := &Event{}
+
+	read, err := event.Event.UnmarshalBinary(data)
 	if err != nil {
-		log.Println("failed to decode received data")
+		log.Println("failed to decode event")
 		return
 	}
+	offset += read
 
-	event := model.DentryEvent{
-		EventBase: model.EventBase{
-			EventType: eventRaw.GetProbeEventType(),
-			Timestamp: p.StartTime.Add(time.Duration(eventRaw.TimestampRaw) * time.Nanosecond),
-		},
-		DentryEventRaw: eventRaw,
-		TTYName:        C.GoString((*C.char)(unsafe.Pointer(&eventRaw.TTYNameRaw))),
-	}
-
-	event.SrcFilename, err = p.resolveDentryPath(eventRaw.SrcPathnameKey)
+	read, err = event.Process.UnmarshalBinary(data[offset:])
 	if err != nil {
-		log.Printf("failed to resolve dentry path: %s\n", err)
+		log.Println("failed to decode process event")
+		return
 	}
+	offset += read
 
-	switch event.EventType {
-	case model.FileHardLinkEventType, model.FileRenameEventType:
-		event.TargetFilename, err = p.resolveDentryPath(eventRaw.TargetPathnameKey)
-		if err != nil {
-			log.Printf("failed to resolve dentry path: %s", err)
+	switch ProbeEventType(event.Event.Type) {
+	case FileMkdirEventType:
+		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
+			log.Println("failed to decode received data")
+			return
 		}
+	default:
+		log.Printf("Unsupported event type %d\n", event.Event.Type)
 	}
 
-	p.DispatchEvent(&event)
+	log.Printf("Dispatching event %s\n", spew.Sdump(event))
+	p.DispatchEvent(event)
 }
 
-// resolveDentryPath - Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (p *Probe) resolveDentryPath(pathnameKey uint32) (string, error) {
+type DentryResolver struct {
+	pathnames eprobe.Table
+}
+
+// Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
+func (dr *DentryResolver) resolve(pathnameKey uint32) (string, error) {
 	// Don't resolve path if pathnameKey isn't valid
 	if pathnameKey <= 0 {
 		return "", fmt.Errorf("invalid pathname key %v", pathnameKey)
 	}
-	table := p.Tables["pathnames"]
-	if table == nil {
-		return "", fmt.Errorf("pathnames BPF_HASH table doesn't exist")
-	}
+
 	// Convert key into bytes
 	key := make([]byte, 4)
 	binary.LittleEndian.PutUint32(key, pathnameKey)
@@ -71,7 +74,7 @@ func (p *Probe) resolveDentryPath(pathnameKey uint32) (string, error) {
 	var err1, err2 error
 	// Fetch path recursively
 	for !done {
-		pathRaw, err1 = table.Get(key)
+		pathRaw, err1 = dr.pathnames.Get(key)
 		if err1 != nil {
 			filename = "*ERROR*" + filename
 			break
@@ -82,7 +85,7 @@ func (p *Probe) resolveDentryPath(pathnameKey uint32) (string, error) {
 			done = true
 		}
 		// Delete key
-		if err2 = table.Delete(key); err2 != nil {
+		if err2 = dr.pathnames.Delete(key); err2 != nil {
 			err1 = fmt.Errorf("pathnames map deletion error: %v", err2)
 		}
 		if done {
@@ -103,4 +106,21 @@ func (p *Probe) resolveDentryPath(pathnameKey uint32) (string, error) {
 	}
 
 	return filename, err1
+}
+
+// Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
+func (dr *DentryResolver) Resolve(pathnameKey uint32) string {
+	path, _ := dr.resolve(pathnameKey)
+	return path
+}
+
+func NewDentryResolver(probe *eprobe.Probe) (*DentryResolver, error) {
+	pathnames := probe.Table("pathnames")
+	if pathnames == nil {
+		return nil, fmt.Errorf("pathnames BPF_HASH table doesn't exist")
+	}
+
+	return &DentryResolver{
+		pathnames: pathnames,
+	}, nil
 }
