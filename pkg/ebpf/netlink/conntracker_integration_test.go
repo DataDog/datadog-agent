@@ -3,14 +3,18 @@
 package netlink
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,9 +33,12 @@ func TestConntracker(t *testing.T) {
 	// TODO: Fix initialization race
 	time.Sleep(1 * time.Second)
 
-	<-startServerTCP(t, "1.1.1.1:5432")
-	<-startServerTCP(t, "1.1.1.1:9876")
-	<-startServerUDP(t, net.ParseIP("1.1.1.1"), 5432)
+	srv1 := startServerTCP(t, "1.1.1.1:5432")
+	defer srv1.Close()
+	srv2 := startServerTCP(t, "1.1.1.1:9876")
+	defer srv2.Close()
+	srv3 := startServerUDP(t, net.ParseIP("1.1.1.1"), 5432)
+	defer srv3.Close()
 
 	localAddr := pingTCP(t, "2.2.2.2:5432")
 	time.Sleep(1 * time.Second)
@@ -66,32 +73,99 @@ func TestConntracker(t *testing.T) {
 	assert.Nil(t, trans)
 }
 
-func startServerTCP(t *testing.T, addr string) <-chan struct{} {
-	ch := make(chan struct{}, 1)
+// This test generates a dump of netlink messages in test_data/message_dump
+// In order to execute this test, run go test with `-args netlink_dump`
+func TestMessageDump(t *testing.T) {
+	skipUnless(t, "netlink_dump")
+
+	cmd := exec.Command("testdata/setup_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("setup command output: %s", string(out))
+	}
+	defer teardown(t)
+
+	consumer, err := NewConsumer("/proc")
+	require.NoError(t, err)
+	events := consumer.Events()
+
+	f, err := os.Create("testdata/message_dump")
+	require.NoError(t, err)
+	defer f.Close()
+
+	writeDone := make(chan struct{})
+	go func() {
+		for e := range events {
+			for _, m := range e.Messages() {
+				writeMsgToFile(f, m)
+			}
+			e.Done()
+		}
+		close(writeDone)
+	}()
+
+	tcpServer := startServerTCP(t, "1.1.1.1:5432")
+	defer tcpServer.Close()
+
+	udpServer := startServerUDP(t, net.ParseIP("1.1.1.1"), 9876)
+	defer udpServer.Close()
+
+	for i := 0; i < 100; i++ {
+		pingTCP(t, "2.2.2.2:5432")
+		pingUDP(t, net.ParseIP("2.2.2.2"), 9876)
+	}
+
+	time.Sleep(time.Second)
+	consumer.Stop()
+	<-writeDone
+}
+
+func skipUnless(t *testing.T, requiredArg string) {
+	for _, arg := range os.Args[1:] {
+		if arg == requiredArg {
+			return
+		}
+	}
+
+	t.Skip(
+		fmt.Sprintf(
+			"skipped %s. you can enable it by using running tests with `-args %s`.\n",
+			t.Name(),
+			requiredArg,
+		),
+	)
+}
+
+func writeMsgToFile(f *os.File, m netlink.Message) {
+	length := make([]byte, 4)
+	binary.LittleEndian.PutUint32(length, uint32(len(m.Data)))
+	payload := append(length, m.Data...)
+	f.Write(payload)
+}
+
+func startServerTCP(t *testing.T, addr string) io.Closer {
+	ch := make(chan struct{})
 
 	l, err := net.Listen("tcp", addr)
 	require.NoError(t, err)
 	go func() {
-		defer l.Close()
-
-		ch <- struct{}{}
-
-		// serve two connections, because the test makes two TCP connections
-		for i := 0; i < 2; i++ {
+		close(ch)
+		for {
 			conn, err := l.Accept()
-			require.NoError(t, err)
+			if err != nil {
+				return
+			}
 
 			conn.Write([]byte("hello"))
 			conn.Close()
-
 		}
 	}()
+	<-ch
 
-	return ch
+	return l
 }
 
-func startServerUDP(t *testing.T, ip net.IP, port int) <-chan struct{} {
-	ch := make(chan struct{}, 1)
+func startServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
+	ch := make(chan struct{})
 
 	addr := &net.UDPAddr{
 		IP:   ip,
@@ -101,15 +175,19 @@ func startServerUDP(t *testing.T, ip net.IP, port int) <-chan struct{} {
 	l, err := net.ListenUDP("udp", addr)
 	require.NoError(t, err)
 	go func() {
-		defer l.Close()
-		ch <- struct{}{}
+		close(ch)
 
-		bs := make([]byte, 10)
-		_, err := l.Read(bs)
-		require.NoError(t, err)
+		for {
+			bs := make([]byte, 10)
+			_, err := l.Read(bs)
+			if err != nil {
+				return
+			}
+		}
 	}()
+	<-ch
 
-	return ch
+	return l
 }
 
 func pingTCP(t *testing.T, addr string) *net.TCPAddr {
