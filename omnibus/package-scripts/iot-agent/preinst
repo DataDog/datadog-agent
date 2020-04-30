@@ -41,12 +41,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         :
         #DEBHELPER#
     elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
-        # RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
-        # So let's stop the Agent 5 service here until we don't want to support upgrades from Agents < 5.18.0 anymore
-        if [ -f "/etc/init.d/datadog-agent" ]; then
-            /etc/init.d/datadog-agent stop || true
-        fi
-
         # Set up `dd-agent` user and group
         getent group dd-agent >/dev/null || groupadd -r dd-agent
         getent passwd dd-agent >/dev/null || \
