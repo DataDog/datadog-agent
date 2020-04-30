@@ -39,8 +39,6 @@ New Features
 
 - The Agent is now available on Chocolatey for Windows
 
-- Add an eBPF based check to measure the size of TCP queues.
-
 - Add ``--full-sketches`` option to agent check command that displays bins information
 
 - Support logs collection from Kubernetes log files with old Kubernetes versions (< v1.10).
