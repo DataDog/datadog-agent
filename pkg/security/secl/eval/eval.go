@@ -12,13 +12,18 @@ import (
 	"github.com/alecthomas/participle/lexer"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
+var ErrFieldNotFound = errors.New("field not found")
+
+type Model interface {
+	GetEvaluator(key string) (interface{}, []string, error)
+	SetData(data interface{})
+}
+
 type Context struct {
 	Debug     bool
-	Event     *model.Event
 	evalDepth int
 }
 
@@ -47,6 +52,7 @@ type State struct {
 }
 
 type Opts struct {
+	Model  Model
 	Field  string
 	Macros map[string]*MacroEvaluator
 }
@@ -60,8 +66,8 @@ type BoolEvaluator struct {
 	DebugEval func(ctx *Context) bool
 	Value     bool
 
-	Field         string
-	IsPartialLeaf bool
+	Field     string
+	IsPartial bool
 }
 
 type IntEvaluator struct {
@@ -69,8 +75,8 @@ type IntEvaluator struct {
 	DebugEval func(ctx *Context) int
 	Value     int
 
-	Field         string
-	IsPartialLeaf bool
+	Field     string
+	IsPartial bool
 }
 
 type StringEvaluator struct {
@@ -78,8 +84,8 @@ type StringEvaluator struct {
 	DebugEval func(ctx *Context) string
 	Value     string
 
-	Field         string
-	IsPartialLeaf bool
+	Field     string
+	IsPartial bool
 }
 
 type StringArray struct {
@@ -356,7 +362,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 				}
 			}
 
-			accessor, tags, err := GetAccessor(*obj.Ident)
+			accessor, tags, err := opts.Model.GetEvaluator(*obj.Ident)
 			if err != nil {
 				return nil, nil, obj.Pos, err
 			}
@@ -408,6 +414,16 @@ func (r *RuleEvaluator) IsDiscrimator(ctx *Context, field string) (bool, error) 
 	return !eval(ctx), nil
 }
 
+func (r *RuleEvaluator) GetFields() []string {
+	fields := make([]string, len(r.partialEval))
+	i := 0
+	for key, _ := range r.partialEval {
+		fields[i] = key
+		i++
+	}
+	return fields
+}
+
 func MacroToEvaluator(macro *ast.Macro, opts *Opts, state *State) (*MacroEvaluator, error) {
 	var eval interface{}
 	var err error
@@ -430,10 +446,10 @@ func MacroToEvaluator(macro *ast.Macro, opts *Opts, state *State) (*MacroEvaluat
 	}, nil
 }
 
-func macroEvaluators(macros map[string]*ast.Macro, field string, state *State) (map[string]*MacroEvaluator, error) {
+func macroEvaluators(macros map[string]*ast.Macro, field string, state *State, model Model) (map[string]*MacroEvaluator, error) {
 	m := make(map[string]*MacroEvaluator)
 	for name, macro := range macros {
-		eval, err := MacroToEvaluator(macro, &Opts{Field: field}, state)
+		eval, err := MacroToEvaluator(macro, &Opts{Field: field, Model: model}, state)
 		if err != nil {
 			return nil, err
 		}
@@ -443,15 +459,15 @@ func macroEvaluators(macros map[string]*ast.Macro, field string, state *State) (
 	return m, nil
 }
 
-func RuleToEvaluator(rule *ast.Rule, macros map[string]*ast.Macro, debug bool) (*RuleEvaluator, error) {
+func RuleToEvaluator(rule *ast.Rule, macros map[string]*ast.Macro, model Model, debug bool) (*RuleEvaluator, error) {
 	state := NewState()
 
-	m, err := macroEvaluators(macros, "", state)
+	m, err := macroEvaluators(macros, "", state, model)
 	if err != nil {
 		return nil, err
 	}
 
-	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{Macros: m}, state)
+	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{Macros: m, Model: model}, state)
 	if err != nil {
 		return nil, err
 	}
@@ -470,12 +486,12 @@ func RuleToEvaluator(rule *ast.Rule, macros map[string]*ast.Macro, debug bool) (
 	for field := range state.fields {
 		state = NewState()
 
-		m, err := macroEvaluators(macros, field, state)
+		m, err := macroEvaluators(macros, field, state, model)
 		if err != nil {
 			return nil, err
 		}
 
-		pEval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{Field: field, Macros: m}, state)
+		pEval, _, _, err := nodeToEvaluator(rule.BooleanExpression, &Opts{Field: field, Macros: m, Model: model}, state)
 		if err != nil {
 			return nil, err
 		}
@@ -483,6 +499,12 @@ func RuleToEvaluator(rule *ast.Rule, macros map[string]*ast.Macro, debug bool) (
 		pEvalBool, ok := pEval.(*BoolEvaluator)
 		if !ok {
 			return nil, NewTypeError(rule.Pos, reflect.Bool)
+		}
+
+		if pEvalBool.Eval == nil {
+			pEvalBool.Eval = func(ctx *Context) bool {
+				return pEvalBool.Value
+			}
 		}
 
 		partialEval[field] = pEvalBool.Eval
