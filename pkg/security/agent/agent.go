@@ -5,35 +5,24 @@ import (
 	"log"
 	"os"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-type Rule struct {
-	evaluator *eval.RuleEvaluator
-	astRule   *ast.Rule
-	name      string
-}
-
-type SignalListener interface {
-	HandleSignal(rule *Rule, ctx *eval.Context)
-}
-
 type Agent struct {
-	probe           *probe.Probe
-	config          *config.Config
-	rules           []*Rule
-	signalListeners []SignalListener
+	probe   *probe.Probe
+	config  *config.Config
+	ruleSet *eval.RuleSet
 }
 
 func (a *Agent) Start() error {
+	a.probe.SetEventHandler(a)
+	a.ruleSet.AddListener(a)
+
 	return a.probe.Start()
 }
 
@@ -42,30 +31,16 @@ func (a *Agent) Stop() error {
 	return nil
 }
 
-func (a *Agent) AddSignalListener(listener SignalListener) {
-	a.signalListeners = append(a.signalListeners, listener)
+func (a *Agent) RuleMatch(rule *eval.Rule, event eval.Event) {
+	log.Printf("Event %+v matched against rule %+v", rule)
 }
 
-func (a *Agent) TriggerSignal(rule *Rule, ctx *eval.Context) {
-	log.Printf("Rule %s was triggered (event: %+v)\n", rule.name, spew.Sdump(ctx.Event))
-
-	for _, listener := range a.signalListeners {
-		listener.HandleSignal(rule, ctx)
-	}
+func (a *Agent) DiscriminatorDiscovered(event eval.Event, field string) {
+	a.probe.AddKernelFilter(event.(*probe.Event), field)
 }
 
-func (a *Agent) HandleEvent(event interface{}) {
-	context := &eval.Context{Event: &model.Event{}}
-
-	if dentryEvent, ok := event.(*model.DentryEvent); ok {
-		context.Event.DentryEvent = dentryEvent
-	}
-
-	for _, rule := range a.rules {
-		if rule.evaluator.Eval(context) {
-			a.TriggerSignal(rule, context)
-		}
-	}
+func (a *Agent) HandleEvent(event *probe.Event) {
+	a.ruleSet.Evaluate(event)
 }
 
 func (a *Agent) LoadPolicies() error {
@@ -82,21 +57,10 @@ func (a *Agent) LoadPolicies() error {
 			}
 
 			for _, ruleDef := range policy.Rules {
-				astRule, err := ast.ParseRule(ruleDef.Expression)
-				if err != nil {
-					return errors.Wrap(err, "invalid rule")
-				}
-
-				evaluator, err := eval.RuleToEvaluator(astRule, nil, a.config.Debug)
+				_, err := a.ruleSet.AddRule(ruleDef.Name, ruleDef.Expression)
 				if err != nil {
 					return err
 				}
-
-				a.rules = append(a.rules, &Rule{
-					astRule:   astRule,
-					evaluator: evaluator,
-					name:      ruleDef.Name,
-				})
 			}
 		}
 	}
@@ -109,13 +73,15 @@ func NewAgent() (*Agent, error) {
 		return nil, errors.Wrap(err, "invalid security agent configuration")
 	}
 
-	agent := &Agent{
-		config: config,
-	}
-
-	agent.probe, err = probe.NewProbe(agent)
+	probe, err := probe.NewProbe(config)
 	if err != nil {
 		return nil, err
+	}
+
+	agent := &Agent{
+		config:  config,
+		probe:   probe,
+		ruleSet: eval.NewRuleSet(probe.GetModel(), config.Debug),
 	}
 
 	if err := agent.LoadPolicies(); err != nil {
