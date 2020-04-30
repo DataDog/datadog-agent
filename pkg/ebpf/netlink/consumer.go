@@ -95,8 +95,8 @@ func NewConsumer(procRoot string) (*Consumer, error) {
 
 func (c *Consumer) Events() <-chan Event {
 	output := make(chan Event, outputBuffer)
-
 	c.do(false, func() {
+		defer close(output)
 		c.streaming = true
 		c.conn.JoinGroup(netlinkCtNew)
 		c.receive(output)
@@ -107,7 +107,6 @@ func (c *Consumer) Events() <-chan Event {
 
 func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	output := make(chan Event, outputBuffer)
-
 	c.do(false, func() {
 		defer close(output)
 
