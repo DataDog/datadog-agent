@@ -35,6 +35,7 @@ const (
 
 var scanner = NewAttributeScanner()
 
+// DecodeEvent decodes a single Event into a slice of []ct.Con objects
 // TODO: Replace the intermediate ct.Con object by the same format we use in the cache
 func DecodeEvent(e Event) []ct.Con {
 	msgs := e.Messages()

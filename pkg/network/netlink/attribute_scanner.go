@@ -18,10 +18,10 @@ var (
 	errMissingNestedAttr = errors.New("netlink message is missing nested attribute")
 )
 
-// Based on https://github.com/mdlayher/netlink/blob/c558cf25207e57bc9cc026d2dd69e2ea2f6abd0e/attribute.go
-// The purpose of AttributeScanner is to provide an iterator API to traverse each field in a netlink message.
+// AttributeScanner provides an iterator API to traverse each field in a netlink message.
 // The same AttributeScanner instance can be used multiple times with different messages by calling ResetTo().
 // When scanning a netlink message, every time we "enter" in a nested field, a new NestedFrame is created.
+// Based on https://github.com/mdlayher/netlink/blob/c558cf25207e57bc9cc026d2dd69e2ea2f6abd0e/attribute.go
 type AttributeScanner struct {
 	// level of nesting we're currently in
 	level int

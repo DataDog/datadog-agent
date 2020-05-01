@@ -39,6 +39,7 @@ type Socket struct {
 	pool *bufferPool
 }
 
+// NewSocket creates a new NETLINK socket
 func NewSocket(pool *bufferPool) (*Socket, error) {
 	fd, err := unix.Socket(
 		unix.AF_NETLINK,
@@ -87,6 +88,7 @@ func NewSocket(pool *bufferPool) (*Socket, error) {
 	return socket, nil
 }
 
+// Send a netlink.Message
 func (s *Socket) Send(m netlink.Message) error {
 	b, err := m.MarshalBinary()
 	if err != nil {
@@ -108,6 +110,7 @@ func (s *Socket) Send(m netlink.Message) error {
 	return err
 }
 
+// Receive reads one or more netlink.Messages off the socket
 func (s *Socket) Receive() ([]netlink.Message, error) {
 	n, err := s.recvmsg(s.recvbuf, 0)
 	if err != nil {
@@ -143,18 +146,22 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 	return msgs, nil
 }
 
+// File descriptor of the socket
 func (s *Socket) File() *os.File {
 	return s.fd
 }
 
+// Close the socket
 func (s *Socket) Close() error {
 	return s.fd.Close()
 }
 
+// SendMessages isn't implemented in our case
 func (s *Socket) SendMessages(m []netlink.Message) error {
 	return errNotImplemented
 }
 
+// JoinGroup creates a new group membership
 func (s *Socket) JoinGroup(group uint32) error {
 	return os.NewSyscallError("setsockopt", s.SetSockoptInt(
 		unix.SOL_NETLINK,
@@ -163,6 +170,7 @@ func (s *Socket) JoinGroup(group uint32) error {
 	))
 }
 
+// LeaveGroup deletes a group membership
 func (s *Socket) LeaveGroup(group uint32) error {
 	return os.NewSyscallError("setsockopt", s.SetSockoptInt(
 		unix.SOL_NETLINK,
@@ -171,6 +179,7 @@ func (s *Socket) LeaveGroup(group uint32) error {
 	))
 }
 
+// SetSockoptInt sets a socket option
 func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	// Value must be in range of a C integer.
 	if value < math.MinInt32 || value > math.MaxInt32 {

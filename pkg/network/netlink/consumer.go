@@ -73,6 +73,7 @@ func (e *Event) Done() {
 	}
 }
 
+// NewConsumer creates a new Conntrack event consumer.
 func NewConsumer(procRoot string) (*Consumer, error) {
 	c := &Consumer{
 		pool:      newBufferPool(),
@@ -94,6 +95,8 @@ func NewConsumer(procRoot string) (*Consumer, error) {
 	return c, nil
 }
 
+// Events returns a channel of Event objects (wrapping netlink messages) which receives
+// all new connections added to the Conntrack table.
 func (c *Consumer) Events() <-chan Event {
 	output := make(chan Event, outputBuffer)
 	c.do(false, func() {
@@ -106,6 +109,9 @@ func (c *Consumer) Events() <-chan Event {
 	return output
 }
 
+// DumpTable returns a channel of Event objects containing all entries
+// present in the Conntrack table. The channel is closed once all entries are read.
+// This method is meant to be used once during the process initialization of system-probe.
 func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	output := make(chan Event, outputBuffer)
 	c.do(false, func() {
@@ -136,6 +142,7 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	return output
 }
 
+// Stop the consumer
 func (c *Consumer) Stop() {
 	c.conn.Close()
 }

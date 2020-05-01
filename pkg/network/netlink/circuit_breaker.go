@@ -40,6 +40,8 @@ type CircuitBreaker struct {
 	lastUpdate int64
 }
 
+// NewCircuitBreaker instantiates a new CircuitBreaker that only allows
+// a maxEventsPerSec to pass. The rate of events is calculated using an EWMA.
 func NewCircuitBreaker(maxEventsPerSec int) *CircuitBreaker {
 	c := &CircuitBreaker{maxEventsPerSec: maxEventsPerSec}
 
@@ -53,18 +55,23 @@ func NewCircuitBreaker(maxEventsPerSec int) *CircuitBreaker {
 	return c
 }
 
+// IsOpen returns true when the circuit breaker trips and remain
+// unchanched until Reset() is called.
 func (c *CircuitBreaker) IsOpen() bool {
 	return atomic.LoadInt64(&c.status) == breakerOpen
 }
 
+// Tick represents one or more events passing through the circuit breaker.
 func (c *CircuitBreaker) Tick(n int) {
 	atomic.AddInt64(&c.eventCount, int64(n))
 }
 
+// Rate returns the current rate of events
 func (c *CircuitBreaker) Rate() int64 {
 	return atomic.LoadInt64(&c.eventRate)
 }
 
+// Reset closes the circuit breaker and its state.
 func (c *CircuitBreaker) Reset() {
 	atomic.StoreInt64(&c.eventCount, 0)
 	atomic.StoreInt64(&c.status, breakerClosed)
