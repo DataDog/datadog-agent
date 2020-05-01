@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/pkg/errors"
@@ -26,7 +27,7 @@ const (
 
 	// The maximum number of messages we're willing to read off the socket per second
 	// This number is enforced to keep CPU usage at an appropriate level
-	// If the number of messages is above that we "throttle" the socket using a BPF filter
+	// If the number of messages is above that, we "throttle" the socket using a BPF filter
 	// TODO: expose this as a configuration param
 	maxMessagesPerSecond = 1000
 )
@@ -52,6 +53,11 @@ type Consumer struct {
 
 	// this is set to true after we finish the initial conntrack dump
 	streaming bool
+
+	// telemetry
+	enobufs     int64
+	throttles   int64
+	samplingPct int64
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -142,6 +148,15 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 	return output
 }
 
+// GetStats returns telemetry associated to the Consumer
+func (c *Consumer) GetStats() map[string]int64 {
+	return map[string]int64{
+		"enobufs":      atomic.LoadInt64(&c.enobufs),
+		"throttles":    atomic.LoadInt64(&c.throttles),
+		"sampling_pct": atomic.LoadInt64(&c.samplingPct),
+	}
+}
+
 // Stop the consumer
 func (c *Consumer) Stop() {
 	c.conn.Close()
@@ -199,6 +214,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 
 	// Attach BPF sampling filter if necessary
 	c.samplingRate = samplingRate
+	atomic.StoreInt64(&c.samplingPct, int64(samplingRate*100.0))
 	if c.samplingRate >= 1.0 {
 		return nil
 	}
@@ -207,6 +223,7 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	sampler, _ := GenerateBPFSampler(c.samplingRate)
 	err = c.socket.SetBPF(sampler)
 	if err != nil {
+		atomic.StoreInt64(&c.samplingPct, 0)
 		return fmt.Errorf("failed to attach BPF filter: %w", err)
 	}
 
@@ -239,10 +256,10 @@ ReadLoop:
 			case errENOBUF:
 				// If we detect an ENOBUF during the initial Conntrack table dump it likely means
 				// the netlink socket recv buffer doesn't have enough capacity for the existing connections.
-				// TODO: add telemetry and rate limit log entry
 				if !c.streaming {
 					log.Warnf("netlink: detected enobuf during conntrack table dump. consider raising rcvbuf capacity.")
 				}
+				atomic.AddInt64(&c.enobufs, 1)
 			}
 		}
 
@@ -296,6 +313,7 @@ func (c *Consumer) throttle(numMessages int) error {
 	if !c.breaker.IsOpen() {
 		return nil
 	}
+	atomic.AddInt64(&c.throttles, 1)
 
 	// Close current socket
 	// TODO: validate if we need to leave the group before creating a new socket

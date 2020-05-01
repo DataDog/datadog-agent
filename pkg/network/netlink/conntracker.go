@@ -188,6 +188,11 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 		m["nanoseconds_per_unregister"] = ctr.stats.unregistersTotalTime / ctr.stats.unregisters
 	}
 
+	// Merge telemetry from the consumer
+	for k, v := range ctr.consumer.GetStats() {
+		m[k] = v
+	}
+
 	return m
 }
 
