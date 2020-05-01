@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 )
 
 const defaultLogFile = "/var/log/datadog/dogstatsd.log"
