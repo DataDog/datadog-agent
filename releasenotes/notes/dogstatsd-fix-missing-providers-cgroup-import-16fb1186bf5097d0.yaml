@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix missing import of container provider in cmd/dogstatsd.
