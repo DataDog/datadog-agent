@@ -16,9 +16,9 @@ import (
 
 const (
 	// MaxServiceLen the maximum length a service can have
-	MaxServiceLen = 100
+	MaxServiceLen = 500
 	// MaxNameLen the maximum length a name can have
-	MaxNameLen = 100
+	MaxNameLen = 500
 	// MaxTypeLen the maximum length a span type can have
 	MaxTypeLen = 100
 	// MaxEndDateOffset the maximum amount of time in the future we

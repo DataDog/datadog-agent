@@ -7,13 +7,14 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('trace-java-demo')
 
 
-def _component_data(json_data, type_name, external_id_assert_fn):
+def _component_data(json_data, type_name, external_id_assert_fn, data_assert_fn):
     for message in json_data["messages"]:
         p = message["message"]["TopologyElement"]["payload"]
         if "TopologyComponent" in p and \
             p["TopologyComponent"]["typeName"] == type_name and \
                 external_id_assert_fn(p["TopologyComponent"]["externalId"]):
-            return json.loads(p["TopologyComponent"]["data"])
+            if data_assert_fn(json.loads(p["TopologyComponent"]["data"])):
+                return json.loads(p["TopologyComponent"]["data"])
     return None
 
 
@@ -23,19 +24,19 @@ def _relation_data(json_data, type_name, external_id_assert_fn):
         if "TopologyRelation" in p and \
             p["TopologyRelation"]["typeName"] == type_name and \
                 external_id_assert_fn(p["TopologyRelation"]["externalId"]):
-            return json.loads(p["TopologyRelation"]["data"])
+            return p["TopologyRelation"]
     return None
 
 
 def test_java_traces(host):
     def assert_ok():
-        c = "curl -H Host:stackstate-books-app.docker.localhost -s -o /dev/null -w \"%{http_code}\" http://localhost/stackstate-books-app/listbooks"
+        c = "curl -H Host:stackstate-books-app -s -o /dev/null -w \"%{http_code}\" http://localhost/stackstate-books-app/listbooks"
         assert host.check_output(c) == "200"
 
     util.wait_until(assert_ok, 120, 10)
 
     def assert_topology():
-        topo_url = "http://localhost:7070/api/topic/sts_topo_process_agents?limit=5000"
+        topo_url = "http://localhost:7070/api/topic/sts_topo_process_agents?limit=1500"
         data = host.check_output("curl \"%s\"" % topo_url)
         json_data = json.loads(data)
         with open("./topic-topo-process-agents-traces.json", 'w') as f:
@@ -43,147 +44,254 @@ def test_java_traces(host):
 
         components = [
             {
+                "assertion": "Should find the traefik service",
                 "type": "service",
                 "external_id": lambda e_id: e_id == "urn:service:/traefik",
-                "data": lambda d: d["name"] == "traefik"
+                "data": lambda d: (
+                    d["name"] == "traefik" and
+                    "serviceType" in d and
+                    d["serviceType"] == "traefik"
+                )
             },
             {
-                "type": "service",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik:stackstate-authors-app.docker.localhost",
-                "data": lambda d: d["name"] == "stackstate-authors-app" and "urn:service:/stackstate-authors-app" in d["identifiers"] and d["service"] == "stackstate-authors-app"
-            },
-            {
-                "type": "service",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik:stackstate-books-app.docker.localhost",
-                "data": lambda d: d["name"] == "stackstate-books-app" and "urn:service:/stackstate-books-app" in d["identifiers"] and d["service"] == "stackstate-books-app"
-            },
-            {
-                "type": "service",
-                "external_id": lambda e_id: e_id == "urn:service:/stackstate-authors-app",
-                "data": lambda d: d["name"] == "stackstate-authors-app"
-            },
-            {
+                "assertion": "Should find the stackstate-books-app traefik service",
                 "type": "service",
                 "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app",
-                "data": lambda d: d["name"] == "stackstate-books-app"
+                "data": lambda d: (
+                    d["name"] == "stackstate-books-app" and
+                    d["service"] == "traefik" and
+                    "serviceType" in d and
+                    d["serviceType"] == "traefik"
+                )
             },
             {
+                "assertion": "Should find the stackstate-books-app traefik service instance",
+                "type": "service-instance",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service-instance:/stackstate-books-app:/.*\..*\..*\..*").findall(e_id),
+                "data": lambda d: (
+                    "stackstate-books-app-" in d["name"] and
+                    d["service"] == "traefik" and
+                    "serviceType" in d and
+                    d["serviceType"] == "traefik"
+                )
+            },
+            {
+                "assertion": "Should find the stackstate-authors-app traefik service",
+                "type": "service",
+                "external_id": lambda e_id: e_id == "urn:service:/stackstate-authors-app",
+                "data": lambda d: (
+                    d["name"] == "stackstate-authors-app" and
+                    d["service"] == "traefik" and
+                    "serviceType" in d and
+                    d["serviceType"] == "traefik"
+                )
+            },
+            {  # TODO: Backend names in Traefik replace . with -, find a way to change the backend name
+                "assertion": "Should find the stackstate-authors-app traefik service instance",
+                "type": "service-instance",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service-instance:/stackstate-authors-app:/.*\..*\..*\..*").findall(e_id),
+                "data": lambda d: (
+                    "stackstate-authors-app-" in d["name"] and
+                    d["service"] == "traefik" and
+                    "serviceType" in d and
+                    d["serviceType"] == "traefik"
+                )
+            },
+            {
+                "assertion": "Should find the stackstate-authors-app java service",
+                "type": "service",
+                "external_id": lambda e_id: e_id == "urn:service:/stackstate-authors-app",
+                "data": lambda d: (
+                    d["name"] == "stackstate-authors-app" and
+                    d["service"] == "stackstate-authors-app" and
+                    "serviceType" in d and
+                    d["serviceType"] == "java"
+                )
+            },
+            {
+                "assertion": "Should find the stackstate-books-app java service",
+                "type": "service",
+                "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app",
+                "data": lambda d: (
+                    d["name"] == "stackstate-books-app" and
+                    d["service"] == "stackstate-books-app" and
+                    "serviceType" in d and
+                    d["serviceType"] == "java"
+                )
+            },
+            {
+                "assertion": "Should find the stackstate-authors-app java service instance",
+                "type": "service-instance",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service-instance:/stackstate-authors-app:/.*:.*:.*").findall(e_id),
+                "data": lambda d: (
+                    "stackstate-authors-app-" in d["name"] and
+                    d["service"] == "stackstate-authors-app" and
+                    "serviceType" in d and
+                    d["serviceType"] == "java"
+                )
+            },
+            {
+                "assertion": "Should find the stackstate-books-app java service",
+                "type": "service-instance",
+                "external_id": lambda e_id: re.compile(r"urn:service-instance:/stackstate-books-app:/.*:.*:.*").findall(
+                    e_id),
+                "data": lambda d: (
+                    "stackstate-books-app-" in d["name"] and
+                    d["service"] == "stackstate-books-app" and
+                    "serviceType" in d and
+                    d["serviceType"] == "java"
+                )
+            },
+            {
+                "assertion": "Should find the postgres service",
                 "type": "service",
                 "external_id": lambda e_id: e_id == "urn:service:/postgresql:app",
-                "data": lambda d: d["name"] == "postgresql:app" and d["serviceType"] == "postgresql"
-            },
-            {
-                "type": "service-instance",
-                "external_id": lambda e_id: re.compile("urn:service-instance:/stackstate-authors-app:/.*:.*:.*").findall(e_id),
-                "data": lambda d: d["service"] == "stackstate-authors-app"
-            },
-            {
-                "type": "service-instance",
-                "external_id": lambda e_id: re.compile("urn:service-instance:/stackstate-books-app:/.*:.*:.*").findall(e_id),
-                "data": lambda d: d["service"] == "stackstate-books-app"
-            },
+                "data": lambda d: (
+                    d["name"] == "postgresql:app" and
+                    "serviceType" in d and
+                    d["serviceType"] == "postgresql"
+                )
+            }
         ]
 
         for c in components:
-            assert c["data"](
-                _component_data(
-                    json_data=json_data,
-                    type_name=c["type"],
-                    external_id_assert_fn=c["external_id"],
-                )
-            )
+            print("Running assertion for: " + c["assertion"])
+            assert _component_data(
+                json_data=json_data,
+                type_name=c["type"],
+                external_id_assert_fn=c["external_id"],
+                data_assert_fn=c["data"],
+            ) is not None
 
         relations = [
             {
+                "assertion": "Should find the 'has' relation between the traefik stackstate authors service + service "
+                             "instance",
                 "type": "has",
-                "external_id": lambda e_id: re.compile("urn:service:/stackstate-authors-app->urn:service-instance:/stackstate-authors-app:/.*:.*:.*").findall(e_id),
-                "data": lambda d: d["sourceData"]["service"] == "stackstate-authors-app" and d["targetData"]["service"] == "stackstate-authors-app"
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service:/stackstate-authors-app->urn:service-instance:/stackstate-authors-app:/.*:.*:.*"
+                ).findall(e_id),
+                "data": lambda d: (
+                    d["sourceData"]["service"] == "stackstate-authors-app" and
+                    d["targetData"]["service"] == "stackstate-authors-app"
+                )
             },
             {
+                "assertion": "Should find the 'has' relation between the traefik stackstate books service + service "
+                             "instance",
                 "type": "has",
-                "external_id": lambda e_id: re.compile("urn:service:/stackstate-books-app->urn:service-instance:/stackstate-books-app:/.*:.*:.*").findall(e_id),
-                "data": lambda d: d["sourceData"]["service"] == "stackstate-books-app" and d["targetData"]["service"] == "stackstate-books-app"
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service:/stackstate-books-app->urn:service-instance:/stackstate-books-app:/.*:.*:.*").findall(
+                    e_id),
+                "data": lambda d: (
+                    d["sourceData"]["service"] == "stackstate-books-app" and
+                    d["targetData"]["service"] == "stackstate-books-app"
+                )
             },
             {
-                "type": "is_module_of",
-                "external_id": lambda e_id: re.compile(r"urn:service-instance:/stackstate-authors-app:/(.*):(.*):(.*)->urn:process:/\1:\2:\3").findall(e_id),
-                "data": lambda d: d["sourceData"]["service"] == "stackstate-authors-app" and d["targetData"]["pid"] is not None
+                "assertion": "Should find the 'has' relation between the java stackstate authors service + service "
+                             "instance",
+                "type": "has",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service:/stackstate-authors-app->urn:service-instance:/stackstate-authors-app:/.*\..*\..*\..*")
+                .findall(e_id),
+                "data": lambda d: (
+                    d["sourceData"]["name"] == "stackstate-authors-app" and
+                    "stackstate-authors-app-" in d["targetData"]["name"]
+                )
             },
             {
-                "type": "is_module_of",
-                "external_id": lambda e_id: re.compile(r"urn:service-instance:/stackstate-books-app:/(.*):(.*):(.*)->urn:process:/\1:\2:\3").findall(e_id),
-                "data": lambda d: d["sourceData"]["service"] == "stackstate-books-app" and d["targetData"]["pid"] is not None
+                "assertion": "Should find the 'has' relation between the java stackstate books service + service "
+                             "instance",
+                "type": "has",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service:/stackstate-books-app->urn:service-instance:/stackstate-books-app:/.*\..*\..*\..*"
+                ).findall(e_id),
+                "data": lambda d: (
+                    d["sourceData"]["name"] == "stackstate-books-app" and
+                    "stackstate-books-app-" in d["targetData"]["name"]
+                )
             },
             # traefik -> books
             {
+                "assertion": "Should find the 'calls' relation between traefik and the stackstate books app",
                 "type": "calls",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik->urn:service:/traefik:stackstate-books-app.docker.localhost",
-                "data": lambda d: d["sourceData"]["service"] == "traefik" and d["targetData"]["service"] == "traefik",
+                "external_id": lambda e_id: e_id == "urn:service:/traefik->urn:service:/stackstate-books-app",
             },
             {
+                "assertion": "Should find the callback 'calls' relation between the stackstate books app and traefik",
                 "type": "calls",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik:stackstate-books-app.docker.localhost->urn:service:/stackstate-books-app",
-                "data": lambda d: d["sourceData"]["service"] == "traefik" and d["targetData"]["service"] == "stackstate-books-app",
+                "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app->urn:service"
+                                                    ":/traefik",
             },
             {
+                "assertion": "Should find the 'calls' relation between the stackstate books app and postgresql",
                 "type": "calls",
                 "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app->urn:service:/postgresql:app",
-                "data": lambda d: d["sourceData"]["service"] == "stackstate-books-app" and d["targetData"]["service"] == "postgresql",
             },
             {
+                "assertion": "Should find the 'calls' relation between the stackstate books app instance and postgresql",
                 "type": "calls",
-                "external_id": lambda e_id: re.compile("urn:service-instance:/stackstate-books-app:/.*:.*:.*->urn:service:/postgresql:app").findall(e_id),
-                "data": lambda d: d["sourceData"]["service"] == "stackstate-books-app" and d["targetData"]["service"] == "postgresql",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service-instance:/stackstate-books-app:/.*:.*:.*>urn:service:/postgresql:app"
+                ).findall(e_id),
             },
-            # traefik -> authors
+            # # traefik -> authors
             {
+                "assertion": "Should find the 'calls' relation between traefik and the stackstate authors app",
                 "type": "calls",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik->urn:service:/traefik:stackstate-authors-app.docker.localhost",
-                "data": lambda d: d["sourceData"]["service"] == "traefik" and d["targetData"]["service"] == "traefik",
+                "external_id": lambda e_id: e_id == "urn:service:/traefik->urn:service:/stackstate-authors-app",
             },
             {
+                "assertion": "Should find the 'calls' relation between the stackstate authors app and a stackstate "
+                             "authors app instance",
                 "type": "calls",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik:stackstate-authors-app.docker.localhost->urn:service:/stackstate-authors-app",
-                "data": lambda d: d["sourceData"]["service"] == "traefik" and d["targetData"]["service"] == "stackstate-authors-app",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service:/stackstate-authors-app->urn:service-instance:/stackstate-authors-app:/.*:.*:.*"
+                ).findall(e_id),
             },
             {
+                "assertion": "Should find the 'calls' relation between the stackstate authors app and postgresql",
                 "type": "calls",
                 "external_id": lambda e_id: e_id == "urn:service:/stackstate-authors-app->urn:service:/postgresql:app",
-                "data": lambda d: d["sourceData"]["service"] == "stackstate-authors-app" and d["targetData"]["service"] == "postgresql",
             },
             {
+                "assertion": "Should find the 'calls' relation between the stackstate authors app instance and "
+                             "postgresql",
                 "type": "calls",
-                "external_id": lambda e_id: re.compile("urn:service-instance:/stackstate-authors-app:/.*:.*:.*->urn:service:/postgresql:app").findall(e_id),
-                "data": lambda d: d["sourceData"]["service"] == "stackstate-authors-app" and d["targetData"]["service"] == "postgresql",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service-instance:/stackstate-authors-app:/.*:.*:.*>urn:service:/postgresql:app"
+                ).findall(e_id),
             },
-            # callbacks ?
+            # # callbacks ?
             {
+                "assertion": "Should find the 'calls' relation between the stackstate authors app and traefik",
                 "type": "calls",
-                "external_id": lambda e_id: re.compile("urn:service:/traefik:stackstate-authors-app.docker.localhost->urn:service:/traefik").findall(e_id),
-                "data": lambda d: d["sourceData"]["service"] == "traefik" and d["targetData"]["service"] == "traefik",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:service:/stackstate-authors-app->urn:service:/traefik"
+                ).findall(e_id),
             },
+            # # ?
             {
+                "assertion": "Should find the 'calls' relation between the stackstate books app and the stackstate "
+                             "authors app",
                 "type": "calls",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik:stackstate-books-app.docker.localhost->urn:service:/traefik",
-                "data": lambda d: d["sourceData"]["service"] == "traefik" and d["targetData"]["service"] == "traefik",
-            },
-            # ?
-            {
-                "type": "calls",
-                "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app->urn:service:/traefik:stackstate-authors-app.docker.localhost",
-                "data": lambda d: d["sourceData"]["service"] == "stackstate-books-app" and d["targetData"]["service"] == "traefik",
+                "external_id": lambda e_id: (
+                    e_id == "urn:service:/stackstate-books-app->urn:service:/stackstate-authors-app"
+                ),
             },
         ]
 
         for i, r in enumerate(relations):
-            print(i)
-            assert r["data"](
-                _relation_data(
-                    json_data=json_data,
-                    type_name=r["type"],
-                    external_id_assert_fn=r["external_id"],
-                )
-            )
+            print("Running assertion for: " + r["assertion"])
+            assert _relation_data(
+                json_data=json_data,
+                type_name=r["type"],
+                external_id_assert_fn=r["external_id"],
+            ) is not None
 
         #         calls               calls        has                  is module of
         # traefik  -->  traefik:books  -->  books  -->  books-instance     -->        books-process

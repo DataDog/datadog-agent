@@ -8,7 +8,7 @@ services:
       - 2181:2181
     mem_limit: 1G
   kafka:
-    image: wurstmeister/kafka:2.12-2.1.1
+    image: wurstmeister/kafka:2.12-2.3.1
     ports:
       - 9092:9092
     depends_on:
@@ -18,8 +18,10 @@ services:
       KAFKA_ADVERTISED_PORT: 9092
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_generic_events:1:1,sts_state_events:1:1,sts_multi_metrics:1:1,sts_correlate_endpoints:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1"
+    volumes:
+      - "./create-topics.sh:/usr/bin/create-topics.sh"
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -q sts_topo_process_agents"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -q sts_trace_events"]
       interval: 1s
       timeout: 10s
       retries: 10
@@ -41,6 +43,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
+      STACKSTATE_CORRELATE_LOG_LEVEL: "DEBUG"
     mem_limit: 1G
   topic-api:
     image: "quay.io/stackstate/stackstate-topic-api:${STACKSTATE_BRANCH}"
@@ -67,10 +70,11 @@ services:
     ports:
       - 5432:5432
     labels:
-      - "traefik.frontend.rule=Host:stackstate-demo-db.docker.localhost"
+      - "traefik.frontend.rule=Host:stackstate-demo-db"
       - "traefik.backend=stackstate-demo-db"
   stackstate-books-app:
     image: "quay.io/stackstate/trace-java-demo:books-app-master"
+    pid: "host"
     ports:
       - '8081-8091:8081'
     depends_on:
@@ -79,13 +83,14 @@ services:
       stackstate-agent:
         condition: service_started
     labels:
-      - "traefik.frontend.rule=Host:stackstate-books-app.docker.localhost"
+      - "traefik.frontend.rule=Host:stackstate-books-app"
       - "traefik.backend=stackstate-books-app"
     environment:
-      MAVEN_OPTS: "-Dsts.service.name=stackstate-books-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
-    mem_limit: 1G
+      MAVEN_OPTS: "-Dsts.service.name=stackstate-books-app -Dauthors-app.traefik.host.header=stackstate-authors-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
+    mem_limit: 2G
   stackstate-authors-app:
     image: "quay.io/stackstate/trace-java-demo:authors-app-master"
+    pid: "host"
     ports:
       - '8092-8099:8081'
     depends_on:
@@ -94,11 +99,11 @@ services:
       stackstate-agent:
         condition: service_started
     labels:
-      - "traefik.frontend.rule=Host:stackstate-authors-app.docker.localhost"
+      - "traefik.frontend.rule=Host:stackstate-authors-app"
       - "traefik.backend=stackstate-authors-app"
     environment:
       MAVEN_OPTS: "-Dsts.service.name=stackstate-authors-app -Dsts.agent.host=${DOCKER_HOST_IP} -Dsts.agent.port=8126 -Dstackstate.slf4j.simpleLogger.defaultLogLevel=debug -javaagent:/sts-java-agent.jar"
-    mem_limit: 1G
+    mem_limit: 2G
   traefik:
     image: traefik:v1.7.12
     command: --api --docker --loglevel=INFO --tracing=TRUE --tracing.backend="datadog" --tracing.datadog.debug=TRUE --tracing.datadog.localagenthostport="${DOCKER_HOST_IP}:8126" --tracing.datadog.globaltag="source:traefik"  # Enables the web UI and tells Traefik to listen to docker

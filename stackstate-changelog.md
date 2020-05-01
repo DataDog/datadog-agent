@@ -1,5 +1,15 @@
 # StackState Agent v2 releases
 
+## 2.5.0 (2020-04-30)
+
+**Features**
+
+- Interpret Spans for topology creation [(STAC-4879)](https://stackstate.atlassian.net/browse/STAC-4879).
+
+**Bugs**
+
+- Fix JMX metric collection [(STAC-5254)](https://stackstate.atlassian.net/browse/STAC-5254)
+
 ## 2.4.0 (2020-04-23)
 
 **Features**
@@ -12,7 +22,7 @@
 
 ## 2.3.1 (2020-04-03)
 
-**Bug**
+**Bugs**
 
 - Fix VSphere Check functionality [(STAC-8351)](https://stackstate.atlassian.net/browse/STAC-8351)
 
@@ -56,8 +66,8 @@
 **Features**
 
 - AWS X-Ray check [(STAC-6347)](https://stackstate.atlassian.net/browse/STAC-6347)
-    * This check provides real time gathering of AWS X-Ray traces that allows mapping the relations between X-Ray services, and ultimately AWS resources provided from AWS StackPack. 
-    * It provides performance metrics, as well as local anomaly detection on all performance metrics based on AWS X-Ray traces 
+    * This check provides real time gathering of AWS X-Ray traces that allows mapping the relations between X-Ray services, and ultimately AWS resources provided from AWS StackPack.
+    * It provides performance metrics, as well as local anomaly detection on all performance metrics based on AWS X-Ray traces
 
 - SAP check [(STAC-7515)](https://stackstate.atlassian.net/browse/STAC-7515)
     * This check provide host instance metrics:

@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"github.com/StackVista/stackstate-agent/pkg/features"
+	"github.com/StackVista/stackstate-agent/pkg/trace/interpreter"
 	"sync/atomic"
 	"time"
 
@@ -27,19 +29,20 @@ const processStatsInterval = time.Minute
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
-	Receiver           *api.HTTPReceiver
-	Concentrator       *stats.Concentrator
-	Blacklister        *filters.Blacklister
-	Replacer           *filters.Replacer
-	ScoreSampler       *Sampler
-	ErrorsScoreSampler *Sampler
-	PrioritySampler    *Sampler
-	EventProcessor     *event.Processor
-	TraceWriter        *writer.TraceWriter
-	ServiceWriter      *writer.ServiceWriter
-	StatsWriter        *writer.StatsWriter
-	ServiceExtractor   *TraceServiceExtractor
-	ServiceMapper      *ServiceMapper
+	Receiver              *api.HTTPReceiver
+	Concentrator          *stats.Concentrator
+	Blacklister           *filters.Blacklister
+	Replacer              *filters.Replacer
+	ScoreSampler          *Sampler
+	ErrorsScoreSampler    *Sampler
+	PrioritySampler       *Sampler
+	EventProcessor        *event.Processor
+	TraceWriter           *writer.TraceWriter
+	ServiceWriter         *writer.ServiceWriter
+	StatsWriter           *writer.StatsWriter
+	ServiceExtractor      *TraceServiceExtractor
+	ServiceMapper         *ServiceMapper
+	SpanInterpreterEngine *interpreter.SpanInterpreterEngine
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -53,6 +56,9 @@ type Agent struct {
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
+
+	// Features Supported by the StackState Backend
+	SupportedFeatures *features.Features
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -85,26 +91,30 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	tw := writer.NewTraceWriter(conf, tracePkgChan)
 	sw := writer.NewStatsWriter(conf, statsChan)
 	svcW := writer.NewServiceWriter(conf, filteredServiceChan)
+	sie := interpreter.NewSpanInterpreterEngine(conf)
+	sf := features.NewFeatures(conf)
 
 	return &Agent{
-		Receiver:           r,
-		Concentrator:       c,
-		Blacklister:        filters.NewBlacklister(conf.Ignore["resource"]),
-		Replacer:           filters.NewReplacer(conf.ReplaceTags),
-		ScoreSampler:       ss,
-		ErrorsScoreSampler: ess,
-		PrioritySampler:    ps,
-		EventProcessor:     ep,
-		TraceWriter:        tw,
-		StatsWriter:        sw,
-		ServiceWriter:      svcW,
-		ServiceExtractor:   se,
-		ServiceMapper:      sm,
-		obfuscator:         obf,
-		tracePkgChan:       tracePkgChan,
-		conf:               conf,
-		dynConf:            dynConf,
-		ctx:                ctx,
+		Receiver:              r,
+		Concentrator:          c,
+		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
+		Replacer:              filters.NewReplacer(conf.ReplaceTags),
+		ScoreSampler:          ss,
+		ErrorsScoreSampler:    ess,
+		PrioritySampler:       ps,
+		EventProcessor:        ep,
+		TraceWriter:           tw,
+		StatsWriter:           sw,
+		ServiceWriter:         svcW,
+		ServiceExtractor:      se,
+		ServiceMapper:         sm,
+		SpanInterpreterEngine: sie,
+		SupportedFeatures:     sf,
+		obfuscator:            obf,
+		tracePkgChan:          tracePkgChan,
+		conf:                  conf,
+		dynConf:               dynConf,
+		ctx:                   ctx,
 	}
 }
 
@@ -131,6 +141,7 @@ func (a *Agent) Run() {
 	a.ErrorsScoreSampler.Run()
 	a.PrioritySampler.Run()
 	a.EventProcessor.Start()
+	a.SupportedFeatures.Start()
 
 	for {
 		select {
@@ -152,6 +163,7 @@ func (a *Agent) Run() {
 			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
 			a.EventProcessor.Stop()
+			a.SupportedFeatures.Stop()
 			return
 		}
 	}
@@ -201,6 +213,7 @@ func (a *Agent) Process(t pb.Trace) {
 	for _, span := range t {
 		a.obfuscator.Obfuscate(span)
 		Truncate(span)
+		a.SpanInterpreterEngine.Interpret(span)
 	}
 	a.Replacer.Replace(&t)
 

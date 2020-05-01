@@ -179,6 +179,9 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	f.On("SubmitV1CheckRuns", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f)
+	// check runs are disabled by default for StackState
+	s.enableCheckRuns = true
+	s.enableServiceChecks = true
 
 	payload := &testPayload{}
 	err := s.SendServiceChecks(payload)
@@ -199,6 +202,8 @@ func TestSendServiceChecks(t *testing.T) {
 	defer mockConfig.Set("use_v2_api.service_checks", nil)
 
 	s := NewSerializer(f)
+	// service checks are disabled by default for StackState
+	s.enableServiceChecks = true
 
 	payload := &testPayload{}
 	err := s.SendServiceChecks(payload)
@@ -254,6 +259,8 @@ func TestSendSketch(t *testing.T) {
 	f.On("SubmitSketchSeries", payloads, protobufExtraHeaders).Return(nil).Times(1)
 
 	s := NewSerializer(f)
+	// check runs are disabled by default for StackState
+	s.enableSketches = true
 
 	payload := &testPayload{}
 	err := s.SendSketch(payload)

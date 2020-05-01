@@ -16,6 +16,7 @@ venv/
 # files
 .DS_Store
 .vscode
+.env
 *.cov
 *.pyc
 *.swp
