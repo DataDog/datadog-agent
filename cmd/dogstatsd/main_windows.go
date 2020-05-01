@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows/registry"
