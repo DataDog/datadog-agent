@@ -317,7 +317,6 @@ func (ctr *realConntracker) run() {
 			ctr.compact()
 
 			// Log a message when we detect that conntrack hasn't seen recent events.
-			// This is likely caused by an unhandled ENOBUF error in the netlink socket
 			ctr.Lock()
 			stale := !ctr.lastRegister.IsZero() && time.Now().Sub(ctr.lastRegister) > staleConntrackTTL
 			ctr.Unlock()

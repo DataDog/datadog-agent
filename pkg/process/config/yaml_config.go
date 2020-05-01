@@ -69,9 +69,6 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.IsSet(key(spNS, "enable_conntrack")) {
 		a.EnableConntrack = config.Datadog.GetBool(key(spNS, "enable_conntrack"))
 	}
-	if config.Datadog.IsSet(key(spNS, "conntrack_ignore_enobufs")) {
-		a.ConntrackIgnoreENOBUFS = config.Datadog.GetBool(key(spNS, "conntrack_ignore_enobufs"))
-	}
 	if s := config.Datadog.GetInt(key(spNS, "conntrack_max_state_size")); s > 0 {
 		a.ConntrackMaxStateSize = s
 	}
