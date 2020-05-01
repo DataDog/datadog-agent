@@ -19,9 +19,12 @@ var (
 )
 
 const (
+	// ProfileURLTemplate constant template for expected profiling endpoint URL
 	ProfileURLTemplate = "https://intake.profile.%s/v1/input"
 )
 
+// Active returns a boolean indicating whether profiling is active or not;
+// this function is thread-safe.
 func Active() bool {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -29,6 +32,8 @@ func Active() bool {
 	return running
 }
 
+// Start initiates profiling with the supplied parameters;
+// this function is thread-safe.
 func Start(api, site, env, service string, tags ...string) error {
 	if Active() {
 		return nil
@@ -52,6 +57,7 @@ func Start(api, site, env, service string, tags ...string) error {
 	return err
 }
 
+// Stop stops the profiler if running - idempotent; this function is thread-safe.
 func Stop() {
 	if Active() {
 		mu.Lock()

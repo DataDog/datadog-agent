@@ -39,7 +39,7 @@ func InitRuntimeSettings() error {
 		return err
 	}
 	if err := registerRuntimeSetting(logLevelRuntimeSetting("profiling")); err != nil {
-		return nil
+		return err
 	}
 }
 
