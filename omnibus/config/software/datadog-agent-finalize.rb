@@ -183,9 +183,9 @@ build do
             delete "#{install_dir}/etc/conf.d/winproc.d"
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
-                hardened_runtime = '-o runtime '
+                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
             else 
-                hardened_runtime = ''
+                hardened_runtime = ""
             end
 
             if code_signing_identity

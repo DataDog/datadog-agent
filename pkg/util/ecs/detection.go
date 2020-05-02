@@ -33,6 +33,8 @@ func IsECSInstance() bool {
 
 // IsFargateInstance returns whether the agent is in an ECS fargate task.
 // It detects it by getting and unmarshalling the metadata API response.
+// This function identifies Fargate on ECS only. Make sure to use the Fargate pkg
+// to identify Fargate instances in other orchestrators (e.g EKS Fargate)
 func IsFargateInstance() bool {
 	return queryCacheBool(isFargateInstanceCacheKey, func() (bool, time.Duration) {
 

@@ -30,12 +30,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -163,11 +165,11 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(keysPerDomain)
+	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname, "cluster_agent")
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
@@ -193,13 +195,37 @@ func start(cmd *cobra.Command, args []string) error {
 			WPAClient:          apiCl.WPAClient,
 			WPAInformerFactory: apiCl.WPAInformerFactory,
 			Client:             apiCl.Cl,
-			LeaderElector:      le,
+			IsLeaderFunc:       le.IsLeader,
 			EventRecorder:      eventRecorder,
 			StopCh:             stopCh,
 		}
 
 		if err := apiserver.StartControllers(ctx); err != nil {
 			log.Errorf("Could not start controllers: %v", err)
+		}
+
+		// Generate and persist a cluster ID
+		// this must be a UUID, and ideally be stable for the lifetime of a cluster
+		// so we store it in a configmap that we try and read before generating a new one.
+		coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+		_, err = apicommon.GetOrCreateClusterID(coreClient)
+		if err != nil {
+			log.Errorf("Failed to generate or retrieve the cluster ID")
+		}
+
+		// TODO: move rest of the controllers out of the apiserver package
+		orchestratorCtx := orchestrator.ControllerContext{
+			IsLeaderFunc:                 le.IsLeader,
+			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
+			Client:                       apiCl.Cl,
+			StopCh:                       stopCh,
+			Hostname:                     hostname,
+			ClusterName:                  config.Datadog.GetString("cluster_name"),
+			ConfigPath:                   confPath,
+		}
+		err = orchestrator.StartController(orchestratorCtx)
+		if err != nil {
+			log.Errorf("Could not start orchestrator controller: %v", err)
 		}
 	}
 

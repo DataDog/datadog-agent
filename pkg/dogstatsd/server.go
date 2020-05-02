@@ -18,12 +18,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,6 +43,8 @@ var (
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
 		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
+	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error"}
+	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok"}
 )
 
 func init() {
@@ -54,15 +58,16 @@ func init() {
 
 // Server represent a Dogstatsd server
 type Server struct {
-	listeners                 []listeners.StatsdListener
+	// listeners are the instantiated socket listener (UDS or UDP or both)
+	listeners []listeners.StatsdListener
+	// aggregator is a pointer to the aggregator that the dogstatsd daemon
+	// will send the metrics samples, events and service checks to.
+	aggregator *aggregator.BufferedAggregator
+
 	packetsIn                 chan listeners.Packets
-	samplePool                *metrics.MetricSamplePool
-	samplesOut                chan<- []metrics.MetricSample
-	eventsOut                 chan<- []*metrics.Event
-	servicesCheckOut          chan<- []*metrics.ServiceCheck
+	sharedPacketPool          *listeners.PacketPool
 	Statistics                *util.Stats
 	Started                   bool
-	packetPool                *listeners.PacketPool
 	stopChan                  chan bool
 	health                    *health.Handle
 	metricPrefix              string
@@ -77,6 +82,11 @@ type Server struct {
 	mapper                    *mapper.MetricMapper
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
+	// disableVerboseLogs is a feature flag to disable the logs capable
+	// of flooding the logger output (e.g. parsing messages error).
+	// NOTE(remy): this should probably be dropped and use a throttler logger, see
+	// package (pkg/trace/logutils) for a possible throttler implemetation.
+	disableVerboseLogs bool
 }
 
 // metricStat holds how many times a metric has been
@@ -87,7 +97,7 @@ type metricStat struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics.MetricSample, eventsOut chan<- []*metrics.Event, servicesCheckOut chan<- []*metrics.ServiceCheck) (*Server, error) {
+func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -106,12 +116,15 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 	}
 
 	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
-	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
+
+	// sharedPacketPool is used by the packet assembler to retrieve already allocated
+	// buffer in order to avoid allocation. The packets are pushed back by the server.
+	sharedPacketPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, packetPool)
+		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -119,7 +132,7 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 		}
 	}
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, packetPool)
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -153,13 +166,10 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 	s := &Server{
 		Started:                   true,
 		Statistics:                stats,
-		samplePool:                samplePool,
 		packetsIn:                 packetsChannel,
-		samplesOut:                samplesOut,
-		eventsOut:                 eventsOut,
-		servicesCheckOut:          servicesCheckOut,
+		sharedPacketPool:          sharedPacketPool,
+		aggregator:                aggregator,
 		listeners:                 tmpListeners,
-		packetPool:                packetPool,
 		stopChan:                  make(chan bool),
 		health:                    health.Register("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
@@ -172,17 +182,17 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 		metricsStats:              make(map[string]metricStat),
 		telemetryEnabled:          telemetry.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
+		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 	}
+
+	// packets forwarding
+	// ----------------------
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
 	forwardPort := config.Datadog.GetInt("statsd_forward_port")
-
 	if forwardHost != "" && forwardPort != 0 {
-
 		forwardAddress := fmt.Sprintf("%s:%d", forwardHost, forwardPort)
-
 		con, err := net.Dial("udp", forwardAddress)
-
 		if err != nil {
 			log.Warnf("Could not connect to statsd forward host : %s", err)
 		} else {
@@ -191,7 +201,13 @@ func NewServer(samplePool *metrics.MetricSamplePool, samplesOut chan<- []metrics
 		}
 	}
 
+	// start the workers processing the packets read on the socket
+	// ----------------------
+
 	s.handleMessages()
+
+	// map some metric name
+	// ----------------------
 
 	cacheSize := config.Datadog.GetInt("dogstatsd_mapper_cache_size")
 
@@ -250,7 +266,11 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets)
 }
 
 func (s *Server) worker() {
-	batcher := newBatcher(s.samplePool, s.samplesOut, s.eventsOut, s.servicesCheckOut)
+	// the batcher will be responsible of batching a few samples / events / service
+	// checks and it will automatically forward them to the aggregator, meaning that
+	// the flushing logic to the aggregator is actually in the batcher.
+	batcher := newBatcher(s.aggregator)
+
 	parser := newParser()
 	for {
 		select {
@@ -298,21 +318,36 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 			case serviceCheckType:
 				serviceCheck, err := s.parseServiceCheckMessage(parser, message, originTagger.getTags)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing service check %q: %s", message, err)
+					originTags := originTagger.getTags()
+					if len(originTags) > 0 {
+						s.errLog("Dogstatsd: error parsing service check '%q' origin tags %v: %s", message, originTags, err)
+					} else {
+						s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
+					}
 					continue
 				}
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
 				event, err := s.parseEventMessage(parser, message, originTagger.getTags)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing event %q: %s", message, err)
+					originTags := originTagger.getTags()
+					if len(originTags) > 0 {
+						s.errLog("Dogstatsd: error parsing event '%q' origin tags %v: %s", message, originTags, err)
+					} else {
+						s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
+					}
 					continue
 				}
 				batcher.appendEvent(event)
 			case metricSampleType:
 				sample, err := s.parseMetricMessage(parser, message, originTagger.getTags)
 				if err != nil {
-					log.Errorf("Dogstatsd: error parsing metric message %q: %s", message, err)
+					originTags := originTagger.getTags()
+					if len(originTags) > 0 {
+						s.errLog("Dogstatsd: error parsing metric message '%q' origin tags %v: %s", message, originTags, err)
+					} else {
+						s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
+					}
 					continue
 				}
 				if s.debugMetricsStats {
@@ -327,16 +362,24 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 				}
 			}
 		}
-		s.packetPool.Put(packet)
+		s.sharedPacketPool.Put(packet)
 	}
 	batcher.flush()
+}
+
+func (s *Server) errLog(format string, params ...interface{}) {
+	if s.disableVerboseLogs {
+		log.Debugf(format, params...)
+	} else {
+		log.Errorf(format, params...)
+	}
 }
 
 func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFunc func() []string) (metrics.MetricSample, error) {
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
-		tlmProcessed.Inc("metrics", "error")
+		tlmProcessed.IncWithTags(tlmProcessedErrorTags)
 		return metrics.MetricSample{}, err
 	}
 	if s.mapper != nil && len(sample.tags) == 0 {
@@ -349,11 +392,7 @@ func (s *Server) parseMetricMessage(parser *parser, message []byte, originTagsFu
 	metricSample := enrichMetricSample(sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, originTagsFunc, s.entityIDPrecedenceEnabled)
 	metricSample.Tags = append(metricSample.Tags, s.extraTags...)
 	dogstatsdMetricPackets.Add(1)
-	// FIXME (arthur): remove this check and s.telemetryEnabled once we don't
-	// escape the tags slice to the heap
-	if s.telemetryEnabled {
-		tlmProcessed.Inc("metrics", "ok")
-	}
+	tlmProcessed.IncWithTags(tlmProcessedOkTags)
 	return metricSample, nil
 }
 
@@ -461,6 +500,16 @@ func findOriginTags(origin string) []string {
 			log.Errorf(err.Error())
 		} else {
 			tags = append(tags, originTags...)
+		}
+	}
+
+	// Include orchestrator scope tags if the cardinality is set to orchestrator
+	if tagger.DogstatsdCardinality == collectors.OrchestratorCardinality {
+		orchestratorScopeTags, err := tagger.OrchestratorScopeTag()
+		if err != nil {
+			log.Error(err.Error())
+		} else {
+			tags = append(tags, orchestratorScopeTags...)
 		}
 	}
 	return tags

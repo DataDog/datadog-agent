@@ -195,7 +195,12 @@ func expvarPythonInitErrors() interface{} {
 	pyInitLock.RLock()
 	defer pyInitLock.RUnlock()
 
-	return pyInitErrors
+	pyInitErrorsCopy := []string{}
+	for i := range pyInitErrors {
+		pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors[i])
+	}
+
+	return pyInitErrorsCopy
 }
 
 func addExpvarPythonInitErrors(msg string) error {

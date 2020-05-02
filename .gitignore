@@ -28,6 +28,7 @@ agentmsg.h
 datadog.yaml
 system-probe.yaml
 dogstatsd.yaml
+cloudfoundry.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
 
@@ -39,6 +40,7 @@ datadog-agent*_amd64.deb
 
 # Ignore pem created during the tests
 *.pem
+pkg/process/config/testdata/secret
 
 auth_token
 /test/e2e/scripts/run-instance/argo
@@ -95,6 +97,10 @@ dogstatsd-msg.h
 
 #visual studio files
 *.aps
+omnibus/resources/agent/msi/cal/packages/
+tools/windows/install-help/cal/packages/
+[Dd]ebug/
+[Rr]elease/
 
 # ebpf object files
 pkg/ebpf/c/*.o
@@ -119,3 +125,4 @@ integrations-core/
 
 # file generated for templates
 pkg/status/templates.go
+cmd/agent/gui/templates.go

@@ -80,6 +80,18 @@ var trace = &httptrace.ClientTrace{
 	},
 }
 
+// Compile-time check to ensure that HTTPTransaction conforms to the Transaction interface
+var _ Transaction = &HTTPTransaction{}
+
+// HTTPAttemptHandler is an event handler that will get called each time this transaction is attempted
+type HTTPAttemptHandler func(transaction *HTTPTransaction)
+
+// HTTPCompletionHandler is an  event handler that will get called after this transaction has completed
+type HTTPCompletionHandler func(transaction *HTTPTransaction, statusCode int, body []byte, err error)
+
+var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
+var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
+
 func initTransactionExpvars() {
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
@@ -111,6 +123,13 @@ type HTTPTransaction struct {
 	ErrorCount int
 
 	createdAt time.Time
+	// retryable indicates whether this transaction can be retried
+	retryable bool
+
+	// attemptHandler will be called with a transaction before the attempting to send the request
+	attemptHandler HTTPAttemptHandler
+	// completionHandler will be called with a transaction after it has been successfully sent
+	completionHandler HTTPCompletionHandler
 }
 
 // Transaction represents the task to process for a Worker.
@@ -123,9 +142,12 @@ type Transaction interface {
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	return &HTTPTransaction{
-		createdAt:  time.Now(),
-		ErrorCount: 0,
-		Headers:    make(http.Header),
+		createdAt:         time.Now(),
+		ErrorCount:        0,
+		retryable:         true,
+		Headers:           make(http.Header),
+		attemptHandler:    defaultAttemptHandler,
+		completionHandler: defaultCompletionHandler,
 	}
 }
 
@@ -142,6 +164,26 @@ func (t *HTTPTransaction) GetTarget() string {
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
 func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) error {
+	t.attemptHandler(t)
+
+	statusCode, body, err := t.internalProcess(ctx, client)
+
+	if err == nil || !t.retryable {
+		t.completionHandler(t, statusCode, body, err)
+	}
+
+	// If the txn is retryable, return the error (if present) to the worker to allow it to be retried
+	// Otherwise, return nil so the txn won't be retried.
+	if t.retryable {
+		return err
+	}
+
+	return nil
+}
+
+// internalProcess does the  work of actually sending the http request to the specified domain
+// This will return  (http status code, response body, error).
+func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint
 	logURL := httputils.SanitizeURL(url) // sanitized url that can be logged
@@ -152,7 +194,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, "invalid_request")
 		transactionsSentRequestErrors.Add(1)
-		return nil
+		return 0, nil, nil
 	}
 	req = req.WithContext(ctx)
 	req.Header = t.Headers
@@ -161,19 +203,19 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	if err != nil {
 		// Do not requeue transaction if that one was canceled
 		if ctx.Err() == context.Canceled {
-			return nil
+			return 0, nil, nil
 		}
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, "cant_send")
-		return fmt.Errorf("error while sending transaction, rescheduling it: %s", httputils.SanitizeURL(err.Error()))
+		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", httputils.SanitizeURL(err.Error()))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
-		return err
+		return 0, nil, err
 	}
 
 	if resp.StatusCode >= 400 {
@@ -194,17 +236,17 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
 		transactionsDropped.Add(1)
 		tlmTxDropped.Inc(t.Domain)
-		return nil
+		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
 		transactionsDropped.Add(1)
 		tlmTxDropped.Inc(t.Domain)
-		return nil
+		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, "gt_400")
-		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
+		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 
 	transactionsSuccessful.Add(1)
@@ -215,13 +257,13 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	if transactionsSuccessful.Value() == 1 {
 		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
 		log.Tracef("Url: %q payload: %s", logURL, string(body))
-		return nil
+		return resp.StatusCode, body, nil
 	}
 	if transactionsSuccessful.Value()%loggingFrequency == 0 {
 		log.Infof("Successfully posted payload to %q", logURL)
 		log.Tracef("Url: %q payload: %s", logURL, string(body))
-		return nil
+		return resp.StatusCode, body, nil
 	}
 	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
-	return nil
+	return resp.StatusCode, body, nil
 }

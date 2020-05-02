@@ -70,7 +70,7 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
     """
     gcflags = ""
     ldflags = get_version_ldflags(ctx, prefix, major_version=major_version)
-    env = {}
+    env = {"GO111MODULE":"on"}
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
@@ -124,34 +124,14 @@ def get_payload_version():
     """
     Return the Agent payload version found in the Gopkg.toml file.
     """
-    current = {}
-
-    # parse the TOML file line by line
-    with open("Gopkg.lock") as toml:
-        for line in toml.readlines():
-            # skip empty lines and comments
-            if not line or line[0] == "#":
+    with open('go.sum') as f:
+        for line in f:
+            gopkg = line.split(" ")
+            if len(gopkg) != 3:
                 continue
-
-            # change the parser "state" when we find a [[projects]] section
-            if "[[projects]]" in line:
-                # see if the current section is what we're searching for
-                if current.get("name") == "github.com/DataDog/agent-payload":
-                    return current.get("version")
-
-                # if not, reset the "state" and proceed with the next line
-                current = {}
-                continue
-
-            # search for an assignment, ignore subsequent `=` chars
-            toks = line.split('=', 2)
-            if len(toks) == 2:
-                # strip whitespaces
-                key = toks[0].strip()
-                # strip whitespaces and quotes
-                value = toks[-1].replace('"', '').strip()
-                current[key] = value
-
+            pkgname = gopkg[0]
+            if pkgname == "github.com/DataDog/agent-payload" and gopkg[1].endswith('/go.mod'):
+                return gopkg[1].rstrip('/go.mod')
     return ""
 
 def get_version_ldflags(ctx, prefix=None, major_version='7'):

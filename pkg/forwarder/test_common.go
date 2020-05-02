@@ -28,7 +28,7 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(ctx context.Context, client *http.Client) error {
+func (t *testTransaction) Process(_ context.Context, client *http.Client) error {
 	defer func() { t.processed <- true }()
 	return t.Called(client).Error(0) // we ignore the context to ease mocking
 }
@@ -36,6 +36,9 @@ func (t *testTransaction) Process(ctx context.Context, client *http.Client) erro
 func (t *testTransaction) GetTarget() string {
 	return t.Called().Get(0).(string)
 }
+
+// Compile-time checking to ensure that MockedForwarder implements Forwarder
+var _ Forwarder = &MockedForwarder{}
 
 // MockedForwarder a mocked forwarder to be use in other module to test their dependencies with the forwarder
 type MockedForwarder struct {
@@ -95,4 +98,34 @@ func (tf *MockedForwarder) SubmitHostMetadata(payload Payloads, extra http.Heade
 // SubmitMetadata updates the internal mock struct
 func (tf *MockedForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
+}
+
+// SubmitProcessChecks mock
+func (tf *MockedForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}
+
+// SubmitRTProcessChecks mock
+func (tf *MockedForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}
+
+// SubmitContainerChecks mock
+func (tf *MockedForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}
+
+// SubmitRTContainerChecks mock
+func (tf *MockedForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}
+
+// SubmitConnectionChecks mock
+func (tf *MockedForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}
+
+// SubmitPodChecks mock
+func (tf *MockedForwarder) SubmitPodChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
 }

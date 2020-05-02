@@ -21,10 +21,6 @@ var (
 )
 
 func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) ([]string, string) {
-	if len(tags) == 0 {
-		return nil, defaultHostname
-	}
-
 	host := defaultHostname
 
 	n := 0
@@ -43,7 +39,8 @@ func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []s
 	if entityIDValue == "" || !entityIDPrecedenceEnabled {
 		// Add origin tags only if the entity id tags is not provided
 		tags = append(tags, originTagsFunc()...)
-	} else if entityIDValue != entityIDIgnoreValue {
+	}
+	if entityIDValue != "" && entityIDValue != entityIDIgnoreValue {
 		// Check if the value is not "none" in order to avoid calling
 		// the tagger for entity that doesn't exist.
 

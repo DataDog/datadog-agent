@@ -12,10 +12,10 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const (
@@ -45,6 +45,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
+	a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
@@ -68,8 +69,8 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.IsSet(key(spNS, "enable_conntrack")) {
 		a.EnableConntrack = config.Datadog.GetBool(key(spNS, "enable_conntrack"))
 	}
-	if s := config.Datadog.GetInt(key(spNS, "conntrack_short_term_buffer_size")); s > 0 {
-		a.ConntrackShortTermBufferSize = s
+	if config.Datadog.IsSet(key(spNS, "conntrack_ignore_enobufs")) {
+		a.ConntrackIgnoreENOBUFS = config.Datadog.GetBool(key(spNS, "conntrack_ignore_enobufs"))
 	}
 	if s := config.Datadog.GetInt(key(spNS, "conntrack_max_state_size")); s > 0 {
 		a.ConntrackMaxStateSize = s
@@ -130,11 +131,15 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ExcludedDestinationConnections = config.Datadog.GetStringMapStringSlice(destinationExclude)
 	}
 
+	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
+		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
+	}
+
 	return nil
 }
 
-// Process-specific configuration
-func (a *AgentConfig) loadProcessYamlConfig(path string) error {
+// LoadProcessYamlConfig load Process-specific configuration
+func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	loadEnvVariables()
 
 	// Resolve any secrets
@@ -286,7 +291,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 			}
 			for _, k := range apiKeys {
-				a.APIEndpoints = append(a.APIEndpoints, APIEndpoint{
+				a.APIEndpoints = append(a.APIEndpoints, api.Endpoint{
 					APIKey:   k,
 					Endpoint: u,
 				})
@@ -301,7 +306,7 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 			}
 			for _, k := range apiKeys {
-				a.OrchestratorEndpoints = append(a.OrchestratorEndpoints, APIEndpoint{
+				a.OrchestratorEndpoints = append(a.OrchestratorEndpoints, api.Endpoint{
 					APIKey:   k,
 					Endpoint: u,
 				})
@@ -309,10 +314,11 @@ func (a *AgentConfig) loadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// Used to override container source auto-detection.
-	// "docker", "ecs_fargate", "kubelet", etc
-	if containerSource := config.Datadog.GetString(key(ns, "container_source")); containerSource != "" {
-		util.SetContainerSource(containerSource)
+	// Used to override container source auto-detection
+	// and to enable multiple collector sources if needed.
+	// "docker", "ecs_fargate", "kubelet", "kubelet docker", etc.
+	if sources := config.Datadog.GetStringSlice(key(ns, "container_source")); len(sources) > 0 {
+		util.SetContainerSources(sources)
 	}
 
 	// Pull additional parameters from the global config file.

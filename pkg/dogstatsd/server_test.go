@@ -47,7 +47,7 @@ func TestNewServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(metrics.NewMetricSamplePool(16), nil, nil, nil)
+	s, err := NewServer(mockAggregator())
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 	assert.NotNil(t, s)
@@ -59,7 +59,7 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(metrics.NewMetricSamplePool(16), nil, nil, nil)
+	s, err := NewServer(mockAggregator())
 	require.NoError(t, err, "cannot start DSD")
 	s.Stop()
 
@@ -83,10 +83,9 @@ func TestUDPReceive(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan []metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	agg := mockAggregator()
+	metricOut, eventOut, serviceOut := agg.GetBufferedChannels()
+	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -280,10 +279,8 @@ func TestUDPForward(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	metricOut := make(chan []metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	agg := mockAggregator()
+	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -317,10 +314,9 @@ func TestHistToDist(t *testing.T) {
 	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
 	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 
-	metricOut := make(chan []metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	agg := mockAggregator()
+	metricOut, _, _ := agg.GetBufferedChannels()
+	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -357,10 +353,9 @@ func TestExtraTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 
-	metricOut := make(chan []metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	agg := mockAggregator()
+	metricOut, _, _ := agg.GetBufferedChannels()
+	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -386,10 +381,8 @@ func TestExtraTags(t *testing.T) {
 }
 
 func TestDebugStats(t *testing.T) {
-	metricOut := make(chan []metrics.MetricSample)
-	eventOut := make(chan []*metrics.Event)
-	serviceOut := make(chan []*metrics.ServiceCheck)
-	s, err := NewServer(metrics.NewMetricSamplePool(16), metricOut, eventOut, serviceOut)
+	agg := mockAggregator()
+	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
@@ -443,7 +436,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	err = config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
 	require.NoError(t, err)
 
-	s, err := NewServer(nil, nil, nil, nil)
+	s, err := NewServer(mockAggregator())
 	require.NoError(t, err, "cannot start DSD")
 
 	assert.Nil(t, s.mapper)
@@ -554,7 +547,7 @@ dogstatsd_mapper_profiles:
 			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
 			config.Datadog.SetDefault("dogstatsd_port", port)
 
-			s, err := NewServer(nil, nil, nil, nil)
+			s, err := NewServer(mockAggregator())
 			require.NoError(t, err, "Case `%s` failed. NewServer should not return error %v", scenario.name, err)
 
 			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)

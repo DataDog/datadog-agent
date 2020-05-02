@@ -16,8 +16,10 @@ api_key:
 # site: datadoghq.com
 
 ## @param dd_url - string - optional - default: https://app.datadoghq.com
-## The host of the Datadog intake server to send Agent data to, only set this option
-## if you need the Agent to send data to a custom URL, it overrides the site setting defined in "site".
+## The host of the Datadog intake server to send metrics to, only set this option
+## if you need the Agent to send metrics to a custom URL, it overrides the site
+## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
+## own "*_dd_url" settings.
 #
 # dd_url: https://app.datadoghq.com
 
@@ -352,6 +354,12 @@ api_key:
 #
 # tracemalloc_blacklist: <TRACEMALLOC_BLACKLIST>
 
+## @param windows_use_pythonpath - boolean - optional
+## Whether to honour the value of the PYTHONPATH env var when set on Windows.
+## Disabled by default, so we only load Python libraries bundled with the Agent.
+#
+# windows_use_pythonpath: false
+
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
@@ -430,6 +438,12 @@ api_key:
   #
   # use_http: true
 
+  ## @param use_tcp - boolean - optional - default: false
+  ## By default, logs are sent through HTTP if possible, use this parameter
+  ## to send logs in TCP
+  #
+  # use_tcp: true
+
   ## @param use_compression - boolean - optional - default: false
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
   ## compresses logs before sending them.
@@ -473,6 +487,12 @@ api_key:
   ## The port that the trace receiver should listen on.
   #
   # receiver_port: 8126
+
+  ## @param receiver_socket - string - optional
+  ## Accept traces through Unix Domain Sockets.
+  ## It is off by default. When set, it must point to a valid socket file.
+  #
+  # receiver_socket: <UNIX_SOCKET_PATH>
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
@@ -1121,6 +1141,21 @@ api_key:
 #
 # ad_config_poll_interval: 10
 
+## @param cloud_foundry_garden - custom object - optional
+## Settings for Cloudfoundry application container autodiscovery.
+#
+# cloud_foundry_garden:
+
+  ## @param listen_network - string - optional - default: unix
+  ## The network on which the garden API is listening. Possible values are `unix` or `tcp`
+  #
+  # listen_network: unix
+
+  ## @param listen_address - string - optional - default: /var/vcap/data/garden/garden.sock
+  ## The address on which the garden API is listening.
+  #
+  # listen_address: /var/vcap/data/garden/garden.sock
+
 {{ end -}}
 {{- if .ClusterChecks }}
 
@@ -1460,7 +1495,7 @@ api_key:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
 
-## @param clustername - string - optional
+## @param cluster_name - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:
 ## * Lowercase letters, numbers, and hyphens only.
@@ -1471,5 +1506,43 @@ api_key:
 ## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
 # cluster_name: <CLUSTER_IDENTIFIER>
+
+{{ end -}}
+{{- if .CloudFoundryBBS }}
+#######################################################
+## Cloud Foundry BBS Configuration for Autodiscovery ##
+#######################################################
+
+## @param cloud_foundry_bbs - custom object - optional
+## This section configures how the Cluster Agent accesses BBS API to gather information
+## necessary for autodiscovery on BBS-based Cloud Foundry deployments.
+#
+# cloud_foundry_bbs:
+
+  ## @param url - string - optional - default: https://bbs.service.cf.internal:8889
+  ## URL of the BBS API.
+  #
+  # url: https://bbs.service.cf.internal:8889
+
+  ## @param poll_interval - integer - optional - default: 15
+  ## Refresh rate of BBS API, in seconds. Values lower than 10 might influence
+  ## performance of other operations in the cluster.
+  #
+  # poll_interval: 15
+
+  ## @param ca_file - string - optional - default: ""
+  ## PEM-encoded CA certificate used when connecting to the BBS API.
+  #
+  # ca_file: ""
+
+  ## @param cert_file - string - optional - default: ""
+  ## PEM-encoded client certificate used when connecting to the BBS API.
+  #
+  # cert_file: ""
+
+  ## @param key_file - string - optional - default: ""
+  ## PEM-encoded client key used when connecting to the BBS API.
+  #
+  # key_file: ""
 
 {{ end -}}

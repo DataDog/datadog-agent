@@ -7,11 +7,6 @@
 
 package apiserver
 
-// LeaderElectorInterface is the interface avoiding the import cycle between the LeaderElection and the APIServer
-type LeaderElectorInterface interface {
-	IsLeader() bool
-}
-
 const (
-	autoscalerNowHandleMsgEvent = "Autoscaler is now handle by the Cluster-Agent"
+	autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
 )

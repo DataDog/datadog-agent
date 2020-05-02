@@ -64,7 +64,7 @@ func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName stri
 	}
 }
 
-func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, itf LeaderElectorInterface, dcl autoscalers.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
+func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -73,7 +73,7 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, itf 
 	autoscalerController, _ := NewAutoscalersController(
 		client,
 		eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
-		itf,
+		isLeaderFunc,
 		dcl,
 	)
 	autoscalerController.EnableHPA(informerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
@@ -83,13 +83,7 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, itf 
 	return autoscalerController, informerFactory
 }
 
-var alwaysLeader = &fakeLeaderElector{true}
-
-type fakeLeaderElector struct {
-	isLeader bool
-}
-
-func (le *fakeLeaderElector) IsLeader() bool { return le.isLeader }
+var alwaysLeader = func() bool { return true }
 
 type fakeDatadogClient struct {
 	queryMetricsFunc  func(from, to int64, query string) ([]datadog.Series, error)
@@ -564,9 +558,8 @@ func TestAutoscalerControllerGC(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
-			i := &fakeLeaderElector{}
 			d := &fakeDatadogClient{}
-			hctrl, inf := newFakeAutoscalerController(t, client, i, d)
+			hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, d)
 
 			hctrl.store = store
 

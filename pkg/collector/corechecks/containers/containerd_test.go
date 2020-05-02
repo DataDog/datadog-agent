@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containerd/cgroups"
+	v1 "github.com/containerd/cgroups/stats/v1"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
-	"github.com/docker/docker/pkg/testutil/assert"
 	prototypes "github.com/gogo/protobuf/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -159,7 +159,7 @@ func TestComputeEvents(t *testing.T) {
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
 				assert.Contains(t, res.Title, test.expectedTitle)
-				assert.EqualStringSlice(t, res.Tags, test.expectedTags)
+				assert.ElementsMatch(t, res.Tags, test.expectedTags)
 			}
 			mocked.AssertNumberOfCalls(t, "Event", test.numberEvents)
 			mocked.ResetCalls()
@@ -178,7 +178,7 @@ func TestComputeMem(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		mem      *cgroups.MemoryStat
+		mem      *v1.MemoryStat
 		expected map[string]float64
 	}{
 		{
@@ -188,19 +188,19 @@ func TestComputeMem(t *testing.T) {
 		},
 		{
 			name:     "nothing",
-			mem:      &cgroups.MemoryStat{},
+			mem:      &v1.MemoryStat{},
 			expected: map[string]float64{},
 		},
 		{
 			name: "missing one of the MemoryEntries, missing entries in the others",
-			mem: &cgroups.MemoryStat{
-				Usage: &cgroups.MemoryEntry{
+			mem: &v1.MemoryStat{
+				Usage: &v1.MemoryEntry{
 					Usage: 1,
 				},
-				Kernel: &cgroups.MemoryEntry{
+				Kernel: &v1.MemoryEntry{
 					Max: 2,
 				},
-				Swap: &cgroups.MemoryEntry{
+				Swap: &v1.MemoryEntry{
 					Limit: 3,
 				},
 			},
@@ -212,20 +212,20 @@ func TestComputeMem(t *testing.T) {
 		},
 		{
 			name: "full MemoryEntries, some regular metrics",
-			mem: &cgroups.MemoryStat{
-				Usage: &cgroups.MemoryEntry{
+			mem: &v1.MemoryStat{
+				Usage: &v1.MemoryEntry{
 					Usage:   1,
 					Max:     2,
 					Limit:   3,
 					Failcnt: 0,
 				},
-				Kernel: &cgroups.MemoryEntry{
+				Kernel: &v1.MemoryEntry{
 					Usage:   1,
 					Max:     2,
 					Limit:   3,
 					Failcnt: 0,
 				},
-				Swap: &cgroups.MemoryEntry{
+				Swap: &v1.MemoryEntry{
 					Usage:   1,
 					Max:     2,
 					Limit:   3,
@@ -307,36 +307,36 @@ func TestComputeUptime(t *testing.T) {
 
 // TestConvertTaskToMetrics checks the convertTasktoMetrics
 func TestConvertTaskToMetrics(t *testing.T) {
-	typeurl.Register(&cgroups.Metrics{}, "io.containerd.cgroups.v1.Metrics") // Need to register the type to be used in UnmarshalAny later on.
+	typeurl.Register(&v1.Metrics{}, "io.containerd.cgroups.v1.Metrics") // Need to register the type to be used in UnmarshalAny later on.
 
 	tests := []struct {
 		name     string
 		typeURL  string
-		values   cgroups.Metrics
+		values   v1.Metrics
 		error    string
-		expected *cgroups.Metrics
+		expected *v1.Metrics
 	}{
 		{
 			"unregistered type",
 			"io.containerd.cgroups.v1.Doge",
-			cgroups.Metrics{},
+			v1.Metrics{},
 			"type with url io.containerd.cgroups.v1.Doge: not found",
 			nil,
 		},
 		{
 			"missing values",
 			"io.containerd.cgroups.v1.Metrics",
-			cgroups.Metrics{},
+			v1.Metrics{},
 			"",
-			&cgroups.Metrics{},
+			&v1.Metrics{},
 		},
 		{
 			"fully functional",
 			"io.containerd.cgroups.v1.Metrics",
-			cgroups.Metrics{Memory: &cgroups.MemoryStat{Cache: 100}},
+			v1.Metrics{Memory: &v1.MemoryStat{Cache: 100}},
 			"",
-			&cgroups.Metrics{
-				Memory: &cgroups.MemoryStat{
+			&v1.Metrics{
+				Memory: &v1.MemoryStat{
 					Cache: 100,
 				},
 			},

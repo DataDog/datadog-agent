@@ -10,12 +10,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
@@ -32,6 +32,8 @@ type SystemProbe struct {
 
 	tracer *ebpf.Tracer
 	conn   net.Conn
+
+	tcpQueueLengthTracer *ebpf.TCPQueueLengthTracer
 }
 
 // CreateSystemProbe creates a SystemProbe as well as it's UDS socket after confirming that the OS supports BPF-based
@@ -42,11 +44,6 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
 	}
 
-	// make sure debugfs is mounted
-	if mounted, msg := util.IsDebugfsMounted(); !mounted {
-		return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
-	}
-
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
 
 	t, err := ebpf.NewTracer(config.SysProbeConfigFromConfig(cfg))
@@ -54,16 +51,28 @@ func CreateSystemProbe(cfg *config.AgentConfig) (*SystemProbe, error) {
 		return nil, err
 	}
 
+	var tqlt *ebpf.TCPQueueLengthTracer
+	if cfg.CheckIsEnabled("TCP queue length") {
+		log.Infof("Starting the TCP queue length tracer")
+		tqlt, err = ebpf.NewTCPQueueLengthTracer()
+		if err != nil {
+			log.Errorf("unable to start the TCP queue length tracer: %v", err)
+		}
+	} else {
+		log.Infof("TCP queue length tracer disabled")
+	}
+
 	// Setting up the unix socket
-	uds, err := net.NewUDSListener(cfg)
+	conn, err := net.NewListener(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &SystemProbe{
-		tracer: t,
-		cfg:    cfg,
-		conn:   uds,
+		tracer:               t,
+		tcpQueueLengthTracer: tqlt,
+		cfg:                  cfg,
+		conn:                 conn,
 	}, nil
 }
 
@@ -134,6 +143,17 @@ func (nt *SystemProbe) Run() {
 		writeAsJSON(w, stats)
 	})
 
+	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
+		if nt.tcpQueueLengthTracer == nil {
+			log.Errorf("TCP queue length tracer was not properly initialized")
+			w.WriteHeader(500)
+			return
+		}
+		stats := nt.tcpQueueLengthTracer.GetAndFlush()
+
+		writeAsJSON(w, stats)
+	})
+
 	go func() {
 		tags := []string{
 			fmt.Sprintf("version:%s", Version),
@@ -168,14 +188,14 @@ func logRequests(client string, count uint64, connectionsCount int, start time.T
 }
 
 func getClientID(req *http.Request) string {
-	var clientID = ebpf.DEBUGCLIENT
+	var clientID = network.DEBUGCLIENT
 	if rawCID := req.URL.Query().Get("client_id"); rawCID != "" {
 		clientID = rawCID
 	}
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *ebpf.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)

@@ -41,7 +41,7 @@ func TestGetSource(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
-	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", filepath.ToSlash(source.Config.Path))
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "bar", source.Config.Source)
 	assert.Equal(t, "bar", source.Config.Service)
@@ -72,7 +72,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, config.FileType, source.Config.Type)
 	assert.Equal(t, "buu/fuz/foo", source.Name)
-	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", source.Config.Path)
+	assert.Equal(t, "/var/log/pods/buu_fuz_baz/foo/*.log", filepath.ToSlash(source.Config.Path))
 	assert.Equal(t, "boo", source.Config.Identifier)
 	assert.Equal(t, "any_source", source.Config.Source)
 	assert.Equal(t, "any_service", source.Config.Service)
@@ -222,21 +222,34 @@ func TestGetPath(t *testing.T) {
 	defer os.RemoveAll(basePath)
 	assert.Nil(t, err)
 
-	var (
-		path         string
-		podDirectory string
-	)
-
-	podDirectory = "buu_fuz_baz"
-	path = launcher.getPath(basePath, pod, container)
+	// v1.14+ (default)
+	podDirectory := "buu_fuz_baz"
+	path := launcher.getPath(basePath, pod, container)
 	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo", "*.log"), path)
 
+	// v1.10 - v1.13
 	podDirectory = "baz"
-	err = os.Mkdir(filepath.Join(basePath, podDirectory), 0777)
+	containerDirectory := "foo"
+
+	err = os.MkdirAll(filepath.Join(basePath, podDirectory, containerDirectory), 0777)
 	assert.Nil(t, err)
 
 	path = launcher.getPath(basePath, pod, container)
 	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo", "*.log"), path)
+
+	// v1.9
+	os.RemoveAll(basePath)
+	podDirectory = "baz"
+	logFile := "foo_1.log"
+
+	err = os.MkdirAll(filepath.Join(basePath, podDirectory), 0777)
+	assert.Nil(t, err)
+
+	_, err = os.Create(filepath.Join(basePath, podDirectory, logFile))
+	assert.Nil(t, err)
+
+	path = launcher.getPath(basePath, pod, container)
+	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo_*.log"), path)
 }
 
 // contains returns true if the list contains all the items.

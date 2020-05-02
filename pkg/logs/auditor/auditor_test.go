@@ -62,12 +62,14 @@ func (suite *AuditorTestSuite) TestAuditorStartStop() {
 func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.Equal(0, len(suite.a.registry))
-	suite.a.updateRegistry(suite.source.Config.Path, "42")
+	suite.a.updateRegistry(suite.source.Config.Path, "42", "end")
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("42", suite.a.registry[suite.source.Config.Path].Offset)
-	suite.a.updateRegistry(suite.source.Config.Path, "43")
+	suite.Equal("end", suite.a.registry[suite.source.Config.Path].TailingMode)
+	suite.a.updateRegistry(suite.source.Config.Path, "43", "beginning")
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("43", suite.a.registry[suite.source.Config.Path].Offset)
+	suite.Equal("beginning", suite.a.registry[suite.source.Config.Path].TailingMode)
 }
 
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
@@ -75,11 +77,12 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
 		Offset:      "42",
+		TailingMode: "end",
 	}
 	suite.a.flushRegistry()
 	r, err := ioutil.ReadFile(suite.testPath)
 	suite.Nil(err)
-	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\"}}}", string(r))
+	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\"}}}", string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry = suite.a.recoverRegistry()

@@ -120,9 +120,8 @@ func (w *StatsWriter) addStats(s []stats.Bucket) {
 			return
 		}
 		atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
-		for _, sender := range w.senders {
-			sender.Push(req)
-		}
+
+		sendPayloads(w.senders, req)
 	}
 }
 
