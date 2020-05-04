@@ -50,7 +50,7 @@ func getCFAppsMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(tagsBytes) > 0 {
 		w.WriteHeader(http.StatusOK)
-		w.Write(tagsBytes)
+		w.Write(tagsBytes) //nolint:errcheck
 		apiRequests.Inc(
 			"getCFAppsMetadataForNode",
 			strconv.Itoa(http.StatusOK),

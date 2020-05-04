@@ -33,7 +33,7 @@ func getRelChecksPath() (string, error) {
 
 func validateUser(allowRoot bool) error {
 	if os.Geteuid() != 0 {
-		return fmt.Errorf("Please run this tool with the root user.") //nolint:errcheck
+		return fmt.Errorf("Please run this tool with the root user.")
 	}
 	return nil
 }
