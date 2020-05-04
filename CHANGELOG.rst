@@ -14,6 +14,7 @@ Prelude
 
 Release on: 2020-05-04
 
+This release is only an Agent v7 release, as the bug fix below is not needed in Agent v6.
 
 .. _Release Notes_7.19.1_Bug Fixes:
 
