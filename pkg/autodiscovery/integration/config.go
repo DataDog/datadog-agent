@@ -310,7 +310,7 @@ func (c *Config) Digest() string {
 	}
 	h.Write([]byte(c.NodeName))   //nolint:errcheck
 	h.Write([]byte(c.LogsConfig)) //nolint:errcheck
-	h.Write([]byte(c.Entity))
+	h.Write([]byte(c.Entity))     //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

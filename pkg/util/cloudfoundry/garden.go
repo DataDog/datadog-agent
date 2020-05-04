@@ -57,7 +57,7 @@ func GetGardenUtil() (*GardenUtil, error) {
 		globalGardenUtil = &GardenUtil{
 			cli: client.New(connection.New(network, address)),
 		}
-		globalGardenUtil.retrier.SetupRetrier(&retry.Config{
+		globalGardenUtil.retrier.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:          "gardenUtil",
 			AttemptMethod: globalGardenUtil.cli.Ping,
 			Strategy:      retry.RetryCount,
