@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -108,6 +109,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	err = encoder.Encode(&admissionReviewResp)
 	if err != nil {
 		log.Warnf("Failed to encode the response: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }

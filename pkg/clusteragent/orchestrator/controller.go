@@ -76,7 +76,6 @@ func StartController(ctx ControllerContext) error {
 
 	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
 
-	// TODO: move this to pkg/util/kubernetes/apiserver/common where we start and sync all controllers
 	return apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
 		apiserver.PodsInformer: ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
 	})

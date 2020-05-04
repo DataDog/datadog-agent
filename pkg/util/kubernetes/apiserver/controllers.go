@@ -16,15 +16,18 @@ import (
 
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
 	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 )
 
+type startFunc func(ControllerContext, chan error)
+
 type controllerFuncs struct {
 	enabled func() bool
-	start   func(ControllerContext, *sync.WaitGroup, chan error)
+	start   startFunc
 }
 
 var controllerCatalog = map[controllerName]controllerFuncs{
@@ -62,10 +65,9 @@ type ControllerContext struct {
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
-func StartControllers(ctx ControllerContext) {
+func StartControllers(ctx ControllerContext) errors.Aggregate {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(controllerCatalog))
-	defer close(errChan)
 	for name, cntrlFuncs := range controllerCatalog {
 		if !cntrlFuncs.enabled() {
 			log.Infof("%q is disabled", name)
@@ -77,14 +79,17 @@ func StartControllers(ctx ControllerContext) {
 		// for error propagation we rely on a buffered channel to gather errors
 		// from the spawned goroutines.
 		wg.Add(1)
-		go cntrlFuncs.start(ctx, &wg, errChan)
+		go func(f startFunc) {
+			defer wg.Done()
+			f(ctx, errChan)
+		}(cntrlFuncs.start)
 	}
 
 	wg.Wait()
+	close(errChan)
+	errs := []error{}
 	for err := range errChan {
-		if err != nil {
-			log.Warnf("Error while starting controller: %v", err)
-		}
+		errs = append(errs, err)
 	}
 
 	// we must start the informer factory after starting the controllers because the informer
@@ -95,12 +100,14 @@ func StartControllers(ctx ControllerContext) {
 	// FIXME: We may want to initialize each of these controllers separately via their respective
 	// `<informer>.Run()`
 	ctx.InformerFactory.Start(ctx.StopCh)
+
+	// NewAggregate will filter out nil errors
+	return errors.NewAggregate(errs)
 }
 
 // startMetadataController starts the informers needed for metadata collection.
 // The synchronization of the informers is handled in this function.
-func startMetadataController(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
-	defer wg.Done()
+func startMetadataController(ctx ControllerContext, c chan error) {
 	metaController := NewMetadataController(
 		ctx.InformerFactory.Core().V1().Nodes(),
 		ctx.InformerFactory.Core().V1().Endpoints(),
@@ -116,8 +123,7 @@ func startMetadataController(ctx ControllerContext, wg *sync.WaitGroup, c chan e
 
 // startAutoscalersController starts the informers needed for autoscaling.
 // The synchronization of the informers is handled in this function.
-func startAutoscalersController(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
-	defer wg.Done()
+func startAutoscalersController(ctx ControllerContext, c chan error) {
 	dogCl, err := autoscalers.NewDatadogClient()
 	if err != nil {
 		c <- err
@@ -151,9 +157,7 @@ func startAutoscalersController(ctx ControllerContext, wg *sync.WaitGroup, c cha
 
 // startServicesInformer starts the service informer.
 // The synchronization of the service informer is handled in this function.
-func startServicesInformer(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
-	defer wg.Done()
-
+func startServicesInformer(ctx ControllerContext, c chan error) {
 	// Just start the shared informer, the autodiscovery
 	// components will access it when needed.
 	go ctx.InformerFactory.Core().V1().Services().Informer().Run(ctx.StopCh)
@@ -166,9 +170,7 @@ func startServicesInformer(ctx ControllerContext, wg *sync.WaitGroup, c chan err
 
 // startEndpointsInformer starts the endpoints informer.
 // The synchronization of the endpoints informer is handled in this function.
-func startEndpointsInformer(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
-	defer wg.Done()
-
+func startEndpointsInformer(ctx ControllerContext, c chan error) {
 	// Just start the shared informer, the autodiscovery
 	// components will access it when needed.
 	go ctx.InformerFactory.Core().V1().Endpoints().Informer().Run(ctx.StopCh)
@@ -181,9 +183,7 @@ func startEndpointsInformer(ctx ControllerContext, wg *sync.WaitGroup, c chan er
 
 // startSecretsInformer starts the secrets informer.
 // The synchronization of the secrets informer is handled in this function.
-func startSecretsInformer(ctx ControllerContext, wg *sync.WaitGroup, c chan error) {
-	defer wg.Done()
-
+func startSecretsInformer(ctx ControllerContext, c chan error) {
 	// Just start the shared informer, the admission
 	// controller will access it when needed.
 	go ctx.InformerFactory.Core().V1().Secrets().Informer().Run(ctx.StopCh)

@@ -201,7 +201,11 @@ func start(cmd *cobra.Command, args []string) error {
 			StopCh:             stopCh,
 		}
 
-		apiserver.StartControllers(ctx)
+		if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
+			for _, err := range aggErr.Errors() {
+				log.Warnf("Error while starting controller: %v", err)
+			}
+		}
 
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster
