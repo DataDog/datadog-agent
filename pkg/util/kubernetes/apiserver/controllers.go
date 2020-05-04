@@ -49,7 +49,7 @@ type ControllerContext struct {
 	WPAClient          wpa_client.Interface
 	WPAInformerFactory externalversions.SharedInformerFactory
 	Client             kubernetes.Interface
-	LeaderElector      LeaderElectorInterface
+	IsLeaderFunc       func() bool
 	EventRecorder      record.EventRecorder
 	StopCh             chan struct{}
 }
@@ -106,7 +106,7 @@ func startAutoscalersController(ctx ControllerContext) error {
 	autoscalersController, err := NewAutoscalersController(
 		ctx.Client,
 		ctx.EventRecorder,
-		ctx.LeaderElector,
+		ctx.IsLeaderFunc,
 		dogCl,
 	)
 	if err != nil {

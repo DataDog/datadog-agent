@@ -416,6 +416,7 @@ func initConfig(config Config) {
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
 	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys"})
+	config.BindEnvAndSetDefault("gce_metadata_timeout", 1*time.Second)
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
@@ -428,6 +429,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
+
+	// Cloud Foundry Garden
+	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
+	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_address", "/var/vcap/data/garden/garden.sock")
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
@@ -496,7 +501,12 @@ func initConfig(config Config) {
 	// additional config to ensure initial logs are tagged with kubelet tags
 	// wait (seconds) for tagger before start fetching tags of new AD services
 	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
-
+	// Configurable docker client timeout while communicating with the docker daemon.
+	// It could happen that the docker daemon takes a lot of time gathering timestamps
+	// before starting to send any data when it has stored several large log files.
+	// This field lets you increase the read timeout to prevent the client from
+	// timing out too early in such a situation. Value in seconds.
+	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	config.BindEnv("logs_config.dd_url")
@@ -666,6 +676,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_enabled", true)
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
+
+	// Datadog security agent (compliance)
+	config.BindEnvAndSetDefault("compliance_config.enabled", true)
+	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

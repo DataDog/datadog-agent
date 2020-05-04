@@ -5,7 +5,7 @@ import os
 import json
 import sys
 
-from .utils import get_gopath, check_go111module_envvar
+from .utils import get_gopath
 
 # Bootstrap dependencies description
 BOOTSTRAP_DEPS = "bootstrap.json"
@@ -41,24 +41,20 @@ def process_deps(ctx, target, version, kind, step, cmd=None, verbose=False):
     if step not in BOOTSTRAP_SUPPORTED_STEPS:
         raise Exception("Unknown bootstrap step: {} for {}".format(step, target))
 
-
-    # bail out if GO111MODULE is set to on
-    check_go111module_envvar("deps")
-
     verbosity = ' -v' if verbose else ''
     if kind == "go":
         if step == "checkout":
             # download tools
             path = os.path.join(get_gopath(ctx), 'src', target)
             if not os.path.exists(path):
-                ctx.run("go get{} -d -u {}".format(verbosity, target))
+                ctx.run("go get{} -d -u {}".format(verbosity, target),  env={'GO111MODULE': 'off'})
 
             with ctx.cd(path):
                 # checkout versions
                 ctx.run("git fetch")
                 ctx.run("git checkout {}".format(version))
         elif step == "install":
-            ctx.run("go install{} {}".format(verbosity, target))
+            ctx.run("go install{} {}".format(verbosity, target), env={'GO111MODULE': 'off'})
     elif kind == "python":
         # no checkout needed for python deps
         if step == "install":

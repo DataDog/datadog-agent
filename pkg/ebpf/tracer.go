@@ -13,7 +13,9 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	bpflib "github.com/iovisor/gobpf/elf"
@@ -36,13 +38,13 @@ type Tracer struct {
 
 	config *Config
 
-	state          NetworkState
-	portMapping    *PortMapping
-	udpPortMapping *PortMapping
+	state          network.State
+	portMapping    *network.PortMapping
+	udpPortMapping *network.PortMapping
 
 	conntracker netlink.Conntracker
 
-	reverseDNS ReverseDNS
+	reverseDNS network.ReverseDNS
 
 	perfMap *bpflib.PerfMap
 
@@ -65,15 +67,15 @@ type Tracer struct {
 	// to determine whether a connection is truly closed or not
 	expiredTCPConns int64
 
-	buffer     []ConnectionStats
+	buffer     []network.ConnectionStats
 	bufferLock sync.Mutex
 
 	// Internal buffer used to compute bytekeys
 	buf *bytes.Buffer
 
 	// Connections for the tracer to blacklist
-	sourceExcludes []*ConnectionFilter
-	destExcludes   []*ConnectionFilter
+	sourceExcludes []*network.ConnectionFilter
+	destExcludes   []*network.ConnectionFilter
 }
 
 const (
@@ -89,7 +91,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("%s: %s", "system-probe unsupported", msg)
 	}
 
-	m, err := readBPFModule(config.BPFDebug)
+	m, err := bytecode.ReadBPFModule(config.BPFDebug)
 	if err != nil {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
 	}
@@ -161,14 +163,14 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	var reverseDNS ReverseDNS = nullReverseDNS{}
+	var reverseDNS network.ReverseDNS = network.NewNullReverseDNS()
 	if enableSocketFilter {
 		filter := m.SocketFilter("socket/dns_filter")
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")
 		}
 
-		if snooper, err := NewSocketFilterSnooper(
+		if snooper, err := network.NewSocketFilterSnooper(
 			config.ProcRoot,
 			filter,
 			config.CollectDNSStats,
@@ -180,8 +182,8 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	portMapping := NewPortMapping(config.ProcRoot, config)
-	udpPortMapping := NewPortMapping(config.ProcRoot, config)
+	portMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
+	udpPortMapping := network.NewPortMapping(config.ProcRoot, config.CollectTCPConns, config.CollectIPv6Conns)
 	if err := portMapping.ReadInitialState(); err != nil {
 		return nil, fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	}
@@ -199,7 +201,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		}
 	}
 
-	state := NewNetworkState(
+	state := network.NewState(
 		config.ClientStateExpiry,
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
@@ -213,11 +215,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 		portMapping:    portMapping,
 		udpPortMapping: udpPortMapping,
 		reverseDNS:     reverseDNS,
-		buffer:         make([]ConnectionStats, 0, 512),
+		buffer:         make([]network.ConnectionStats, 0, 512),
 		buf:            &bytes.Buffer{},
 		conntracker:    conntracker,
-		sourceExcludes: ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:   ParseConnectionFilters(config.ExcludedDestinationConnections),
+		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
 	tr.perfMap, err = tr.initPerfPolling()
@@ -323,11 +325,11 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
 //  • Local DNS (*:53) requests if configured (default: true)
-func (t *Tracer) shouldSkipConnection(conn *ConnectionStats) bool {
+func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
 	if !t.config.CollectLocalDNS && isDNSConnection && conn.Dest.IsLoopback() {
 		return true
-	} else if IsBlacklistedConnection(t.sourceExcludes, t.destExcludes, conn) {
+	} else if network.IsBlacklistedConnection(t.sourceExcludes, t.destExcludes, conn) {
 		return true
 	}
 	return false
@@ -340,7 +342,7 @@ func (t *Tracer) Stop() {
 	t.conntracker.Close()
 }
 
-func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
+func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
 
@@ -351,20 +353,20 @@ func (t *Tracer) GetActiveConnections(clientID string) (*Connections, error) {
 
 	// Grow or shrink buffer depending on the usage
 	if len(latestConns) >= cap(t.buffer)*2 {
-		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)*2)
+		t.buffer = make([]network.ConnectionStats, 0, cap(t.buffer)*2)
 	} else if len(latestConns) <= cap(t.buffer)/2 {
-		t.buffer = make([]ConnectionStats, 0, cap(t.buffer)/2)
+		t.buffer = make([]network.ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
 	names := t.reverseDNS.Resolve(conns)
 
-	return &Connections{Conns: conns, DNS: names}, nil
+	return &network.Connections{Conns: conns, DNS: names}, nil
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
-func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, uint64, error) {
+func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.ConnectionStats, uint64, error) {
 	mp, err := t.getMap(connMap)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error retrieving the bpf %s map: %s", connMap, err)
@@ -575,24 +577,6 @@ func (t *Tracer) getMap(name bpfMapName) (*bpflib.Map, error) {
 	return mp, nil
 }
 
-func readBPFModule(debug bool) (*bpflib.Module, error) {
-	file := "tracer-ebpf.o"
-	if debug {
-		file = "tracer-ebpf-debug.o"
-	}
-
-	buf, err := Asset(file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	m := bpflib.NewModuleFromReader(bytes.NewReader(buf))
-	if m == nil {
-		return nil, fmt.Errorf("BPF not supported")
-	}
-	return m, nil
-}
-
 func (t *Tracer) timeoutForConn(c *ConnTuple) uint64 {
 	if c.isTCP() {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
@@ -655,19 +639,19 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 }
 
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
-func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
-	latestConns, _, err := t.getConnections(make([]ConnectionStats, 0))
+func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
+	latestConns, _, err := t.getConnections(make([]network.ConnectionStats, 0))
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
-	return &Connections{Conns: latestConns}, nil
+	return &network.Connections{Conns: latestConns}, nil
 }
 
 // populatePortMapping reads an entire portBinding bpf map and populates the userspace  port map.  A list of
 // closed ports will be returned.
 // the map will be one of port_bindings  or udp_port_bindings, and the mapping will be one of tracer#portMapping
 // tracer#udpPortMapping respectively.
-func (t *Tracer) populatePortMapping(mp *bpflib.Map, mapping *PortMapping) ([]uint16, error) {
+func (t *Tracer) populatePortMapping(mp *bpflib.Map, mapping *network.PortMapping) ([]uint16, error) {
 	var key, nextKey uint16
 	var state uint8
 
@@ -693,19 +677,19 @@ func (t *Tracer) populatePortMapping(mp *bpflib.Map, mapping *PortMapping) ([]ui
 	return closedPortBindings, nil
 }
 
-func (t *Tracer) determineConnectionDirection(conn *ConnectionStats) ConnectionDirection {
-	if conn.Type == UDP {
+func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) network.ConnectionDirection {
+	if conn.Type == network.UDP {
 		if t.udpPortMapping.IsListening(conn.SPort) {
-			return INCOMING
+			return network.INCOMING
 		}
-		return OUTGOING
+		return network.OUTGOING
 	}
 
 	if t.portMapping.IsListening(conn.SPort) {
-		return INCOMING
+		return network.INCOMING
 	}
 
-	return OUTGOING
+	return network.OUTGOING
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)

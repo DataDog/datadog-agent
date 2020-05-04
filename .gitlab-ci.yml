@@ -80,11 +80,11 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v2287129-4816dc7
-  DATADOG_AGENT_BUILDERS: v2311927-0e261ab
+  DATADOG_AGENT_BUILDIMAGES: v2424505-0439a40
+  DATADOG_AGENT_BUILDERS: v2448672-5304c3c
   DATADOG_AGENT_WINBUILDIMAGES: v2348149-ba6640d
-  DATADOG_AGENT_ARMBUILDIMAGES: v2287129-4816dc7
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2336045-3227a35
+  DATADOG_AGENT_ARMBUILDIMAGES: v2424505-0439a40
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2424505-0439a40
   BCC_VERSION: v0.12.0
   SYSTEM_PROBE_GO_VERSION: 1.13.8
 
@@ -320,7 +320,7 @@ run_tests_ebpf:
   before_script:
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
-    - pip3 install distro -c requirements.txt # needed for some of our invoke tasks until the builders image contain it
+    - pip3 install -r requirements.txt
     - inv -e deps --verbose --dep-vendor-only --no-checks
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
@@ -362,9 +362,9 @@ run_security_scan_test:
     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
       snyk monitor --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-      snyk monitor --project-name=datadog-agent-gopkg.lock --file=Gopkg.lock
+      snyk monitor --project-name=datadog-agent-go.sum --file=go.mod
 
-# check consistency of Gopkg.lock
+# check consistency of go.sum
 run_dep_check_lock:
   stage: source_test
   needs: ["fail_on_non_triggered_tag"]
@@ -376,8 +376,8 @@ run_dep_check_lock:
     - pip install -r requirements.txt
     - inv -e deps --no-dep-ensure --no-checks
   script:
-    # Print a message and fail if dep check fails
-    - dep check --skip-vendor || (echo "Gopkg.lock is out of sync with Gopkg.toml and project imports. Please run 'inv deps' and commit the change on Gopkg.lock." && false)
+    # Print a message and fail if go mod verify fails
+    - go mod verify || (echo "go.sum is out of sync with go.mod and project imports. Please run 'inv deps' and commit the change on go.sum." && false)
 
 run_shell_script_lint:
   stage: source_test
@@ -459,8 +459,8 @@ build_dogstatsd-deb_arm64:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
 
-# build puppy agent for deb-x64, to make sure the build is not broken because of build flags
-build_puppy_agent-deb_x64:
+# build iot agent for deb-x64, to make sure the build is not broken because of build flags
+build_iot_agent-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
@@ -469,11 +469,11 @@ build_puppy_agent-deb_x64:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
-    - inv -e agent.build --puppy --major-version 7
-    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/puppy/agent
+    - inv -e agent.build --iot --major-version 7
+    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
-# build puppy agent for ARM, to make sure the build is not broken because of build targets
-build_puppy_agent-deb_arm64:
+# build iot agent for ARM, to make sure the build is not broken because of build targets
+build_iot_agent-deb_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -488,7 +488,7 @@ build_puppy_agent-deb_arm64:
     - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
-    - inv -e agent.build --puppy --major-version 7
+    - inv -e agent.build --iot --major-version 7
 
 .cluster_agent-build_common: &cluster_agent-build_common
   stage: binary_build
@@ -801,11 +801,11 @@ agent_deb-arm-a7:
   <<: *agent_build_common_deb
 
 # build Agent package for deb-x64
-puppy_deb-x64:
+iot_agent_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["fail_on_non_triggered_tag", "build_puppy_agent-deb_x64"]
+  needs: ["fail_on_non_triggered_tag", "build_iot_agent-deb_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PACKAGE_ARCH: amd64
@@ -819,10 +819,10 @@ puppy_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
-    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-puppy*_amd64.deb" -exec dpkg -c {} \;
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb $S3_ARTIFACTS_URI/datadog-puppy_amd64.deb
-    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
+    - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-iot-agent*_amd64.deb" -exec dpkg -c {} \;
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-iot-agent*_amd64.deb $S3_ARTIFACTS_URI/datadog-iot-agent_amd64.deb
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-iot-agent*_amd64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
@@ -834,11 +834,11 @@ puppy_deb-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-puppy_deb-arm64:
+iot_agent_deb-arm64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "fail_on_non_triggered_tag", "build_puppy_agent-deb_arm64"]
+  needs: [ "fail_on_non_triggered_tag", "build_iot_agent-deb_arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
@@ -853,11 +853,11 @@ puppy_deb-arm64:
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
     - find $OMNIBUS_BASE_DIR/pkg
-    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-puppy*_arm64.deb" -exec dpkg -c {} \;
-    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_arm64.deb $S3_ARTIFACTS_URI/datadog-puppy_arm64.deb
-    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-puppy*_arm64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
+    - find $OMNIBUS_BASE_DIR/pkg -name "datadog-iot-agent*_arm64.deb" -exec dpkg -c {} \;
+    - $S3_CP_CMD $OMNIBUS_BASE_DIR/pkg/datadog-iot-agent*_arm64.deb $S3_ARTIFACTS_URI/datadog-iot-agent_arm64.deb
+    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/datadog-iot-agent*_arm64.deb{,.metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
   #   # cache per branch
@@ -869,11 +869,11 @@ puppy_deb-arm64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-puppy_rpm-x64:
+iot_agent_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: [ "fail_on_non_triggered_tag", "build_puppy_agent-deb_x64"]
+  needs: [ "fail_on_non_triggered_tag", "build_iot_agent-deb_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
@@ -892,7 +892,7 @@ puppy_rpm-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
 
-    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
   # cache:
@@ -905,11 +905,11 @@ puppy_rpm-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-puppy_rpm-arm64:
+iot_agent_rpm-arm64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "fail_on_non_triggered_tag", "build_puppy_agent-deb_arm64"]
+  needs: [ "fail_on_non_triggered_tag", "build_iot_agent-deb_arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
@@ -923,7 +923,7 @@ puppy_rpm-arm64:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   script:
-    - echo "About to build puppy for $RELEASE_VERSION"
+    - echo "About to build iot agent for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -935,7 +935,7 @@ puppy_rpm-arm64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query "Parameter.Value" --out text)
     - set -x
 
-    - inv -e agent.omnibus-build --puppy --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
     - ls $OMNIBUS_BASE_DIR/pkg/
     - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   # TODO: enabling the cache cause builds to be slower and slower on `master`. Re-enable once this is investigated/fixed
@@ -1122,7 +1122,7 @@ agent_suse-x64-a7:
   <<: *skip_when_unwanted_on_7
   <<: *agent_build_common_suse_rpm
 
-# cloudfoundry puppy build/windows
+# cloudfoundry iot build/windows
 windows_zip_agent_binaries_x64-a7:
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
@@ -1231,7 +1231,22 @@ windows_dsd_msi_x64-a7:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
 
-windows_choco_7_x64:
+windows_choco_online_7_x64:
+  stage: image_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
+  variables:
+    ARCH: "x64"
+  script:
+    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat
+    - copy build-out\*.nupkg .omnibus\pkg
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg
+  <<: *skip_when_unwanted_on_7
+
+windows_choco_offline_7_x64:
   stage: image_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
@@ -1245,12 +1260,13 @@ windows_choco_7_x64:
     expire_in: 2 weeks
     paths:
       - .omnibus/pkg
+  when: manual
   <<: *skip_when_unwanted_on_7
 
 publish_choco_7_x64:
   stage: image_deploy
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["fail_on_non_triggered_tag", "windows_choco_7_x64"]
+  needs: ["fail_on_non_triggered_tag", "windows_choco_online_7_x64"]
   variables:
     ARCH: "x64"
   before_script:
@@ -1656,6 +1672,7 @@ deploy_windows_testing-a7:
     - export TEST_PLATFORMS="ubuntu-14-04,urn,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.201906170"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-18-04,urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-20-04,urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202004230"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -2153,35 +2170,35 @@ send_pkg_size-a7:
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_deb-x64-a7
-    - puppy_deb-x64
+    - iot_agent_deb-x64
     - dogstatsd_deb-x64
     - agent_rpm-x64-a7
-    - puppy_rpm-x64
+    - iot_agent_rpm-x64
     - dogstatsd_rpm-x64
     - agent_suse-x64-a7
     - dogstatsd_suse-x64
   script:
     - source /root/.bashrc && conda activate ddpy3
-    - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/puppy
-    - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd /tmp/rpm/puppy
+    - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/iot-agent
+    - mkdir -p /tmp/rpm/agent /tmp/rpm/dogstatsd /tmp/rpm/iot-agent
     - mkdir -p /tmp/suse/agent /tmp/suse/dogstatsd
 
     # We silence dpkg and cpio output so we don't exceed gitlab log limit
 
     # debian
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb /tmp/deb/agent > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-puppy_7*_amd64.deb /tmp/deb/puppy > /dev/null
+    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_amd64.deb /tmp/deb/iot-agent > /dev/null
     - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_amd64.deb /tmp/deb/dogstatsd > /dev/null
     - DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/agent | sed 's/\([0-9]\+\).\+/\1/')
     - DEB_DOGSTATSD_SIZE=$(du -sB1 /tmp/deb/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
-    - DEB_PUPPY_SIZE=$(du -sB1 /tmp/deb/puppy | sed 's/\([0-9]\+\).\+/\1/')
+    - DEB_IOT_AGENT_SIZE=$(du -sB1 /tmp/deb/iot-agent | sed 's/\([0-9]\+\).\+/\1/')
     # centos
-    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/rpm/puppy && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-puppy-7.*.x86_64.rpm | cpio -idm > /dev/null
+    - cd /tmp/rpm/iot-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
     - RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/agent | sed 's/\([0-9]\+\).\+/\1/')
     - RPM_DOGSTATSD_SIZE=$(du -sB1 /tmp/rpm/dogstatsd | sed 's/\([0-9]\+\).\+/\1/')
-    - RPM_PUPPY_SIZE=$(du -sB1 /tmp/rpm/puppy | sed 's/\([0-9]\+\).\+/\1/')
+    - RPM_IOT_AGENT_SIZE=$(du -sB1 /tmp/rpm/iot-agent | sed 's/\([0-9]\+\).\+/\1/')
     # suse
     - cd /tmp/suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
     - cd /tmp/suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
@@ -2195,10 +2212,10 @@ send_pkg_size-a7:
       -d "{\"series\":[
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:7\"]},
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_DOGSTATSD_SIZE]], \"tags\":[\"os:debian\", \"package:dogstatsd\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_PUPPY_SIZE]], \"tags\":[\"os:debian\", \"package:puppy\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_IOT_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:iot-agent\", \"agent:7\"]},
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:7\"]},
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_DOGSTATSD_SIZE]], \"tags\":[\"os:centos\", \"package:dogstatsd\", \"agent:7\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_PUPPY_SIZE]], \"tags\":[\"os:centos\", \"package:puppy\", \"agent:7\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_IOT_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:iot-agent\", \"agent:7\"]},
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:7\"]},
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_DOGSTATSD_SIZE]], \"tags\":[\"os:suse\", \"package:dogstatsd\", \"agent:7\"]}
           ]}" \
@@ -3281,8 +3298,8 @@ deploy_dsd:
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy puppy binary to staging bucket
-deploy_puppy:
+# deploy iot-agent binary to staging bucket
+deploy_iot_agent:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
@@ -3290,9 +3307,9 @@ deploy_puppy:
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/puppy/agent ./agent
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
-    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/linux/puppy/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy agent windows zip to the staging bucket, currently used for cloudfoundry bosh
 deploy_datadog_agent_windows_zip:
