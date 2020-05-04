@@ -41,7 +41,7 @@ type Agent struct {
 	health           *health.Handle
 }
 
-// NewAgent returns a new Agent
+// NewAgent returns a new Logs Agent
 func NewAgent(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.Register("logs-agent")
 
@@ -57,7 +57,11 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// setup the inputs
 	inputs := []restart.Restartable{
 		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		container.NewLauncher(coreConfig.Datadog.GetBool("logs_config.container_collect_all"), coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file"), sources, services, pipelineProvider, auditor),
+		container.NewLauncher(
+			coreConfig.Datadog.GetBool("logs_config.container_collect_all"),
+			coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file"),
+			time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
+			sources, services, pipelineProvider, auditor),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),

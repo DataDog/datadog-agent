@@ -26,6 +26,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
 /cmd/system-probe/                      @DataDog/networks
+/cmd/security-agent                     @DataDog/container-integrations
 
 /Dockerfiles/                           @DataDog/container-integrations
 
@@ -86,8 +87,10 @@
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
 /pkg/quantile                           @DataDog/metrics-aggregation
+/pkg/compliance                         @DataDog/container-integrations
 
 /releasenotes/                          @DataDog/agent-all
 /releasenotes-dca/                      @DataDog/container-integrations

@@ -66,13 +66,13 @@ type AutoscalersController struct {
 	// used in unit tests to wait until hpas are synced
 	autoscalers chan interface{}
 
-	toStore   metricsBatch
-	hpaProc   autoscalers.ProcessorInterface
-	store     custommetrics.Store
-	clientSet kubernetes.Interface
-	poller    PollerConfig
-	le        LeaderElectorInterface
-	mu        sync.Mutex
+	toStore      metricsBatch
+	hpaProc      autoscalers.ProcessorInterface
+	store        custommetrics.Store
+	clientSet    kubernetes.Interface
+	poller       PollerConfig
+	isLeaderFunc func() bool
+	mu           sync.Mutex
 }
 
 // RunHPA starts the controller to process events about Horizontal Pod Autoscalers
@@ -215,7 +215,7 @@ func (h *AutoscalersController) deleteAutoscaler(obj interface{}) {
 		toDelete.External = autoscalers.InspectHPA(deletedHPA)
 		h.deleteFromLocalStore(toDelete.External)
 		log.Debugf("Deleting %s/%s from the local cache", deletedHPA.Namespace, deletedHPA.Name)
-		if !h.le.IsLeader() {
+		if !h.isLeaderFunc() {
 			return
 		}
 		log.Infof("Deleting entries of metrics from Ref %s/%s in the Global Store", deletedHPA.Namespace, deletedHPA.Name)
