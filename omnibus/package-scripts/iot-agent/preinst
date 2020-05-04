@@ -29,10 +29,10 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             if command -v service >/dev/null 2>&1; then
                 service $SERVICE_NAME stop || true
             else
-                echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
+                echo "[ WARNING ]\tCannot detect a supported init system. The datadog-iot-agent package only provides service files for systemd, upstart and sysvinit."
             fi
         else
-            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-iot-agent package only provides service files for systemd and upstart."
         fi
     fi
 
