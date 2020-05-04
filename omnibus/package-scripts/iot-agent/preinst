@@ -6,7 +6,6 @@
 # .rpm: STEP 2 of 6
 
 INSTALL_DIR=/opt/datadog-agent
-LOG_DIR=/var/log/datadog
 SERVICE_NAME=datadog-agent
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
