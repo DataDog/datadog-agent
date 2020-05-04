@@ -100,7 +100,6 @@ func runAgent() {
 	}
 	defer sysprobe.Close()
 
-	// WIP(safchain) modules draft
 	lis, err := net.Listen("tcp", ":8787")
 	if err != nil {
 		log.Criticalf("failed to create system probe: %s", err)
@@ -108,22 +107,21 @@ func runAgent() {
 	}
 	grpcServer := grpc.NewServer()
 
-	specs := []module.Spec{
-		module.Spec{
+	factories := []module.Factory{
+		module.Factory{
 			Name: "security-module",
-			New:  secmodule.NewModule,
+			Fn:   secmodule.NewModule,
 		},
 	}
 
-	factory := module.NewFactory()
-	if err := factory.Run(cfg, specs, module.Opts{GRPCServer: grpcServer}); err != nil {
-		log.Criticalf("failed to instantiate modules: %s", err)
+	loader := module.NewLoader()
+	if err := loader.Register(cfg, grpcServer, factories); err != nil {
+		log.Criticalf("failed to register modules: %s", err)
 		os.Exit(1)
 	}
-	defer factory.Stop()
+	defer loader.Close()
 
 	go grpcServer.Serve(lis)
-	// /WIP(safchain) modules draft
 
 	go sysprobe.Run()
 	log.Infof("system probe successfully started")

@@ -2,10 +2,10 @@ package module
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/module"
 	aconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -22,19 +22,19 @@ type Module struct {
 	ruleSet *eval.RuleSet
 }
 
-func (a *Module) Start() error {
+func (a *Module) Register(server *grpc.Server) error {
 	a.probe.SetEventHandler(a)
-	a.ruleSet.AddListener(a)
+
+	eventServer := NewEventServer()
+	api.RegisterSecurityModuleServer(server, eventServer)
+
+	a.ruleSet.AddListener(eventServer)
 
 	return a.probe.Start()
 }
 
-func (a *Module) Stop() {
+func (a *Module) Close() {
 	a.probe.Stop()
-}
-
-func (a *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
-	log.Printf("Event %+v matched against rule %+v", rule, event)
 }
 
 func (a *Module) DiscriminatorDiscovered(event eval.Event, field string) {
@@ -69,11 +69,11 @@ func (a *Module) LoadPolicies() error {
 	return nil
 }
 
-func (a *Module) GetStatus() module.Status {
-	return module.Status{}
+func (a *Module) GetStats() map[string]interface{} {
+	return nil
 }
 
-func NewModule(cfg *aconfig.AgentConfig, opts module.Opts) (module.Module, error) {
+func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 	config, err := config.NewConfig()
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid security agent configuration")
@@ -93,11 +93,6 @@ func NewModule(cfg *aconfig.AgentConfig, opts module.Opts) (module.Module, error
 	if err := agent.LoadPolicies(); err != nil {
 		return nil, err
 	}
-
-	server := NewEventServer()
-	api.RegisterSecurityModuleServer(opts.GRPCServer, server)
-
-	agent.ruleSet.AddListener(server)
 
 	return agent, nil
 }

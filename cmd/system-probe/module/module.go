@@ -6,69 +6,48 @@ import (
 	"google.golang.org/grpc"
 )
 
-type Factory struct {
+type Loader struct {
 	modules map[string]Module
 }
 
-type Opts struct {
-	GRPCServer *grpc.Server
-
-	// add more options
-	//FDServer *fdexporter.Server
-}
-
-type Caps struct {
-}
-
-type Spec struct {
+type Factory struct {
 	Name string
-	Caps Caps
-	New  func(cfg *config.AgentConfig, opts Opts) (Module, error)
-}
-
-type Status struct {
-	LoadedMaps    []string
-	EnableKProbes []string
-	PerfRingMiss  int
+	Fn   func(cfg *config.AgentConfig) (Module, error)
 }
 
 type Module interface {
-	// could be moved to grpc
-	//GetStats() interface{}
-	GetStatus() Status
-	Start() error
-	Stop()
+	GetStats() map[string]interface{}
+	Register(*grpc.Server) error
+	Close()
 }
 
-func (f *Factory) Run(cfg *config.AgentConfig, specs []Spec, opts Opts) error {
-	for _, spec := range specs {
-		module, err := spec.New(cfg, opts)
+func (l *Loader) Register(cfg *config.AgentConfig, server *grpc.Server, factories []Factory) error {
+	for _, factory := range factories {
+		module, err := factory.Fn(cfg)
 		if err != nil {
 			return err
 		}
 
-		f.modules[spec.Name] = module
-	}
-
-	for name, module := range f.modules {
-		log.Infof("module: %s starting", name)
-		if err := module.Start(); err != nil {
+		if err = module.Register(server); err != nil {
 			return err
 		}
-		log.Infof("module: %s started", name)
+
+		l.modules[factory.Name] = module
+
+		log.Infof("module: %s started", factory.Name)
 	}
 
 	return nil
 }
 
-func (f *Factory) Stop() {
-	for _, module := range f.modules {
-		module.Stop()
+func (l *Loader) Close() {
+	for _, module := range l.modules {
+		module.Close()
 	}
 }
 
-func NewFactory() *Factory {
-	return &Factory{
+func NewLoader() *Loader {
+	return &Loader{
 		modules: make(map[string]Module),
 	}
 }
