@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_7.19.1:
 
-7.19.1 / 6.19.1
+7.19.1
 ======
 
 .. _Release Notes_7.19.1_Prelude:
