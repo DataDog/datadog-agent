@@ -13,6 +13,7 @@ run:
     - pkg/quantile
     # TODO burrito
     - pkg/ebpf
+    - pkg/network
 
 issues:
   max-issues-per-linter: 0

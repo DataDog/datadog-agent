@@ -50,6 +50,7 @@ type DCAClientInterface interface {
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
+	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
 
 	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
 	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
@@ -267,6 +268,39 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	}
 	err = json.Unmarshal(body, &labels)
 	return labels, err
+}
+
+// GetCFAppsMetadataForNode returns the CF application tags from the Cluster Agent.
+func (c *DCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
+	const dcaCFAppsMeta = "api/v1/tags/cf/apps"
+	var err error
+	var tags map[string][]string
+
+	// https://host:port/api/v1/tags/cf/apps/{nodename}
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaCFAppsMeta, nodename)
+
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(body, &tags)
+	return tags, err
 }
 
 // GetPodsMetadataForNode queries the datadog cluster agent to get nodeName registered

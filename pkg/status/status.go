@@ -84,7 +84,7 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 
-	stats["systemProbeStats"] = getSystemProbeStats()
+	stats["systemProbeStats"] = GetSystemProbeStats()
 
 	return stats, nil
 }
