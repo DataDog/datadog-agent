@@ -54,10 +54,15 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
+<<<<<<< HEAD
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(
         build="security-agent"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
+=======
+    ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
+    build_tags = get_default_build_tags(iot=False, process=False, arch=arch)
+>>>>>>> 516662899... Build fix for the security agent
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
