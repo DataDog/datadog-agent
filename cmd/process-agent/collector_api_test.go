@@ -35,7 +35,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
@@ -68,7 +68,7 @@ func TestSendContainerMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/container", req.uri)
@@ -99,7 +99,7 @@ func TestSendProcMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
@@ -132,7 +132,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		requests := []request{
 			<-ep.Requests,
 			<-ep.Requests,
@@ -169,7 +169,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		reqBody, err := process.DecodeMessage(req.body)
@@ -206,7 +206,7 @@ func TestSendPodMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/orchestrator", req.uri)
@@ -228,12 +228,78 @@ func TestSendPodMessage(t *testing.T) {
 	})
 }
 
-func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, tc func(cfg *config.AgentConfig, ep *mockEndpoint)) {
+func TestQueueSpaceNotAvailable(t *testing.T) {
+	m := &process.CollectorRealTime{
+		HostName: testHostName,
+		GroupId:  1,
+	}
+
+	check := &testCheck{
+		name: checks.RTProcess.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
+
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.QueueBytes = 1
+
+	runCollectorTest(t, check, cfg, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+		select {
+		case r := <-ep.Requests:
+			t.Fatalf("should not have received a request: %+v", r)
+		case <-time.After(2 * time.Second):
+
+		}
+	})
+}
+
+// TestQueueSpaceReleased tests that queue space is released after sending a payload
+func TestQueueSpaceReleased(t *testing.T) {
+	m1 := &process.CollectorRealTime{
+		HostName: testHostName,
+		GroupId:  1,
+	}
+
+	m2 := &process.CollectorRealTime{
+		HostName: testHostName,
+		GroupId:  2,
+	}
+
+	check := &testCheck{
+		name: checks.RTProcess.Name(),
+		data: [][]process.MessageBody{{m1}, {m2}},
+	}
+
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.QueueBytes = 50 // This should be enough for one message, but not both if the space isn't released
+
+	runCollectorTest(t, check, cfg, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+		req := <-ep.Requests
+
+		reqBody, err := process.DecodeMessage(req.body)
+		require.NoError(t, err)
+
+		body, ok := reqBody.Body.(*process.CollectorRealTime)
+		require.True(t, ok)
+
+		assert.Equal(t, int32(1), body.GroupId)
+
+		req = <-ep.Requests
+
+		reqBody, err = process.DecodeMessage(req.body)
+		require.NoError(t, err)
+
+		body, ok = reqBody.Body.(*process.CollectorRealTime)
+		require.True(t, ok)
+
+		assert.Equal(t, int32(2), body.GroupId)
+	})
+}
+
+func runCollectorTest(t *testing.T, check checks.Check, cfg *config.AgentConfig, epConfig *endpointConfig, tc func(cfg *config.AgentConfig, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
 
-	cfg := config.NewDefaultAgentConfig(false)
 	cfg.APIEndpoints = []api.Endpoint{{APIKey: "apiKey", Endpoint: collectorAddr}}
 	cfg.OrchestratorEndpoints = []api.Endpoint{{APIKey: "orchestratorApiKey", Endpoint: orchestratorAddr}}
 	cfg.HostName = testHostName

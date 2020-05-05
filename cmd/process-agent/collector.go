@@ -24,8 +24,9 @@ import (
 )
 
 type checkPayload struct {
-	messages []model.MessageBody
-	name     string
+	name    string
+	body    []byte
+	headers http.Header
 }
 
 // Collector will collect metrics from the local system and ship to the backend.
@@ -45,6 +46,10 @@ type Collector struct {
 
 	// Controls the real-time interval, can change live.
 	realTimeInterval time.Duration
+
+	// The number of payload bytes that are currently awaiting delivery across all queues.  This should be managed
+	// via `acquireQueueBytes` and `releaseQueueBytes`
+	bytesEnqueued int32
 }
 
 // NewCollector creates a new Collector
@@ -92,21 +97,80 @@ func (l *Collector) runCheck(c checks.Check, payloads chan checkPayload) {
 	messages, err := c.Run(l.cfg, atomic.AddInt32(&l.groupID, 1))
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
-	} else {
-		payloads <- checkPayload{messages, c.Name()}
-		// update proc and container count for info
-		updateProcContainerCount(messages)
-		if !c.RealTime() {
-			d := time.Since(s)
-			switch {
-			case runCounter < 5:
-				log.Infof("Finished %s check #%d in %s", c.Name(), runCounter, d)
-			case runCounter == 5:
-				log.Infof("Finished %s check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", c.Name(), runCounter, d)
-			case runCounter%20 == 0:
-				log.Infof("Finish %s check #%d in %s", c.Name(), runCounter, d)
-			}
+		return
+	}
+
+	for _, m := range messages {
+		body, err := encodePayload(m)
+		if err != nil {
+			log.Errorf("Unable to encode message: %s", err)
+			continue
 		}
+
+		extraHeaders := make(http.Header)
+		extraHeaders.Set(api.HostHeader, l.cfg.HostName)
+		extraHeaders.Set(api.ProcessVersionHeader, Version)
+		extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+
+		if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+			extraHeaders.Set(api.ClusterIDHeader, cid)
+		}
+
+		if err := l.acquireQueueBytes(len(body)); err != nil {
+			log.Errorf("Unable to enqueue message: %s", err)
+			continue
+		}
+
+		payload := checkPayload{
+			name:    c.Name(),
+			body:    body,
+			headers: extraHeaders,
+		}
+		select {
+		case payloads <- payload:
+		default:
+			bytesEnqueued := atomic.LoadInt32(&l.bytesEnqueued)
+			log.Warnf("Delivery queue is full.  Size=%d, Bytes Enqueued=%d.  Waiting for space...", len(payloads), bytesEnqueued)
+
+			payloads <- payload
+		}
+	}
+
+	// update proc and container count for info
+	updateProcContainerCount(messages)
+	if !c.RealTime() {
+		d := time.Since(s)
+		switch {
+		case runCounter < 5:
+			log.Infof("Finished %s check #%d in %s", c.Name(), runCounter, d)
+		case runCounter == 5:
+			log.Infof("Finished %s check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", c.Name(), runCounter, d)
+		case runCounter%20 == 0:
+			log.Infof("Finish %s check #%d in %s", c.Name(), runCounter, d)
+		}
+	}
+}
+
+func (l *Collector) acquireQueueBytes(bytesRequested int) error {
+	max := int32(l.cfg.QueueBytes)
+
+	for {
+		currentSize := atomic.LoadInt32(&l.bytesEnqueued)
+		newSize := int32(bytesRequested) + currentSize
+		if newSize > max {
+			return fmt.Errorf("cannot acquire %d bytes of queue space, queue size %d would exceed capacity %d", bytesRequested, newSize, max)
+		}
+		if atomic.CompareAndSwapInt32(&l.bytesEnqueued, currentSize, newSize) {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (l *Collector) releaseQueueBytes(bytesReleased int) {
+	if v := atomic.AddInt32(&l.bytesEnqueued, -1*int32(bytesReleased)); v < 0 {
+		log.Errorf("Releasing %d bytes from queue caused value to go negative: %d.", bytesReleased, v)
 	}
 }
 
@@ -147,6 +211,8 @@ func (l *Collector) run(exit chan bool) error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
 			case <-queueSizeTicker.C:
+				queueBytes := atomic.LoadInt32(&l.bytesEnqueued)
+				updateQueueBytes(int(queueBytes))
 				updateQueueSize(len(processPayloads), len(podPayloads))
 			case <-exit:
 				return
@@ -232,56 +298,36 @@ func (l *Collector) consumePayloads(payloads chan checkPayload, fwd forwarder.Fo
 	for {
 		select {
 		case payload := <-payloads:
-			if len(payloads) >= l.cfg.QueueSize {
-				log.Info("Expiring payload from in-memory queue.")
-				// Limit number of items kept in memory while we wait.
-				<-payloads
+			l.releaseQueueBytes(len(payload.body))
+
+			forwarderPayload := forwarder.Payloads{&payload.body}
+			var responses chan forwarder.Response
+			var err error
+
+			switch payload.name {
+			case checks.Process.Name():
+				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
+			case checks.RTProcess.Name():
+				responses, err = fwd.SubmitRTProcessChecks(forwarderPayload, payload.headers)
+			case checks.Container.Name():
+				responses, err = fwd.SubmitContainerChecks(forwarderPayload, payload.headers)
+			case checks.RTContainer.Name():
+				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
+			case checks.Connections.Name():
+				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
+			case checks.Pod.Name():
+				responses, err = fwd.SubmitPodChecks(forwarderPayload, payload.headers)
+			default:
+				err = fmt.Errorf("unsupported payload type: %s", payload.name)
 			}
 
-			for _, m := range payload.messages {
-				extraHeaders := make(http.Header)
-				extraHeaders.Set(api.HostHeader, l.cfg.HostName)
-				extraHeaders.Set(api.ProcessVersionHeader, Version)
-				extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+			if err != nil {
+				log.Errorf("Unable to submit payload: %s", err)
+				continue
+			}
 
-				if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-					extraHeaders.Set(api.ClusterIDHeader, cid)
-				}
-
-				body, err := encodePayload(m)
-				if err != nil {
-					log.Errorf("Unable to encode message: %s", err)
-					continue
-				}
-
-				payloads := forwarder.Payloads{&body}
-				var responses chan forwarder.Response
-
-				switch payload.name {
-				case checks.Process.Name():
-					responses, err = fwd.SubmitProcessChecks(payloads, extraHeaders)
-				case checks.RTProcess.Name():
-					responses, err = fwd.SubmitRTProcessChecks(payloads, extraHeaders)
-				case checks.Container.Name():
-					responses, err = fwd.SubmitContainerChecks(payloads, extraHeaders)
-				case checks.RTContainer.Name():
-					responses, err = fwd.SubmitRTContainerChecks(payloads, extraHeaders)
-				case checks.Connections.Name():
-					responses, err = fwd.SubmitConnectionChecks(payloads, extraHeaders)
-				case checks.Pod.Name():
-					responses, err = fwd.SubmitPodChecks(payloads, extraHeaders)
-				default:
-					err = fmt.Errorf("unsupported payload type: %s", payload.name)
-				}
-
-				if err != nil {
-					log.Errorf("Unable to submit payload: %s", err)
-					continue
-				}
-
-				if statuses := readResponseStatuses(responses); len(statuses) > 0 {
-					l.updateStatus(statuses)
-				}
+			if statuses := readResponseStatuses(responses); len(statuses) > 0 {
+				l.updateStatus(statuses)
 			}
 		case <-exit:
 			return

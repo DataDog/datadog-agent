@@ -31,6 +31,7 @@ var (
 	infoContainerCount   int
 	infoProcessQueueSize int
 	infoPodQueueSize     int
+	infoQueueBytes       int
 )
 
 const (
@@ -49,6 +50,7 @@ const (
   Number of containers: {{.Status.ContainerCount}}
   Process Queue length: {{.Status.ProcessQueueSize}}
   Pod Queue length: {{.Status.PodQueueSize}}
+  Bytes enqueued: {{.Status.QueueBytes}}
 
   Logs: {{.Status.Config.LogFile}}{{if .Status.ProxyURL}}
   HttpProxy: {{.Status.ProxyURL}}{{end}}{{if ne .Status.ContainerID ""}}
@@ -157,6 +159,18 @@ func publishPodQueueSize() interface{} {
 	return infoPodQueueSize
 }
 
+func updateQueueBytes(queueBytes int) {
+	infoMutex.Lock()
+	defer infoMutex.Unlock()
+	infoQueueBytes = queueBytes
+}
+
+func publishQueueBytes() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoQueueBytes
+}
+
 func publishContainerID() interface{} {
 	cgroupFile := "/proc/self/cgroup"
 	if !util.PathExists(cgroupFile) {
@@ -216,6 +230,7 @@ type StatusInfo struct {
 	ContainerCount   int                    `json:"container_count"`
 	ProcessQueueSize int                    `json:"process_queue_size"`
 	PodQueueSize     int                    `json:"pod_queue_size"`
+	QueueBytes       int                    `json:"queue_bytes"`
 	ContainerID      string                 `json:"container_id"`
 	ProxyURL         string                 `json:"proxy_url"`
 }
@@ -241,6 +256,7 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("container_count", expvar.Func(publishContainerCount))
 		expvar.Publish("process_queue_size", expvar.Func(publishProcessQueueSize))
 		expvar.Publish("pod_queue_size", expvar.Func(publishPodQueueSize))
+		expvar.Publish("queue_bytes", expvar.Func(publishQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
