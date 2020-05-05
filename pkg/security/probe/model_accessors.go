@@ -45,8 +45,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 	case "mkdir.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.dentryResolver.Resolve(m.event.Mkdir.SrcPathnameKey) },
-			DebugEval: func(ctx *eval.Context) string { return m.dentryResolver.Resolve(m.event.Mkdir.SrcPathnameKey) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Mkdir.Resolve(m) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.Resolve(m) },
 
 			Field: key,
 		}, []string{"fs"}, nil

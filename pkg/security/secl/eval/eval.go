@@ -70,6 +70,10 @@ type BoolEvaluator struct {
 	IsPartial bool
 }
 
+func (b *BoolEvaluator) String() string {
+	return fmt.Sprintf("%t", b.Eval(nil))
+}
+
 type IntEvaluator struct {
 	Eval      func(ctx *Context) int
 	DebugEval func(ctx *Context) int
@@ -79,6 +83,10 @@ type IntEvaluator struct {
 	IsPartial bool
 }
 
+func (i *IntEvaluator) String() string {
+	return fmt.Sprintf("%d", i.Eval(nil))
+}
+
 type StringEvaluator struct {
 	Eval      func(ctx *Context) string
 	DebugEval func(ctx *Context) string
@@ -86,6 +94,10 @@ type StringEvaluator struct {
 
 	Field     string
 	IsPartial bool
+}
+
+func (s *StringEvaluator) String() string {
+	return s.Eval(nil)
 }
 
 type StringArray struct {
