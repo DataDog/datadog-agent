@@ -22,7 +22,7 @@ const (
 	netlinkCtNew      = uint32(1)
 	ipctnlMsgCtGet    = 1
 	outputBuffer      = 100
-	overshootFactor   = 0.9
+	overshootFactor   = 0.95
 	netlinkBufferSize = 1024 * 1024 // 1Mb
 
 	// The maximum number of messages we're willing to read off the socket per second
@@ -325,7 +325,7 @@ func (c *Consumer) throttle(numMessages int) error {
 
 	// Create new socket with the desired sampling rate
 	// We calculate the required sampling rate to reach the target maxMessagesPersecond
-	samplingRate := float64(maxMessagesPerSecond) * overshootFactor / float64(c.breaker.Rate())
+	samplingRate := float64(maxMessagesPerSecond) * overshootFactor * c.samplingRate / float64(c.breaker.Rate())
 	err := c.initNetlinkSocket(samplingRate)
 	if err != nil {
 		log.Errorf("failed to re-create netlink socket. exiting conntrack: %s", err)
