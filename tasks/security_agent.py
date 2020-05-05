@@ -63,13 +63,8 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-    ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
-
-    build_exclude = []
-    if not sys.platform.startswith('linux'):
-        build_exclude = LINUX_ONLY_TAGS
-
-    build_tags = get_build_tags(DEFAULT_BUILD_TAGS, build_exclude)
+    ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
+    build_tags = get_default_build_tags(iot=False, process=False, arch=arch)
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
