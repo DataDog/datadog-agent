@@ -74,9 +74,16 @@ end
 
 # Linux
 if linux?
-  if debian?
+  # Upstart
+  if debian? || redhat? || suse?
     extra_package_file '/etc/init/datadog-agent.conf'
+  end
+
+  # Systemd
+  if debian?
     extra_package_file '/lib/systemd/system/datadog-agent.service'
+  else
+    extra_package_file '/usr/lib/systemd/system/datadog-agent.service'
   end
 
   # Example configuration files for the agent and the checks
