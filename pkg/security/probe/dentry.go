@@ -6,32 +6,31 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"unsafe"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/iovisor/gobpf/bcc"
 
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // handleDentryEvent - Handles a dentry event
 func (p *Probe) handleDentryEvent(data []byte) {
-	log.Println("Handling dentry event")
+	log.Debugf("Handling dentry event")
 
 	offset := 0
 	event := &Event{}
 
 	read, err := event.Event.UnmarshalBinary(data)
 	if err != nil {
-		log.Println("failed to decode event")
+		log.Errorf("failed to decode event")
 		return
 	}
 	offset += read
 
 	read, err = event.Process.UnmarshalBinary(data[offset:])
 	if err != nil {
-		log.Println("failed to decode process event")
+		log.Errorf("failed to decode process event")
 		return
 	}
 	offset += read
@@ -39,14 +38,14 @@ func (p *Probe) handleDentryEvent(data []byte) {
 	switch ProbeEventType(event.Event.Type) {
 	case FileMkdirEventType:
 		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
-			log.Println("failed to decode received data")
+			log.Errorf("failed to decode received data")
 			return
 		}
 	default:
-		log.Printf("Unsupported event type %d\n", event.Event.Type)
+		log.Errorf("Unsupported event type %d\n", event.Event.Type)
 	}
 
-	log.Printf("Dispatching event %s\n", spew.Sdump(event))
+	log.Debugf("Dispatching event %s\n", spew.Sdump(event))
 	p.DispatchEvent(event)
 }
 

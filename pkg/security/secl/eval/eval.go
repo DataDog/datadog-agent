@@ -4,7 +4,6 @@ package eval
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"sort"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var ErrFieldNotFound = errors.New("field not found")
@@ -28,7 +28,7 @@ type Context struct {
 }
 
 func (c *Context) Logf(format string, v ...interface{}) {
-	log.Printf(strings.Repeat("\t", c.evalDepth-1)+format, v...)
+	log.Debugf(strings.Repeat("\t", c.evalDepth-1)+format, v...)
 }
 
 var (
