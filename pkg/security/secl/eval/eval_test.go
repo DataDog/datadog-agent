@@ -35,7 +35,7 @@ func (m *testModel) SetData(data interface{}) {
 	m.data = data.(testEvent)
 }
 
-func (m *testModel) GetEvaluator(key string) (interface{}, []string, error) {
+func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 	switch key {
 
 	case "process.name":
@@ -44,7 +44,7 @@ func (m *testModel) GetEvaluator(key string) (interface{}, []string, error) {
 			Eval:      func(ctx *Context) string { return m.data.process.name },
 			DebugEval: func(ctx *Context) string { return m.data.process.name },
 			Field:     key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "process.uid":
 
@@ -52,7 +52,7 @@ func (m *testModel) GetEvaluator(key string) (interface{}, []string, error) {
 			Eval:      func(ctx *Context) int { return m.data.process.uid },
 			DebugEval: func(ctx *Context) int { return m.data.process.uid },
 			Field:     key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "process.is_root":
 
@@ -60,7 +60,7 @@ func (m *testModel) GetEvaluator(key string) (interface{}, []string, error) {
 			Eval:      func(ctx *Context) bool { return m.data.process.isRoot },
 			DebugEval: func(ctx *Context) bool { return m.data.process.isRoot },
 			Field:     key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "open.filename":
 
@@ -68,7 +68,7 @@ func (m *testModel) GetEvaluator(key string) (interface{}, []string, error) {
 			Eval:      func(ctx *Context) string { return m.data.open.filename },
 			DebugEval: func(ctx *Context) string { return m.data.open.filename },
 			Field:     key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "open.flags":
 
@@ -76,11 +76,39 @@ func (m *testModel) GetEvaluator(key string) (interface{}, []string, error) {
 			Eval:      func(ctx *Context) int { return m.data.open.flags },
 			DebugEval: func(ctx *Context) int { return m.data.open.flags },
 			Field:     key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	}
 
-	return nil, nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrFieldNotFound, key)
+}
+
+func (m *testModel) GetTags(key string) ([]string, error) {
+	switch key {
+
+	case "process.name":
+
+		return []string{"process"}, nil
+
+	case "process.uid":
+
+		return []string{"process"}, nil
+
+	case "process.is_root":
+
+		return []string{"process"}, nil
+
+	case "open.filename":
+
+		return []string{"fs"}, nil
+
+	case "open.flags":
+
+		return []string{"fs"}, nil
+
+	}
+
+	return nil, errors.Wrap(ErrFieldNotFound, key)
 }
 
 func parse(t *testing.T, expr string, macros map[string]*ast.Macro, model Model, debug bool) (*RuleEvaluator, *ast.Rule, error) {

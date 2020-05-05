@@ -12,7 +12,7 @@ var (
 	ErrFieldNotFound = errors.New("field not found")
 )
 
-func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
+func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	switch key {
 
 	case "container.id":
@@ -22,7 +22,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) string { return m.event.Container.ID },
 
 			Field: key,
-		}, []string{"container"}, nil
+		}, nil
 
 	case "event.retval":
 
@@ -31,7 +31,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Event.Retval) },
 
 			Field: key,
-		}, []string{}, nil
+		}, nil
 
 	case "event.type":
 
@@ -40,7 +40,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Event.Type) },
 
 			Field: key,
-		}, []string{}, nil
+		}, nil
 
 	case "mkdir.filename":
 
@@ -49,7 +49,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.Resolve(m) },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "mkdir.flags":
 
@@ -58,7 +58,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.Flags) },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "mkdir.mode":
 
@@ -67,7 +67,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.Mode) },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "mkdir.source_inode":
 
@@ -76,7 +76,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.SrcInode) },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "mkdir.source_mount_id":
 
@@ -85,7 +85,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.SrcMountID) },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "mkdir.target_inode":
 
@@ -94,7 +94,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.TargetInode) },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "mkdir.target_mount_id":
 
@@ -103,7 +103,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.TargetMountID) },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "open.filename":
 
@@ -112,7 +112,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) string { return m.event.Open.Filename },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "open.flags":
 
@@ -121,7 +121,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Open.Flags) },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "open.mode":
 
@@ -130,7 +130,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Open.Mode) },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "process.gid":
 
@@ -139,7 +139,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Process.GID) },
 
 			Field: key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "process.name":
 
@@ -148,7 +148,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) string { return m.event.Process.GetComm() },
 
 			Field: key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "process.pid":
 
@@ -157,7 +157,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Process.Pid) },
 
 			Field: key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "process.pidns":
 
@@ -166,7 +166,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Process.Pidns) },
 
 			Field: key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "process.tid":
 
@@ -175,7 +175,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Process.Tid) },
 
 			Field: key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "process.tty_name":
 
@@ -184,7 +184,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) string { return m.event.Process.GetTTY() },
 
 			Field: key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "process.uid":
 
@@ -193,7 +193,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Process.UID) },
 
 			Field: key,
-		}, []string{"process"}, nil
+		}, nil
 
 	case "rename.newname":
 
@@ -202,7 +202,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.NewName },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "rename.oldname":
 
@@ -211,7 +211,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.OldName },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	case "unlink.filename":
 
@@ -220,9 +220,86 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) string { return m.event.Unlink.Filename },
 
 			Field: key,
-		}, []string{"fs"}, nil
+		}, nil
 
 	}
 
-	return nil, nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrFieldNotFound, key)
+}
+
+func (m *Model) GetTags(key string) ([]string, error) {
+	switch key {
+
+	case "container.id":
+		return []string{"container"}, nil
+
+	case "event.retval":
+		return []string{}, nil
+
+	case "event.type":
+		return []string{}, nil
+
+	case "mkdir.filename":
+		return []string{"fs"}, nil
+
+	case "mkdir.flags":
+		return []string{"fs"}, nil
+
+	case "mkdir.mode":
+		return []string{"fs"}, nil
+
+	case "mkdir.source_inode":
+		return []string{"fs"}, nil
+
+	case "mkdir.source_mount_id":
+		return []string{"fs"}, nil
+
+	case "mkdir.target_inode":
+		return []string{"fs"}, nil
+
+	case "mkdir.target_mount_id":
+		return []string{"fs"}, nil
+
+	case "open.filename":
+		return []string{"fs"}, nil
+
+	case "open.flags":
+		return []string{"fs"}, nil
+
+	case "open.mode":
+		return []string{"fs"}, nil
+
+	case "process.gid":
+		return []string{"process"}, nil
+
+	case "process.name":
+		return []string{"process"}, nil
+
+	case "process.pid":
+		return []string{"process"}, nil
+
+	case "process.pidns":
+		return []string{"process"}, nil
+
+	case "process.tid":
+		return []string{"process"}, nil
+
+	case "process.tty_name":
+		return []string{"process"}, nil
+
+	case "process.uid":
+		return []string{"process"}, nil
+
+	case "rename.newname":
+		return []string{"fs"}, nil
+
+	case "rename.oldname":
+		return []string{"fs"}, nil
+
+	case "unlink.filename":
+		return []string{"fs"}, nil
+
+	}
+
+	return nil, errors.Wrap(ErrFieldNotFound, key)
 }
