@@ -23,7 +23,7 @@ const (
 // and remain open until Reset() is called.
 type CircuitBreaker struct {
 	// The maximum rate of events allowed to pass
-	maxEventsPerSec int
+	maxEventsPerSec int64
 
 	// The number of events elapsed since the last tick
 	eventCount int64
@@ -43,10 +43,11 @@ type CircuitBreaker struct {
 // NewCircuitBreaker instantiates a new CircuitBreaker that only allows
 // a maxEventsPerSec to pass. The rate of events is calculated using an EWMA.
 func NewCircuitBreaker(maxEventsPerSec int) *CircuitBreaker {
-	c := &CircuitBreaker{maxEventsPerSec: maxEventsPerSec}
+	c := &CircuitBreaker{maxEventsPerSec: int64(maxEventsPerSec)}
+	c.Reset()
 
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(tickInterval)
 		for t := range ticker.C {
 			c.update(t)
 		}
@@ -86,10 +87,11 @@ func (c *CircuitBreaker) update(now time.Time) {
 
 	lastUpdate := atomic.LoadInt64(&c.lastUpdate)
 	deltaInSec := float64(now.UnixNano()-lastUpdate) / float64(time.Second.Nanoseconds())
+
+	// This is to avoid a divide by 0 panic or a spurious spike due
+	// to a reset followed immediately by an update call
 	if deltaInSec < 1.0 {
-		// This is to avoid a divide by 0 panic or a spike due
-		// to a reset followed immeditialy by an update call
-		return
+		deltaInSec = 1.0
 	}
 
 	// Calculate the event rate (EWMA)
@@ -97,8 +99,14 @@ func (c *CircuitBreaker) update(now time.Time) {
 	prevEventRate := atomic.LoadInt64(&c.eventRate)
 	newEventRate := ewmaWeight*float64(eventCount)/deltaInSec + (1-ewmaWeight)*float64(prevEventRate)
 
+	// If we just started we don't amortize the value.
+	// This is to better handle the case where we start above the threshold.
+	if prevEventRate == int64(0) {
+		newEventRate = float64(eventCount) / deltaInSec
+	}
+
 	// Update circuit breaker status accordingly
-	if int(newEventRate) > c.maxEventsPerSec {
+	if int64(newEventRate) > c.maxEventsPerSec {
 		log.Warnf(
 			"exceeded maximum number of netlink messages per second. expected=%d actual=%d",
 			c.maxEventsPerSec,
