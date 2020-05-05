@@ -9,6 +9,7 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -22,15 +23,18 @@ var syncTimeout = config.Datadog.GetDuration("cache_sync_timeout") * time.Second
 
 // SyncInformers should be called after the instanciation of new informers.
 // It's blocking until the informers are synced or the timeout exceeded.
-func SyncInformers(informers map[string]cache.SharedInformer) error {
+func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	var g errgroup.Group
-	for name, inf := range informers {
+	for name := range informers {
+		name := name // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
-			ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(syncTimeout))
+			ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
 			defer cancel()
-			if !cache.WaitForCacheSync(ctx.Done(), inf.HasSynced) {
-				return log.Errorf("cache sync timed out for the %s informer", name)
+			start := time.Now()
+			if !cache.WaitForCacheSync(ctx.Done(), informers[name].HasSynced) {
+				return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
 			}
+			log.Debugf("Sync done for informer %s in %v", name, time.Now().Sub(start))
 			return nil
 		})
 	}
