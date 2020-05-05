@@ -20,7 +20,9 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	aggregatorInstance.serializer = serializer.NewSerializer(forwarder.NewDefaultForwarder(map[string][]string{"hello": {"world"}}))
+	aggregatorInstance.serializer = serializer.NewSerializer(forwarder.NewDefaultForwarder(
+		forwarder.NewOptions(map[string][]string{"hello": {"world"}})),
+	)
 	checkSampler := newCheckSampler()
 
 	bucket := &metrics.HistogramBucket{
