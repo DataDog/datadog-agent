@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build kubelet,linux
+// +build kubelet
 
 package kubelet
 
@@ -34,7 +34,7 @@ func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 
 	for _, pod := range pods {
 		for _, c := range pod.Status.GetAllContainers() {
-			if ku.filter.IsExcluded(c.Name, c.Image) {
+			if ku.filter.IsExcluded(c.Name, c.Image, pod.Metadata.Namespace) {
 				continue
 			}
 			container, err := parseContainerInPod(c, pod)
@@ -63,6 +63,11 @@ func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
 // UpdateContainerMetrics updates cgroup / network performance metrics for
 // a provided list of Container objects
 func (ku *KubeUtil) UpdateContainerMetrics(ctrList []*containers.Container) error {
+	err := providers.ContainerImpl().Prefetch()
+	if err != nil {
+		return fmt.Errorf("could not fetch container metrics: %s", err)
+	}
+
 	for _, container := range ctrList {
 		ku.getContainerMetrics(container)
 	}
@@ -95,6 +100,13 @@ func (ku *KubeUtil) getContainerMetrics(ctn *containers.Container) {
 		return
 	}
 	ctn.SetMetrics(metrics)
+
+	pids, err := providers.ContainerImpl().GetPIDs(ctn.ID)
+	if err != nil {
+		log.Debugf("ContainerImplementation cannot get PIDs for container %s, err: %s", ctn.ID[:12], err)
+		return
+	}
+	ctn.Pids = pids
 
 	networkMetrics, err := providers.ContainerImpl().GetNetworkMetrics(ctn.ID, nil)
 	if err != nil {

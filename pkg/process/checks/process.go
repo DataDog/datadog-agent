@@ -40,7 +40,7 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
 
 	networkID, err := agentutil.GetNetworkID()
@@ -52,9 +52,6 @@ func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 
 // Name returns the name of the ProcessCheck.
 func (p *ProcessCheck) Name() string { return "process" }
-
-// Endpoint returns the endpoint where this check is submitted.
-func (p *ProcessCheck) Endpoint() string { return "/api/v1/collector" }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) RealTime() bool { return false }
@@ -98,9 +95,9 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	}
 
 	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrList, cpuTimes[0], p.lastCPUTime, p.lastRun)
-	containers := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
+	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.sysInfo, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -131,11 +128,12 @@ func createProcCtrMessages(
 	chunks := chunkProcesses(procsByCtr[emptyCtrID], cfg.MaxPerMessage)
 	for _, c := range chunks {
 		msgs = append(msgs, &model.CollectorProc{
-			HostName:  cfg.HostName,
-			NetworkId: networkID,
-			Info:      sysInfo,
-			Processes: c,
-			GroupId:   groupID,
+			HostName:          cfg.HostName,
+			NetworkId:         networkID,
+			Info:              sysInfo,
+			Processes:         c,
+			GroupId:           groupID,
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 
@@ -150,12 +148,13 @@ func createProcCtrMessages(
 
 	if len(ctrs) > 0 {
 		msgs = append(msgs, &model.CollectorProc{
-			HostName:   cfg.HostName,
-			NetworkId:  networkID,
-			Info:       sysInfo,
-			Processes:  ctrProcs,
-			Containers: ctrs,
-			GroupId:    groupID,
+			HostName:          cfg.HostName,
+			NetworkId:         networkID,
+			Info:              sysInfo,
+			Processes:         ctrProcs,
+			Containers:        ctrs,
+			GroupId:           groupID,
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 

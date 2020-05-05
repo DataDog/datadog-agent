@@ -436,6 +436,16 @@ func getNodeList(cl *APIClient) ([]v1.Node, error) {
 	return nodes.Items, nil
 }
 
+// GetNode retrieves a node by name
+func GetNode(cl *APIClient, name string) (*v1.Node, error) {
+	node, err := cl.Cl.CoreV1().Nodes().Get(name, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("Can't get node from the API server: %s", err.Error())
+		return nil, err
+	}
+	return node, nil
+}
+
 // GetRESTObject allows to retrieve a custom resource from the APIserver
 func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	result := c.Cl.CoreV1().RESTClient().Get().AbsPath(path).Do()

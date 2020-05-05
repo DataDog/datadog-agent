@@ -188,9 +188,11 @@ func benchmarkPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	}
 }
 
-func BenchmarkPayloadBuilderServiceCheck1(b *testing.B)   { benchmarkPayloadBuilderServiceCheck(b, 1) }
-func BenchmarkPayloadBuilderServiceCheck10(b *testing.B)  { benchmarkPayloadBuilderServiceCheck(b, 10) }
-func BenchmarkPayloadBuilderServiceCheck100(b *testing.B) { benchmarkPayloadBuilderServiceCheck(b, 100) }
+func BenchmarkPayloadBuilderServiceCheck1(b *testing.B)  { benchmarkPayloadBuilderServiceCheck(b, 1) }
+func BenchmarkPayloadBuilderServiceCheck10(b *testing.B) { benchmarkPayloadBuilderServiceCheck(b, 10) }
+func BenchmarkPayloadBuilderServiceCheck100(b *testing.B) {
+	benchmarkPayloadBuilderServiceCheck(b, 100)
+}
 func BenchmarkPayloadBuilderServiceCheck1000(b *testing.B) {
 	benchmarkPayloadBuilderServiceCheck(b, 1000)
 }

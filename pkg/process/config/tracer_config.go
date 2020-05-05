@@ -46,12 +46,13 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 	}
 
 	tracerConfig.CollectLocalDNS = cfg.CollectLocalDNS
+	tracerConfig.CollectDNSStats = cfg.CollectDNSStats
 
 	tracerConfig.MaxTrackedConnections = cfg.MaxTrackedConnections
 	tracerConfig.ProcRoot = util.GetProcRoot()
 	tracerConfig.BPFDebug = cfg.SysProbeBPFDebug
 	tracerConfig.EnableConntrack = cfg.EnableConntrack
-	tracerConfig.ConntrackShortTermBufferSize = cfg.ConntrackShortTermBufferSize
+	tracerConfig.ConntrackIgnoreENOBUFS = cfg.ConntrackIgnoreENOBUFS
 	tracerConfig.ConntrackMaxStateSize = cfg.ConntrackMaxStateSize
 	tracerConfig.DebugPort = cfg.SystemProbeDebugPort
 

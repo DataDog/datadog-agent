@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-1809
+ARG BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-1809
 FROM ${BASE_IMAGE} 
 
 ARG WITH_JMX="false"

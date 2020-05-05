@@ -44,14 +44,14 @@ func runAgent() {
 	// --version
 	if opts.version {
 		fmt.Println(versionString("\n"))
-		os.Exit(0)
+		cleanupAndExit(0)
 	}
 
 	// --pid
 	if opts.pidFilePath != "" {
 		if err := pidfile.WritePID(opts.pidFilePath); err != nil {
 			log.Errorf("Error while writing PID file, exiting: %v", err)
-			os.Exit(1)
+			cleanupAndExit(1)
 		}
 
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), opts.pidFilePath)
@@ -65,7 +65,7 @@ func runAgent() {
 	cfg, err := config.NewSystemProbeConfig(loggerName, opts.configPath)
 	if err != nil {
 		log.Criticalf("Failed to create agent config: %s", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	// Exit if system probe is disabled
@@ -82,7 +82,7 @@ func runAgent() {
 	// configure statsd
 	if err := statsd.Configure(cfg); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 
 	sysprobe, err := CreateSystemProbe(cfg)
@@ -92,7 +92,7 @@ func runAgent() {
 		gracefulExit()
 	} else if err != nil {
 		log.Criticalf("failed to create system probe: %s", err)
-		os.Exit(1)
+		cleanupAndExit(1)
 	}
 	defer sysprobe.Close()
 
@@ -110,7 +110,7 @@ func gracefulExit() {
 	// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 	// http://supervisord.org/subprocess.html#process-states
 	time.Sleep(5 * time.Second)
-	os.Exit(0)
+	cleanupAndExit(0)
 }
 
 // versionString returns the version information filled in at build time
@@ -128,4 +128,17 @@ func versionString(sep string) string {
 	addString(&buf, "Build date: %s%s", BuildDate, sep)
 	addString(&buf, "Go Version: %s%s", GoVersion, sep)
 	return buf.String()
+}
+
+// cleanupAndExit cleans all resources allocated by system-probe before calling
+// os.Exit
+func cleanupAndExit(status int) {
+	// remove pidfile if set
+	if opts.pidFilePath != "" {
+		if _, err := os.Stat(opts.pidFilePath); err == nil {
+			os.Remove(opts.pidFilePath)
+		}
+	}
+
+	os.Exit(status)
 }

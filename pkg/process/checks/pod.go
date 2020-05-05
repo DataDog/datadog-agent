@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build linux,kubelet,orchestrator
+// +build kubelet,orchestrator
 
 package checks
 
@@ -35,9 +35,6 @@ func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 
 // Name returns the name of the ProcessCheck.
 func (c *PodCheck) Name() string { return "pod" }
-
-// Endpoint returns the endpoint where this check is submitted.
-func (c *PodCheck) Endpoint() string { return "/api/v1/orchestrator" }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *PodCheck) RealTime() bool { return false }

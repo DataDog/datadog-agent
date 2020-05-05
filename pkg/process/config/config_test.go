@@ -1,9 +1,10 @@
+// +build linux windows
+
 package config
 
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
 )
@@ -400,53 +400,4 @@ func TestIsAffirmative(t *testing.T) {
 	value, err = isAffirmative("ok")
 	assert.Nil(t, err)
 	assert.False(t, value)
-}
-
-func TestGetCheckURL(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("endpoint doesn't contain path", func(t *testing.T) {
-		url, err := url.Parse("https://process.datadoghq.com")
-		assert.Nil(err)
-		endpoint := api.Endpoint{Endpoint: url}
-
-		assert.Equal(
-			"https://process.datadoghq.com/api/v1/collector",
-			endpoint.GetCheckURL("api/v1/collector"),
-		)
-		assert.Equal(
-			"https://process.datadoghq.com/api/v1/container",
-			endpoint.GetCheckURL("api/v1/container"),
-		)
-	})
-
-	t.Run("endpoint contain default collector path", func(t *testing.T) {
-		url, err := url.Parse("https://process.datadoghq.com/api/v1/collector")
-		assert.Nil(err)
-		endpoint := api.Endpoint{Endpoint: url}
-
-		assert.Equal(
-			"https://process.datadoghq.com/api/v1/collector",
-			endpoint.GetCheckURL("api/v1/collector"),
-		)
-		assert.Equal(
-			"https://process.datadoghq.com/api/v1/container",
-			endpoint.GetCheckURL("api/v1/container"),
-		)
-	})
-
-	t.Run("endpoint has an arbitrary path set", func(t *testing.T) {
-		url, err := url.Parse("https://nginx-server/proxy-path")
-		assert.Nil(err)
-		endpoint := api.Endpoint{Endpoint: url}
-
-		assert.Equal(
-			"https://nginx-server/proxy-path/api/v1/collector",
-			endpoint.GetCheckURL("api/v1/collector"),
-		)
-		assert.Equal(
-			"https://nginx-server/proxy-path/api/v1/container",
-			endpoint.GetCheckURL("api/v1/container"),
-		)
-	})
 }

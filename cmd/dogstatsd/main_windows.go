@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows/registry"
@@ -307,6 +308,10 @@ func importRegistryConfig() error {
 	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
 		overrides["python_version"] = val
 		log.Debugf("Setting python version to %s", val)
+	}
+	if val, _, err = k.GetStringValue("hostname_fqdn"); err == nil && val != "" {
+		overrides["hostname_fqdn"] = val
+		log.Debugf("Setting hostname_fqdn to %s", val)
 	}
 
 	// apply overrides to the config

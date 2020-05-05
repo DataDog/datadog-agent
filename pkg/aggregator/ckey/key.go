@@ -8,6 +8,7 @@ package ckey
 import (
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/twmb/murmur3"
 )
 
@@ -51,10 +52,11 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 	g.buf = g.buf[:0]
 
 	// Sort the tags in place. For typical tag slices, we use
-	// the in-place section sort to avoid heap allocations.
+	// the in-place insertion sort to avoid heap allocations.
 	// We default to stdlib's sort package for longer slices.
-	if len(tags) < 20 {
-		selectionSort(tags)
+	// See `pkg/util/sort.go` for info on the threshold.
+	if len(tags) < util.InsertionSortThreshold {
+		util.InsertionSort(tags)
 	} else {
 		sort.Strings(tags)
 	}

@@ -67,9 +67,8 @@ func TestIsRHEL(t *testing.T) {
 
 func TestSnakeToCamel(t *testing.T) {
 	for test, exp := range map[string]string{
-		"closed_conn_dropped":              "ClosedConnDropped",
-		"closed_conn_polling_lost":         "ClosedConnPollingLost",
-		"Conntrack_short_Term_Buffer_size": "ConntrackShortTermBufferSize",
+		"closed_conn_dropped":      "ClosedConnDropped",
+		"closed_conn_polling_lost": "ClosedConnPollingLost",
 	} {
 		assert.Equal(t, exp, snakeToCapInitialCamel(test))
 	}

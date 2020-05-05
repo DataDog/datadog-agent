@@ -23,7 +23,7 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
             echo "Deleting dd-agent user"
             deluser dd-agent --quiet
             echo "Deleting dd-agent group"
-            getent group dd-agent >/dev/null && delgroup dd-agent --quiet || true
+            (getent group dd-agent >/dev/null && delgroup dd-agent --quiet) || true
             echo "Force-deleting $INSTALL_DIR"
             rm -rf $INSTALL_DIR
             rm -rf $LOG_DIR
@@ -45,7 +45,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         ;;
     esac
 else
-    echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+    echo "[ FAILED ]\tYour system is currently not supported by this script.";
 fi
 
 exit 0

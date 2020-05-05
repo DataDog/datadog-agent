@@ -24,7 +24,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -178,7 +180,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
@@ -226,14 +228,14 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
 }
 
 func TestDNATIntraHostIntegration(t *testing.T) {
-	cmd := exec.Command("netlink/testdata/setup_dnat.sh")
+	cmd := exec.Command("../network/netlink/testdata/setup_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("setup command output: %s", string(out))
 	}
@@ -582,7 +584,7 @@ func TestTCPShortlived(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
 
 	// Confirm that the connection has been cleaned up since the last get
@@ -647,7 +649,7 @@ func TestTCPOverIPv6(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, ln.Addr().(*net.TCPAddr).Port, int(conn.DPort))
-	assert.Equal(t, OUTGOING, conn.Direction)
+	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
 
 	doneChan <- struct{}{}
@@ -713,18 +715,18 @@ func TestUDPSendAndReceive(t *testing.T) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
 
-	incoming := searchConnections(connections, func(cs ConnectionStats) bool {
+	incoming := searchConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.SPort == 8081
 	})
 	require.Len(t, incoming, 1)
-	assert.Equal(t, INCOMING, incoming[0].Direction)
+	assert.Equal(t, network.INCOMING, incoming[0].Direction)
 
-	outgoing := searchConnections(connections, func(cs ConnectionStats) bool {
+	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == 8081
 	})
 
 	require.Len(t, outgoing, 1)
-	assert.Equal(t, OUTGOING, outgoing[0].Direction)
+	assert.Equal(t, network.OUTGOING, outgoing[0].Direction)
 
 	// these values come from simulate_udp.sh
 	assert.Equal(t, 512, int(outgoing[0].MonotonicSentBytes))
@@ -840,7 +842,7 @@ func TestLocalDNSCollectionEnabled(t *testing.T) {
 	assert.True(t, found)
 }
 
-func isLocalDNS(c ConnectionStats) bool {
+func isLocalDNS(c network.ConnectionStats) bool {
 	return c.Source.String() == "127.0.0.1" && c.Dest.String() == "127.0.0.1" && c.DPort == 53
 }
 
@@ -1002,25 +1004,25 @@ func TestSkipConnectionDNS(t *testing.T) {
 
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
 		tr := &Tracer{config: &Config{CollectLocalDNS: false}}
-		assert.True(t, tr.shouldSkipConnection(&ConnectionStats{
+		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  1000, DPort: 53,
 		}))
 
-		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  1000, DPort: 8080,
 		}))
 
-		assert.True(t, tr.shouldSkipConnection(&ConnectionStats{
+		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
 		}))
 
-		assert.True(t, tr.shouldSkipConnection(&ConnectionStats{
+		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
@@ -1030,25 +1032,25 @@ func TestSkipConnectionDNS(t *testing.T) {
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
 		tr := &Tracer{config: &Config{CollectLocalDNS: true}}
 
-		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  1000, DPort: 53,
 		}))
 
-		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  1000, DPort: 8080,
 		}))
 
-		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
 		}))
 
-		assert.False(t, tr.shouldSkipConnection(&ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
@@ -1116,7 +1118,7 @@ func TestIsSyscall(t *testing.T) {
 	assert.False(t, isSysCall("kprobe/tcp_send"))
 }
 
-func removeConnection(t *testing.T, tr *Tracer, c *ConnectionStats) {
+func removeConnection(t *testing.T, tr *Tracer, c *network.ConnectionStats) {
 	mp, err := tr.getMap(connMap)
 	require.NoError(t, err)
 
@@ -1138,13 +1140,13 @@ func removeConnection(t *testing.T, tr *Tracer, c *ConnectionStats) {
 	tr.removeEntries(mp, tcpMp, tuple)
 }
 
-func byAddress(l, r net.Addr) func(c ConnectionStats) bool {
-	return func(c ConnectionStats) bool {
+func byAddress(l, r net.Addr) func(c network.ConnectionStats) bool {
+	return func(c network.ConnectionStats) bool {
 		return addrMatches(l, c.Source.String(), c.SPort) && addrMatches(r, c.Dest.String(), c.DPort)
 	}
 }
 
-func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
+func findConnection(l, r net.Addr, c *network.Connections) (*network.ConnectionStats, bool) {
 	if result := searchConnections(c, byAddress(l, r)); len(result) > 0 {
 		return &result[0], true
 	}
@@ -1152,8 +1154,8 @@ func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
 	return nil, false
 }
 
-func searchConnections(c *Connections, predicate func(ConnectionStats) bool) []ConnectionStats {
-	var results []ConnectionStats
+func searchConnections(c *network.Connections, predicate func(network.ConnectionStats) bool) []network.ConnectionStats {
+	var results []network.ConnectionStats
 	for _, conn := range c.Conns {
 		if predicate(conn) {
 			results = append(results, conn)
@@ -1459,7 +1461,7 @@ func addrPort(addr string) int {
 	return p
 }
 
-func getConnections(t *testing.T, tr *Tracer) *Connections {
+func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections, err := tr.GetActiveConnections("1")
 	if err != nil {
@@ -1470,9 +1472,66 @@ func getConnections(t *testing.T, tr *Tracer) *Connections {
 }
 
 func teardown(t *testing.T) {
-	cmd := exec.Command("netlink/testdata/teardown_dnat.sh")
+	cmd := exec.Command("../network/netlink/testdata/teardown_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		fmt.Printf("teardown command output: %s", string(out))
 		t.Errorf("error tearing down: %s", err)
 	}
+}
+
+func testDNSStats(t *testing.T, domain string, success int) {
+	config := NewDefaultConfig()
+	config.CollectDNSStats = true
+	config.CollectLocalDNS = true
+	tr, err := NewTracer(config)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53}
+
+	queryMsg := new(dns.Msg)
+	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+	queryMsg.RecursionDesired = true
+
+	// Get outbound IP
+	dummyConn, err := net.Dial("udp", "8.8.8.8:80")
+	require.NoError(t, err)
+	dummyConn.Close()
+	localAddr := dummyConn.LocalAddr().(*net.UDPAddr)
+
+	dnsClientAddr := &net.UDPAddr{IP: localAddr.IP, Port: 7777}
+	localAddrDialer := &net.Dialer{
+		LocalAddr: dnsClientAddr,
+	}
+
+	dnsClient := dns.Client{Net: "udp", Dialer: localAddrDialer}
+	_, _, err = dnsClient.Exchange(queryMsg, dnsServerAddr.String())
+
+	if err != nil {
+		t.Fatalf("Failed to get dns response %s\n", err.Error())
+	}
+
+	// Allow the DNS reply to be processed in the snooper
+	time.Sleep(time.Millisecond * 500)
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
+	require.True(t, ok)
+
+	assert.Equal(t, queryMsg.Len(), int(conn.MonotonicSentBytes))
+	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
+
+	// DNS Stats
+	assert.Equal(t, uint32(success), conn.DNSSuccessfulResponses)
+	assert.Equal(t, uint32(1-success), conn.DNSFailedResponses)
+}
+
+func TestDNSStatsForValidDomain(t *testing.T) {
+	testDNSStats(t, "golang.org", 1)
+}
+
+func TestDNSStatsForInvalidDomain(t *testing.T) {
+	testDNSStats(t, "abcdedfg", 0)
 }

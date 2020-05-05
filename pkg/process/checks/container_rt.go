@@ -1,5 +1,3 @@
-// +build linux
-
 package checks
 
 import (
@@ -25,15 +23,12 @@ type RTContainerCheck struct {
 }
 
 // Init initializes a RTContainerCheck instance.
-func (r *RTContainerCheck) Init(cfg *config.AgentConfig, sysInfo *model.SystemInfo) {
+func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
 	r.sysInfo = sysInfo
 }
 
 // Name returns the name of the RTContainerCheck.
 func (r *RTContainerCheck) Name() string { return "rtcontainer" }
-
-// Endpoint returns the endpoint where this check is submitted.
-func (r *RTContainerCheck) Endpoint() string { return "/api/v1/container" }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTContainerCheck) RealTime() bool { return true }
@@ -71,12 +66,13 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorContainerRealTime{
-			HostName:    cfg.HostName,
-			Stats:       chunked[i],
-			NumCpus:     int32(runtime.NumCPU()),
-			TotalMemory: r.sysInfo.TotalMemory,
-			GroupId:     groupID,
-			GroupSize:   int32(groupSize),
+			HostName:          cfg.HostName,
+			Stats:             chunked[i],
+			NumCpus:           int32(runtime.NumCPU()),
+			TotalMemory:       r.sysInfo.TotalMemory,
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 

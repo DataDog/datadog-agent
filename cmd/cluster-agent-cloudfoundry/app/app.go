@@ -10,7 +10,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"os"
 	"os/signal"
 	"syscall"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -161,11 +161,11 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(keysPerDomain)
+	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname, "cluster_agent")
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")

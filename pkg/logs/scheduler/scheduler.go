@@ -49,6 +49,10 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		if !config.IsLogConfig() {
 			continue
 		}
+		if config.HasFilter(containers.LogsFilter) {
+			log.Debugf("Config %s is filtered out for logs collection, ignoring it", s.configName(config))
+			continue
+		}
 		switch {
 		case s.newSources(config):
 			log.Infof("Received a new logs config: %v", s.configName(config))
@@ -87,7 +91,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 // Unschedule removes all the sources and services matching the integration configs.
 func (s *Scheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !config.IsLogConfig() {
+		if !config.IsLogConfig() || config.HasFilter(containers.LogsFilter) {
 			continue
 		}
 		switch {

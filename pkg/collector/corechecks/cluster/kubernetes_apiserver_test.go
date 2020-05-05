@@ -88,32 +88,28 @@ func TestParseComponentStatus(t *testing.T) {
 	}
 
 	// FIXME: use the factory instead
-	kubeASCheck := &KubeASCheck{
-		instance:              &KubeASConfig{},
-		CheckBase:             core.NewCheckBase(kubernetesAPIServerCheckName),
-		KubeAPIServerHostname: "hostname",
-	}
+	kubeASCheck := NewKubeASCheck(core.NewCheckBase(kubernetesAPIServerCheckName), &KubeASConfig{})
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "imok")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "", []string{"component:Zookeeper"}, "imok")
 	kubeASCheck.parseComponentStatus(mocked, expected)
 
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 1)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "imok")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "", []string{"component:Zookeeper"}, "imok")
 
 	err := kubeASCheck.parseComponentStatus(mocked, unExpected)
 	assert.EqualError(t, err, "metadata structure has changed. Not collecting API Server's Components status")
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "Connection closed")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "", []string{"component:ETCD"}, "Connection closed")
 	kubeASCheck.parseComponentStatus(mocked, unHealthy)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 2)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "Connection closed")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "", []string{"component:ETCD"}, "Connection closed")
 
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "", []string{"component:DCA"}, "")
 	kubeASCheck.parseComponentStatus(mocked, unknown)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 3)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "", []string{"component:DCA"}, "")
 
 	emptyResp := kubeASCheck.parseComponentStatus(mocked, empty)
 	assert.Nil(t, emptyResp, "metadata structure has changed. Not collecting API Server's Components status")
@@ -155,10 +151,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	ev4 := createEvent(29, "default", "localhost", "Node", "e63e74fa-f566-11e7-9749-0e4863e1cbf4", "kubelet", "machine-blue", "MissingClusterDNS", "MountVolume.SetUp succeeded", 709675200)
 	// (As Object kinds are Pod and Node here, the event should take the remote hostname `machine-blue`)
 
-	kubeASCheck := &KubeASCheck{
-		CheckBase:             core.NewCheckBase(kubernetesAPIServerCheckName),
-		KubeAPIServerHostname: "hostname",
-	}
+	kubeASCheck := NewKubeASCheck(core.NewCheckBase(kubernetesAPIServerCheckName), &KubeASConfig{})
 	// Several new events, testing aggregation
 	// Not testing full match of the event message as the order of the actions in the summary isn't guaranteed
 
@@ -240,10 +233,7 @@ func TestProcessEvent(t *testing.T) {
 	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "ReplicaSet", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600)
 	// (Object kind was changed from Pod to ReplicaSet to test the choice of hostname: it should take here the local hostname below `hostname`)
 
-	kubeASCheck := &KubeASCheck{
-		CheckBase:             core.NewCheckBase(kubernetesAPIServerCheckName),
-		KubeAPIServerHostname: "hostname",
-	}
+	kubeASCheck := NewKubeASCheck(core.NewCheckBase(kubernetesAPIServerCheckName), &KubeASConfig{})
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())
 
 	newKubeEventBundle := []*v1.Event{

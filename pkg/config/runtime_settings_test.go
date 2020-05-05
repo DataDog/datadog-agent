@@ -75,11 +75,18 @@ func TestLogLevel(t *testing.T) {
 	assert.Equal(t, "off", v)
 	assert.Nil(t, err)
 
-	err = ll.Set("invalid")
-	assert.NotNil(t, err)
-	assert.Equal(t, "declared minlevel not found: invalid", err.Error())
+	err = ll.Set("WARNING")
+	assert.Nil(t, err)
 
 	v, err = ll.Get()
-	assert.Equal(t, "off", v)
+	assert.Equal(t, "warn", v)
+	assert.Nil(t, err)
+
+	err = ll.Set("invalid")
+	assert.NotNil(t, err)
+	assert.Equal(t, "unknown log level: invalid", err.Error())
+
+	v, err = ll.Get()
+	assert.Equal(t, "warn", v)
 	assert.Nil(t, err)
 }
