@@ -1,13 +1,13 @@
 package eval
 
 import (
-	"log"
 	"sort"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type Event interface {
@@ -80,7 +80,7 @@ func (rs *RuleSet) AddRule(name, expression string) (*Rule, error) {
 }
 
 func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event Event) {
-	log.Printf("Rule %s was triggered (event: %+v)\n", rule.Name, spew.Sdump(event))
+	log.Debugf("Rule %s was triggered (event: %+v)\n", rule.Name, spew.Sdump(event))
 
 	for _, listener := range rs.listeners {
 		listener.RuleMatch(rule, event)
@@ -88,7 +88,7 @@ func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event Event) {
 }
 
 func (rs *RuleSet) NotifyDiscriminatorDiscovered(event Event, field string) {
-	log.Printf("No rule match for event %+v\n", event)
+	log.Debugf("No rule match for event %+v\n", event)
 
 	for _, listener := range rs.listeners {
 		listener.DiscriminatorDiscovered(event, field)
@@ -106,7 +106,7 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 	eventType := event.GetType()
 
 	bucket, found := rs.rulesByTag[eventType]
-	log.Printf("Evaluating event of type %s against set of %d rules", eventType, len(bucket.rules))
+	log.Debugf("Evaluating event of type %s against set of %d rules", eventType, len(bucket.rules))
 
 	if found {
 		for _, rule := range bucket.rules {
@@ -116,7 +116,7 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 			}
 		}
 
-		log.Printf("Looking for discriminators")
+		log.Debugf("Looking for discriminators")
 		if !result {
 			// Look for discriminators
 			for _, field := range bucket.fields {

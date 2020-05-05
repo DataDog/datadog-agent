@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
 
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/golang-lru/simplelru"
 )
 
@@ -54,7 +54,7 @@ func (kf *KernelFilters) getTable(kind string) (eprobe.Table, error) {
 }
 
 func (kf *KernelFilters) Push(kind string, value TableKey) error {
-	log.Printf("Pushing kernel filter %s with value %s (%p)", kind, value, kf)
+	log.Infof("Pushing kernel filter %s with value %s (%p)", kind, value, kf)
 
 	table, err := kf.getTable(kind)
 	if err != nil {
@@ -74,7 +74,7 @@ func (kf *KernelFilters) Push(kind string, value TableKey) error {
 }
 
 func (kf *KernelFilters) removeFilter(kind string, value []byte) error {
-	log.Printf("Removing filter %s with value %s\n", kind, string(value))
+	log.Infof("Removing filter %s with value %s\n", kind, string(value))
 
 	table, err := kf.getTable(kind)
 	if err != nil {

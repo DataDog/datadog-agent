@@ -2,13 +2,13 @@ package probe
 
 import (
 	"bytes"
-	"log"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/gobpf"
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/probe/types"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type EventHandler interface {
@@ -32,7 +32,7 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Loaded security agent eBPF module: %+v", module)
+	log.Infof("Loaded security agent eBPF module: %+v", module)
 
 	p := &Probe{}
 
@@ -107,6 +107,6 @@ func (p *Probe) AddKernelFilter(event *Event, field string) {
 	case "process.name":
 		processName := event.Process.GetComm()
 		p.kernelFilters.Push("process_discriminators", CommTableKey(processName))
-		log.Printf("Push in-kernel process discriminator '%s'", processName)
+		log.Infof("Push in-kernel process discriminator '%s'", processName)
 	}
 }

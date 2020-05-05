@@ -1,10 +1,10 @@
 package probe
 
 import (
-	"log"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/probe/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type KProbe = types.KProbe
@@ -54,7 +54,7 @@ func (p *Probe) registerHooks() error {
 		if err := p.Module.RegisterKprobe(kProbe); err != nil {
 			return err
 		}
-		log.Printf("Registered Kprobe %s", kProbe)
+		log.Debugf("Registered Kprobe %s", kProbe)
 	}
 
 	return nil
@@ -68,7 +68,7 @@ func (p *Probe) registerTables() error {
 			return err
 		}
 		p.tablesMap[table.Name] = t
-		log.Printf("Registered table %s", table.Name)
+		log.Debugf("Registered table %s", table.Name)
 	}
 
 	return nil
@@ -85,14 +85,14 @@ func (p *Probe) Stop() {
 }
 
 func (p *Probe) Start() error {
-	log.Println("Starting perf maps")
+	log.Debugf("Starting perf maps")
 	for _, perfMap := range p.perfMapsMap {
 		if err := perfMap.Start(); err != nil {
 			return err
 		}
 	}
 
-	log.Println("Register eBPF hooks")
+	log.Debugf("Register eBPF hooks")
 	if err := p.registerHooks(); err != nil {
 		return err
 	}
@@ -103,12 +103,12 @@ func (p *Probe) Start() error {
 }
 
 func (p *Probe) Load() error {
-	log.Println("Register eBPF tables")
+	log.Debugf("Register eBPF tables")
 	if err := p.registerTables(); err != nil {
 		return err
 	}
 
-	log.Println("Registering perf maps")
+	log.Debugf("Registering perf maps")
 	p.perfMapsMap = make(map[string]PerfMap, len(p.PerfMaps))
 	for _, perfMapDef := range p.PerfMaps {
 		perfMap, err := p.Module.RegisterPerfMap(perfMapDef)

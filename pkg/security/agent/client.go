@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -15,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type EventClient struct {
@@ -42,7 +41,7 @@ func (c *EventClient) Start() {
 				break
 			}
 
-			log.Printf("Got message from rule %s with event %s", in.RuleName, string(in.Data))
+			log.Debugf("Got message from rule %s with event %s", in.RuleName, string(in.Data))
 
 			ddmsg := struct {
 				Host    string          `json:"host"`
@@ -59,15 +58,12 @@ func (c *EventClient) Start() {
 				panic(err)
 			}
 
-			fmt.Printf("REQ: %s\n", string(d))
-
 			apiKey := os.Getenv("DD_API_KEY")
 
 			resp, err := http.Post("https://http-intake.logs.datadoghq.com/v1/input/"+apiKey, "application/json", bytes.NewBuffer(d))
 			if err != nil {
-				panic(err)
+				log.Error(err)
 			}
-			fmt.Printf("RESP: %+v\n", resp)
 		}
 	}
 
