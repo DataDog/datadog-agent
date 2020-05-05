@@ -2056,7 +2056,6 @@ kitchen_debian_upgrade7-a7:
   <<: *run_only_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
   tags: [ "runner:main", "size:large" ]
-  dependencies: []
   script:
     - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/pipeline-$DD_PIPELINE_ID --recursive
@@ -2074,12 +2073,16 @@ testkitchen_cleanup_s3-a6:
   variables:
     AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+  dependencies:
+    - agent_deb-x64-a6
   <<: *kitchen_cleanup_s3_common
 
 testkitchen_cleanup_s3-a7:
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  dependencies:
+    - agent_deb-x64-a7
   <<: *kitchen_cleanup_s3_common
 
 .kitchen_cleanup_azure_common: &kitchen_cleanup_azure_common
