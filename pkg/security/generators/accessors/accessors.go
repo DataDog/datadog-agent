@@ -310,28 +310,6 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 
 func main() {
 	var err error
-	/*
-		inputInfo, err := os.Stat(filename)
-		if err != nil {
-			panic(err)
-		}
-
-		if output == "" {
-			output = strings.TrimSuffix(filename, ".go") + "_genaccessors.go"
-		}
-
-		outputInfo, err := os.Stat(output)
-		if err == nil {
-			if inputInfo.ModTime().Before(outputInfo.ModTime()) {
-				// Skipping file
-				if verbose {
-					log.Printf("Skipping %s as %s is newer", filename, output)
-				}
-				return
-			}
-		}
-	*/
-
 	tmpl := template.Must(template.New("header").Parse(`{{- range .BuildTags }}// {{.}}{{end}}
 
 // Code generated - DO NOT EDIT.
@@ -348,7 +326,7 @@ var (
 	ErrFieldNotFound = errors.New("field not found")
 )
 
-func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
+func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	switch key {
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
@@ -370,11 +348,22 @@ func (m *Model) GetEvaluator(key string) (interface{}, []string, error) {
 			DebugEval: func(ctx *eval.Context) bool { return {{$Field.Name}} },
 	{{end}}
 			Field: key,
-		}, []string{ {{$Field.Tags}} }, nil
+		}, nil
 	{{end}}
 	}
 
-	return nil, nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrFieldNotFound, key)
+}
+
+func (m *Model) GetTags(key string) ([]string, error) {
+	switch key {
+	{{range $Name, $Field := .Fields}}
+	case "{{$Name}}":
+		return []string{ {{$Field.Tags}} }, nil
+	{{end}}
+	}
+
+	return nil, errors.Wrap(ErrFieldNotFound, key)
 }
 `))
 

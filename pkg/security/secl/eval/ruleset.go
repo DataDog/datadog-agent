@@ -123,7 +123,7 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 
 			// Look for discriminators
 			for _, field := range bucket.fields {
-				eval, _, _ := rs.model.GetEvaluator(field)
+				eval, _ := rs.model.GetEvaluator(field)
 
 				found = true
 				for _, rule := range bucket.rules {

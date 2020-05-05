@@ -18,7 +18,8 @@ import (
 var ErrFieldNotFound = errors.New("field not found")
 
 type Model interface {
-	GetEvaluator(key string) (interface{}, []string, error)
+	GetEvaluator(key string) (interface{}, error)
+	GetTags(key string) ([]string, error)
 	SetData(data interface{})
 }
 
@@ -374,7 +375,12 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 				}
 			}
 
-			accessor, tags, err := opts.Model.GetEvaluator(*obj.Ident)
+			accessor, err := opts.Model.GetEvaluator(*obj.Ident)
+			if err != nil {
+				return nil, nil, obj.Pos, err
+			}
+
+			tags, err := opts.Model.GetTags(*obj.Ident)
 			if err != nil {
 				return nil, nil, obj.Pos, err
 			}
