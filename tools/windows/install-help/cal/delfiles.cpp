@@ -37,7 +37,7 @@ BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dir
     DWORD err = GetLastError();
     bool bSearch = true;
     if (INVALID_HANDLE_VALUE == hFind && err != ERROR_FILE_NOT_FOUND) {
-        return FALSE;
+        return TRUE;
     } else if (hFind != INVALID_HANDLE_VALUE)
     {
         for (bool bContinue = true; bContinue; bContinue = FindNextFile(hFind, &FindFileData))
@@ -61,7 +61,21 @@ BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dir
                     return FALSE;    // directory couldn't be deleted
                 }
                 if(dirs) {
-                    RemoveDirectory(FileName.c_str());
+                    if (FindFileData.dwFileAttributes &
+                        FILE_ATTRIBUTE_READONLY)
+                    {
+                        // change read-only file mode
+                        if (_wchmod(FileName.c_str(), _S_IWRITE))
+                        {
+                            WcaLog(LOGMSG_STANDARD, "Failed to change perms on %S", FileName.c_str());
+                        }
+                    }
+
+                    if (!RemoveDirectory(FileName.c_str()))
+                    {
+                        err = GetLastError();
+                        WcaLog(LOGMSG_STANDARD, "Failed to delete directory %d %S", err, FileName.c_str());
+                    }
                 }
             }
             else {
@@ -121,4 +135,147 @@ BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dir
     }
     
     return TRUE;
+}
+
+
+/**
+ * This function recursively deletes all files in a given tree that match a given
+ * extension.  It will only accept an absolute path.
+ *
+ * @param dirname  The root path to start the deletion
+ *
+ * @param ext   the filename and/or extension to delete.  Can be a fixed name or wildcard
+ *
+ * @param dirs  If true, will delete directories which match the ext parameter, if the
+ *              directory is empty. If false (the default), will delete files
+ */
+BOOL DeleteHomeDirectory(std::wstring &user, PSID userSID)
+{
+    // first, find the path to the home directories
+    bool ret = false;
+    wchar_t * homeDir = NULL;
+    DWORD homeDirSize = _MAX_PATH;
+    bool needsLarger = false;
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+    WIN32_FIND_DATA findFileData;
+    DWORD err;
+    std::wstring search;
+    do
+    {
+        if (homeDir) {
+            delete[] homeDir;
+        }
+        homeDir = new wchar_t[homeDirSize];
+        if (!GetProfilesDirectory(homeDir, &homeDirSize))
+        {
+            err = GetLastError();
+            if (ERROR_INSUFFICIENT_BUFFER == err)
+            {
+                // loop back again.
+                needsLarger = true;
+                WcaLog(LOGMSG_STANDARD, "Finding home directory, need larger path %d", homeDirSize);
+            }
+            else {
+                WcaLog(LOGMSG_STANDARD, "Error getting home directory %d", err);
+                goto doneDelete;
+            }
+        } 
+    } while (needsLarger);
+
+    // enumerate all of the directories in the profile directory that might match
+    // this one.  Need the wildcards because the OS will add suffixes if we have a
+    // collision.
+    search = homeDir; 
+    search += L"\\*" + user + L"*";
+
+    hFind = FindFirstFile(search.c_str(), &findFileData);
+    err = GetLastError();
+    if (INVALID_HANDLE_VALUE == hFind && err != ERROR_FILE_NOT_FOUND) {
+        ret = false;
+        goto doneDelete;
+    }
+    else if (hFind != INVALID_HANDLE_VALUE)
+    {
+        for (bool bContinue = true; bContinue; bContinue = FindNextFile(hFind, &findFileData))
+        {
+            if (IsDots(findFileData.cFileName))
+            {
+                continue;
+            }
+            if (!(findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            {
+                // we're only looking for directories at this point
+                continue;
+            }
+            std::wstring fullpath = homeDir;
+            fullpath += L"\\";
+            fullpath += findFileData.cFileName;
+
+            // get the sid for the file
+            // Get the owner SID of the file.
+            PACL fileDacl;
+            DWORD dwRet = GetNamedSecurityInfo(fullpath.c_str(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                NULL,
+                NULL,
+                &fileDacl,
+                NULL,
+                NULL);
+            if (0 != dwRet) {
+                WcaLog(LOGMSG_STANDARD, "Failed to get security info for %S %d", findFileData.cFileName, dwRet);
+            }
+            else {
+                // get the size information
+                ACL_SIZE_INFORMATION aclsizeinfo;
+                DWORD aclsize = sizeof(ACL_SIZE_INFORMATION);
+                bool bMatched = false;
+                
+                if (!GetAclInformation(fileDacl, &aclsizeinfo, aclsize, AclSizeInformation))
+                {
+                    WcaLog(LOGMSG_STANDARD, "Failed to get acl size information %d", GetLastError());
+                    continue;
+                }
+                for (int i = 0; i < aclsizeinfo.AceCount; i++)
+                {
+                    LPVOID pAce = NULL;
+                    if (GetAce(fileDacl, i, &pAce))
+                    {
+                        ACE_HEADER *hdr = (ACE_HEADER*)pAce;
+                        if (hdr->AceType == ACCESS_ALLOWED_ACE_TYPE)
+                        {
+                            ACCESS_ALLOWED_ACE * aaa = (ACCESS_ALLOWED_ACE*)pAce;
+                            PSID thisSid = &(aaa->SidStart);
+                            if (EqualSid(userSID, thisSid))
+                            {
+                                WcaLog(LOGMSG_STANDARD, "User sid has access to %S, scheduling for delete", fullpath.c_str());
+                                bMatched = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (bMatched)
+                {
+                    WcaLog(LOGMSG_STANDARD, "SID is equal; deleting %S", findFileData.cFileName);
+                    DeleteFilesInDirectory(fullpath.c_str(), L"*.*", true);
+                    RemoveDirectory(fullpath.c_str());
+                }
+                else {
+                    WcaLog(LOGMSG_STANDARD, "SID not equal, not deleting %S", findFileData.cFileName);
+                }
+
+            }
+
+        }
+    }
+doneDelete:
+    if (INVALID_HANDLE_VALUE != hFind) {
+        FindClose(hFind);
+    }
+    if (homeDir) {
+        delete[] homeDir;
+    }
+    return ret;
+
 }
