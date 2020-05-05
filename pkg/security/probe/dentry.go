@@ -19,7 +19,7 @@ func (p *Probe) handleDentryEvent(data []byte) {
 	log.Debugf("Handling dentry event")
 
 	offset := 0
-	event := &Event{}
+	event := NewEvent()
 
 	read, err := event.Event.UnmarshalBinary(data)
 	if err != nil {
@@ -78,7 +78,7 @@ func (dr *DentryResolver) resolve(pathnameKey uint32) (string, error) {
 			filename = "*ERROR*" + filename
 			break
 		}
-		err1 = binary.Read(bytes.NewBuffer(pathRaw), bcc.GetHostByteOrder(), &path)
+		err1 = binary.Read(bytes.NewBuffer(pathRaw), byteOrder, &path)
 		if err1 != nil {
 			err1 = fmt.Errorf("failed to decode received data (pathLeaf): %s", err1)
 			done = true

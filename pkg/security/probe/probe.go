@@ -106,7 +106,8 @@ func (p *Probe) AddKernelFilter(event *Event, field string) {
 	switch field {
 	case "process.name":
 		processName := event.Process.GetComm()
-		p.kernelFilters.Push("process_discriminators", CommTableKey(processName))
+
 		log.Infof("Push in-kernel process discriminator '%s'", processName)
+		p.kernelFilters.Push("process_discriminators", CommTableKey(processName))
 	}
 }

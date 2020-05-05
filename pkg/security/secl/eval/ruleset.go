@@ -11,6 +11,7 @@ import (
 )
 
 type Event interface {
+	GetID() string
 	GetType() string
 }
 
@@ -20,8 +21,9 @@ type RuleSetListener interface {
 }
 
 type Rule struct {
-	Name      string
-	evaluator *RuleEvaluator
+	Name       string
+	Expression string
+	evaluator  *RuleEvaluator
 }
 
 type RuleBucket struct {
@@ -62,8 +64,9 @@ func (rs *RuleSet) AddRule(name, expression string) (*Rule, error) {
 	}
 
 	rule := &Rule{
-		Name:      name,
-		evaluator: evaluator,
+		Name:       name,
+		Expression: expression,
+		evaluator:  evaluator,
 	}
 
 	for _, tag := range evaluator.Tags {
@@ -80,16 +83,12 @@ func (rs *RuleSet) AddRule(name, expression string) (*Rule, error) {
 }
 
 func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event Event) {
-	log.Debugf("Rule %s was triggered (event: %+v)\n", rule.Name, spew.Sdump(event))
-
 	for _, listener := range rs.listeners {
 		listener.RuleMatch(rule, event)
 	}
 }
 
 func (rs *RuleSet) NotifyDiscriminatorDiscovered(event Event, field string) {
-	log.Debugf("No rule match for event %+v\n", event)
-
 	for _, listener := range rs.listeners {
 		listener.DiscriminatorDiscovered(event, field)
 	}
@@ -104,28 +103,41 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 	rs.model.SetData(event)
 	context := &Context{}
 	eventType := event.GetType()
+	eventID := event.GetID()
 
 	bucket, found := rs.rulesByTag[eventType]
-	log.Debugf("Evaluating event of type %s against set of %d rules", eventType, len(bucket.rules))
+	log.Debugf("Evaluating event `%s` of type %s against set of %d rules", eventID, eventType, len(bucket.rules))
 
 	if found {
 		for _, rule := range bucket.rules {
 			if rule.evaluator.Eval(context) {
+				log.Debugf("Rule %s matches with event %+v\n", rule.Name, spew.Sdump(event))
+
 				rs.NotifyRuleMatch(rule, event)
 				result = true
 			}
 		}
 
-		log.Debugf("Looking for discriminators")
 		if !result {
+			log.Debugf("Looking for discriminators for event `%s`", eventID)
+
 			// Look for discriminators
 			for _, field := range bucket.fields {
+				eval, _, _ := rs.model.GetEvaluator(field)
+
+				found = true
 				for _, rule := range bucket.rules {
-					if rule.evaluator.partialEval[field](context) {
-						return result
+					isTrue := rule.evaluator.partialEval[field](context)
+
+					log.Debugf("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.Name, rule.Expression, field, eval, isTrue)
+					if isTrue {
+						found = false
 					}
 				}
-				rs.NotifyDiscriminatorDiscovered(event, field)
+				if found {
+					log.Debugf("Found discriminator for field %s with value `%s`\n", field, eval)
+					rs.NotifyDiscriminatorDiscovered(event, field)
+				}
 			}
 		}
 	}

@@ -28,6 +28,7 @@ func (a *Module) Register(server *grpc.Server) error {
 	eventServer := NewEventServer()
 	api.RegisterSecurityModuleServer(server, eventServer)
 
+	a.ruleSet.AddListener(a)
 	a.ruleSet.AddListener(eventServer)
 
 	return a.probe.Start()
@@ -35,6 +36,9 @@ func (a *Module) Register(server *grpc.Server) error {
 
 func (a *Module) Close() {
 	a.probe.Stop()
+}
+
+func (a *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
 func (a *Module) DiscriminatorDiscovered(event eval.Event, field string) {
