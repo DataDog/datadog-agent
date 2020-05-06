@@ -805,6 +805,7 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
+// LoadSystemProbeConfig loads in the system-probe yaml file
 func LoadSystemProbeConfig() error {
 	if err := Datadog.ReadInConfig(); err != nil {
 		log.Warnf("Error loading system probe config: %v", err)
