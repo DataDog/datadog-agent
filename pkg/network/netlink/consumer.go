@@ -29,7 +29,7 @@ const (
 	// This number is enforced to keep CPU usage at an appropriate level
 	// If the number of messages is above that, we "throttle" the socket using a BPF filter
 	// TODO: expose this as a configuration param
-	maxMessagesPerSecond = 1000
+	maxMessagesPerSecond = 500
 )
 
 var msgBufferSize int
