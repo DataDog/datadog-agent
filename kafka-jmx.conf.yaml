@@ -1,0 +1,47 @@
+## All options defined here are available to all instances.
+#
+init_config:
+
+    ## @param is_jmx - boolean - required
+    ## Whether or not this file is a configuration for a JMX integration.
+    #
+    is_jmx: true
+
+    conf:
+      - include:
+          bean:
+            # Size of the request queue. A congested request queue will not be able to process incoming or outgoing requests
+            - kafka.network:type=RequestChannel,name=RequestQueueSize
+            # Average fraction of time the network processor threads are idle. Values are between 0 (all resources are used) and 1 (all resources are available)
+            - kafka.network:type=SocketServer,name=NetworkProcessorAvgIdlePercent
+            # Number of requests waiting in the fetch purgatory. This is high if consumers use a large value for fetch.wait.max.ms .
+            - kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Fetch
+            # Number of requests waiting in the producer purgatory. This should be non-zero when acks=all is used on the producer.
+            - kafka.server:type=DelayedOperationPurgatory,name=PurgatorySize,delayedOperation=Produce
+            # Maximum lag in messages between the follower and leader replicas. This is controlled by the `replica.lag.max.messages` config.
+            - kafka.server:type=ReplicaFetcherManager,name=MaxLag,clientId=Replica
+            # Number of leaders on this broker. This should be mostly even across all brokers. If not, set auto.leader.rebalance.enable to true on all brokers in the cluster.
+            - kafka.server:type=ReplicaManager,name=LeaderCount
+            # Number of partitions on this broker. This should be mostly even across all brokers.
+            - kafka.server:type=ReplicaManager,name=PartitionCount
+            # Number of partitions whose in-sync replicas count is less than minIsr.
+            - kafka.server:type=ReplicaManager,name=UnderMinIsrPartitionCount
+            # Number of under-replicated partitions (| ISR | < | all replicas |). Alert if value is greater than 0.
+            - kafka.server:type=ReplicaManager,name=UnderReplicatedPartitions
+          attribute:
+            Value:
+              alias: confluent.$domain.$type.$name
+              metric_type: gauge
+
+instances:
+
+    ## @param host - string - required
+    ## JMX hostname to connect to.
+    #
+  - host: localhost
+
+    ## @param port - integer - required
+    ## JMX port to connect to.
+    #
+    port: 31001
+

@@ -36,7 +36,7 @@ func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string) error 
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel)
+	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterStatsd, out, logLevel)
 }
 
 // ExecJmxListWithRateMetricsJSON runs the JMX command with "with-rate-metrics", reporting

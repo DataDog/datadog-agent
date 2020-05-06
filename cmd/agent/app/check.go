@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -136,6 +137,8 @@ var checkCmd = &cobra.Command{
 
 		allConfigs := common.AC.GetAllConfigs()
 
+		fmt.Printf("Start Check")
+
 		// make sure the checks in cs are not JMX checks
 		for idx := range allConfigs {
 			conf := &allConfigs[idx]
@@ -153,10 +156,13 @@ var checkCmd = &cobra.Command{
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
 				} else {
+					fmt.Printf("Before ExecJmxListWithMetricsJSON")
 					if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
+					fmt.Printf("After ExecJmxListWithMetricsJSON")
 				}
+				fmt.Printf("After ExecJmxListWithMetricsJSON 2")
 
 				instances := []integration.Data{}
 
@@ -168,10 +174,10 @@ var checkCmd = &cobra.Command{
 					instances = append(instances, instance)
 				}
 
-				if len(instances) == 0 {
-					fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", checkName)
-					return nil
-				}
+				//if len(instances) == 0 {
+				//	fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", checkName)
+				//	return nil
+				//}
 
 				//conf.Instances = instances
 			}
@@ -393,7 +399,9 @@ var checkCmd = &cobra.Command{
 				color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 			}
 		}
+		log.Infof("Stop DSD")
 		common.DSD.Stop()
+		log.Infof("Exit Check")
 		return nil
 	},
 }
