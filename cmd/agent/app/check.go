@@ -175,7 +175,7 @@ var checkCmd = &cobra.Command{
 				if formatJSON {
 					aggregatorData := getMetricsData(agg)
 					instanceData := map[string]interface{}{
-						"aggregator":  aggregatorData,
+						"aggregator": aggregatorData,
 					}
 					printInstancesDataAsJson([]interface{}{instanceData})
 				} else {
