@@ -94,8 +94,8 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig returns extra configuration
-func (s *dummyService) GetExtraConfig(key string) (string, error) {
-	return s.ExtraConfig[key], nil
+func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte(s.ExtraConfig[string(key)]), nil
 }
 
 func TestGetFallbackHost(t *testing.T) {

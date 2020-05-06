@@ -285,6 +285,6 @@ func (s *ECSService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *ECSService) GetExtraConfig(key string) (string, error) {
-	return "", ErrNotSupported
+func (s *ECSService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

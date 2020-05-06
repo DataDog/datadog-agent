@@ -636,6 +636,6 @@ func (s *DockerService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *DockerService) GetExtraConfig(key string) (string, error) {
-	return "", ErrNotSupported
+func (s *DockerService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

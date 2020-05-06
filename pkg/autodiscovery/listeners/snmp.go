@@ -387,40 +387,30 @@ func (s *SNMPService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig returns data from configuration
-func (s *SNMPService) GetExtraConfig(key string) (string, error) {
-	switch key {
+func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
+	switch string(key) {
 	case "version":
-		return s.config.Version, nil
+		return []byte(s.config.Version), nil
 	case "timeout":
-		return fmt.Sprintf("%d", s.config.Timeout), nil
+		return []byte(fmt.Sprintf("%d", s.config.Timeout)), nil
 	case "retries":
-		return fmt.Sprintf("%d", s.config.Retries), nil
+		return []byte(fmt.Sprintf("%d", s.config.Retries)), nil
 	case "community":
-		return s.config.Community, nil
+		return []byte(s.config.Community), nil
 	case "user":
-		return s.config.User, nil
+		return []byte(s.config.User), nil
 	case "auth_key":
-		return s.config.AuthKey, nil
+		return []byte(s.config.AuthKey), nil
 	case "auth_protocol":
-		if s.config.AuthProtocol == "MD5" {
-			return "usmHMACMD5AuthProtocol", nil
-		} else if s.config.AuthProtocol == "SHA" {
-			return "usmHMACSHAAuthProtocol", nil
-		}
-		return "", nil
+		return []byte(s.config.AuthProtocol), nil
 	case "priv_key":
-		return s.config.PrivKey, nil
+		return []byte(s.config.PrivKey), nil
 	case "priv_protocol":
-		if s.config.PrivProtocol == "DES" {
-			return "usmDESPrivProtocol", nil
-		} else if s.config.PrivProtocol == "AES" {
-			return "usmAesCfb128Protocol", nil
-		}
-		return "", nil
+		return []byte(s.config.PrivProtocol), nil
 	case "context_engine_id":
-		return s.config.ContextEngineID, nil
+		return []byte(s.config.ContextEngineID), nil
 	case "context_name":
-		return s.config.ContextName, nil
+		return []byte(s.config.ContextName), nil
 	}
-	return "", ErrNotSupported
+	return []byte{}, ErrNotSupported
 }

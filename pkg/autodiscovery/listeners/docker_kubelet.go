@@ -123,6 +123,6 @@ func (s *DockerKubeletService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *DockerKubeletService) GetExtraConfig(key string) (string, error) {
-	return "", ErrNotSupported
+func (s *DockerKubeletService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

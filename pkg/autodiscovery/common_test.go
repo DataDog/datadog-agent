@@ -83,6 +83,6 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *dummyService) GetExtraConfig(key string) (string, error) {
-	return "", nil
+func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, nil
 }

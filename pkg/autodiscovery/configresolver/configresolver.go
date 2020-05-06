@@ -246,11 +246,11 @@ func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
 
 // getExtra returns specific data
 func getExtra(tplVar []byte, svc listeners.Service) ([]byte, error) {
-	value, err := svc.GetExtraConfig(string(tplVar))
+	value, err := svc.GetExtraConfig(tplVar)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get extra info for service %s, skipping config - %s", svc.GetEntity(), err)
 	}
-	return []byte(value), nil
+	return value, nil
 }
 
 // getEnvvar returns a system environment variable if found

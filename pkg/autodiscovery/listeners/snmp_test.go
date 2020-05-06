@@ -113,17 +113,17 @@ func TestExtraConfig(t *testing.T) {
 		config:       snmpConfig,
 	}
 
-	info, err := svc.GetExtraConfig("community")
+	info, err := svc.GetExtraConfig([]byte("community"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "public", info)
+	assert.Equal(t, "public", string(info))
 
-	info, err = svc.GetExtraConfig("timeout")
+	info, err = svc.GetExtraConfig([]byte("timeout"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "5", info)
+	assert.Equal(t, "5", string(info))
 
-	info, err = svc.GetExtraConfig("retries")
+	info, err = svc.GetExtraConfig([]byte("retries"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "2", info)
+	assert.Equal(t, "2", string(info))
 }
 
 func TestExtraConfigv3(t *testing.T) {
@@ -144,23 +144,23 @@ func TestExtraConfigv3(t *testing.T) {
 		config:       snmpConfig,
 	}
 
-	info, err := svc.GetExtraConfig("user")
+	info, err := svc.GetExtraConfig([]byte("user"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "admin", info)
+	assert.Equal(t, "admin", string(info))
 
-	info, err = svc.GetExtraConfig("auth_key")
+	info, err = svc.GetExtraConfig([]byte("auth_key"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "secret", info)
+	assert.Equal(t, "secret", string(info))
 
-	info, err = svc.GetExtraConfig("auth_protocol")
+	info, err = svc.GetExtraConfig([]byte("auth_protocol"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "usmHMACSHAAuthProtocol", info)
+	assert.Equal(t, "SHA", string(info))
 
-	info, err = svc.GetExtraConfig("priv_key")
+	info, err = svc.GetExtraConfig([]byte("priv_key"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "private", info)
+	assert.Equal(t, "private", string(info))
 
-	info, err = svc.GetExtraConfig("priv_protocol")
+	info, err = svc.GetExtraConfig([]byte("priv_protocol"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "usmDESPrivProtocol", info)
+	assert.Equal(t, "DES", string(info))
 }
