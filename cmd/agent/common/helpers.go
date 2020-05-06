@@ -52,6 +52,7 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool) er
 	return nil
 }
 
+// SetupSystemProbeConfig adds the system-probe.yaml file to the config object
 func SetupSystemProbeConfig() error {
 	return setupSystemProbeConfig()
 }
