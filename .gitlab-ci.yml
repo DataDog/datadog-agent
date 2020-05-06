@@ -1235,6 +1235,7 @@ windows_choco_online_7_x64:
   stage: image_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
+  dependencies: []
   variables:
     ARCH: "x64"
   script:
@@ -1252,6 +1253,8 @@ windows_choco_offline_7_x64:
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
   variables:
     ARCH: "x64"
+  dependencies:
+    - windows_msi_x64-a7
   script:
     - copy .omnibus\pkg\*.msi chocolatey\tools\
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat
