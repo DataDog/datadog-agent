@@ -177,7 +177,7 @@ var checkCmd = &cobra.Command{
 					instanceData := map[string]interface{}{
 						"aggregator": aggregatorData,
 					}
-					printInstancesDataAsJson([]interface{}{instanceData})
+					printInstancesDataAsJSON([]interface{}{instanceData})
 				} else {
 					printMetrics(agg)
 				}
@@ -397,7 +397,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		if formatJSON {
-			printInstancesDataAsJson(instancesData)
+			printInstancesDataAsJSON(instancesData)
 		} else if singleCheckRun() {
 			if profileMemory {
 				color.Yellow("Check has run only once, to collect diff data run the check multiple times with the -t/--check-times flag.")
@@ -409,7 +409,7 @@ var checkCmd = &cobra.Command{
 	},
 }
 
-func printInstancesDataAsJson(instancesData []interface{}) {
+func printInstancesDataAsJSON(instancesData []interface{}) {
 	fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
 	instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
 	fmt.Println(string(instancesJSON))
