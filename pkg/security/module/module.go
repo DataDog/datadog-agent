@@ -20,16 +20,14 @@ type Module struct {
 	probe   *probe.Probe
 	config  *config.Config
 	ruleSet *eval.RuleSet
+	server  *EventServer
 }
 
 func (a *Module) Register(server *grpc.Server) error {
 	a.probe.SetEventHandler(a)
-
-	eventServer := NewEventServer()
-	api.RegisterSecurityModuleServer(server, eventServer)
+	api.RegisterSecurityModuleServer(server, a.server)
 
 	a.ruleSet.AddListener(a)
-	a.ruleSet.AddListener(eventServer)
 
 	return a.probe.Start()
 }
@@ -39,6 +37,7 @@ func (a *Module) Close() {
 }
 
 func (a *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
+	a.server.SendEvent(rule, event)
 }
 
 func (a *Module) DiscriminatorDiscovered(event eval.Event, field string) {
@@ -92,6 +91,7 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 		config:  config,
 		probe:   probe,
 		ruleSet: eval.NewRuleSet(probe.GetModel(), config.Debug),
+		server:  NewEventServer(),
 	}
 
 	if err := agent.LoadPolicies(); err != nil {

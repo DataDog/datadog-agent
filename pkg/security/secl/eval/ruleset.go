@@ -111,7 +111,7 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 	if found {
 		for _, rule := range bucket.rules {
 			if rule.evaluator.Eval(context) {
-				log.Debugf("Rule %s matches with event %+v\n", rule.Name, spew.Sdump(event))
+				log.Infof("Rule `%s` matches with event %+v\n", rule.Name, spew.Sdump(event))
 
 				rs.NotifyRuleMatch(rule, event)
 				result = true
