@@ -31,22 +31,14 @@ func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel str
 // It is used by the `check jmx` cli command of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
 func ExecJmxListWithMetricsStatsd(selectedChecks []string, logLevel string) error {
-	// don't pollute the JSON with the log pattern.
-	out := func(a ...interface{}) {
-		fmt.Println(a...)
-	}
-	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterStatsd, out, logLevel)
+	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterStatsd, log.Info, logLevel)
 }
 
 // ExecJmxListWithRateMetricsStatsd runs the JMX command with "with-rate-metrics".
 // It is used by the `check jmx --rate` cli command of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
 func ExecJmxListWithRateMetricsStatsd(selectedChecks []string, logLevel string) error {
-	// don't pollute the JSON with the log pattern.
-	out := func(a ...interface{}) {
-		fmt.Println(a...)
-	}
-	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterStatsd, out, logLevel)
+	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterStatsd, log.Info, logLevel)
 }
 
 // execJmxCommand runs the provided JMX command name on the selected checks.
