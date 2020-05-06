@@ -5,7 +5,6 @@ package probe
 import (
 	"bytes"
 	"encoding/binary"
-	"unsafe"
 
 	"github.com/google/uuid"
 )
@@ -29,7 +28,7 @@ type MkdirEvent struct {
 	Flags             int32  `json:"flags,omitempty" field:"flags" tags:"fs"`
 	Mode              int32  `json:"mode,omitempty" field:"mode" tags:"fs"`
 	SrcInode          uint32 `json:"src_inode,omitempty" field:"source_inode" tags:"fs"`
-	SrcPathnameKey    uint32 `json:"-" field:"filename,string,{{.FieldPrefix}}Resolve(m)" tags:"fs"`
+	SrcPathnameKey    uint32 `json:"-" field:"filename" handler:"ResolveSrcPathnameKey,string" tags:"fs"`
 	SrcPathnameStr    string `json:"filename" field:"-"`
 	SrcMountID        int32  `json:"src_mount_id,omitempty" field:"source_mount_id" tags:"fs"`
 	TargetInode       uint32 `json:"target_inode,omitempty" field:"target_inode" tags:"fs"`
@@ -49,7 +48,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 32, nil
 }
 
-func (e *MkdirEvent) Resolve(m *Model) string {
+func (e *MkdirEvent) ResolveSrcPathnameKey(m *Model) string {
 	if len(e.SrcPathnameStr) == 0 {
 		e.SrcPathnameStr = m.dentryResolver.Resolve(e.SrcPathnameKey)
 	}
@@ -85,9 +84,9 @@ func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
 
 type ProcessEvent struct {
 	Pidns      uint64   `json:"pidns" field:"pidns" tags:"process"`
-	Comm       [16]byte `json:"-" field:"name,string,{{.FieldPrefix}}GetComm()" tags:"process"`
+	Comm       [16]byte `json:"-" field:"name" handler:"HandleComm,string" tags:"process"`
 	CommStr    string   `json:"" field:"-"`
-	TTYName    [64]byte `json:"-" field:"tty_name,string,{{.FieldPrefix}}GetTTY()" tags:"process"`
+	TTYName    [64]byte `json:"-" field:"tty_name" handler:"HandleTTY,string" tags:"process"`
 	TTYNameStr string   `json:"tty" field:"-"`
 	Pid        uint32   `json:"pid" field:"pid" tags:"process"`
 	Tid        uint32   `json:"tid" field:"tid" tags:"process"`
@@ -95,11 +94,19 @@ type ProcessEvent struct {
 	GID        uint32   `json:"gid" field:"gid" tags:"process"`
 }
 
+func (p *ProcessEvent) HandleTTY(m *Model) string {
+	return p.GetTTY()
+}
+
 func (p *ProcessEvent) GetTTY() string {
 	if len(p.TTYNameStr) == 0 {
 		p.TTYNameStr = string(bytes.Trim(p.TTYName[:], "\x00"))
 	}
 	return p.TTYNameStr
+}
+
+func (p *ProcessEvent) HandleComm(m *Model) string {
+	return p.GetComm()
 }
 
 func (p *ProcessEvent) GetComm() string {
@@ -154,22 +161,4 @@ func NewEvent() *Event {
 	return &Event{
 		ID: id.String(),
 	}
-}
-
-func getHostByteOrder() binary.ByteOrder {
-	var i int32 = 0x01020304
-	u := unsafe.Pointer(&i)
-	pb := (*byte)(u)
-	b := *pb
-	if b == 0x04 {
-		return binary.LittleEndian
-	}
-
-	return binary.BigEndian
-}
-
-var byteOrder binary.ByteOrder
-
-func init() {
-	byteOrder = getHostByteOrder()
 }

@@ -45,8 +45,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "mkdir.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Mkdir.Resolve(m) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.Resolve(m) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Mkdir.ResolveSrcPathnameKey(m) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.ResolveSrcPathnameKey(m) },
 
 			Field: key,
 		}, nil
@@ -144,8 +144,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "process.name":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Process.GetComm() },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Process.GetComm() },
+			Eval:      func(ctx *eval.Context) string { return m.event.Process.HandleComm(m) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Process.HandleComm(m) },
 
 			Field: key,
 		}, nil
@@ -180,8 +180,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "process.tty_name":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Process.GetTTY() },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Process.GetTTY() },
+			Eval:      func(ctx *eval.Context) string { return m.event.Process.HandleTTY(m) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Process.HandleTTY(m) },
 
 			Field: key,
 		}, nil
