@@ -8,108 +8,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
-	"github.com/pkg/errors"
 )
-
-type testProcess struct {
-	name   string
-	uid    int
-	isRoot bool
-}
-
-type testOpen struct {
-	filename string
-	flags    int
-}
-
-type testEvent struct {
-	process testProcess
-	open    testOpen
-}
-
-type testModel struct {
-	data testEvent
-}
-
-func (m *testModel) SetData(data interface{}) {
-	m.data = data.(testEvent)
-}
-
-func (m *testModel) GetEvaluator(key string) (interface{}, error) {
-	switch key {
-
-	case "process.name":
-
-		return &StringEvaluator{
-			Eval:      func(ctx *Context) string { return m.data.process.name },
-			DebugEval: func(ctx *Context) string { return m.data.process.name },
-			Field:     key,
-		}, nil
-
-	case "process.uid":
-
-		return &IntEvaluator{
-			Eval:      func(ctx *Context) int { return m.data.process.uid },
-			DebugEval: func(ctx *Context) int { return m.data.process.uid },
-			Field:     key,
-		}, nil
-
-	case "process.is_root":
-
-		return &BoolEvaluator{
-			Eval:      func(ctx *Context) bool { return m.data.process.isRoot },
-			DebugEval: func(ctx *Context) bool { return m.data.process.isRoot },
-			Field:     key,
-		}, nil
-
-	case "open.filename":
-
-		return &StringEvaluator{
-			Eval:      func(ctx *Context) string { return m.data.open.filename },
-			DebugEval: func(ctx *Context) string { return m.data.open.filename },
-			Field:     key,
-		}, nil
-
-	case "open.flags":
-
-		return &IntEvaluator{
-			Eval:      func(ctx *Context) int { return m.data.open.flags },
-			DebugEval: func(ctx *Context) int { return m.data.open.flags },
-			Field:     key,
-		}, nil
-
-	}
-
-	return nil, errors.Wrap(ErrFieldNotFound, key)
-}
-
-func (m *testModel) GetTags(key string) ([]string, error) {
-	switch key {
-
-	case "process.name":
-
-		return []string{"process"}, nil
-
-	case "process.uid":
-
-		return []string{"process"}, nil
-
-	case "process.is_root":
-
-		return []string{"process"}, nil
-
-	case "open.filename":
-
-		return []string{"fs"}, nil
-
-	case "open.flags":
-
-		return []string{"fs"}, nil
-
-	}
-
-	return nil, errors.Wrap(ErrFieldNotFound, key)
-}
 
 func parse(t *testing.T, expr string, macros map[string]*ast.Macro, model Model, debug bool) (*RuleEvaluator, *ast.Rule, error) {
 	rule, err := ast.ParseRule(expr)
@@ -126,7 +25,7 @@ func parse(t *testing.T, expr string, macros map[string]*ast.Macro, model Model,
 }
 
 func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
-	model := &testModel{data: *event}
+	model := &testModel{data: event}
 
 	ctx := &Context{}
 
@@ -550,7 +449,7 @@ func TestPartial(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		evaluator, _, err := parse(t, test.Expr, nil, &testModel{data: event}, false)
+		evaluator, _, err := parse(t, test.Expr, nil, &testModel{data: &event}, false)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -579,7 +478,7 @@ func TestMacroList(t *testing.T) {
 	}
 
 	expr = `"/etc/shadow" in list`
-	evaluator, _, err := parse(t, expr, macros, &testModel{data: testEvent{}}, false)
+	evaluator, _, err := parse(t, expr, macros, &testModel{data: &testEvent{}}, false)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -611,7 +510,7 @@ func TestMacroExpression(t *testing.T) {
 	}
 
 	expr = `process.name == "httpd" && is_passwd`
-	evaluator, _, err := parse(t, expr, macros, &testModel{data: event}, false)
+	evaluator, _, err := parse(t, expr, macros, &testModel{data: &event}, false)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -640,7 +539,7 @@ func TestMacroPartial(t *testing.T) {
 	}
 
 	expr = `is_passwd`
-	evaluator, _, err := parse(t, expr, macros, &testModel{data: event}, false)
+	evaluator, _, err := parse(t, expr, macros, &testModel{data: &event}, false)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -679,7 +578,7 @@ func BenchmarkComplex(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, nil, &testModel{data: event}, false)
+	evaluator, err := RuleToEvaluator(rule, nil, &testModel{data: &event}, false)
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -715,7 +614,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, nil, &testModel{data: event}, false)
+	evaluator, err := RuleToEvaluator(rule, nil, &testModel{data: &event}, false)
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
