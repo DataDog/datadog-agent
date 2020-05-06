@@ -203,7 +203,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 		tagger.Init()
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
+	aggregatorInstance := aggregator.InitAggregator(s, hname, aggregator.AgentName)
 	statsd, err = dogstatsd.NewServer(aggregatorInstance)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
