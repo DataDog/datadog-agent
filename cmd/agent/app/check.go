@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -137,7 +136,7 @@ var checkCmd = &cobra.Command{
 
 		allConfigs := common.AC.GetAllConfigs()
 
-		fmt.Printf("Start Check")
+		fmt.Printf("Start Check\n")
 
 		// make sure the checks in cs are not JMX checks
 		for idx := range allConfigs {
@@ -156,13 +155,13 @@ var checkCmd = &cobra.Command{
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
 				} else {
-					fmt.Printf("Before ExecJmxListWithMetricsJSON")
+					fmt.Printf("Before ExecJmxListWithMetricsJSON\n")
 					if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
-					fmt.Printf("After ExecJmxListWithMetricsJSON")
+					fmt.Printf("After ExecJmxListWithMetricsJSON\n")
 				}
-				fmt.Printf("After ExecJmxListWithMetricsJSON 2")
+				fmt.Printf("After ExecJmxListWithMetricsJSON 2\n")
 
 				instances := []integration.Data{}
 
@@ -179,9 +178,17 @@ var checkCmd = &cobra.Command{
 				//	return nil
 				//}
 
-				//conf.Instances = instances
+				conf.Instances = instances
 			}
 		}
+
+		fmt.Println("Stop DSD\n")
+		time.Sleep(10 * time.Second)
+		common.DSD.Stop()
+		fmt.Println("Exit Check\n")
+
+		printMetrics(agg)
+		fmt.Println("Finished printing metrics")
 
 		if profileMemory {
 			// If no directory is specified, make a temporary one
@@ -399,9 +406,6 @@ var checkCmd = &cobra.Command{
 				color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 			}
 		}
-		log.Infof("Stop DSD")
-		common.DSD.Stop()
-		log.Infof("Exit Check")
 		return nil
 	},
 }
