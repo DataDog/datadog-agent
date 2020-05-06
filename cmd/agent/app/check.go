@@ -138,6 +138,8 @@ var checkCmd = &cobra.Command{
 
 		fmt.Printf("Start Check\n")
 
+		var instancesData []interface{}
+
 		// make sure the checks in cs are not JMX checks
 		for idx := range allConfigs {
 			conf := &allConfigs[idx]
@@ -173,22 +175,27 @@ var checkCmd = &cobra.Command{
 					instances = append(instances, instance)
 				}
 
-				//if len(instances) == 0 {
-				//	fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", checkName)
-				//	return nil
-				//}
+				// Wait for JMX to send data to DSD
+				// TODO: Find a better to wait for DSD to receive metrics
+				time.Sleep(10 * time.Second)
 
+				if formatJSON {
+					aggregatorData := getMetricsData(agg)
+					instanceData := map[string]interface{}{
+						"aggregator":  aggregatorData,
+					}
+					printInstancesDataAsJson([]interface{}{instanceData})
+				} else {
+					printMetrics(agg)
+				}
+
+				if len(instances) == 0 {
+					fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", checkName)
+					return nil
+				}
 				conf.Instances = instances
 			}
 		}
-
-		fmt.Println("Stop DSD\n")
-		time.Sleep(10 * time.Second)
-		common.DSD.Stop()
-		fmt.Println("Exit Check\n")
-
-		printMetrics(agg)
-		fmt.Println("Finished printing metrics")
 
 		if profileMemory {
 			// If no directory is specified, make a temporary one
@@ -299,7 +306,6 @@ var checkCmd = &cobra.Command{
 			fmt.Println("Multiple check instances found, running each of them")
 		}
 
-		var instancesData []interface{}
 		for _, c := range cs {
 			s := runCheck(c, agg)
 
@@ -408,6 +414,12 @@ var checkCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+func printInstancesDataAsJson(instancesData []interface{}) {
+	fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
+	instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
+	fmt.Println(string(instancesJSON))
 }
 
 func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
