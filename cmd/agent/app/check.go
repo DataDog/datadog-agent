@@ -186,6 +186,7 @@ var checkCmd = &cobra.Command{
 					fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", checkName)
 					return nil
 				}
+
 				conf.Instances = instances
 			}
 		}
@@ -300,7 +301,6 @@ var checkCmd = &cobra.Command{
 		}
 
 		var instancesData []interface{}
-
 		for _, c := range cs {
 			s := runCheck(c, agg)
 
