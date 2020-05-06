@@ -62,5 +62,4 @@ Output: slices of MetricSample sent to the aggregator
 
 The role of the Batcher is to accumulate multiple MetricSamples before sending them to the Agent aggregator. Every time it has accumulated 32 MetricSample, it sends them to the aggregator. These 32 MetricSamples are sent in a channel buffering 100 sets.
 
-
 The size of a MetricSample depends on the size of the host hostname, its metric name, and its amount of tags. Based on hostname = 20 chars, metric name = 40 chars and tags = 200 chars, a MetricSample has a size of approximately 264 bytes. In theory, it can use 844kb of memory.
