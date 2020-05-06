@@ -124,7 +124,7 @@ var checkCmd = &cobra.Command{
 			var err error
 			common.DSD, err = dogstatsd.NewServer(agg)
 			if err != nil {
-				return fmt.Errorf("Could not start dogstatsd: %s", err)
+				return fmt.Errorf("Cannot start dogstatsd: %s", err)
 			}
 		}
 
@@ -135,8 +135,6 @@ var checkCmd = &cobra.Command{
 		}
 
 		allConfigs := common.AC.GetAllConfigs()
-
-		fmt.Printf("Start Check\n")
 
 		// make sure the checks in cs are not JMX checks
 		for idx := range allConfigs {
@@ -155,13 +153,10 @@ var checkCmd = &cobra.Command{
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
 				} else {
-					fmt.Printf("Before ExecJmxListWithMetricsJSON\n")
 					if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
-					fmt.Printf("After ExecJmxListWithMetricsJSON\n")
 				}
-				fmt.Printf("After ExecJmxListWithMetricsJSON 2\n")
 
 				instances := []integration.Data{}
 
