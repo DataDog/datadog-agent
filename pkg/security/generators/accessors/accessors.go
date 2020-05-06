@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -167,32 +166,20 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 							continue FIELD
 						}
 
-						if len(split) > 2 {
-							tmpl, err := template.New("field").Parse(split[2])
-							if err != nil {
-								panic(err)
+						if handler, found := tag.Lookup("handler"); found {
+							els := strings.Split(handler, ",")
+							if len(els) != 2 {
+								panic("handler definition should be `FunctionName,ReturnType`")
 							}
-
-							params := map[string]interface{}{
-								"Field": fieldName,
-								"Type":  split[1],
-							}
-
-							fieldPrefix := "m.event."
-							if prefix != "" {
-								params["FieldPrefix"] = fieldPrefix + prefix + "."
-							}
-
-							buffer := new(bytes.Buffer)
-							tmpl.Execute(buffer, params)
+							fnc, kind := els[0], els[1]
 
 							if aliasPrefix != "" {
 								fieldAlias = aliasPrefix + "." + fieldAlias
 							}
 
 							module.Fields[fieldAlias] = &structField{
-								Name:   buffer.String(),
-								Type:   split[1],
+								Name:   fmt.Sprintf("m.event.%s.%s(m)", prefix, fnc),
+								Type:   kind,
 								Public: true,
 								Tags:   tags,
 							}

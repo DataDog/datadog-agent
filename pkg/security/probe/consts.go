@@ -1,5 +1,10 @@
 package probe
 
+import (
+	"encoding/binary"
+	"unsafe"
+)
+
 type ProbeEventType uint64
 
 const (
@@ -32,4 +37,22 @@ func (t ProbeEventType) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+func getHostByteOrder() binary.ByteOrder {
+	var i int32 = 0x01020304
+	u := unsafe.Pointer(&i)
+	pb := (*byte)(u)
+	b := *pb
+	if b == 0x04 {
+		return binary.LittleEndian
+	}
+
+	return binary.BigEndian
+}
+
+var byteOrder binary.ByteOrder
+
+func init() {
+	byteOrder = getHostByteOrder()
 }
