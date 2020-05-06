@@ -138,8 +138,6 @@ var checkCmd = &cobra.Command{
 
 		fmt.Printf("Start Check\n")
 
-		var instancesData []interface{}
-
 		// make sure the checks in cs are not JMX checks
 		for idx := range allConfigs {
 			conf := &allConfigs[idx]
@@ -306,6 +304,8 @@ var checkCmd = &cobra.Command{
 			fmt.Println("Multiple check instances found, running each of them")
 		}
 
+		var instancesData []interface{}
+
 		for _, c := range cs {
 			s := runCheck(c, agg)
 
@@ -402,9 +402,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		if formatJSON {
-			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
-			instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
-			fmt.Println(string(instancesJSON))
+			printInstancesDataAsJson(instancesData)
 		} else if singleCheckRun() {
 			if profileMemory {
 				color.Yellow("Check has run only once, to collect diff data run the check multiple times with the -t/--check-times flag.")
