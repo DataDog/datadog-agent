@@ -446,6 +446,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 10)
 
+	// SNMP
+	config.SetKnown("snmp_traps.enabled")
+	config.SetKnown("snmp_traps.listeners")
+
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
 

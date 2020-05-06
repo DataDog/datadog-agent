@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -263,6 +264,10 @@ func StartAgent() error {
 		}
 	}
 	log.Debugf("statsd started")
+
+	if config.Datadog.GetBool("snmp_traps.enabled") {
+		snmp.Start()
+	}
 
 	// start logs-agent
 	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
