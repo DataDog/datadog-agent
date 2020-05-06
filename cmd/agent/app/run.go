@@ -139,11 +139,6 @@ func StartAgent() error {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
-	err = common.SetupSystemProbeConfig()
-	if err != nil {
-		log.Errorf("Failed to set up system probe config %v", err)
-	}
-
 	// Setup logger
 	if runtime.GOOS != "android" {
 		syslogURI := config.GetSyslogURI()
@@ -280,6 +275,14 @@ func StartAgent() error {
 		}
 	} else {
 		log.Info("logs-agent disabled")
+	}
+
+	// Try to read in System Probe config if process agent is enabled
+	if config.Datadog.GetBool("process_config.enabled") {
+		err = common.SetupSystemProbeConfig()
+		if err != nil {
+			log.Warnf("Failed to set up system probe config %v", err)
+		}
 	}
 
 	// Detect Cloud Provider
