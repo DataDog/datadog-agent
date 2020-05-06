@@ -1239,6 +1239,7 @@ windows_choco_online_7_x64:
   variables:
     ARCH: "x64"
   script:
+    - $ErrorActionPreference = "Stop"
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat
     - copy build-out\*.nupkg .omnibus\pkg
   artifacts:
@@ -1256,6 +1257,7 @@ windows_choco_offline_7_x64:
   dependencies:
     - windows_msi_x64-a7
   script:
+    - $ErrorActionPreference = "Stop"
     - copy .omnibus\pkg\*.msi chocolatey\tools\
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat
     - copy build-out\*.nupkg .omnibus\pkg
@@ -1275,6 +1277,7 @@ publish_choco_7_x64:
   before_script:
     - $chocolateyApiKey = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.chocolatey_api_key --with-decryption --query "Parameter.Value" --out text)
   script:
+    - $ErrorActionPreference = "Stop"
     - Get-ChildItem .omnibus\pkg
     - if (Test-Path nupkg) { remove-item -recurse -force nupkg }
     - mkdir nupkg
