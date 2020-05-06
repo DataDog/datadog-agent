@@ -54,10 +54,6 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool) er
 
 // SetupSystemProbeConfig adds the system-probe.yaml file to the config object
 func SetupSystemProbeConfig() error {
-	return setupSystemProbeConfig()
-}
-
-func setupSystemProbeConfig() error {
 	config.Datadog.SetConfigName("system-probe")
 	config.Datadog.SetConfigType("yaml")
 	config.Datadog.AddConfigPath(DefaultConfPath)
@@ -66,10 +62,8 @@ func setupSystemProbeConfig() error {
 		return err
 	}
 	// The full path to the location of the unix socket where connections will be accessed
-	// This is not necessarily set in the system-probe.yaml, so set it manually
-	if socketPath := config.Datadog.GetString("system_probe_config.sysprobe_socket"); socketPath != "" {
-		config.Datadog.Set("system_probe_config.sysprobe_socket", socketPath)
-	} else {
+	// This is not necessarily set in the system-probe.yaml, so set it manually if it is not
+	if !config.Datadog.IsSet("system_probe_config.sysprobe_socket") {
 		config.Datadog.Set("system_probe_config.sysprobe_socket", proc_config.GetSocketPath())
 	}
 
