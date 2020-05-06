@@ -123,13 +123,21 @@ func connFamily(m uint) network.ConnectionFamily {
 	return network.AFINET6
 }
 
-func decodeRawTCPConn(data []byte) network.ConnectionStats {
-	ct := TCPConn(*(*C.tcp_conn_t)(unsafe.Pointer(&data[0])))
-	tup := ConnTuple(ct.tup)
-	cst := ConnStatsWithTimestamp(ct.conn_stats)
-	tst := TCPStats(ct.tcp_stats)
+func decodeRawTCPConn(data []byte) []network.ConnectionStats {
+	var _conn C.tcp_conn_t
+	connSize := int(unsafe.Sizeof(_conn))
 
-	return connStats(&tup, &cst, &tst)
+	conns := make([]network.ConnectionStats, 0, len(data)/connSize)
+	for len(data) > 0 {
+		ct := TCPConn(*(*C.tcp_conn_t)(unsafe.Pointer(&data[0])))
+		tup := ConnTuple(ct.tup)
+		cst := ConnStatsWithTimestamp(ct.conn_stats)
+		tst := TCPStats(ct.tcp_stats)
+		conns = append(conns, connStats(&tup, &cst, &tst))
+		data = data[connSize:]
+	}
+
+	return conns
 }
 
 func isPortClosed(state uint8) bool {

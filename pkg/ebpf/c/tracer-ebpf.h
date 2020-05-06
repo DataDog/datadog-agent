@@ -67,6 +67,20 @@ typedef struct {
     tcp_stats_t tcp_stats;
 } tcp_conn_t;
 
+#ifndef TCP_CLOSED_BATCH_SIZE
+#define TCP_CLOSED_BATCH_SIZE 3
+#endif
+
+// This struct is meant to be used as a container for batching
+// writes to the perf buffer. Ideally we should have an array of tcp_conn_t objects
+// but apparently eBPF verifier doesn't allow arbitrary index access during runtime.
+typedef struct {
+    tcp_conn_t c0;
+    tcp_conn_t c1;
+    tcp_conn_t c2;
+    __u8 pos;
+} batch_t;
+
 static const __u8 TRACER_STATE_UNINITIALIZED = 0;
 static const __u8 TRACER_STATE_CHECKING = 1;
 static const __u8 TRACER_STATE_CHECKED = 2;

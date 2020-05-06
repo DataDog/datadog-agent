@@ -283,35 +283,15 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 
 		for {
 			select {
-			case conn, ok := <-closedChannel:
+			case rawConns, ok := <-closedChannel:
 				if !ok {
 					log.Infof("Exiting closed connections polling")
 					return
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
-				cs := decodeRawTCPConn(conn)
-				cs.Direction = t.determineConnectionDirection(&cs)
-				if t.shouldSkipConnection(&cs) {
-					atomic.AddInt64(&t.skippedConns, 1)
-				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(
-						cs.Source,
-						cs.SPort,
-						cs.Dest,
-						cs.DPort,
-						process.ConnectionType(cs.Type),
-					)
-
-					t.state.StoreClosedConnection(cs)
-					if cs.IPTranslation != nil {
-						t.conntracker.DeleteTranslation(
-							cs.Source,
-							cs.SPort,
-							cs.Dest,
-							cs.DPort,
-							process.ConnectionType(cs.Type),
-						)
-					}
+				conns := decodeRawTCPConn(rawConns)
+				for _, c := range conns {
+					t.storeClosedConn(c)
 				}
 			case lostCount, ok := <-lostChannel:
 				if !ok {
@@ -343,6 +323,33 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 		return true
 	}
 	return false
+}
+
+func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
+	cs.Direction = t.determineConnectionDirection(&cs)
+	if t.shouldSkipConnection(&cs) {
+		atomic.AddInt64(&t.skippedConns, 1)
+		return
+	}
+
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(
+		cs.Source,
+		cs.SPort,
+		cs.Dest,
+		cs.DPort,
+		process.ConnectionType(cs.Type),
+	)
+
+	t.state.StoreClosedConnection(cs)
+	if cs.IPTranslation != nil {
+		t.conntracker.DeleteTranslation(
+			cs.Source,
+			cs.SPort,
+			cs.Dest,
+			cs.DPort,
+			process.ConnectionType(cs.Type),
+		)
+	}
 }
 
 func (t *Tracer) Stop() {
