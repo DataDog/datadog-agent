@@ -149,11 +149,11 @@ var checkCmd = &cobra.Command{
 				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 				selectedChecks := []string{checkName}
 				if checkRate {
-					if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+					if err := standalone.ExecJmxListWithRateMetricsStatsd(selectedChecks, resolvedLogLevel); err != nil {
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
 				} else {
-					if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+					if err := standalone.ExecJmxListWithMetricsStatsd(selectedChecks, resolvedLogLevel); err != nil {
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
 				}
