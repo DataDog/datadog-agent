@@ -6,6 +6,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type EventServer struct {
@@ -32,14 +33,12 @@ LOOP:
 	return nil
 }
 
-func (e *EventServer) DiscriminatorDiscovered(event eval.Event, field string) {
-}
-
-func (e *EventServer) RuleMatch(rule *eval.Rule, event eval.Event) {
+func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return
 	}
+	log.Infof("Sending event message for rule `%s` to security-agent: %s", rule.Name, string(data))
 
 	msg := &api.SecurityEventMessage{
 		RuleName: rule.Name,
