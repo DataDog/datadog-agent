@@ -1258,6 +1258,7 @@ windows_choco_offline_7_x64:
     - windows_msi_x64-a7
   script:
     - $ErrorActionPreference = "Stop"
+    - New-Item -path chocolatey\tools\ -type directory
     - copy .omnibus\pkg\*.msi chocolatey\tools\
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\chocopack.bat
     - copy build-out\*.nupkg .omnibus\pkg
