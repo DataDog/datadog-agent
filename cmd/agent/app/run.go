@@ -139,6 +139,11 @@ func StartAgent() error {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
+	err = common.SetupSystemProbeConfig()
+	if err != nil {
+		log.Errorf("Failed to set up system probe config %v", err)
+	}
+
 	// Setup logger
 	if runtime.GOOS != "android" {
 		syslogURI := config.GetSyslogURI()
