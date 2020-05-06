@@ -155,3 +155,21 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(v, true)
 }
+
+func TestProfiling(t *testing.T) {
+	cleanRuntimeSetting()
+	setupConf()
+
+	ll := profilingRuntimeSetting("profiling")
+	assert.Equal(t, "profiling", ll.Name())
+
+	err := ll.Set("false")
+	assert.Nil(t, err)
+
+	v, err := ll.Get()
+	assert.Equal(t, false, v)
+	assert.Nil(t, err)
+
+	err = ll.Set("on")
+	assert.NotNil(t, err)
+}

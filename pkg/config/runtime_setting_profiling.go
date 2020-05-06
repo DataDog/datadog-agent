@@ -62,7 +62,7 @@ func (l profilingRuntimeSetting) Set(v interface{}) error {
 			Datadog.GetString("api_key"),
 			site,
 			Datadog.GetString("env"),
-			Datadog.GetString("service"),
+			profiling.ProfileCoreService,
 			fmt.Sprintf("version:%v", v),
 		)
 		if err == nil {

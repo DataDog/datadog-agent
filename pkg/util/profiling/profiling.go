@@ -19,8 +19,10 @@ var (
 )
 
 const (
-	// ProfileURLTemplate constant template for expected profiling endpoint URL
+	// ProfileURLTemplate constant template for expected profiling endpoint URL.
 	ProfileURLTemplate = "https://intake.profile.%s/v1/input"
+	// ProfileCoreService default service for the core agent profiler.
+	ProfileCoreService = "datadog-agent"
 )
 
 // Active returns a boolean indicating whether profiling is active or not;
