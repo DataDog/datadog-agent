@@ -546,7 +546,21 @@ api_key:
     #
     # ad_identifier: snmp
 
+{{- if .Profiling -}}
+## @param profiling - custom object - optional
+## Enter specific configurations for profiling.
+## Uncomment this parameter and the one below to enable them.
+#
+# profiling:
+#
+  ## @param enabled - boolean - optional - default: false
+  ## Enable profiling for the agent process
+  #
+  # enabled: false
+
+{{ end }}
 {{ end -}}
+
 {{- if .LogsAgent }}
 
 ##################################
