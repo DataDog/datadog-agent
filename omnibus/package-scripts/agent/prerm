@@ -111,7 +111,7 @@ remove_custom_integrations()
 
         # List all files in the embedded dir of the datadog-agent install dir
         PREV_DIR=$(pwd)
-        cd $INSTALL_DIR
+        cd "$INSTALL_DIR" || return
         find . -depth -path './embedded/lib/python*/site-packages/datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
 
         # List all files in the embedded dir of the datadog-agent install dir
@@ -119,7 +119,7 @@ remove_custom_integrations()
         grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs --no-run-if-empty -I '{}' rm -r $INSTALL_DIR/{}
 
         rm $INSTALL_DIR/embedded/.all-integrations.txt
-        cd $PREV_DIR
+        cd "$PREV_DIR" || return
     fi
 }
 
@@ -146,7 +146,7 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         ;;
     esac
 else
-    echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+    echo "[ FAILED ]\tYour system is currently not supported by this script.";
 fi
 
 # Delete all .pyc files in the `agent/` and the `bin/agent/dist` dirs

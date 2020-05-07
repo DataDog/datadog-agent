@@ -11,7 +11,8 @@ import (
 	"fmt"
 )
 
-func getSystemProbeStats() map[string]interface{} {
+// GetSystemProbeStats returns a notice that it is not supported on systems that do not at least build the process agent
+func GetSystemProbeStats() map[string]interface{} {
 	return map[string]interface{}{
 		"Errors": fmt.Sprintf("System Probe is not supported on systems not running the process agent"),
 	}

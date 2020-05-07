@@ -100,26 +100,26 @@ func TestDiskCheck(t *testing.T) {
 	expectedRates := 2
 	expectedGauges := 16
 
-	mock.On("Gauge", "system.disk.total", 523248.0, "", []string{"device:/dev/sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.used", 4744.0, "", []string{"device:/dev/sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.free", 518504.0, "", []string{"device:/dev/sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.in_use", 0.009066446503378894, "", []string{"device:/dev/sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.total", 0.0, "", []string{"device:/dev/sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.used", 0.0, "", []string{"device:/dev/sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.free", 0.0, "", []string{"device:/dev/sda1"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.in_use", 0.0, "", []string{"device:/dev/sda1"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.total", 523248.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.used", 4744.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.free", 518504.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.in_use", 0.009066446503378894, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.total", 0.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.used", 0.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.free", 0.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.in_use", 0.0, "", []string{"device:/dev/sda1", "device_name:sda1"}).Return().Times(1)
 
-	mock.On("Gauge", "system.disk.total", 50825728.0, "", []string{"device:/dev/sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.used", 10044844.0, "", []string{"device:/dev/sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.free", 38169380.0, "", []string{"device:/dev/sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.in_use", 0.19763305702182958, "", []string{"device:/dev/sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.total", 3244032.0, "", []string{"device:/dev/sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.used", 290872.0, "", []string{"device:/dev/sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.free", 2953160.0, "", []string{"device:/dev/sda2"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.in_use", 0.08966372711489899, "", []string{"device:/dev/sda2"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.total", 50825728.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.used", 10044844.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.free", 38169380.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.in_use", 0.19763305702182958, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.total", 3244032.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.used", 290872.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.free", 2953160.0, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.in_use", 0.08966372711489899, "", []string{"device:/dev/sda2", "device_name:sda2"}).Return().Times(1)
 
-	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda"}).Return().Times(1)
+	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 
@@ -145,8 +145,8 @@ func TestDiskCheckExcludedDiskFilsystem(t *testing.T) {
 	expectedGauges := 0
 	expectedRates := 2
 
-	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda"}).Return().Times(1)
+	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 
@@ -172,8 +172,8 @@ func TestDiskCheckExcludedRe(t *testing.T) {
 	expectedGauges := 0
 	expectedRates := 2
 
-	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda"}).Return().Times(1)
+	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 
@@ -199,26 +199,26 @@ func TestDiskCheckTags(t *testing.T) {
 	expectedGauges := 16
 	expectedRates := 2
 
-	mock.On("Gauge", "system.disk.total", 523248.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.used", 4744.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.free", 518504.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.in_use", 0.009066446503378894, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.total", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.used", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.free", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "role:esp"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.in_use", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "role:esp"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.total", 523248.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.used", 4744.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.free", 518504.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.in_use", 0.009066446503378894, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.total", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.used", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.free", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.in_use", 0.0, "", []string{"vfat", "filesystem:vfat", "device:/boot/efi", "device_name:sda1", "role:esp"}).Return().Times(1)
 
-	mock.On("Gauge", "system.disk.total", 50825728.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.used", 10044844.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.free", 38169380.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.disk.in_use", 0.19763305702182958, "", []string{"ext4", "filesystem:ext4", "device:/", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.total", 3244032.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.used", 290872.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.free", 2953160.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_type:sata", "disk_size:large"}).Return().Times(1)
-	mock.On("Gauge", "system.fs.inodes.in_use", 0.08966372711489899, "", []string{"ext4", "filesystem:ext4", "device:/", "device_type:sata", "disk_size:large"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.total", 50825728.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.used", 10044844.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.free", 38169380.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
+	mock.On("Gauge", "system.disk.in_use", 0.19763305702182958, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.total", 3244032.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.used", 290872.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.free", 2953160.0, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
+	mock.On("Gauge", "system.fs.inodes.in_use", 0.08966372711489899, "", []string{"ext4", "filesystem:ext4", "device:/", "device_name:sda2", "device_type:sata", "disk_size:large"}).Return().Times(1)
 
-	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda"}).Return().Times(1)
+	mock.On("Rate", "system.disk.read_time_pct", 1969930.8, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
+	mock.On("Rate", "system.disk.write_time_pct", 41860.0, "", []string{"device:sda", "device_name:sda"}).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 

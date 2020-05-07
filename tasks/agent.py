@@ -12,9 +12,9 @@ from distutils.dir_util import copy_tree
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var, check_go111module_envvar
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, get_distro_exclude_tags, LINUX_ONLY_TAGS, WINDOWS_32BIT_EXCLUDE_TAGS
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, WINDOWS_32BIT_EXCLUDE_TAGS
 from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
@@ -67,7 +67,7 @@ AGENT_CORECHECKS = [
     "winproc",
 ]
 
-PUPPY_CORECHECKS = [
+IOT_AGENT_CORECHECKS = [
     "cpu",
     "disk",
     "io",
@@ -76,14 +76,15 @@ PUPPY_CORECHECKS = [
     "network",
     "ntp",
     "uptime",
+    "systemd",
 ]
 
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          puppy=False, development=True, precompile_only=False, skip_assets=False,
+          iot=False, development=True, precompile_only=False, skip_assets=False,
           embedded_path=None, rtloader_root=None, python_home_2=None, python_home_3=None,
-          major_version='7', python_runtimes='3', arch='x64', exclude_rtloader=False):
+          major_version='7', python_runtimes='3', arch='x64', exclude_rtloader=False, go_mod="vendor"):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -92,10 +93,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         inv agent.build --build-exclude=systemd
     """
 
-    # bail out if GO111MODULE is set to on
-    check_go111module_envvar("agent.build")
-
-    if not exclude_rtloader and not puppy:
+    if not exclude_rtloader and not iot:
         rtloader_make(ctx, python_runtimes=python_runtimes)
         rtloader_install(ctx)
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
@@ -114,9 +112,6 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         for ex in WINDOWS_32BIT_EXCLUDE_TAGS:
             if ex not in build_exclude:
                 build_exclude.append(ex)
-
-    # remove all tags that are not available for current distro
-    build_exclude.extend(get_distro_exclude_tags())
 
     if sys.platform == 'win32':
         py_runtime_var = get_win_py_runtime_var(python_runtimes)
@@ -150,19 +145,20 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
 
-    if puppy:
-        # Puppy mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(puppy=True)
+    if iot:
+        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
+        build_tags = get_default_build_tags(iot=True)
     else:
         build_tags = get_build_tags(build_include, build_exclude)
 
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
-    cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
         "go_build_tags": " ".join(build_tags),
@@ -197,10 +193,10 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         ctx.run(cmd, env=env)
 
     if not skip_assets:
-        refresh_assets(ctx, build_tags, development=development, puppy=puppy)
+        refresh_assets(ctx, build_tags, development=development, iot=iot)
 
 @task
-def refresh_assets(ctx, build_tags, development=True, puppy=False):
+def refresh_assets(ctx, build_tags, development=True, iot=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -217,7 +213,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
         copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
         copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
-    if not puppy:
+    if not iot:
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
         # copy the dd-agent placeholder to the bin folder
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
@@ -228,7 +224,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
       shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in AGENT_CORECHECKS if not puppy else PUPPY_CORECHECKS:
+    for check in AGENT_CORECHECKS if not iot else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, "conf.d/{}.d/".format(check))
         copy_tree("./cmd/agent/dist/conf.d/{}.d/".format(check), check_dir)
     if "apm" in build_tags:
@@ -243,7 +239,7 @@ def refresh_assets(ctx, build_tags, development=True, puppy=False):
 
 @task
 def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-        puppy=False, skip_build=False):
+        iot=False, skip_build=False):
     """
     Execute the agent binary.
 
@@ -251,7 +247,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, puppy)
+        build(ctx, rebuild, race, build_include, build_exclude, iot)
 
     ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
 
@@ -304,7 +300,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor"):
     """
     Run integration tests for the Agent
     """
@@ -312,6 +308,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         deps(ctx)
 
     test_args = {
+        "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags()),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
@@ -324,7 +321,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     if remote_docker:
         test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
 
-    go_cmd = 'go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
 
     prefixes = [
         "./test/integration/config_providers/...",
@@ -341,7 +338,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
     'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands"
 })
-def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base_dir=None, gem_path=None,
+def omnibus_build(ctx, iot=False, agent_binaries=False, log_level="info", base_dir=None, gem_path=None,
                   skip_deps=False, skip_sign=False, release_version="nightly", major_version='7',
                   python_runtimes='3', omnibus_s3_cache=False, hardened_runtime=False, system_probe_bin=None,
                   libbcc_tarball=None, with_bcc=True):
@@ -388,8 +385,8 @@ def omnibus_build(ctx, puppy=False, agent_binaries=False, log_level="info", base
         bundle_done = datetime.datetime.now()
         bundle_elapsed = bundle_done - bundle_start
         target_project = "agent"
-        if puppy:
-            target_project = "puppy"
+        if iot:
+            target_project = "iot-agent"
         elif agent_binaries:
             target_project = "agent-binaries"
 

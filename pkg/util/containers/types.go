@@ -27,6 +27,7 @@ const (
 	ContainerPausedState            = "paused"
 	ContainerExitedState            = "exited"
 	ContainerDeadState              = "dead"
+	ContainerActiveState            = "active"
 )
 
 // Supported container health
@@ -111,3 +112,15 @@ type ContainerImplementation interface {
 
 	metrics.ContainerMetricsProvider
 }
+
+// FilterType indicates the container filter type
+type FilterType string
+
+// GlobalFilter is used to cover both MetricsFilter and LogsFilter filter types
+const GlobalFilter FilterType = "GlobalFilter"
+
+// MetricsFilter refers to the Metrics filter type
+const MetricsFilter FilterType = "MetricsFilter"
+
+// LogsFilter refers to the Logs filter type
+const LogsFilter FilterType = "LogsFilter"

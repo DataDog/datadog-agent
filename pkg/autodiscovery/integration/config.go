@@ -13,6 +13,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
@@ -51,7 +52,9 @@ type Config struct {
 	NodeName                string       `json:"node_name"`                 // node name in case of an endpoint check backed by a pod
 	CreationTime            CreationTime `json:"-"`                         // creation time of service
 	Source                  string       `json:"source"`                    // the source of the configuration
-	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
+	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // used to ignore tags coming from autodiscovery
+	MetricsExcluded         bool         `json:"-"`                         // whether metrics collection is disabled (set by container listeners only)
+	LogsExcluded            bool         `json:"-"`                         // whether logs collection is disabled (set by container listeners only)
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
@@ -121,6 +124,18 @@ func (c *Config) IsCheckConfig() bool {
 // IsLogConfig returns true if config contains a logs config.
 func (c *Config) IsLogConfig() bool {
 	return c.LogsConfig != nil
+}
+
+// HasFilter returns true if metrics or logs collection must be disabled for this config.
+// no containers.GlobalFilter case here because we don't create services that are globally excluded in AD
+func (c *Config) HasFilter(filter containers.FilterType) bool {
+	switch filter {
+	case containers.MetricsFilter:
+		return c.MetricsExcluded
+	case containers.LogsFilter:
+		return c.LogsExcluded
+	}
+	return false
 }
 
 // AddMetrics adds metrics to a check configuration
@@ -264,13 +279,27 @@ func (c *Config) Digest() string {
 		inst := RawMap{}
 		err := yaml.Unmarshal(i, &inst)
 		if err != nil {
+			log.Debugf("Error while calculating config digest for %s, skipping: %v", c.Name, err)
 			continue
 		}
-		tagList, _ := inst["tags"].([]string)
-		sort.Strings(tagList)
-		inst["tags"] = tagList
+		if val, found := inst["tags"]; found {
+			// sort the list of tags so the digest stays stable for
+			// identical configs with the same tags but with different order
+			tagsInterface, ok := val.([]interface{})
+			if !ok {
+				log.Debug("Error while calculating config digest for %s, skipping: cannot read tags from config", c.Name)
+				continue
+			}
+			tags := make([]string, len(tagsInterface))
+			for i, tag := range tagsInterface {
+				tags[i] = fmt.Sprint(tag)
+			}
+			sort.Strings(tags)
+			inst["tags"] = tags
+		}
 		out, err := yaml.Marshal(&inst)
 		if err != nil {
+			log.Debugf("Error while calculating config digest for %s, skipping: %v", c.Name, err)
 			continue
 		}
 		h.Write(out)
@@ -281,6 +310,7 @@ func (c *Config) Digest() string {
 	}
 	h.Write([]byte(c.NodeName))
 	h.Write([]byte(c.LogsConfig))
+	h.Write([]byte(c.Entity))
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

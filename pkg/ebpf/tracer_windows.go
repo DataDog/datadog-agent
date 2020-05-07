@@ -18,6 +18,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -119,18 +120,18 @@ func makeDDAPIVersionBuffer(signature uint64) []byte {
 }
 
 // GetActiveConnections returns all active connections
-func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
-	return &Connections{
+func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
+	return &network.Connections{
 		DNS: map[util.Address][]string{
 			util.AddressFromString("127.0.0.1"): {"localhost"},
 		},
-		Conns: []ConnectionStats{
+		Conns: []network.ConnectionStats{
 			{
 				Source: util.AddressFromString("127.0.0.1"),
 				Dest:   util.AddressFromString("127.0.0.1"),
 				SPort:  35673,
 				DPort:  8000,
-				Type:   TCP,
+				Type:   network.TCP,
 			},
 		},
 	}, nil
@@ -138,7 +139,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*Connections, error) {
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
-func (t *Tracer) getConnections(active []ConnectionStats) ([]ConnectionStats, uint64, error) {
+func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.ConnectionStats, uint64, error) {
 	return nil, 0, ErrNotImplemented
 }
 
@@ -185,7 +186,7 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 }
 
 // DebugNetworkMaps returns all connections stored in the maps without modifications from network state
-func (t *Tracer) DebugNetworkMaps() (*Connections, error) {
+func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return nil, ErrNotImplemented
 }
 
