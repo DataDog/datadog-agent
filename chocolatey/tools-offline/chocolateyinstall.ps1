@@ -25,7 +25,7 @@ Install-ChocolateyInstallPackage @packageArgs
 $installInfo = @"
 tool: chocolatey
 tool_version: chocolatey-$($env:CHOCOLATEY_VERSION)
-installer_version: $($env:chocolateyPackageVersion)-offline
+installer_version: chocolatey-$($env:chocolateyPackageVersion)-offline
 "@
 
 Out-File -FilePath C:\ProgramData\Datadog\install_info -InputObject $installInfo
