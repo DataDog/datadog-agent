@@ -29,6 +29,7 @@ end
 if linux?
   # add nfsiostat script
   dependency 'unixodbc'
+  dependency 'tdsodbc'  # needed for SQL Server integration
   dependency 'nfsiostat'
   # need kerberos for hdfs
   dependency 'libkrb5'
