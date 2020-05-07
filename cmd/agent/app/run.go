@@ -277,12 +277,9 @@ func StartAgent() error {
 		log.Info("logs-agent disabled")
 	}
 
-	// Try to read in System Probe config if process agent is enabled
-	if config.Datadog.GetBool("process_config.enabled") {
-		err = common.SetupSystemProbeConfig()
-		if err != nil {
-			log.Warnf("Failed to set up system probe config %v", err)
-		}
+	err = common.SetupSystemProbeConfig(sysProbeConfFilePath)
+	if err != nil {
+		log.Warnf("System probe config not read: %v", err)
 	}
 
 	// Detect Cloud Provider

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	proc_config "github.com/DataDog/datadog-agent/pkg/process/config"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -53,10 +55,24 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool) er
 }
 
 // SetupSystemProbeConfig adds the system-probe.yaml file to the config object
-func SetupSystemProbeConfig() error {
-	config.Datadog.SetConfigName("system-probe")
-	config.Datadog.SetConfigType("yaml")
-	config.Datadog.AddConfigPath(DefaultConfPath)
+func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
+	log.Info(sysProbeConfFilePath)
+	// set the paths where a config file is expected. Without this, if there is a system-probe.yaml
+	// in the default location it will overwrite whatever custom path is passed in
+	if len(sysProbeConfFilePath) != 0 {
+		// If they pass in the file directly, assume we should use it
+		if strings.HasSuffix(sysProbeConfFilePath, ".yaml") {
+			config.Datadog.SetConfigFile(sysProbeConfFilePath)
+		} else {
+			config.Datadog.SetConfigFile(sysProbeConfFilePath + "system-probe.yaml")
+		}
+	} else {
+		// Assume it is in the default location if nothing is passed in
+		config.Datadog.SetConfigName("system-probe")
+		config.Datadog.SetConfigType("yaml")
+		config.Datadog.AddConfigPath(DefaultConfPath)
+	}
+
 	err := config.LoadSystemProbeConfig()
 	if err != nil {
 		return err
