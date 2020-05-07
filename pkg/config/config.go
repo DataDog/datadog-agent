@@ -563,6 +563,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
+	// Admission controller
+	config.BindEnvAndSetDefault("admission_controller.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.port", 8000)
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.

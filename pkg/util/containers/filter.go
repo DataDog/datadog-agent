@@ -29,8 +29,11 @@ const (
 	// - gcrio.azureedge.net/google_containers/pause-amd64
 	pauseContainerAzure   = `image:(.*)azureedge\.net(/google_containers/|/)pause(.*)`
 	pauseContainerRancher = `image:rancher/pause(.*)`
-	pauseContainerAKS     = `image:mcr.microsoft.com/k8s/core/pause(.*)`
-	pauseContainerECR     = `image:ecr(.*)amazonaws.com/pause(.*)`
+	// pauseContainerAKS regex matches:
+	// - mcr.microsoft.com/k8s/core/pause-amd64
+	// - aksrepos.azurecr.io/mirror/pause-amd64
+	pauseContainerAKS = `image:(mcr.microsoft.com/k8s/core/|aksrepos.azurecr.io/mirror/)pause(.*)`
+	pauseContainerECR = `image:ecr(.*)amazonaws.com/pause(.*)`
 )
 
 // Filter holds the state for the container filtering logic
