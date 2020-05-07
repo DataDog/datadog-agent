@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDecodeEvent(t *testing.T) {
+func TestDecodeAndReleaseEvent(t *testing.T) {
 	e := Event{
 		msgs: []netlink.Message{
 			{
@@ -21,7 +21,7 @@ func TestDecodeEvent(t *testing.T) {
 			},
 		},
 	}
-	connections := DecodeEvent(e)
+	connections := DecodeAndReleaseEvent(e)
 	assert.Len(t, connections, 1)
 	c := connections[0]
 
@@ -51,7 +51,7 @@ func BenchmarkDecodeSingleMessage(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		DecodeEvent(e)
+		DecodeAndReleaseEvent(e)
 	}
 }
 
@@ -66,7 +66,7 @@ func BenchmarkDecodeMultipleMessages(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		DecodeEvent(e)
+		DecodeAndReleaseEvent(e)
 	}
 }
 

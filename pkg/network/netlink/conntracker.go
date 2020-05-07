@@ -241,7 +241,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 	gen := getNthGeneration(generationLength, time.Now().UnixNano(), 3)
 
 	for e := range events {
-		conns := DecodeEvent(e)
+		conns := DecodeAndReleaseEvent(e)
 		for _, c := range conns {
 			if len(ctr.state) < ctr.maxStateSize && isNAT(c) {
 				if k, ok := formatKey(c.Origin); ok {
@@ -305,7 +305,7 @@ func (ctr *realConntracker) run() {
 	// TODO: Add termination logic
 	go func() {
 		for e := range events {
-			conns := DecodeEvent(e)
+			conns := DecodeAndReleaseEvent(e)
 			for _, c := range conns {
 				ctr.register(c)
 			}
