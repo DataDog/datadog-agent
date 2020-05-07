@@ -86,6 +86,7 @@ type AgentConfig struct {
 	ExcludedDestinationConnections map[string][]string
 	EnableConntrack                bool
 	ConntrackMaxStateSize          int
+	ConntrackRateLimit             int
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
@@ -194,6 +195,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		EnableConntrack:       true,
 		ClosedChannelSize:     500,
 		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
+		ConntrackRateLimit:    500,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -382,6 +384,7 @@ func loadEnvVariables() {
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
 		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
 		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
+		{"DD_CONNTRACK_RATE_LIMIT", "system_probe_config.conntrack_rate_limit"},
 
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

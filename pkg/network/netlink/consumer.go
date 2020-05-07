@@ -24,12 +24,6 @@ const (
 	outputBuffer      = 100
 	overshootFactor   = 0.95
 	netlinkBufferSize = 1024 * 1024 // 1Mb
-
-	// The maximum number of messages we're willing to read off the socket per second
-	// This number is enforced to keep CPU usage at an appropriate level
-	// If the number of messages is above that, we "throttle" the socket using a BPF filter
-	// TODO: expose this as a configuration param
-	maxMessagesPerSecond = 500
 )
 
 var msgBufferSize int
@@ -44,11 +38,14 @@ var errMaxSamplingAttempts = errors.New("netlink socket creation: too many attem
 // Consumer is responsible for encapsulating all the logic of hooking into Conntrack
 // and streaming new connection events.
 type Consumer struct {
-	conn         *netlink.Conn
-	socket       *Socket
-	pool         *sync.Pool
-	workQueue    chan func()
+	conn      *netlink.Conn
+	socket    *Socket
+	pool      *sync.Pool
+	workQueue chan func()
+
+	// throttling
 	samplingRate float64
+	rateLimit    int
 	breaker      *CircuitBreaker
 
 	// this is set to true after we finish the initial conntrack dump
@@ -82,11 +79,13 @@ func (e *Event) Done() {
 }
 
 // NewConsumer creates a new Conntrack event consumer.
-func NewConsumer(procRoot string) (*Consumer, error) {
+// rateLimit represents the maximum number of netlink messages per second that can be read off the socket
+func NewConsumer(procRoot string, rateLimit int) (*Consumer, error) {
 	c := &Consumer{
 		pool:      newBufferPool(),
 		workQueue: make(chan func()),
-		breaker:   NewCircuitBreaker(maxMessagesPerSecond),
+		rateLimit: rateLimit,
+		breaker:   NewCircuitBreaker(rateLimit),
 	}
 	c.initWorker(procRoot)
 
@@ -330,7 +329,7 @@ func (c *Consumer) throttle(numMessages int) error {
 
 	// Create new socket with the desired sampling rate
 	// We calculate the required sampling rate to reach the target maxMessagesPersecond
-	samplingRate := float64(maxMessagesPerSecond) * overshootFactor * c.samplingRate / float64(c.breaker.Rate())
+	samplingRate := float64(c.rateLimit) * overshootFactor * c.samplingRate / float64(c.breaker.Rate())
 	err := c.initNetlinkSocket(samplingRate)
 	if err != nil {
 		log.Errorf("failed to re-create netlink socket. exiting conntrack: %s", err)

@@ -26,7 +26,7 @@ func TestConntracker(t *testing.T) {
 	}
 	defer teardown(t)
 
-	ct, err := NewConntracker("/proc", 100)
+	ct, err := NewConntracker("/proc", 100, 500)
 	require.NoError(t, err)
 	defer ct.Close()
 
@@ -96,7 +96,7 @@ func TestMessageDump(t *testing.T) {
 	}
 	defer teardown(t)
 
-	consumer, err := NewConsumer("/proc")
+	consumer, err := NewConsumer("/proc", 500)
 	require.NoError(t, err)
 	events := consumer.Events()
 

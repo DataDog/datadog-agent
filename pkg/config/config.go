@@ -618,7 +618,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
 	config.SetKnown("system_probe_config.sysprobe_socket")
-	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
+	config.SetKnown("system_probe_config.conntrack_rate_limit")
 	config.SetKnown("system_probe_config.max_conns_per_message")
 	config.SetKnown("system_probe_config.max_tracked_connections")
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")

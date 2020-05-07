@@ -72,6 +72,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if s := config.Datadog.GetInt(key(spNS, "conntrack_max_state_size")); s > 0 {
 		a.ConntrackMaxStateSize = s
 	}
+	if config.Datadog.IsSet(key(spNS, "conntrack_rate_limit")) {
+		a.ConntrackRateLimit = config.Datadog.GetInt(key(spNS, "conntrack_rate_limit"))
+	}
 
 	if logFile := config.Datadog.GetString(key(spNS, "log_file")); logFile != "" {
 		a.LogFile = logFile

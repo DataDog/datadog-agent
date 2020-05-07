@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -43,6 +44,11 @@ type CircuitBreaker struct {
 // NewCircuitBreaker instantiates a new CircuitBreaker that only allows
 // a maxEventsPerSec to pass. The rate of events is calculated using an EWMA.
 func NewCircuitBreaker(maxEventsPerSec int) *CircuitBreaker {
+	// -1 will virtually disable the circuit breaker
+	if maxEventsPerSec == -1 {
+		maxEventsPerSec = math.MaxInt64
+	}
+
 	c := &CircuitBreaker{maxEventsPerSec: int64(maxEventsPerSec)}
 	c.Reset()
 

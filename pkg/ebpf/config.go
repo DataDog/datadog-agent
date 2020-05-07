@@ -67,6 +67,10 @@ type Config struct {
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
 
+	// ConntrackRateLimit specifies the maximum number of netlink messages *per second* that can be processed
+	// Setting it to -1 disables the limit and can result in a high CPU usage.
+	ConntrackRateLimit int
+
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
 
@@ -93,6 +97,7 @@ func NewDefaultConfig() *Config {
 		TCPConnTimeout:        2 * time.Minute,
 		MaxTrackedConnections: 65536,
 		ConntrackMaxStateSize: 65536,
+		ConntrackRateLimit:    500,
 		ProcRoot:              "/proc",
 		BPFDebug:              false,
 		EnableConntrack:       true,
