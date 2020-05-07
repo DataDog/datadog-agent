@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
@@ -30,18 +30,8 @@ const (
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
-	GetTranslationForConn(
-		srcIP util.Address,
-		srcPort uint16,
-		dstIP util.Address,
-		dstPort uint16,
-		transport process.ConnectionType) *IPTranslation
-	DeleteTranslation(
-		srcIP util.Address,
-		srcPort uint16,
-		dstIP util.Address,
-		dstPort uint16,
-		transport process.ConnectionType)
+	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
+	DeleteTranslation(network.ConnectionStats)
 	GetStats() map[string]int64
 	Close()
 }
@@ -54,11 +44,11 @@ type connKey struct {
 	dstPort uint16
 
 	// the transport protocol of the connection, using the same values as specified in the agent payload.
-	transport process.ConnectionType
+	transport network.ConnectionType
 }
 
 type connValue struct {
-	*IPTranslation
+	*network.IPTranslation
 	expGeneration uint8
 }
 
@@ -131,26 +121,20 @@ func newConntrackerOnce(procRoot string, maxStateSize int) (Conntracker, error) 
 	return ctr, nil
 }
 
-func (ctr *realConntracker) GetTranslationForConn(
-	srcIP util.Address,
-	srcPort uint16,
-	dstIP util.Address,
-	dstPort uint16,
-	transport process.ConnectionType,
-) *IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	then := time.Now().UnixNano()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	k := connKey{
-		srcIP:     srcIP,
-		srcPort:   srcPort,
-		dstIP:     dstIP,
-		dstPort:   dstPort,
-		transport: transport,
+		srcIP:     c.Source,
+		srcPort:   c.SPort,
+		dstIP:     c.Dest,
+		dstPort:   c.DPort,
+		transport: c.Type,
 	}
-	var result *IPTranslation
+	var result *network.IPTranslation
 	value, ok := ctr.state[k]
 	if ok {
 		value.expGeneration = getNthGeneration(generationLength, then, 3)
@@ -196,34 +180,28 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 	return m
 }
 
-func (ctr *realConntracker) DeleteTranslation(
-	srcIP util.Address,
-	srcPort uint16,
-	dstIP util.Address,
-	dstPort uint16,
-	transport process.ConnectionType,
-) {
+func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	then := time.Now().UnixNano()
 	ctr.Lock()
 	defer ctr.Unlock()
 	delete(
 		ctr.state,
 		connKey{
-			srcIP:     srcIP,
-			srcPort:   srcPort,
-			dstIP:     dstIP,
-			dstPort:   dstPort,
-			transport: transport,
+			srcIP:     c.Source,
+			srcPort:   c.SPort,
+			dstIP:     c.Dest,
+			dstPort:   c.DPort,
+			transport: c.Type,
 		},
 	)
 	delete(
 		ctr.state,
 		connKey{
-			srcIP:     dstIP,
-			srcPort:   dstPort,
-			dstIP:     srcIP,
-			dstPort:   srcPort,
-			transport: transport,
+			srcIP:     c.Dest,
+			srcPort:   c.DPort,
+			dstIP:     c.Source,
+			dstPort:   c.SPort,
+			transport: c.Type,
 		},
 	)
 	now := time.Now().UnixNano()
@@ -372,7 +350,7 @@ func formatIPTranslation(tuple *ct.IPTuple, generation uint8) *connValue {
 	dstPort := *tuple.Proto.DstPort
 
 	return &connValue{
-		IPTranslation: &IPTranslation{
+		IPTranslation: &network.IPTranslation{
 			ReplSrcIP:   util.AddressFromNetIP(srcIP),
 			ReplDstIP:   util.AddressFromNetIP(dstIP),
 			ReplSrcPort: srcPort,
@@ -392,9 +370,9 @@ func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 	proto := *tuple.Proto.Number
 	switch proto {
 	case 6:
-		k.transport = process.ConnectionType_tcp
+		k.transport = network.TCP
 	case 17:
-		k.transport = process.ConnectionType_udp
+		k.transport = network.UDP
 
 	default:
 		ok = false

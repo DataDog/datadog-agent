@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
 )
@@ -105,10 +104,18 @@ type ConnectionStats struct {
 	Type                   ConnectionType
 	Family                 ConnectionFamily
 	Direction              ConnectionDirection
-	IPTranslation          *netlink.IPTranslation
+	IPTranslation          *IPTranslation
 	IntraHost              bool
 	DNSSuccessfulResponses uint32
 	DNSFailedResponses     uint32
+}
+
+// IPTranslation can be associated with a connection to show show the connection is NAT'd
+type IPTranslation struct {
+	ReplSrcIP   util.Address
+	ReplDstIP   util.Address
+	ReplSrcPort uint16
+	ReplDstPort uint16
 }
 
 func (c ConnectionStats) String() string {

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/mdlayher/netlink"
 	"github.com/stretchr/testify/assert"
@@ -44,9 +44,13 @@ func TestConntracker(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	trans := ct.GetTranslationForConn(
-		util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port),
-		util.AddressFromString("2.2.2.2"), uint16(5432),
-		process.ConnectionType_tcp,
+		network.ConnectionStats{
+			Source: util.AddressFromNetIP(localAddr.IP),
+			SPort:  uint16(localAddr.Port),
+			Dest:   util.AddressFromString("2.2.2.2"),
+			DPort:  uint16(5432),
+			Type:   network.TCP,
+		},
 	)
 	require.NotNil(t, trans)
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
@@ -54,9 +58,13 @@ func TestConntracker(t *testing.T) {
 	localAddrUDP := pingUDP(t, net.ParseIP("2.2.2.2"), 5432).(*net.UDPAddr)
 	time.Sleep(time.Second)
 	trans = ct.GetTranslationForConn(
-		util.AddressFromNetIP(localAddrUDP.IP), uint16(localAddrUDP.Port),
-		util.AddressFromString("2.2.2.2"), uint16(5432),
-		process.ConnectionType_udp,
+		network.ConnectionStats{
+			Source: util.AddressFromNetIP(localAddrUDP.IP),
+			SPort:  uint16(localAddrUDP.Port),
+			Dest:   util.AddressFromString("2.2.2.2"),
+			DPort:  uint16(5432),
+			Type:   network.UDP,
+		},
 	)
 	require.NotNil(t, trans)
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
@@ -66,9 +74,13 @@ func TestConntracker(t *testing.T) {
 	time.Sleep(time.Second)
 
 	trans = ct.GetTranslationForConn(
-		util.AddressFromNetIP(localAddr.IP), uint16(localAddr.Port),
-		util.AddressFromString("1.1.1.1"), uint16(9876),
-		process.ConnectionType_tcp,
+		network.ConnectionStats{
+			Source: util.AddressFromNetIP(localAddr.IP),
+			SPort:  uint16(localAddr.Port),
+			Dest:   util.AddressFromString("1.1.1.1"),
+			DPort:  uint16(9876),
+			Type:   network.TCP,
+		},
 	)
 	assert.Nil(t, trans)
 }

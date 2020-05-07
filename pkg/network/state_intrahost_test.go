@@ -3,7 +3,6 @@ package network
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 )
@@ -41,7 +40,7 @@ func CreateConnectionStat(source string, dest string, SPort uint16, DPort uint16
 }
 
 func AddIPTranslationToConnection(conn *ConnectionStats, ReplSrcIP string, ReplDstIP string, ReplSrcPort uint16, ReplDstPort uint16) {
-	translation := netlink.IPTranslation{
+	translation := IPTranslation{
 		ReplSrcIP:   util.AddressFromString(ReplSrcIP),
 		ReplDstIP:   util.AddressFromString(ReplDstIP),
 		ReplSrcPort: ReplSrcPort,
