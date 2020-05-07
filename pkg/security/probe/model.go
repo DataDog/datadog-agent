@@ -7,7 +7,10 @@ import (
 	"encoding/binary"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
+
+var NotEnoughData = errors.New("not enough data")
 
 type Model struct {
 	event          *Event
@@ -19,49 +22,111 @@ func (m *Model) SetData(data interface{}) {
 }
 
 type OpenEvent struct {
-	Filename string `yaml:"filename" field:"filename" tags:"fs"`
-	Flags    int    `yaml:"flags" field:"flags" tags:"fs"`
-	Mode     int    `yaml:"mode" field:"mode" tags:"fs"`
+	Flags       uint32 `yaml:"flags" field:"flags" tags:"fs"`
+	Mode        uint32 `yaml:"mode" field:"mode" tags:"fs"`
+	Inode       uint32 `json:"inode,omitempty" field:"inode" tags:"fs"`
+	PathnameKey uint32 `json:"-" field:"filename" handler:"ResolvePathnameKey,string" tags:"fs"`
+	PathnameStr string `json:"filename" field:"-"`
+	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
+}
+
+func (e *OpenEvent) ResolvePathnameKey(m *Model) string {
+	if len(e.PathnameStr) == 0 {
+		e.PathnameStr = m.dentryResolver.Resolve(e.PathnameKey)
+	}
+	return e.PathnameStr
+}
+
+func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 20 {
+		return 0, NotEnoughData
+	}
+	e.Flags = byteOrder.Uint32(data[0:4])
+	e.Mode = byteOrder.Uint32(data[4:8])
+	e.Inode = byteOrder.Uint32(data[8:12])
+	e.PathnameKey = byteOrder.Uint32(data[12:16])
+	e.MountID = int32(byteOrder.Uint32(data[16:20]))
+	return 20, nil
 }
 
 type MkdirEvent struct {
-	Flags             int32  `json:"flags,omitempty" field:"flags" tags:"fs"`
-	Mode              int32  `json:"mode,omitempty" field:"mode" tags:"fs"`
-	SrcInode          uint32 `json:"src_inode,omitempty" field:"source_inode" tags:"fs"`
-	SrcPathnameKey    uint32 `json:"-" field:"filename" handler:"ResolveSrcPathnameKey,string" tags:"fs"`
-	SrcPathnameStr    string `json:"filename" field:"-"`
-	SrcMountID        int32  `json:"src_mount_id,omitempty" field:"source_mount_id" tags:"fs"`
-	TargetInode       uint32 `json:"target_inode,omitempty" field:"target_inode" tags:"fs"`
-	TargetPathnameKey uint32 `json:"-" field:"-" tags:"fs"`
-	TargetMountID     int32  `json:"target_mount_id,omitempty" field:"target_mount_id" tags:"fs"`
+	Inode       uint32 `json:"inode,omitempty" field:"inode" tags:"fs"`
+	PathnameKey uint32 `json:"-" field:"filename" handler:"ResolvePathnameKey,string" tags:"fs"`
+	PathnameStr string `json:"filename" field:"-"`
+	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
+	Mode        int32  `json:"mode,omitempty" field:"mode" tags:"fs"`
 }
 
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	e.Flags = int32(byteOrder.Uint32(data[0:4]))
-	e.Mode = int32(byteOrder.Uint32(data[4:8]))
-	e.SrcInode = byteOrder.Uint32(data[8:12])
-	e.SrcPathnameKey = byteOrder.Uint32(data[12:16])
-	e.SrcMountID = int32(byteOrder.Uint32(data[16:20]))
-	e.TargetInode = byteOrder.Uint32(data[20:24])
-	e.TargetPathnameKey = byteOrder.Uint32(data[24:28])
-	e.TargetMountID = int32(byteOrder.Uint32(data[28:32]))
-	return 32, nil
+	if len(data) < 16 {
+		return 0, NotEnoughData
+	}
+	e.Inode = byteOrder.Uint32(data[0:4])
+	e.PathnameKey = byteOrder.Uint32(data[4:8])
+	e.MountID = int32(byteOrder.Uint32(data[8:12]))
+	e.Mode = int32(byteOrder.Uint32(data[12:16]))
+	return 16, nil
 }
 
-func (e *MkdirEvent) ResolveSrcPathnameKey(m *Model) string {
-	if len(e.SrcPathnameStr) == 0 {
-		e.SrcPathnameStr = m.dentryResolver.Resolve(e.SrcPathnameKey)
+func (e *MkdirEvent) ResolvePathnameKey(m *Model) string {
+	if len(e.PathnameStr) == 0 {
+		e.PathnameStr = m.dentryResolver.Resolve(e.PathnameKey)
 	}
-	return e.SrcPathnameStr
+	return e.PathnameStr
+}
+
+type RmdirEvent struct {
+	Inode       uint32 `json:"inode,omitempty" field:"inode" tags:"fs"`
+	PathnameKey uint32 `json:"-" field:"filename,string,m.dentryResolver.Resolve({{.FieldPrefix}}{{.Field}})" tags:"fs"`
+	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
+}
+
+func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 12 {
+		return 0, NotEnoughData
+	}
+	e.Inode = byteOrder.Uint32(data[0:4])
+	e.PathnameKey = byteOrder.Uint32(data[4:8])
+	e.MountID = int32(byteOrder.Uint32(data[8:12]))
+	return 12, nil
 }
 
 type UnlinkEvent struct {
-	Filename string `yaml:"filename" field:"filename" tags:"fs"`
+	Inode       uint32 `json:"inode,omitempty" field:"inode" tags:"fs"`
+	PathnameKey uint32 `json:"-" field:"filename,string,m.dentryResolver.Resolve({{.FieldPrefix}}{{.Field}})" tags:"fs"`
+	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
+}
+
+func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 12 {
+		return 0, NotEnoughData
+	}
+	e.Inode = byteOrder.Uint32(data[0:4])
+	e.PathnameKey = byteOrder.Uint32(data[4:8])
+	e.MountID = int32(byteOrder.Uint32(data[8:12]))
+	return 12, nil
 }
 
 type RenameEvent struct {
-	OldName string `yaml:"oldname" field:"oldname" tags:"fs"`
-	NewName string `yaml:"newname" field:"newname" tags:"fs"`
+	SrcInode          uint32 `json:"oldinode,omitempty" field:"oldinode" tags:"fs"`
+	SrcPathnameKey    uint32 `json:"-" field:"oldfilename,string,m.dentryResolver.Resolve({{.FieldPrefix}}{{.Field}})" tags:"fs"`
+	SrcMountID        int32  `json:"oldmountid,omitempty" field:"oldmountid" tags:"fs"`
+	TargetInode       uint32 `json:"newinode,omitempty" field:"newinode" tags:"fs"`
+	TargetPathnameKey uint32 `json:"-" field:"newfilename,string,m.dentryResolver.Resolve({{.FieldPrefix}}{{.Field}})" tags:"fs"`
+	TargetMountID     int32  `json:"newmountid,omitempty" field:"newmountid" tags:"fs"`
+}
+
+func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 24 {
+		return 0, NotEnoughData
+	}
+	e.SrcInode = byteOrder.Uint32(data[0:4])
+	e.SrcPathnameKey = byteOrder.Uint32(data[4:8])
+	e.SrcMountID = int32(byteOrder.Uint32(data[8:12]))
+	e.TargetInode = byteOrder.Uint32(data[12:16])
+	e.TargetPathnameKey = byteOrder.Uint32(data[16:20])
+	e.TargetMountID = int32(byteOrder.Uint32(data[20:24]))
+	return 24, nil
 }
 
 type ContainerEvent struct {
@@ -76,6 +141,9 @@ type KernelEvent struct {
 }
 
 func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 24 {
+		return 0, NotEnoughData
+	}
 	k.Type = byteOrder.Uint64(data[0:8])
 	k.Timestamp = byteOrder.Uint64(data[8:16])
 	k.Retval = int64(byteOrder.Uint64(data[16:24]))
@@ -117,6 +185,9 @@ func (p *ProcessEvent) GetComm() string {
 }
 
 func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 104 {
+		return 0, NotEnoughData
+	}
 	p.Pidns = byteOrder.Uint64(data[0:8])
 	binary.Read(bytes.NewBuffer(data[8:24]), byteOrder, &p.Comm)
 	binary.Read(bytes.NewBuffer(data[24:88]), byteOrder, &p.TTYName)
@@ -134,6 +205,7 @@ type Event struct {
 	Process   ProcessEvent   `json:"process" yaml:"process" field:"process"`
 	Open      OpenEvent      `json:"open" yaml:"open" field:"open"`
 	Mkdir     MkdirEvent     `json:"mkdir" yaml:"mkdir" field:"mkdir"`
+	Rmdir     RmdirEvent     `json:"rmdir" yaml:"rmdir" field:"rmdir"`
 	Unlink    UnlinkEvent    `json:"unlink" yaml:"unlink" field:"unlink"`
 	Rename    RenameEvent    `json:"rename" yaml:"rename" field:"rename"`
 	Container ContainerEvent `json:"container" yaml:"container" field:"container"`

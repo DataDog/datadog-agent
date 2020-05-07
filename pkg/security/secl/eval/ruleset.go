@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/davecgh/go-spew/spew"
@@ -129,13 +130,13 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 				for _, rule := range bucket.rules {
 					isTrue := rule.evaluator.partialEval[field](context)
 
-					log.Debugf("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.Name, rule.Expression, field, eval, isTrue)
+					log.Debugf("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.Name, rule.Expression, field, eval.(fmt.Stringer).String(), isTrue)
 					if isTrue {
 						found = false
 					}
 				}
 				if found {
-					log.Debugf("Found discriminator for field %s with value `%s`\n", field, eval)
+					log.Debugf("Found discriminator for field %s with value `%s`\n", field, eval.(fmt.Stringer).String())
 					rs.NotifyDiscriminatorDiscovered(event, field)
 				}
 			}

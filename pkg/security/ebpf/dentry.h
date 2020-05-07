@@ -4,7 +4,7 @@
 #include <linux/dcache.h>
 #include <linux/types.h>
 
-#define DENTRY_MAX_DEPTH 32
+#define DENTRY_MAX_DEPTH 16
 
 struct bpf_map_def SEC("maps/pathnames") pathnames = {
     .type = BPF_MAP_TYPE_HASH,
@@ -56,6 +56,29 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
     }
 
     return DENTRY_MAX_DEPTH;
+}
+
+int __attribute__((always_inline)) get_inode_mount_id(struct inode *dir) {
+    // Mount ID
+    int mount_id;
+    struct super_block *spb;
+    bpf_probe_read(&spb, sizeof(spb), &dir->i_sb);
+
+    struct list_head s_mounts;
+    bpf_probe_read(&s_mounts, sizeof(s_mounts), &spb->s_mounts);
+
+    bpf_probe_read(&mount_id, sizeof(int), (void *) s_mounts.next + 172);
+    // bpf_probe_read(&mount_id, sizeof(int), &((struct mount *) s_mounts.next)->mnt_id);
+
+    return mount_id;
+}
+
+long __attribute__((always_inline)) get_dentry_inode(struct dentry *dentry) {
+    long inode;
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+    bpf_probe_read(&inode, sizeof(inode), &d_inode->i_ino);
+    return inode;
 }
 
 #endif
