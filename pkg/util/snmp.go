@@ -10,10 +10,14 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net"
+	"reflect"
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/soniah/gosnmp"
+	"github.com/spf13/viper"
 )
 
 // SNMPListenerConfig holds global configuration for SNMP discovery
@@ -39,8 +43,32 @@ type SNMPConfig struct {
 	PrivProtocol       string   `mapstructure:"privacy_protocol"`
 	ContextEngineID    string   `mapstructure:"context_engine_id"`
 	ContextName        string   `mapstructure:"context_name"`
-	IgnoredIPAddresses []string `mapstructure:"ignored_ip_addresses"`
+	IgnoredIPAddresses map[string]bool `mapstructure:"ignored_ip_addresses"`
 	ADIdentifier       string   `mapstructure:"ad_identifier"`
+}
+
+func NewSNMPListenerConfig() (SNMPListenerConfig, error) {
+	var snmpConfig SNMPListenerConfig
+	opt := viper.DecodeHook(
+		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
+			// Turn an array into a map for ignored addresses
+			if rf != reflect.Slice {
+				return data, nil
+			}
+			if rt != reflect.Map {
+				return data, nil
+			}
+			newData := map[interface{}]bool{}
+			for _, i := range data.([]interface{}) {
+				newData[i] = true
+			}
+			return newData, nil
+		},
+	)
+	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
+		return snmpConfig, err
+	}
+	return snmpConfig, nil
 }
 
 // Digest returns an hash value representing the data stored in this configuration, minus the network address
@@ -57,7 +85,7 @@ func (c *SNMPConfig) Digest(address string) string {
 	h.Write([]byte(c.PrivProtocol))
 	h.Write([]byte(c.ContextEngineID))
 	h.Write([]byte(c.ContextName))
-	for _, ip := range c.IgnoredIPAddresses {
+	for ip, _ := range c.IgnoredIPAddresses {
 		h.Write([]byte(ip))
 	}
 
@@ -135,10 +163,6 @@ func (c *SNMPConfig) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 // IsIPIgnored checks the given IP against IgnoredIPAddresses
 func (c *SNMPConfig) IsIPIgnored(ip net.IP) bool {
 	ipString := ip.String()
-	for _, ip := range c.IgnoredIPAddresses {
-		if ip == ipString {
-			return true
-		}
-	}
-	return false
+	_, present := c.IgnoredIPAddresses[ipString]
+	return present
 }
