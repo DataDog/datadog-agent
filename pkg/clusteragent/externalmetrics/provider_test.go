@@ -40,10 +40,11 @@ func (f *providerFixture) runGetExternalMetric(t *testing.T) {
 
 	// Create provider and fill store
 	datadogMetricProvider := datadogMetricProvider{
-		store: NewDatadogMetricsInternalStore(),
+		store:            NewDatadogMetricsInternalStore(),
+		autogenNamespace: "default",
 	}
 	for _, datadogMetric := range f.storeContent {
-		datadogMetricProvider.store.Set(datadogMetric.Id, datadogMetric)
+		datadogMetricProvider.store.Set(datadogMetric.ID, datadogMetric, "utest")
 	}
 
 	externalMetrics, err := datadogMetricProvider.GetExternalMetric(f.queryNamespace, labels.Set(f.querySelector).AsSelector(), provider.ExternalMetricInfo{Metric: f.queryMetricName})
@@ -65,7 +66,7 @@ func (f *providerFixture) runListAllExternalMetrics(t *testing.T) {
 		store: NewDatadogMetricsInternalStore(),
 	}
 	for _, datadogMetric := range f.storeContent {
-		datadogMetricProvider.store.Set(datadogMetric.Id, datadogMetric)
+		datadogMetricProvider.store.Set(datadogMetric.ID, datadogMetric, "utest")
 	}
 
 	expectedExternalMetricInfo := datadogMetricProvider.ListAllExternalMetrics()
@@ -81,7 +82,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			desc: "Test nominal case - DatadogMetric exists and is valid",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "ns/metric0",
+					ID:         "ns/metric0",
 					Query:      "query-metric0",
 					UpdateTime: defaultUpdateTime,
 					Valid:      true,
@@ -103,7 +104,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			desc: "Test DatadogMetric is invalid",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "ns/metric0",
+					ID:         "ns/metric0",
 					Query:      "query-metric0",
 					UpdateTime: defaultUpdateTime,
 					Valid:      false,
@@ -119,7 +120,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			desc: "Test DatadogMetric not found",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "ns/metric0",
+					ID:         "ns/metric0",
 					Query:      "query-metric0",
 					UpdateTime: defaultUpdateTime,
 					Valid:      true,
@@ -129,13 +130,45 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@ns:metric1",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("DatadogMetric not found for reference: datadogmetric@ns:metric1"),
+			expectedError:           fmt.Errorf("DatadogMetric not found for metric name: datadogmetric@ns:metric1, datadogmetricid: ns/metric1"),
+		},
+		{
+			desc: "Test DatadogMetric not found",
+			storeContent: []model.DatadogMetricInternal{
+				{
+					ID:         "ns/metric0",
+					Query:      "query-metric0",
+					UpdateTime: defaultUpdateTime,
+					Valid:      true,
+					Error:      nil,
+					Value:      42.0,
+				},
+			},
+			queryMetricName:         "datadogmetric@ns:metric1",
+			expectedExternalMetrics: nil,
+			expectedError:           fmt.Errorf("DatadogMetric not found for metric name: datadogmetric@ns:metric1, datadogmetricid: ns/metric1"),
+		},
+		{
+			desc: "Test ExternalMetric use wrong DatadogMetric format",
+			storeContent: []model.DatadogMetricInternal{
+				{
+					ID:         "ns/metric0",
+					Query:      "query-metric0",
+					UpdateTime: defaultUpdateTime,
+					Valid:      true,
+					Error:      nil,
+					Value:      42.0,
+				},
+			},
+			queryMetricName:         "datadogmetric@metric1",
+			expectedExternalMetrics: nil,
+			expectedError:           fmt.Errorf("ExternalMetric does not follow DatadogMetric format"),
 		},
 		{
 			desc: "Test ExternalMetric does not use DatadogMetric format",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "ns/metric0",
+					ID:         "ns/metric0",
 					Query:      "query-metric0",
 					UpdateTime: defaultUpdateTime,
 					Valid:      true,
@@ -145,7 +178,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "nginx.net.request_per_s",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("ExternalMetric does not follow DatadogMetric format"),
+			expectedError:           fmt.Errorf("DatadogMetric not found for metric name: nginx.net.request_per_s, datadogmetricid: default/dcaautogen-32402d8dfc05cf540928a606d78ed68c0607f758"),
 		},
 	}
 
@@ -169,7 +202,7 @@ func TestListAllExternalMetrics(t *testing.T) {
 			desc: "Test with metrics in store",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "ns/metric0",
+					ID:         "ns/metric0",
 					Query:      "query-metric0",
 					UpdateTime: defaultUpdateTime,
 					Valid:      true,
@@ -177,17 +210,38 @@ func TestListAllExternalMetrics(t *testing.T) {
 					Value:      42.0,
 				},
 				{
-					Id:         "ns/metric1",
+					ID:         "ns/metric1",
 					Query:      "query-metric1",
 					UpdateTime: defaultUpdateTime,
 					Valid:      false,
 					Error:      nil,
 					Value:      42.0,
 				},
+				{
+					ID:                 "autogen-foo",
+					Query:              "query-metric2",
+					UpdateTime:         defaultUpdateTime,
+					ExternalMetricName: "metric2",
+					Autogen:            true,
+					Valid:              false,
+					Error:              nil,
+					Value:              42.0,
+				},
+				{
+					ID:                 "autogen-bar",
+					Query:              "query-metric3",
+					UpdateTime:         defaultUpdateTime,
+					ExternalMetricName: "metric2",
+					Autogen:            true,
+					Valid:              false,
+					Error:              nil,
+					Value:              42.0,
+				},
 			},
 			expectedExternalMetricInfo: []provider.ExternalMetricInfo{
 				{Metric: "datadogmetric@ns:metric0"},
 				{Metric: "datadogmetric@ns:metric1"},
+				{Metric: "metric2"},
 			},
 		},
 	}

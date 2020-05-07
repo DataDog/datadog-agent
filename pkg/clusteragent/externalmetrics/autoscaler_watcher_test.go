@@ -21,6 +21,8 @@ import (
 	datadoghq "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
 	dd_fake_clientset "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned/fake"
 	wpa_informer "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // Test fixture
@@ -59,7 +61,7 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 	wpaClient := dd_fake_clientset.NewSimpleClientset(f.wpaObjects...)
 	wpaInformer := wpa_informer.NewSharedInformerFactory(wpaClient, noResyncPeriodFunc())
 
-	autoscalerWatcher, err := NewAutoscalerWatcher(0, kubeInformer, wpaInformer, &fakeLeaderElector{true}, &f.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(0, 1, "default", kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -84,7 +86,7 @@ func (f *autoscalerFixture) runWatcherUpdate() {
 	kubeInformer.Start(stopCh)
 	wpaInformer.Start(stopCh)
 
-	autoscalerWatcher.updateAutoscalerReferences()
+	autoscalerWatcher.processAutoscalers()
 }
 
 func newFakeHorizontalPodAutoscaler(ns, name string, metrics []autoscaler.MetricSpec) *autoscaler.HorizontalPodAutoscaler {
@@ -123,17 +125,6 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 					MetricName: "datadogmetric@default:dd-metric-0",
 				},
 			},
-			{
-				Type: autoscaler.ExternalMetricSourceType,
-				External: &autoscaler.ExternalMetricSource{
-					MetricName: "docker.cpu.usage",
-					MetricSelector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"foo": "bar",
-						},
-					},
-				},
-			},
 		}),
 		newFakeHorizontalPodAutoscaler("ns1", "hpa1", []autoscaler.MetricSpec{
 			{
@@ -150,9 +141,79 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 					MetricName: "datadogmetric@default:dd-metric-1",
 				},
 			},
+		}),
+	}
+
+	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-0",
+		Active:     false,
+		Query:      "metric query0",
+		Valid:      true,
+		Value:      10.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, "utest")
+	f.store.Set("default/dd-metric-1", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-1",
+		Active:     false,
+		Query:      "metric query1",
+		Valid:      true,
+		Value:      11.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, "utest")
+	f.store.Set("default/dd-metric-2", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-2",
+		Active:     true,
+		Query:      "metric query2",
+		Valid:      true,
+		Value:      12.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, "utest")
+
+	f.runWatcherUpdate()
+
+	// Check internal store content
+	assert.Equal(t, 3, f.store.Count())
+	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
+		ID:         "default/dd-metric-0",
+		Active:     true,
+		Query:      "metric query0",
+		Valid:      true,
+		Value:      10.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, f.store.Get("default/dd-metric-0"))
+	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
+		ID:         "default/dd-metric-1",
+		Active:     true,
+		Query:      "metric query1",
+		Valid:      true,
+		Value:      11.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, f.store.Get("default/dd-metric-1"))
+	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
+		ID:         "default/dd-metric-2",
+		Active:     false,
+		Query:      "metric query2",
+		Valid:      false,
+		Value:      12.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, f.store.Get("default/dd-metric-2"))
+}
+
+func TestCreateAutogenDatadogMetrics(t *testing.T) {
+	f := newAutoscalerFixture(t)
+	updateTime := time.Now()
+
+	f.hpaLister = []*autoscaler.HorizontalPodAutoscaler{
+		newFakeHorizontalPodAutoscaler("ns0", "hpa0", []autoscaler.MetricSpec{
 			{
-				Type: datadoghq.ExternalMetricSourceType,
-				External: &datadoghq.ExternalMetricSource{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
 					MetricName: "docker.cpu.usage",
 					MetricSelector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
@@ -164,62 +225,148 @@ func TestUpdateAutoscalerReferences(t *testing.T) {
 		}),
 	}
 
+	f.wpaLister = []*datadoghq.WatermarkPodAutoscaler{
+		newFakeWatermarkPodAutoscaler("ns0", "wpa0", []datadoghq.MetricSpec{
+			{
+				Type: datadoghq.ExternalMetricSourceType,
+				External: &datadoghq.ExternalMetricSource{
+					MetricName: "docker.cpu.usage",
+					MetricSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"bar": "foo",
+						},
+					},
+				},
+			},
+		}),
+	}
+
 	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
-		Id:         "default/dd-metric-0",
-		Active:     false,
+		ID:         "default/dd-metric-0",
+		Active:     true,
 		Query:      "metric query0",
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
 		Error:      nil,
-	})
-	f.store.Set("default/dd-metric-1", model.DatadogMetricInternal{
-		Id:         "default/dd-metric-1",
-		Active:     false,
-		Query:      "metric query1",
-		Valid:      true,
-		Value:      11.0,
-		UpdateTime: updateTime,
-		Error:      nil,
-	})
-	f.store.Set("default/dd-metric-2", model.DatadogMetricInternal{
-		Id:         "default/dd-metric-2",
-		Active:     true,
-		Query:      "metric query2",
-		Valid:      true,
-		Value:      12.0,
-		UpdateTime: updateTime,
-		Error:      nil,
-	})
+	}, "utest")
 
 	f.runWatcherUpdate()
 
 	// Check internal store content
+	assert.Equal(t, 3, f.store.Count())
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		Id:         "default/dd-metric-0",
-		Active:     true,
+		ID:         "default/dd-metric-0",
+		Active:     false,
 		Query:      "metric query0",
-		Valid:      true,
+		Valid:      false,
 		Value:      10.0,
 		UpdateTime: updateTime,
 		Error:      nil,
 	}, f.store.Get("default/dd-metric-0"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		Id:         "default/dd-metric-1",
-		Active:     true,
-		Query:      "metric query1",
-		Valid:      true,
-		Value:      11.0,
-		UpdateTime: updateTime,
-		Error:      nil,
-	}, f.store.Get("default/dd-metric-1"))
+		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265",
+		Active:             true,
+		Query:              "avg:docker.cpu.usage{foo:bar}.rollup(30)",
+		Valid:              false,
+		Autogen:            true,
+		ExternalMetricName: "docker.cpu.usage",
+		Value:              0.0,
+		UpdateTime:         updateTime,
+		Error:              nil,
+	}, f.store.Get("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265"))
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		Id:         "default/dd-metric-2",
-		Active:     false,
-		Query:      "metric query2",
-		Valid:      false,
-		Value:      12.0,
-		UpdateTime: updateTime,
+		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8",
+		Active:             true,
+		Query:              "avg:docker.cpu.usage{bar:foo}.rollup(30)",
+		Valid:              false,
+		Autogen:            true,
+		ExternalMetricName: "docker.cpu.usage",
+		Value:              0.0,
+		UpdateTime:         updateTime,
+		Error:              nil,
+	}, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8"))
+}
+
+func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
+	f := newAutoscalerFixture(t)
+	// AutogenExpirationPeriod is set to 1 hour in our unit tests
+	oldUpdateTime := time.Now().Add(time.Duration(-30) * time.Minute)
+	expiredUpdateTime := time.Now().Add(time.Duration(-90) * time.Minute)
+
+	// This DatadogMetric is expired, but it's not an autogen one - should not touch it
+	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-0",
+		Active:     true,
+		Query:      "metric query0",
+		Valid:      true,
+		Value:      10.0,
+		UpdateTime: expiredUpdateTime,
 		Error:      nil,
-	}, f.store.Get("default/dd-metric-2"))
+	}, "utest")
+	// HPA has been deleted but last update time was 30 minutes ago, we should keep it
+	f.store.Set("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265", model.DatadogMetricInternal{
+		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265",
+		Active:             true,
+		Query:              "avg:docker.cpu.usage{foo:bar}.rollup(30)",
+		Valid:              false,
+		Autogen:            true,
+		ExternalMetricName: "docker.cpu.usage",
+		Deleted:            false,
+		Value:              0.0,
+		UpdateTime:         oldUpdateTime,
+		Error:              nil,
+	}, "utest")
+	// WPA has been deleted for 90 minutes, we should flag this as deleted
+	f.store.Set("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8", model.DatadogMetricInternal{
+		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8",
+		Active:             true,
+		Query:              "avg:docker.cpu.usage{bar:foo}.rollup(30)",
+		Valid:              false,
+		Autogen:            true,
+		ExternalMetricName: "docker.cpu.usage",
+		Deleted:            true,
+		Value:              0.0,
+		UpdateTime:         expiredUpdateTime,
+		Error:              nil,
+	}, "utest")
+
+	f.runWatcherUpdate()
+
+	// Check internal store content
+	assert.Equal(t, 3, f.store.Count())
+	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
+		ID:         "default/dd-metric-0",
+		Active:     false,
+		Query:      "metric query0",
+		Valid:      false,
+		Deleted:    false,
+		Value:      10.0,
+		UpdateTime: expiredUpdateTime,
+		Error:      nil,
+	}, f.store.Get("default/dd-metric-0"))
+	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
+		ID:                 "default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265",
+		Active:             false,
+		Query:              "avg:docker.cpu.usage{foo:bar}.rollup(30)",
+		Valid:              false,
+		Autogen:            true,
+		ExternalMetricName: "docker.cpu.usage",
+		Deleted:            false,
+		Value:              0.0,
+		UpdateTime:         oldUpdateTime,
+		Error:              nil,
+	}, f.store.Get("default/dcaautogen-f311ac1e6b29e3723d1445645c43afd4340d2265"))
+	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
+		ID:                 "default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8",
+		Active:             false,
+		Query:              "avg:docker.cpu.usage{bar:foo}.rollup(30)",
+		Valid:              false,
+		Autogen:            true,
+		ExternalMetricName: "docker.cpu.usage",
+		Deleted:            true,
+		Value:              0.0,
+		UpdateTime:         expiredUpdateTime,
+		Error:              nil,
+	}, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412f8"))
 }

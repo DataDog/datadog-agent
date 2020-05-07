@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"regexp"
 	"strings"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
@@ -20,25 +19,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	datadogMetricRefPrefix string = "datadogmetric@"
-	datadogMetricRefSep    string = ":"
-	kubernetesNameFormat   string = "([a-z0-9](?:[-a-z0-9]*[a-z0-9])?)"
-	kubernetesNamespaceSep string = "/"
-)
-
-var (
-	datadogMetricFormat regexp.Regexp = *regexp.MustCompile("^" + datadogMetricRefPrefix + kubernetesNameFormat + datadogMetricRefSep + kubernetesNameFormat + "$")
+	autogenExpirationPeriodHours int64 = 3
 )
 
 type datadogMetricProvider struct {
-	apiCl *apiserver.APIClient
-	store DatadogMetricsInternalStore
+	apiCl            *apiserver.APIClient
+	store            DatadogMetricsInternalStore
+	autogenNamespace string
 }
 
 func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (provider.ExternalMetricsProvider, error) {
@@ -51,12 +45,14 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as LeaderElection failed with: %v", err)
 	}
 
-	retrieverRefreshPeriod := config.Datadog.GetInt64("external_metrics_provider.refresh_period")
+	refreshPeriod := config.Datadog.GetInt64("external_metrics_provider.refresh_period")
 	retrieverMetricsMaxAge := int64(math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog.GetFloat64("external_metrics_provider.rollup")))
+	autogenNamespace := common.GetResourcesNamespace()
 
 	provider := &datadogMetricProvider{
-		apiCl: apiCl,
-		store: NewDatadogMetricsInternalStore(),
+		apiCl:            apiCl,
+		store:            NewDatadogMetricsInternalStore(),
+		autogenNamespace: autogenNamespace,
 	}
 
 	// Start MetricsRetriever, only leader will do refresh metrics
@@ -65,7 +61,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogClient failed with: %v", err)
 	}
 
-	metricsRetriever, err := NewMetricsRetriever(retrieverRefreshPeriod, retrieverMetricsMaxAge, autoscalers.NewProcessor(dogCl), le, &provider.store)
+	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, retrieverMetricsMaxAge, autoscalers.NewProcessor(dogCl), le.IsLeader, &provider.store)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as MetricsRetriever failed with: %v", err)
 	}
@@ -73,7 +69,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 
 	// Start AutoscalerWatcher, only leader will flag DatadogMetrics as Active/Inactive
 	// WPAInformerFactory is nil when WPA is not used. AutoscalerWatcher will check value itself.
-	autoscalerWatcher, err := NewAutoscalerWatcher(retrieverRefreshPeriod, apiCl.InformerFactory, apiCl.WPAInformerFactory, le, &provider.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours, autogenNamespace, apiCl.InformerFactory, apiCl.WPAInformerFactory, le.IsLeader, &provider.store)
 	if err != nil {
 		return nil, fmt.Errorf("Unabled to create DatadogMetricProvider as AutoscalerWatcher failed with: %v", err)
 	}
@@ -84,7 +80,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	go autoscalerWatcher.Run(ctx.Done())
 
 	// We shift controller refresh period from retrieverRefreshPeriod to maximize the probability to have new data from DD
-	controller, err := NewDatadogMetricController(retrieverRefreshPeriod+1, apiCl.DDClient, apiCl.DDInformerFactory, le, &provider.store)
+	controller, err := NewDatadogMetricController(apiCl.DDClient, apiCl.DDInformerFactory, le.IsLeader, &provider.store)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogMetric Controller failed with: %v", err)
 	}
@@ -103,49 +99,50 @@ func (p *datadogMetricProvider) GetExternalMetric(namespace string, metricSelect
 	info.Metric = strings.ToLower(info.Metric)
 
 	// If the metric name is already prefixed, we can directly look up metrics in store
-	if datadogMetricId, ok := metricNameToDatadogMetricId(info.Metric); ok {
-		datadogMetric := p.store.Get(datadogMetricId)
-		log.Debugf("DatadogMetric from store: %v", datadogMetric)
-
-		if datadogMetric == nil {
-			return nil, fmt.Errorf("DatadogMetric not found for reference: %s", info.Metric)
-		}
-
-		externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric)
-		if err != nil {
-			return nil, err
-		}
-
-		return &external_metrics.ExternalMetricValueList{
-			Items: []external_metrics.ExternalMetricValue{*externalMetric},
-		}, nil
+	datadogMetricID, parsed, hasPrefix := metricNameToDatadogMetricID(info.Metric)
+	if !hasPrefix {
+		datadogMetricID = p.autogenNamespace + kubernetesNamespaceSep + getAutogenDatadogMetricNameFromSelector(info.Metric, metricSelector)
+		parsed = true
+	}
+	if !parsed {
+		return nil, fmt.Errorf("ExternalMetric does not follow DatadogMetric format")
 	}
 
-	return nil, fmt.Errorf("ExternalMetric does not follow DatadogMetric format")
+	datadogMetric := p.store.Get(datadogMetricID)
+	log.Debugf("DatadogMetric from store: %v", datadogMetric)
+
+	if datadogMetric == nil {
+		return nil, fmt.Errorf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
+	}
+
+	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric)
+	if err != nil {
+		return nil, err
+	}
+
+	return &external_metrics.ExternalMetricValueList{
+		Items: []external_metrics.ExternalMetricValue{*externalMetric},
+	}, nil
 }
 
 func (p *datadogMetricProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
 	datadogMetrics := p.store.GetAll()
 	results := make([]provider.ExternalMetricInfo, 0, len(datadogMetrics))
+	// Unique the external metric names
+	autogenMetricNames := make(map[string]struct{})
 
 	for _, datadogMetric := range datadogMetrics {
-		results = append(results, provider.ExternalMetricInfo{Metric: datadogMetricIdToMetricName(datadogMetric.Id)})
+		if datadogMetric.Autogen {
+			autogenMetricNames[datadogMetric.ExternalMetricName] = struct{}{}
+		} else {
+			results = append(results, provider.ExternalMetricInfo{Metric: datadogMetricIDToMetricName(datadogMetric.ID)})
+		}
 	}
 
-	log.Debugf("Answering list of available metrics: %v", results)
+	for metricName := range autogenMetricNames {
+		results = append(results, provider.ExternalMetricInfo{Metric: metricName})
+	}
+
+	log.Tracef("Answering list of available metrics: %v", results)
 	return results
-}
-
-// datadogMetric.Id is namespace/name
-func metricNameToDatadogMetricId(metricName string) (string, bool) {
-	metricName = strings.ToLower(metricName)
-	if matches := datadogMetricFormat.FindStringSubmatch(metricName); matches != nil {
-		return matches[1] + kubernetesNamespaceSep + matches[2], true
-	}
-
-	return "", false
-}
-
-func datadogMetricIdToMetricName(datadogMetricId string) string {
-	return strings.ToLower(datadogMetricRefPrefix + strings.Replace(datadogMetricId, kubernetesNamespaceSep, datadogMetricRefSep, 1))
 }

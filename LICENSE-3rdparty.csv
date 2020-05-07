@@ -17,6 +17,17 @@ core,"github.com/BurntSushi/toml",MIT
 core,"github.com/DataDog/agent-payload/gogen",NewBSD
 core,"github.com/DataDog/agent-payload/process",NewBSD
 core,"github.com/DataDog/datadog-go/statsd",MIT
+core,"github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned/fake",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned/scheme",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned/typed/datadoghq/v1alpha1",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned/typed/datadoghq/v1alpha1/fake",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions/datadoghq",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions/datadoghq/v1alpha1",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions/internalinterfaces",Apache-2.0
+core,"github.com/DataDog/datadog-operator/pkg/generated/listers/datadoghq/v1alpha1",Apache-2.0
 core,"github.com/DataDog/gohai/cpu",MIT
 core,"github.com/DataDog/gohai/filesystem",MIT
 core,"github.com/DataDog/gohai/memory",MIT
@@ -322,6 +333,7 @@ core,"github.com/mitchellh/go-homedir",MIT
 core,"github.com/mitchellh/mapstructure",MIT
 core,"github.com/modern-go/concurrent",Apache-2.0
 core,"github.com/modern-go/reflect2",Apache-2.0
+core,"github.com/munnerz/goautoneg",NewBSD
 core,"github.com/nwaples/rardecode",FreeBSD
 core,"github.com/opencontainers/image-spec/identity",Apache-2.0
 core,"github.com/opencontainers/image-spec/specs-go",Apache-2.0

@@ -85,16 +85,16 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context) (provider
 
 	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
 		return externalmetrics.NewDatadogMetricProvider(ctx, apiCl)
-	} else {
-		datadogHPAConfigMap := custommetrics.GetConfigmapName()
-		store, err := custommetrics.NewConfigMapStore(apiCl.Cl, common.GetResourcesNamespace(), datadogHPAConfigMap)
-		if err != nil {
-			log.Errorf("Unable to create ConfigMap Store: %v", err)
-			return nil, err
-		}
-
-		return custommetrics.NewDatadogProvider(ctx, client, mapper, store), nil
 	}
+
+	datadogHPAConfigMap := custommetrics.GetConfigmapName()
+	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, common.GetResourcesNamespace(), datadogHPAConfigMap)
+	if err != nil {
+		log.Errorf("Unable to create ConfigMap Store: %v", err)
+		return nil, err
+	}
+
+	return custommetrics.NewDatadogProvider(ctx, client, mapper, store), nil
 }
 
 // Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService

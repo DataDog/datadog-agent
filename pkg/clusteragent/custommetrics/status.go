@@ -23,6 +23,11 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["Disabled"] = "The external metrics provider is not enabled on the Cluster Agent"
 		return status
 	}
+
+	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
+		status["NoStatus"] = "External metrics provider uses DatadogMetric - Check status directly from Kubernetes with: `kubectl get datadogmetric`"
+	}
+
 	configMapName := GetConfigmapName()
 	configMapNamespace := common.GetResourcesNamespace()
 	status["Cmname"] = fmt.Sprintf("%s/%s", configMapNamespace, configMapName)

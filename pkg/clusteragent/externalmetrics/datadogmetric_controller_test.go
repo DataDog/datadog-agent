@@ -9,7 +9,6 @@ package externalmetrics
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 	core "k8s.io/client-go/testing"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
@@ -60,7 +58,7 @@ func (f *fixture) newController(leader bool) (*DatadogMetricController, dd_infor
 	f.client = dd_fake_clientset.NewSimpleClientset(f.objects...)
 	informer := dd_informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
 
-	c, err := NewDatadogMetricController(0, f.client, informer, &fakeLeaderElector{leader}, &f.store)
+	c, err := NewDatadogMetricController(f.client, informer, getIsLeaderFunction(leader), &f.store)
 	if err != nil {
 		return nil, nil
 	}
@@ -73,20 +71,21 @@ func (f *fixture) newController(leader bool) (*DatadogMetricController, dd_infor
 	return c, informer
 }
 
-func (f *fixture) runControllerSync(leader bool, datadogMetricId string, expectedError error) {
+func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expectedError error) {
 	controller, informer := f.newController(leader)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	informer.Start(stopCh)
 
-	err := controller.syncDatadogMetric(datadogMetricId)
-	if expectedError == nil && err != nil {
-		f.t.Errorf("Unexpected error syncing foo: %v", err)
-	} else if expectedError != nil && err != expectedError {
-		f.t.Errorf("Expected error syncing foo, got nil or different error. Exepected: %v, Got: %v", expectedError, err)
-	}
+	err := controller.processDatadogMetric(datadogMetricID)
+	assert.Equal(f.t, expectedError, err)
+	// if expectedError == nil && err != nil {
+	// 	f.t.Errorf("Unexpected error syncing foo: %v", err)
+	// } else if expectedError != nil && err != expectedError {
+	// 	f.t.Errorf("Expected error syncing foo, got nil or different error. Exepected: %v, Got: %v", expectedError, err)
+	// }
 
-	actions := filterInformerActions(f.client.Actions())
+	actions := filterInformerActions(f.client.Actions(), "datadogmetrics")
 	for i, action := range actions {
 		if len(f.actions) < i+1 {
 			f.t.Errorf("%d unexpected actions: %+v", len(actions)-len(f.actions), actions[i:])
@@ -94,7 +93,7 @@ func (f *fixture) runControllerSync(leader bool, datadogMetricId string, expecte
 		}
 
 		expectedAction := f.actions[i]
-		checkAction(expectedAction, action, f.t)
+		checkAction(f.t, expectedAction, action)
 	}
 
 	if len(f.actions) > len(actions) {
@@ -102,73 +101,19 @@ func (f *fixture) runControllerSync(leader bool, datadogMetricId string, expecte
 	}
 }
 
-func (f *fixture) expectUpdateDatadogMetricStatusAction(datadogMetric *datadoghq.DatadogMetric) {
-	action := core.NewUpdateSubresourceAction(schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}, "status", datadogMetric.Namespace, datadogMetric)
+func (f *fixture) expectCreateDatadogMetricAction(datadogMetric *datadoghq.DatadogMetric) {
+	action := core.NewCreateAction(schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}, datadogMetric.Namespace, datadogMetric)
 	f.actions = append(f.actions, action)
 }
 
-// checkAction verifies that expected and actual actions are equal and both have
-// same attached resources
-func checkAction(expected, actual core.Action, t *testing.T) {
-	if !(expected.Matches(actual.GetVerb(), actual.GetResource().Resource) && actual.GetSubresource() == expected.GetSubresource()) {
-		t.Errorf("Expected\n\t%#v\ngot\n\t%#v", expected, actual)
-		return
-	}
-
-	if reflect.TypeOf(actual) != reflect.TypeOf(expected) {
-		t.Errorf("Action has wrong type. Expected: %t. Got: %t", expected, actual)
-		return
-	}
-
-	switch a := actual.(type) {
-	case core.CreateActionImpl:
-		e, _ := expected.(core.CreateActionImpl)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
-		}
-	case core.UpdateActionImpl:
-		e, _ := expected.(core.UpdateActionImpl)
-		expObject := e.GetObject()
-		object := a.GetObject()
-
-		if !reflect.DeepEqual(expObject, object) {
-			t.Errorf("Action %s %s has wrong object\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expObject, object))
-		}
-	case core.PatchActionImpl:
-		e, _ := expected.(core.PatchActionImpl)
-		expPatch := e.GetPatch()
-		patch := a.GetPatch()
-
-		if !reflect.DeepEqual(expPatch, patch) {
-			t.Errorf("Action %s %s has wrong patch\nDiff:\n %s",
-				a.GetVerb(), a.GetResource().Resource, diff.ObjectGoPrintSideBySide(expPatch, patch))
-		}
-	default:
-		t.Errorf("Uncaptured Action %s %s, you should explicitly add a case to capture it",
-			actual.GetVerb(), actual.GetResource().Resource)
-	}
+func (f *fixture) expectDeleteDatadogMetricAction(ns, name string) {
+	action := core.NewDeleteAction(schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}, ns, name)
+	f.actions = append(f.actions, action)
 }
 
-// filterInformerActions filters list and watch actions for testing resources.
-// Since list and watch don't change resource state we can filter it to lower
-// nose level in our tests.
-func filterInformerActions(actions []core.Action) []core.Action {
-	ret := []core.Action{}
-	for _, action := range actions {
-		if len(action.GetNamespace()) == 0 &&
-			(action.Matches("list", "DatadogMetric") ||
-				action.Matches("watch", "DatadogMetric")) {
-			continue
-		}
-		ret = append(ret, action)
-	}
-
-	return ret
+func (f *fixture) expectUpdateDatadogMetricStatusAction(datadogMetric *datadoghq.DatadogMetric) {
+	action := core.NewUpdateSubresourceAction(schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}, "status", datadogMetric.Namespace, datadogMetric)
+	f.actions = append(f.actions, action)
 }
 
 func newFakeDatadogMetric(ns, name, query string, status datadoghq.DatadogMetricStatus) *datadoghq.DatadogMetric {
@@ -198,7 +143,7 @@ func TestLeaderHandlingNewMetric(t *testing.T) {
 
 	// Check internal store content
 	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
-		Id:         "default/dd-metric-0",
+		ID:         "default/dd-metric-0",
 		Query:      "metric query0",
 		Valid:      false,
 		Value:      0,
@@ -208,7 +153,7 @@ func TestLeaderHandlingNewMetric(t *testing.T) {
 
 	// Now that we validated that `UpdateTime` is after `testTime`, we read `UpdateTime` to allow comparison later
 	updateTimeKube := metav1.NewTime(f.store.Get("default/dd-metric-0").UpdateTime)
-	outputMetric := newFakeDatadogMetric("", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
+	outputMetric := newFakeDatadogMetric("default", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
 		Value: 0.0,
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
@@ -252,15 +197,15 @@ func TestLeaderUpdateFromStoreInitialUpdate(t *testing.T) {
 	f.datadogMetricLister = append(f.datadogMetricLister, metric)
 	f.objects = append(f.objects, metric)
 	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
-		Id:         "default/dd-metric-0",
+		ID:         "default/dd-metric-0",
 		Query:      "metric query0",
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
 		Error:      nil,
-	})
+	}, "utest")
 
-	outputMetric := newFakeDatadogMetric("", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
+	outputMetric := newFakeDatadogMetric("default", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
 		Value: 10.0,
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
@@ -334,15 +279,15 @@ func TestLeaderUpdateFromStoreAfterInitial(t *testing.T) {
 	f.datadogMetricLister = append(f.datadogMetricLister, metric)
 	f.objects = append(f.objects, metric)
 	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
-		Id:         "default/dd-metric-0",
+		ID:         "default/dd-metric-0",
 		Query:      "metric query0",
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
-	})
+	}, "utest")
 
-	outputMetric := newFakeDatadogMetric("", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
+	outputMetric := newFakeDatadogMetric("default", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
 		Value: 10.0,
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
@@ -417,25 +362,143 @@ func TestLeaderNoUpdate(t *testing.T) {
 	f.datadogMetricLister = append(f.datadogMetricLister, metric)
 	f.objects = append(f.objects, metric)
 	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
-		Id:         "default/dd-metric-0",
+		ID:         "default/dd-metric-0",
 		Query:      "metric query0",
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
-	})
+	}, "utest")
 
 	f.runControllerSync(true, "default/dd-metric-0", nil)
 }
 
-// Scenario: Test that followers only follows (no action, always update store) even if local content is newer
-func TestFollower(t *testing.T) {
+func TestCreateDatadogMetric(t *testing.T) {
+	f := newFixture(t)
+
+	updateTime := time.Now()
+	updateTimeKube := metav1.NewTime(updateTime)
+	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+		ID:                 "default/dd-metric-0",
+		Query:              "metric query0",
+		Valid:              true,
+		Deleted:            false,
+		Autogen:            true,
+		ExternalMetricName: "name1",
+		Value:              20.0,
+		UpdateTime:         updateTime,
+		Error:              nil,
+	}, "utest")
+	f.store.Set("default/dd-metric-1", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-1",
+		Query:      "metric query1",
+		Valid:      true,
+		Deleted:    false,
+		Autogen:    false,
+		Value:      20.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, "utest")
+	f.store.Set("default/dd-metric-1", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-1",
+		Query:      "metric query1",
+		Valid:      true,
+		Deleted:    false,
+		Autogen:    false,
+		Value:      20.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, "utest")
+	f.store.Set("default/dd-metric-2", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-2",
+		Query:      "metric query2",
+		Valid:      true,
+		Deleted:    false,
+		Autogen:    true,
+		Value:      20.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, "utest")
+
+	// Test successful creation
+	expectedDatadogMetric := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
+		Value: 20.0,
+		Conditions: []datadoghq.DatadogMetricCondition{
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeActive,
+				Status:             corev1.ConditionFalse,
+				LastTransitionTime: updateTimeKube,
+				LastUpdateTime:     updateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: updateTimeKube,
+				LastUpdateTime:     updateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeUpdated,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: updateTimeKube,
+				LastUpdateTime:     updateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeError,
+				Status:             corev1.ConditionFalse,
+				LastTransitionTime: updateTimeKube,
+				LastUpdateTime:     updateTimeKube,
+			},
+		},
+	})
+	expectedDatadogMetric.Spec.ExternalMetricName = "name1"
+	f.expectCreateDatadogMetricAction(expectedDatadogMetric)
+	f.runControllerSync(true, "default/dd-metric-0", nil)
+
+	// Test creating non autogen DatadogMetric
+	f.actions = nil
+	f.runControllerSync(true, "default/dd-metric-1", fmt.Errorf("Attempt to create DatadogMetric that was not auto-generated - not creating, DatadogMetric: %v", f.store.Get("default/dd-metric-1")))
+
+	// Test create autogen without ExternalMetricName
+	f.runControllerSync(true, "default/dd-metric-2", fmt.Errorf("Unable to create autogen DatadogMetric default/dd-metric-2 without ExternalMetricName"))
+}
+
+// Scenario: Test DatadogMetric is deleted if something from store is flagged as deleted and object exists in K8S
+func TestLeaderDeleteExisting(t *testing.T) {
 	f := newFixture(t)
 
 	prevUpdateTime := time.Now().Add(-10 * time.Second)
 	prevUpdateTimeKube := metav1.NewTime(prevUpdateTime)
-	metric := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
-		Value: 10.0,
+	metric0 := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
+		Value: 20.0,
+		Conditions: []datadoghq.DatadogMetricCondition{
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeUpdated,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeError,
+				Status:             corev1.ConditionFalse,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+		},
+	})
+	metric1 := newFakeDatadogMetric("default", "dd-metric-1", "metric query1", datadoghq.DatadogMetricStatus{
+		Value: 20.0,
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeValid,
@@ -464,28 +527,172 @@ func TestFollower(t *testing.T) {
 		},
 	})
 
+	f.datadogMetricLister = append(f.datadogMetricLister, metric0, metric1)
+	f.objects = append(f.objects, metric0, metric1)
+	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-0",
+		Query:      "metric query0",
+		Valid:      true,
+		Deleted:    true,
+		Autogen:    true,
+		Value:      20.0,
+		UpdateTime: prevUpdateTime.UTC(),
+		Error:      nil,
+	}, "utest")
+	f.store.Set("default/dd-metric-1", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-1",
+		Query:      "metric query1",
+		Valid:      true,
+		Deleted:    true,
+		Autogen:    false,
+		Value:      20.0,
+		UpdateTime: prevUpdateTime.UTC(),
+		Error:      nil,
+	}, "utest")
+
+	f.expectDeleteDatadogMetricAction("default", "dd-metric-0")
+	f.runControllerSync(true, "default/dd-metric-0", nil)
+
+	// Check internal store content has not changed
+	assert.Equal(t, &model.DatadogMetricInternal{
+		ID:         "default/dd-metric-0",
+		Query:      "metric query0",
+		Valid:      true,
+		Deleted:    true,
+		Autogen:    true,
+		Value:      20.0,
+		UpdateTime: prevUpdateTime.UTC(),
+		Error:      nil,
+	}, f.store.Get("default/dd-metric-0"))
+
+	// Test that we get an error trying to delete a not Autogen DatadogMetric
+	f.actions = nil
+	f.runControllerSync(true, "default/dd-metric-1", fmt.Errorf("Attempt to delete DatadogMetric that was not auto-generated - not deleting, DatadogMetric: %v", f.store.Get("default/dd-metric-1")))
+}
+
+// Scenario: Object has already been deleted, controller should clean up internal store
+func TestLeaderDeleteCleanup(t *testing.T) {
+	f := newFixture(t)
+
 	updateTime := time.Now()
-	f.datadogMetricLister = append(f.datadogMetricLister, metric)
-	f.objects = append(f.objects, metric)
+	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+		ID:         "default/dd-metric-0",
+		Query:      "metric query0",
+		Valid:      true,
+		Deleted:    true,
+		Value:      20.0,
+		UpdateTime: updateTime,
+		Error:      nil,
+	}, "utest")
+
+	f.runControllerSync(true, "default/dd-metric-0", nil)
+
+	// Check internal store content has not changed
+	assert.Equal(t, 0, f.store.Count())
+}
+
+// Scenario: Test that followers only follows (no action, always update store) even if local content is newer
+func TestFollower(t *testing.T) {
+	f := newFixture(t)
+
+	prevUpdateTime := time.Now().Add(-10 * time.Second)
+	prevUpdateTimeKube := metav1.NewTime(prevUpdateTime)
+	metric0 := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
+		Value: 10.0,
+		Conditions: []datadoghq.DatadogMetricCondition{
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeUpdated,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeError,
+				Status:             corev1.ConditionFalse,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+		},
+	})
+	metric1 := newFakeDatadogMetric("default", "autogen-1", "metric query1", datadoghq.DatadogMetricStatus{
+		Value: 10.0,
+		Conditions: []datadoghq.DatadogMetricCondition{
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeValid,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeUpdated,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+			{
+				Type:               datadoghq.DatadogMetricConditionTypeError,
+				Status:             corev1.ConditionFalse,
+				LastTransitionTime: prevUpdateTimeKube,
+				LastUpdateTime:     prevUpdateTimeKube,
+			},
+		},
+	})
+	metric1.Spec.ExternalMetricName = "dd-metric-1"
+
+	updateTime := time.Now()
+	f.datadogMetricLister = append(f.datadogMetricLister, metric0, metric1)
+	f.objects = append(f.objects, metric0, metric1)
 	// We have new updates locally (maybe leader changed or something. Followers should still overwrite local cache)
 	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
-		Id:         "default/dd-metric-0",
+		ID:         "default/dd-metric-0",
 		Query:      "metric query0",
 		Valid:      true,
 		Value:      20.0,
 		UpdateTime: updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
-	})
+	}, "utest")
 
 	f.runControllerSync(false, "default/dd-metric-0", nil)
 
 	// Check internal store content
+	assert.Equal(t, 1, f.store.Count())
 	assert.Equal(t, &model.DatadogMetricInternal{
-		Id:         "default/dd-metric-0",
+		ID:         "default/dd-metric-0",
 		Query:      "metric query0",
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: prevUpdateTime.UTC(),
 		Error:      nil,
 	}, f.store.Get("default/dd-metric-0"))
+
+	f.runControllerSync(false, "default/autogen-1", nil)
+	assert.Equal(t, 2, f.store.Count())
+	assert.Equal(t, &model.DatadogMetricInternal{
+		ID:                 "default/autogen-1",
+		Query:              "metric query1",
+		Valid:              true,
+		Autogen:            true,
+		ExternalMetricName: "dd-metric-1",
+		Value:              10.0,
+		UpdateTime:         prevUpdateTime.UTC(),
+		Error:              nil,
+	}, f.store.Get("default/autogen-1"))
 }

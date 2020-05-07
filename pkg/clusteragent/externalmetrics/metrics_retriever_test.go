@@ -51,7 +51,7 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 	// Create and fill store
 	store := NewDatadogMetricsInternalStore()
 	for _, datadogMetric := range f.storeContent {
-		store.Set(datadogMetric.Id, datadogMetric)
+		store.Set(datadogMetric.ID, datadogMetric, "utest")
 	}
 
 	// Create MetricsRetriever
@@ -59,12 +59,12 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 		points: f.queryResults,
 		err:    f.queryError,
 	}
-	metricsRetriever, err := NewMetricsRetriever(0, f.maxAge, &mockedProcessor, &fakeLeaderElector{true}, &store)
+	metricsRetriever, err := NewMetricsRetriever(0, f.maxAge, &mockedProcessor, getIsLeaderFunction(true), &store)
 	assert.Nil(t, err)
 	metricsRetriever.retrieveMetricsValues()
 
 	for _, expectedDatadogMetric := range f.expected {
-		datadogMetric := store.Get(expectedDatadogMetric.Id)
+		datadogMetric := store.Get(expectedDatadogMetric.ID)
 
 		// Update time will be set to a value (as metricsRetriever uses time.Now()) that should be > testTime
 		// Thus, aligning updateTime to have a working comparison
@@ -92,7 +92,7 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 			desc:   "Test nominal case - no errors while retrieving metric values",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -100,7 +100,7 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     true,
 					Query:      "query-metric1",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -123,7 +123,7 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 			queryError: nil,
 			expected: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					Value:      10.0,
@@ -132,7 +132,7 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     true,
 					Query:      "query-metric1",
 					Value:      11.0,
@@ -163,7 +163,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			desc:   "Test expired data from backend",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -171,7 +171,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     true,
 					Query:      "query-metric1",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -194,7 +194,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			queryError: nil,
 			expected: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					Value:      10.0,
@@ -203,7 +203,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:     "metric1",
+					ID:     "metric1",
 					Active: true,
 					Query:  "query-metric1",
 					Value:  11.0,
@@ -218,7 +218,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			desc:   "Test backend error (single metric)",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					Value:      8.0,
@@ -227,7 +227,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     true,
 					Query:      "query-metric1",
 					Value:      11.0,
@@ -251,7 +251,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			queryError: nil,
 			expected: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					Value:      10.0,
@@ -260,7 +260,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:     "metric1",
+					ID:     "metric1",
 					Active: true,
 					Query:  "query-metric1",
 					Value:  11.0,
@@ -275,7 +275,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			desc:   "Test global error from backend",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					Value:      1.0,
@@ -284,7 +284,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     true,
 					Query:      "query-metric1",
 					Value:      2.0,
@@ -297,7 +297,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			queryError:   fmt.Errorf("Backend error 500"),
 			expected: []model.DatadogMetricInternal{
 				{
-					Id:     "metric0",
+					ID:     "metric0",
 					Active: true,
 					Query:  "query-metric0",
 					Value:  1.0,
@@ -306,7 +306,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					// UpdateTime not set as it will not be compared directly
 				},
 				{
-					Id:     "metric1",
+					ID:     "metric1",
 					Active: true,
 					Query:  "query-metric1",
 					Value:  2.0,
@@ -321,7 +321,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			desc:   "Test missing query response from backend",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					Value:      1.0,
@@ -330,7 +330,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     true,
 					Query:      "query-metric1",
 					Value:      2.0,
@@ -349,7 +349,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 			queryError: fmt.Errorf("Backend error 500"),
 			expected: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					Value:      10.0,
@@ -358,7 +358,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:     "metric1",
+					ID:     "metric1",
 					Active: true,
 					Query:  "query-metric1",
 					Value:  2.0,
@@ -389,7 +389,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			desc:   "Test some metrics are not active",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -397,7 +397,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     false,
 					Query:      "query-metric1",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -420,7 +420,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			queryError: nil,
 			expected: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     true,
 					Query:      "query-metric0",
 					Value:      10.0,
@@ -429,7 +429,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     false,
 					Query:      "query-metric1",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -443,7 +443,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			desc:   "Test no active metrics",
 			storeContent: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     false,
 					Query:      "query-metric0",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -451,7 +451,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     false,
 					Query:      "query-metric1",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -474,7 +474,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 			queryError: nil,
 			expected: []model.DatadogMetricInternal{
 				{
-					Id:         "metric0",
+					ID:         "metric0",
 					Active:     false,
 					Query:      "query-metric0",
 					UpdateTime: defaultPreviousUpdateTime,
@@ -482,7 +482,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 					Error:      nil,
 				},
 				{
-					Id:         "metric1",
+					ID:         "metric1",
 					Active:     false,
 					Query:      "query-metric1",
 					UpdateTime: defaultPreviousUpdateTime,

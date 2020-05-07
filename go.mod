@@ -2,9 +2,6 @@ module github.com/DataDog/datadog-agent
 
 go 1.13
 
-// Pinned to kubernetes-1.16.2
-replace github.com/kubernetes-incubator/custom-metrics-apiserver => github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-20190918110929-3d9be26a50eb
-
 // Fix tooling version
 replace (
 	github.com/benesch/cgosymbolizer => github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
@@ -50,6 +47,7 @@ require (
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v0.0.0-20200428185529-63c9964e037d // 4.33.0
 	github.com/DataDog/datadog-go v3.5.0+incompatible
+	github.com/DataDog/datadog-operator v0.1.1-0.20200507135910-5afa74a30071
 	github.com/DataDog/gohai v0.0.0-20200416230846-f32fac1c10c3
 	github.com/DataDog/gopsutil v0.0.0-20191127151039-7e1a4eadb59e
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
@@ -70,11 +68,10 @@ require (
 	github.com/containerd/typeurl v1.0.0
 	github.com/coreos/etcd v3.3.15+incompatible
 	github.com/coreos/go-semver v0.3.0
-	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
+	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200309214505-aa6a9891b09c+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
-	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.9.0
 	github.com/florianl/go-conntrack v0.1.0
@@ -98,13 +95,13 @@ require (
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mdlayher/netlink v1.1.0
-	github.com/mholt/archiver v0.0.0-00010101000000-000000000000
+	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/miekg/dns v1.1.27
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
-	github.com/openshift/api v3.9.1-0.20190424152011-77b8897ec79a+incompatible
+	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/pierrec/lz4 v2.5.0+incompatible // indirect
@@ -142,18 +139,21 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8
-	gopkg.in/zorkian/go-datadog-api.v2 v2.28.0
+	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
 	k8s.io/api v0.17.3
 	k8s.io/apimachinery v0.17.3
 	k8s.io/apiserver v0.17.3
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.0.0-20200123122250-fa95810cfc1e
-	k8s.io/client-go v11.0.0+incompatible
+	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/component-base v0.17.3 // indirect
 	k8s.io/cri-api v0.0.0
 	k8s.io/kube-state-metrics v1.8.1-0.20200108124505-369470d6ead8
 	k8s.io/kubernetes v1.16.2
 	k8s.io/metrics v0.17.3
 )
+
+// Pinned to kubernetes-1.16.2
+replace github.com/kubernetes-incubator/custom-metrics-apiserver => github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-20190918110929-3d9be26a50eb
 
 // Pinned to kubernetes-1.16.2
 replace (
@@ -180,5 +180,4 @@ replace (
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.0.0-20191016115753-cf0698c3a16b
 	k8s.io/metrics => k8s.io/metrics v0.0.0-20191016113814-3b1a734dba6e
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191016112829-06bb3c9d77c9
-
 )

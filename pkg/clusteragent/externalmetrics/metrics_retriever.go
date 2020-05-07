@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,6 +21,7 @@ const (
 	invalidMetricOutdatedErrorMessage string = "Outdated result from backend, query: %s"
 	invalidMetricNoDataErrorMessage   string = "No data from backend, query: %s"
 	invalidMetricGlobalErrorMessage   string = "Global error (all queries) from backend"
+	metricRetrieverStoreID            string = "mr"
 )
 
 type MetricsRetriever struct {
@@ -29,16 +29,16 @@ type MetricsRetriever struct {
 	metricsMaxAge int64
 	processor     autoscalers.ProcessorInterface
 	store         *DatadogMetricsInternalStore
-	le            apiserver.LeaderElectorInterface
+	isLeader      func() bool
 }
 
-func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscalers.ProcessorInterface, le apiserver.LeaderElectorInterface, store *DatadogMetricsInternalStore) (*MetricsRetriever, error) {
+func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscalers.ProcessorInterface, isLeader func() bool, store *DatadogMetricsInternalStore) (*MetricsRetriever, error) {
 	return &MetricsRetriever{
 		refreshPeriod: refreshPeriod,
 		metricsMaxAge: metricsMaxAge,
 		processor:     processor,
 		store:         store,
-		le:            le,
+		isLeader:      isLeader,
 	}, nil
 }
 
@@ -48,7 +48,7 @@ func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 	for {
 		select {
 		case <-tickerRefreshProcess.C:
-			if mr.le.IsLeader() {
+			if mr.isLeader() {
 				mr.retrieveMetricsValues()
 			}
 		case <-stopCh:
@@ -80,10 +80,10 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 	// Update store with current results
 	currentTime := time.Now().UTC()
 	for _, datadogMetric := range datadogMetrics {
-		datadogMetricFromStore := mr.store.LockRead(datadogMetric.Id, false)
+		datadogMetricFromStore := mr.store.LockRead(datadogMetric.ID, false)
 		if datadogMetricFromStore == nil {
 			// This metric is not in the store anymore, discard it
-			log.Infof("Discarding results for DatadogMetric: %s as not present in store anymore", datadogMetric.Id)
+			log.Infof("Discarding results for DatadogMetric: %s as not present in store anymore", datadogMetric.ID)
 			continue
 		}
 
@@ -118,7 +118,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 			datadogMetricFromStore.UpdateTime = currentTime
 		}
 
-		mr.store.UnlockSet(datadogMetric.Id, *datadogMetricFromStore)
+		mr.store.UnlockSet(datadogMetric.ID, *datadogMetricFromStore, metricRetrieverStoreID)
 	}
 }
 

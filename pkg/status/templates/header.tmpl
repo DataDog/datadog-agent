@@ -100,40 +100,45 @@ Leader Election
 {{- end}}
 
 {{- if .custommetrics }}
- Custom Metrics Server
- =====================
-   {{- if .custommetrics.Error }}
-   Error: {{ .custommetrics.Error }}
-   {{ else }}
-   {{- if .custommetrics.Disabled }}
-   Disabled: {{ .custommetrics.Disabled }}
-   {{ else }}
-   ConfigMap name: {{ .custommetrics.Cmname }}
-   {{ if .custommetrics.StoreError }}
-   Error: {{ .custommetrics.StoreError }}
-   {{ else }}
-   External Metrics
-   ----------------
-     {{- if .custommetrics.External.ListError }}
-     Error: {{ .custommetrics.External.ListError }}
-     {{ else }}
-     Total: {{ .custommetrics.External.Total }}
-     Valid: {{ .custommetrics.External.Valid }}
-     {{ range $metric := .custommetrics.External.Metrics }}
-   * {{$metric.reference.type}} pod autoscaler: {{$metric.reference.namespace}}/{{$metric.reference.name}}
-     Metric name: {{$metric.metricName}}
-     Labels:
-     {{- range $k, $v := $metric.labels }}
-     - {{$k}}: {{$v}}
-     {{- end }}
-     Value: {{ humanize $metric.value}}
-     Timestamp: {{ formatUnixTime $metric.ts}}
-     Valid: {{$metric.valid}}
-     {{- end }}
-     {{- end -}}
-   {{- end }}
-   {{- end }}
-   {{- end }}
+
+Custom Metrics Server
+=====================
+  {{- if .custommetrics.Error }}
+  Error: {{ .custommetrics.Error }}
+  {{ else }}
+  {{- if .custommetrics.Disabled }}
+  Disabled: {{ .custommetrics.Disabled }}
+  {{ else }}
+  {{- if .custommetrics.NoStatus }}
+  {{ .custommetrics.NoStatus }}
+  {{ else }}
+  ConfigMap name: {{ .custommetrics.Cmname }}
+  {{- if .custommetrics.StoreError }}
+  Error: {{ .custommetrics.StoreError }}
+  {{ else }}
+  External Metrics
+  ----------------
+    {{- if .custommetrics.External.ListError }}
+    Error: {{ .custommetrics.External.ListError }}
+    {{ else }}
+    Total: {{ .custommetrics.External.Total }}
+    Valid: {{ .custommetrics.External.Valid }}
+    {{ range $metric := .custommetrics.External.Metrics }}
+  * {{$metric.reference.type}} pod autoscaler: {{$metric.reference.namespace}}/{{$metric.reference.name}}
+    Metric name: {{$metric.metricName}}
+    Labels:
+    {{- range $k, $v := $metric.labels }}
+    - {{$k}}: {{$v}}
+    {{- end }}
+    Value: {{ humanize $metric.value}}
+    Timestamp: {{ formatUnixTime $metric.ts}}
+    Valid: {{$metric.valid}}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
 {{- end }}
 
 {{- if .clusterchecks }}

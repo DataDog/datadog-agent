@@ -139,10 +139,6 @@ func makePtr(val string) *string {
 	return &val
 }
 
-func makeIntPtr(val int) *int {
-	return &val
-}
-
 func makeAnnotations(metricName string, labels map[string]string) map[string]string {
 	return map[string]string{
 		"kubectl.kubernetes.io/last-applied-configuration": fmt.Sprintf(`

@@ -25,24 +25,34 @@ const (
 
 // DatadogMetricInternal is a flatten, easier to use, representation of `DatadogMetric` CRD
 type DatadogMetricInternal struct {
-	Id         string
-	Query      string
-	Valid      bool
-	Active     bool
-	Value      float64
-	UpdateTime time.Time
-	Error      error
+	ID                 string
+	Query              string
+	Valid              bool
+	Active             bool
+	Deleted            bool
+	Autogen            bool
+	ExternalMetricName string
+	Value              float64
+	UpdateTime         time.Time
+	Error              error
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
 // `id` is expected to be unique and should correspond to `namespace/name`
 func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) DatadogMetricInternal {
 	internal := DatadogMetricInternal{
-		Id:     id,
-		Query:  datadogMetric.Spec.Query,
-		Value:  datadogMetric.Status.Value,
-		Valid:  false,
-		Active: false,
+		ID:      id,
+		Query:   datadogMetric.Spec.Query,
+		Value:   datadogMetric.Status.Value,
+		Valid:   false,
+		Active:  false,
+		Deleted: false,
+		Autogen: false,
+	}
+
+	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
+		internal.Autogen = true
+		internal.ExternalMetricName = datadogMetric.Spec.ExternalMetricName
 	}
 
 	for _, condition := range datadogMetric.Status.Conditions {
@@ -67,6 +77,21 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 	return internal
 }
 
+// NewDatadogMetricInternalFromExternalMetric returns a `DatadogMetricInternal` object
+// that is auto-generated from a standard ExternalMetric query (non-DatadogMetric reference)
+func NewDatadogMetricInternalFromExternalMetric(id, query, metricName string) DatadogMetricInternal {
+	return DatadogMetricInternal{
+		ID:                 id,
+		Query:              query,
+		Valid:              false,
+		Active:             true,
+		Deleted:            false,
+		Autogen:            true,
+		ExternalMetricName: metricName,
+		UpdateTime:         time.Now().UTC(),
+	}
+}
+
 // UpdateFrom updates the `DatadogMetricInternal` from `DatadogMetric` Spec, returns modified instance
 func (d *DatadogMetricInternal) UpdateFrom(currentSpec datadoghq.DatadogMetricSpec) {
 	d.Query = currentSpec.Query
@@ -86,8 +111,13 @@ func (d *DatadogMetricInternal) IsNewerThan(currentStatus datadoghq.DatadogMetri
 	return true
 }
 
+// HasBeenUpdated returns true if the current `DatadogMetricInternal` has been update between Now() and Now() - duration
+func (d *DatadogMetricInternal) HasBeenUpdatedFor(duration time.Duration) bool {
+	return d.UpdateTime.After(time.Now().UTC().Add(-duration))
+}
+
 // BuildStatus generates a new status for `DatadogMetric` based on current status and information from `DatadogMetricInternal`
-func (d *DatadogMetricInternal) BuildStatus(currentStatus datadoghq.DatadogMetricStatus) *datadoghq.DatadogMetricStatus {
+func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetricStatus) *datadoghq.DatadogMetricStatus {
 	updateTime := metav1.NewTime(d.UpdateTime)
 	existingConditions := map[datadoghq.DatadogMetricConditionType]*datadoghq.DatadogMetricCondition{
 		datadoghq.DatadogMetricConditionTypeActive:  nil,
@@ -96,10 +126,12 @@ func (d *DatadogMetricInternal) BuildStatus(currentStatus datadoghq.DatadogMetri
 		datadoghq.DatadogMetricConditionTypeError:   nil,
 	}
 
-	for i := range currentStatus.Conditions {
-		condition := &currentStatus.Conditions[i]
-		if _, ok := existingConditions[condition.Type]; ok {
-			existingConditions[condition.Type] = condition
+	if currentStatus != nil {
+		for i := range currentStatus.Conditions {
+			condition := &currentStatus.Conditions[i]
+			if _, ok := existingConditions[condition.Type]; ok {
+				existingConditions[condition.Type] = condition
+			}
 		}
 	}
 
