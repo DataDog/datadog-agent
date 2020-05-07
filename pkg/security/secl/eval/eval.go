@@ -62,6 +62,10 @@ type MacroEvaluator struct {
 	Value interface{}
 }
 
+type Evaluator interface {
+	StringValue() string
+}
+
 type BoolEvaluator struct {
 	Eval      func(ctx *Context) bool
 	DebugEval func(ctx *Context) bool
@@ -71,7 +75,7 @@ type BoolEvaluator struct {
 	IsPartial bool
 }
 
-func (b *BoolEvaluator) String() string {
+func (b *BoolEvaluator) StringValue() string {
 	return fmt.Sprintf("%t", b.Eval(nil))
 }
 
@@ -84,7 +88,7 @@ type IntEvaluator struct {
 	IsPartial bool
 }
 
-func (i *IntEvaluator) String() string {
+func (i *IntEvaluator) StringValue() string {
 	return fmt.Sprintf("%d", i.Eval(nil))
 }
 
@@ -97,7 +101,7 @@ type StringEvaluator struct {
 	IsPartial bool
 }
 
-func (s *StringEvaluator) String() string {
+func (s *StringEvaluator) StringValue() string {
 	return s.Eval(nil)
 }
 

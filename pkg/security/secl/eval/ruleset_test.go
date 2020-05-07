@@ -1,7 +1,6 @@
 package eval
 
 import (
-	"syscall"
 	"testing"
 )
 
@@ -21,12 +20,12 @@ func TestRuleSet(t *testing.T) {
 		kind: "fs",
 		process: testProcess{
 			name:   "abc",
-			uid:    123,
+			uid:    0,
 			isRoot: true,
 		},
 		open: testOpen{
 			filename: "/usr/local/bin/rootkit",
-			flags:    syscall.O_RDONLY,
+			flags:    1,
 		},
 	}
 
@@ -36,14 +35,21 @@ func TestRuleSet(t *testing.T) {
 	rs := NewRuleSet(m, true)
 	rs.AddListener(f)
 
-	_, err := rs.AddRule("r1", `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && open.flags & O_CREAT > 0 && process.uid != 0`)
+	var err error
+
+	_, err = rs.AddRule("r1", `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & 2 > 0`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = rs.AddRule("r2", `(open.filename =~ "/var/run/*") && open.flags & O_CREAT > 0`)
+	/*_, err = rs.AddRule("r2", `(open.filename != "/var/run/*") && open.flags & 2 > 0`)
 	if err != nil {
 		t.Fatal(err)
-	}
+	}*/
+
+	/*_, err = rs.AddRule("r3", `true && open.flags & 2 > 0`)
+	if err != nil {
+		t.Fatal(err)
+	}*/
 
 	rs.Evaluate(&event)
 

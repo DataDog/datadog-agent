@@ -21,15 +21,18 @@ package	eval
 {{ range . }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) *{{ .FuncReturnType }} {
-	isPartialLeaf := a.IsPartial || b.IsPartial
+	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Field != "" || b.Field != "" {
-		if a.Field != opts.Field && b.Field != opts.Field {
-			isPartialLeaf = true
-		}
-		if a.Field != "" && b.Field != "" {
-			isPartialLeaf = true
-		}
+	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+		partialA = true
+	}
+	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.Field != "" && b.Field != "" {
+		isPartialLeaf = true
 	}
 
 	if a.Eval != nil && b.Eval != nil {
