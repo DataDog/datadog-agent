@@ -101,6 +101,9 @@ func TestNestedFields(t *testing.T) {
 	scanner.Next()
 	assert.Equal(t, uint16(4), scanner.Type())
 	assert.Equal(t, topLevelAttrs[1].Data, scanner.Bytes())
+
+	// Once we have traversed all fields, Next() should return false
+	assert.False(t, scanner.Next())
 }
 
 // The messages we're interested in have this preamble
