@@ -34,13 +34,10 @@ type Socket struct {
 	// which is currently a perf bottleneck in certain workloads.
 	// https://www.spinics.net/lists/netdev/msg431592.html
 	recvbuf []byte
-
-	// A pool of pre-allocated buffer objects which is used upstream
-	pool *bufferPool
 }
 
 // NewSocket creates a new NETLINK socket
-func NewSocket(pool *bufferPool) (*Socket, error) {
+func NewSocket() (*Socket, error) {
 	fd, err := unix.Socket(
 		unix.AF_NETLINK,
 		unix.SOCK_RAW|unix.SOCK_CLOEXEC,
@@ -83,7 +80,6 @@ func NewSocket(pool *bufferPool) (*Socket, error) {
 		pid:     pid,
 		conn:    conn,
 		recvbuf: make([]byte, 32*1024),
-		pool:    pool,
 	}
 	return socket, nil
 }
@@ -110,20 +106,20 @@ func (s *Socket) Send(m netlink.Message) error {
 	return err
 }
 
-// Receive reads one or more netlink.Messages off the socket
+// Receive is not implemented. See ReceiveInto
 func (s *Socket) Receive() ([]netlink.Message, error) {
+	return nil, errNotImplemented
+}
+
+// ReceiveInto reads one or more netlink.Messages off the socket
+func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, error) {
 	n, err := s.recvmsg(s.recvbuf, 0)
 	if err != nil {
 		return nil, os.NewSyscallError("recvmsg", err)
 	}
 
 	n = nlmsgAlign(n)
-
-	// Copy data to a buffer that can be used upstream
-	var b []byte
-	if n < msgBufferSize {
-		b = s.pool.Get()
-	} else {
+	if n > len(b) {
 		b = make([]byte, n)
 	}
 	copy(b, s.recvbuf[:n])

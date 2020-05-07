@@ -46,7 +46,7 @@ var errMaxSamplingAttempts = errors.New("netlink socket creation: too many attem
 type Consumer struct {
 	conn         *netlink.Conn
 	socket       *Socket
-	pool         *bufferPool
+	pool         *sync.Pool
 	workQueue    chan func()
 	samplingRate float64
 	breaker      *CircuitBreaker
@@ -64,7 +64,7 @@ type Consumer struct {
 type Event struct {
 	msgs   []netlink.Message
 	buffer *[]byte
-	pool   *bufferPool
+	pool   *sync.Pool
 }
 
 // Messages returned from the socket read
@@ -197,7 +197,7 @@ func (c *Consumer) do(sync bool, fn func()) {
 
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	var err error
-	c.socket, err = NewSocket(c.pool)
+	c.socket, err = NewSocket()
 	if err != nil {
 		return err
 	}
@@ -245,8 +245,8 @@ func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 func (c *Consumer) receive(output chan Event) {
 ReadLoop:
 	for {
-		c.pool.Reset()
-		msgs, err := c.socket.Receive()
+		buffer := c.pool.Get().(*[]byte)
+		msgs, err := c.socket.ReceiveInto(*buffer)
 
 		if err != nil {
 			switch socketError(err) {
@@ -283,7 +283,7 @@ ReadLoop:
 			msgs = msgs[:len(msgs)-1]
 		}
 
-		output <- c.eventFor(msgs)
+		output <- c.eventFor(msgs, buffer)
 
 		// If we're doing a conntrack dump we terminate after reading the multi-part message
 		if multiPartDone && !c.streaming {
@@ -292,10 +292,10 @@ ReadLoop:
 	}
 }
 
-func (c *Consumer) eventFor(msgs []netlink.Message) Event {
+func (c *Consumer) eventFor(msgs []netlink.Message, buffer *[]byte) Event {
 	return Event{
 		msgs:   msgs,
-		buffer: c.pool.inUse,
+		buffer: buffer,
 		pool:   c.pool,
 	}
 }
@@ -340,30 +340,13 @@ func (c *Consumer) throttle(numMessages int) error {
 	return nil
 }
 
-type bufferPool struct {
-	inUse *[]byte
-	sync.Pool
-}
-
-func newBufferPool() *bufferPool {
-	return &bufferPool{
-		Pool: sync.Pool{
-			New: func() interface{} {
-				b := make([]byte, os.Getpagesize())
-				return &b
-			},
+func newBufferPool() *sync.Pool {
+	return &sync.Pool{
+		New: func() interface{} {
+			b := make([]byte, os.Getpagesize())
+			return &b
 		},
 	}
-}
-
-func (b *bufferPool) Get() []byte {
-	buf := b.Pool.Get().(*[]byte)
-	b.inUse = buf
-	return *buf
-}
-
-func (b *bufferPool) Reset() {
-	b.inUse = nil
 }
 
 // Copied from https://github.com/mdlayher/netlink/message.go
