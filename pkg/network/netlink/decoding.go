@@ -99,7 +99,6 @@ func unmarshalTuple(s *AttributeScanner, t *ct.IPTuple) error {
 	return s.Err()
 }
 
-// TODO: Double check if a message can contain both IPv4 and IPv6 IPs
 // We might also want to consider deferring the allocation of the IP byte slice
 func unmarshalTupleIP(s *AttributeScanner, t *ct.IPTuple) error {
 	for toDecode := 2; toDecode > 0 && s.Next(); {

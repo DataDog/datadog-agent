@@ -23,9 +23,6 @@ const (
 
 	// generationLength must be greater than compactInterval to ensure we have multiple compactions per generation
 	generationLength = compactInterval + 30*time.Second
-
-	// stale conntrack TTL
-	staleConntrackTTL = time.Minute
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -72,10 +69,7 @@ type realConntracker struct {
 		unregistersTotalTime int64
 		expiresTotal         int64
 	}
-	exceededSizeLogLimit   *util.LogLimit
-	staleConntrackLogLimit *util.LogLimit
-
-	lastRegister time.Time
+	exceededSizeLogLimit *util.LogLimit
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -107,12 +101,11 @@ func newConntrackerOnce(procRoot string, maxStateSize, rateLimit int) (Conntrack
 	}
 
 	ctr := &realConntracker{
-		consumer:               consumer,
-		compactTicker:          time.NewTicker(compactInterval),
-		state:                  make(map[connKey]*connValue),
-		maxStateSize:           maxStateSize,
-		exceededSizeLogLimit:   util.NewLogLimit(10, time.Minute*10),
-		staleConntrackLogLimit: util.NewLogLimit(1, time.Minute*10),
+		consumer:             consumer,
+		compactTicker:        time.NewTicker(compactInterval),
+		state:                make(map[connKey]*connValue),
+		maxStateSize:         maxStateSize,
+		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
 	}
 
 	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
@@ -263,7 +256,6 @@ func (ctr *realConntracker) register(c ct.Con) int {
 	registerTuple(c.Origin, c.Reply)
 	registerTuple(c.Reply, c.Origin)
 	then := time.Now()
-	ctr.lastRegister = then
 	atomic.AddInt64(&ctr.stats.registers, 1)
 	atomic.AddInt64(&ctr.stats.registersTotalTime, then.UnixNano()-now)
 
@@ -272,15 +264,12 @@ func (ctr *realConntracker) register(c ct.Con) int {
 
 func (ctr *realConntracker) logExceededSize() {
 	if ctr.exceededSizeLogLimit.ShouldLog() {
-		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.max_tracked_connections (will log first ten times, and then once every 10 minutes)", ctr.maxStateSize)
+		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.conntrack_max_state_size (will log first ten times, and then once every 10 minutes)", ctr.maxStateSize)
 	}
 }
 
 func (ctr *realConntracker) run() {
 	events := ctr.consumer.Events()
-
-	// This is just an example how we can integrate the new Consumer code with the existing code
-	// TODO: Add termination logic
 	go func() {
 		for e := range events {
 			conns := DecodeAndReleaseEvent(e)
@@ -293,15 +282,6 @@ func (ctr *realConntracker) run() {
 	go func() {
 		for range ctr.compactTicker.C {
 			ctr.compact()
-
-			// Log a message when we detect that conntrack hasn't seen recent events.
-			ctr.Lock()
-			stale := !ctr.lastRegister.IsZero() && time.Now().Sub(ctr.lastRegister) > staleConntrackTTL
-			ctr.Unlock()
-
-			if stale && ctr.staleConntrackLogLimit.ShouldLog() {
-				log.Warnf("no NAT conntrack events were detected over the past %s. (will log once every 10 minutes)", staleConntrackTTL)
-			}
 		}
 	}()
 }
