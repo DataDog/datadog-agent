@@ -27,28 +27,18 @@ func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel str
 	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.Info, logLevel)
 }
 
-// ExecJmxListWithMetricsJSON runs the JMX command with "with-metrics", reporting
-// the data as a JSON on the console. It is used by the `check jmx` cli command
-// of the Agent.
+// ExecJmxListWithMetricsStatsd runs the JMX command with "with-metrics".
+// It is used by the `check jmx` cli command of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string) error {
-	// don't pollute the JSON with the log pattern.
-	out := func(a ...interface{}) {
-		fmt.Println(a...)
-	}
-	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel)
+func ExecJmxListWithMetricsStatsd(selectedChecks []string, logLevel string) error {
+	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterStatsd, log.Info, logLevel)
 }
 
-// ExecJmxListWithRateMetricsJSON runs the JMX command with "with-rate-metrics", reporting
-// the data as a JSON on the console. It is used by the `check jmx --rate` cli command
-// of the Agent.
+// ExecJmxListWithRateMetricsStatsd runs the JMX command with "with-rate-metrics".
+// It is used by the `check jmx --rate` cli command of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string) error {
-	// don't pollute the JSON with the log pattern.
-	out := func(a ...interface{}) {
-		fmt.Println(a...)
-	}
-	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel)
+func ExecJmxListWithRateMetricsStatsd(selectedChecks []string, logLevel string) error {
+	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterStatsd, log.Info, logLevel)
 }
 
 // execJmxCommand runs the provided JMX command name on the selected checks.

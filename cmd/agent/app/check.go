@@ -8,7 +8,10 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"io/ioutil"
+	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -117,6 +120,21 @@ var checkCmd = &cobra.Command{
 		s := serializer.NewSerializer(common.Forwarder)
 		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, "agent", 0)
+
+		// start dogstatsd
+		if config.Datadog.GetBool("use_dogstatsd") {
+			port, err := getFreePort()
+			if err != nil {
+				log.Fatal(err)
+			}
+			config.Datadog.Set("dogstatsd_port", port)
+
+			common.DSD, err = dogstatsd.NewServer(agg)
+			if err != nil {
+				return fmt.Errorf("Cannot start dogstatsd: %s", err)
+			}
+		}
+
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 		if config.Datadog.GetBool("inventories_enabled") {
@@ -138,11 +156,11 @@ var checkCmd = &cobra.Command{
 				fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 				selectedChecks := []string{checkName}
 				if checkRate {
-					if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+					if err := standalone.ExecJmxListWithRateMetricsStatsd(selectedChecks, resolvedLogLevel); err != nil {
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
 				} else {
-					if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, resolvedLogLevel); err != nil {
+					if err := standalone.ExecJmxListWithMetricsStatsd(selectedChecks, resolvedLogLevel); err != nil {
 						return fmt.Errorf("while running the jmx check: %v", err)
 					}
 				}
@@ -155,6 +173,21 @@ var checkCmd = &cobra.Command{
 						continue
 					}
 					instances = append(instances, instance)
+				}
+
+				// Sleep for a while for metrics (sent by JMXFetch) to be received by DogStatsD
+				time.Sleep(time.Duration(5) * time.Second)
+				// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
+				time.Sleep(time.Duration(checkDelay) * time.Millisecond)
+
+				if formatJSON {
+					aggregatorData := getMetricsData(agg)
+					instanceData := map[string]interface{}{
+						"aggregator": aggregatorData,
+					}
+					printInstancesDataAsJSON([]interface{}{instanceData})
+				} else {
+					printMetrics(agg)
 				}
 
 				if len(instances) == 0 {
@@ -382,7 +415,6 @@ var checkCmd = &cobra.Command{
 				color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 			}
 		}
-
 		return nil
 	},
 }
@@ -552,4 +584,18 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+func getFreePort() (int, error) {
+	addr, err := net.ResolveUDPAddr("udp", "localhost:0")
+	if err != nil {
+		return 0, err
+	}
+
+	l, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.LocalAddr().(*net.UDPAddr).Port, nil
 }
