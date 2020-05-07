@@ -6,7 +6,7 @@
 require './lib/ostools.rb'
 require 'pathname'
 
-name 'datadog-puppy'
+name 'datadog-iot-agent'
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -34,12 +34,12 @@ build do
   end
 
   if linux?
-    command "invoke agent.build --puppy --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
+    command "invoke agent.build --iot --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
     copy('bin', install_dir)
 
     mkdir "#{install_dir}/run/"
 
-  
+
     # Config
     mkdir '/etc/datadog-agent'
     mkdir "/var/log/datadog"
@@ -66,7 +66,7 @@ build do
     mkdir conf_dir
     mkdir "#{install_dir}/bin/agent"
 
-    command "inv agent.build --puppy --rebuild --no-development --arch #{platform} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
+    command "inv agent.build --iot --rebuild --no-development --arch #{platform} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
 
       # move around bin and config files
     move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
@@ -79,8 +79,8 @@ build do
     # Build the process-agent with the correct go version for windows
     command "invoke -e process-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 
-    copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin/agent"
-  
+    copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+
 
   end
   block do
@@ -91,7 +91,7 @@ build do
       platform = windows_arch_i386? ? "x86" : "x64"
       command "invoke trace-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 
-      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin/agent"
+      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     end
   end
 

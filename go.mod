@@ -76,7 +76,7 @@ require (
 	github.com/DataDog/gopsutil v0.0.0-20191127151039-7e1a4eadb59e
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/watermarkpodautoscaler v0.1.0
-	github.com/DataDog/zstd v1.4.5
+	github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360
 	github.com/Microsoft/go-winio v0.4.11
 	github.com/aws/aws-sdk-go v1.30.5
 	github.com/beevik/ntp v0.3.0

@@ -163,6 +163,14 @@ func TestFilter(t *testing.T) {
 			},
 			ns: "bar",
 		},
+		{
+			c: Container{
+				ID:    "19",
+				Name:  "k8s_POD_AKS_pause",
+				Image: "aksrepos.azurecr.io/mirror/pause-amd64:3.1",
+			},
+			ns: "default",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -171,25 +179,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
 		},
 		{
 			blacklist:   []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
 		},
 		{
 			blacklist:   []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
 		},
 		{
 			whitelist:   []string{},
 			blacklist:   []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
 		},
 		{
 			whitelist:   []string{"name:mysql"},
 			blacklist:   []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19"},
 		},
 		{
 			blacklist:   []string{"kube_namespace:.*"},
@@ -198,7 +206,7 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			blacklist:   []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19"},
 		},
 		// Test kubernetes defaults
 		{

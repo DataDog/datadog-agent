@@ -40,10 +40,11 @@ type Launcher struct {
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
+	readTimeout        time.Duration // client read timeout to set on the created tailer
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry bool) (*Launcher, error) {
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry bool) (*Launcher, error) {
 	if !shouldRetry {
 		if _, err := dockerutil.GetDockerUtil(); err != nil {
 			return nil, err
@@ -57,6 +58,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, pipelin
 		stop:               make(chan struct{}),
 		erroredContainerID: make(chan string),
 		lock:               &sync.Mutex{},
+		readTimeout:        readTimeout,
 	}
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
@@ -199,7 +201,7 @@ func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
 		log.Warnf("Could not use docker client, logs for container %s won’t be collected: %v", containerID, err)
 		return
 	}
-	tailer := NewTailer(dockerutil, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+	tailer := NewTailer(dockerutil, containerID, overridenSource, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID, l.readTimeout)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), container.service.CreationTime)
@@ -255,7 +257,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		log.Warnf("Could not use docker client, logs for container %s won’t be collected: %v", containerID, err)
 		return
 	}
-	tailer := NewTailer(dockerutil, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID)
+	tailer := NewTailer(dockerutil, containerID, source, l.pipelineProvider.NextPipelineChan(), l.erroredContainerID, l.readTimeout)
 
 	// compute the offset to prevent from missing or duplicating logs
 	since, err := Since(l.registry, tailer.Identifier(), service.Before)
