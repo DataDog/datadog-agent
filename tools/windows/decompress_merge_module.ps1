@@ -4,7 +4,7 @@ param(
     )
 
 
-if ("$NEW_BUILDER" -eq "true") {
+if ("$Env:NEW_BUILDER" -eq "true") {
     [Reflection.Assembly]::LoadFrom("$($Env:WIX)\bin\Microsoft.Deployment.WindowsInstaller.dll")
 } else {
     [Reflection.Assembly]::LoadFrom("$($Env:WIX)\Microsoft.Deployment.WindowsInstaller.dll")
