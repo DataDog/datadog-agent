@@ -191,9 +191,10 @@ var checkCmd = &cobra.Command{
 					instances = append(instances, instance)
 				}
 
-				// Wait for JMX to send data to DSD
-				// TODO: Find a better to wait for DSD to receive metrics
-				time.Sleep(10 * time.Second)
+				// Sleep for a while for metrics (sent by JMXFetch) to be received by DogStatsD
+				time.Sleep(time.Duration(5) * time.Second)
+				// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
+				time.Sleep(time.Duration(checkDelay) * time.Millisecond)
 
 				if formatJSON {
 					aggregatorData := getMetricsData(agg)
