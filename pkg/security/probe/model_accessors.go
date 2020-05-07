@@ -45,17 +45,17 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "mkdir.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Mkdir.ResolveSrcPathnameKey(m) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.ResolveSrcPathnameKey(m) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Mkdir.ResolvePathnameKey(m) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.ResolvePathnameKey(m) },
 
 			Field: key,
 		}, nil
 
-	case "mkdir.flags":
+	case "mkdir.inode":
 
 		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Mkdir.Flags) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.Flags) },
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Mkdir.Inode) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.Inode) },
 
 			Field: key,
 		}, nil
@@ -69,38 +69,11 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "mkdir.source_inode":
+	case "mkdir.mount_id":
 
 		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Mkdir.SrcInode) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.SrcInode) },
-
-			Field: key,
-		}, nil
-
-	case "mkdir.source_mount_id":
-
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Mkdir.SrcMountID) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.SrcMountID) },
-
-			Field: key,
-		}, nil
-
-	case "mkdir.target_inode":
-
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Mkdir.TargetInode) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.TargetInode) },
-
-			Field: key,
-		}, nil
-
-	case "mkdir.target_mount_id":
-
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Mkdir.TargetMountID) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.TargetMountID) },
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Mkdir.MountID) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.MountID) },
 
 			Field: key,
 		}, nil
@@ -108,8 +81,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "open.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Open.Filename },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Open.Filename },
+			Eval:      func(ctx *eval.Context) string { return m.event.Open.ResolvePathnameKey(m) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Open.ResolvePathnameKey(m) },
 
 			Field: key,
 		}, nil
@@ -123,11 +96,29 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
+	case "open.inode":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Open.Inode) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Open.Inode) },
+
+			Field: key,
+		}, nil
+
 	case "open.mode":
 
 		return &eval.IntEvaluator{
 			Eval:      func(ctx *eval.Context) int { return int(m.event.Open.Mode) },
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Open.Mode) },
+
+			Field: key,
+		}, nil
+
+	case "open.mount_id":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Open.MountID) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Open.MountID) },
 
 			Field: key,
 		}, nil
@@ -195,29 +186,110 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "rename.newname":
+	case "rename.newfilename":
 
-		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Rename.NewName },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.NewName },
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.TargetPathnameKey) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.TargetPathnameKey) },
 
 			Field: key,
 		}, nil
 
-	case "rename.oldname":
+	case "rename.newinode":
 
-		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Rename.OldName },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.OldName },
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.TargetInode) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.TargetInode) },
+
+			Field: key,
+		}, nil
+
+	case "rename.newmountid":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.TargetMountID) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.TargetMountID) },
+
+			Field: key,
+		}, nil
+
+	case "rename.oldfilename":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.SrcPathnameKey) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.SrcPathnameKey) },
+
+			Field: key,
+		}, nil
+
+	case "rename.oldinode":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.SrcInode) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.SrcInode) },
+
+			Field: key,
+		}, nil
+
+	case "rename.oldmountid":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.SrcMountID) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.SrcMountID) },
+
+			Field: key,
+		}, nil
+
+	case "rmdir.filename":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Rmdir.PathnameKey) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rmdir.PathnameKey) },
+
+			Field: key,
+		}, nil
+
+	case "rmdir.inode":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Rmdir.Inode) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rmdir.Inode) },
+
+			Field: key,
+		}, nil
+
+	case "rmdir.mount_id":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Rmdir.MountID) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rmdir.MountID) },
 
 			Field: key,
 		}, nil
 
 	case "unlink.filename":
 
-		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Unlink.Filename },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Unlink.Filename },
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Unlink.PathnameKey) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Unlink.PathnameKey) },
+
+			Field: key,
+		}, nil
+
+	case "unlink.inode":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Unlink.Inode) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Unlink.Inode) },
+
+			Field: key,
+		}, nil
+
+	case "unlink.mount_id":
+
+		return &eval.IntEvaluator{
+			Eval:      func(ctx *eval.Context) int { return int(m.event.Unlink.MountID) },
+			DebugEval: func(ctx *eval.Context) int { return int(m.event.Unlink.MountID) },
 
 			Field: key,
 		}, nil
@@ -242,22 +314,13 @@ func (m *Model) GetTags(key string) ([]string, error) {
 	case "mkdir.filename":
 		return []string{"fs"}, nil
 
-	case "mkdir.flags":
+	case "mkdir.inode":
 		return []string{"fs"}, nil
 
 	case "mkdir.mode":
 		return []string{"fs"}, nil
 
-	case "mkdir.source_inode":
-		return []string{"fs"}, nil
-
-	case "mkdir.source_mount_id":
-		return []string{"fs"}, nil
-
-	case "mkdir.target_inode":
-		return []string{"fs"}, nil
-
-	case "mkdir.target_mount_id":
+	case "mkdir.mount_id":
 		return []string{"fs"}, nil
 
 	case "open.filename":
@@ -266,7 +329,13 @@ func (m *Model) GetTags(key string) ([]string, error) {
 	case "open.flags":
 		return []string{"fs"}, nil
 
+	case "open.inode":
+		return []string{"fs"}, nil
+
 	case "open.mode":
+		return []string{"fs"}, nil
+
+	case "open.mount_id":
 		return []string{"fs"}, nil
 
 	case "process.gid":
@@ -290,13 +359,40 @@ func (m *Model) GetTags(key string) ([]string, error) {
 	case "process.uid":
 		return []string{"process"}, nil
 
-	case "rename.newname":
+	case "rename.newfilename":
 		return []string{"fs"}, nil
 
-	case "rename.oldname":
+	case "rename.newinode":
+		return []string{"fs"}, nil
+
+	case "rename.newmountid":
+		return []string{"fs"}, nil
+
+	case "rename.oldfilename":
+		return []string{"fs"}, nil
+
+	case "rename.oldinode":
+		return []string{"fs"}, nil
+
+	case "rename.oldmountid":
+		return []string{"fs"}, nil
+
+	case "rmdir.filename":
+		return []string{"fs"}, nil
+
+	case "rmdir.inode":
+		return []string{"fs"}, nil
+
+	case "rmdir.mount_id":
 		return []string{"fs"}, nil
 
 	case "unlink.filename":
+		return []string{"fs"}, nil
+
+	case "unlink.inode":
+		return []string{"fs"}, nil
+
+	case "unlink.mount_id":
 		return []string{"fs"}, nil
 
 	}

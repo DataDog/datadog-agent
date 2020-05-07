@@ -17,31 +17,14 @@
 #include <linux/types.h>
 #include <linux/version.h>
 
-#include "../../ebpf/c/bpf_helpers.h"
-
-/*
-#include <uapi/asm-generic/types.h>
-#include <uapi/linux/ptrace.h>
-#include <uapi/linux/limits.h>
-#include <linux/sched.h>
-#include <linux/fs_struct.h>
-#include <linux/fs.h>
-#include <linux/mount.h>
-#include <linux/types.h>
-#include <linux/fs_pin.h>
-#include <linux/mount.h>
-#include <linux/tty.h>
-#include <linux/sched/signal.h>
-
-#include <linux/nsproxy.h>
-#include <linux/pid_namespace.h>
-#include <linux/ns_common.h>
-*/
-
 #include "defs.h"
 #include "process.h"
 #include "dentry.h"
 #include "mkdir.h"
+#include "rmdir.h"
+#include "unlink.h"
+#include "rename.h"
+#include "open.h"
 
 __u32 _version SEC("version") = 0xFFFFFFFE;
 

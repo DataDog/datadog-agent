@@ -36,9 +36,29 @@ func (p *Probe) handleDentryEvent(data []byte) {
 	offset += read
 
 	switch ProbeEventType(event.Event.Type) {
+	case FileOpenEventType:
+		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case FileMkdirEventType:
 		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode received data")
+			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileRmdirEventType:
+		if _, err := event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileUnlinkEventType:
+		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileRenameEventType:
+		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	default:

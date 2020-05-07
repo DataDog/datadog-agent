@@ -1,20 +1,20 @@
-#ifndef _MKDIR_H_
-#define _MKDIR_H_
+#ifndef _RMDIR_H_
+#define _RMDIR_H_
 
-struct mkdir_event_t {
+#include "defs.h"
+
+struct rmdir_event_t {
     struct event_t event;
     struct process_data_t process;
     int    inode;
     u32    pathname_key;
     int    mount_id;
-    int    mode;
 };
 
-int __attribute__((always_inline)) trace__security_inode_mkdir(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry, umode_t mode) {
+int __attribute__((always_inline)) trace__security_inode_rmdir(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry) {
     struct dentry_event_cache_t cache = {
         .src_dentry = dentry,
         .src_dir = dir,
-        .mode = mode,
     };
 
     // Filter process
@@ -27,28 +27,26 @@ int __attribute__((always_inline)) trace__security_inode_mkdir(struct pt_regs *c
     return 0;
 }
 
-SEC("kprobe/security_inode_mkdir")
-int kprobe__security_inode_mkdir(struct pt_regs *ctx) {
+SEC("kprobe/security_inode_rmdir")
+int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     struct inode *dir = (struct inode *)PT_REGS_PARM1(ctx);
     struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    umode_t mode = (umode_t)PT_REGS_PARM3(ctx);
 
-    return trace__security_inode_mkdir(ctx, dir, dentry, mode);
+    return trace__security_inode_rmdir(ctx, dir, dentry);
 }
 
-int __attribute__((always_inline)) trace__security_inode_mkdir_ret(struct pt_regs *ctx, int retval) {
+int __attribute__((always_inline)) trace__security_inode_rmdir_ret(struct pt_regs *ctx, int retval) {
     struct dentry_event_cache_t *cache = pop_dentry_event_cache();
     if (!cache)
         return -1;
 
-    struct mkdir_event_t event = {
+    struct rmdir_event_t event = {
         .event.retval = retval,
-        .event.type = EVENT_VFS_MKDIR,
+        .event.type = EVENT_VFS_RMDIR,
         .event.timestamp = bpf_ktime_get_ns(),
         .pathname_key = bpf_get_prandom_u32(),
         .inode = get_dentry_inode(cache->src_dentry),
         .mount_id = get_inode_mount_id(cache->src_dir),
-        .mode = cache->mode,
     };
 
     fill_process_data(&event.process);
@@ -59,9 +57,9 @@ int __attribute__((always_inline)) trace__security_inode_mkdir_ret(struct pt_reg
     return 0;
 }
 
-SEC("kretprobe/security_inode_mkdir")
-int kretprobe__security_inode_mkdir(struct pt_regs *ctx) {
-    return trace__security_inode_mkdir_ret(ctx, PT_REGS_RC(ctx));
+SEC("kretprobe/security_inode_rmdir")
+int kretprobe__security_inode_rmdir(struct pt_regs *ctx) {
+    return trace__security_inode_rmdir_ret(ctx, PT_REGS_RC(ctx));
 }
 
 #endif

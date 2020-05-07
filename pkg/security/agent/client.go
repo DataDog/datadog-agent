@@ -48,7 +48,7 @@ func (c *EventClient) Start() {
 				break
 			}
 
-			log.Debugf("Got message from rule %s with event %s", in.RuleName, string(in.Data))
+			log.Infof("Got message from rule %s with event %s", in.RuleName, string(in.Data))
 
 			ddlog := DDLog{
 				Host:    "my.vagrant",
