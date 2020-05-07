@@ -17,10 +17,11 @@ $packageArgs = @{
 }
 Install-ChocolateyPackage @packageArgs
 
-$installInfo = @"
-tool: chocolatey
-tool_version: chocolatey-$($env:CHOCOLATEY_VERSION)
-installer_version: chocolatey-$($env:chocolateyPackageVersion)-online
+$installInfo = @"---
+install_method:
+  tool: chocolatey
+  tool_version: chocolatey-$($env:CHOCOLATEY_VERSION)
+  installer_version: chocolatey-$($env:chocolateyPackageVersion)-online
 "@
 
 Out-File -FilePath C:\ProgramData\Datadog\install_info -InputObject $installInfo
