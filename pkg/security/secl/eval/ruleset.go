@@ -3,6 +3,7 @@ package eval
 import (
 	"sort"
 
+	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
@@ -124,7 +125,11 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 		log.Debugf("Looking for discriminators for event `%s`", eventID)
 
 		for _, field := range bucket.fields {
-			eval, _ := rs.model.GetEvaluator(field)
+			var value string
+			if level, _ := log.GetLogLevel(); level == seelog.DebugLvl {
+				eval, _ := rs.model.GetEvaluator(field)
+				value = eval.(Evaluator).StringValue()
+			}
 
 			found = true
 			for _, rule := range bucket.rules {
@@ -134,14 +139,13 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 				}
 
 				isTrue := partial(context)
-
-				log.Debugf("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.Name, rule.Expression, field, eval, isTrue)
+				log.Debugf("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.Name, rule.Expression, field, value, isTrue)
 				if isTrue {
 					found = false
 				}
 			}
 			if found {
-				log.Debugf("Found discriminator for field `%s` with value `%s`\n", field, eval)
+				log.Debugf("Found discriminator for field `%s` with value `%s`\n", field, value)
 				rs.NotifyDiscriminatorDiscovered(event, field)
 			}
 		}
