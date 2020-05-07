@@ -75,6 +75,7 @@ func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
 
 	err := config.LoadSystemProbeConfig()
 	if err != nil {
+		config.Datadog.Set("system_probe_config.enabled", false)
 		return err
 	}
 	// The full path to the location of the unix socket where connections will be accessed
