@@ -58,6 +58,8 @@ type Consumer struct {
 	enobufs     int64
 	throttles   int64
 	samplingPct int64
+	readErrors  int64
+	msgErrors   int64
 }
 
 // Event encapsulates the result of a single netlink.Con.Receive() call
@@ -154,6 +156,8 @@ func (c *Consumer) GetStats() map[string]int64 {
 		"enobufs":      atomic.LoadInt64(&c.enobufs),
 		"throttles":    atomic.LoadInt64(&c.throttles),
 		"sampling_pct": atomic.LoadInt64(&c.samplingPct),
+		"read_errors":  atomic.LoadInt64(&c.readErrors),
+		"msg_errors":   atomic.LoadInt64(&c.msgErrors),
 	}
 }
 
@@ -260,6 +264,8 @@ ReadLoop:
 					log.Warnf("netlink: detected enobuf during conntrack table dump. consider raising rcvbuf capacity.")
 				}
 				atomic.AddInt64(&c.enobufs, 1)
+			default:
+				atomic.AddInt64(&c.readErrors, 1)
 			}
 		}
 
@@ -271,8 +277,7 @@ ReadLoop:
 		// Messages with error codes are simply skipped
 		for _, m := range msgs {
 			if err := checkMessage(m); err != nil {
-				// TODO: Add some telemetry here
-				log.Debugf("netlink message error: %s", err)
+				atomic.AddInt64(&c.msgErrors, 1)
 				continue ReadLoop
 			}
 		}
