@@ -246,7 +246,7 @@ run_old_tests_windows-x64:
     ARCH: "x64"
 
 run_old_tests_windows-x86:
-  # <<: *run_when_triggered_on_nightly_or_master
+  <<: *run_when_triggered_on_nightly_or_master
   # temporarily allow failure for tests
   extends: .run_old_tests_windows_base
   allow_failure: true
@@ -272,7 +272,7 @@ run_tests_windows-x64:
     ARCH: "x64"
 
 run_tests_windows-x86:
-  # <<: *run_when_triggered_on_nightly_or_master
+  <<: *run_when_triggered_on_nightly_or_master
   # temporarily allow failure for tests
   extends: .run_tests_windows_base
   allow_failure: true
@@ -1207,16 +1207,15 @@ windows_old_msi_x64-a7:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
 
-windows_old_msi_x86-a7:
+windows_old_msi_x64-a6:
   extends: .windows_old_main_agent_base
   variables:
-    ARCH: "x86"
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
+    ARCH: "x64"
+    AGENT_MAJOR_VERSION: 6
+    PYTHON_RUNTIMES: '2,3'
   before_script:
-    - set RELEASE_VERSION $RELEASE_VERSION_7
-  <<: *skip_when_unwanted_on_7
-  #<<: *run_when_triggered_on_nightly_or_master
+    - set RELEASE_VERSION $RELEASE_VERSION_6
+  <<: *skip_when_unwanted_on_6
 
 .windows_msi_base:
   stage: package_build
@@ -1263,7 +1262,7 @@ windows_msi_x86-a7:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
-  #<<: *run_when_triggered_on_nightly_or_master
+  <<: *run_when_triggered_on_nightly_or_master
 
 windows_msi_x64-a6:
   extends: .windows_main_agent_base
@@ -1284,7 +1283,7 @@ windows_msi_x86-a6:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_6
   <<: *skip_when_unwanted_on_6
-  #<<: *run_when_triggered_on_nightly_or_master
+  <<: *run_when_triggered_on_nightly_or_master
 
 .windows_puppy_agent_base:
   extends: .windows_msi_base
