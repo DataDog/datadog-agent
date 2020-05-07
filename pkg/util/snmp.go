@@ -11,6 +11,7 @@ import (
 	"hash/fnv"
 	"net"
 	"reflect"
+	"sort"
 	"strconv"
 	"time"
 
@@ -18,6 +19,12 @@ import (
 
 	"github.com/soniah/gosnmp"
 	"github.com/spf13/viper"
+)
+
+const (
+	defaultPort    = 161
+	defaultTimeout = 5
+	defaultRetries = 3
 )
 
 // SNMPListenerConfig holds global configuration for SNMP discovery
@@ -30,23 +37,24 @@ type SNMPListenerConfig struct {
 
 // SNMPConfig holds configuration for a particular subnet
 type SNMPConfig struct {
-	Network            string   `mapstructure:"network"`
-	Port               uint16   `mapstructure:"port"`
-	Version            string   `mapstructure:"version"`
-	Timeout            int      `mapstructure:"timeout"`
-	Retries            int      `mapstructure:"retries"`
-	Community          string   `mapstructure:"community"`
-	User               string   `mapstructure:"user"`
-	AuthKey            string   `mapstructure:"authentication_key"`
-	AuthProtocol       string   `mapstructure:"authentication_protocol"`
-	PrivKey            string   `mapstructure:"privacy_key"`
-	PrivProtocol       string   `mapstructure:"privacy_protocol"`
-	ContextEngineID    string   `mapstructure:"context_engine_id"`
-	ContextName        string   `mapstructure:"context_name"`
+	Network            string          `mapstructure:"network"`
+	Port               uint16          `mapstructure:"port"`
+	Version            string          `mapstructure:"version"`
+	Timeout            int             `mapstructure:"timeout"`
+	Retries            int             `mapstructure:"retries"`
+	Community          string          `mapstructure:"community"`
+	User               string          `mapstructure:"user"`
+	AuthKey            string          `mapstructure:"authentication_key"`
+	AuthProtocol       string          `mapstructure:"authentication_protocol"`
+	PrivKey            string          `mapstructure:"privacy_key"`
+	PrivProtocol       string          `mapstructure:"privacy_protocol"`
+	ContextEngineID    string          `mapstructure:"context_engine_id"`
+	ContextName        string          `mapstructure:"context_name"`
 	IgnoredIPAddresses map[string]bool `mapstructure:"ignored_ip_addresses"`
-	ADIdentifier       string   `mapstructure:"ad_identifier"`
+	ADIdentifier       string          `mapstructure:"ad_identifier"`
 }
 
+// NewSNMPListenerConfig parses configuration and returns a built SNMPListenerConfig
 func NewSNMPListenerConfig() (SNMPListenerConfig, error) {
 	var snmpConfig SNMPListenerConfig
 	opt := viper.DecodeHook(
@@ -65,8 +73,24 @@ func NewSNMPListenerConfig() (SNMPListenerConfig, error) {
 			return newData, nil
 		},
 	)
+
 	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
+	}
+
+	// Set the default values, we can't otherwise on an array
+	for i := range snmpConfig.Configs {
+		// We need to modify the struct in place
+		config := &snmpConfig.Configs[i]
+		if config.Port == 0 {
+			config.Port = defaultPort
+		}
+		if config.Timeout == 0 {
+			config.Timeout = defaultTimeout
+		}
+		if config.Retries == 0 {
+			config.Retries = defaultRetries
+		}
 	}
 	return snmpConfig, nil
 }
@@ -85,7 +109,14 @@ func (c *SNMPConfig) Digest(address string) string {
 	h.Write([]byte(c.PrivProtocol))
 	h.Write([]byte(c.ContextEngineID))
 	h.Write([]byte(c.ContextName))
-	for ip, _ := range c.IgnoredIPAddresses {
+
+	// Sort the addresses to get a stable digest
+	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
+	for ip := range c.IgnoredIPAddresses {
+		addresses = append(addresses, ip)
+	}
+	sort.Strings(addresses)
+	for _, ip := range addresses {
 		h.Write([]byte(ip))
 	}
 
@@ -94,11 +125,6 @@ func (c *SNMPConfig) Digest(address string) string {
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
 func (c *SNMPConfig) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
-	port := c.Port
-	if port == 0 {
-		port = 161
-	}
-
 	if c.Community == "" && c.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
@@ -140,7 +166,7 @@ func (c *SNMPConfig) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 	}
 
 	return &gosnmp.GoSNMP{
-		Port:            port,
+		Port:            c.Port,
 		Community:       c.Community,
 		Transport:       "udp",
 		Version:         version,

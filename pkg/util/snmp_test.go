@@ -33,7 +33,6 @@ func TestBuildSNMPParams(t *testing.T) {
 	}
 	params, _ := config.BuildSNMPParams()
 	assert.Equal(t, gosnmp.Version2c, params.Version)
-	assert.Equal(t, 161, int(params.Port))
 
 	config = SNMPConfig{
 		Network: "192.168.0.0/24",

@@ -344,9 +344,6 @@ func (s *SNMPService) GetHosts() (map[string]string, error) {
 // GetPorts returns the device port
 func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
 	port := int(s.config.Port)
-	if port == 0 {
-		port = 161
-	}
 	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
 

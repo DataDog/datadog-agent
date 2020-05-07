@@ -65,7 +65,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	snmpConfig := util.SNMPConfig{
 		Network:            "192.168.0.0/24",
 		Community:          "public",
-		IgnoredIPAddresses: []string{"192.168.0.0"},
+		IgnoredIPAddresses: map[string]bool{"192.168.0.0": true},
 	}
 	listenerConfig := util.SNMPListenerConfig{
 		Configs: []util.SNMPConfig{snmpConfig},
