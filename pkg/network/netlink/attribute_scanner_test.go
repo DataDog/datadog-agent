@@ -94,6 +94,9 @@ func TestNestedFields(t *testing.T) {
 		assert.Equal(t, uint16(3), scanner.Type())
 		assert.Equal(t, nestedAttrs[1].Data, scanner.Bytes())
 
+		// Once we have traversed all fields, Next() should return false
+		assert.False(t, scanner.Next())
+
 		return nil
 	})
 
