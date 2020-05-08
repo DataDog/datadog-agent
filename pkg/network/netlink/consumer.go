@@ -330,11 +330,6 @@ func (c *Consumer) throttle(numMessages int) error {
 	atomic.AddInt64(&c.throttles, 1)
 
 	// Close current socket
-	// TODO: validate if we need to leave the group before creating a new socket
-	leaveErr := c.conn.LeaveGroup(netlinkCtNew)
-	if leaveErr != nil {
-		log.Errorf("netlink: error leaving group: %s", leaveErr)
-	}
 	c.socket.Close()
 
 	// Create new socket with the desired sampling rate
