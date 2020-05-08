@@ -73,7 +73,7 @@ install_method:
   tool_version: deb_package-iot
   installer_version: deb_package-$agent_version
 "
-		echo $install_info_content > $CONFIG_DIR/install_info
+		echo "$install_info_content" > $CONFIG_DIR/install_info
 	fi
 
 	# Enable and restart the agent service here on Debian platforms

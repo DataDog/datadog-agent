@@ -107,7 +107,7 @@ if [ ! -f "$CONFIG_DIR/install_info" ]; then
     agent_version=$(grep -oP 'AGENT_VERSION = "\K[^\"]+' $INSTALL_DIR/agent/config.py 2> /dev/null || datadog-agent version | cut -d "-" -f 1 | cut -d " " -f 2)
 
     # Distinguish between SUSE and everything else
-    if ["$DISTRIBUTION_FAMILY" == "SUSE"]; then
+    if [ "$DISTRIBUTION_FAMILY" == "SUSE" ]; then
         rpm_version="SUSE"
     else
         rpm_version="Default"
@@ -119,7 +119,7 @@ install_method:
   tool_version: rpm_package-$rpm_version
   installer_version: rpm_package-$agent_version
 "
-    echo $install_info_content > $CONFIG_DIR/install_info
+    echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,

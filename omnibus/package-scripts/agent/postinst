@@ -88,7 +88,7 @@ install_method:
   tool_version: deb_package
   installer_version: deb_package-$agent_version
 "
-            echo $install_info_content > $CONFIG_DIR/install_info
+            echo "$install_info_content" > $CONFIG_DIR/install_info
         fi
         
         # Only supports systemd and upstart
