@@ -232,6 +232,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
+	err = tr.initTCPCloseBatchMap()
+	if err != nil {
+		return nil, err
+	}
+
 	tr.perfMap, err = tr.initPerfPolling()
 	if err != nil {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
@@ -707,6 +712,26 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 	}
 
 	return network.OUTGOING
+}
+
+// initTCPCloseBatchMap initializes the tcp_close_batch map in eBPF By initializing it
+// in user-space we can save some precious bytes in the eBPF stack and increase the batch size.
+func (t *Tracer) initTCPCloseBatchMap() error {
+	// TODO: Replace this by the number of "real" number of CPU cores (as seen by the Kernel)
+	// (There is probably a utility in the process package with that)
+	const numCPUS = 64
+
+	batchMap, err := t.getMap(tcpCloseBatchMap)
+	if err != nil {
+		return fmt.Errorf("error retrieving the bpf %s map: %s", tcpCloseBatchMap, err)
+	}
+
+	for i := 0; i < numCPUS; i++ {
+		b := new(batch)
+		t.m.UpdateElement(batchMap, unsafe.Pointer(&i), unsafe.Pointer(b), 0)
+	}
+
+	return nil
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)

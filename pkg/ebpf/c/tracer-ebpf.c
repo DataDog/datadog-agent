@@ -516,9 +516,6 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
     }
 
     // Batch TCP closed connections before generating a perf event
-    batch_t zero_batch = {};
-    bpf_map_update_elem(&tcp_close_batch, &cpu, &zero_batch, BPF_NOEXIST);
-
     batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
     if (batch_ptr == NULL) {
         return;
@@ -534,9 +531,21 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
         batch_ptr->c1 = conn;
         batch_ptr->pos++;
         return;
+    case 2:
+        batch_ptr->c2 = conn;
+        batch_ptr->pos++;
+        return;
+    case 3:
+        batch_ptr->c3 = conn;
+        batch_ptr->pos++;
+        return;
+    case 4:
+        batch_ptr->c4 = conn;
+        batch_ptr->pos++;
+        return;
     }
 
-    batch_ptr->c2 = conn;
+    batch_ptr->c5 = conn;
     bpf_perf_event_output(ctx, &tcp_close_event, cpu, batch_ptr, sizeof(tcp_conn_t)*TCP_CLOSED_BATCH_SIZE);
     batch_ptr->pos = 0;
 }

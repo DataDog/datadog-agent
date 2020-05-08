@@ -68,7 +68,7 @@ typedef struct {
 } tcp_conn_t;
 
 #ifndef TCP_CLOSED_BATCH_SIZE
-#define TCP_CLOSED_BATCH_SIZE 3
+#define TCP_CLOSED_BATCH_SIZE 6
 #endif
 
 // This struct is meant to be used as a container for batching
@@ -78,6 +78,9 @@ typedef struct {
     tcp_conn_t c0;
     tcp_conn_t c1;
     tcp_conn_t c2;
+    tcp_conn_t c3;
+    tcp_conn_t c4;
+    tcp_conn_t c5;
     __u8 pos;
 } batch_t;
 

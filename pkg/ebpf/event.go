@@ -34,6 +34,17 @@ __u32 metadata;
 */
 type ConnTuple C.conn_tuple_t
 
+/* batch_t
+tcp_conn_t c0;
+tcp_conn_t c1;
+tcp_conn_t c2;
+tcp_conn_t c3;
+tcp_conn_t c4;
+tcp_conn_t c5;
+__u8 pos;
+*/
+type batch C.batch_t
+
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
 		pid:      t.pid,

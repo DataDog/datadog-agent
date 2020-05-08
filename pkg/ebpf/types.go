@@ -81,6 +81,7 @@ const (
 	udpPortBindingsMap bpfMapName = "udp_port_bindings"
 	telemetryMap       bpfMapName = "telemetry"
 	configMap          bpfMapName = "config"
+	tcpCloseBatchMap   bpfMapName = "tcp_close_batch"
 )
 
 // sectionName returns the sectionName for the given BPF map
