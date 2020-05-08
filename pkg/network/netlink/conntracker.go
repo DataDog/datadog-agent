@@ -269,8 +269,8 @@ func (ctr *realConntracker) logExceededSize() {
 }
 
 func (ctr *realConntracker) run() {
-	events := ctr.consumer.Events()
 	go func() {
+		events := ctr.consumer.Events()
 		for e := range events {
 			conns := DecodeAndReleaseEvent(e)
 			for _, c := range conns {
