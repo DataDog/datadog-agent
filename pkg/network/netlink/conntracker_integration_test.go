@@ -29,9 +29,7 @@ func TestConntracker(t *testing.T) {
 	ct, err := NewConntracker("/proc", 100, 500)
 	require.NoError(t, err)
 	defer ct.Close()
-
-	// TODO: Fix initialization race
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 
 	srv1 := startServerTCP(t, "1.1.1.1:5432")
 	defer srv1.Close()
