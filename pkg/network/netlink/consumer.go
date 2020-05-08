@@ -26,12 +26,6 @@ const (
 	netlinkBufferSize = 1024 * 1024 // 1Mb
 )
 
-var msgBufferSize int
-
-func init() {
-	msgBufferSize = os.Getpagesize()
-}
-
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
 var errMaxSamplingAttempts = errors.New("netlink socket creation: too many attempts")
 
@@ -345,9 +339,10 @@ func (c *Consumer) throttle(numMessages int) error {
 }
 
 func newBufferPool() *sync.Pool {
+	bufferSize := os.Getpagesize()
 	return &sync.Pool{
 		New: func() interface{} {
-			b := make([]byte, os.Getpagesize())
+			b := make([]byte, bufferSize)
 			return &b
 		},
 	}
