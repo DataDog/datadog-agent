@@ -19,17 +19,29 @@ import (
 )
 
 const (
-	netlinkCtNew      = uint32(1)
-	ipctnlMsgCtGet    = 1
-	outputBuffer      = 100
-	overshootFactor   = 0.95
-	netlinkBufferSize = 1024 * 1024 // 1Mb
+	// netlinkCtNew represents the Netlink multicast group associated to the Conntrack family
+	// representing new connection events. For more information see section "Address formats" in
+	// http://man7.org/linux/man-pages/man7/netlink.7.html
+	netlinkCtNew = uint32(1)
+
+	// ipctnlMsgCtGet represents the Conntrack message type used during the initial load.
+	// This value is defined in include/uapi/linux/netfilter/nfnetlink_conntrack.h
+	ipctnlMsgCtGet = 1
+
+	// outputBuffer is he size of the Consumer output channel.
+	outputBuffer = 100
+
+	// overShootFactor is used sampling rate calculation after the circuit breaker trips.
+	overshootFactor = 0.95
+
+	// netlinkBufferSize is size (in bytes) of the Netlink socket receive buffer
+	// We set it to a large enough size to support bursts of Conntrack events.
+	netlinkBufferSize = 1024 * 1024
 )
 
 var errShortErrorMessage = errors.New("not enough data for netlink error code")
-var errMaxSamplingAttempts = errors.New("netlink socket creation: too many attempts")
 
-// Consumer is responsible for encapsulating all the logic of hooking into Conntrack
+// Consumer is responsible for encapsulating all the logic of hooking into Conntrack via a Netlink socket
 // and streaming new connection events.
 type Consumer struct {
 	conn      *netlink.Conn
@@ -37,12 +49,21 @@ type Consumer struct {
 	pool      *sync.Pool
 	workQueue chan func()
 
-	// throttling
-	samplingRate float64
-	rateLimit    int
-	breaker      *CircuitBreaker
+	// rateLimit represents the maximum number of netlink messages per second
+	// that can be read off the netlink socket. Setting it to -1 disables the limit.
+	rateLimit int
 
-	// this is set to true after we finish the initial conntrack dump
+	// samplingRate must be a value between 0 and 1 (inclusive) which is adjusted dynamically.
+	// this represents the amount of sampling we apply to the netlink socket via a BPF filter
+	// to reach the target rateLimit.
+	samplingRate float64
+
+	// breaker is meant to ensure we never process more netlink messages than the specified rateLimit.
+	// when the circuit breaker trips, we close the socket and re-create a new one with the samplingRate
+	// adjusted accordingly to meet the desired rateLimit.
+	breaker *CircuitBreaker
+
+	// streaming is set to true after we finish the initial Conntrack dump.
 	streaming bool
 
 	// telemetry
@@ -120,8 +141,8 @@ func (c *Consumer) DumpTable(family uint8) <-chan Event {
 
 		req := netlink.Message{
 			Header: netlink.Header{
-				Flags: netlink.Request | netlink.Dump,
 				Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
+				Flags: netlink.Request | netlink.Dump,
 			},
 			Data: []byte{family, unix.NFNETLINK_V0, 0, 0},
 		}
@@ -251,11 +272,6 @@ ReadLoop:
 				// EOFs are usually indicative of normal program termination, so we simply exit
 				return
 			case errENOBUF:
-				// If we detect an ENOBUF during the initial Conntrack table dump it likely means
-				// the netlink socket recv buffer doesn't have enough capacity for the existing connections.
-				if !c.streaming {
-					log.Warnf("netlink: detected enobuf during conntrack table dump. consider raising rcvbuf capacity.")
-				}
 				atomic.AddInt64(&c.enobufs, 1)
 			default:
 				atomic.AddInt64(&c.readErrors, 1)

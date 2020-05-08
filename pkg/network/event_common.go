@@ -110,7 +110,7 @@ type ConnectionStats struct {
 	DNSFailedResponses     uint32
 }
 
-// IPTranslation can be associated with a connection to show show the connection is NAT'd
+// IPTranslation can be associated with a connection to show the connection is NAT'd
 type IPTranslation struct {
 	ReplSrcIP   util.Address
 	ReplDstIP   util.Address
