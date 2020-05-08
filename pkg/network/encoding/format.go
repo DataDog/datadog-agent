@@ -87,7 +87,7 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	}
 }
 
-func formatIPTranslation(ct *IPTranslation) *model.IPTranslation {
+func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 	if ct == nil {
 		return nil
 	}
