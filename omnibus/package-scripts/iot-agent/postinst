@@ -54,11 +54,6 @@ if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
 	esac
 	#DEBHELPER#
 
-	# Set proper rights to the dd-agent user
-	chown -R dd-agent:dd-agent ${CONFIG_DIR}
-	chown -R dd-agent:dd-agent ${LOG_DIR}
-	chown -R dd-agent:dd-agent ${INSTALL_DIR}
-
 	# Set the installation information if not already present;
 	if [ ! -f "$CONFIG_DIR/install_info" ]; then
 
@@ -70,11 +65,17 @@ if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
 		install_info_content="---
 install_method:
   tool: deb_package
-  tool_version: deb_package-iot
-  installer_version: deb_package-$agent_version
+  tool_version: deb_package
+  installer_version: deb_package-$agent_version-iot
 "
 		echo "$install_info_content" > $CONFIG_DIR/install_info
 	fi
+
+	
+	# Set proper rights to the dd-agent user
+	chown -R dd-agent:dd-agent ${CONFIG_DIR}
+	chown -R dd-agent:dd-agent ${LOG_DIR}
+	chown -R dd-agent:dd-agent ${INSTALL_DIR}
 
 	# Enable and restart the agent service here on Debian platforms
 	# Only supports systemd and upstart
