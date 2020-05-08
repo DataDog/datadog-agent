@@ -294,7 +294,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 					return
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
-				conns := decodeRawTCPConn(rawConns)
+				conns := decodeRawTCPConns(rawConns)
 				for _, c := range conns {
 					t.storeClosedConn(c)
 				}

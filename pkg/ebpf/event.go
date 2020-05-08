@@ -134,7 +134,7 @@ func connFamily(m uint) network.ConnectionFamily {
 	return network.AFINET6
 }
 
-func decodeRawTCPConn(data []byte) []network.ConnectionStats {
+func decodeRawTCPConns(data []byte) []network.ConnectionStats {
 	var _conn C.tcp_conn_t
 	connSize := int(unsafe.Sizeof(_conn))
 
