@@ -96,6 +96,32 @@ if [ "$DISTRIBUTION_FAMILY" != "SUSE" ]; then
     fi
 fi
 
+
+# Set the installation information if not already present;
+# This is done in the postinst script for .deb packages
+if [ ! -f "$CONFIG_DIR/install_info" ]; then
+
+    # Get Agent's version;
+    # grep config file for version 5
+    # use "version" subcommand for versions 6 and 7
+    agent_version=$(grep -oP 'AGENT_VERSION = "\K[^\"]+' $INSTALL_DIR/agent/config.py 2> /dev/null || datadog-agent version | cut -d "-" -f 1 | cut -d " " -f 2)
+
+    # Distinguish between SUSE and everything else
+    if ["$DISTRIBUTION_FAMILY" == "SUSE"]; then
+        rpm_version="SUSE"
+    else
+        rpm_version="Default"
+    fi
+    
+    install_info_content="---
+install_method:
+  tool: rpm_package
+  tool_version: rpm_package-$rpm_version
+  installer_version: rpm_package-$agent_version
+"
+    echo $install_info_content > $CONFIG_DIR/install_info
+fi
+
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
 # and avoid restarting when a check conf is invalid
 if [ -f "$CONFIG_DIR/datadog.yaml" ]; then

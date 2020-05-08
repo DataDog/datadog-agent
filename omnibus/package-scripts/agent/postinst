@@ -72,6 +72,25 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     # Enable and restart the agent service here on Debian platforms
     # On RHEL, this is done in the posttrans script
     if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
+
+        # Set the installation information if not already present;
+        # This is done in postinst for .deb packages
+        if [ ! -f "$CONFIG_DIR/install_info" ]; then
+
+            # Get Agent's version;
+            # grep config file for version 5
+            # use "version" subcommand for versions 6 and 7
+            agent_version=$(grep -oP 'AGENT_VERSION = "\K[^\"]+' $INSTALL_DIR/agent/config.py 2> /dev/null || datadog-agent version | cut -d "-" -f 1 | cut -d " " -f 2)
+            
+            install_info_content="---
+install_method:
+  tool: deb_package
+  tool_version: deb_package
+  installer_version: deb_package-$agent_version
+"
+            echo $install_info_content > $CONFIG_DIR/install_info
+        fi
+        
         # Only supports systemd and upstart
         echo "Enabling service $SERVICE_NAME"
         if command -v systemctl >/dev/null 2>&1; then
