@@ -81,9 +81,9 @@ func (c *CircuitBreaker) Rate() int64 {
 // Reset closes the circuit breaker and its state.
 func (c *CircuitBreaker) Reset() {
 	atomic.StoreInt64(&c.eventCount, 0)
-	atomic.StoreInt64(&c.status, breakerClosed)
 	atomic.StoreInt64(&c.eventRate, 0)
 	atomic.StoreInt64(&c.lastUpdate, time.Now().UnixNano())
+	atomic.StoreInt64(&c.status, breakerClosed)
 }
 
 func (c *CircuitBreaker) update(now time.Time) {
