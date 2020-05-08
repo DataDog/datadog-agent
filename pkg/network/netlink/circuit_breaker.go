@@ -111,6 +111,9 @@ func (c *CircuitBreaker) update(now time.Time) {
 		newEventRate = float64(eventCount) / deltaInSec
 	}
 
+	atomic.StoreInt64(&c.lastUpdate, now.UnixNano())
+	atomic.StoreInt64(&c.eventRate, int64(newEventRate))
+
 	// Update circuit breaker status accordingly
 	if int64(newEventRate) > c.maxEventsPerSec {
 		log.Warnf(
@@ -120,7 +123,4 @@ func (c *CircuitBreaker) update(now time.Time) {
 		)
 		atomic.StoreInt64(&c.status, breakerOpen)
 	}
-
-	atomic.StoreInt64(&c.lastUpdate, now.UnixNano())
-	atomic.StoreInt64(&c.eventRate, int64(newEventRate))
 }
