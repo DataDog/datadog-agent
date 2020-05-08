@@ -70,7 +70,6 @@ install_method:
 "
 		echo "$install_info_content" > $CONFIG_DIR/install_info
 	fi
-
 	
 	# Set proper rights to the dd-agent user
 	chown -R dd-agent:dd-agent ${CONFIG_DIR}

@@ -90,7 +90,6 @@ install_method:
     # Enable and restart the agent service here on Debian platforms
     # On RHEL, this is done in the posttrans script
     if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
-
         # Only supports systemd and upstart
         echo "Enabling service $SERVICE_NAME"
         if command -v systemctl >/dev/null 2>&1; then
