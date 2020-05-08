@@ -119,6 +119,8 @@ func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, error) {
 	}
 
 	n = nlmsgAlign(n)
+	// If we cannot fit the date into the suplied buffer,  we allocate a slice
+	// with enough capacity. This should happen very rarely.
 	if n > len(b) {
 		b = make([]byte, n)
 	}
