@@ -488,6 +488,12 @@ api_key:
   #
   # receiver_port: 8126
 
+  ## @param receiver_socket - string - optional
+  ## Accept traces through Unix Domain Sockets.
+  ## It is off by default. When set, it must point to a valid socket file.
+  #
+  # receiver_socket: <UNIX_SOCKET_PATH>
+
   ## @param apm_non_local_traffic - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
   ## i.e if Traces are being sent to this Agent from another host/container
@@ -1134,6 +1140,21 @@ api_key:
 ## on all registered configuration providers.
 #
 # ad_config_poll_interval: 10
+
+## @param cloud_foundry_garden - custom object - optional
+## Settings for Cloudfoundry application container autodiscovery.
+#
+# cloud_foundry_garden:
+
+  ## @param listen_network - string - optional - default: unix
+  ## The network on which the garden API is listening. Possible values are `unix` or `tcp`
+  #
+  # listen_network: unix
+
+  ## @param listen_address - string - optional - default: /var/vcap/data/garden/garden.sock
+  ## The address on which the garden API is listening.
+  #
+  # listen_address: /var/vcap/data/garden/garden.sock
 
 {{ end -}}
 {{- if .ClusterChecks }}

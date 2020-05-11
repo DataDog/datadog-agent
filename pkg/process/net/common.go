@@ -6,15 +6,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 // Conn is a wrapper over some net.Listener
@@ -31,15 +32,10 @@ const (
 )
 
 var (
-	globalUtil            *RemoteSysProbeUtil
-	globalUtilOnce        sync.Once
-	globalSocketPath      string
-	hasLoggedErrForStatus map[retry.Status]struct{}
+	globalUtil       *RemoteSysProbeUtil
+	globalUtilOnce   sync.Once
+	globalSocketPath string
 )
-
-func init() {
-	hasLoggedErrForStatus = make(map[retry.Status]struct{})
-}
 
 // RemoteSysProbeUtil wraps interactions with a remote system probe service
 type RemoteSysProbeUtil struct {
@@ -139,18 +135,6 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	}
 
 	return stats, nil
-}
-
-// ShouldLogTracerUtilError will return whether or not errors sourced from the RemoteSysProbeUtil _should_ be logged, for less noisy logging.
-// We only want to log errors if the tracer has been initialized, or it's the first error for a particular tracer status
-// (e.g. retrying, permafail)
-func ShouldLogTracerUtilError() bool {
-	status := globalUtil.initRetry.RetryStatus()
-
-	_, logged := hasLoggedErrForStatus[status]
-	hasLoggedErrForStatus[status] = struct{}{}
-
-	return status == retry.OK || !logged
 }
 
 func newSystemProbe() *RemoteSysProbeUtil {

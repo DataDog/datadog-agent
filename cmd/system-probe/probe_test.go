@@ -4,9 +4,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	"github.com/stretchr/testify/assert"
@@ -16,8 +16,8 @@ import (
 func TestDecode(t *testing.T) {
 	rec := httptest.NewRecorder()
 
-	in := &ebpf.Connections{
-		Conns: []ebpf.ConnectionStats{
+	in := &network.Connections{
+		Conns: []network.ConnectionStats{
 			{
 				Source:               util.AddressFromString("10.1.1.1"),
 				Dest:                 util.AddressFromString("10.2.2.2"),
@@ -39,9 +39,9 @@ func TestDecode(t *testing.T) {
 					ReplDstPort: 70,
 				},
 
-				Type:      ebpf.UDP,
-				Family:    ebpf.AFINET6,
-				Direction: ebpf.LOCAL,
+				Type:      network.UDP,
+				Family:    network.AFINET6,
+				Direction: network.LOCAL,
 			},
 		},
 	}

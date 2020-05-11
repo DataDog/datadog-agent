@@ -62,7 +62,7 @@ package :zip do
   if ENV['SIGN_PFX']
     signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
   end
-    
+
 end
 
 
@@ -74,7 +74,7 @@ end
 dependency 'preparation'
 
 # Datadog agent
-dependency 'datadog-puppy'
+dependency 'datadog-iot-agent'
 dependency 'datadog-dogstatsd'
 
 # version manifest file

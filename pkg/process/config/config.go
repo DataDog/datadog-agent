@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -29,8 +30,6 @@ var (
 	defaultSystemProbeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
 	// defaultSystemProbeFilePath is the default logging file for the system probe
 	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
-
-	defaultConntrackShortTermBufferSize = 10000
 
 	processChecks   = []string{"process", "rtprocess"}
 	containerChecks = []string{"container", "rtcontainer"}
@@ -67,6 +66,8 @@ type AgentConfig struct {
 	StatsdHost            string
 	StatsdPort            int
 	ProcessExpVarPort     int
+	// host type of the agent, used to populate container payload with additional host information
+	ContainerHostType model.ContainerHostType
 
 	// System probe collection configuration
 	EnableSystemProbe              bool
@@ -84,7 +85,7 @@ type AgentConfig struct {
 	ExcludedSourceConnections      map[string][]string
 	ExcludedDestinationConnections map[string][]string
 	EnableConntrack                bool
-	ConntrackShortTermBufferSize   int
+	ConntrackIgnoreENOBUFS         bool
 	ConntrackMaxStateSize          int
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
@@ -176,24 +177,25 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		HostName:              "",
 		Transport:             NewDefaultTransport(),
 		ProcessExpVarPort:     6062,
+		ContainerHostType:     model.ContainerHostType_notSpecified,
 
 		// Statsd for internal instrumentation
 		StatsdHost: "127.0.0.1",
 		StatsdPort: 8125,
 
 		// System probe collection configuration
-		EnableSystemProbe:            false,
-		DisableTCPTracing:            false,
-		DisableUDPTracing:            false,
-		DisableIPv6Tracing:           false,
-		DisableDNSInspection:         false,
-		SystemProbeSocketPath:        defaultSystemProbeSocketPath,
-		SystemProbeLogFile:           defaultSystemProbeFilePath,
-		MaxTrackedConnections:        defaultMaxTrackedConnections,
-		EnableConntrack:              true,
-		ClosedChannelSize:            500,
-		ConntrackShortTermBufferSize: defaultConntrackShortTermBufferSize,
-		ConntrackMaxStateSize:        defaultMaxTrackedConnections,
+		EnableSystemProbe:      false,
+		DisableTCPTracing:      false,
+		DisableUDPTracing:      false,
+		DisableIPv6Tracing:     false,
+		DisableDNSInspection:   false,
+		SystemProbeSocketPath:  defaultSystemProbeSocketPath,
+		SystemProbeLogFile:     defaultSystemProbeFilePath,
+		MaxTrackedConnections:  defaultMaxTrackedConnections,
+		EnableConntrack:        true,
+		ConntrackIgnoreENOBUFS: false,
+		ClosedChannelSize:      500,
+		ConntrackMaxStateSize:  defaultMaxTrackedConnections * 2,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -304,6 +306,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		}
 	}
 
+	cfg.ContainerHostType = getContainerHostType()
+
 	if cfg.proxy != nil {
 		cfg.Transport.Proxy = cfg.proxy
 	}
@@ -351,6 +355,17 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 	return cfg, nil
 }
 
+// getContainerHostType uses the fargate library to detect container environment and returns the protobuf version of it
+func getContainerHostType() model.ContainerHostType {
+	switch fargate.GetOrchestrator() {
+	case fargate.ECS:
+		return model.ContainerHostType_fargateECS
+	case fargate.EKS:
+		return model.ContainerHostType_fargateEKS
+	}
+	return model.ContainerHostType_notSpecified
+}
+
 func loadEnvVariables() {
 	// The following environment variables will be loaded in the order listed, meaning variables
 	// further down the list may override prior variables.
@@ -364,6 +379,7 @@ func loadEnvVariables() {
 		// System probe specific configuration (Beta)
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
+		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
 		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},

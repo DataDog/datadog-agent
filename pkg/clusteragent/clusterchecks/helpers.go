@@ -40,14 +40,18 @@ func timestampNow() int64 {
 func calculateBusyness(checkStats types.CLCRunnersStats) int {
 	busyness := 0
 	for _, stats := range checkStats {
-		busyness += busynessFunc(stats.AverageExecutionTime, stats.MetricSamples)
+		busyness += busynessFunc(stats)
 	}
 	return busyness
 }
 
 // busynessFunc returns the weight of a check
-func busynessFunc(avgExecTime, mSamples int) int {
-	return int(checkExecutionTimeWeight*float64(avgExecTime) + checkMetricSamplesWeight*float64(mSamples))
+func busynessFunc(s types.CLCRunnerStats) int {
+	if s.LastExecFailed {
+		// The check is failing, its weight is 0
+		return 0
+	}
+	return int(checkExecutionTimeWeight*float64(s.AverageExecutionTime) + checkMetricSamplesWeight*float64(s.MetricSamples))
 }
 
 // orderedKeys sorts the keys of a map and return them in a slice

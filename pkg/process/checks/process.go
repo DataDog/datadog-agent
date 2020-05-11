@@ -128,11 +128,12 @@ func createProcCtrMessages(
 	chunks := chunkProcesses(procsByCtr[emptyCtrID], cfg.MaxPerMessage)
 	for _, c := range chunks {
 		msgs = append(msgs, &model.CollectorProc{
-			HostName:  cfg.HostName,
-			NetworkId: networkID,
-			Info:      sysInfo,
-			Processes: c,
-			GroupId:   groupID,
+			HostName:          cfg.HostName,
+			NetworkId:         networkID,
+			Info:              sysInfo,
+			Processes:         c,
+			GroupId:           groupID,
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 
@@ -147,12 +148,13 @@ func createProcCtrMessages(
 
 	if len(ctrs) > 0 {
 		msgs = append(msgs, &model.CollectorProc{
-			HostName:   cfg.HostName,
-			NetworkId:  networkID,
-			Info:       sysInfo,
-			Processes:  ctrProcs,
-			Containers: ctrs,
-			GroupId:    groupID,
+			HostName:          cfg.HostName,
+			NetworkId:         networkID,
+			Info:              sysInfo,
+			Processes:         ctrProcs,
+			Containers:        ctrs,
+			GroupId:           groupID,
+			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 

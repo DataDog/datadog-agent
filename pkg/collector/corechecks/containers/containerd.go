@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containerd/cgroups"
+	v1 "github.com/containerd/cgroups/stats/v1"
 	containerdTypes "github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
@@ -235,8 +235,8 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 		sender.Gauge("containerd.image.size", float64(size), "", tags)
 
 		// Collect open file descriptor counts
-		processes, err := cu.TaskPids(ctn)
-		if err != nil {
+		processes, errTask := cu.TaskPids(ctn)
+		if errTask != nil {
 			log.Tracef("Could not retrieve pids from task %s: %s", ctn.ID()[:12], errTask.Error())
 			continue
 		}
@@ -245,7 +245,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			pid := p.Pid
 			fdCount, err := cgroup.GetFileDescriptorLen(int(pid))
 			if err != nil {
-				log.Warnf("Failed to get file desc length for pid %d, container %s: %s", pid, ctn.ID()[:12], err)
+				log.Debugf("Failed to get file desc length for pid %d, container %s: %s", pid, ctn.ID()[:12], err)
 				continue
 			}
 			fileDescCount += fdCount
@@ -259,7 +259,7 @@ func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
 	return fil.IsExcluded("", ctn.Image, "")
 }
 
-func convertTasktoMetrics(metricTask *containerdTypes.Metric) (*cgroups.Metrics, error) {
+func convertTasktoMetrics(metricTask *containerdTypes.Metric) (*v1.Metrics, error) {
 	metricAny, err := typeurl.UnmarshalAny(&types.Any{
 		TypeUrl: metricTask.Data.TypeUrl,
 		Value:   metricTask.Data.Value,
@@ -268,7 +268,7 @@ func convertTasktoMetrics(metricTask *containerdTypes.Metric) (*cgroups.Metrics,
 		log.Errorf(err.Error())
 		return nil, err
 	}
-	return metricAny.(*cgroups.Metrics), nil
+	return metricAny.(*v1.Metrics), nil
 }
 
 // TODO when creating a dedicated collector for the tagger, unify the local tagging logic and the Tagger.
@@ -290,7 +290,7 @@ func collectTags(ctn containers.Container) ([]string, error) {
 	return tags, nil
 }
 
-func computeHugetlb(sender aggregator.Sender, huge []*cgroups.HugetlbStat, tags []string) {
+func computeHugetlb(sender aggregator.Sender, huge []*v1.HugetlbStat, tags []string) {
 	for _, h := range huge {
 		sender.Gauge("containerd.hugetlb.max", float64(h.Max), "", tags)
 		sender.Gauge("containerd.hugetlb.failcount", float64(h.Failcnt), "", tags)
@@ -305,12 +305,12 @@ func computeUptime(sender aggregator.Sender, ctn containers.Container, currentTi
 	}
 }
 
-func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string) {
+func computeMem(sender aggregator.Sender, mem *v1.MemoryStat, tags []string) {
 	if mem == nil {
 		return
 	}
 
-	memList := map[string]*cgroups.MemoryEntry{
+	memList := map[string]*v1.MemoryEntry{
 		"containerd.mem.current":    mem.Usage,
 		"containerd.mem.kernel_tcp": mem.KernelTCP,
 		"containerd.mem.kernel":     mem.Kernel,
@@ -325,7 +325,7 @@ func computeMem(sender aggregator.Sender, mem *cgroups.MemoryStat, tags []string
 	sender.Gauge("containerd.mem.dirty", float64(mem.Dirty), "", tags)
 }
 
-func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *cgroups.MemoryEntry, tags []string) {
+func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *v1.MemoryEntry, tags []string) {
 	if stat == nil || stat.Size() == 0 {
 		return
 	}
@@ -336,7 +336,7 @@ func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *cgroup
 
 }
 
-func computeCPU(sender aggregator.Sender, cpu *cgroups.CPUStat, tags []string) {
+func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, tags []string) {
 	sender.Rate("containerd.cpu.system", float64(cpu.Usage.Kernel), "", tags)
 	sender.Rate("containerd.cpu.total", float64(cpu.Usage.Total), "", tags)
 	sender.Rate("containerd.cpu.user", float64(cpu.Usage.User), "", tags)
@@ -344,8 +344,8 @@ func computeCPU(sender aggregator.Sender, cpu *cgroups.CPUStat, tags []string) {
 
 }
 
-func computeBlkio(sender aggregator.Sender, blkio *cgroups.BlkIOStat, tags []string) {
-	blkioList := map[string][]*cgroups.BlkIOEntry{
+func computeBlkio(sender aggregator.Sender, blkio *v1.BlkIOStat, tags []string) {
+	blkioList := map[string][]*v1.BlkIOEntry{
 		"containerd.blkio.merged_recursive":        blkio.IoMergedRecursive,
 		"containerd.blkio.queued_recursive":        blkio.IoQueuedRecursive,
 		"containerd.blkio.sectors_recursive":       blkio.SectorsRecursive,
@@ -360,7 +360,7 @@ func computeBlkio(sender aggregator.Sender, blkio *cgroups.BlkIOStat, tags []str
 	}
 }
 
-func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*cgroups.BlkIOEntry, tags []string) {
+func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*v1.BlkIOEntry, tags []string) {
 	for _, m := range list {
 		if m.Size() == 0 {
 			continue

@@ -19,7 +19,8 @@ AGENT_TAG = "datadog/agent:master"
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          puppy=False, development=True, precompile_only=False, skip_assets=False, major_version='7', arch="x64"):
+          iot=False, development=True, precompile_only=False, skip_assets=False,
+          major_version='7', arch="x64", go_mod="vendor"):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -53,8 +54,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     ctx.run(command)
     ldflags = get_version_ldflags(ctx, major_version=major_version)
     ldflags += "-s -w -linkmode external -extldflags '-Wl,--subsystem,windows' "
-    cmd = "go build {race_opt} {build_type} -o {agent_bin} -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/systray"
+    cmd = "go build -mod={go_mod} {race_opt} {build_type} -o {agent_bin} -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/systray"
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
         "agent_bin": os.path.join(BIN_PATH, bin_name("ddtray")),
@@ -66,7 +68,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
 @task
 def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-        puppy=False, skip_build=False):
+        iot=False, skip_build=False):
     """
     Execute the systray binary.
 
@@ -74,7 +76,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, puppy)
+        build(ctx, rebuild, race, build_include, build_exclude, iot)
 
     ctx.run(os.path.join(BIN_PATH, bin_name("ddtray.exe")))
 

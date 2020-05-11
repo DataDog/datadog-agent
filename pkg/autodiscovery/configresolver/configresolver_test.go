@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -84,6 +85,11 @@ func (s *dummyService) IsReady() bool {
 // GetCheckNames returns slice of check names defined in docker labels
 func (s *dummyService) GetCheckNames() []string {
 	return s.CheckNames
+}
+
+// HasFilter returns false
+func (s *dummyService) HasFilter(filter containers.FilterType) bool {
+	return false
 }
 
 func TestGetFallbackHost(t *testing.T) {

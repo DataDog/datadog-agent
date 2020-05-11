@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -35,11 +36,8 @@ type Collector struct {
 
 	groupID int32
 
-	send         chan checkPayload
 	rtIntervalCh chan time.Duration
 	cfg          *config.AgentConfig
-	forwarder    forwarder.Forwarder
-	podForwarder forwarder.Forwarder
 
 	// counters for each type of check
 	runCounters   sync.Map
@@ -64,22 +62,24 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 		}
 	}
 
+	return NewCollectorWithChecks(cfg, enabledChecks), nil
+}
+
+// NewCollectorWithChecks creates a new Collector
+func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Collector {
 	return Collector{
-		send:          make(chan checkPayload, cfg.QueueSize),
 		rtIntervalCh:  make(chan time.Duration),
 		cfg:           cfg,
 		groupID:       rand.Int31(),
-		forwarder:     forwarder.NewDefaultForwarder(keysPerDomains(cfg.APIEndpoints)),
-		podForwarder:  forwarder.NewDefaultForwarder(keysPerDomains(cfg.OrchestratorEndpoints)),
-		enabledChecks: enabledChecks,
+		enabledChecks: checks,
 
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  0,
-	}, nil
+	}
 }
 
-func (l *Collector) runCheck(c checks.Check) {
+func (l *Collector) runCheck(c checks.Check, payloads chan checkPayload) {
 	runCounter := int32(1)
 	if rc, ok := l.runCounters.Load(c.Name()); ok {
 		runCounter = rc.(int32) + 1
@@ -93,7 +93,7 @@ func (l *Collector) runCheck(c checks.Check) {
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 	} else {
-		l.send <- checkPayload{messages, c.Name()}
+		payloads <- checkPayload{messages, c.Name()}
 		// update proc and container count for info
 		updateProcContainerCount(messages)
 		if !c.RealTime() {
@@ -121,91 +121,80 @@ func (l *Collector) run(exit chan bool) error {
 	}
 	log.Infof("Starting process-agent for host=%s, endpoints=%s, orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, orchestratorEps, l.cfg.EnabledChecks)
 
-	if err := l.forwarder.Start(); err != nil {
-		return fmt.Errorf("error starting forwarder: %s", err)
-	}
-
-	if err := l.podForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting pod forwarder: %s", err)
-	}
-
 	go util.HandleSignals(exit)
-	heartbeat := time.NewTicker(15 * time.Second)
-	queueSizeTicker := time.NewTicker(10 * time.Second)
+
+	processPayloads := make(chan checkPayload, l.cfg.QueueSize)
+	podPayloads := make(chan checkPayload, l.cfg.QueueSize)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
+
+		heartbeat := time.NewTicker(15 * time.Second)
+		defer heartbeat.Stop()
+
+		queueSizeTicker := time.NewTicker(10 * time.Second)
+		defer queueSizeTicker.Stop()
+
 		tags := []string{
 			fmt.Sprintf("version:%s", Version),
 			fmt.Sprintf("revision:%s", GitCommit),
 		}
 		for {
 			select {
-			case payload := <-l.send:
-				if len(l.send) >= l.cfg.QueueSize {
-					log.Info("Expiring payload from in-memory queue.")
-					// Limit number of items kept in memory while we wait.
-					<-l.send
-				}
-
-				for _, m := range payload.messages {
-					extraHeaders := make(http.Header)
-					extraHeaders.Set(api.HostHeader, l.cfg.HostName)
-					extraHeaders.Set(api.ProcessVersionHeader, Version)
-					extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
-
-					if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-						extraHeaders.Set(api.ClusterIDHeader, cid)
-					}
-
-					body, err := encodePayload(m)
-					if err != nil {
-						log.Errorf("Unable to encode message: %s", err)
-						continue
-					}
-
-					payloads := forwarder.Payloads{&body}
-					var responses chan forwarder.Response
-
-					switch payload.name {
-					case checks.Process.Name():
-						responses, err = l.forwarder.SubmitProcessChecks(payloads, extraHeaders)
-					case checks.RTProcess.Name():
-						responses, err = l.forwarder.SubmitRTProcessChecks(payloads, extraHeaders)
-					case checks.Container.Name():
-						responses, err = l.forwarder.SubmitContainerChecks(payloads, extraHeaders)
-					case checks.RTContainer.Name():
-						responses, err = l.forwarder.SubmitRTContainerChecks(payloads, extraHeaders)
-					case checks.Connections.Name():
-						responses, err = l.forwarder.SubmitConnectionChecks(payloads, extraHeaders)
-					case checks.Pod.Name():
-						responses, err = l.podForwarder.SubmitPodChecks(payloads, extraHeaders)
-					default:
-						err = fmt.Errorf("unsupported payload type: %s", payload.name)
-					}
-
-					if err != nil {
-						log.Errorf("Unable to submit payload: %s", err)
-						continue
-					}
-
-					if statuses := readResponseStatuses(responses); len(statuses) > 0 {
-						l.updateStatus(statuses)
-					}
-				}
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
 			case <-queueSizeTicker.C:
-				updateQueueSize(l.send)
+				updateQueueSize(len(processPayloads), len(podPayloads))
 			case <-exit:
 				return
 			}
 		}
 	}()
 
+	processForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.APIEndpoints))
+	processForwarderOpts.EnableHealthChecking = false
+	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+
+	podForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.OrchestratorEndpoints))
+	podForwarderOpts.EnableHealthChecking = false
+	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
+
+	if err := processForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting forwarder: %s", err)
+	}
+
+	if err := podForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting pod forwarder: %s", err)
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.consumePayloads(processPayloads, processForwarder, exit)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.consumePayloads(podPayloads, podForwarder, exit)
+	}()
+
 	for _, c := range l.enabledChecks {
-		go func(c checks.Check) {
+		payloads := processPayloads
+		if c.Name() == checks.Pod.Name() {
+			payloads = podPayloads
+		}
+
+		wg.Add(1)
+		go func(c checks.Check, payloads chan checkPayload) {
+			defer wg.Done()
+
 			// Run the check the first time to prime the caches.
 			if !c.RealTime() {
-				l.runCheck(c)
+				l.runCheck(c, payloads)
 			}
 
 			ticker := time.NewTicker(l.cfg.CheckInterval(c.Name()))
@@ -214,7 +203,7 @@ func (l *Collector) run(exit chan bool) error {
 				case <-ticker.C:
 					realTimeEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
 					if !c.RealTime() || realTimeEnabled {
-						l.runCheck(c)
+						l.runCheck(c, payloads)
 					}
 				case d := <-l.rtIntervalCh:
 					// Live-update the ticker.
@@ -228,12 +217,76 @@ func (l *Collector) run(exit chan bool) error {
 					}
 				}
 			}
-		}(c)
+		}(c, payloads)
 	}
+
 	<-exit
-	l.forwarder.Stop()
-	l.podForwarder.Stop()
+	wg.Wait()
+
+	processForwarder.Stop()
+	podForwarder.Stop()
 	return nil
+}
+
+func (l *Collector) consumePayloads(payloads chan checkPayload, fwd forwarder.Forwarder, exit chan bool) {
+	for {
+		select {
+		case payload := <-payloads:
+			if len(payloads) >= l.cfg.QueueSize {
+				log.Info("Expiring payload from in-memory queue.")
+				// Limit number of items kept in memory while we wait.
+				<-payloads
+			}
+
+			for _, m := range payload.messages {
+				extraHeaders := make(http.Header)
+				extraHeaders.Set(api.HostHeader, l.cfg.HostName)
+				extraHeaders.Set(api.ProcessVersionHeader, Version)
+				extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+
+				if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+					extraHeaders.Set(api.ClusterIDHeader, cid)
+				}
+
+				body, err := encodePayload(m)
+				if err != nil {
+					log.Errorf("Unable to encode message: %s", err)
+					continue
+				}
+
+				payloads := forwarder.Payloads{&body}
+				var responses chan forwarder.Response
+
+				switch payload.name {
+				case checks.Process.Name():
+					responses, err = fwd.SubmitProcessChecks(payloads, extraHeaders)
+				case checks.RTProcess.Name():
+					responses, err = fwd.SubmitRTProcessChecks(payloads, extraHeaders)
+				case checks.Container.Name():
+					responses, err = fwd.SubmitContainerChecks(payloads, extraHeaders)
+				case checks.RTContainer.Name():
+					responses, err = fwd.SubmitRTContainerChecks(payloads, extraHeaders)
+				case checks.Connections.Name():
+					responses, err = fwd.SubmitConnectionChecks(payloads, extraHeaders)
+				case checks.Pod.Name():
+					responses, err = fwd.SubmitPodChecks(payloads, extraHeaders)
+				default:
+					err = fmt.Errorf("unsupported payload type: %s", payload.name)
+				}
+
+				if err != nil {
+					log.Errorf("Unable to submit payload: %s", err)
+					continue
+				}
+
+				if statuses := readResponseStatuses(responses); len(statuses) > 0 {
+					l.updateStatus(statuses)
+				}
+			}
+		case <-exit:
+			return
+		}
+	}
 }
 
 func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
@@ -345,8 +398,13 @@ func keysPerDomains(endpoints []api.Endpoint) map[string][]string {
 	keysPerDomains := make(map[string][]string)
 
 	for _, ep := range endpoints {
-		keysPerDomains[ep.Endpoint.String()] = []string{ep.APIKey}
+		keysPerDomains[removePathIfPresent(ep.Endpoint)] = []string{ep.APIKey}
 	}
 
 	return keysPerDomains
+}
+
+// removePathIfPresent removes the path component from the URL if it is present
+func removePathIfPresent(url *url.URL) string {
+	return fmt.Sprintf("%s://%s", url.Scheme, url.Host)
 }

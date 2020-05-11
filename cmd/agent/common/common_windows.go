@@ -286,6 +286,10 @@ func ImportRegistryConfig() error {
 		overrides["python_version"] = val
 		log.Debugf("Setting python version to %s", val)
 	}
+	if val, _, err = k.GetStringValue("hostname_fqdn"); err == nil && val != "" {
+		overrides["hostname_fqdn"] = val
+		log.Debugf("Setting hostname_fqdn to %s", val)
+	}
 
 	// apply overrides to the config
 	config.AddOverrides(overrides)

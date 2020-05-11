@@ -86,6 +86,30 @@ func getMockedPods() []*kubelet.Pod {
 				},
 			},
 		},
+		{
+			Name:  "metrics-excluded",
+			Image: "metrics/excluded:latest",
+			Ports: []kubelet.ContainerPortSpec{
+				{
+					ContainerPort: 1122,
+					HostPort:      1133,
+					Name:          "barport",
+					Protocol:      "TCP",
+				},
+			},
+		},
+		{
+			Name:  "logs-excluded",
+			Image: "logs/excluded:latest",
+			Ports: []kubelet.ContainerPortSpec{
+				{
+					ContainerPort: 1122,
+					HostPort:      1133,
+					Name:          "barport",
+					Protocol:      "TCP",
+				},
+			},
+		},
 	}
 	kubeletSpec := kubelet.Spec{
 		HostNetwork: false,
@@ -118,6 +142,16 @@ func getMockedPods() []*kubelet.Pod {
 			Image: "datadoghq.com/baz:latest",
 			ID:    "docker://excluded",
 		},
+		{
+			Name:  "metrics-excluded",
+			Image: "metrics/excluded:latest",
+			ID:    "docker://metrics-excluded",
+		},
+		{
+			Name:  "logs-excluded",
+			Image: "logs/excluded:latest",
+			ID:    "docker://logs-excluded",
+		},
 	}
 	kubeletStatus := kubelet.Status{
 		Phase:      "Running",
@@ -144,20 +178,24 @@ func getMockedPods() []*kubelet.Pod {
 func TestProcessNewPod(t *testing.T) {
 	config.Datadog.SetDefault("ac_include", []string{"name:baz"})
 	config.Datadog.SetDefault("ac_exclude", []string{"image:datadoghq.com/baz.*"})
+	config.Datadog.SetDefault("container_exclude_metrics", []string{"name:metrics-excluded"})
+	config.Datadog.SetDefault("container_exclude_logs", []string{"name:logs-excluded"})
 	config.Datadog.SetDefault("exclude_pause_container", true)
 
 	defer func() {
 		config.Datadog.SetDefault("ac_include", []string{})
 		config.Datadog.SetDefault("ac_exclude", []string{})
+		config.Datadog.SetDefault("container_exclude_metrics", []string{})
+		config.Datadog.SetDefault("container_exclude_logs", []string{})
 		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
-	services := make(chan Service, 6)
+	services := make(chan Service, 7)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
 	}
-	listener.filter, _ = containers.NewFilterFromConfigIncludePause()
+	listener.filters, _ = newContainerFilters()
 
 	listener.processNewPods(getMockedPods(), false)
 
@@ -197,6 +235,8 @@ func TestProcessNewPod(t *testing.T) {
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 		assert.Len(t, service.GetCheckNames(), 0)
+		assert.False(t, service.HasFilter(containers.MetricsFilter))
+		assert.False(t, service.HasFilter(containers.LogsFilter))
 	default:
 		assert.FailNow(t, "second service not in channel")
 	}
@@ -217,6 +257,8 @@ func TestProcessNewPod(t *testing.T) {
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 		assert.Equal(t, []string{"baz_check"}, service.GetCheckNames())
+		assert.False(t, service.HasFilter(containers.MetricsFilter))
+		assert.False(t, service.HasFilter(containers.LogsFilter))
 	default:
 		assert.FailNow(t, "third service not in channel")
 	}
@@ -237,11 +279,60 @@ func TestProcessNewPod(t *testing.T) {
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 		assert.Len(t, service.GetCheckNames(), 0)
+		assert.False(t, service.HasFilter(containers.MetricsFilter))
+		assert.False(t, service.HasFilter(containers.LogsFilter))
 	default:
 		assert.FailNow(t, "fourth service not in channel")
 	}
 
-	// Fifth container is filtered out, should receive the pod service
+	// Fifth container is filtered out
+	// Sixth and seventh containers are metrics and logs filtered
+
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://metrics-excluded", service.GetEntity())
+		assert.Equal(t, "container_id://metrics-excluded", service.GetTaggerEntity())
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"docker://metrics-excluded", "metrics/excluded:latest", "excluded"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+		assert.Len(t, service.GetCheckNames(), 0)
+		assert.True(t, service.HasFilter(containers.MetricsFilter))
+		assert.False(t, service.HasFilter(containers.LogsFilter))
+	default:
+		assert.FailNow(t, "fifth service not in channel")
+	}
+
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://logs-excluded", service.GetEntity())
+		assert.Equal(t, "container_id://logs-excluded", service.GetTaggerEntity())
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"docker://logs-excluded", "logs/excluded:latest", "excluded"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+		assert.Len(t, service.GetCheckNames(), 0)
+		assert.False(t, service.HasFilter(containers.MetricsFilter))
+		assert.True(t, service.HasFilter(containers.LogsFilter))
+	default:
+		assert.FailNow(t, "sixth service not in channel")
+	}
+
+	// Pod service
 	select {
 	case service := <-services:
 		assert.Equal(t, "kubernetes_pod://mock-pod-uid", service.GetEntity())
@@ -254,17 +345,19 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
 		ports, err := service.GetPorts()
 		assert.Nil(t, err)
-		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
+		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
 		_, err = service.GetPid()
 		assert.Equal(t, ErrNotSupported, err)
 		assert.Len(t, service.GetCheckNames(), 0)
+		assert.False(t, service.HasFilter(containers.MetricsFilter))
+		assert.False(t, service.HasFilter(containers.LogsFilter))
 	default:
 		assert.FailNow(t, "pod service not in channel")
 	}
 
 	select {
 	case <-services:
-		assert.FailNow(t, "6 services in channel, filtering is broken")
+		assert.FailNow(t, "8 services in channel, filtering is broken")
 	default:
 		// all good
 	}
