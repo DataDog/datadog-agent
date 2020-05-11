@@ -52,6 +52,7 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 func newProfileProxy(target *url.URL, apiKey, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		req.URL = target
+		req.Host = target.Host
 		req.Header.Set("DD-API-KEY", apiKey)
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
 		if _, ok := req.Header["User-Agent"]; !ok {
