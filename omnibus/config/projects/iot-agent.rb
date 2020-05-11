@@ -5,8 +5,8 @@
 
 require "./lib/ostools.rb"
 
-name 'puppy'
-package_name 'datadog-puppy'
+name 'iot-agent'
+package_name 'datadog-iot-agent'
 
 homepage 'http://www.datadoghq.com'
 
@@ -32,8 +32,8 @@ build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
 
-description 'Datadog Monitoring Agent
- The Datadog Monitoring Agent is a lightweight process that monitors system
+description 'Datadog IOT Agent
+ The Datadog IOT Agent is a lightweight process that monitors system
  processes and services, and sends information back to your Datadog account.
  .
  This package installs and runs the advanced Agent daemon, which queues and
@@ -109,9 +109,9 @@ package :msi do
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
 
   additional_sign_files [
-      "#{Omnibus::Config.source_dir()}\\datadog-puppy\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-puppy\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\datadog-puppy\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\datadog-iot-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
     ]
   #if ENV['SIGN_WINDOWS']
   #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
@@ -122,7 +122,7 @@ package :msi do
   parameters({
     'InstallDir' => install_dir,
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin/agent",
+    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent",
     'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
     'Platform' => "#{arch}",
   })
@@ -136,7 +136,7 @@ end
 dependency 'preparation'
 
 # Datadog agent
-dependency 'datadog-puppy'
+dependency 'datadog-iot-agent'
 
 if windows?
   dependency 'datadog-agent-finalize'

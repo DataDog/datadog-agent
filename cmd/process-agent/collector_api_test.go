@@ -22,18 +22,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testHostName = "test-host"
+
 func TestSendConnectionsMessage(t *testing.T) {
-	runCollectorTest(t, func(payloads chan checkPayload, cfg *config.AgentConfig, ep *mockEndpoint) {
-		m := &process.CollectorConnections{
-			HostName: cfg.HostName,
-			GroupId:  1,
-		}
+	m := &process.CollectorConnections{
+		HostName: testHostName,
+		GroupId:  1,
+	}
 
-		payloads <- checkPayload{
-			name:     checks.Connections.Name(),
-			messages: []process.MessageBody{m},
-		}
+	check := &testCheck{
+		name: checks.Connections.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
 
+	runCollectorTest(t, check, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
@@ -53,20 +55,20 @@ func TestSendConnectionsMessage(t *testing.T) {
 }
 
 func TestSendContainerMessage(t *testing.T) {
-	runCollectorTest(t, func(payloads chan checkPayload, cfg *config.AgentConfig, ep *mockEndpoint) {
-		m := &process.CollectorContainer{
-			HostName: cfg.HostName,
-			GroupId:  1,
-			Containers: []*process.Container{
-				{Id: "1", Name: "foo"},
-			},
-		}
+	m := &process.CollectorContainer{
+		HostName: testHostName,
+		GroupId:  1,
+		Containers: []*process.Container{
+			{Id: "1", Name: "foo"},
+		},
+	}
 
-		payloads <- checkPayload{
-			name:     checks.Container.Name(),
-			messages: []process.MessageBody{m},
-		}
+	check := &testCheck{
+		name: checks.Container.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
 
+	runCollectorTest(t, check, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/container", req.uri)
@@ -84,20 +86,20 @@ func TestSendContainerMessage(t *testing.T) {
 }
 
 func TestSendProcMessage(t *testing.T) {
-	runCollectorTest(t, func(payloads chan checkPayload, cfg *config.AgentConfig, ep *mockEndpoint) {
-		m := &process.CollectorProc{
-			HostName: cfg.HostName,
-			GroupId:  1,
-			Containers: []*process.Container{
-				{Id: "1", Name: "foo"},
-			},
-		}
+	m := &process.CollectorProc{
+		HostName: testHostName,
+		GroupId:  1,
+		Containers: []*process.Container{
+			{Id: "1", Name: "foo"},
+		},
+	}
 
-		payloads <- checkPayload{
-			name:     checks.Process.Name(),
-			messages: []process.MessageBody{m},
-		}
+	check := &testCheck{
+		name: checks.Process.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
 
+	runCollectorTest(t, check, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
@@ -117,22 +119,20 @@ func TestSendProcMessage(t *testing.T) {
 }
 
 func TestSendProcMessageWithRetry(t *testing.T) {
-	runCollectorTest(t, func(payloads chan checkPayload, cfg *config.AgentConfig, ep *mockEndpoint) {
-		ep.ErrorCount = 1
+	m := &process.CollectorProc{
+		HostName: testHostName,
+		GroupId:  1,
+		Containers: []*process.Container{
+			{Id: "1", Name: "foo"},
+		},
+	}
 
-		m := &process.CollectorProc{
-			HostName: cfg.HostName,
-			GroupId:  1,
-			Containers: []*process.Container{
-				{Id: "1", Name: "foo"},
-			},
-		}
+	check := &testCheck{
+		name: checks.Process.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
 
-		payloads <- checkPayload{
-			name:     checks.Process.Name(),
-			messages: []process.MessageBody{m},
-		}
-
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		requests := []request{
 			<-ep.Requests,
 			<-ep.Requests,
@@ -159,19 +159,17 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 }
 
 func TestRTProcMessageNotRetried(t *testing.T) {
-	runCollectorTest(t, func(payloads chan checkPayload, cfg *config.AgentConfig, ep *mockEndpoint) {
-		ep.ErrorCount = 1
+	m := &process.CollectorRealTime{
+		HostName: testHostName,
+		GroupId:  1,
+	}
 
-		m := &process.CollectorRealTime{
-			HostName: cfg.HostName,
-			GroupId:  1,
-		}
+	check := &testCheck{
+		name: checks.RTProcess.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
 
-		payloads <- checkPayload{
-			name:     checks.RTProcess.Name(),
-			messages: []process.MessageBody{m},
-		}
-
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		reqBody, err := process.DecodeMessage(req.body)
@@ -192,23 +190,23 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 }
 
 func TestSendPodMessage(t *testing.T) {
-	runCollectorTest(t, func(payloads chan checkPayload, cfg *config.AgentConfig, ep *mockEndpoint) {
-		m := &process.CollectorPod{
-			HostName: cfg.HostName,
-			GroupId:  1,
-		}
+	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
 
-		payloads <- checkPayload{
-			name:     checks.Pod.Name(),
-			messages: []process.MessageBody{m},
-		}
+	orig := os.Getenv("DD_ORCHESTRATOR_CLUSTER_ID")
+	_ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
+	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
 
-		clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
+	m := &process.CollectorPod{
+		HostName: testHostName,
+		GroupId:  1,
+	}
 
-		orig := os.Getenv("DD_ORCHESTRATOR_CLUSTER_ID")
-		_ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
-		defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
+	check := &testCheck{
+		name: checks.Pod.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
 
+	runCollectorTest(t, check, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/orchestrator", req.uri)
@@ -230,34 +228,70 @@ func TestSendPodMessage(t *testing.T) {
 	})
 }
 
-func runCollectorTest(t *testing.T, tc func(payloads chan checkPayload, cfg *config.AgentConfig, ep *mockEndpoint)) {
-	ep := newMockEndpoint(t)
+func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, tc func(cfg *config.AgentConfig, ep *mockEndpoint)) {
+	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
 
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.APIEndpoints = []api.Endpoint{{APIKey: "apiKey", Endpoint: collectorAddr}}
 	cfg.OrchestratorEndpoints = []api.Endpoint{{APIKey: "orchestratorApiKey", Endpoint: orchestratorAddr}}
-	cfg.HostName = "test-host"
+	cfg.HostName = testHostName
+	cfg.CheckIntervals[check.Name()] = 500 * time.Millisecond
 
 	exit := make(chan bool)
 
-	c, err := NewCollector(cfg)
-	require.NoError(t, err)
+	c := NewCollectorWithChecks(cfg, []checks.Check{check})
 
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		err := c.run(exit)
 		require.NoError(t, err)
 	}()
-	defer func() { close(exit) }()
 
-	tc(c.send, cfg, ep)
+	tc(cfg, ep)
+
+	close(exit)
+	wg.Wait()
 }
+
+type testCheck struct {
+	name string
+	data [][]process.MessageBody
+}
+
+func (t *testCheck) Init(_ *config.AgentConfig, _ *process.SystemInfo) {
+}
+
+func (t *testCheck) Name() string {
+	return t.name
+}
+
+func (t *testCheck) RealTime() bool {
+	return false
+}
+
+func (t *testCheck) Run(_ *config.AgentConfig, _ int32) ([]process.MessageBody, error) {
+	if len(t.data) > 0 {
+		result := t.data[0]
+		t.data = t.data[1:]
+		return result, nil
+	}
+	return nil, nil
+}
+
+var _ checks.Check = &testCheck{}
 
 type request struct {
 	headers http.Header
 	uri     string
 	body    []byte
+}
+
+type endpointConfig struct {
+	ErrorCount int
 }
 
 type mockEndpoint struct {
@@ -266,15 +300,16 @@ type mockEndpoint struct {
 	orchestratorServer *http.Server
 	stopper            sync.WaitGroup
 	Requests           chan request
-	ErrorCount         int
+	errorCount         int
 	errorsSent         int
 	closeOnce          sync.Once
 }
 
-func newMockEndpoint(t *testing.T) *mockEndpoint {
+func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	m := &mockEndpoint{
-		t:        t,
-		Requests: make(chan request, 1),
+		t:          t,
+		errorCount: config.ErrorCount,
+		Requests:   make(chan request, 1),
 	}
 
 	collectorMux := http.NewServeMux()
@@ -361,7 +396,7 @@ func (m *mockEndpoint) handle(w http.ResponseWriter, req *http.Request) {
 
 	m.Requests <- request{headers: req.Header, body: body, uri: req.RequestURI}
 
-	if m.ErrorCount != m.errorsSent {
+	if m.errorCount != m.errorsSent {
 		w.WriteHeader(http.StatusInternalServerError)
 		m.errorsSent++
 		return

@@ -2,7 +2,6 @@
 Utilities to manage build tags
 """
 import sys
-import distro
 from invoke import task
 
 # ALL_TAGS lists any available build tag
@@ -30,8 +29,8 @@ ALL_TAGS = set([
     "zlib",
 ])
 
-# PUPPY_TAGS lists the tags needed when building the Puppy Agent
-PUPPY_TAGS = [
+# IOT_AGENT_TAGS lists the tags needed when building the IOT Agent
+IOT_AGENT_TAGS = [
     "zlib",
     "systemd",
 ]
@@ -50,12 +49,8 @@ LINUX_ONLY_TAGS = [
     "containerd",
     "cri",
     "netcgo",
-]
-
-REDHAT_DEBIAN_SUSE_ONLY_TAGS = [
     "systemd",
 ]
-
 WINDOWS_32BIT_EXCLUDE_TAGS = [
     "orchestrator",
     "docker",
@@ -63,17 +58,8 @@ WINDOWS_32BIT_EXCLUDE_TAGS = [
     "kubelet",
 ]
 
-REDHAT_DEBIAN_SUSE_DIST = [
-    'centos',
-    'debian',
-    'rhel',
-    'ubuntu',
-    'sles',
-    'opensuse',
-]
 
-
-def get_default_build_tags(puppy=False, process=False, arch="x64", android=False):
+def get_default_build_tags(iot=False, process=False, arch="x64", android=False):
     """
     Build the default list of tags based on the current platform.
 
@@ -81,8 +67,8 @@ def get_default_build_tags(puppy=False, process=False, arch="x64", android=False
     the Windows and Darwin builds.
     """
     include = ["all"]
-    if puppy:
-        include = PUPPY_TAGS
+    if iot:
+        include = IOT_AGENT_TAGS
 
     # android has its own set of tags
     if android:
@@ -93,26 +79,11 @@ def get_default_build_tags(puppy=False, process=False, arch="x64", android=False
     if not process:
         exclude = exclude + PROCESS_ONLY_TAGS
 
-    # remove all tags that are not available for current distro
-    exclude.extend(get_distro_exclude_tags())
-
     # Force exclusion of Windows 32bits tag
     if sys.platform == "win32" and arch == "x86":
         exclude = exclude + WINDOWS_32BIT_EXCLUDE_TAGS
 
     return get_build_tags(include, exclude)
-
-
-def get_distro_exclude_tags():
-    """
-    Get tags that should be excluded for current distro.
-    """
-    distro_name = distro.id().lower()
-    exclude = []
-    if distro_name not in REDHAT_DEBIAN_SUSE_DIST:
-        exclude.extend(REDHAT_DEBIAN_SUSE_ONLY_TAGS)
-    return exclude
-
 
 def get_build_tags(include, exclude):
     """
@@ -136,15 +107,15 @@ def audit_tag_impact(ctx, build_exclude=None, csv=False):
     """
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    tags_to_audit = ALL_TAGS.difference(set(build_exclude)).difference(set(PUPPY_TAGS))
+    tags_to_audit = ALL_TAGS.difference(set(build_exclude)).difference(set(IOT_AGENT_TAGS))
 
     max_size = _compute_build_size(ctx, build_exclude=','.join(build_exclude))
     print("size with all tags is {} kB".format(max_size / 1000))
 
-    puppy_size = _compute_build_size(ctx, puppy=True)
-    print("puppy size is {} kB\n".format(puppy_size / 1000))
+    iot_agent_size = _compute_build_size(ctx, iot=True)
+    print("iot agent size is {} kB\n".format(iot_agent_size / 1000))
 
-    report = {"unaccounted": max_size - puppy_size, "puppy": puppy_size}
+    report = {"unaccounted": max_size - iot_agent_size, "iot_agent": iot_agent_size}
 
     for tag in tags_to_audit:
         exclude_string = ','.join(build_exclude + [tag])
@@ -160,10 +131,10 @@ def audit_tag_impact(ctx, build_exclude=None, csv=False):
             print("{};{}".format(k, v))
 
 
-def _compute_build_size(ctx, build_exclude=None, puppy=False):
+def _compute_build_size(ctx, build_exclude=None, iot=False):
     import os
     from .agent import build as agent_build
-    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, puppy=puppy)
+    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, iot=iot)
 
     statinfo = os.stat('bin/agent/agent')
     return statinfo.st_size
