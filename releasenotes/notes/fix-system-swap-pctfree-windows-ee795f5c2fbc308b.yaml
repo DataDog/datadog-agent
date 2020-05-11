@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    On Windows, fix calculation of the system.swap.pct_free metric.
+    On Windows, fix calculation of the ``system.swap.pct_free`` metric.
