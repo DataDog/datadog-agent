@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -602,10 +603,12 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 	// FIXME: schedule new services as well
 	ac.schedule([]integration.Config{
 		{
-			LogsConfig:   integration.Data{},
-			Entity:       svc.GetEntity(),
-			TaggerEntity: svc.GetTaggerEntity(),
-			CreationTime: svc.GetCreationTime(),
+			LogsConfig:      integration.Data{},
+			Entity:          svc.GetEntity(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			CreationTime:    svc.GetCreationTime(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
 
@@ -621,10 +624,12 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	// FIXME: unschedule remove services as well
 	ac.unschedule([]integration.Config{
 		{
-			LogsConfig:   integration.Data{},
-			Entity:       svc.GetEntity(),
-			TaggerEntity: svc.GetTaggerEntity(),
-			CreationTime: svc.GetCreationTime(),
+			LogsConfig:      integration.Data{},
+			Entity:          svc.GetEntity(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			CreationTime:    svc.GetCreationTime(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
 }

@@ -2,6 +2,204 @@
 Release Notes
 =============
 
+.. _Release Notes_7.19.1:
+
+7.19.1
+======
+
+.. _Release Notes_7.19.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-05-04
+
+This release is only an Agent v7 release, as Agent v6 is not affected by the undermentioned bug.
+
+.. _Release Notes_7.19.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix panic in the dogstatsd standalone package when running in a containerized environment.
+
+
+.. _Release Notes_7.19.0:
+
+7.19.0 / 6.19.0
+======
+
+.. _Release Notes_7.19.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-04-30
+
+- Please refer to the `7.19.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7190>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.19.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Default logs-agent to use HTTPS with compression when possible.
+  Starting from this version, the default transport is HTTPS with compression instead of TCP.
+  The usage of TCP is kept in the following cases:
+    * logs_config.use_tcp is set to true
+    * logs_config.socks5_proxy_address is set, because socks5 proxies are not yet supported in HTTPS with compression
+    * HTTPS connectivity test has failed: at agent startup, an HTTPS test request is sent to determine if HTTPS can be used
+  
+  To force the use of TCP or HTTPS with compression, logs_config.use_tcp or logs_config.use_http can be set to true, respectively.
+
+
+.. _Release Notes_7.19.0_New Features:
+
+New Features
+------------
+
+- The Agent is now available on Chocolatey for Windows
+
+- Add ``--full-sketches`` option to agent check command that displays bins information
+
+- Support logs collection from Kubernetes log files with old Kubernetes versions (< v1.10).
+
+- Expose the new JMXFetch rate with metrics method to test JMX based checks.
+
+- The ``ac_include`` and ``ac_exclude`` auto-discovery parameters now support the
+  ``kube_namespace:`` prefix to collect or discard logs and metrics for whole namespaces
+  in addition to the ``name:`` and ``image:`` prefixes to filter on container name and image name.
+
+- EKS Fargate containers now appear in the live containers view.
+  All processes running inside the EKS Fargate Pod appear in the live processes view
+  when `shareProcessNamespace` is enabled in the Pod Spec.
+
+- Add the ability to change log_level at runtime. The agent command
+  has been extended to support new operation. For example to set
+  the log_level to debug the following command should be used:
+  ``agent config set log_level debug``, all runtime-configurable
+  settings can be listed using ``agent config list-runtime``. The
+  log_level may also be fetched using the ``agent config get log_level``
+  command. Additional runtime-editable setting can easily be added
+  by following this implementation. 
+
+- The ``system-probe`` classifies UDP connections as incoming or outgoing.
+
+
+.. _Release Notes_7.19.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds a new config option to the systemd core check. It adds the ability to provide a custom
+  mapping from a unit substate to the service check status.
+
+- The systemd core check now collects and submits the systemd version as check metadata.
+
+- Add ``host_provider_id`` tag to Kubernetes events; for AWS instances this is unique in
+  contrast to the Kubernetes nodename currently provided with the ``host`` tag.
+
+- On Windows, now reports system.io.r_await and system.io.w_await.
+  Metrics are reported from the performance monitor "Avg. Disk sec/Read" and
+  "Avg. Disk sec/Write" metrics.
+
+- Allow setting ``is_jmx`` at the instance level, thereby enabling integrations
+  to utilize JMXFetch and Python/Go.
+
+- The authentication token file is now only created
+  when the agent is launched with the ``agent start`` command
+  It prevents command such as ``agent status`` to create
+  an authentication token file owned by a wrong user.
+
+- Count of successful DNS responses are tracked for each connection.
+
+- Network information is collected when the agent is running in docker (host mode only).
+
+- Make sure we don't recognize ``sha256:...`` as a valid image name and add fallback to
+  .Config.Image in case it's impossible to map ``sha256:...`` to a proper image name
+
+- Extract env, version and service tags from Docker containers
+
+- Extract env, version and service tags from ECS Fargate containers
+
+- Extract env, version and service tags from kubelet
+
+- Log configurations of type ``file`` now accept a new parameter that allows
+  to specify whether a log shall be tailed from the beginning
+  or the end. It aims to allow whole log collection, including
+  events that may occur before the agent first starts. The
+  parameter is named ``start_position`` and it can be set to
+  ``end`` or ``beginning``, the default value is ``end``.
+
+- Resolve Docker image name using config.Image in the case of multiple image RepoTags
+
+- The agent configcheck command output now scrubs sensitive
+  data and prevents API keys, password, token, etc. to
+  appear in the console.
+
+- Errors that arise while loading checks configuration
+  files are now send with metadata along with checks
+  loading errors and running errors so they will show
+  up on the infrastructure list in the DataDog app.
+
+- Remove cgroup deps from Docker utils, allows to implement several backends for Docker utils (i.e. Windows)
+
+
+.. _Release Notes_7.19.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, for Python3, add additional C-runtime DLLs to fix missing dependencies (notably for jpype).
+
+- Fix 'check' command segfault when running for more than 1 hour (which could
+  happen when using the '-b' option to set breakpoint).
+
+- Fix panic due to concurrent map access in Docker AD provider
+
+- Fix the ``flare`` command not being able to be created for the non-core agents (trace,
+  network, ...) when running in a separated container, such as in Helm. A new
+  option, ``--local``, has been added to the ``flare`` command to force the
+  creation of the archive using the local filesystem and not the one where
+  the core agent process is in.
+
+- Fix logs status page section showing port '0' being used when using the
+  default HTTPS URL. The status page now show 443.
+
+- Fix S6 behavior when the core agent dies.
+  When the core agent died in a multi-process agent container managed by S6,
+  the container stayed in an unhealthy half dead state.
+  S6 configuration has been modified so that it will now exit in case of
+  core agent death so that the whole container will exit and will be restarted.
+
+- On Windows, fixes Process agent memory leak when obtaining process arguments.
+
+- When a DNS name with ".local" is specifed in the parameter DDAGENTUSER_NAME, the correctly finds the corresponding domain.
+
+- Fix an issue where ``conf.yaml.example`` can be missing from ``Add a check`` menu in the Web user interface.
+
+- process-agent and system-probe now clean up their PID files when exiting.
+
+- When the HTTPS transport is used to send logs, send the sourcecategory as the ``sourcecategory:`` tag
+  instead of ``ddsourcecategory:``, for consistency with other transports.
+
+
+.. _Release Notes_7.19.0_Other Notes:
+
+Other Notes
+-----------
+
+- All Agents binaries are now compiled with Go ``1.13.8``
+
+- JMXFetch upgraded to 0.36.1. See `0.36.1 <https://github.com/DataDog/jmxfetch/releases/0.36.1>`_
+  and `0.36.0 <https://github.com/DataDog/jmxfetch/releases/0.36.0>`_
+
+- The ``statsd_metric_namespace`` option now ignores the following metric
+  prefixes: ``airflow``, ``confluent``, ``hazelcast``, ``hive``, ``ignite``,
+  ``jboss``, ``sidekiq``
+
+
 .. _Release Notes_7.18.1:
 
 7.18.1

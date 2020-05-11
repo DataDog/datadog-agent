@@ -66,6 +66,16 @@ func TestParseMetadata(t *testing.T) {
 
 	expectedUpdates := []*TagInfo{
 		{
+			Source:      "ecs_fargate",
+			Entity:      OrchestratorScopeEntityID,
+			LowCardTags: []string{},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
+			HighCardTags: []string{},
+			DeleteEntity: false,
+		},
+		{
 			Source: "ecs_fargate",
 			Entity: "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 			LowCardTags: []string{
@@ -241,6 +251,16 @@ func TestParseMetadataV10(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedUpdates := []*TagInfo{
+		{
+			Source:      "ecs_fargate",
+			Entity:      OrchestratorScopeEntityID,
+			LowCardTags: []string{},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+			},
+			HighCardTags: []string{},
+			DeleteEntity: false,
+		},
 		{
 			Source: "ecs_fargate",
 			Entity: "container_id://e8d4a9a20a0d931f8f632ec166b3f71a6ff00450aa7e99607f650e586df7d068",

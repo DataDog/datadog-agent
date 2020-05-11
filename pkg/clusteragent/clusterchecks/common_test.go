@@ -53,7 +53,7 @@ func isLocked(l lockable) bool {
 	select {
 	case <-ok:
 		return false
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(1 * time.Second):
 		return true
 	}
 }

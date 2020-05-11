@@ -139,6 +139,38 @@ func TestFilter(t *testing.T) {
 			},
 			ns: "bar",
 		},
+		{
+			c: Container{
+				ID:    "16",
+				Name:  "foo",
+				Image: "gcr.io/gke-release/pause-win:1.1.0",
+			},
+			ns: "bar",
+		},
+		{
+			c: Container{
+				ID:    "17",
+				Name:  "foo",
+				Image: "mcr.microsoft.com/k8s/core/pause:1.2.0",
+			},
+			ns: "bar",
+		},
+		{
+			c: Container{
+				ID:    "18",
+				Name:  "foo",
+				Image: "ecr.us-east-1.amazonaws.com/pause",
+			},
+			ns: "bar",
+		},
+		{
+			c: Container{
+				ID:    "19",
+				Name:  "k8s_POD_AKS_pause",
+				Image: "aksrepos.azurecr.io/mirror/pause-amd64:3.1",
+			},
+			ns: "default",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -147,25 +179,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
 		},
 		{
 			blacklist:   []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
 		},
 		{
 			blacklist:   []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
 		},
 		{
 			whitelist:   []string{},
 			blacklist:   []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
 		},
 		{
 			whitelist:   []string{"name:mysql"},
 			blacklist:   []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19"},
 		},
 		{
 			blacklist:   []string{"kube_namespace:.*"},
@@ -174,7 +206,7 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			blacklist:   []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19"},
 		},
 		// Test kubernetes defaults
 		{
@@ -184,6 +216,8 @@ func TestFilter(t *testing.T) {
 				pauseContainerKubernetes,
 				pauseContainerAzure,
 				pauseContainerRancher,
+				pauseContainerAKS,
+				pauseContainerECR,
 			},
 			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "14", "15"},
 		},
@@ -227,12 +261,14 @@ func TestNewFilterFromConfig(t *testing.T) {
 	config.Datadog.SetDefault("ac_exclude", []string{})
 }
 
-func TestNewFilterFromConfigIncludePause(t *testing.T) {
-	config.Datadog.SetDefault("exclude_pause_container", true)
+func TestNewAutodiscoveryFilter(t *testing.T) {
+	resetConfig()
+
+	// Global - legacy config
 	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})
 	config.Datadog.SetDefault("ac_exclude", []string{"name:dd-.*"})
 
-	f, err := NewFilterFromConfigIncludePause()
+	f, err := NewAutodiscoveryFilter(GlobalFilter)
 	require.NoError(t, err)
 
 	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
@@ -240,8 +276,62 @@ func TestNewFilterFromConfigIncludePause(t *testing.T) {
 	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
 	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
 	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	resetConfig()
 
+	// Global - new config - legacy config ignored
+	config.Datadog.SetDefault("container_include", []string{"image:apache.*"})
+	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*"})
+	config.Datadog.SetDefault("ac_include", []string{"image:apache/legacy.*"})
+	config.Datadog.SetDefault("ac_exclude", []string{"name:dd/legacy-.*"})
+
+	f, err = NewAutodiscoveryFilter(GlobalFilter)
+	require.NoError(t, err)
+
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded("dd/legacy-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	resetConfig()
+
+	// Metrics
+	config.Datadog.SetDefault("container_include_metrics", []string{"image:apache.*"})
+	config.Datadog.SetDefault("container_exclude_metrics", []string{"name:dd-.*"})
+
+	f, err = NewAutodiscoveryFilter(MetricsFilter)
+	require.NoError(t, err)
+
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	resetConfig()
+
+	// Logs
+	config.Datadog.SetDefault("container_include_logs", []string{"image:apache.*"})
+	config.Datadog.SetDefault("container_exclude_logs", []string{"name:dd-.*"})
+
+	f, err = NewAutodiscoveryFilter(LogsFilter)
+	require.NoError(t, err)
+
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	resetConfig()
+}
+
+func resetConfig() {
 	config.Datadog.SetDefault("exclude_pause_container", true)
+	config.Datadog.SetDefault("container_include", []string{})
+	config.Datadog.SetDefault("container_exclude", []string{})
+	config.Datadog.SetDefault("container_include_metrics", []string{})
+	config.Datadog.SetDefault("container_exclude_metrics", []string{})
+	config.Datadog.SetDefault("container_include_logs", []string{})
+	config.Datadog.SetDefault("container_exclude_logs", []string{})
 	config.Datadog.SetDefault("ac_include", []string{})
 	config.Datadog.SetDefault("ac_exclude", []string{})
 }

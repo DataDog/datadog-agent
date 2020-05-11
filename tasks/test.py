@@ -46,7 +46,8 @@ DEFAULT_TEST_TARGETS = [
 def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=None,
     verbose=False, race=False, profile=False, fail_on_fmt=False,
     rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0, major_version='7',
-    python_runtimes='3', timeout=120, arch="x64", cache=True, skip_linters=False):
+    python_runtimes='3', timeout=120, arch="x64", cache=True, skip_linters=False,
+    go_mod="vendor"):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -144,9 +145,10 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go test {verbose} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'go test {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
+        "go_mod": go_mod,
         "go_build_tags": " ".join(build_tags),
         "gcflags": gcflags,
         "ldflags": ldflags,
@@ -378,16 +380,21 @@ def make_kitchen_gitlab_yml(ctx):
     with open('.gitlab-ci.yml') as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
-    data['stages'] = ['package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']
+    data['stages'] = ['deps_build', 'binary_build', 'package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']
     for k,v in data.items():
-        if isinstance(v, dict) and v.get('stage', None) not in [None, 'package_build', 'testkitchen_deploy', 'testkitchen_testing', 'testkitchen_cleanup']:
+        if isinstance(v, dict) and v.get('stage', None) not in ([None] + data['stages']):
             del data[k]
+            continue
+        if isinstance(v, dict) and v.get('stage', None) == 'binary_build' and k != 'build_system-probe-arm64' and k != 'build_system-probe-x64' and k != 'build_system-probe_with-bcc-arm64' and k != 'build_system-probe_with-bcc-x64':
+            del data[k]
+            continue
         if 'except' in v:
             del v['except']
         if 'only' in v:
             del v['only']
         if len(v) == 0:
             del data[k]
+            continue
 
     for k,v in data.items():
         if 'extends' in v:

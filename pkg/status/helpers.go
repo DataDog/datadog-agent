@@ -42,6 +42,7 @@ func Fmap() htemplate.FuncMap {
 		"greenText":          greenText,
 		"ntpWarning":         ntpWarning,
 		"version":            getVersion,
+		"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 	}
 }
 
@@ -63,6 +64,7 @@ func Textfmap() ttemplate.FuncMap {
 		"greenText":          greenText,
 		"ntpWarning":         ntpWarning,
 		"version":            getVersion,
+		"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 	}
 }
 
