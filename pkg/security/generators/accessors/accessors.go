@@ -102,7 +102,7 @@ func handleBasic(name, alias, kind string, tags string) {
 	}
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, tags string) error { // fmt.Printf("handleField fieldName %s, ident %s, pkgName %s, prefix %s, fieldType, %s\n", fieldName, ident, pkgName, prefix, fieldType)
+func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, tags string) error {
 	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 
 	switch fieldType.Name {
@@ -178,7 +178,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 							}
 
 							module.Fields[fieldAlias] = &structField{
-								Name:   fmt.Sprintf("m.event.%s.%s(m)", prefix, fnc),
+								Name:   fmt.Sprintf("m.event.%s.%s(m.event.resolvers)", prefix, fnc),
 								Type:   kind,
 								Public: true,
 								Tags:   tags,

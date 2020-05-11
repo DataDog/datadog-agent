@@ -20,6 +20,7 @@ type Probe struct {
 	model         *Model
 	handler       EventHandler
 	kernelFilters *KernelFilters
+	resolvers     *Resolvers
 }
 
 func NewProbe(config *config.Config) (*Probe, error) {
@@ -111,7 +112,11 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		return nil, err
 	}
 
-	p.model = &Model{dentryResolver: dentryResolver}
+	p.resolvers = &Resolvers{
+		DentryResolver: dentryResolver,
+	}
+
+	p.model = &Model{}
 
 	return p, nil
 }
