@@ -62,7 +62,7 @@ func (a *Module) LoadPolicies() error {
 			}
 
 			for _, ruleDef := range policy.Rules {
-				_, err := a.ruleSet.AddRule(ruleDef.Name, ruleDef.Expression)
+				_, err := a.ruleSet.AddRule(ruleDef.ID, ruleDef.Expression)
 				if err != nil {
 					return err
 				}

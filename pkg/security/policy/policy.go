@@ -19,7 +19,7 @@ type Section struct {
 }
 
 type RuleDefinition struct {
-	Name       string
+	ID         string
 	Expression string
 }
 
@@ -49,7 +49,7 @@ func LoadPolicy(r io.Reader) (*Policy, error) {
 					return nil, errors.Wrap(err, "invalid policy")
 				}
 
-				if ruleDef.Name == "" {
+				if ruleDef.ID == "" {
 					return nil, ErrUnnamedRule
 				}
 
