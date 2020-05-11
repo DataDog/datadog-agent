@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	bpflib "github.com/iovisor/gobpf/elf"
 
@@ -37,6 +38,12 @@ func getSnooper(
 	err := m.Load(params)
 	require.NoError(t, err)
 
+	if collectStats {
+		mp := m.Map("config")
+		require.NotNil(t, mp)
+		var zero uint64
+		m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&zero), 0)
+	}
 	filter := m.SocketFilter("socket/dns_filter")
 	require.NotNil(t, filter)
 

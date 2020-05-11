@@ -165,6 +165,15 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	var reverseDNS network.ReverseDNS = network.NewNullReverseDNS()
 	if enableSocketFilter {
+
+		if config.CollectDNSStats {
+			mp := m.Map(string(configMap))
+			if mp == nil {
+				return nil, fmt.Errorf("error retrieving the bpf %s map: %s", configMap, err)
+			}
+			m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&zero), 0)
+		}
+
 		filter := m.SocketFilter("socket/dns_filter")
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")

@@ -182,7 +182,7 @@ struct bpf_map_def SEC("maps/unbound_sockets") unbound_sockets = {
     .namespace = "",
 };
 
-/* This maps is used for telemetry in kernelspace
+/* This map is used for telemetry in kernelspace
  * only key 0 is used
  * value is a telemetry object
  */
@@ -193,6 +193,20 @@ struct bpf_map_def SEC("maps/telemetry") telemetry = {
     .max_entries = 1,
     .pinning = 0,
     .namespace = "",
+};
+
+/* This map is used for passing config from userspace.
+ * Only key 0 is used. If it is present, it means DNS stat collection
+ * is enabled.
+ * Value does not matter.
+ */
+struct bpf_map_def SEC("maps/config") config = {
+      .type = BPF_MAP_TYPE_HASH,
+      .key_size = sizeof(__u16),
+      .value_size = sizeof(__u8),
+      .max_entries = 1,
+      .pinning = 0,
+      .namespace = "",
 };
 
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
@@ -1121,7 +1135,10 @@ int socket__dns_filter(struct __sk_buff* skb) {
 
     __u16 src_port = load_half(skb, ETH_HLEN + ip_hdr_size + src_port_offset);
     __u16 dst_port = load_half(skb, ETH_HLEN + ip_hdr_size + dst_port_offset);
-    if (src_port != 53 && dst_port != 53)
+    __u16 key = 0;
+    __u8* val = bpf_map_lookup_elem(&config, &key);
+
+    if (src_port != 53 && (val == NULL || dst_port != 53))
         return 0;
 
     return -1;
