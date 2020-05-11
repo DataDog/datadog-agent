@@ -1,5 +1,7 @@
 The Kubernetes manifests found in this directory are automatically generated from our [Datadog Helm chart](https://github.com/helm/charts/tree/master/stable/datadog) with the [`generate.sh`](generate.sh) script.
 
+If the manifests in this repository had to be updated, the ones in the [documentation repository](https://github.com/DataDog/documentation/tree/master/static/resources/yaml) should probably also be updated.
+
 The manifests found here do not aim at being exhaustive in term of possible configurations.
 Instead, they aim at being examples that can be further customized.
 
