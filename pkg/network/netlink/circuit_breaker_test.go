@@ -83,6 +83,52 @@ func TestStartAboveThreshold(t *testing.T) {
 	assert.True(t, breaker.IsOpen())
 }
 
+func TestCircuitBreakerRateCalculation(t *testing.T) {
+	const maxEventRate = 60
+	breaker := newTestBreaker(maxEventRate)
+
+	// The first use of the breaker doesn't use EWMA, so the event rate should
+	// match the first tick
+	now := time.Now()
+	breaker.Tick(50)
+	breaker.update(now)
+	assert.Equal(t, int64(50), breaker.Rate())
+
+	// Expected rate (using EWMA weight of 0.2)
+	// Rate = 0.2 * 80 (new rate) + 0.8 * 50 (previous rate) = 56
+	now = now.Add(time.Second)
+	breaker.Tick(80)
+	breaker.update(now)
+	assert.Equal(t, int64(56), breaker.Rate())
+
+	// Expected rate (using EWMA weight of 0.2)
+	// Rate = 0.2 * 80 (new rate) + 0.8 * 56 (previous rate) = ~60
+	now = now.Add(time.Second)
+	breaker.Tick(80)
+	breaker.update(now)
+	assert.Equal(t, int64(60), breaker.Rate())
+
+	// Expected rate (using EWMA weight of 0.2)
+	// Rate = 0.2 * 80 (new rate) + 0.8 * 60 (previous rate) = ~64
+	now = now.Add(time.Second)
+	breaker.Tick(80)
+	breaker.update(now)
+	assert.Equal(t, int64(64), breaker.Rate())
+
+	// At this point the breaker should be open
+	assert.True(t, breaker.IsOpen())
+
+	// The calculated rate of the breaker should not change while the breaker is open
+	now = now.Add(time.Second)
+	breaker.Tick(80)
+	breaker.update(now)
+	assert.Equal(t, int64(64), breaker.Rate())
+
+	// After resetting the breaker, the rate should be zero again.
+	breaker.Reset()
+	assert.Equal(t, int64(0), breaker.Rate())
+}
+
 func newTestBreaker(maxEventRate int) *CircuitBreaker {
 	c := &CircuitBreaker{maxEventsPerSec: int64(maxEventRate)}
 	c.Reset()
