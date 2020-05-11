@@ -38,11 +38,11 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 	if err != nil {
 		return
 	}
-	log.Infof("Sending event message for rule `%s` to security-agent: %s", rule.Name, string(data))
+	log.Infof("Sending event message for rule `%s` to security-agent: %s", rule.ID, string(data))
 
 	msg := &api.SecurityEventMessage{
-		RuleName: rule.Name,
-		Data:     data,
+		RuleID: rule.ID,
+		Data:   data,
 	}
 
 	e.msgs <- msg

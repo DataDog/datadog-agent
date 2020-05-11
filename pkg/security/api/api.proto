@@ -5,7 +5,7 @@ package api;
 message GetParams{}
 
 message SecurityEventMessage {
-    string RuleName = 1;
+    string RuleID = 1;
     bytes Data = 2;
 }
 

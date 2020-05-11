@@ -1,7 +1,7 @@
 package eval
 
 type Rule struct {
-	Name       string
+	ID         string
 	Expression string
 	evaluator  *RuleEvaluator
 }

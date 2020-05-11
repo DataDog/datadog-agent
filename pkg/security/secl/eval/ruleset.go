@@ -42,7 +42,7 @@ type RuleSet struct {
 	debug      bool
 }
 
-func (rs *RuleSet) AddRule(name, expression string) (*Rule, error) {
+func (rs *RuleSet) AddRule(id, expression string) (*Rule, error) {
 	astRule, err := ast.ParseRule(expression)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid rule")
@@ -54,7 +54,7 @@ func (rs *RuleSet) AddRule(name, expression string) (*Rule, error) {
 	}
 
 	rule := &Rule{
-		Name:       name,
+		ID:         id,
 		Expression: expression,
 		evaluator:  evaluator,
 	}
@@ -103,7 +103,7 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 
 	for _, rule := range bucket.rules {
 		if rule.evaluator.Eval(context) {
-			log.Infof("Rule `%s` matches with event %+v\n", rule.Name, spew.Sdump(event))
+			log.Infof("Rule `%s` matches with event %+v\n", rule.ID, spew.Sdump(event))
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true
@@ -128,7 +128,7 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 				}
 
 				isTrue := partial(context)
-				log.Debugf("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.Name, rule.Expression, field, value, isTrue)
+				log.Debugf("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.ID, rule.Expression, field, value, isTrue)
 				if isTrue {
 					found = false
 				}
