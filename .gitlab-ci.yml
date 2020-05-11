@@ -1181,7 +1181,7 @@ windows_zip_agent_binaries_x64-a7:
 
 .windows_old_msi_base:
   stage: package_build
-  needs: ["fail_on_non_triggered_tag", "run_dep_check_lock"]
+  needs: ["fail_on_non_triggered_tag", "run_go_tidy_check"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   # Unavailable on gitlab < 12.3
   # timeout: 2h 00m
