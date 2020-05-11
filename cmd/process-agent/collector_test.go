@@ -1,9 +1,12 @@
 package main
 
 import (
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -92,4 +95,26 @@ func TestHasContainers(t *testing.T) {
 	assert.Equal(1, getContainerCount(&collectorContainer))
 	assert.Equal(2, getContainerCount(&collectorRealTime))
 	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
+}
+
+func TestRemovePathIfPresent(t *testing.T) {
+	for _, tt := range []struct {
+		input    string
+		expected string
+	}{
+		{input: "http://foo.com", expected: "http://foo.com"},
+		{input: "http://foo.com/", expected: "http://foo.com"},
+		{input: "http://foo.com/api/v1", expected: "http://foo.com"},
+		{input: "http://foo.com?foo", expected: "http://foo.com"},
+		{input: "http://foo.com/api/v1/?foo", expected: "http://foo.com"},
+		{input: "http://foo.com/api/v1?foo", expected: "http://foo.com"},
+		{input: "http://foo.com:8080", expected: "http://foo.com:8080"},
+		{input: "http://foo.com:8080/", expected: "http://foo.com:8080"},
+		{input: "http://foo.com:8080/api/v1", expected: "http://foo.com:8080"},
+	} {
+		u, err := url.Parse(tt.input)
+		require.NoError(t, err)
+
+		assert.Equal(t, tt.expected, removePathIfPresent(u))
+	}
 }

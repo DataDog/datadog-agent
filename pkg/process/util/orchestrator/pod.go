@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	jsoniter "github.com/json-iterator/go"
 	yaml "gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 )
@@ -53,7 +54,16 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 		for c := 0; c < len(podList[p].Spec.InitContainers); c++ {
 			scrubContainer(&podList[p].Spec.InitContainers[c], cfg)
 		}
-		yamlPod, _ := yaml.Marshal(podList[p])
+		// k8s objects only have json "omitempty" annotations
+		// we're doing json<>yaml to get rid of the null properties
+		jsonPod, err := jsoniter.Marshal(podList[p])
+		if err != nil {
+			log.Debugf("Could not marshal pod in JSON: %s", err)
+			continue
+		}
+		var jsonObj interface{}
+		yaml.Unmarshal(jsonPod, &jsonObj)
+		yamlPod, _ := yaml.Marshal(jsonObj)
 		podModel.Yaml = yamlPod
 
 		podMsgs = append(podMsgs, podModel)

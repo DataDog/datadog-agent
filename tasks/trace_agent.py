@@ -5,7 +5,7 @@ import shutil
 import invoke
 from invoke import task
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, check_go111module_envvar
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
 from .go import deps
@@ -22,13 +22,10 @@ DEFAULT_BUILD_TAGS = [
 
 @task
 def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=None,
-          build_exclude=None, major_version='7', python_runtimes='3', arch="x64"):
+          build_exclude=None, major_version='7', python_runtimes='3', arch="x64", go_mod="vendor"):
     """
     Build the trace agent.
     """
-
-    # bail out if GO111MODULE is set to on
-    check_go111module_envvar("trace-agent.build")
 
     # get env prior to windows sources so we only have to set the target architecture once
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes)
@@ -62,10 +59,11 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
 
     build_tags = get_build_tags(build_include, build_exclude)
 
-    cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
 
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
         "go_build_tags": " ".join(build_tags),
@@ -75,11 +73,11 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
         "REPO_PATH": REPO_PATH,
     }
 
-    ctx.run("go generate {REPO_PATH}/pkg/trace/info".format(**args), env=env)
+    ctx.run("go generate -mod={go_mod} {REPO_PATH}/pkg/trace/info".format(**args), env=env)
     ctx.run(cmd.format(**args), env=env)
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor"):
     """
     Run integration tests for trace agent
     """
@@ -87,6 +85,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         deps(ctx)
 
     test_args = {
+        "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags()),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
@@ -99,7 +98,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     if remote_docker:
         test_args["exec_opts"] = "-exec \"{}/test/integration/dockerize_tests.sh\"".format(os.getcwd())
 
-    go_cmd = 'INTEGRATION=yes go test {race_opt} -v'.format(**test_args)
+    go_cmd = 'INTEGRATION=yes go test -mod={go_mod} {race_opt} -v'.format(**test_args)
 
     prefixes = [
         "./pkg/trace/test/testsuite/...",
@@ -126,7 +125,7 @@ def cross_compile(ctx, tag=""):
 
     ctx.run("git checkout $V", env=env)
     ctx.run("mkdir -p ./bin/trace-agent/$V", env=env)
-    ctx.run("go generate ./pkg/trace/info", env=env)
+    ctx.run("go generate -mod=vendor ./pkg/trace/info", env=env)
     ctx.run("go get -u github.com/karalabe/xgo")
     ctx.run("xgo -dest=bin/trace-agent/$V -go=1.11 -out=trace-agent-$V -targets=windows-6.1/amd64,linux/amd64,darwin-10.11/amd64 ./cmd/trace-agent", env=env)
     ctx.run("mv ./bin/trace-agent/$V/trace-agent-$V-windows-6.1-amd64.exe ./bin/trace-agent/$V/trace-agent-$V-windows-amd64.exe", env=env)

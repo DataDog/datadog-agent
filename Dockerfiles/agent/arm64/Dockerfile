@@ -155,7 +155,9 @@ RUN if [ ! -z "$PYTHON_VERSION" ]; then \
 
 
 # Override the exit script by ours to fix --pid=host operations
-COPY init-stage3 /etc/s6/init/init-stage3
+RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
+COPY init-stage3          /etc/s6/init/init-stage3
+COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp

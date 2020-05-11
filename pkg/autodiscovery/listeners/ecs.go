@@ -26,7 +26,7 @@ import (
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
 	task       *v2.Task
-	filter     *containers.Filter
+	filters    *containerFilters
 	services   map[string]Service // maps container IDs to services
 	newService chan<- Service
 	delService chan<- Service
@@ -38,16 +38,18 @@ type ECSListener struct {
 
 // ECSService implements and store results from the Service interface for the ECS listener
 type ECSService struct {
-	cID           string
-	runtime       string
-	ADIdentifiers []string
-	hosts         map[string]string
-	tags          []string
-	clusterName   string
-	taskFamily    string
-	taskVersion   string
-	creationTime  integration.CreationTime
-	checkNames    []string
+	cID             string
+	runtime         string
+	ADIdentifiers   []string
+	hosts           map[string]string
+	tags            []string
+	clusterName     string
+	taskFamily      string
+	taskVersion     string
+	creationTime    integration.CreationTime
+	checkNames      []string
+	metricsExcluded bool
+	logsExcluded    bool
 }
 
 // Make sure ECSService implements the Service interface
@@ -59,14 +61,14 @@ func init() {
 
 // NewECSListener creates an ECSListener
 func NewECSListener() (ServiceListener, error) {
-	filter, err := containers.NewFilterFromConfigIncludePause()
+	filters, err := newContainerFilters()
 	if err != nil {
 		return nil, err
 	}
 	return &ECSListener{
 		services: make(map[string]Service),
 		stop:     make(chan bool),
-		filter:   filter,
+		filters:  filters,
 		t:        time.NewTicker(2 * time.Second),
 		health:   health.Register("ad-ecslistener"),
 	}, nil
@@ -128,7 +130,8 @@ func (l *ECSListener) refreshServices(firstRun bool) {
 			log.Debugf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus)
 			continue
 		}
-		if l.filter.IsExcluded(c.DockerName, c.Image, "") {
+		// Detect AD exclusion
+		if l.filters.IsExcluded(containers.GlobalFilter, c.DockerName, c.Image, "") {
 			log.Debugf("container %s filtered out: name %q image %q", c.DockerID[:12], c.DockerName, c.Image)
 			continue
 		}
@@ -197,6 +200,10 @@ func (l *ECSListener) createService(c v2.Container, firstRun bool) (ECSService, 
 	}
 	svc.tags = tags
 
+	// Detect metrics or logs exclusion
+	svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, c.DockerName, c.Image, "")
+	svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, c.DockerName, c.Image, "")
+
 	return svc, err
 }
 
@@ -263,4 +270,16 @@ func (s *ECSService) IsReady() bool {
 // GetCheckNames returns slice check names defined in docker labels
 func (s *ECSService) GetCheckNames() []string {
 	return s.checkNames
+}
+
+// HasFilter returns true if metrics or logs collection must be excluded for this service
+// no containers.GlobalFilter case here because we don't create services that are globally excluded in AD
+func (s *ECSService) HasFilter(filter containers.FilterType) bool {
+	switch filter {
+	case containers.MetricsFilter:
+		return s.metricsExcluded
+	case containers.LogsFilter:
+		return s.logsExcluded
+	}
+	return false
 }
