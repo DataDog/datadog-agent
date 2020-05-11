@@ -265,8 +265,12 @@ func StartAgent() error {
 	}
 	log.Debugf("statsd started")
 
-	if config.Datadog.GetBool("snmp_traps.enabled") {
-		snmp.Start()
+	// Start snmp-related services
+	if config.Datadog.GetBool("snmp_traps_enabled") {
+		common.TrapServer, err = snmp.NewTrapServer()
+		if err != nil {
+			log.Errorf("Could not start snmp_traps: %s", err)
+		}
 	}
 
 	// start logs-agent
@@ -329,6 +333,9 @@ func StopAgent() {
 	}
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
+	}
+	if common.TrapServer != nil {
+		common.TrapServer.Stop()
 	}
 	api.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()

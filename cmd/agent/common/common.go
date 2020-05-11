@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -32,6 +33,9 @@ var (
 
 	// DSD is the global dogstastd instance
 	DSD *dogstatsd.Server
+
+	// TrapServer is the global SNMP traps server instance
+	TrapServer *snmp.TrapServer
 
 	// MetadataScheduler is responsible to orchestrate metadata collection
 	MetadataScheduler *metadata.Scheduler

@@ -1546,3 +1546,15 @@ api_key:
   # key_file: ""
 
 {{ end -}}
+{{- if .SNMP }}
+
+########################
+## SNMP Configuration ##
+########################
+
+## @param snmp_traps_enabled - boolean - optional - default: false
+## Set this option to true to enable the Agent SNMP traps server.
+#
+# snmp_traps_enabled: false
+
+{{end -}}
