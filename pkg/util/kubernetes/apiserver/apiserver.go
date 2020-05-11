@@ -58,6 +58,16 @@ type APIClient struct {
 	// UnassignedPodInformerFactory gives access to filtered informers
 	UnassignedPodInformerFactory informers.SharedInformerFactory
 
+	// CertificateSecretInformerFactory gives access to filtered informers
+	// This informer can be used by the Admission Controller to only watch the secret object
+	// that contains the webhook certificate.
+	CertificateSecretInformerFactory informers.SharedInformerFactory
+
+	// WebhookConfigInformerFactory gives access to filtered informers
+	// This informer can be used by the Admission Controller to only watch
+	// the corresponding MutatingWebhookConfiguration object.
+	WebhookConfigInformerFactory informers.SharedInformerFactory
+
 	// WPAClient gives access to WPA API
 	WPAClient wpa_client.Interface
 
@@ -183,6 +193,23 @@ func (c *APIClient) connect() error {
 		}
 		c.UnassignedPodInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(tweakListOptions),
+		)
+	}
+
+	if config.Datadog.GetBool("admission_controller.enabled") {
+		nameFieldkey := "metadata.name"
+		optionsForService := func(options *metav1.ListOptions) {
+			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, config.Datadog.GetString("admission_controller.certificate.secret_name")).String()
+		}
+		c.CertificateSecretInformerFactory, err = getInformerFactoryWithOption(
+			informers.WithTweakListOptions(optionsForService),
+		)
+
+		optionsForWebhook := func(options *metav1.ListOptions) {
+			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, config.Datadog.GetString("admission_controller.webhook_name")).String()
+		}
+		c.WebhookConfigInformerFactory, err = getInformerFactoryWithOption(
+			informers.WithTweakListOptions(optionsForWebhook),
 		)
 	}
 

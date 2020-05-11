@@ -565,7 +565,17 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
+	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
+	config.BindEnvAndSetDefault("admission_controller.certificate.validity_bound", 365*24)             // validity bound of the certificate created by the controller (in hours, default 1 year)
+	config.BindEnvAndSetDefault("admission_controller.certificate.expiration_threshold", 30*24)        // how long before its expiration a certificate should be refreshed (in hours, default 1 month)
+	config.BindEnvAndSetDefault("admission_controller.certificate.secret_name", "webhook-certificate") // name of the Secret object containing the webhook certificate
+	config.BindEnvAndSetDefault("admission_controller.webhook_name", "datadog-webhook")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
+	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
