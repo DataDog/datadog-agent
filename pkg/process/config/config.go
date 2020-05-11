@@ -55,8 +55,9 @@ type AgentConfig struct {
 	LogFile               string
 	LogLevel              string
 	LogToConsole          bool
-	QueueSize             int // The number of items allowed in each delivery queue.  This should be sized so that `QueueBytes` is reached first
-	QueueBytes            int // The total number of bytes that can be enqueued for delivery in the agent
+	QueueSize             int // The number of items allowed in each delivery queue.
+	ProcessQueueBytes     int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
+	PodQueueBytes         int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	Blacklist             []*regexp.Regexp
 	Scrubber              *DataScrubber
 	MaxPerMessage         int
@@ -172,11 +173,12 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		LogLevel:              "info",
 		LogToConsole:          false,
 
-		// Allow buffering up to 75 megabytes of payload data
-		QueueBytes: 75 * 1000 * 1000,
-		// This can be fairly high as the input should get throttled by QueueBytes first.
-		// Assuming we generate ~20 checks/minute, this should allow buffering of ~100 minutes of data assuming it fits within the `QueueBytes` memory budget
-		QueueSize: 2000,
+		// Allow buffering up to 75 megabytes of payload data in total
+		ProcessQueueBytes: 60 * 1000 * 1000,
+		PodQueueBytes:     15 * 1000 * 1000,
+		// This can be fairly high as the input should get throttled by queue bytes first.
+		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
+		QueueSize: 256,
 
 		MaxPerMessage:      100,
 		MaxConnsPerMessage: 600,

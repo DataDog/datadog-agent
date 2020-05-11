@@ -53,7 +53,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
-	exit := make(chan bool)
+	exit := make(chan struct{})
 
 	go func() {
 		for {
@@ -187,7 +187,7 @@ func main() {
 	}
 
 	// Invoke the Agent
-	exit := make(chan bool)
+	exit := make(chan struct{})
 	runAgent(exit)
 }
 

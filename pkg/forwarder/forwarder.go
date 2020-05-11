@@ -464,10 +464,6 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 	for _, txn := range transactions {
 		txn.retryable = retryable
 		txn.attemptHandler = func(transaction *HTTPTransaction) {
-			if v := transaction.Headers.Get("X-DD-Agent-Timestamp"); v == "" {
-				transaction.Headers.Set("X-DD-Agent-Timestamp", strconv.Itoa(int(transaction.GetCreatedAt().Unix())))
-			}
-
 			if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
 				transaction.Headers.Set("X-DD-Agent-Attempts", "1")
 			} else {

@@ -11,7 +11,7 @@ import (
 )
 
 // HandleSignals tells us whether we should exit.
-func HandleSignals(exit chan bool) {
+func HandleSignals(exit chan struct{}) {
 	sigIn := make(chan os.Signal, 100)
 	signal.Notify(sigIn)
 	// unix only in all likelihood;  but we don't care.

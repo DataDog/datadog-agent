@@ -23,8 +23,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
+type checkResult struct {
+	name        string
+	payloads    []checkPayload
+	sizeInBytes int64
+}
+
+func (cr *checkResult) Weight() int64 {
+	return cr.sizeInBytes
+}
+
+func (cr *checkResult) Type() string {
+	return cr.name
+}
+
+var _ api.WeightedItem = &checkResult{}
+
 type checkPayload struct {
-	name    string
 	body    []byte
 	headers http.Header
 }
@@ -46,10 +61,6 @@ type Collector struct {
 
 	// Controls the real-time interval, can change live.
 	realTimeInterval time.Duration
-
-	// The number of payload bytes that are currently awaiting delivery across all queues.  This should be managed
-	// via `acquireQueueBytes` and `releaseQueueBytes`
-	bytesEnqueued int32
 }
 
 // NewCollector creates a new Collector
@@ -84,21 +95,24 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Coll
 	}
 }
 
-func (l *Collector) runCheck(c checks.Check, payloads chan checkPayload) {
+func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	runCounter := int32(1)
 	if rc, ok := l.runCounters.Load(c.Name()); ok {
 		runCounter = rc.(int32) + 1
 	}
 	l.runCounters.Store(c.Name(), runCounter)
 
-	s := time.Now()
+	start := time.Now()
 	// update the last collected timestamp for info
-	updateLastCollectTime(time.Now())
+	updateLastCollectTime(start)
 	messages, err := c.Run(l.cfg, atomic.AddInt32(&l.groupID, 1))
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
+
+	payloads := make([]checkPayload, 0, len(messages))
+	sizeInBytes := 0
 
 	for _, m := range messages {
 		body, err := encodePayload(m)
@@ -108,6 +122,7 @@ func (l *Collector) runCheck(c checks.Check, payloads chan checkPayload) {
 		}
 
 		extraHeaders := make(http.Header)
+		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(start.Unix())))
 		extraHeaders.Set(api.HostHeader, l.cfg.HostName)
 		extraHeaders.Set(api.ProcessVersionHeader, Version)
 		extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
@@ -116,30 +131,27 @@ func (l *Collector) runCheck(c checks.Check, payloads chan checkPayload) {
 			extraHeaders.Set(api.ClusterIDHeader, cid)
 		}
 
-		if err := l.acquireQueueBytes(len(body)); err != nil {
-			log.Errorf("Unable to enqueue message: %s", err)
-			continue
-		}
-
-		payload := checkPayload{
-			name:    c.Name(),
+		payloads = append(payloads, checkPayload{
 			body:    body,
 			headers: extraHeaders,
-		}
-		select {
-		case payloads <- payload:
-		default:
-			bytesEnqueued := atomic.LoadInt32(&l.bytesEnqueued)
-			log.Warnf("Delivery queue is full.  Size=%d, Bytes Enqueued=%d.  Waiting for space...", len(payloads), bytesEnqueued)
+		})
 
-			payloads <- payload
-		}
+		sizeInBytes += len(body)
 	}
+
+	result := &checkResult{
+		name:        c.Name(),
+		payloads:    payloads,
+		sizeInBytes: int64(sizeInBytes),
+	}
+
+	results.Add(result)
 
 	// update proc and container count for info
 	updateProcContainerCount(messages)
+
 	if !c.RealTime() {
-		d := time.Since(s)
+		d := time.Since(start)
 		switch {
 		case runCounter < 5:
 			log.Infof("Finished %s check #%d in %s", c.Name(), runCounter, d)
@@ -151,30 +163,7 @@ func (l *Collector) runCheck(c checks.Check, payloads chan checkPayload) {
 	}
 }
 
-func (l *Collector) acquireQueueBytes(bytesRequested int) error {
-	max := int32(l.cfg.QueueBytes)
-
-	for {
-		currentSize := atomic.LoadInt32(&l.bytesEnqueued)
-		newSize := int32(bytesRequested) + currentSize
-		if newSize > max {
-			return fmt.Errorf("cannot acquire %d bytes of queue space, queue size %d would exceed capacity %d", bytesRequested, newSize, max)
-		}
-		if atomic.CompareAndSwapInt32(&l.bytesEnqueued, currentSize, newSize) {
-			break
-		}
-	}
-
-	return nil
-}
-
-func (l *Collector) releaseQueueBytes(bytesReleased int) {
-	if v := atomic.AddInt32(&l.bytesEnqueued, -1*int32(bytesReleased)); v < 0 {
-		log.Errorf("Releasing %d bytes from queue caused value to go negative: %d.", bytesReleased, v)
-	}
-}
-
-func (l *Collector) run(exit chan bool) error {
+func (l *Collector) run(exit chan struct{}) error {
 	eps := make([]string, 0, len(l.cfg.APIEndpoints))
 	for _, e := range l.cfg.APIEndpoints {
 		eps = append(eps, e.Endpoint.String())
@@ -187,8 +176,8 @@ func (l *Collector) run(exit chan bool) error {
 
 	go util.HandleSignals(exit)
 
-	processPayloads := make(chan checkPayload, l.cfg.QueueSize)
-	podPayloads := make(chan checkPayload, l.cfg.QueueSize)
+	processResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
+	podResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.PodQueueBytes))
 
 	var wg sync.WaitGroup
 
@@ -211,9 +200,8 @@ func (l *Collector) run(exit chan bool) error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
 			case <-queueSizeTicker.C:
-				queueBytes := atomic.LoadInt32(&l.bytesEnqueued)
-				updateQueueBytes(int(queueBytes))
-				updateQueueSize(len(processPayloads), len(podPayloads))
+				updateQueueBytes(processResults.Weight(), podResults.Weight())
+				updateQueueSize(processResults.Len(), podResults.Len())
 			case <-exit:
 				return
 			}
@@ -239,28 +227,28 @@ func (l *Collector) run(exit chan bool) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(processPayloads, processForwarder, exit)
+		l.consumePayloads(processResults, processForwarder, exit)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(podPayloads, podForwarder, exit)
+		l.consumePayloads(podResults, podForwarder, exit)
 	}()
 
 	for _, c := range l.enabledChecks {
-		payloads := processPayloads
+		results := processResults
 		if c.Name() == checks.Pod.Name() {
-			payloads = podPayloads
+			results = podResults
 		}
 
 		wg.Add(1)
-		go func(c checks.Check, payloads chan checkPayload) {
+		go func(c checks.Check, results *api.WeightedQueue) {
 			defer wg.Done()
 
 			// Run the check the first time to prime the caches.
 			if !c.RealTime() {
-				l.runCheck(c, payloads)
+				l.runCheck(c, results)
 			}
 
 			ticker := time.NewTicker(l.cfg.CheckInterval(c.Name()))
@@ -269,7 +257,7 @@ func (l *Collector) run(exit chan bool) error {
 				case <-ticker.C:
 					realTimeEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
 					if !c.RealTime() || realTimeEnabled {
-						l.runCheck(c, payloads)
+						l.runCheck(c, results)
 					}
 				case d := <-l.rtIntervalCh:
 					// Live-update the ticker.
@@ -283,7 +271,7 @@ func (l *Collector) run(exit chan bool) error {
 					}
 				}
 			}
-		}(c, payloads)
+		}(c, results)
 	}
 
 	<-exit
@@ -294,17 +282,19 @@ func (l *Collector) run(exit chan bool) error {
 	return nil
 }
 
-func (l *Collector) consumePayloads(payloads chan checkPayload, fwd forwarder.Forwarder, exit chan bool) {
+func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder, exit chan struct{}) {
 	for {
-		select {
-		case payload := <-payloads:
-			l.releaseQueueBytes(len(payload.body))
-
+		item, ok := results.Poll(exit)
+		if !ok {
+			return
+		}
+		result := item.(*checkResult)
+		for _, payload := range result.payloads {
 			forwarderPayload := forwarder.Payloads{&payload.body}
 			var responses chan forwarder.Response
 			var err error
 
-			switch payload.name {
+			switch result.name {
 			case checks.Process.Name():
 				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
 			case checks.RTProcess.Name():
@@ -318,7 +308,7 @@ func (l *Collector) consumePayloads(payloads chan checkPayload, fwd forwarder.Fo
 			case checks.Pod.Name():
 				responses, err = fwd.SubmitPodChecks(forwarderPayload, payload.headers)
 			default:
-				err = fmt.Errorf("unsupported payload type: %s", payload.name)
+				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			}
 
 			if err != nil {
@@ -329,8 +319,6 @@ func (l *Collector) consumePayloads(payloads chan checkPayload, fwd forwarder.Fo
 			if statuses := readResponseStatuses(responses); len(statuses) > 0 {
 				l.updateStatus(statuses)
 			}
-		case <-exit:
-			return
 		}
 	}
 }

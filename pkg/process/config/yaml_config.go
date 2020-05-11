@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -255,13 +254,17 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	if k := key(ns, "queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes > math.MaxInt32 {
-			log.Warnf("Invalid queue_bytes setting, value exceeds maximum: %d", math.MaxInt32)
-		} else if queueBytes <= 0 {
-			log.Warn("Invalid queue_bytes setting, value should be > 0")
+	if k := key(ns, "process_queue_bytes"); config.Datadog.IsSet(k) {
+		if queueBytes := config.Datadog.GetInt(k); queueBytes <= 0 {
 		} else {
-			a.QueueBytes = queueBytes
+			a.ProcessQueueBytes = queueBytes
+		}
+	}
+
+	if k := key(ns, "pod_queue_bytes"); config.Datadog.IsSet(k) {
+		if queueBytes := config.Datadog.GetInt(k); queueBytes <= 0 {
+		} else {
+			a.PodQueueBytes = queueBytes
 		}
 	}
 

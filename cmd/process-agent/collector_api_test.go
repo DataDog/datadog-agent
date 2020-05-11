@@ -108,7 +108,7 @@ func TestSendProcMessage(t *testing.T) {
 		assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(api.ContainerCountHeader))
 		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
-		assert.NotEmpty(t, req.headers.Get("X-DD-Agent-Timestamp"))
+		assert.NotEmpty(t, req.headers.Get(api.TimestampHeader))
 
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 			assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
 			assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
 			assert.Equal(t, "1", req.headers.Get(api.ContainerCountHeader))
-			timestamps[req.headers.Get("X-DD-Agent-Timestamp")] = struct{}{}
+			timestamps[req.headers.Get(api.TimestampHeader)] = struct{}{}
 
 			reqBody, err := process.DecodeMessage(req.body)
 			require.NoError(t, err)
@@ -215,7 +215,7 @@ func TestSendPodMessage(t *testing.T) {
 		assert.Equal(t, cfg.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(api.ContainerCountHeader))
 		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
-		assert.NotEmpty(t, req.headers.Get("X-DD-Agent-Timestamp"))
+		assert.NotEmpty(t, req.headers.Get(api.TimestampHeader))
 
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
@@ -240,7 +240,7 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 	}
 
 	cfg := config.NewDefaultAgentConfig(false)
-	cfg.QueueBytes = 1
+	cfg.ProcessQueueBytes = 1
 
 	runCollectorTest(t, check, cfg, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		select {
@@ -270,7 +270,7 @@ func TestQueueSpaceReleased(t *testing.T) {
 	}
 
 	cfg := config.NewDefaultAgentConfig(false)
-	cfg.QueueBytes = 50 // This should be enough for one message, but not both if the space isn't released
+	cfg.ProcessQueueBytes = 50 // This should be enough for one message, but not both if the space isn't released
 
 	runCollectorTest(t, check, cfg, &endpointConfig{ErrorCount: 1}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
@@ -305,7 +305,7 @@ func runCollectorTest(t *testing.T, check checks.Check, cfg *config.AgentConfig,
 	cfg.HostName = testHostName
 	cfg.CheckIntervals[check.Name()] = 500 * time.Millisecond
 
-	exit := make(chan bool)
+	exit := make(chan struct{})
 
 	c := NewCollectorWithChecks(cfg, []checks.Check{check})
 
