@@ -4,7 +4,6 @@ import (
 	"sort"
 
 	"github.com/cihub/seelog"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
@@ -103,7 +102,7 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 
 	for _, rule := range bucket.rules {
 		if rule.evaluator.Eval(context) {
-			log.Infof("Rule `%s` matches with event %+v\n", rule.ID, spew.Sdump(event))
+			log.Infof("Rule `%s` matches with event %+v\n", rule.ID, event)
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true

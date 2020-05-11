@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/davecgh/go-spew/spew"
-
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,7 +17,9 @@ func (p *Probe) handleDentryEvent(data []byte) {
 	log.Debugf("Handling dentry event")
 
 	offset := 0
-	event := NewEvent()
+	event := NewEvent(p.resolvers)
+
+	fmt.Printf(">>>>>>>>>>>>> \n %+v\n", data)
 
 	read, err := event.Event.UnmarshalBinary(data)
 	if err != nil {
@@ -65,7 +65,7 @@ func (p *Probe) handleDentryEvent(data []byte) {
 		log.Errorf("Unsupported event type %d\n", event.Event.Type)
 	}
 
-	log.Debugf("Dispatching event %s\n", spew.Sdump(event))
+	log.Debugf("Dispatching event %+v\n", event)
 	p.DispatchEvent(event)
 }
 

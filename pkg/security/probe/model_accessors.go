@@ -45,8 +45,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "mkdir.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Mkdir.ResolvePathnameKey(m) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.ResolvePathnameKey(m) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Mkdir.HandlePathnameKey(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.HandlePathnameKey(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -81,8 +81,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "open.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Open.ResolvePathnameKey(m) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Open.ResolvePathnameKey(m) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Open.ResolvePathnameKey(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Open.ResolvePathnameKey(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -135,8 +135,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "process.name":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Process.HandleComm(m) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Process.HandleComm(m) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Process.HandleComm(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Process.HandleComm(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -171,8 +171,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "process.tty_name":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Process.HandleTTY(m) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Process.HandleTTY(m) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Process.HandleTTY(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Process.HandleTTY(m.event.resolvers) },
 
 			Field: key,
 		}, nil

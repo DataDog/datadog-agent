@@ -13,8 +13,7 @@ import (
 var NotEnoughData = errors.New("not enough data")
 
 type Model struct {
-	event          *Event
-	dentryResolver *DentryResolver
+	event *Event
 }
 
 func (m *Model) SetData(data interface{}) {
@@ -30,9 +29,9 @@ type OpenEvent struct {
 	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
 }
 
-func (e *OpenEvent) ResolvePathnameKey(m *Model) string {
+func (e *OpenEvent) ResolvePathnameKey(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = m.dentryResolver.Resolve(e.PathnameKey)
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.PathnameKey)
 	}
 	return e.PathnameStr
 }
@@ -51,11 +50,25 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 type MkdirEvent struct {
 	Inode       uint32 `json:"inode,omitempty" field:"inode" tags:"fs"`
-	PathnameKey uint32 `json:"-" field:"filename" handler:"ResolvePathnameKey,string" tags:"fs"`
+	PathnameKey uint32 `json:"-" field:"filename" handler:"HandlePathnameKey,string" tags:"fs"`
 	PathnameStr string `json:"filename" field:"-"`
 	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
 	Mode        int32  `json:"mode,omitempty" field:"mode" tags:"fs"`
 }
+
+/*func (e *MkdirEvent) MarshalJSON() ([]byte, error) {
+	if e.Inode == 0 {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename": %d,`, e.)
+	fmt.Fprintf(&buf, `"inode": %d`, e.Inode)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}*/
 
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
@@ -68,9 +81,9 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 16, nil
 }
 
-func (e *MkdirEvent) ResolvePathnameKey(m *Model) string {
+func (e *MkdirEvent) HandlePathnameKey(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = m.dentryResolver.Resolve(e.PathnameKey)
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.PathnameKey)
 	}
 	return e.PathnameStr
 }
@@ -162,7 +175,7 @@ type ProcessEvent struct {
 	GID        uint32   `json:"gid" field:"gid" tags:"process"`
 }
 
-func (p *ProcessEvent) HandleTTY(m *Model) string {
+func (p *ProcessEvent) HandleTTY(resolvers *Resolvers) string {
 	return p.GetTTY()
 }
 
@@ -173,7 +186,7 @@ func (p *ProcessEvent) GetTTY() string {
 	return p.TTYNameStr
 }
 
-func (p *ProcessEvent) HandleComm(m *Model) string {
+func (p *ProcessEvent) HandleComm(resolvers *Resolvers) string {
 	return p.GetComm()
 }
 
@@ -209,6 +222,8 @@ type Event struct {
 	Unlink    UnlinkEvent    `json:"unlink" yaml:"unlink" field:"unlink"`
 	Rename    RenameEvent    `json:"rename" yaml:"rename" field:"rename"`
 	Container ContainerEvent `json:"container" yaml:"container" field:"container"`
+
+	resolvers *Resolvers `field:"-"`
 }
 
 func (e *Event) GetType() string {
@@ -228,9 +243,10 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	return offset, nil
 }
 
-func NewEvent() *Event {
+func NewEvent(resolvers *Resolvers) *Event {
 	id, _ := uuid.NewRandom()
 	return &Event{
-		ID: id.String(),
+		ID:        id.String(),
+		resolvers: resolvers,
 	}
 }
