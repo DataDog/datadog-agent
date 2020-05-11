@@ -11,20 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type Event interface {
-	GetID() string
-	GetType() string
-}
-
 type RuleSetListener interface {
 	RuleMatch(rule *Rule, event Event)
 	DiscriminatorDiscovered(event Event, field string)
-}
-
-type Rule struct {
-	Name       string
-	Expression string
-	evaluator  *RuleEvaluator
 }
 
 type RuleBucket struct {
