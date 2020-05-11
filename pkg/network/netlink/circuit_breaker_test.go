@@ -33,7 +33,7 @@ func TestCircuitBreakerSupportsBursts(t *testing.T) {
 	const maxEventRate = 100
 	breaker := newTestBreaker(maxEventRate)
 
-	// Let's assume the circuit-breaker has been runing with 80% of the max allowed rate
+	// Let's assume the circuit-breaker has been running with 80% of the max allowed rate
 	now := time.Now()
 	breaker.Tick(int(float64(maxEventRate) * 0.8))
 	breaker.update(now)
