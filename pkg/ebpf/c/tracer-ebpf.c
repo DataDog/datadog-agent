@@ -543,11 +543,16 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
         batch_ptr->c4 = conn;
         batch_ptr->pos++;
         return;
+    case 5:
+        // We have a full batch, so we flush it to the perf buffer
+        batch_ptr->c5 = conn;
+        batch_ptr->pos = 0;
+        bpf_perf_event_output(ctx, &tcp_close_event, cpu, batch_ptr, sizeof(tcp_conn_t)*TCP_CLOSED_BATCH_SIZE);
+        return;
+    default:
+        // This should never happen but let's ensure pos field is set to a sane value
+        batch_ptr->pos = 0;
     }
-
-    batch_ptr->c5 = conn;
-    bpf_perf_event_output(ctx, &tcp_close_event, cpu, batch_ptr, sizeof(tcp_conn_t)*TCP_CLOSED_BATCH_SIZE);
-    batch_ptr->pos = 0;
 }
 
 __attribute__((always_inline))
