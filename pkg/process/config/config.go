@@ -376,16 +376,6 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
 
-		// System probe specific configuration (Beta)
-		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
-		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
-		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
-		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
-		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
-		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
-		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
-		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
-
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
 		{"DD_BIND_HOST", "bind_host"},
@@ -403,6 +393,9 @@ func loadEnvVariables() {
 		}
 	}
 
+	// Load the System Probe environment variables
+	loadSysProbeEnvVariables()
+
 	// Support API_KEY and DD_API_KEY but prefer DD_API_KEY.
 	apiKey, envKey := os.Getenv("DD_API_KEY"), "DD_API_KEY"
 	if apiKey == "" {
@@ -416,6 +409,24 @@ func loadEnvVariables() {
 
 	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
 		config.Datadog.Set("process_config.custom_sensitive_words", strings.Split(v, ","))
+	}
+}
+
+func loadSysProbeEnvVariables() {
+	for _, variable := range []struct{ env, cfg string }{
+		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
+		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
+		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
+		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
+		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
+		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
+		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
+		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
+	} {
+		if v, ok := os.LookupEnv(variable.env); ok {
+			config.Datadog.Set(variable.cfg, v)
+
+		}
 	}
 }
 

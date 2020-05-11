@@ -7,7 +7,10 @@ package common
 
 import (
 	"fmt"
+	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proc_config "github.com/DataDog/datadog-agent/pkg/process/config"
 
@@ -52,25 +55,35 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool) er
 	return nil
 }
 
-// SetupSystemProbeConfig adds the system-probe.yaml file to the config object
+// SetupSystemProbeConfig adds the system-probe.yaml file to the config object using an io.Reader so we don't overwrite the datadog.yaml
 func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
-	// set the paths where a config file is expected. Without this, if there is a system-probe.yaml
-	// in the default location it will overwrite whatever custom path is passed in
+	var (
+		file *os.File
+		err  error
+	)
+
+	// Open the system-probe.yaml file if it's in a custom location
 	if len(sysProbeConfFilePath) != 0 {
-		// If they pass in the file directly, assume we should use it
+		// If config path is passed in, assume we should use it
 		if strings.HasSuffix(sysProbeConfFilePath, ".yaml") {
-			config.Datadog.SetConfigFile(sysProbeConfFilePath)
+			// Open the file directly if they pass the full path
+			file, err = os.Open(sysProbeConfFilePath)
 		} else {
-			config.Datadog.SetConfigFile(sysProbeConfFilePath + "system-probe.yaml")
+			file, err = os.Open(sysProbeConfFilePath + "/system-probe.yaml")
 		}
 	} else {
 		// Assume it is in the default location if nothing is passed in
-		config.Datadog.SetConfigName("system-probe")
-		config.Datadog.SetConfigType("yaml")
-		config.Datadog.AddConfigPath(DefaultConfPath)
+		file, err = os.Open(DefaultConfPath + "/system-probe.yaml")
 	}
 
-	if err := config.Datadog.ReadInConfig(); err != nil {
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+
+	// Merge config with an IO reader since this lets us merge the configs without changing
+	// the config file set with the viper
+	if err := config.Datadog.MergeConfig(file); err != nil {
 		return err
 	}
 
@@ -79,6 +92,16 @@ func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
 	if !config.Datadog.IsSet("system_probe_config.sysprobe_socket") {
 		config.Datadog.Set("system_probe_config.sysprobe_socket", proc_config.GetSocketPath())
 	}
+
+	// Load the env vars last to overwrite what might be set in the config file
+	proc_config.LoadSysProbeEnvVariables()
+
+	log.Info(config.Datadog.GetBool("system_probe_config.enabled"))
+	log.Info(config.Datadog.GetBool("system_probe_config.bpf_debug"))
+	log.Info(config.Datadog.Get("ac_include"))
+	log.Info(config.Datadog.Get("system_probe_config.sysprobe_socket"))
+	log.Info(config.Datadog.Get("apm_config.enabled"))
+	log.Info(config.Datadog.ConfigFileUsed())
 
 	return nil
 }
