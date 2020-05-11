@@ -109,6 +109,9 @@ type ConnectionStats struct {
 	IntraHost              bool
 	DNSSuccessfulResponses uint32
 	DNSFailedResponses     uint32
+	DNSTimeouts            uint32
+	DNSSuccessLatencySum   uint64
+	DNSFailureLatencySum   uint64
 }
 
 func (c ConnectionStats) String() string {
