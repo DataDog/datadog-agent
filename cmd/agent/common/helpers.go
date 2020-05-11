@@ -10,8 +10,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	proc_config "github.com/DataDog/datadog-agent/pkg/process/config"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -55,7 +53,7 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool) er
 	return nil
 }
 
-// SetupSystemProbeConfig adds the system-probe.yaml file to the config object using an io.Reader so we don't overwrite the datadog.yaml
+// SetupSystemProbeConfig reads the system-probe.yaml into the global config object
 func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
 	var (
 		file *os.File
@@ -64,9 +62,9 @@ func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
 
 	// Open the system-probe.yaml file if it's in a custom location
 	if len(sysProbeConfFilePath) != 0 {
-		// If config path is passed in, assume we should use it
+		// If file is set directly,  assume we should use it
 		if strings.HasSuffix(sysProbeConfFilePath, ".yaml") {
-			// Open the file directly if they pass the full path
+			// Open the file if they pass it in directly
 			file, err = os.Open(sysProbeConfFilePath)
 		} else {
 			file, err = os.Open(sysProbeConfFilePath + "/system-probe.yaml")
@@ -82,7 +80,7 @@ func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
 	}
 
 	// Merge config with an IO reader since this lets us merge the configs without changing
-	// the config file set with the viper
+	// the config file set with viper
 	if err := config.Datadog.MergeConfig(file); err != nil {
 		return err
 	}
@@ -93,15 +91,7 @@ func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
 		config.Datadog.Set("system_probe_config.sysprobe_socket", proc_config.GetSocketPath())
 	}
 
-	// Load the env vars last to overwrite what might be set in the config file
+	// Load the env vars last to overwrite values
 	proc_config.LoadSysProbeEnvVariables()
-
-	log.Info(config.Datadog.GetBool("system_probe_config.enabled"))
-	log.Info(config.Datadog.GetBool("system_probe_config.bpf_debug"))
-	log.Info(config.Datadog.Get("ac_include"))
-	log.Info(config.Datadog.Get("system_probe_config.sysprobe_socket"))
-	log.Info(config.Datadog.Get("apm_config.enabled"))
-	log.Info(config.Datadog.ConfigFileUsed())
-
 	return nil
 }
