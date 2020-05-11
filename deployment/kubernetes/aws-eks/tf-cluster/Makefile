@@ -1,3 +1,5 @@
+.SHELLFLAGS = -ec
+
 plan:
 	terraform init && terraform plan -refresh=true -out eks.deploy
 
@@ -16,3 +18,15 @@ config-map-aws-auth:
 	kubectl apply -f config-map-aws-auth.yaml
 	sleep 30
 	kubectl wait --for=condition=Ready nodes --all --timeout=360s
+
+private-key:
+	terraform output eks_rsa > eks_rsa
+
+
+.PHONY: \
+	plan \
+	apply \
+	destroy \
+	kubeconfig \
+	config-map-aws-auth \
+	private-key

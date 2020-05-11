@@ -44,6 +44,7 @@ resource "aws_launch_configuration" "eks-launch-configuration" {
   iam_instance_profile        = aws_iam_instance_profile.eks-node-instance-profile.name
   image_id                    = data.aws_ami.eks-worker.id
   instance_type               = "t2.small"
+  spot_price                  = "0.008"
   name_prefix                 = "eks-${local.cluster_name}"
   security_groups             = [aws_security_group.eks-nodes-sg.id]
   user_data_base64            = base64encode(local.eks-node-userdata)
@@ -88,20 +89,20 @@ resource "aws_autoscaling_group" "eks-autoscaling-group" {
 }
 //You can specify a recurrence schedule, in UTC, using the Unix cron syntax format
 resource "aws_autoscaling_schedule" "scale-down" {
-  scheduled_action_name = "scale-down"
-  min_size = 0
-  max_size = 0
-  desired_capacity = 0
-  recurrence = "00 23 * * *" #Mon-Sun at 12AM CET
-  autoscaling_group_name = "${aws_autoscaling_group.eks-autoscaling-group.name}"
+  scheduled_action_name  = "scale-down"
+  min_size               = 0
+  max_size               = 0
+  desired_capacity       = 0
+  recurrence             = "00 23 * * *" #Mon-Sun at 12AM CET
+  autoscaling_group_name = aws_autoscaling_group.eks-autoscaling-group.name
 }
 resource "aws_autoscaling_schedule" "scale-up" {
-  scheduled_action_name = "scale-up"
-  min_size = 0
-  max_size = 2
-  desired_capacity = 2
-  recurrence = "00 07 * * *" #Mon-Sun at 08AM CET
-  autoscaling_group_name = "${aws_autoscaling_group.eks-autoscaling-group.name}"
+  scheduled_action_name  = "scale-up"
+  min_size               = 0
+  max_size               = 2
+  desired_capacity       = 2
+  recurrence             = "00 07 * * *" #Mon-Sun at 08AM CET
+  autoscaling_group_name = aws_autoscaling_group.eks-autoscaling-group.name
 }
 //NOTE: At this point, your Kubernetes cluster will have running masters and worker nodes, however, the worker nodes will
 //not be able to join the Kubernetes cluster quite yet. The next section has the required Kubernetes configuration to
