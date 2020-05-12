@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -19,6 +21,8 @@ import (
 type DDLog struct {
 	Host    string          `json:"host"`
 	Service string          `json:"service"`
+	Source  string          `json:"ddsource"`
+	Tags    string          `json:"ddtags"`
 	Rule    string          `json:rule`
 	Event   json.RawMessage `json:"event"`
 }
@@ -48,13 +52,15 @@ func (c *EventClient) Start() {
 				break
 			}
 
-			log.Infof("Got message from rule %s with event %s", in.RuleName, string(in.Data))
+			log.Infof("Got message from rule `%s` for event `%s` with tags `%+v` ", in.RuleID, string(in.Data), in.Tags)
 
 			ddlog := DDLog{
 				Host:    "my.vagrant",
 				Service: "security-agent",
-				Rule:    in.RuleName,
+				Source:  in.Type,
+				Rule:    in.RuleID,
 				Event:   in.Data,
+				Tags:    strings.Join(in.Tags, ","),
 			}
 
 			d, err := json.Marshal(ddlog)
@@ -64,10 +70,12 @@ func (c *EventClient) Start() {
 
 			apiKey := os.Getenv("DD_API_KEY")
 
-			_, err = http.Post("https://http-intake.logs.datadoghq.com/v1/input/"+apiKey, "application/json", bytes.NewBuffer(d))
+			url := fmt.Sprintf("https://http-intake.logs.datadoghq.com/v1/input/%s", apiKey)
+			resp, err := http.Post(url, "application/json", bytes.NewBuffer(d))
 			if err != nil {
 				log.Error(err)
 			}
+			log.Infof("Log sent, response: %+v\n", resp)
 		}
 	}
 

@@ -306,7 +306,9 @@ func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"pidns":%d,`, p.Pidns)
 	fmt.Fprintf(&buf, `"name":"%s",`, p.GetComm())
-	fmt.Fprintf(&buf, `"tty_name":"%s",`, p.GetTTY())
+	if tty := p.GetTTY(); tty != "" {
+		fmt.Fprintf(&buf, `"tty_name":"%s",`, tty)
+	}
 	fmt.Fprintf(&buf, `"pid":%d,`, p.Pid)
 	fmt.Fprintf(&buf, `"tid":%d,`, p.Tid)
 	fmt.Fprintf(&buf, `"uid":%d,`, p.UID)
