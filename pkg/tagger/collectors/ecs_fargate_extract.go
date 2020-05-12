@@ -57,7 +57,11 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 			}
 
 			// cluster
-			tags.AddLow("cluster_name", parseECSClusterName(meta.ClusterName))
+			clusterName := parseECSClusterName(meta.ClusterName)
+			if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+				tags.AddLow("cluster_name", clusterName)
+			}
+			tags.AddLow("ecs_cluster_name", clusterName)
 
 			// aws region from cluster arn
 			region := parseFargateRegion(meta.ClusterName)

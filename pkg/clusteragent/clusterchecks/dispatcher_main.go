@@ -42,8 +42,12 @@ func newDispatcher() *dispatcher {
 
 	clusterTagValue := clustername.GetClusterName()
 	clusterTagName := config.Datadog.GetString("cluster_checks.cluster_tag_name")
-	if clusterTagName != "" && clusterTagValue != "" {
-		d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+	if clusterTagValue != "" {
+		if clusterTagName != "" && !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
+		}
+		d.extraTags = append(d.extraTags, fmt.Sprintf("kube_cluster_name:%s", clusterTagValue))
 	}
 
 	d.advancedDispatching = config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled")

@@ -1507,6 +1507,13 @@ api_key:
 #
 # cluster_name: <CLUSTER_IDENTIFIER>
 
+## @param disable_cluster_name_tag_key - boolean - optional - default: false
+## Disable using the 'cluster_name' tag key to submit orchestrator cluster name tag.
+## The Agent will continue sending the cluster name tag with 'kube|ecs_cluster_name' key
+## regardless of the value of this parameter.
+#
+# disable_cluster_name_tag_key: false
+
 {{ end -}}
 {{- if .CloudFoundryBBS }}
 #######################################################
