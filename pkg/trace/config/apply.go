@@ -209,6 +209,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if config.Datadog.IsSet("apm_config.ignore_resources") {
 		c.Ignore["resource"] = config.Datadog.GetStringSlice("apm_config.ignore_resources")
 	}
+	if config.Datadog.IsSet("apm_config.max_payload_bytes") {
+		c.MaxPayloadBytes = config.Datadog.GetInt64("apm_config.max_payload_bytes")
+	}
 
 	if config.Datadog.IsSet("apm_config.replace_tags") {
 		rt := make([]*ReplaceRule, 0)
