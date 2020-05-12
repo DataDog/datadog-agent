@@ -85,8 +85,8 @@ type AgentConfig struct {
 	ExcludedSourceConnections      map[string][]string
 	ExcludedDestinationConnections map[string][]string
 	EnableConntrack                bool
-	ConntrackIgnoreENOBUFS         bool
 	ConntrackMaxStateSize          int
+	ConntrackRateLimit             int
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
@@ -188,18 +188,18 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		StatsdPort: 8125,
 
 		// System probe collection configuration
-		EnableSystemProbe:      false,
-		DisableTCPTracing:      false,
-		DisableUDPTracing:      false,
-		DisableIPv6Tracing:     false,
-		DisableDNSInspection:   false,
-		SystemProbeSocketPath:  defaultSystemProbeSocketPath,
-		SystemProbeLogFile:     defaultSystemProbeFilePath,
-		MaxTrackedConnections:  defaultMaxTrackedConnections,
-		EnableConntrack:        true,
-		ConntrackIgnoreENOBUFS: false,
-		ClosedChannelSize:      500,
-		ConntrackMaxStateSize:  defaultMaxTrackedConnections * 2,
+		EnableSystemProbe:     false,
+		DisableTCPTracing:     false,
+		DisableUDPTracing:     false,
+		DisableIPv6Tracing:    false,
+		DisableDNSInspection:  false,
+		SystemProbeSocketPath: defaultSystemProbeSocketPath,
+		SystemProbeLogFile:    defaultSystemProbeFilePath,
+		MaxTrackedConnections: defaultMaxTrackedConnections,
+		EnableConntrack:       true,
+		ClosedChannelSize:     500,
+		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
+		ConntrackRateLimit:    500,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -383,12 +383,12 @@ func loadEnvVariables() {
 		// System probe specific configuration (Beta)
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
-		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
 		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
 		{"DD_DISABLE_DNS_INSPECTION", "system_probe_config.disable_dns_inspection"},
 		{"DD_COLLECT_LOCAL_DNS", "system_probe_config.collect_local_dns"},
+		{"DD_CONNTRACK_RATE_LIMIT", "system_probe_config.conntrack_rate_limit"},
 
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

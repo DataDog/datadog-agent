@@ -67,13 +67,12 @@ type Config struct {
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
-	// ConntrackIgnoreENOBUFS: When set to true, the system-probe will ignore ENOBUF errors
-	// and continue processing Conntrack events when/if the netlink recv buffer overruns.
-	// Enabling this can have an adverse effect on CPU utilization for high-throughput systems.
-	ConntrackIgnoreENOBUFS bool
-
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
+
+	// ConntrackRateLimit specifies the maximum number of netlink messages *per second* that can be processed
+	// Setting it to -1 disables the limit and can result in a high CPU usage.
+	ConntrackRateLimit int
 
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
@@ -100,6 +99,7 @@ func NewDefaultConfig() *Config {
 		TCPConnTimeout:        2 * time.Minute,
 		MaxTrackedConnections: 65536,
 		ConntrackMaxStateSize: 65536,
+		ConntrackRateLimit:    500,
 		ProcRoot:              "/proc",
 		BPFDebug:              false,
 		EnableConntrack:       true,

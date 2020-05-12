@@ -12,7 +12,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -204,7 +203,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackIgnoreENOBUFS); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
@@ -294,23 +293,10 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				if t.shouldSkipConnection(&cs) {
 					atomic.AddInt64(&t.skippedConns, 1)
 				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(
-						cs.Source,
-						cs.SPort,
-						cs.Dest,
-						cs.DPort,
-						process.ConnectionType(cs.Type),
-					)
-
+					cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
 					t.state.StoreClosedConnection(cs)
 					if cs.IPTranslation != nil {
-						t.conntracker.DeleteTranslation(
-							cs.Source,
-							cs.SPort,
-							cs.Dest,
-							cs.DPort,
-							process.ConnectionType(cs.Type),
-						)
+						t.conntracker.DeleteTranslation(cs)
 					}
 				}
 			case lostCount, ok := <-lostChannel:
@@ -437,14 +423,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(
-					conn.Source,
-					conn.SPort,
-					conn.Dest,
-					conn.DPort,
-					process.ConnectionType(conn.Type),
-				)
-
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn)
 				active = append(active, conn)
 			}
 		}
