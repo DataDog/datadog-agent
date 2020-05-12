@@ -56,7 +56,5 @@ func TestRun(t *testing.T) {
 
 	err := a.Run()
 	assert.NoError(err)
-
-	err = a.Stop()
-	assert.NoError(err)
+	a.Stop()
 }
