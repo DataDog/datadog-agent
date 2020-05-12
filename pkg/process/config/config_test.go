@@ -435,6 +435,30 @@ func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
 	}
 }
 
+func TestEnvAdditionalEndpointsMalformed(t *testing.T) {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer restoreGlobalConfig()
+
+	assert := assert.New(t)
+
+	expected := make(map[string]string)
+	expected["apikey_20"] = "my-process-app.datadoghq.com" // from config file
+
+	os.Setenv("DD_PROCESS_ADDITIONAL_ENDPOINTS", `"https://url1.com","key1"`)
+	defer os.Unsetenv("DD_PROCESS_ADDITIONAL_ENDPOINTS")
+
+	agentConfig, err := NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml",
+	)
+	assert.NoError(err)
+
+	for _, actual := range agentConfig.APIEndpoints {
+		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
+	}
+}
+
 func TestIsAffirmative(t *testing.T) {
 	value, err := isAffirmative("yes")
 	assert.Nil(t, err)
