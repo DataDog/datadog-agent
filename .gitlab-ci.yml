@@ -3057,7 +3057,7 @@ check_if_build_only:
 #
 
 # deploy debian packages to apt staging repo
-deploy_deb-6:
+deploy_staging_deb-6:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_6
   stage: deploy6
@@ -3094,7 +3094,7 @@ deploy_deb-6:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*arm64.deb
 
-deploy_deb-7:
+deploy_staging_deb-7:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
@@ -3132,7 +3132,7 @@ deploy_deb-7:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
 
 # nightlies (6), deployed to bucket/master
-deploy_windows_master-a6:
+deploy_staging_windows_master-a6:
   stage: deploy6
   resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -3147,7 +3147,7 @@ deploy_windows_master-a6:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # nightlies (7 and dogstatsd), deployed to bucket/master
-deploy_windows_master-a7:
+deploy_staging_windows_master-a7:
   stage: deploy7
   resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -3164,7 +3164,7 @@ deploy_windows_master-a7:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-dogstatsd-7*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/master/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # nightlies latest (6), deployed to bucket/master
-deploy_windows_master-latest-a6:
+deploy_staging_windows_master-latest-a6:
   stage: deploy6
   resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -3179,7 +3179,7 @@ deploy_windows_master-latest-a6:
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-6*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-6-latest.amd64.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # nightlies latest (7), deployed to bucket/master
-deploy_windows_master-latest-a7:
+deploy_staging_windows_master-latest-a7:
   stage: deploy7
   resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -3195,7 +3195,7 @@ deploy_windows_master-latest-a7:
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-7-latest.amd64.msi" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # triggered builds (6), deployed to bucket/tagged
-deploy_windows_tags-a6:
+deploy_staging_windows_tags-a6:
   stage: deploy6
   resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -3209,7 +3209,7 @@ deploy_windows_tags-a6:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # triggered builds (7), deployed to bucket/tagged
-deploy_windows_tags-a7:
+deploy_staging_windows_tags-a7:
   stage: deploy7
   resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -3224,7 +3224,7 @@ deploy_windows_tags-a7:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.msi" $OMNIBUS_PACKAGE_DIR s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # triggered builds latest (6, x64 only), deployed to bucket/tagged
-deploy_windows_tags-latest-a6:
+deploy_staging_windows_tags-latest-a6:
   stage: deploy6
   resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -3241,7 +3241,7 @@ deploy_windows_tags-latest-a6:
     - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-6*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-6-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
 
 # triggered builds latest (7, x64 only), deployed to bucket/tagged
-deploy_windows_tags-latest-a7:
+deploy_staging_windows_tags-latest-a7:
   stage: deploy7
   resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -3259,7 +3259,7 @@ deploy_windows_tags-latest-a7:
     - if [ "WINDOWS_DO_NOT_UPDATE_LATEST" != "true" ]; then $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi s3://$WINDOWS_BUILDS_S3_BUCKET/tagged/datadog-agent-7-latest.amd64.msi --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732; fi
 
 # deploy android packages to a public s3 bucket when tagged
-deploy_android_tags:
+deploy_staging_android_tags:
   stage: deploy7
   resource_group: android_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
@@ -3273,7 +3273,7 @@ deploy_android_tags:
     - $S3_CP_CMD --recursive --exclude "*" --include "*.apk" $OMNIBUS_PACKAGE_DIR s3://$ANDROID_BUILDS_S3_BUCKET/tagged/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
-deploy_rpm-6:
+deploy_staging_rpm-6:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_6
   stage: deploy6
@@ -3301,7 +3301,7 @@ deploy_rpm-6:
     # sync to S3
     - aws s3 sync --only-show-errors ./rpmrepo/6/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-deploy_rpm-7:
+deploy_staging_rpm-7:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
@@ -3331,7 +3331,7 @@ deploy_rpm-7:
 
 # deploy suse rpm packages to yum staging repo
 # NOTE: no SuSE ARM builds currently.
-deploy_suse_rpm-6:
+deploy_staging_suse_rpm-6:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_6
   stage: deploy6
@@ -3355,7 +3355,7 @@ deploy_suse_rpm-6:
     # sync to S3
     - aws s3 sync --only-show-errors ./rpmrepo/6/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/6/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-deploy_suse_rpm-7:
+deploy_staging_suse_rpm-7:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
@@ -3380,7 +3380,7 @@ deploy_suse_rpm-7:
     - aws s3 sync --only-show-errors ./rpmrepo/7/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/7/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy dsd binary to staging bucket
-deploy_dsd:
+deploy_staging_dsd:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
@@ -3394,7 +3394,7 @@ deploy_dsd:
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy iot-agent binary to staging bucket
-deploy_iot_agent:
+deploy_staging_iot_agent:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
@@ -3408,7 +3408,7 @@ deploy_iot_agent:
     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy agent windows zip to the staging bucket, currently used for cloudfoundry bosh
-deploy_datadog_agent_windows_zip:
+deploy_staging_datadog_agent_windows_zip:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
   needs: [ "windows_msi_x64-a7"]
@@ -3421,7 +3421,7 @@ deploy_datadog_agent_windows_zip:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.zip" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/bosh/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy datadog agent windows binaries to staging bucket. Currently used for cloudfoundry builpack
-deploy_datadog_agent_windows_binaries_zip:
+deploy_staging_datadog_agent_windows_binaries_zip:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
   needs: [ "windows_zip_agent_binaries_x64-a7"]
@@ -3434,7 +3434,7 @@ deploy_datadog_agent_windows_binaries_zip:
     - $S3_CP_CMD --recursive --exclude "*" --include "agent-binaries-7.*.zip" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/buildpack/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy process agent and system-probe to staging bucket
-deploy_process_and_sysprobe:
+deploy_staging_process_and_sysprobe:
   stage: internal_deploy
   when: manual
   resource_group: process_bucket
