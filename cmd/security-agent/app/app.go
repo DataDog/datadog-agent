@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
 // loggerName is the name of the security agent logger
@@ -168,60 +169,11 @@ func start(cmd *cobra.Command, args []string) error {
 	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.SecurityAgentName)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
-	health := health.RegisterLiveness("security-agent")
+	stopper := restart.NewSerialStopper()
+	defer stopper.Stop()
 
-	complianceEnabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
-	if complianceEnabled {
-
-		httpConnectivity := config.HTTPConnectivityFailure
-		if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
-			httpConnectivity = http.CheckConnectivity(endpoints.Main)
-		}
-
-		endpoints, err := config.BuildEndpoints(httpConnectivity)
-		if err != nil {
-			return fmt.Errorf("Invalid endpoints: %v", err)
-		}
-
-		destinationsCtx := client.NewDestinationsContext()
-		destinationsCtx.Start()
-		defer destinationsCtx.Stop()
-
-		// setup the auditor
-		auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
-		auditor.Start()
-		defer auditor.Stop()
-
-		// setup the pipeline provider that provides pairs of processor and sender
-		pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, destinationsCtx)
-		pipelineProvider.Start()
-		defer pipelineProvider.Stop()
-
-		logSource := config.NewLogSource("compliance-agent", &config.LogsConfig{
-			Type:    "compliance",
-			Service: "compliance-agent",
-			Source:  "compliance-agent",
-		})
-
-		reporter := compliance.NewReporter(logSource, pipelineProvider.NextPipelineChan())
-
-		runner := runner.NewRunner()
-		defer runner.Stop()
-
-		scheduler := scheduler.NewScheduler(runner.GetChan())
-		runner.SetScheduler(scheduler)
-
-		checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
-		configDir := coreconfig.Datadog.GetString("compliance_config.dir")
-
-		compAgent := agent.New(reporter, scheduler, configDir, checkInterval)
-		err = compAgent.Run()
-		if err != nil {
-			log.Errorf("Error starting compliance agent, exiting: %v", err)
-		}
-		defer compAgent.Stop()
-
-		log.Infof("Running compliance checks every %s", checkInterval.String())
+	if err = startCompliance(stopper); err != nil {
+		return err
 	}
 
 	log.Infof("Datadog Security Agent is now running.")
@@ -242,5 +194,65 @@ func start(cmd *cobra.Command, args []string) error {
 
 	log.Info("See ya!")
 	log.Flush()
+	return nil
+}
+
+func startCompliance(stopper restart.Stopper) error {
+	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
+	if !enabled {
+		return nil
+	}
+
+	httpConnectivity := config.HTTPConnectivityFailure
+	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
+		httpConnectivity = http.CheckConnectivity(endpoints.Main)
+	}
+
+	endpoints, err := config.BuildEndpoints(httpConnectivity)
+	if err != nil {
+		return log.Errorf("Invalid endpoints: %v", err)
+	}
+
+	destinationsCtx := client.NewDestinationsContext()
+	destinationsCtx.Start()
+	stopper.Add(destinationsCtx)
+
+	health := health.Register("security-agent")
+
+	// setup the auditor
+	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
+	auditor.Start()
+	stopper.Add(auditor)
+
+	// setup the pipeline provider that provides pairs of processor and sender
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, destinationsCtx)
+	pipelineProvider.Start()
+	stopper.Add(pipelineProvider)
+
+	logSource := config.NewLogSource("compliance-agent", &config.LogsConfig{
+		Type:    "compliance",
+		Service: "compliance-agent",
+		Source:  "compliance-agent",
+	})
+
+	reporter := compliance.NewReporter(logSource, pipelineProvider.NextPipelineChan())
+
+	runner := runner.NewRunner()
+	stopper.Add(runner)
+
+	scheduler := scheduler.NewScheduler(runner.GetChan())
+	runner.SetScheduler(scheduler)
+
+	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
+
+	agent := agent.New(reporter, scheduler, configDir, checkInterval)
+	err = agent.Run()
+	if err != nil {
+		return log.Errorf("Error starting compliance agent, exiting: %v", err)
+	}
+	stopper.Add(agent)
+
+	log.Infof("Running compliance checks every %s", checkInterval.String())
 	return nil
 }
