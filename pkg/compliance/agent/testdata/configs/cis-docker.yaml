@@ -1,0 +1,12 @@
+name: CIS Docker Generic
+framework: cis-docker
+version: 1.2.0
+rules:
+- id: cis-docker-1
+  scope:
+    docker: true
+  resources:
+  - file:
+      path: ./testdata/daemon.json
+      report:
+      - attribute: permissions

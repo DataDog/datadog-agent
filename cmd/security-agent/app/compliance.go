@@ -52,8 +52,8 @@ func init() {
 	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceService, "source-service", "", "compliance-agent", "Log source service")
-	eventCmd.Flags().StringVarP(&eventArgs.event.RuleName, "rule-name", "", "", "Rule name")
-	eventCmd.Flags().StringVarP(&eventArgs.event.RuleVersion, "rule-version", "", "", "Rule version")
+	eventCmd.Flags().StringVarP(&eventArgs.event.RuleID, "rule-name", "", "", "Rule ID")
+	eventCmd.Flags().StringVarP(&eventArgs.event.Version, "version", "", "", "Framework version")
 	eventCmd.Flags().StringVarP(&eventArgs.event.Framework, "framework", "", "", "Compliance framework")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
@@ -68,6 +68,8 @@ func event(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
+	health := health.Register("security-agent")
+
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
@@ -80,8 +82,6 @@ func event(cmd *cobra.Command, args []string) error {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	defer destinationsCtx.Stop()
-
-	health := health.Register("security-agent")
 
 	// setup the auditor
 	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)

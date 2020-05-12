@@ -683,6 +683,7 @@ func initConfig(config Config) {
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
+	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

@@ -51,7 +51,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(puppy=False, process=False, arch=arch)
+    build_tags = get_default_build_tags(process=False, arch=arch)
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
