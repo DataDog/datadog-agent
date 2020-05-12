@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -223,7 +224,7 @@ func start(cmd *cobra.Command, args []string) error {
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
 			Hostname:                     hostname,
-			ClusterName:                  config.Datadog.GetString("cluster_name"),
+			ClusterName:                  clustername.GetClusterName(),
 			ConfigPath:                   confPath,
 		}
 		err = orchestrator.StartController(orchestratorCtx)
