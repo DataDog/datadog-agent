@@ -26,6 +26,9 @@ type Config struct {
 	// It is relevant *only* when DNSInspection is enabled.
 	CollectDNSStats bool
 
+	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
+	DNSTimeout time.Duration
+
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
 	// connection as inactive.
 	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
@@ -93,7 +96,6 @@ func NewDefaultConfig() *Config {
 		CollectIPv6Conns:      true,
 		CollectLocalDNS:       false,
 		DNSInspection:         true,
-		CollectDNSStats:       false,
 		UDPConnTimeout:        30 * time.Second,
 		TCPConnTimeout:        2 * time.Minute,
 		MaxTrackedConnections: 65536,
@@ -107,6 +109,9 @@ func NewDefaultConfig() *Config {
 		MaxDNSStatsBufferred:         75000,
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
+		// DNS Stats related configurations
+		CollectDNSStats: false,
+		DNSTimeout:      15 * time.Second,
 	}
 }
 

@@ -48,7 +48,20 @@ execute 'update Agent install script repository' do
   only_if { node['dd-agent-install-script']['install_candidate'] }
 end
 
+user 'installuser' do
+  comment 'Not a root user to run install script'
+  uid 9999
+  home '/home/installuser'
+  shell '/bin/bash'
+end
+
+sudo 'installuser' do
+  nopasswd true
+  users 'installuser'
+end
+
 execute 'run agent install script' do
+  user 'installuser'
   cwd wrk_dir
   command <<-EOF
     #{kitchen_env_export}
