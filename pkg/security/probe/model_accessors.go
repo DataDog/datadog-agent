@@ -81,8 +81,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "open.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Open.ResolvePathnameKey(m.event.resolvers) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Open.ResolvePathnameKey(m.event.resolvers) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Open.HandlePathnameKey(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Open.HandlePathnameKey(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -188,9 +188,9 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 
 	case "rename.newfilename":
 
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.TargetPathnameKey) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.TargetPathnameKey) },
+		return &eval.StringEvaluator{
+			Eval:      func(ctx *eval.Context) string { return m.event.Rename.HandleTargetPathnameKey(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.HandleTargetPathnameKey(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -215,9 +215,9 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 
 	case "rename.oldfilename":
 
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.SrcPathnameKey) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.SrcPathnameKey) },
+		return &eval.StringEvaluator{
+			Eval:      func(ctx *eval.Context) string { return m.event.Rename.HandleSrcPathnameKey(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.HandleSrcPathnameKey(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -240,7 +240,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "rmdir.filename":
+	case "rmdir.PathnameKey":
 
 		return &eval.IntEvaluator{
 			Eval:      func(ctx *eval.Context) int { return int(m.event.Rmdir.PathnameKey) },
@@ -269,9 +269,9 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 
 	case "unlink.filename":
 
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Unlink.PathnameKey) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Unlink.PathnameKey) },
+		return &eval.StringEvaluator{
+			Eval:      func(ctx *eval.Context) string { return m.event.Unlink.HandlePathnameKey(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Unlink.HandlePathnameKey(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -377,7 +377,7 @@ func (m *Model) GetTags(key string) ([]string, error) {
 	case "rename.oldmountid":
 		return []string{"fs"}, nil
 
-	case "rmdir.filename":
+	case "rmdir.PathnameKey":
 		return []string{"fs"}, nil
 
 	case "rmdir.inode":
