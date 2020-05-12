@@ -73,7 +73,7 @@ type realConntracker struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(procRoot string, maxStateSize, rateLimit int) (Conntracker, error) {
+func NewConntracker(procRoot string, maxStateSize, targetRateLimit int) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -82,7 +82,7 @@ func NewConntracker(procRoot string, maxStateSize, rateLimit int) (Conntracker, 
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, rateLimit)
+		conntracker, err = newConntrackerOnce(procRoot, maxStateSize, targetRateLimit)
 		done <- struct{}{}
 	}()
 
@@ -94,8 +94,8 @@ func NewConntracker(procRoot string, maxStateSize, rateLimit int) (Conntracker, 
 	}
 }
 
-func newConntrackerOnce(procRoot string, maxStateSize, rateLimit int) (Conntracker, error) {
-	consumer, err := NewConsumer(procRoot, rateLimit)
+func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int) (Conntracker, error) {
+	consumer, err := NewConsumer(procRoot, targetRateLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, rateLimit int) (Conntrack
 
 	ctr.loadInitialState(consumer.DumpTable(unix.AF_INET))
 	ctr.run()
-	log.Infof("initialized conntrack with rate_limit=%d messages/sec", rateLimit)
+	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
 	return ctr, nil
 }
 
