@@ -1504,6 +1504,7 @@ dogstatsd_suse-x64:
 deploy_deb_testing-a6:
   stage: testkitchen_deploy
   needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a6"]
+  resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1532,6 +1533,7 @@ deploy_deb_testing-a6:
 deploy_deb_testing-a7:
   stage: testkitchen_deploy
   needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a7"]
+  resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1564,6 +1566,7 @@ deploy_rpm_testing-a6:
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
   needs: ["fail_on_non_triggered_tag", "agent_rpm-x64-a6"]
+  resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1584,6 +1587,7 @@ deploy_rpm_testing-a7:
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
   needs: ["fail_on_non_triggered_tag", "agent_rpm-x64-a7"]
+  resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1605,6 +1609,7 @@ deploy_suse_rpm_testing-a6:
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
   needs: ["fail_on_non_triggered_tag", "agent_suse-x64-a6"]
+  resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1625,6 +1630,7 @@ deploy_suse_rpm_testing-a7:
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
   needs: ["fail_on_non_triggered_tag", "agent_suse-x64-a7"]
+  resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1646,6 +1652,7 @@ deploy_windows_testing-a6:
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a6"]
+  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1658,6 +1665,7 @@ deploy_windows_testing-a7:
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
   needs: ["fail_on_non_triggered_tag", "windows_msi_x64-a7"]
+  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
