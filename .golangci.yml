@@ -16,8 +16,12 @@ run:
     - pkg/network
 
 issues:
+  # Do not limit the number of issues per linter.
   max-issues-per-linter: 0
+
+  # Do not limit the number of times a same issue is reported.
   max-same-issues: 0
+
   exclude:
     - "`eventContext` is unused"
     - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
@@ -57,5 +61,5 @@ linters:
 
 linters-settings:
   errcheck:
-    # Disable warnings for `fmt` and `log` packages.
+    # Disable warnings for `fmt` and `log` packages. Also ignore `Write` functions from `net/http` package.
     ignore: fmt:.*,github.com/DataDog/datadog-agent/pkg/util/log:.*,net/http:Write
