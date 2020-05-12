@@ -2,7 +2,7 @@ ARG AGENT_BASE=datadog/agent:latest
 FROM $AGENT_BASE
 
 # include some useful dev tools since this will be used or development
-RUN apt-get update -y && apt-get install -y jq conntrack netcat dnsutils
+RUN apt-get update -y && apt-get install -y jq conntrack netcat dnsutils iproute2 net-tools
 
 # inv -e process-agent.build-dev-image will set up a temporary
 # build directory where this Dockerfile and the necessary binaries

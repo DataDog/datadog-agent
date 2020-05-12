@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/assert"
@@ -90,9 +90,13 @@ func TestRegisterNonNat(t *testing.T) {
 
 	rt.register(c)
 	translation := rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 8080,
-		util.AddressFromString("50.30.40.10"), 12345,
-		process.ConnectionType_tcp,
+		network.ConnectionStats{
+			Source: util.AddressFromString("10.0.0.0"),
+			SPort:  8080,
+			Dest:   util.AddressFromString("50.30.40.10"),
+			DPort:  12345,
+			Type:   network.TCP,
+		},
 	)
 	assert.Nil(t, translation)
 }
@@ -103,12 +107,16 @@ func TestRegisterNat(t *testing.T) {
 
 	rt.register(c)
 	translation := rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 12345,
-		util.AddressFromString("50.30.40.10"), 80,
-		process.ConnectionType_tcp,
+		network.ConnectionStats{
+			Source: util.AddressFromString("10.0.0.0"),
+			SPort:  12345,
+			Dest:   util.AddressFromString("50.30.40.10"),
+			DPort:  80,
+			Type:   network.TCP,
+		},
 	)
 	assert.NotNil(t, translation)
-	assert.Equal(t, &IPTranslation{
+	assert.Equal(t, &network.IPTranslation{
 		ReplSrcIP:   util.AddressFromString("20.0.0.0"),
 		ReplDstIP:   util.AddressFromString("10.0.0.0"),
 		ReplSrcPort: 80,
@@ -116,9 +124,13 @@ func TestRegisterNat(t *testing.T) {
 	}, translation)
 
 	udpTranslation := rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 12345,
-		util.AddressFromString("50.30.40.10"), 80,
-		process.ConnectionType_udp,
+		network.ConnectionStats{
+			Source: util.AddressFromString("10.0.0.0"),
+			SPort:  12345,
+			Dest:   util.AddressFromString("50.30.40.10"),
+			DPort:  80,
+			Type:   network.UDP,
+		},
 	)
 	assert.Nil(t, udpTranslation)
 
@@ -130,12 +142,16 @@ func TestRegisterNatUDP(t *testing.T) {
 
 	rt.register(c)
 	translation := rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 12345,
-		util.AddressFromString("50.30.40.10"), 80,
-		process.ConnectionType_udp,
+		network.ConnectionStats{
+			Source: util.AddressFromString("10.0.0.0"),
+			SPort:  12345,
+			Dest:   util.AddressFromString("50.30.40.10"),
+			DPort:  80,
+			Type:   network.UDP,
+		},
 	)
 	assert.NotNil(t, translation)
-	assert.Equal(t, &IPTranslation{
+	assert.Equal(t, &network.IPTranslation{
 		ReplSrcIP:   util.AddressFromString("20.0.0.0"),
 		ReplDstIP:   util.AddressFromString("10.0.0.0"),
 		ReplSrcPort: 80,
@@ -143,9 +159,13 @@ func TestRegisterNatUDP(t *testing.T) {
 	}, translation)
 
 	translation = rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 12345,
-		util.AddressFromString("50.30.40.10"), 80,
-		process.ConnectionType_tcp,
+		network.ConnectionStats{
+			Source: util.AddressFromString("10.0.0.0"),
+			SPort:  12345,
+			Dest:   util.AddressFromString("50.30.40.10"),
+			DPort:  80,
+			Type:   network.TCP,
+		},
 	)
 	assert.Nil(t, translation)
 }
@@ -166,9 +186,13 @@ func TestGetUpdatesGen(t *testing.T) {
 	}
 
 	iptr := rt.GetTranslationForConn(
-		util.AddressFromString("10.0.0.0"), 12345,
-		util.AddressFromString("50.30.40.10"), 80,
-		process.ConnectionType_tcp,
+		network.ConnectionStats{
+			Source: util.AddressFromString("10.0.0.0"),
+			SPort:  12345,
+			Dest:   util.AddressFromString("50.30.40.10"),
+			DPort:  80,
+			Type:   network.TCP,
+		},
 	)
 	require.NotNil(t, iptr)
 
@@ -176,7 +200,7 @@ func TestGetUpdatesGen(t *testing.T) {
 	entry := rt.state[connKey{
 		srcIP: util.AddressFromString("10.0.0.0"), srcPort: 12345,
 		dstIP: util.AddressFromString("50.30.40.10"), dstPort: 80,
-		transport: process.ConnectionType_tcp,
+		transport: network.TCP,
 	}]
 	assert.NotEqual(t, entry.expGeneration, last, "expected %v to equal %v", entry.expGeneration, last)
 }

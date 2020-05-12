@@ -3,7 +3,6 @@ package encoding
 import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -91,7 +90,7 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	}
 }
 
-func formatIPTranslation(ct *netlink.IPTranslation) *model.IPTranslation {
+func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 	if ct == nil {
 		return nil
 	}
