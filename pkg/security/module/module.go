@@ -62,7 +62,12 @@ func (a *Module) LoadPolicies() error {
 			}
 
 			for _, ruleDef := range policy.Rules {
-				_, err := a.ruleSet.AddRule(ruleDef.ID, ruleDef.Expression)
+				var tags []string
+				for k, v := range ruleDef.Tags {
+					tags = append(tags, k+":"+v)
+				}
+
+				_, err := a.ruleSet.AddRule(ruleDef.ID, ruleDef.Expression, tags...)
 				if err != nil {
 					return err
 				}

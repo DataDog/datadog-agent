@@ -6,7 +6,9 @@ message GetParams{}
 
 message SecurityEventMessage {
     string RuleID = 1;
-    bytes Data = 2;
+    string Type = 2;
+    repeated string Tags = 3;
+    bytes Data = 4;
 }
 
 service SecurityModule {

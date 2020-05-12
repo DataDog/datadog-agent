@@ -41,7 +41,7 @@ type RuleSet struct {
 	debug      bool
 }
 
-func (rs *RuleSet) AddRule(id, expression string) (*Rule, error) {
+func (rs *RuleSet) AddRule(id, expression string, tags ...string) (*Rule, error) {
 	astRule, err := ast.ParseRule(expression)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid rule")
@@ -56,6 +56,7 @@ func (rs *RuleSet) AddRule(id, expression string) (*Rule, error) {
 		ID:         id,
 		Expression: expression,
 		evaluator:  evaluator,
+		Tags:       tags,
 	}
 
 	for _, tag := range evaluator.Tags {
