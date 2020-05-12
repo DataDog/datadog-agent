@@ -10,3 +10,5 @@ enhancements:
   - |
     Add a new environment variable ``DD_API_KEY_FILE`` that allows to put the API in a file
     rather than directly in an environment variable. This allows to put API key in a docker secret volume.
+    If both ``DD_API_KEY`` and ``DD_API_KEY_FILE`` are set, the API key found in the ``DD_API_KEY_FILE`` file is used
+    and the value found in ``DD_API_KEY`` is overridden.

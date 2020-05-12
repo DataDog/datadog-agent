@@ -875,7 +875,9 @@ func ResolveSecrets(config Config, origin string) error {
 // Read the API from a file
 func readAPIKeyFromFile(config Config) {
 	if apiKeyFile := config.GetString("api_key_file"); apiKeyFile != "" {
-		if apiKey, err := ioutil.ReadFile(apiKeyFile); err == nil {
+		if apiKey, err := ioutil.ReadFile(apiKeyFile); err != nil {
+			log.Errorf("`api_key_file` parameter is set to \"%s\" but this file cannot be read: %v", apiKeyFile, err)
+		} else {
 			config.Set("api_key", apiKey)
 		}
 	}

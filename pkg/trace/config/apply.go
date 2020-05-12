@@ -112,7 +112,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 	if config.Datadog.IsSet("api_key") {
 		c.Endpoints[0].APIKey = config.Datadog.GetString("api_key")
-	} else if apiKeyFile := config.Datadog.GetString("api_key_file"); apiKeyFile != "" {
+	}
+	if apiKeyFile := config.Datadog.GetString("api_key_file"); apiKeyFile != "" {
 		if apiKey, err := ioutil.ReadFile(apiKeyFile); err == nil {
 			c.Endpoints[0].APIKey = string(apiKey)
 		}
