@@ -76,7 +76,6 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
-	CollectDNSStats                bool
 	SystemProbeSocketPath          string
 	SystemProbeLogFile             string
 	MaxTrackedConnections          uint
@@ -91,6 +90,10 @@ type AgentConfig struct {
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
+
+	// DNS stats configuration
+	CollectDNSStats bool
+	DNSTimeout      time.Duration
 
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool

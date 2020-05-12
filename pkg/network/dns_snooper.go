@@ -52,6 +52,7 @@ func NewSocketFilterSnooper(
 	filter *bpflib.SocketFilter,
 	collectDNSStats bool,
 	collectLocalDNS bool,
+	dnsTimeout time.Duration,
 ) (*SocketFilterSnooper, error) {
 
 	var (
@@ -73,7 +74,7 @@ func NewSocketFilterSnooper(
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if collectDNSStats {
-		statKeeper = newDNSStatkeeper()
+		statKeeper = newDNSStatkeeper(dnsTimeout)
 	}
 	snooper := &SocketFilterSnooper{
 		source:          packetSrc,
@@ -132,6 +133,9 @@ func (s *SocketFilterSnooper) Close() {
 	s.wg.Wait()
 	s.source.Close()
 	s.cache.Close()
+	if s.statKeeper != nil {
+		s.statKeeper.Close()
+	}
 }
 
 // processPacket retrieves DNS information from the received packet data and adds it to
@@ -139,6 +143,7 @@ func (s *SocketFilterSnooper) Close() {
 // call since the underlying memory content gets invalidated by `afpacket`.
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 func (s *SocketFilterSnooper) processPacket(data []byte) {
+	ts := time.Now() // record the timestamp before we do any processing
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
@@ -155,7 +160,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 	}
 
 	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.serverIP.IsLoopback()) {
-		s.statKeeper.ProcessPacketInfo(pktInfo)
+		s.statKeeper.ProcessPacketInfo(pktInfo, ts)
 	}
 
 	if pktInfo.pktType == SuccessfulResponse {

@@ -563,6 +563,9 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
+	// Admission controller
+	config.BindEnvAndSetDefault("admission_controller.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.port", 8000)
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -675,6 +678,10 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_enabled", true)
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
+
+	// Datadog security agent (compliance)
+	config.BindEnvAndSetDefault("compliance_config.enabled", true)
+	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

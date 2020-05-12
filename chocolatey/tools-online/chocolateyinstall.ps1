@@ -16,3 +16,12 @@ $packageArgs = @{
   validExitCodes= @(0, 3010, 1641)
 }
 Install-ChocolateyPackage @packageArgs
+
+$installInfo = @"---
+install_method:
+  tool: chocolatey
+  tool_version: chocolatey-$($env:CHOCOLATEY_VERSION)
+  installer_version: chocolatey-$($env:chocolateyPackageVersion)-online
+"@
+
+Out-File -FilePath C:\ProgramData\Datadog\install_info -InputObject $installInfo

@@ -25,6 +25,9 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 		IntraHost:              conn.IntraHost,
 		DnsSuccessfulResponses: conn.DNSSuccessfulResponses,
 		DnsFailedResponses:     conn.DNSFailedResponses,
+		DnsTimeouts:            conn.DNSTimeouts,
+		DnsSuccessLatencySum:   conn.DNSSuccessLatencySum,
+		DnsFailureLatencySum:   conn.DNSFailureLatencySum,
 	}
 }
 
