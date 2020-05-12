@@ -303,7 +303,7 @@ func (m *Model) GetTags(key string) ([]string, error) {
 	switch key {
 
 	case "container.id":
-		return []string{"container"}, nil
+		return []string{}, nil
 
 	case "event.retval":
 		return []string{}, nil
@@ -312,90 +312,191 @@ func (m *Model) GetTags(key string) ([]string, error) {
 		return []string{}, nil
 
 	case "mkdir.filename":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "mkdir.inode":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "mkdir.mode":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "mkdir.mount_id":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "open.filename":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "open.flags":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "open.inode":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "open.mode":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "open.mount_id":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "process.gid":
-		return []string{"process"}, nil
+		return []string{}, nil
 
 	case "process.name":
-		return []string{"process"}, nil
+		return []string{}, nil
 
 	case "process.pid":
-		return []string{"process"}, nil
+		return []string{}, nil
 
 	case "process.pidns":
-		return []string{"process"}, nil
+		return []string{}, nil
 
 	case "process.tid":
-		return []string{"process"}, nil
+		return []string{}, nil
 
 	case "process.tty_name":
-		return []string{"process"}, nil
+		return []string{}, nil
 
 	case "process.uid":
-		return []string{"process"}, nil
+		return []string{}, nil
 
 	case "rename.newfilename":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "rename.newinode":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "rename.newmountid":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "rename.oldfilename":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "rename.oldinode":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "rename.oldmountid":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "rmdir.PathnameKey":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "rmdir.inode":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "rmdir.mount_id":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "unlink.filename":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "unlink.inode":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	case "unlink.mount_id":
-		return []string{"fs"}, nil
+		return []string{}, nil
 
 	}
 
 	return nil, errors.Wrap(ErrFieldNotFound, key)
+}
+
+func (m *Model) GetEventType(key string) (string, error) {
+	switch key {
+
+	case "container.id":
+		return "container", nil
+
+	case "event.retval":
+		return "", nil
+
+	case "event.type":
+		return "", nil
+
+	case "mkdir.filename":
+		return "mkdir", nil
+
+	case "mkdir.inode":
+		return "mkdir", nil
+
+	case "mkdir.mode":
+		return "mkdir", nil
+
+	case "mkdir.mount_id":
+		return "mkdir", nil
+
+	case "open.filename":
+		return "open", nil
+
+	case "open.flags":
+		return "open", nil
+
+	case "open.inode":
+		return "open", nil
+
+	case "open.mode":
+		return "open", nil
+
+	case "open.mount_id":
+		return "open", nil
+
+	case "process.gid":
+		return "process", nil
+
+	case "process.name":
+		return "process", nil
+
+	case "process.pid":
+		return "process", nil
+
+	case "process.pidns":
+		return "process", nil
+
+	case "process.tid":
+		return "process", nil
+
+	case "process.tty_name":
+		return "process", nil
+
+	case "process.uid":
+		return "process", nil
+
+	case "rename.newfilename":
+		return "rename", nil
+
+	case "rename.newinode":
+		return "rename", nil
+
+	case "rename.newmountid":
+		return "rename", nil
+
+	case "rename.oldfilename":
+		return "rename", nil
+
+	case "rename.oldinode":
+		return "rename", nil
+
+	case "rename.oldmountid":
+		return "rename", nil
+
+	case "rmdir.PathnameKey":
+		return "rmdir", nil
+
+	case "rmdir.inode":
+		return "rmdir", nil
+
+	case "rmdir.mount_id":
+		return "rmdir", nil
+
+	case "unlink.filename":
+		return "unlink", nil
+
+	case "unlink.inode":
+		return "unlink", nil
+
+	case "unlink.mount_id":
+		return "unlink", nil
+
+	}
+
+	return "", errors.Wrap(ErrFieldNotFound, key)
 }

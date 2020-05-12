@@ -23,11 +23,11 @@ func (m *Model) SetEvent(event interface{}) {
 }
 
 type OpenEvent struct {
-	Flags       uint32 `yaml:"flags" field:"flags" tags:"fs"`
-	Mode        uint32 `yaml:"mode" field:"mode" tags:"fs"`
-	Inode       uint32 `field:"inode" tags:"fs"`
-	PathnameKey uint32 `field:"filename" handler:"HandlePathnameKey,string" tags:"fs"`
-	MountID     int32  `field:"mount_id" tags:"fs"`
+	Flags       uint32 `yaml:"flags" field:"flags" event:"open"`
+	Mode        uint32 `yaml:"mode" field:"mode" event:"open"`
+	Inode       uint32 `field:"inode" event:"open"`
+	PathnameKey uint32 `field:"filename" handler:"HandlePathnameKey,string" event:"open"`
+	MountID     int32  `field:"mount_id" event:"open"`
 
 	pathnameStr string `field:"-"`
 }
@@ -69,10 +69,10 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 type MkdirEvent struct {
-	Inode       uint32 `field:"inode" tags:"fs"`
-	PathnameKey uint32 `field:"filename" handler:"HandlePathnameKey,string" tags:"fs"`
-	MountID     int32  `field:"mount_id" tags:"fs"`
-	Mode        int32  `field:"mode" tags:"fs"`
+	Inode       uint32 `field:"inode" event:"mkdir"`
+	PathnameKey uint32 `field:"filename" handler:"HandlePathnameKey,string" event:"mkdir"`
+	MountID     int32  `field:"mount_id" event:"mkdir"`
+	Mode        int32  `field:"mode" event:"mkdir"`
 
 	pathnameStr string `field:"-"`
 }
@@ -112,9 +112,9 @@ func (e *MkdirEvent) HandlePathnameKey(resolvers *Resolvers) string {
 }
 
 type RmdirEvent struct {
-	Inode       uint32 `field:"inode" tags:"fs"`
-	PathnameKey uint32 `handler:"HandlePathnameKey,string" tags:"fs"`
-	MountID     int32  `field:"mount_id" tags:"fs"`
+	Inode       uint32 `field:"inode" event:"rmdir"`
+	PathnameKey uint32 `handler:"HandlePathnameKey,string" event:"rmdir"`
+	MountID     int32  `field:"mount_id" event:"rmdir"`
 
 	pathnameStr string `field:"-"`
 }
@@ -152,9 +152,9 @@ func (e *RmdirEvent) HandlePathnameKey(resolvers *Resolvers) string {
 }
 
 type UnlinkEvent struct {
-	Inode       uint32 `field:"inode" tags:"fs"`
-	PathnameKey uint32 `field:"filename" handler:"HandlePathnameKey,string" tags:"fs"`
-	MountID     int32  `field:"mount_id" tags:"fs"`
+	Inode       uint32 `field:"inode" event:"unlink"`
+	PathnameKey uint32 `field:"filename" handler:"HandlePathnameKey,string" event:"unlink"`
+	MountID     int32  `field:"mount_id" event:"unlink"`
 
 	pathnameStr string `json:"filename" field:"-"`
 }
@@ -192,12 +192,12 @@ func (e *UnlinkEvent) HandlePathnameKey(resolvers *Resolvers) string {
 }
 
 type RenameEvent struct {
-	SrcInode          uint32 `json:"oldinode,omitempty" field:"oldinode" tags:"fs"`
-	SrcPathnameKey    uint32 `json:"-" field:"oldfilename" handler:"HandleSrcPathnameKey,string" tags:"fs"`
-	SrcMountID        int32  `json:"oldmountid,omitempty" field:"oldmountid" tags:"fs"`
-	TargetInode       uint32 `json:"newinode,omitempty" field:"newinode" tags:"fs"`
-	TargetPathnameKey uint32 `json:"-" field:"newfilename" handler:"HandleTargetPathnameKey,string" tags:"fs"`
-	TargetMountID     int32  `json:"newmountid,omitempty" field:"newmountid" tags:"fs"`
+	SrcInode          uint32 `json:"oldinode,omitempty" field:"oldinode" event:"rename"`
+	SrcPathnameKey    uint32 `json:"-" field:"oldfilename" handler:"HandleSrcPathnameKey,string" event:"rename"`
+	SrcMountID        int32  `json:"oldmountid,omitempty" field:"oldmountid" event:"rename"`
+	TargetInode       uint32 `json:"newinode,omitempty" field:"newinode" event:"rename"`
+	TargetPathnameKey uint32 `json:"-" field:"newfilename" handler:"HandleTargetPathnameKey,string" event:"rename"`
+	TargetMountID     int32  `json:"newmountid,omitempty" field:"newmountid" event:"rename"`
 
 	srcPathnameStr    string `json:"oldfilename" field:"-"`
 	targetPathnameStr string `json:"newfilename" field:"-"`
@@ -249,8 +249,8 @@ func (e *RenameEvent) HandleTargetPathnameKey(resolvers *Resolvers) string {
 }
 
 type ContainerEvent struct {
-	ID     string   `yaml:"id" field:"id" tags:"container"`
-	Labels []string `yaml:"labels" field:"labels" tags:"container"`
+	ID     string   `yaml:"id" field:"id" event:"container"`
+	Labels []string `yaml:"labels" field:"labels" event:"container"`
 }
 
 type KernelEvent struct {
@@ -285,13 +285,13 @@ func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 type ProcessEvent struct {
-	Pidns   uint64   `field:"pidns" tags:"process"`
-	Comm    [16]byte `field:"name" handler:"HandleComm,string" tags:"process"`
-	TTYName [64]byte `field:"tty_name" handler:"HandleTTY,string" tags:"process"`
-	Pid     uint32   `field:"pid" tags:"process"`
-	Tid     uint32   `field:"tid" tags:"process"`
-	UID     uint32   `field:"uid" tags:"process"`
-	GID     uint32   `field:"gid" tags:"process"`
+	Pidns   uint64   `field:"pidns"`
+	Comm    [16]byte `field:"name" handler:"HandleComm,string"`
+	TTYName [64]byte `field:"tty_name" handler:"HandleTTY,string"`
+	Pid     uint32   `field:"pid"`
+	Tid     uint32   `field:"tid"`
+	UID     uint32   `field:"uid"`
+	GID     uint32   `field:"gid"`
 
 	commStr    string `json:"" field:"-"`
 	ttyNameStr string `json:"tty" field:"-"`

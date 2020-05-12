@@ -26,17 +26,20 @@ const (
 
 func (t ProbeEventType) String() string {
 	switch t {
-	case FileOpenEventType,
-		FileMkdirEventType,
-		FileHardLinkEventType,
-		FileRenameEventType,
-		FileSetAttrEventType,
-		FileUnlinkEventType,
-		FileRmdirEventType:
-		return "fs"
-	default:
-		return "unknown"
+	case FileOpenEventType:
+		return "open"
+	case FileMkdirEventType:
+		return "mkdir"
+	case FileHardLinkEventType:
+	case FileRenameEventType:
+		return "rename"
+	case FileSetAttrEventType:
+	case FileUnlinkEventType:
+		return "unlink"
+	case FileRmdirEventType:
+		return "rmdir"
 	}
+	return "unknown"
 }
 
 func getHostByteOrder() binary.ByteOrder {

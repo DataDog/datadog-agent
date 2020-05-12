@@ -48,6 +48,7 @@ type structField struct {
 	IsArray bool
 	Public  bool
 	Tags    string
+	Event   string
 }
 
 func (f *structField) ElemType() string {
@@ -77,12 +78,12 @@ func resolveSymbol(pkg, symbol string) (types.Object, error) {
 	return nil, fmt.Errorf("Failed to retrieve package info for %s", pkg)
 }
 
-func handleBasic(name, alias, kind string, tags string) {
+func handleBasic(name, alias, kind, tags, event string) {
 	fmt.Printf("handleBasic %s %s\n", name, kind)
 
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
-		module.Fields[alias] = &structField{Name: "m.event." + name, Type: "int", Public: true, Tags: tags}
+		module.Fields[alias] = &structField{Name: "m.event." + name, Type: "int", Public: true, Tags: tags, Event: event}
 	default:
 		public := false
 		firstChar := strings.TrimPrefix(kind, "[]")
@@ -98,11 +99,12 @@ func handleBasic(name, alias, kind string, tags string) {
 			IsArray: strings.HasPrefix(kind, "[]"),
 			Public:  public,
 			Tags:    tags,
+			Event:   event,
 		}
 	}
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, tags string) error {
+func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, tags, event string) error {
 	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 
 	switch fieldType.Name {
@@ -111,7 +113,7 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(name, alias, fieldType.Name, tags)
+		handleBasic(name, alias, fieldType.Name, tags, event)
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType.Name)
 		if err != nil {
@@ -159,6 +161,8 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 						tags = fmt.Sprintf(`"%s"`, strings.Join(strings.FieldsFunc(tags, f), `","`))
 					}
 
+					event, _ := tag.Lookup("event")
+
 					if fieldTag, found := tag.Lookup("field"); found {
 						split := strings.Split(fieldTag, ",")
 
@@ -182,19 +186,20 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 								Type:   kind,
 								Public: true,
 								Tags:   tags,
+								Event:  event,
 							}
 							continue
 						}
 					}
 
 					if fieldType, ok := field.Type.(*ast.Ident); ok {
-						if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, tags); err != nil {
+						if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, tags, event); err != nil {
 							log.Print(err)
 						}
 						continue
 					} else if fieldType, ok := field.Type.(*ast.StarExpr); ok {
 						if itemIdent, ok := fieldType.X.(*ast.Ident); ok {
-							handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), itemIdent, tags)
+							handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), itemIdent, tags, event)
 							continue
 						}
 					}
@@ -352,6 +357,18 @@ func (m *Model) GetTags(key string) ([]string, error) {
 
 	return nil, errors.Wrap(ErrFieldNotFound, key)
 }
+
+func (m *Model) GetEventType(key string) (string, error) {
+	switch key {
+	{{range $Name, $Field := .Fields}}
+	case "{{$Name}}":
+		return "{{$Field.Event}}", nil
+	{{end}}
+	}
+
+	return "", errors.Wrap(ErrFieldNotFound, key)
+}
+
 `))
 
 	module, err = parseFile(filename, pkgname)
