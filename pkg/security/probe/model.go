@@ -5,6 +5,8 @@ package probe
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -16,24 +18,42 @@ type Model struct {
 	event *Event
 }
 
-func (m *Model) SetData(data interface{}) {
-	m.event = data.(*Event)
+func (m *Model) SetEvent(event interface{}) {
+	m.event = event.(*Event)
 }
 
 type OpenEvent struct {
 	Flags       uint32 `yaml:"flags" field:"flags" tags:"fs"`
 	Mode        uint32 `yaml:"mode" field:"mode" tags:"fs"`
-	Inode       uint32 `json:"inode,omitempty" field:"inode" tags:"fs"`
-	PathnameKey uint32 `json:"-" field:"filename" handler:"ResolvePathnameKey,string" tags:"fs"`
-	PathnameStr string `json:"filename" field:"-"`
-	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
+	Inode       uint32 `field:"inode" tags:"fs"`
+	PathnameKey uint32 `field:"filename" handler:"HandlePathnameKey,string" tags:"fs"`
+	MountID     int32  `field:"mount_id" tags:"fs"`
+
+	pathnameStr string `field:"-"`
 }
 
-func (e *OpenEvent) ResolvePathnameKey(resolvers *Resolvers) string {
-	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.PathnameKey)
+func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	if e.Inode == 0 {
+		return nil, nil
 	}
-	return e.PathnameStr
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.HandlePathnameKey(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
+	fmt.Fprintf(&buf, `"mode":%d,`, e.Mode)
+	fmt.Fprintf(&buf, `"flags":%d`, e.Flags)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+func (e *OpenEvent) HandlePathnameKey(resolvers *Resolvers) string {
+	if len(e.pathnameStr) == 0 {
+		e.pathnameStr = resolvers.DentryResolver.Resolve(e.PathnameKey)
+	}
+	return e.pathnameStr
 }
 
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
@@ -49,26 +69,29 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 type MkdirEvent struct {
-	Inode       uint32 `json:"inode,omitempty" field:"inode" tags:"fs"`
-	PathnameKey uint32 `json:"-" field:"filename" handler:"HandlePathnameKey,string" tags:"fs"`
-	PathnameStr string `json:"filename" field:"-"`
-	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
-	Mode        int32  `json:"mode,omitempty" field:"mode" tags:"fs"`
+	Inode       uint32 `field:"inode" tags:"fs"`
+	PathnameKey uint32 `field:"filename" handler:"HandlePathnameKey,string" tags:"fs"`
+	MountID     int32  `field:"mount_id" tags:"fs"`
+	Mode        int32  `field:"mode" tags:"fs"`
+
+	pathnameStr string `field:"-"`
 }
 
-/*func (e *MkdirEvent) MarshalJSON() ([]byte, error) {
+func (e *MkdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	if e.Inode == 0 {
 		return nil, nil
 	}
 
 	var buf bytes.Buffer
 	buf.WriteRune('{')
-	fmt.Fprintf(&buf, `"filename": %d,`, e.)
-	fmt.Fprintf(&buf, `"inode": %d`, e.Inode)
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.HandlePathnameKey(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
+	fmt.Fprintf(&buf, `"mode":%d`, e.Mode)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
-}*/
+}
 
 func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
@@ -82,16 +105,33 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 func (e *MkdirEvent) HandlePathnameKey(resolvers *Resolvers) string {
-	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.PathnameKey)
+	if len(e.pathnameStr) == 0 {
+		e.pathnameStr = resolvers.DentryResolver.Resolve(e.PathnameKey)
 	}
-	return e.PathnameStr
+	return e.pathnameStr
 }
 
 type RmdirEvent struct {
-	Inode       uint32 `json:"inode,omitempty" field:"inode" tags:"fs"`
-	PathnameKey uint32 `json:"-" field:"filename,string,m.dentryResolver.Resolve({{.FieldPrefix}}{{.Field}})" tags:"fs"`
-	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
+	Inode       uint32 `field:"inode" tags:"fs"`
+	PathnameKey uint32 `handler:"HandlePathnameKey,string" tags:"fs"`
+	MountID     int32  `field:"mount_id" tags:"fs"`
+
+	pathnameStr string `field:"-"`
+}
+
+func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	if e.Inode == 0 {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.HandlePathnameKey(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d`, e.MountID)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
 }
 
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
@@ -104,10 +144,34 @@ func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 12, nil
 }
 
+func (e *RmdirEvent) HandlePathnameKey(resolvers *Resolvers) string {
+	if len(e.pathnameStr) == 0 {
+		e.pathnameStr = resolvers.DentryResolver.Resolve(e.PathnameKey)
+	}
+	return e.pathnameStr
+}
+
 type UnlinkEvent struct {
-	Inode       uint32 `json:"inode,omitempty" field:"inode" tags:"fs"`
-	PathnameKey uint32 `json:"-" field:"filename,string,m.dentryResolver.Resolve({{.FieldPrefix}}{{.Field}})" tags:"fs"`
-	MountID     int32  `json:"mount_id,omitempty" field:"mount_id" tags:"fs"`
+	Inode       uint32 `field:"inode" tags:"fs"`
+	PathnameKey uint32 `field:"filename" handler:"HandlePathnameKey,string" tags:"fs"`
+	MountID     int32  `field:"mount_id" tags:"fs"`
+
+	pathnameStr string `json:"filename" field:"-"`
+}
+
+func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	if e.Inode == 0 {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.HandlePathnameKey(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mount_id":%d`, e.MountID)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
 }
 
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
@@ -120,13 +184,41 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 12, nil
 }
 
+func (e *UnlinkEvent) HandlePathnameKey(resolvers *Resolvers) string {
+	if len(e.pathnameStr) == 0 {
+		e.pathnameStr = resolvers.DentryResolver.Resolve(e.PathnameKey)
+	}
+	return e.pathnameStr
+}
+
 type RenameEvent struct {
 	SrcInode          uint32 `json:"oldinode,omitempty" field:"oldinode" tags:"fs"`
-	SrcPathnameKey    uint32 `json:"-" field:"oldfilename,string,m.dentryResolver.Resolve({{.FieldPrefix}}{{.Field}})" tags:"fs"`
+	SrcPathnameKey    uint32 `json:"-" field:"oldfilename" handler:"HandleSrcPathnameKey,string" tags:"fs"`
 	SrcMountID        int32  `json:"oldmountid,omitempty" field:"oldmountid" tags:"fs"`
 	TargetInode       uint32 `json:"newinode,omitempty" field:"newinode" tags:"fs"`
-	TargetPathnameKey uint32 `json:"-" field:"newfilename,string,m.dentryResolver.Resolve({{.FieldPrefix}}{{.Field}})" tags:"fs"`
+	TargetPathnameKey uint32 `json:"-" field:"newfilename" handler:"HandleTargetPathnameKey,string" tags:"fs"`
 	TargetMountID     int32  `json:"newmountid,omitempty" field:"newmountid" tags:"fs"`
+
+	srcPathnameStr    string `json:"oldfilename" field:"-"`
+	targetPathnameStr string `json:"newfilename" field:"-"`
+}
+
+func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	if e.SrcInode == 0 {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"old_inode":%d,`, e.SrcInode)
+	fmt.Fprintf(&buf, `"old_filename":"%s",`, e.HandleSrcPathnameKey(resolvers))
+	fmt.Fprintf(&buf, `"old_mount_id":%d,`, e.SrcMountID)
+	fmt.Fprintf(&buf, `"new_inode":%d,`, e.TargetInode)
+	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.HandleTargetPathnameKey(resolvers))
+	fmt.Fprintf(&buf, `"new_mount_id":%d`, e.TargetMountID)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
 }
 
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
@@ -142,15 +234,44 @@ func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 24, nil
 }
 
+func (e *RenameEvent) HandleSrcPathnameKey(resolvers *Resolvers) string {
+	if len(e.srcPathnameStr) == 0 {
+		e.srcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcPathnameKey)
+	}
+	return e.srcPathnameStr
+}
+
+func (e *RenameEvent) HandleTargetPathnameKey(resolvers *Resolvers) string {
+	if len(e.targetPathnameStr) == 0 {
+		e.targetPathnameStr = resolvers.DentryResolver.Resolve(e.TargetPathnameKey)
+	}
+	return e.targetPathnameStr
+}
+
 type ContainerEvent struct {
 	ID     string   `yaml:"id" field:"id" tags:"container"`
 	Labels []string `yaml:"labels" field:"labels" tags:"container"`
 }
 
 type KernelEvent struct {
-	Type      uint64 `json:"retval" field:"type"`
-	Timestamp uint64 `json:"-" field:"-"`
-	Retval    int64  `json:"retval" field:"retval"`
+	Type      uint64 `field:"type"`
+	Timestamp uint64 `field:"-"`
+	Retval    int64  `field:"retval"`
+}
+
+func (k *KernelEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	if k.Type == 0 {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"type":%d,`, k.Type)
+	fmt.Fprintf(&buf, `"timestamp":%d,`, k.Timestamp)
+	fmt.Fprintf(&buf, `"retval":%d`, k.Retval)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
 }
 
 func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
@@ -164,15 +285,35 @@ func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 type ProcessEvent struct {
-	Pidns      uint64   `json:"pidns" field:"pidns" tags:"process"`
-	Comm       [16]byte `json:"-" field:"name" handler:"HandleComm,string" tags:"process"`
-	CommStr    string   `json:"" field:"-"`
-	TTYName    [64]byte `json:"-" field:"tty_name" handler:"HandleTTY,string" tags:"process"`
-	TTYNameStr string   `json:"tty" field:"-"`
-	Pid        uint32   `json:"pid" field:"pid" tags:"process"`
-	Tid        uint32   `json:"tid" field:"tid" tags:"process"`
-	UID        uint32   `json:"uid" field:"uid" tags:"process"`
-	GID        uint32   `json:"gid" field:"gid" tags:"process"`
+	Pidns   uint64   `field:"pidns" tags:"process"`
+	Comm    [16]byte `field:"name" handler:"HandleComm,string" tags:"process"`
+	TTYName [64]byte `field:"tty_name" handler:"HandleTTY,string" tags:"process"`
+	Pid     uint32   `field:"pid" tags:"process"`
+	Tid     uint32   `field:"tid" tags:"process"`
+	UID     uint32   `field:"uid" tags:"process"`
+	GID     uint32   `field:"gid" tags:"process"`
+
+	commStr    string `json:"" field:"-"`
+	ttyNameStr string `json:"tty" field:"-"`
+}
+
+func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	if p.Pid == 0 {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"pidns":%d,`, p.Pidns)
+	fmt.Fprintf(&buf, `"name":"%s",`, p.GetComm())
+	fmt.Fprintf(&buf, `"tty_name":"%s",`, p.GetTTY())
+	fmt.Fprintf(&buf, `"pid":%d,`, p.Pid)
+	fmt.Fprintf(&buf, `"tid":%d,`, p.Tid)
+	fmt.Fprintf(&buf, `"uid":%d,`, p.UID)
+	fmt.Fprintf(&buf, `"gid":%d`, p.GID)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
 }
 
 func (p *ProcessEvent) HandleTTY(resolvers *Resolvers) string {
@@ -180,10 +321,10 @@ func (p *ProcessEvent) HandleTTY(resolvers *Resolvers) string {
 }
 
 func (p *ProcessEvent) GetTTY() string {
-	if len(p.TTYNameStr) == 0 {
-		p.TTYNameStr = string(bytes.Trim(p.TTYName[:], "\x00"))
+	if len(p.ttyNameStr) == 0 {
+		p.ttyNameStr = string(bytes.Trim(p.TTYName[:], "\x00"))
 	}
-	return p.TTYNameStr
+	return p.ttyNameStr
 }
 
 func (p *ProcessEvent) HandleComm(resolvers *Resolvers) string {
@@ -191,10 +332,10 @@ func (p *ProcessEvent) HandleComm(resolvers *Resolvers) string {
 }
 
 func (p *ProcessEvent) GetComm() string {
-	if len(p.CommStr) == 0 {
-		p.CommStr = string(bytes.Trim(p.Comm[:], "\x00"))
+	if len(p.commStr) == 0 {
+		p.commStr = string(bytes.Trim(p.Comm[:], "\x00"))
 	}
-	return p.CommStr
+	return p.commStr
 }
 
 func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
@@ -213,17 +354,81 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // genaccessors
 type Event struct {
-	ID        string         `json:"id" yaml:"id" field:"-"`
-	Event     KernelEvent    `json:"event" yaml:"event" field:"event"`
-	Process   ProcessEvent   `json:"process" yaml:"process" field:"process"`
-	Open      OpenEvent      `json:"open" yaml:"open" field:"open"`
-	Mkdir     MkdirEvent     `json:"mkdir" yaml:"mkdir" field:"mkdir"`
-	Rmdir     RmdirEvent     `json:"rmdir" yaml:"rmdir" field:"rmdir"`
-	Unlink    UnlinkEvent    `json:"unlink" yaml:"unlink" field:"unlink"`
-	Rename    RenameEvent    `json:"rename" yaml:"rename" field:"rename"`
-	Container ContainerEvent `json:"container" yaml:"container" field:"container"`
+	ID        string         `yaml:"id" field:"-"`
+	Event     KernelEvent    `yaml:"event" field:"event"`
+	Process   ProcessEvent   `yaml:"process" field:"process"`
+	Open      OpenEvent      `yaml:"open" field:"open"`
+	Mkdir     MkdirEvent     `yaml:"mkdir" field:"mkdir"`
+	Rmdir     RmdirEvent     `yaml:"rmdir" field:"rmdir"`
+	Unlink    UnlinkEvent    `yaml:"unlink" field:"unlink"`
+	Rename    RenameEvent    `yaml:"rename" field:"rename"`
+	Container ContainerEvent `yaml:"container" field:"container"`
 
 	resolvers *Resolvers `field:"-"`
+}
+
+func (e *Event) String() string {
+	d, _ := json.Marshal(e)
+	return string(d)
+}
+
+func (e *Event) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"id":"%s",`, e.ID)
+
+	entries := []struct {
+		field      string
+		marshalFnc func(resolvers *Resolvers) ([]byte, error)
+	}{
+		{
+			field:      "event",
+			marshalFnc: e.Event.marshalJSON,
+		},
+		{
+			field:      "process",
+			marshalFnc: e.Process.marshalJSON,
+		},
+		{
+			field:      "open",
+			marshalFnc: e.Open.marshalJSON,
+		},
+		{
+			field:      "mkdir",
+			marshalFnc: e.Mkdir.marshalJSON,
+		},
+		{
+			field:      "rmdir",
+			marshalFnc: e.Rmdir.marshalJSON,
+		},
+		{
+			field:      "unlink",
+			marshalFnc: e.Unlink.marshalJSON,
+		},
+		{
+			field:      "rename",
+			marshalFnc: e.Rename.marshalJSON,
+		},
+	}
+
+	var prev bool
+	for _, entry := range entries {
+		d, err := entry.marshalFnc(e.resolvers)
+		if err != nil {
+			return nil, err
+		}
+		if d != nil {
+			if prev {
+				buf.WriteRune(',')
+			}
+			buf.WriteString(`"` + entry.field + `":`)
+			buf.Write(d)
+			prev = true
+		}
+	}
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
 }
 
 func (e *Event) GetType() string {

@@ -20,7 +20,7 @@ var ErrFieldNotFound = errors.New("field not found")
 type Model interface {
 	GetEvaluator(key string) (interface{}, error)
 	GetTags(key string) ([]string, error)
-	SetData(data interface{})
+	SetEvent(event interface{})
 }
 
 type Context struct {

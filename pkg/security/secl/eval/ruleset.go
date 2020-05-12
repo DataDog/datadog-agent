@@ -89,7 +89,7 @@ func (rs *RuleSet) AddListener(listener RuleSetListener) {
 
 func (rs *RuleSet) Evaluate(event Event) bool {
 	result := false
-	rs.model.SetData(event)
+	rs.model.SetEvent(event)
 	context := &Context{}
 	eventType := event.GetType()
 	eventID := event.GetID()
@@ -102,7 +102,7 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 
 	for _, rule := range bucket.rules {
 		if rule.evaluator.Eval(context) {
-			log.Infof("Rule `%s` matches with event %+v\n", rule.ID, event)
+			log.Infof("Rule `%s` matches with event %s\n", rule.ID, event)
 
 			rs.NotifyRuleMatch(rule, event)
 			result = true

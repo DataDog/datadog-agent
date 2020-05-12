@@ -19,8 +19,6 @@ func (p *Probe) handleDentryEvent(data []byte) {
 	offset := 0
 	event := NewEvent(p.resolvers)
 
-	fmt.Printf(">>>>>>>>>>>>> \n %+v\n", data)
-
 	read, err := event.Event.UnmarshalBinary(data)
 	if err != nil {
 		log.Errorf("failed to decode event")

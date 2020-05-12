@@ -35,8 +35,8 @@ func (e *testEvent) GetType() string {
 	return e.kind
 }
 
-func (m *testModel) SetData(data interface{}) {
-	m.data = data.(*testEvent)
+func (m *testModel) SetEvent(event interface{}) {
+	m.data = event.(*testEvent)
 }
 
 func (m *testModel) GetEvaluator(key string) (interface{}, error) {
