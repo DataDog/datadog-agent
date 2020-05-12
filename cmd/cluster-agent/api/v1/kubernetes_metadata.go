@@ -62,7 +62,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(labelBytes) > 0 {
 		w.WriteHeader(http.StatusOK)
-		w.Write(labelBytes) //nolint:errcheck
+		w.Write(labelBytes)
 		apiRequests.Inc(
 			"getNodeMetadata",
 			strconv.Itoa(http.StatusOK),
@@ -74,7 +74,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 		"getNodeMetadata",
 		strconv.Itoa(http.StatusNotFound),
 	)
-	w.Write([]byte(fmt.Sprintf("Could not find labels on the node: %s", nodeName))) //nolint:errcheck
+	w.Write([]byte(fmt.Sprintf("Could not find labels on the node: %s", nodeName)))
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.
@@ -125,7 +125,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(metaBytes) != 0 {
 		w.WriteHeader(http.StatusOK)
-		w.Write(metaBytes) //nolint:errcheck
+		w.Write(metaBytes)
 		apiRequests.Inc(
 			"getPodMetadata",
 			strconv.Itoa(http.StatusOK),
@@ -137,7 +137,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		"getPodMetadata",
 		strconv.Itoa(http.StatusNotFound),
 	)
-	w.Write([]byte(fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName))) //nolint:errcheck
+	w.Write([]byte(fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)))
 }
 
 // getPodMetadataForNode has the same signature as getAllMetadata, but is only scoped on one node.
@@ -161,7 +161,7 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 
 	if len(slcB) != 0 {
 		w.WriteHeader(http.StatusOK)
-		w.Write(slcB) //nolint:errcheck
+		w.Write(slcB)
 		apiRequests.Inc(
 			"getPodMetadataForNode",
 			strconv.Itoa(http.StatusOK),
@@ -223,7 +223,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(metaListBytes) != 0 {
-		w.Write(metaListBytes) //nolint:errcheck
+		w.Write(metaListBytes)
 		apiRequests.Inc(
 			"getAllMetadata",
 			strconv.Itoa(http.StatusOK),

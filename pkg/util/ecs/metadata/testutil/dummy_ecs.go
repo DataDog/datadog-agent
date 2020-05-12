@@ -59,12 +59,12 @@ func NewDummyECS(ops ...Option) (*DummyECS, error) {
 			return nil, fmt.Errorf("failed to register handler for pattern %s: could not read test data file with path %s", pattern, testDataPath)
 		}
 		d.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-			w.Write(raw) //nolint:errcheck
+			w.Write(raw)
 		})
 	}
 	for pattern, rawData := range d.rawHandlers {
 		d.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte(rawData)) //nolint:errcheck
+			w.Write([]byte(rawData))
 		})
 	}
 	return d, nil

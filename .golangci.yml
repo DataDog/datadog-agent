@@ -58,4 +58,4 @@ linters:
 linters-settings:
   errcheck:
     # Disable warnings for `fmt` and `log` packages.
-    ignore: fmt:.*,github.com/DataDog/datadog-agent/pkg/util/log:.*
+    ignore: fmt:.*,github.com/DataDog/datadog-agent/pkg/util/log:.*,net/http:Write

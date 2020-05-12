@@ -125,7 +125,7 @@ func writeJSONResponse(w http.ResponseWriter, data interface{}, handler string) 
 
 	if len(slcB) != 0 {
 		w.WriteHeader(http.StatusOK)
-		w.Write(slcB) //nolint:errcheck
+		w.Write(slcB)
 		incrementRequestMetric(handler, http.StatusOK)
 		return
 	}
@@ -159,7 +159,7 @@ func shouldHandle(w http.ResponseWriter, r *http.Request, h *clusterchecks.Handl
 // clusterChecksDisabledHandler returns a 404 response when cluster-checks are disabled
 func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusPreconditionFailed)
-	w.Write([]byte("Cluster-checks are not enabled")) //nolint:errcheck
+	w.Write([]byte("Cluster-checks are not enabled"))
 }
 
 // validateClientIP validates the http client IP retrieved from the request's header.

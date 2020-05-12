@@ -23,15 +23,15 @@ func SetupHandlers(r *mux.Router) {
 
 func reloadCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("Not yet implemented.")) //nolint:errcheck
+	w.Write([]byte("Not yet implemented."))
 }
 
 func listChecks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("Not yet implemented.")) //nolint:errcheck
+	w.Write([]byte("Not yet implemented."))
 }
 
 func listCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("Not yet implemented.")) //nolint:errcheck
+	w.Write([]byte("Not yet implemented."))
 }

@@ -165,7 +165,7 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.Write(data) //nolint:errcheck
+	w.Write(data)
 }
 
 // Middleware which blocks access to secured files from unauthorized clients

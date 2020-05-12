@@ -75,5 +75,5 @@ func (h healthHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	w.Write(jsonHealth) //nolint:errcheck
+	w.Write(jsonHealth)
 }

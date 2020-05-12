@@ -62,7 +62,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
-	w.Write(j) //nolint:errcheck
+	w.Write(j)
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 		hname = ""
 	}
 	j, _ := json.Marshal(hname)
-	w.Write(j) //nolint:errcheck
+	w.Write(j)
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +92,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, err.Error(), 500)
 	}
-	w.Write([]byte(filePath)) //nolint:errcheck
+	w.Write([]byte(filePath))
 }
 
 func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +153,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(jsonStats) //nolint:errcheck
+	w.Write(jsonStats)
 }
 
 func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
@@ -166,7 +166,7 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 			"error_type": "no server",
 		})
 		w.WriteHeader(400)
-		w.Write(body) //nolint:errcheck
+		w.Write(body)
 		return
 	}
 
@@ -177,7 +177,7 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 			"error_type": "not enabled",
 		})
 		w.WriteHeader(400)
-		w.Write(body) //nolint:errcheck
+		w.Write(body)
 		return
 	}
 
@@ -186,7 +186,7 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 	// Return no data.
 	if common.DSD == nil {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{}`)) //nolint:errcheck
+		w.Write([]byte(`{}`))
 		return
 	}
 
@@ -198,7 +198,7 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(jsonStats) //nolint:errcheck
+	w.Write(jsonStats)
 }
 
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +212,7 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(s) //nolint:errcheck
+	w.Write(s)
 }
 
 func getHealth(w http.ResponseWriter, r *http.Request) {
@@ -230,11 +230,11 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(jsonHealth) //nolint:errcheck
+	w.Write(jsonHealth)
 }
 
 func getCSRFToken(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(gui.CsrfToken)) //nolint:errcheck
+	w.Write([]byte(gui.CsrfToken))
 }
 
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
@@ -268,7 +268,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(jsonConfig) //nolint:errcheck
+	w.Write(jsonConfig)
 }
 
 func getFullRuntimeConfig(w http.ResponseWriter, r *http.Request) {
@@ -288,7 +288,7 @@ func getFullRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(scrubbed) //nolint:errcheck
+	w.Write(scrubbed)
 }
 
 func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
@@ -314,7 +314,7 @@ func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	w.Write(body) //nolint:errcheck
+	w.Write(body)
 }
 
 func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
@@ -348,7 +348,7 @@ func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	w.Write(body) //nolint:errcheck
+	w.Write(body)
 }
 
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
@@ -363,7 +363,7 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	w.Write(jsonTags) //nolint:errcheck
+	w.Write(jsonTags)
 }
 
 func secretInfo(w http.ResponseWriter, r *http.Request) {
@@ -381,7 +381,7 @@ func secretInfo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, string(body), 500)
 		return
 	}
-	w.Write(jsonInfo) //nolint:errcheck
+	w.Write(jsonInfo)
 }
 
 // max returns the maximum value between a and b.

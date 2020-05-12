@@ -38,7 +38,7 @@ func agentHandler(r *mux.Router) {
 // Sends a simple reply (for checking connection to server)
 func ping(w http.ResponseWriter, r *http.Request) {
 	elapsed := time.Now().Unix() - startTimestamp
-	w.Write([]byte(strconv.FormatInt(elapsed, 10))) //nolint:errcheck
+	w.Write([]byte(strconv.FormatInt(elapsed, 10)))
 }
 
 // Sends the current agent status
@@ -48,18 +48,18 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	status, e := status.GetStatus()
 	if e != nil {
 		log.Errorf("Error getting status: " + e.Error())
-		w.Write([]byte("Error getting status: " + e.Error())) //nolint:errcheck
+		w.Write([]byte("Error getting status: " + e.Error()))
 		return
 	}
 	json, _ := json.Marshal(status)
 	html, e := renderStatus(json, statusType)
 	if e != nil {
-		w.Write([]byte("Error generating status html: " + e.Error())) //nolint:errcheck
+		w.Write([]byte("Error generating status html: " + e.Error()))
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html)) //nolint:errcheck
+	w.Write([]byte(html))
 }
 
 // Sends the current agent version
@@ -67,13 +67,13 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 	version, e := version.Agent()
 	if e != nil {
 		log.Errorf("Error getting version: " + e.Error())
-		w.Write([]byte("Error: " + e.Error())) //nolint:errcheck
+		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
 	res, _ := json.Marshal(version)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(res) //nolint:errcheck
+	w.Write(res)
 }
 
 // Sends the agent's hostname
@@ -81,13 +81,13 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	hostname, e := util.GetHostname()
 	if e != nil {
 		log.Errorf("Error getting hostname: " + e.Error())
-		w.Write([]byte("Error: " + e.Error())) //nolint:errcheck
+		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
 	res, _ := json.Marshal(hostname)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(res) //nolint:errcheck
+	w.Write(res)
 }
 
 // Sends the log file (agent.log)
@@ -101,7 +101,7 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 
 	logFileContents, e := ioutil.ReadFile(logFile)
 	if e != nil {
-		w.Write([]byte("Error: " + e.Error())) //nolint:errcheck
+		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 	escapedLogFileContents := html.EscapeString(string(logFileContents))
@@ -118,16 +118,16 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html)) //nolint:errcheck
+	w.Write([]byte(html))
 }
 
 // Makes a new flare
 func makeFlare(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
-		w.Write([]byte(e.Error())) //nolint:errcheck
+		w.Write([]byte(e.Error()))
 	} else if payload.Email == "" || payload.CaseID == "" {
-		w.Write([]byte("Error creating flare: missing information")) //nolint:errcheck
+		w.Write([]byte("Error creating flare: missing information"))
 		return
 	}
 
@@ -138,7 +138,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {
-		w.Write([]byte("Error creating flare zipfile: " + e.Error())) //nolint:errcheck
+		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: " + e.Error())
 		return
 	}
@@ -146,12 +146,12 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	// Send the flare
 	res, e := flare.SendFlare(filePath, payload.CaseID, payload.Email)
 	if e != nil {
-		w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error())) //nolint:errcheck
+		w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error()))
 		log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + e.Error())
 		return
 	}
 
-	w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + res)) //nolint:errcheck
+	w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + res))
 	log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + res)
 	return
 }
@@ -162,11 +162,11 @@ func restartAgent(w http.ResponseWriter, r *http.Request) {
 	e := restart()
 	if e != nil {
 		log.Warnf("restart failed %v", e)
-		w.Write([]byte(e.Error())) //nolint:errcheck
+		w.Write([]byte(e.Error()))
 		return
 	}
 	log.Infof("restart success")
-	w.Write([]byte("Success")) //nolint:errcheck
+	w.Write([]byte("Success"))
 }
 
 func getConfigSetting(w http.ResponseWriter, r *http.Request) {
@@ -192,19 +192,19 @@ func getConfigFile(w http.ResponseWriter, r *http.Request) {
 	path := config.Datadog.ConfigFileUsed()
 	settings, e := ioutil.ReadFile(path)
 	if e != nil {
-		w.Write([]byte("Error: " + e.Error())) //nolint:errcheck
+		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
 	w.Header().Set("Content-Type", "text")
-	w.Write(settings) //nolint:errcheck
+	w.Write(settings)
 }
 
 // Overwrites the main config file (datadog.yaml) with new data
 func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
-		w.Write([]byte(e.Error())) //nolint:errcheck
+		w.Write([]byte(e.Error()))
 	}
 	data := []byte(payload.Config)
 
@@ -212,17 +212,17 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	cf := make(map[string]interface{})
 	e = yaml.Unmarshal(data, &cf)
 	if e != nil {
-		w.Write([]byte("Error: " + e.Error())) //nolint:errcheck
+		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
 	path := config.Datadog.ConfigFileUsed()
 	e = ioutil.WriteFile(path, data, 0644)
 	if e != nil {
-		w.Write([]byte("Error: " + e.Error())) //nolint:errcheck
+		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
 	log.Infof("Successfully wrote new config file.")
-	w.Write([]byte("Success")) //nolint:errcheck
+	w.Write([]byte("Success"))
 }
