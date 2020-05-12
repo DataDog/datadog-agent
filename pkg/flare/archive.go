@@ -241,6 +241,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Errorf("Could not zip logs: %s", err)
 	}
 
+	err = zipInstallInfo(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip install_info: %s", err)
+	}
+
 	// gets files infos and write the permissions.log file
 	if err := permsInfos.commit(tempDir, hostname, os.ModePerm); err != nil {
 		log.Errorf("Could not write permissions.log file: %s", err)
@@ -539,6 +544,30 @@ func zipHealth(tempDir, hostname string) error {
 	defer w.Close()
 
 	_, err = w.Write(yamlValue)
+	return err
+}
+
+func zipInstallInfo(tempDir, hostname string) error {
+	originalPath := filepath.Join(config.FileUsedDir(), "install_info")
+	original, err := os.Open(originalPath)
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	zippedPath := filepath.Join(tempDir, hostname, "install_info")
+	err = ensureParentDirsExist(zippedPath)
+	if err != nil {
+		return err
+	}
+
+	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer zipped.Close()
+
+	_, err = io.Copy(zipped, original)
 	return err
 }
 
