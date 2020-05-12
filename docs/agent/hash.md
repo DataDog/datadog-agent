@@ -5,34 +5,31 @@ This documentation is intended for Agent developers.
 ### Collisions
 
 Besides performance, an important consideration during the selection of a hash function is
-how often it is creating collisions: a collision in a function is when two different
+how often it creates collisions: a collision in a function is when two different
 inputs give the same output.
 
-We are storing samples of the Agent aggregator in a map: in order to have smaller keys
-while storing the values in this map, we are using a hash of some identifying parts
-of the sample, for instance, the metric name and its tags.
-Thus, we're using the map as a hashmap.
+Datadog stores samples of the Agent aggregator in a map. In order to have smaller keys
+while storing the values in this map, Datadog uses a hash of some identifying parts
+of the sample: for instance, the metric name and its tags.
+Thus, the map is used as a hashmap.
 
-Something important to know is that for example in the Java HashMap implementation,
-there is something else involved which is called a "Collision resolution" algorithm:
-when two keys generates the same hash, because the HashMap is storing values in
-buckets, it is capable of testing the different entries behind the same hash and
-to return the proper value. This is something we don't have in the aggregator:
-while writing to the map, we don't know if we're overriding the value from
-another sample.
+The Java HashMap implementation contains a "collision resolution" algorithm: when
+two keys generate the same hash, because the HashMap stores values in buckets, it
+can test the different entries behind the same hash and return the proper value.
+This does not exist in the aggregator: while writing to the map, it is unknown if
+the value form another sample is being overwritten. For the aggregator, it is important
+to avoid collisions as much as possible.
 
-This is why collisions are important to avoid in our case and that the fewer
-collisions, the better.
 
 ### Birthday problem
 
-The probability of having two different keys resulting to the same hash could be computed
-with formulas from the the birthday problem / birthday paradox and it is dependent
-on the amount of different keys in input but also on the size of the output.
+You can compute the probability of having a collision using the Birthday Problem
+(also known as the Birthday Paradox). The probability is dependent on the number
+of different keys in the input, as well as the size of the output. For more
+information, see the [Wikipedia article](https://en.wikipedia.org/wiki/Birthday_problem).
+on the Birthday Problem.
 
-I won't paraphrase, here's the link to [a complete page on Wikipedia on the topic](https://en.wikipedia.org/wiki/Birthday_problem).
-
-With 64 bits we have a very low probability of collision:
+With 64 bits, there is a very low probability of collision:
 
 ```
 import math
@@ -41,7 +38,7 @@ probability = 1.0 - math.exp( (-k*(k-1))/float(2**n) )
 From: https://en.wikipedia.org/wiki/Birthday_problem#Cast_as_a_collision_problem
 
 with k = 2500000 being the number of different contexts and n = 64 bits (size of
-the output I'm aiming for), we have a chance of collision of approximately:
+the desired output), there is a chance of collision of approximately:
 
     3.388129860004696e-07
 
@@ -66,13 +63,13 @@ were not making a huge difference between eachother.
 I've decided to stick with Murmur3 (and to not switch to xxhash64) for two reasons:
 
     - we already ship an implementation of murmur3 in the Agent
-    - the Go compiler doesn't behave the same while compiling with murmur3 & xxhash64, see below.
+    - the Go compiler doesn't behave the same while compiling with murmur3 & xxhash64; see below.
 
 ## 64 bits map keys and the Go runtime
 
 The whole purpose of [my PR](https://github.com/DataDog/datadog-agent/pull/5209)
-was to switch to 64 bits key in the maps of the samplers of the Agent? Why? Because
-the Go runtime use different methods while accessing a map with 64 bits integer keys
+was to switch to 64 bits key in the maps of the samplers of the Agent. Why? Because
+the Go runtime uses different methods while accessing a map with 64 bits integer keys
 than with other kind of keys. It does the same while assigning value to the map.
 See for instance
 [runtime.mapassign_fast64 or runtime.mapaccess2_fast64](https://golang.org/src/runtime/map_fast64.go).
