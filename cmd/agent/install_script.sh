@@ -205,7 +205,7 @@ if [ "$OS" = "RedHat" ]; then
       dnf_flag="--best"
     fi
 
-    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag $agent_flavor || $sudo_cmd yum -y install $dnf_flag $agent_flavor
+    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
 
 elif [ "$OS" = "Debian" ]; then
 
@@ -238,7 +238,7 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
-    $sudo_cmd apt-get install -y --force-yes $agent_flavor
+    $sudo_cmd apt-get install -y --force-yes "$agent_flavor"
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
   UNAME_M=$(uname -m)
@@ -285,7 +285,7 @@ elif [ "$OS" = "SUSE" ]; then
   $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
 
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
-  $sudo_cmd zypper --non-interactive install $agent_flavor
+  $sudo_cmd zypper --non-interactive install "$agent_flavor"
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.
