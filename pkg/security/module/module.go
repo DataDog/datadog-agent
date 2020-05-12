@@ -40,7 +40,11 @@ func (a *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 	a.server.SendEvent(rule, event)
 }
 
-func (a *Module) DiscriminatorDiscovered(event eval.Event, field string) {
+func (a *Module) EventDiscarderFound(event eval.Event, field string) {
+	a.probe.AddKernelFilter(event.(*probe.Event), field)
+}
+
+func (a *Module) EventApproverFound(event eval.Event, field string) {
 	a.probe.AddKernelFilter(event.(*probe.Event), field)
 }
 

@@ -20,6 +20,7 @@ var ErrFieldNotFound = errors.New("field not found")
 type Model interface {
 	GetEvaluator(key string) (interface{}, error)
 	GetTags(key string) ([]string, error)
+	GetEventType(key string) (string, error)
 	SetEvent(event interface{})
 }
 
@@ -37,8 +38,9 @@ var (
 )
 
 type RuleEvaluator struct {
-	Eval func(ctx *Context) bool
-	Tags []string
+	Eval   func(ctx *Context) bool
+	Events []string
+	Tags   []string
 
 	partialEval map[string]func(ctx *Context) bool
 }
@@ -48,6 +50,7 @@ type IdentEvaluator struct {
 }
 
 type State struct {
+	events map[string]bool
 	tags   map[string]bool
 	fields map[string]bool
 }
@@ -124,6 +127,10 @@ func (s *State) UpdateTags(tags []string) {
 	}
 }
 
+func (s *State) UpdateEvents(event string) {
+	s.events[event] = true
+}
+
 func (s *State) UpdateFields(field string) {
 	s.fields[field] = true
 }
@@ -139,8 +146,20 @@ func (s *State) Tags() []string {
 	return tags
 }
 
+func (s *State) Events() []string {
+	var events []string
+
+	for event := range s.events {
+		events = append(events, event)
+	}
+	sort.Strings(events)
+
+	return events
+}
+
 func NewState() *State {
 	return &State{
+		events: make(map[string]bool),
 		tags:   make(map[string]bool),
 		fields: make(map[string]bool),
 	}
@@ -385,11 +404,16 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 			}
 
 			tags, err := opts.Model.GetTags(*obj.Ident)
+			if err == nil {
+				state.UpdateTags(tags)
+			}
+
+			event, err := opts.Model.GetEventType(*obj.Ident)
 			if err != nil {
 				return nil, nil, obj.Pos, err
 			}
+			state.UpdateEvents(event)
 
-			state.UpdateTags(tags)
 			state.UpdateFields(*obj.Ident)
 
 			return accessor, nil, obj.Pos, nil
@@ -427,7 +451,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 	return nil, nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
 }
 
-func (r *RuleEvaluator) IsDiscrimator(ctx *Context, field string) (bool, error) {
+func (r *RuleEvaluator) IsDiscarder(ctx *Context, field string) (bool, error) {
 	eval, ok := r.partialEval[field]
 	if !ok {
 		return false, errors.New("field not found")
@@ -537,6 +561,7 @@ func RuleToEvaluator(rule *ast.Rule, macros map[string]*ast.Macro, model Model, 
 			Eval: func(ctx *Context) bool {
 				return evalBool.Value
 			},
+			Events:      state.Events(),
 			Tags:        state.Tags(),
 			partialEval: partialEval,
 		}, nil
@@ -545,6 +570,7 @@ func RuleToEvaluator(rule *ast.Rule, macros map[string]*ast.Macro, model Model, 
 	if debug {
 		return &RuleEvaluator{
 			Eval:        evalBool.DebugEval,
+			Events:      state.Events(),
 			Tags:        state.Tags(),
 			partialEval: partialEval,
 		}, nil
@@ -552,6 +578,7 @@ func RuleToEvaluator(rule *ast.Rule, macros map[string]*ast.Macro, model Model, 
 
 	return &RuleEvaluator{
 		Eval:        evalBool.Eval,
+		Events:      state.Events(),
 		Tags:        state.Tags(),
 		partialEval: partialEval,
 	}, nil

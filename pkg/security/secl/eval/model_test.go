@@ -12,7 +12,13 @@ type testProcess struct {
 
 type testOpen struct {
 	filename string
+	mode     int
 	flags    int
+}
+
+type testMkdir struct {
+	filename string
+	mode     int
 }
 
 type testEvent struct {
@@ -21,10 +27,11 @@ type testEvent struct {
 
 	process testProcess
 	open    testOpen
+	mkdir   testMkdir
 }
 
 type testModel struct {
-	data *testEvent
+	event *testEvent
 }
 
 func (e *testEvent) GetID() string {
@@ -36,7 +43,7 @@ func (e *testEvent) GetType() string {
 }
 
 func (m *testModel) SetEvent(event interface{}) {
-	m.data = event.(*testEvent)
+	m.event = event.(*testEvent)
 }
 
 func (m *testModel) GetEvaluator(key string) (interface{}, error) {
@@ -45,40 +52,64 @@ func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 	case "process.name":
 
 		return &StringEvaluator{
-			Eval:      func(ctx *Context) string { return m.data.process.name },
-			DebugEval: func(ctx *Context) string { return m.data.process.name },
+			Eval:      func(ctx *Context) string { return m.event.process.name },
+			DebugEval: func(ctx *Context) string { return m.event.process.name },
 			Field:     key,
 		}, nil
 
 	case "process.uid":
 
 		return &IntEvaluator{
-			Eval:      func(ctx *Context) int { return m.data.process.uid },
-			DebugEval: func(ctx *Context) int { return m.data.process.uid },
+			Eval:      func(ctx *Context) int { return m.event.process.uid },
+			DebugEval: func(ctx *Context) int { return m.event.process.uid },
 			Field:     key,
 		}, nil
 
 	case "process.is_root":
 
 		return &BoolEvaluator{
-			Eval:      func(ctx *Context) bool { return m.data.process.isRoot },
-			DebugEval: func(ctx *Context) bool { return m.data.process.isRoot },
+			Eval:      func(ctx *Context) bool { return m.event.process.isRoot },
+			DebugEval: func(ctx *Context) bool { return m.event.process.isRoot },
 			Field:     key,
 		}, nil
 
 	case "open.filename":
 
 		return &StringEvaluator{
-			Eval:      func(ctx *Context) string { return m.data.open.filename },
-			DebugEval: func(ctx *Context) string { return m.data.open.filename },
+			Eval:      func(ctx *Context) string { return m.event.open.filename },
+			DebugEval: func(ctx *Context) string { return m.event.open.filename },
 			Field:     key,
 		}, nil
 
 	case "open.flags":
 
 		return &IntEvaluator{
-			Eval:      func(ctx *Context) int { return m.data.open.flags },
-			DebugEval: func(ctx *Context) int { return m.data.open.flags },
+			Eval:      func(ctx *Context) int { return m.event.open.flags },
+			DebugEval: func(ctx *Context) int { return m.event.open.flags },
+			Field:     key,
+		}, nil
+
+	case "open.mode":
+
+		return &IntEvaluator{
+			Eval:      func(ctx *Context) int { return m.event.open.mode },
+			DebugEval: func(ctx *Context) int { return m.event.open.mode },
+			Field:     key,
+		}, nil
+
+	case "mkdir.filename":
+
+		return &StringEvaluator{
+			Eval:      func(ctx *Context) string { return m.event.mkdir.filename },
+			DebugEval: func(ctx *Context) string { return m.event.mkdir.filename },
+			Field:     key,
+		}, nil
+
+	case "mkdir.mode":
+
+		return &IntEvaluator{
+			Eval:      func(ctx *Context) int { return m.event.mkdir.mode },
+			DebugEval: func(ctx *Context) int { return m.event.mkdir.mode },
 			Field:     key,
 		}, nil
 
@@ -110,7 +141,59 @@ func (m *testModel) GetTags(key string) ([]string, error) {
 
 		return []string{"fs"}, nil
 
+	case "open.mode":
+
+		return []string{"fs"}, nil
+
+	case "mkdir.filename":
+
+		return []string{"fs"}, nil
+
+	case "mkdir.flags":
+
+		return []string{"fs"}, nil
+
 	}
 
 	return nil, errors.Wrap(ErrFieldNotFound, key)
+}
+
+func (m *testModel) GetEventType(key string) (string, error) {
+	switch key {
+
+	case "process.name":
+
+		return "process", nil
+
+	case "process.uid":
+
+		return "process", nil
+
+	case "process.is_root":
+
+		return "process", nil
+
+	case "open.filename":
+
+		return "open", nil
+
+	case "open.flags":
+
+		return "open", nil
+
+	case "open.mode":
+
+		return "open", nil
+
+	case "mkdir.filename":
+
+		return "mkdir", nil
+
+	case "mkdir.mode":
+
+		return "mkdir", nil
+
+	}
+
+	return "", errors.Wrap(ErrFieldNotFound, key)
 }
