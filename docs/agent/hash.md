@@ -1,10 +1,10 @@
 ## Hash selection
 
-This documentation is intended for the Agent developers.
+This documentation is intended for Agent developers.
 
 ### Collisions
 
-Besides performances, what is very important during the selection of a hash is
+Besides performance, an important consideration during the selection of a hash function is
 how often it is creating collisions: a collision in a function is when two different
 inputs give the same output.
 
@@ -85,4 +85,3 @@ On top of that, I've looked at debug profiles when using murmur3 64 bits hash
 generation and xxhash64 bits generation: murmur3 has slightly better raw
 performances because the Go compiler is inlining part of the hashing, which it
 doesn't do for xxhash.
-
