@@ -17,7 +17,8 @@ $packageArgs = @{
 }
 Install-ChocolateyPackage @packageArgs
 
-$installInfo = @"---
+$installInfo = @"
+---
 install_method:
   tool: chocolatey
   tool_version: chocolatey-$($env:CHOCOLATEY_VERSION)
