@@ -46,6 +46,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 	a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
+	a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
@@ -69,8 +70,8 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.IsSet(key(spNS, "enable_conntrack")) {
 		a.EnableConntrack = config.Datadog.GetBool(key(spNS, "enable_conntrack"))
 	}
-	if config.Datadog.IsSet(key(spNS, "enable_enobufs")) {
-		a.EnableENOBUFS = config.Datadog.GetBool(key(spNS, "enable_enobufs"))
+	if config.Datadog.IsSet(key(spNS, "conntrack_ignore_enobufs")) {
+		a.ConntrackIgnoreENOBUFS = config.Datadog.GetBool(key(spNS, "conntrack_ignore_enobufs"))
 	}
 	if s := config.Datadog.GetInt(key(spNS, "conntrack_max_state_size")); s > 0 {
 		a.ConntrackMaxStateSize = s

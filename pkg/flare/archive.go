@@ -176,6 +176,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Errorf("Could not zip exp var: %s", err)
 	}
 
+	err = zipSystemProbeStats(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip system probe exp var stats: %s", err)
+	}
+
 	err = zipDiagnose(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip diagnose: %s", err)
@@ -234,6 +239,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	err = zipLogFiles(tempDir, hostname, logFilePath, permsInfos)
 	if err != nil {
 		log.Errorf("Could not zip logs: %s", err)
+	}
+
+	err = zipInstallInfo(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip install_info: %s", err)
 	}
 
 	// gets files infos and write the permissions.log file
@@ -368,6 +378,23 @@ func zipExpVar(tempDir, hostname string) error {
 		return err
 	}
 	_, err = w.Write(v)
+	return err
+}
+
+func zipSystemProbeStats(tempDir, hostname string) error {
+	sysProbeStats := status.GetSystemProbeStats()
+	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
+	sysProbeWriter, err := newRedactingWriter(sysProbeFile, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer sysProbeWriter.Close()
+
+	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
+	if err != nil {
+		return err
+	}
+	_, err = sysProbeWriter.Write(sysProbeBuf)
 	return err
 }
 
@@ -517,6 +544,30 @@ func zipHealth(tempDir, hostname string) error {
 	defer w.Close()
 
 	_, err = w.Write(yamlValue)
+	return err
+}
+
+func zipInstallInfo(tempDir, hostname string) error {
+	originalPath := filepath.Join(config.FileUsedDir(), "install_info")
+	original, err := os.Open(originalPath)
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	zippedPath := filepath.Join(tempDir, hostname, "install_info")
+	err = ensureParentDirsExist(zippedPath)
+	if err != nil {
+		return err
+	}
+
+	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer zipped.Close()
+
+	_, err = io.Copy(zipped, original)
 	return err
 }
 

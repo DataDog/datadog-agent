@@ -23,7 +23,7 @@ build do
             ## (MSI) distribution.
             cf_bin_root = "#{Omnibus::Config.source_dir()}/cf-root"
             cf_bin_root_bin = "#{cf_bin_root}/bin"
-            cf_source_root = "#{Omnibus::Config.source_dir()}/datadog-puppy/src/github.com/DataDog/datadog-agent/bin"
+            cf_source_root = "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin"
             dsd_source_root = "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin"
             mkdir cf_bin_root_bin
             mkdir "#{cf_bin_root_bin}/agent"

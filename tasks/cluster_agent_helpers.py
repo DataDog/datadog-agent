@@ -7,18 +7,16 @@ import shutil
 from distutils.dir_util import copy_tree
 
 from .build_tags import get_build_tags
-from .utils import get_build_flags, bin_name, get_version, check_go111module_envvar
+from .utils import get_build_flags, bin_name, get_version
 from .utils import REPO_PATH
 from .go import generate
 
 
 def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_include,
-                 build_exclude, race, development, skip_assets):
+                 build_exclude, race, development, skip_assets, go_mod="vendor"):
     """
     Build Cluster Agent
     """
-    # bail out if GO111MODULE is set to on
-    check_go111module_envvar(command)
 
     build_include = build_tags if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
@@ -30,9 +28,10 @@ def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
-    cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
+    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent{suffix}"
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "-i",
         "build_tags": " ".join(build_tags),
@@ -54,8 +53,8 @@ def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_
         "GOARCH": "",
     })
 
-    cmd = "go generate -tags '{build_tags}' {repo_path}/cmd/cluster-agent{suffix}"
-    ctx.run(cmd.format(build_tags=" ".join(build_tags), repo_path=REPO_PATH, suffix=bin_suffix), env=env)
+    cmd = "go generate -mod={go_mod} -tags '{build_tags}' {repo_path}/cmd/cluster-agent{suffix}"
+    ctx.run(cmd.format(go_mod=go_mod, build_tags=" ".join(build_tags), repo_path=REPO_PATH, suffix=bin_suffix), env=env)
 
     if not skip_assets:
         refresh_assets_common(

@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -169,7 +170,7 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.ClusterAgentName)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
@@ -195,13 +196,15 @@ func start(cmd *cobra.Command, args []string) error {
 			WPAClient:          apiCl.WPAClient,
 			WPAInformerFactory: apiCl.WPAInformerFactory,
 			Client:             apiCl.Cl,
-			LeaderElector:      le,
+			IsLeaderFunc:       le.IsLeader,
 			EventRecorder:      eventRecorder,
 			StopCh:             stopCh,
 		}
 
-		if err := apiserver.StartControllers(ctx); err != nil {
-			log.Errorf("Could not start controllers: %v", err)
+		if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
+			for _, err := range aggErr.Errors() {
+				log.Warnf("Error while starting controller: %v", err)
+			}
 		}
 
 		// Generate and persist a cluster ID
@@ -259,7 +262,8 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	wg := sync.WaitGroup{}
-	// Autoscaler Controller Process
+
+	// Autoscaler Controller Goroutine
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
 		wg.Add(1)
@@ -269,6 +273,20 @@ func start(cmd *cobra.Command, args []string) error {
 			errServ := custommetrics.RunServer(mainCtx)
 			if errServ != nil {
 				log.Errorf("Error in the External Metrics API Server: %v", errServ)
+			}
+		}()
+	}
+
+	// Admission Controller Goroutine
+	if config.Datadog.GetBool("admission_controller.enabled") {
+		// Start the k8s admission controller webhook.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			errServ := admission.RunServer(mainCtx)
+			if errServ != nil {
+				log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
 			}
 		}()
 	}
@@ -287,7 +305,9 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
-	// wait for the External Metrics Server to stop properly
+
+	// wait for the External Metrics Server and
+	// the Admission Webhook Server to stop properly
 	wg.Wait()
 
 	if stopCh != nil {

@@ -76,7 +76,6 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
-	CollectDNSStats                bool
 	SystemProbeSocketPath          string
 	SystemProbeLogFile             string
 	MaxTrackedConnections          uint
@@ -85,12 +84,16 @@ type AgentConfig struct {
 	ExcludedSourceConnections      map[string][]string
 	ExcludedDestinationConnections map[string][]string
 	EnableConntrack                bool
-	EnableENOBUFS                  bool
+	ConntrackIgnoreENOBUFS         bool
 	ConntrackMaxStateSize          int
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
+
+	// DNS stats configuration
+	CollectDNSStats bool
+	DNSTimeout      time.Duration
 
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
@@ -184,18 +187,18 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		StatsdPort: 8125,
 
 		// System probe collection configuration
-		EnableSystemProbe:     false,
-		DisableTCPTracing:     false,
-		DisableUDPTracing:     false,
-		DisableIPv6Tracing:    false,
-		DisableDNSInspection:  false,
-		SystemProbeSocketPath: defaultSystemProbeSocketPath,
-		SystemProbeLogFile:    defaultSystemProbeFilePath,
-		MaxTrackedConnections: defaultMaxTrackedConnections,
-		EnableConntrack:       true,
-		EnableENOBUFS:         false,
-		ClosedChannelSize:     500,
-		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
+		EnableSystemProbe:      false,
+		DisableTCPTracing:      false,
+		DisableUDPTracing:      false,
+		DisableIPv6Tracing:     false,
+		DisableDNSInspection:   false,
+		SystemProbeSocketPath:  defaultSystemProbeSocketPath,
+		SystemProbeLogFile:     defaultSystemProbeFilePath,
+		MaxTrackedConnections:  defaultMaxTrackedConnections,
+		EnableConntrack:        true,
+		ConntrackIgnoreENOBUFS: false,
+		ClosedChannelSize:      500,
+		ConntrackMaxStateSize:  defaultMaxTrackedConnections * 2,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -379,7 +382,7 @@ func loadEnvVariables() {
 		// System probe specific configuration (Beta)
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
 		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
-		{"DD_SYSTEM_PROBE_ENABLE_ENOBUFS", "system_probe_config.enable_enobufs"},
+		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
 		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},

@@ -26,6 +26,9 @@ type Config struct {
 	// It is relevant *only* when DNSInspection is enabled.
 	CollectDNSStats bool
 
+	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
+	DNSTimeout time.Duration
+
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
 	// connection as inactive.
 	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
@@ -64,10 +67,10 @@ type Config struct {
 	// EnableConntrack enables probing conntrack for network address translation via netlink
 	EnableConntrack bool
 
-	// EnableENOBUFS will enable ENOBUF errors on the netlink socket, causing conntrack event processing
-	// to be halted when the socket buffer overruns. If enabled, this acts as a circuit breaker when we're
-	// not processing conntrack events fast enough.
-	EnableENOBUFS bool
+	// ConntrackIgnoreENOBUFS: When set to true, the system-probe will ignore ENOBUF errors
+	// and continue processing Conntrack events when/if the netlink recv buffer overruns.
+	// Enabling this can have an adverse effect on CPU utilization for high-throughput systems.
+	ConntrackIgnoreENOBUFS bool
 
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
@@ -93,7 +96,6 @@ func NewDefaultConfig() *Config {
 		CollectIPv6Conns:      true,
 		CollectLocalDNS:       false,
 		DNSInspection:         true,
-		CollectDNSStats:       false,
 		UDPConnTimeout:        30 * time.Second,
 		TCPConnTimeout:        2 * time.Minute,
 		MaxTrackedConnections: 65536,
@@ -107,6 +109,9 @@ func NewDefaultConfig() *Config {
 		MaxDNSStatsBufferred:         75000,
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
+		// DNS Stats related configurations
+		CollectDNSStats: false,
+		DNSTimeout:      15 * time.Second,
 	}
 }
 

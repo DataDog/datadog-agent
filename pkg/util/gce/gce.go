@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -19,7 +18,6 @@ import (
 // declare these as vars not const to ease testing
 var (
 	metadataURL = "http://169.254.169.254/computeMetadata/v1"
-	timeout     = 300 * time.Millisecond
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "GCP"
@@ -117,7 +115,7 @@ func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
 
 func getResponse(url string) (string, error) {
 	client := http.Client{
-		Timeout: timeout,
+		Timeout: config.Datadog.GetDuration("gce_metadata_timeout"),
 	}
 
 	req, err := http.NewRequest("GET", url, nil)

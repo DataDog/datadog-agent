@@ -132,6 +132,23 @@ func TestParseCgroupPaths(t *testing.T) {
 		expectedContainer string
 		expectedPaths     map[string]string
 	}{
+		// test parsing of garden container cgroups in cloudfoundry
+		{
+			contents: []string{
+				"11:net_cls:/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"9:cpu,cpuacct:/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"8:memory:/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"7:blkio:/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+			},
+			expectedContainer: "bc3362fa-913c-4977-5812-d628",
+			expectedPaths: map[string]string{
+				"net_cls": "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"cpu":     "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"cpuacct": "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"memory":  "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+				"blkio":   "/sytem.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+			},
+		},
 		{
 			contents: []string{
 				"11:net_cls:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/47fc31db38b4fa0f4db44b99d0cad10e3cd4d5f142135a7721c1c95c1aadfb2e",
@@ -265,23 +282,49 @@ func TestParseCgroupPaths(t *testing.T) {
 }
 
 func TestContainerIDFromCgroup(t *testing.T) {
-	for _, tc := range []string{
-		// Kubernetes < 1.6
-		"1:kube1.6:/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
-		// New CoreOS / most systems
-		"2:classic:/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
-		// Rancher
-		"3:rancher:/docker/864daa0a0b19aa4703231b6c76f85c6f369b2452a5a7f777f0c9101c0fd5772a/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
-		// Kubernetes 1.7+
-		"4:kube1.7:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
-		// Legacy CoreOS 7xx
-		"5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
-		// Legacy systems
-		"6:legacy:a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+	for _, tc := range []struct {
+		path       string
+		expectedID string
+	}{
+		{
+			// Kubernetes < 1.6
+			path:       "1:kube1.6:/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// New CoreOS / most systems
+			path:       "2:classic:/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Rancher
+			path:       "3:rancher:/docker/864daa0a0b19aa4703231b6c76f85c6f369b2452a5a7f777f0c9101c0fd5772a/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Kubernetes 1.7+
+			path:       "4:kube1.7:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Legacy CoreOS 7xx
+			path:       "5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Legacy systems
+			path:       "6:legacy:a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+			expectedID: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		},
+		{
+			// Cloudfoundry
+			path:       "7:cf:/system.slice/garden.service/bc3362fa-913c-4977-5812-d628",
+			expectedID: "bc3362fa-913c-4977-5812-d628",
+		},
 	} {
-		c, err := containerIDFromCgroup(tc, "")
+		c, err := containerIDFromCgroup(tc.path, "")
 		assert.True(t, err)
-		assert.Equal(t, c, "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419")
+		assert.Equal(t, c, tc.expectedID)
 	}
 }
 

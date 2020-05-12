@@ -7,7 +7,6 @@ import yaml
 import os
 import shutil
 import sys
-import distro
 from distutils.dir_util import copy_tree
 
 import invoke
@@ -57,9 +56,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
-    build_tags = get_default_build_tags(puppy=True)
+    build_tags = get_default_build_tags(android=True)
 
-    build_tags.add("android")
+    build_tags.append("android")
     cmd = "gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent/android"
@@ -72,6 +71,9 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
+    # gomobile is not supporting go modules
+    # https://go-review.googlesource.com/c/mobile/+/167659/
+    env["GO111MODULE"] = "off"
     ctx.run(cmd.format(**args), env=env)
 
     pwd = os.getcwd()

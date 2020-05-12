@@ -8,7 +8,7 @@
 package compression
 
 import (
-	zstd "github.com/DataDog/zstd.v1.3"
+	zstd "github.com/DataDog/zstd"
 )
 
 // TODO: the intake still uses a pre-v1 (unstable) version of the zstd compression format.

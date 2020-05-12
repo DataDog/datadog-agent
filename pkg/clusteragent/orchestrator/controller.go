@@ -53,7 +53,7 @@ type Controller struct {
 	clusterID               string
 	forwarder               forwarder.Forwarder
 	processConfig           *processcfg.AgentConfig
-	IsLeaderFunc            func() bool
+	isLeaderFunc            func() bool
 }
 
 // StartController starts the orchestrator controller
@@ -76,8 +76,8 @@ func StartController(ctx ControllerContext) error {
 
 	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
 
-	return apiserver.SyncInformers(map[string]cache.SharedInformer{
-		"pods": ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
+	return apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
+		apiserver.PodsInformer: ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
 	})
 }
 
@@ -110,7 +110,7 @@ func newController(ctx ControllerContext) (*Controller, error) {
 		clusterID:               clusterID,
 		processConfig:           cfg,
 		forwarder:               forwarder.NewDefaultForwarder(podForwarderOpts),
-		IsLeaderFunc:            ctx.IsLeaderFunc,
+		isLeaderFunc:            ctx.IsLeaderFunc,
 	}
 
 	oc.processConfig = cfg
@@ -139,7 +139,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 }
 
 func (o *Controller) processPods() {
-	if !o.IsLeaderFunc() {
+	if !o.isLeaderFunc() {
 		return
 	}
 	podList, err := o.unassignedPodLister.List(labels.Everything())
