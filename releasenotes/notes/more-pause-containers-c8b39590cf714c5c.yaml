@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    Add pause containers for OpenShift, EKS and AKS Windows
+    Exclude automatically pause containers for OpenShift, EKS and AKS Windows
