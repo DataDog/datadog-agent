@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    APM: A new endpoint was added which helps forward and augment profiles
-    to the intake.
+    APM: A new endpoint was added which helps augment and forward profiles
+    to Datadog's intake.
