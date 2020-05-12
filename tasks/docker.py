@@ -252,7 +252,7 @@ def publish_manifest(ctx, name, tag, image, signed_push=False):
                 -p docker.io/{name} {tag} {length} --sha256 {sha256} \
                 -r targets/releases
             """
-            retry_run(ctx,cmd.format(home=os.path.expanduser("~"), name=name, tag=tag, length=length, sha256=digest))
+            retry_run(ctx, cmd.format(home=os.path.expanduser("~"), name=name, tag=tag, length=length, sha256=digest))
     finally:
         os.remove(temp_file_path)
 
