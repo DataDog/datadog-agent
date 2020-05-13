@@ -8,6 +8,7 @@ package common
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	proc_config "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -55,29 +56,22 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool) er
 
 // SetupSystemProbeConfig reads the system-probe.yaml into the global config object
 func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
-	var (
-		file *os.File
-		err  error
-	)
-
 	// Open the system-probe.yaml file if it's in a custom location
-	if len(sysProbeConfFilePath) != 0 {
-		// If file is set directly,  assume we should use it
-		if strings.HasSuffix(sysProbeConfFilePath, ".yaml") {
-			// Open the file if they pass it in directly
-			file, err = os.Open(sysProbeConfFilePath)
-		} else {
-			file, err = os.Open(sysProbeConfFilePath + "/system-probe.yaml")
+	if sysProbeConfFilePath != "" {
+		// If file is not set directly assume we need to add /system-probe.yaml
+		if !strings.HasSuffix(sysProbeConfFilePath, ".yaml") {
+			sysProbeConfFilePath = path.Join(sysProbeConfFilePath, "/system-probe.yaml")
 		}
 	} else {
 		// Assume it is in the default location if nothing is passed in
-		file, err = os.Open(DefaultConfPath + "/system-probe.yaml")
+		sysProbeConfFilePath = path.Join(DefaultConfPath, "/system-probe.yaml")
 	}
 
-	defer file.Close()
+	file, err := os.Open(sysProbeConfFilePath)
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	// Merge config with an IO reader since this lets us merge the configs without changing
 	// the config file set with viper
