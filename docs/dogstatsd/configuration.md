@@ -21,6 +21,9 @@ that the clients that are sending packets are larger than the size of this buffe
 packets sent by the clients can't be changed, consider increasing the size of `dogstatsd_buffer_size`
 as a fallback.
 
+Please note that increasing this buffer size has a huge impact on the maximum memory usage:
+doubling its size double the maximum memory usage.
+
 The default value of this field is `8192`.
 
 ## `dogstatsd_packet_buffer_size` and `dogstatsd_packet_buffer_flush_timeout`
@@ -45,8 +48,6 @@ will use more CPU, but will again stress the pipeline and should lead to fewer d
 are an issue.
 
 ## dogstatsd_queue_size
-
-**Note: This is an internal configuration field subject to change (or to removal) without any notice.**
 
 This parameter represents how many packet sets flushed from the packets buffer to the parser could be
 buffered. The idea is to read as fast as possible on the socket and to store packets here if the rest
@@ -81,7 +82,7 @@ GC cycles, thus CPU usage.
 
 ### Limit the max memory usage
 
-Please refer to the online documentation: TODO(remy):
+Please refer to the online documentation: https://docs.datadoghq.com/developers/dogstatsd/high_throughput/?tab=go#limit-the-maximum-memory-usage
 
 ### Limit the amount of packet drops
 
@@ -140,5 +141,3 @@ instance on a Dogstatsd server receiving 500k metrics per second, we can observe
 improvement of -30% CPU usage by switching from clients sending 1.5kb packets to clients
 sending 8kb packets with the configuration above used for the server.
 
-Note that as a side-effect, increasing the buffers size could decrease the amount of drops
-with UDP because Dogstatsd will have more place in memory to store data to process.
