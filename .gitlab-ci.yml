@@ -3134,7 +3134,6 @@ deploy_staging_deb-7:
 # nightlies (6), deployed to bucket/master
 deploy_staging_windows_master-a6:
   stage: deploy6
-  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3149,7 +3148,6 @@ deploy_staging_windows_master-a6:
 # nightlies (7 and dogstatsd), deployed to bucket/master
 deploy_staging_windows_master-a7:
   stage: deploy7
-  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3166,7 +3164,6 @@ deploy_staging_windows_master-a7:
 # nightlies latest (6), deployed to bucket/master
 deploy_staging_windows_master-latest-a6:
   stage: deploy6
-  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3181,7 +3178,6 @@ deploy_staging_windows_master-latest-a6:
 # nightlies latest (7), deployed to bucket/master
 deploy_staging_windows_master-latest-a7:
   stage: deploy7
-  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3197,7 +3193,6 @@ deploy_staging_windows_master-latest-a7:
 # triggered builds (6), deployed to bucket/tagged
 deploy_staging_windows_tags-a6:
   stage: deploy6
-  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3211,7 +3206,6 @@ deploy_staging_windows_tags-a6:
 # triggered builds (7), deployed to bucket/tagged
 deploy_staging_windows_tags-a7:
   stage: deploy7
-  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3226,7 +3220,6 @@ deploy_staging_windows_tags-a7:
 # triggered builds latest (6, x64 only), deployed to bucket/tagged
 deploy_staging_windows_tags-latest-a6:
   stage: deploy6
-  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3243,7 +3236,6 @@ deploy_staging_windows_tags-latest-a6:
 # triggered builds latest (7, x64 only), deployed to bucket/tagged
 deploy_staging_windows_tags-latest-a7:
   stage: deploy7
-  resource_group: windows_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3261,7 +3253,6 @@ deploy_staging_windows_tags-latest-a7:
 # deploy android packages to a public s3 bucket when tagged
 deploy_staging_android_tags:
   stage: deploy7
-  resource_group: android_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3384,7 +3375,6 @@ deploy_staging_dsd:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
-  resource_group: dsd_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
   dependencies: []
@@ -3398,7 +3388,6 @@ deploy_staging_iot_agent:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
-  resource_group: dsd_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
   dependencies: []
@@ -3412,7 +3401,6 @@ deploy_staging_datadog_agent_windows_zip:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
   needs: [ "windows_msi_x64-a7"]
-  resource_group: dsd_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3425,7 +3413,6 @@ deploy_staging_datadog_agent_windows_binaries_zip:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
   needs: [ "windows_zip_agent_binaries_x64-a7"]
-  resource_group: dsd_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3437,7 +3424,6 @@ deploy_staging_datadog_agent_windows_binaries_zip:
 deploy_staging_process_and_sysprobe:
   stage: internal_deploy
   when: manual
-  resource_group: process_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - cd $OMNIBUS_PACKAGE_DIR
