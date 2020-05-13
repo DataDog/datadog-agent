@@ -2,7 +2,7 @@ name "freetds"
 default_version "1.1.36"
 
 version "1.1.36" do
-  source sha256: "1e7b6cc03d0a0184141cd90766dcd93cf4fa6a5b8d2142d37ada02addaf946b7"
+  source sha256: "1c306e658e10a325eefddfd662cec3a6d9065fe61c515f26d4f1fb6c4c62405d"
 end
 
 source url: "ftp://ftp.freetds.org/pub/freetds/stable/freetds-#{version}.tar.gz"
