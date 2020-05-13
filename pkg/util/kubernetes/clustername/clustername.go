@@ -31,6 +31,7 @@ var (
 	// * Lowercase letters, numbers, dots and hyphens only.
 	// * Must start with a letter.
 	// * Must end with a number or a letter.
+	// * Must be a valid FQDN (without trailing period)
 	validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
 )
 
