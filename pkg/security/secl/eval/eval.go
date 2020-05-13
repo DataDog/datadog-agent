@@ -128,7 +128,9 @@ func (s *State) UpdateTags(tags []string) {
 }
 
 func (s *State) UpdateEvents(event string) {
-	s.events[event] = true
+	if event != "" {
+		s.events[event] = true
+	}
 }
 
 func (s *State) UpdateFields(field string) {
