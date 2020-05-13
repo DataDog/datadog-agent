@@ -42,7 +42,12 @@ func (jb *jobBucket) removeJob(id check.ID) bool {
 
 	for i, c := range jb.jobs {
 		if c.ID() == id {
-			jb.jobs = append(jb.jobs[:i], jb.jobs[i+1:]...)
+			// delete the check from the jobs slice, making sure the backing array
+			// doesn't keep a reference to the check, so that it can be GC'ed.
+			// Logic from https://github.com/golang/go/wiki/SliceTricks
+			copy(jb.jobs[i:], jb.jobs[i+1:])
+			jb.jobs[len(jb.jobs)-1] = nil
+			jb.jobs = jb.jobs[:len(jb.jobs)-1]
 			return true
 		}
 	}
