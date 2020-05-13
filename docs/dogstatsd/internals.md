@@ -18,6 +18,7 @@ In Dogstatsd, a Packet is a bytes array containing one or multiple metrics in th
 ## PacketAssembler
 
 Input: a datagram from an UDP socket
+
 Output: a Packet containing multiple metrics packed together, separated by a \n
 
 The PacketAssembler gathers multiple datagrams into one Packet of maximum size, `dogstatsd_buffer_size`, and sends it to the PacketsBuffer which avoids running the whole parsing pipeline with only one metric per packet. The bytes buffer used comes from the PacketPool, which avoids re-allocating the bytes buffer every time. 
@@ -48,6 +49,7 @@ In theory, the max memory usage of the PacketBuffer is:
 ## Worker
 
 Input: slice of Packets
+
 Output: MetricSample sent
 
 The Worker is the part of the Dogstatsd server responsible for parsing the metrics in the bytes array and turning them into MetricSamples. The server spawns multiple workers based on the amount of cores available on the host (the amount of workers created is equal to the number of cores on the machine minus 2. If this result is less than 2, 2 workers are spawned).
@@ -58,6 +60,7 @@ The MetricSamples created are not directly sent to the Agent aggregator but firs
 ## Batcher
 
 Input: MetricSample from the Worker
+
 Output: slices of MetricSample sent to the aggregator
 
 The role of the Batcher is to accumulate multiple MetricSamples before sending them to the Agent aggregator. Every time it has accumulated 32 MetricSample, it sends them to the aggregator. These 32 MetricSamples are sent in a channel buffering 100 sets.

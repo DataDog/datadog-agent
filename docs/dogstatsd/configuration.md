@@ -1,6 +1,6 @@
 # DogStatsD
 
-Information on DogStatsD, configuration and troubleshooting is available in the Datagdog documentation:
+Information on DogStatsD, configuration and troubleshooting is available in the Datadog documentation:
 [https://docs.datadoghq.com/developers/dogstatsd/][1]
 
 **The documentation available in this directory is intended for Dogstatsd developers.**
@@ -77,7 +77,7 @@ of 100, it means that it could use up to 409Kb of heap memory.
 Increasing its value slightly increases the memory usage but could help reduce the amount of
 GC cycles, thus CPU usage.
 
-## Configuration profiles example
+## Examples of configuration profiles
 
 ### Limit the max memory usage
 
@@ -121,7 +121,7 @@ observe an improvement in the CPU usage, but more memory will be needed by these
 Because the Dogstatsd server is using the Agent aggregator, the aggregator's buffer must
 be larger as well.
 
-For instance, here how you can increase the buffer sizes:
+For instance, here's how you can increase the buffer sizes:
 
 ```yaml
 dogstatsd_packet_buffer_size: 256
