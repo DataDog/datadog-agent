@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -342,7 +343,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		a.OrchestrationCollectionEnabled = true
 		// Set clustername
-		if clusterName := config.Datadog.GetString("cluster_name"); clusterName != "" {
+		if clusterName := clustername.GetClusterName(); clusterName != "" {
 			a.KubeClusterName = clusterName
 		}
 	}
