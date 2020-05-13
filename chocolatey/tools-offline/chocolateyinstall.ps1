@@ -30,4 +30,5 @@ install_method:
   installer_version: chocolatey-$($env:chocolateyPackageVersion)-offline
 "@
 
-Out-File -FilePath C:\ProgramData\Datadog\install_info -InputObject $installInfo
+$appDataDir = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Datadog\Datadog Agent").ConfigRoot
+Out-File -FilePath $appDataDir\install_info -InputObject $installInfo
