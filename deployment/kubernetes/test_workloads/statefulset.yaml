@@ -42,7 +42,7 @@ spec:
       name: data
     spec:
       accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "ebs"
+      storageClassName: "gp2"
       resources:
         requests:
           storage: 1Gi
