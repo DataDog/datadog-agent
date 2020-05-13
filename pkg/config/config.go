@@ -606,7 +606,7 @@ func initConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 
 	// System probe
-	config.BindEnv("system_probe_config.enabled")
+	config.SetKnown("system_probe_config.enabled")
 	config.SetKnown("system_probe_config.log_file")
 	config.SetKnown("system_probe_config.debug_port")
 	config.SetKnown("system_probe_config.bpf_debug")
