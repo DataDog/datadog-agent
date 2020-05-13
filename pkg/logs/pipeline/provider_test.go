@@ -23,7 +23,7 @@ type ProviderTestSuite struct {
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	suite.a = auditor.New("", health.Register("fake"))
+	suite.a = auditor.New("", health.RegisterLiveness("fake"))
 	suite.p = &provider{
 		numberOfPipelines: 3,
 		auditor:           suite.a,

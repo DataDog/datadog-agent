@@ -342,7 +342,7 @@ func (j *JMXFetch) Wait() error {
 }
 
 func (j *JMXFetch) heartbeat(beat *time.Ticker) {
-	health := health.Register("jmxfetch")
+	health := health.RegisterLiveness("jmxfetch")
 	defer health.Deregister()
 
 	for range beat.C {

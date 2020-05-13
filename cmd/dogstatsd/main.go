@@ -214,8 +214,8 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 
 func stopAgent(ctx context.Context, cancel context.CancelFunc) {
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Dogstatsd health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {

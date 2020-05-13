@@ -526,7 +526,7 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 }
 
 func zipHealth(tempDir, hostname string) error {
-	s := health.GetStatus()
+	s := health.GetReady()
 	sort.Strings(s.Healthy)
 	sort.Strings(s.Unhealthy)
 
