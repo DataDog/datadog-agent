@@ -34,6 +34,21 @@ func (jb *jobBucket) addJob(c check.Check) {
 	jb.jobs = append(jb.jobs, c)
 }
 
+// removeJob removes the check from the bucket, and returns
+// whether the check was indeed in the bucket (and therefore actually removed)
+func (jb *jobBucket) removeJob(id check.ID) bool {
+	jb.mu.Lock()
+	defer jb.mu.Unlock()
+
+	for i, c := range jb.jobs {
+		if c.ID() == id {
+			jb.jobs = append(jb.jobs[:i], jb.jobs[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 // jobQueue contains a list of checks (called jobs) that need to be
 // scheduled at a certain interval.
 type jobQueue struct {
@@ -107,16 +122,10 @@ func (jq *jobQueue) removeJob(id check.ID) error {
 	jq.mu.Lock()
 	defer jq.mu.Unlock()
 
-	for i, bucket := range jq.buckets {
-		bucket.mu.Lock()
-		for j, c := range bucket.jobs {
-			if c.ID() == id {
-				jq.buckets[i].jobs = append(bucket.jobs[:j], bucket.jobs[j+1:]...)
-				bucket.mu.Unlock()
-				return nil
-			}
+	for _, bucket := range jq.buckets {
+		if found := bucket.removeJob(id); found {
+			return nil
 		}
-		bucket.mu.Unlock()
 	}
 
 	return fmt.Errorf("check with id %s is not in this Job Queue", id)
