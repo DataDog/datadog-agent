@@ -132,7 +132,7 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 	err = json.Unmarshal(b, &res)
 	if err != nil {
 		response = fmt.Sprintf("An unknown error has occurred - Please contact support by email.")
-		return response, err
+		return response, fmt.Errorf("%v\nServer returned:\n%s", err, string(b)[:150])
 	}
 
 	if res.Error != "" {
