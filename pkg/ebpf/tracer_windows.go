@@ -3,38 +3,26 @@
 package ebpf
 
 /*
-//! Defines the objects used to communicate with the driver as well as its control codes
 #include "c/ddfilterapi.h"
-
-//! These includes are needed to use constants defined in the ddfilterapi
-#include <WinDef.h>
-#include <WinIoCtl.h>
 */
 import "C"
 import (
-	"encoding/binary"
 	"expvar"
 	"fmt"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"golang.org/x/sys/windows"
 )
 
 const (
-	driverFile = `\\.\ddfilter`
+	defaultPollInterval = int(15)
 )
 
 var (
 	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"driver_total_stats", "driver_handle_stats"}
-
-	// Buffer holding datadog driver filterapi (ddfilterapi) signature to ensure consistency with driver.
-	ddAPIVersionBuf = makeDDAPIVersionBuffer(C.DD_FILTER_SIGNATURE)
+	expvarTypes     = []string{"driver_total_flow_stats", "driver_flow_handle_stats", "total_flows"}
 )
 
 func init() {
@@ -46,77 +34,95 @@ func init() {
 
 // Tracer struct for tracking network state and connections
 type Tracer struct {
-	config       *Config
-	driverHandle windows.Handle
+	config          *Config
+	driverInterface *network.DriverInterface
+	stopChan        chan struct{}
+
+	timerInterval int
+
+	// ticker for the polling interval for writing
+	inTicker            *time.Ticker
+	stopInTickerRoutine chan bool
 }
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *Config) (*Tracer, error) {
-	handle, err := openDriverFile(driverFile)
+	di, err := network.NewDriverInterface()
 	if err != nil {
-		return nil, fmt.Errorf("%s : %s", "Could not create driver handle", err)
+		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
 
 	tr := &Tracer{
-		driverHandle: handle,
+		driverInterface: di,
+		stopChan:        make(chan struct{}),
+		timerInterval:   defaultPollInterval,
 	}
 
-	go tr.expvarStats()
+	log.Infof("Starting flow polling")
+	err = tr.initFlowPolling(tr.stopChan)
+	if err != nil {
+		return nil, fmt.Errorf("issue polling packets from driver: %v", err)
+	}
+	go tr.expvarStats(tr.stopChan)
 	return tr, nil
 }
 
-func (t *Tracer) expvarStats() {
+// Stop function stops running tracer
+func (t *Tracer) Stop() {
+	close(t.stopChan)
+	t.driverInterface.Close()
+}
+
+func (t *Tracer) expvarStats(exit <-chan struct{}) {
 	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
 	// starts running the body immediately instead waiting for the first tick
 	for range ticker.C {
-		stats, err := t.GetStats()
-		if err != nil {
-			continue
-		}
+		select {
+		case <-exit:
+			return
+		default:
+			stats, err := t.GetStats()
+			if err != nil {
+				continue
+			}
 
-		for name, stat := range stats {
-			for metric, val := range stat.(map[string]int64) {
-				currVal := &expvar.Int{}
-				currVal.Set(val)
-				expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+			for name, stat := range stats {
+				for metric, val := range stat.(map[string]int64) {
+					currVal := &expvar.Int{}
+					currVal.Set(val)
+					expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
+				}
 			}
 		}
 	}
 }
 
-// Stop function stops running tracer
-func (t *Tracer) Stop() {}
-
-func openDriverFile(path string) (windows.Handle, error) {
-	p, err := windows.UTF16PtrFromString(path)
-	if err != nil {
-		return windows.InvalidHandle, err
-	}
-	log.Debug("Creating Driver handle...")
-	h, err := windows.CreateFile(p,
-		windows.GENERIC_READ|windows.GENERIC_WRITE,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
-		nil,
-		windows.OPEN_EXISTING,
-		windows.FILE_FLAG_OVERLAPPED,
-		windows.Handle(0))
-	if err != nil {
-		return windows.InvalidHandle, err
-	}
-	log.Info("Connected to driver and handle created")
-	return h, nil
+func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
+	log.Debugf("Started flow polling")
+	go func() {
+		t.inTicker = time.NewTicker(time.Second * time.Duration(t.timerInterval))
+		defer t.inTicker.Stop()
+		for {
+			select {
+			case <-t.stopInTickerRoutine:
+				return
+			case <-t.inTicker.C:
+				connStats, err := t.driverInterface.GetConnectionStats()
+				if err != nil {
+					return
+				}
+				printStats(connStats)
+			}
+		}
+	}()
+	return nil
 }
 
-func closeDriverFile(handle windows.Handle) error {
-	return windows.CloseHandle(handle)
-}
-
-// We create a buffer because the system calls we make need a *byte which is not
-// possible with const value
-func makeDDAPIVersionBuffer(signature uint64) []byte {
-	buf := make([]byte, C.sizeof_uint64_t)
-	binary.LittleEndian.PutUint64(buf, signature)
-	return buf
+func printStats(stats []network.ConnectionStats) {
+	for _, stat := range stats {
+		log.Infof("%v", stat)
+	}
 }
 
 // GetActiveConnections returns all active connections
@@ -145,38 +151,15 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	var (
-		bytesReturned uint32
-		statbuf       = make([]byte, C.sizeof_struct_driver_stats)
-	)
-
-	err := windows.DeviceIoControl(t.driverHandle, C.DDFILTER_IOCTL_GETSTATS, &ddAPIVersionBuf[0], uint32(len(ddAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	driverStats, err := t.driverInterface.GetStats()
 	if err != nil {
-		return nil, fmt.Errorf("error reading Stats with DeviceIoControl: %v", err)
+		log.Errorf("not printing driver stats: %v", err)
 	}
 
-	stats := *(*C.struct_driver_stats)(unsafe.Pointer(&statbuf[0]))
 	return map[string]interface{}{
-		"driver_total_stats": map[string]int64{
-			"read_calls":             int64(stats.total.read_calls),
-			"read_bytes":             int64(stats.total.read_bytes),
-			"read_calls_outstanding": int64(stats.total.read_calls_outstanding),
-			"read_calls_cancelled":   int64(stats.total.read_calls_cancelled),
-			"read_packets_skipped":   int64(stats.total.read_packets_skipped),
-			"write_calls":            int64(stats.total.write_calls),
-			"write_bytes":            int64(stats.total.write_bytes),
-			"ioctl_calls":            int64(stats.total.ioctl_calls),
-		},
-		"driver_handle_stats": map[string]int64{
-			"read_calls":             int64(stats.handle.read_calls),
-			"read_bytes":             int64(stats.handle.read_bytes),
-			"read_calls_outstanding": int64(stats.handle.read_calls_outstanding),
-			"read_calls_cancelled":   int64(stats.handle.read_calls_cancelled),
-			"read_packets_skipped":   int64(stats.handle.read_packets_skipped),
-			"write_calls":            int64(stats.handle.write_calls),
-			"write_bytes":            int64(stats.handle.write_bytes),
-			"ioctl_calls":            int64(stats.handle.ioctl_calls),
-		},
+		"total_flows":              driverStats["total_flows"],
+		"driver_total_flow_stats":  driverStats["driver_total_flow_stats"],
+		"driver_flow_handle_stats": driverStats["driver_flow_handle_stats"],
 	}, nil
 }
 

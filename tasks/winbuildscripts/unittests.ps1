@@ -1,14 +1,21 @@
 $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force
 New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
 
+if ($Env:NEW_BUILDER -eq "true") {
+    if ($Env:TARGET_ARCH -eq "x64") {
+        & ridk enable
+    }
+    & pip install -r requirements.txt
+}
+
 $Env:Python2_ROOT_DIR=$Env:TEST_EMBEDDED_PY2
 $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 $Env:BUILD_ROOT=(Get-Location).Path
 $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python2_ROOT_DIR;$Env:Python2_ROOT_DIR\Scripts;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"
 
-git clone --depth 1 https://github.com/datadog/integrations-core
-& $Env:Python2_ROOT_DIR\python.exe -m pip install PyYAML==5.1
-& $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.1
+& git clone --depth 1 https://github.com/datadog/integrations-core
+& $Env:Python2_ROOT_DIR\python.exe -m pip install PyYAML==5.3
+& $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3
 
 $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
@@ -50,7 +57,11 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
-& inv -e test --race --profile --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --rtloader-root=$Env:BUILD_ROOT\rtloader
+if ($Env:NEW_BUILDER -eq "true"){
+    & inv -e test --profile --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --rtloader-root=$Env:BUILD_ROOT\rtloader
+} else {
+    & inv -e test --race --profile --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --rtloader-root=$Env:BUILD_ROOT\rtloader
+}
 $err = $LASTEXITCODE
 Write-Host Test result is $err
 if($err -ne 0){

@@ -1,3 +1,10 @@
+Param(
+    [Parameter(Mandatory=$true,Position=0)]
+    [ValidateSet("offline", "online")]
+    [String]
+    $installMethod
+)
+
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 $outputDirectory = "c:\mnt\build-out"
@@ -8,18 +15,12 @@ $releasePattern = "(\d+\.\d+\.\d+)"
 $releaseCandidatePattern = "(\d+\.\d+\.\d+)-rc\.(\d+)"
 $develPattern = "(\d+\.\d+\.\d+)-devel\+git\.\d+\.(.+)"
 
-$installMethod = "online"
 $nuspecFile = "c:\mnt\chocolatey\datadog-agent-online.nuspec"
 $licensePath = "c:\mnt\chocolatey\tools-online\LICENSE.txt"
-$msis = Get-ChildItem c:\mnt\chocolatey\datadog-agent*.msi
-$msiCount = ($msis | Measure-Object).Count
-if ($msiCount -eq 1) {
-    $installMethod = "offline"
+
+if ($installMethod -eq "offline") {
     $nuspecFile = "c:\mnt\chocolatey\datadog-agent-offline.nuspec"
     $licensePath = "c:\mnt\chocolatey\tools-offline\LICENSE.txt"
-} elseif ($msiCount -gt 1) {
-    Write-Host "Too many MSI found, aborting: '$msis'"
-    exit 1
 }
 
 if ($rawAgentVersion -match $releaseCandidatePattern) {

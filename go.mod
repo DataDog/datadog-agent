@@ -70,13 +70,13 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v0.0.0-20200416172112-13d2aa7ab86f // 4.31.0
+	github.com/DataDog/agent-payload v0.0.0-20200428185529-63c9964e037d // 4.33.0
 	github.com/DataDog/datadog-go v3.5.0+incompatible
-	github.com/DataDog/gohai v0.0.0-20200124154531-8cbe900337f1
+	github.com/DataDog/gohai v0.0.0-20200416230846-f32fac1c10c3
 	github.com/DataDog/gopsutil v0.0.0-20191127151039-7e1a4eadb59e
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/watermarkpodautoscaler v0.1.0
-	github.com/DataDog/zstd v1.4.5
+	github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360
 	github.com/Microsoft/go-winio v0.4.11
 	github.com/aws/aws-sdk-go v1.30.5
 	github.com/beevik/ntp v0.3.0

@@ -6,6 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
+install_script_version=1.0.0
 logfile="ddagent-install.log"
 
 LEGACY_ETCDIR="/etc/dd-agent"
@@ -342,6 +343,15 @@ else
   $sudo_cmd chown dd-agent:dd-agent $CONF
   $sudo_cmd chmod 640 $CONF
 fi
+
+# Creating or overriding the install information
+install_info_content="---
+install_method:
+  tool: install_script
+  tool_version: install_script
+  installer_version: install_script-$install_script_version
+"
+$sudo_cmd sh -c "echo '$install_info_content' > $ETCDIR/install_info"
 
 # On SUSE 11, sudo service datadog-agent start fails (because /sbin is not in a base user's path)
 # However, sudo /sbin/service datadog-agent does work.
