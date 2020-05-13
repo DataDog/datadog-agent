@@ -163,15 +163,15 @@ func (m *testModel) GetEventType(key string) (string, error) {
 
 	case "process.name":
 
-		return "process", nil
+		return "", nil
 
 	case "process.uid":
 
-		return "process", nil
+		return "", nil
 
 	case "process.is_root":
 
-		return "process", nil
+		return "", nil
 
 	case "open.filename":
 

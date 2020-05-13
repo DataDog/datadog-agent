@@ -3,8 +3,6 @@ package ast
 import (
 	"encoding/json"
 	"testing"
-
-	"github.com/alecthomas/participle/lexer"
 )
 
 func print(t *testing.T, i interface{}) {
@@ -66,14 +64,6 @@ func TestCompareComplex(t *testing.T) {
 	}
 
 	print(t, rule)
-}
-func TestExprAt(t *testing.T) {
-	rule, err := ParseRule(`process.name != "/usr/bin/vipw" && open.pathname == "/etc/passwd" && (open.mode == O_TRUNC || open.mode == O_CREAT || open.mode == O_WRONLY)`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	t.Log(rule.ExprAt(lexer.Position{Column: 22}))
 }
 
 func TestBoolAnd(t *testing.T) {

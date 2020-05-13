@@ -1,7 +1,6 @@
 package module
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/pkg/errors"
@@ -13,9 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var RuleWithoutEventErr = errors.New("rule without event")
 
 type Module struct {
 	probe   *probe.Probe
@@ -66,11 +68,13 @@ func (a *Module) LoadPolicies() error {
 		for _, policyPath := range policyDef.Files {
 			f, err := os.Open(policyPath)
 			if err != nil {
-				return errors.Wrap(err, fmt.Sprintf("failed to load policy '%s'", policyPath))
+				log.Errorf("failed to load policy: %s", policyPath)
+				return err
 			}
 
 			policy, err := policy.LoadPolicy(f)
 			if err != nil {
+				log.Errorf("failed to load policy `%s`: %s", policyPath, err)
 				return err
 			}
 
@@ -80,9 +84,20 @@ func (a *Module) LoadPolicies() error {
 					tags = append(tags, k+":"+v)
 				}
 
-				_, err := a.ruleSet.AddRule(ruleDef.ID, ruleDef.Expression, tags...)
+				rule, err := a.ruleSet.AddRule(ruleDef.ID, ruleDef.Expression, tags...)
 				if err != nil {
+					if err, ok := err.(*eval.AstToEvalError); ok {
+						log.Errorf("rule syntax error: %s\n%s", err, secl.SprintExprAt(ruleDef.Expression, err.Pos))
+					} else {
+						log.Errorf("rule parsing error: %s\n%s", err, ruleDef.Expression)
+					}
+
 					return err
+				}
+
+				if len(rule.GetEventTypes()) == 0 {
+					log.Errorf("rule without event specified: %s", ruleDef.Expression)
+					return RuleWithoutEventErr
 				}
 			}
 		}
@@ -98,7 +113,8 @@ func (a *Module) GetStats() map[string]interface{} {
 func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 	config, err := config.NewConfig()
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid security agent configuration")
+		log.Errorf("invalid security agent configuration: %s", err)
+		return nil, err
 	}
 
 	probe, err := probe.NewProbe(config)

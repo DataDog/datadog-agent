@@ -40,9 +40,6 @@ func TestRuleBuckets(t *testing.T) {
 	if bucket, ok := rs.eventRuleBuckets["mkdir"]; !ok || len(bucket.rules) != 1 {
 		t.Fatal("unable to find `mkdir` rules or incorrect number of rules")
 	}
-	if bucket, ok := rs.eventRuleBuckets["process"]; !ok || len(bucket.rules) != 2 {
-		t.Fatal("unable to find `process` rules or incorrect number of rules")
-	}
 }
 
 func TestRuleSetEval(t *testing.T) {

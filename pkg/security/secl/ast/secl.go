@@ -2,8 +2,6 @@ package ast
 
 import (
 	"bytes"
-	"fmt"
-	"strings"
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
@@ -49,13 +47,6 @@ type Rule struct {
 	Expr string
 
 	BooleanExpression *BooleanExpression `@@`
-}
-
-func (r *Rule) ExprAt(pos lexer.Position) string {
-	str := fmt.Sprintf("\n%s\n", r.Expr)
-	str += strings.Repeat(" ", pos.Column-1)
-	str += "^"
-	return str
 }
 
 func ParseMacro(expr string) (*Macro, error) {

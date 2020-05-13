@@ -3,7 +3,11 @@ package eval
 type Rule struct {
 	ID         string
 	Expression string
-	Events     []string
 	Tags       []string
-	evaluator  *RuleEvaluator
+
+	evaluator *RuleEvaluator
+}
+
+func (r *Rule) GetEventTypes() []string {
+	return r.evaluator.Events
 }
