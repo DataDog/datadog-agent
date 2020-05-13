@@ -60,16 +60,19 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # This is done in posttrans for .rpm packages
         if [ ! -f "$CONFIG_DIR/install_info" ]; then
 
-            # Get Agent's version;
-            # grep config file for version 5
-            # use "version" subcommand for versions 6 and 7
-            agent_version=$(grep -oP 'AGENT_VERSION = "\K[^\"]+' $INSTALL_DIR/agent/config.py 2> /dev/null || datadog-agent version | cut -d "-" -f 1 | cut -d " " -f 2)
+            if dpkg --version; then
+                tool=dpkg
+                tool_version=dpkg-$(dpkg --version | head -n 1 | cut -d " " -f 7)
+            else
+                tool=unknown
+                tool_version=unknown
+            fi
             
             install_info_content="---
 install_method:
-  tool: deb_package
-  tool_version: deb_package
-  installer_version: deb_package-$agent_version
+  tool: $tool
+  tool_version: $tool_version
+  installer_version: deb_package
 "
             echo "$install_info_content" > $CONFIG_DIR/install_info
         fi

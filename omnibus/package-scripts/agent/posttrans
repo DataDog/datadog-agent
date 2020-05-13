@@ -101,23 +101,26 @@ fi
 # This is done in the postinst script for .deb packages
 if [ ! -f "$CONFIG_DIR/install_info" ]; then
 
-    # Get Agent's version;
-    # grep config file for version 5
-    # use "version" subcommand for versions 6 and 7
-    agent_version=$(grep -oP 'AGENT_VERSION = "\K[^\"]+' $INSTALL_DIR/agent/config.py 2> /dev/null || datadog-agent version | cut -d "-" -f 1 | cut -d " " -f 2)
-
-    # Distinguish between SUSE and everything else
-    if [ "$DISTRIBUTION_FAMILY" == "SUSE" ]; then
-        rpm_version="SUSE"
+    if rpm --version; then
+        tool=rpm
+        tool_version=rpm-$(rpm --version | cut -d " " -f 3)
     else
-        rpm_version="Default"
+        tool=unknown
+        tool_version=unknown
+    fi
+
+    # Distinguish SUSE since it has a different package
+    if [ "$DISTRIBUTION_FAMILY" == "SUSE" ]; then
+        installer_version="rpm_suse_package"
+    else
+        installer_version="rpm_package"
     fi
     
     install_info_content="---
 install_method:
-  tool: rpm_package
-  tool_version: rpm_package-$rpm_version
-  installer_version: rpm_package-$agent_version
+  tool: $tool
+  tool_version: $tool_version
+  installer_version: $installer_version
 "
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
