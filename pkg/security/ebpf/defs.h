@@ -44,32 +44,8 @@ struct process_data_t {
     u32  gid;
 };
 
-struct dentry_event_cache_t {
-    struct event_context_t event_context;
-    struct inode *src_dir;
-    struct dentry *src_dentry;
-    struct inode *target_dir;
-    struct dentry *target_dentry;
-    int mode;
-    int flags;
-};
-
 struct process_discriminator_t {
     char comm[TASK_COMM_LEN];
-};
-
-struct path_leaf_t {
-  u32 parent;
-  char name[NAME_MAX];
-};
-
-struct bpf_map_def SEC("maps/dentry_event_cache") dentry_event_cache = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(u64),
-    .value_size = sizeof(struct dentry_event_cache_t),
-    .max_entries = 256,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/process_discriminators") process_discriminators = {
@@ -81,7 +57,7 @@ struct bpf_map_def SEC("maps/process_discriminators") process_discriminators = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/dentry_events") dentry_events = {
+struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u32),
@@ -90,25 +66,11 @@ struct bpf_map_def SEC("maps/dentry_events") dentry_events = {
     .namespace = "",
 };
 
-void __attribute__((always_inline)) push_dentry_event_cache(struct dentry_event_cache_t *event) {
-    u64 key = bpf_get_current_pid_tgid();
-    bpf_map_update_elem(&dentry_event_cache, &key, event, BPF_ANY);
-}
-
-struct dentry_event_cache_t* __attribute__((always_inline)) pop_dentry_event_cache() {
-    u64 key = bpf_get_current_pid_tgid();
-    struct dentry_event_cache_t *event = bpf_map_lookup_elem(&dentry_event_cache, &key);
-    if (!event)
-        return NULL;
-    bpf_map_delete_elem(&dentry_event_cache, &key);
-    return event;
-}
-
 void __attribute__((always_inline)) fill_event_context(struct event_context_t *event_context) {
     bpf_get_current_comm(&event_context->comm, sizeof(event_context->comm));
 }
 
-static inline int filter(struct event_context_t *event_context) {
+static __attribute__((always_inline)) int filter(struct event_context_t *event_context) {
     int found = bpf_map_lookup_elem(&process_discriminators, &event_context->comm) != 0;
     if (found) {
         printk("Process filter found for %s\n", event_context->comm);
@@ -116,7 +78,13 @@ static inline int filter(struct event_context_t *event_context) {
     return !found;
 }
 
+int __attribute__((always_inline)) filter_process() {
+    struct event_context_t event_context;
+    fill_event_context(&event_context);
+    return !filter(&event_context);
+}
+
 #define send_event(ctx, event) \
-    bpf_perf_event_output(ctx, &dentry_events, bpf_get_smp_processor_id(), &event, sizeof(event))
+    bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
 
 #endif

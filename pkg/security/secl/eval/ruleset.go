@@ -154,6 +154,14 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 	return result
 }
 
+func (rs *RuleSet) GetEventTypes() []string {
+	eventTypes := make([]string, 0, len(rs.eventRuleBuckets))
+	for eventType := range rs.eventRuleBuckets {
+		eventTypes = append(eventTypes, eventType)
+	}
+	return eventTypes
+}
+
 func NewRuleSet(model Model, debug bool) *RuleSet {
 	return &RuleSet{
 		model:            model,

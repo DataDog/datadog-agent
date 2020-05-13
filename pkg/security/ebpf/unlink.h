@@ -1,65 +1,80 @@
 #ifndef _UNLINK_H_
 #define _UNLINK_H_
 
-#include "defs.h"
+#include "syscalls.h"
+#include "process.h"
 
 struct unlink_event_t {
     struct event_t event;
     struct process_data_t process;
-    int    inode;
+    long   inode;
     u32    pathname_key;
     int    mount_id;
 };
 
-int __attribute__((always_inline)) trace__security_inode_unlink(struct pt_regs *ctx, struct inode *dir, struct dentry *dentry) {
-    struct dentry_event_cache_t cache = {
-        .src_dentry = dentry,
-        .src_dir = dir,
-    };
-
-    // Filter process
-    fill_event_context(&cache.event_context);
-    if (!filter(&cache.event_context))
+int trace__sys_unlink(struct pt_regs *ctx) {
+    if (filter_process())
         return 0;
 
-    push_dentry_event_cache(&cache);
+    struct syscall_cache_t syscall = {};
+    cache_syscall(&syscall);
 
     return 0;
 }
 
-SEC("kprobe/security_inode_unlink")
-int kprobe__security_inode_unlink(struct pt_regs *ctx) {
-    struct inode *dir = (struct inode *)PT_REGS_PARM1(ctx);
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-
-    return trace__security_inode_unlink(ctx, dir, dentry);
+SEC("kprobe/__x64_sys_unlink")
+int kprobe__sys_unlink(struct pt_regs *ctx) {
+    return trace__sys_unlink(ctx);
 }
 
-int __attribute__((always_inline)) trace__security_inode_unlink_ret(struct pt_regs *ctx, int retval) {
-    struct dentry_event_cache_t *cache = pop_dentry_event_cache();
-    if (!cache)
-        return -1;
+SEC("kprobe/__x64_sys_unlinkat")
+int kprobe__sys_unlinkat(struct pt_regs *ctx) {
+    return trace__sys_unlink(ctx);
+}
+
+SEC("kprobe/vfs_unlink")
+int kprobe__vfs_unlink(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;
+
+    // we resolve all the information before the file is actually removed
+    syscall->unlink.mount_id = get_inode_mount_id((struct inode *) PT_REGS_PARM1(ctx));
+    struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    syscall->unlink.inode = get_dentry_ino(dentry);
+    resolve_dentry(dentry, syscall->unlink.inode);
+
+    return 0;
+}
+
+int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall();
+    if (!syscall)
+        return 0;
 
     struct unlink_event_t event = {
-        .event.retval = retval,
+        .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_VFS_UNLINK,
         .event.timestamp = bpf_ktime_get_ns(),
-        .pathname_key = bpf_get_prandom_u32(),
-        .inode = get_dentry_inode(cache->src_dentry),
-        .mount_id = get_inode_mount_id(cache->src_dir),
+        .inode = syscall->unlink.inode,
+        .mount_id = syscall->unlink.mount_id,
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(cache->src_dentry, event.pathname_key);
 
     send_event(ctx, event);
 
     return 0;
 }
 
-SEC("kretprobe/security_inode_unlink")
-int kretprobe__security_inode_unlink(struct pt_regs *ctx) {
-    return trace__security_inode_unlink_ret(ctx, PT_REGS_RC(ctx));
+SEC("kretprobe/__x64_sys_unlink")
+int kretprobe__sys_unlink(struct pt_regs *ctx) {
+    return trace__sys_unlink_ret(ctx);
+}
+
+SEC("kretprobe/__x64_sys_unlinkat")
+int kretprobe__sys_unlinkat(struct pt_regs *ctx) {
+    return trace__sys_unlink_ret(ctx);
 }
 
 #endif

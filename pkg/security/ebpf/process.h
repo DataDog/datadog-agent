@@ -36,12 +36,4 @@ static u64 fill_process_data(struct process_data_t *data) {
     return id;
 }
 
-static inline int filter_process(struct process_data_t *data) {
-    int found = bpf_map_lookup_elem(&process_discriminators, &data->comm) != 0;
-    if (found) {
-        printk("Process filter found for %s\n", data->comm);
-    }
-    return !found;
-}
-
 #endif

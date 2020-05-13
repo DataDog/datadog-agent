@@ -22,6 +22,7 @@ type Table interface {
 
 type Module interface {
 	RegisterKprobe(k *types.KProbe) error
+	UnregisterKprobe(k *types.KProbe) error
 	RegisterTable(t *types.Table) (Table, error)
 	RegisterPerfMap(p *types.PerfMap) (PerfMap, error)
 	Close() error
@@ -49,7 +50,7 @@ func (p *Probe) StartTime() time.Time {
 	return p.startTime
 }
 
-func (p *Probe) registerHooks() error {
+func (p *Probe) RegisterHooks() error {
 	for _, kProbe := range p.Kprobes {
 		if err := p.Module.RegisterKprobe(kProbe); err != nil {
 			return err
@@ -90,11 +91,6 @@ func (p *Probe) Start() error {
 		if err := perfMap.Start(); err != nil {
 			return err
 		}
-	}
-
-	log.Debugf("Register eBPF hooks")
-	if err := p.registerHooks(); err != nil {
-		return err
 	}
 
 	p.startTime = time.Now()

@@ -8,6 +8,7 @@ import (
 )
 
 var (
+	DefaultBufferLength      = 256
 	DefaultClosedChannelSize = 1000
 	DefaultLostEventSize     = 10
 )
