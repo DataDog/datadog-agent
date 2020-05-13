@@ -279,7 +279,7 @@ func StartAgent() error {
 
 	err = common.SetupSystemProbeConfig(sysProbeConfFilePath)
 	if err != nil {
-		log.Warnf("System probe config not read: %v", err)
+		log.Errorf("System probe config not read: %v", err)
 	}
 
 	// Detect Cloud Provider
