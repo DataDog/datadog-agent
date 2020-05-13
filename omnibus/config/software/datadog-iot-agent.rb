@@ -42,6 +42,7 @@ build do
 
     # Config
     mkdir '/etc/datadog-agent'
+    mkdir "/etc/init"
     mkdir "/var/log/datadog"
 
     move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
