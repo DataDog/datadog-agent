@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,14 +27,14 @@ type Scheduler interface {
 
 // Agent defines Compliance Agent
 type Agent struct {
-	builder   compliance.CheckBuilder
+	builder   checks.Builder
 	scheduler Scheduler
 	configDir string
 }
 
 // New creates a new instance of Agent
 func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, checkInterval time.Duration) *Agent {
-	builder := compliance.NewCheckBuilder(checkInterval, reporter)
+	builder := checks.NewBuilder(checkInterval, reporter)
 
 	return &Agent{
 		builder:   builder,

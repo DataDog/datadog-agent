@@ -2,18 +2,19 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
-package compliance
+package checks
 
 import (
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestFileCheck(t *testing.T) {
-	reporter := &MockReporter{}
+	reporter := &compliance.MockReporter{}
 
 	const (
 		framework    = "cis-docker"
@@ -35,9 +36,9 @@ func TestFileCheck(t *testing.T) {
 			resourceID:   resourceID,
 			reporter:     reporter,
 		},
-		File: &File{
+		File: &compliance.File{
 			Path: "./testdata/644.dat",
-			Report: Report{
+			Report: compliance.Report{
 				{
 					Attribute: "permissions",
 				},
@@ -46,13 +47,13 @@ func TestFileCheck(t *testing.T) {
 	}
 	reporter.On(
 		"Report",
-		&RuleEvent{
+		&compliance.RuleEvent{
 			RuleID:       ruleID,
 			Framework:    framework,
 			Version:      version,
 			ResourceType: resourceType,
 			ResourceID:   resourceID,
-			Data: KV{
+			Data: compliance.KV{
 				"permissions": "644",
 			},
 		},
