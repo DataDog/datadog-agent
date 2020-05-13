@@ -233,7 +233,7 @@ func stopAgent(ctx context.Context, cancel context.CancelFunc) {
 	if statsd!=nil{
 		statsd.Stop()
 	}
-  
+
 	log.Info("See ya!")
 	log.Flush()
 	return
