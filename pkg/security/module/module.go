@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type Module struct {
@@ -29,7 +30,15 @@ func (a *Module) Register(server *grpc.Server) error {
 
 	a.ruleSet.AddListener(a)
 
-	return a.probe.Start()
+	if err := a.probe.Start(); err != nil {
+		return err
+	}
+
+	if err := a.probe.SetEventTypes(a.ruleSet.GetEventTypes()); err != nil {
+		log.Warnf(err.Error())
+	}
+
+	return nil
 }
 
 func (a *Module) Close() {
@@ -78,6 +87,7 @@ func (a *Module) LoadPolicies() error {
 			}
 		}
 	}
+
 	return nil
 }
 

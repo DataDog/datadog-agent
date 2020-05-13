@@ -38,6 +38,11 @@ func (t *Table) Delete(key []byte) error {
 }
 
 func (m *Module) RegisterPerfMap(perfMap *types.PerfMap) (probe.PerfMap, error) {
+	bufferLength := perfMap.BufferLength
+	if bufferLength == 0 {
+		bufferLength = DefaultBufferLength
+	}
+
 	eventChannel := make(chan []byte, perfMap.BufferLength)
 	lostChannel := make(chan uint64, DefaultLostEventSize)
 

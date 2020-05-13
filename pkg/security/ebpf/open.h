@@ -1,72 +1,89 @@
 #ifndef _OPEN_H_
 #define _OPEN_H_
 
+#include "syscalls.h"
+#include "process.h"
+
 struct open_event_t {
-    struct event_t event;
-    struct process_data_t process;
-    int    mode;
-    int    flags;
-    int    inode;
-    u32    pathname_key;
-    int    mount_id;
-    u32    padding;
+    struct   event_t event;
+    struct   process_data_t process;
+    int      mode;
+    int      flags;
+    unsigned long inode;
+    int      mount_id;
+    u32      padding;
 };
 
-int __attribute__((always_inline)) trace__security_file_open(struct pt_regs *ctx, struct file *file /*, const struct cred *cred */) {
-    struct dentry_event_cache_t cache = { };
-
-    bpf_probe_read(&cache.flags, sizeof(cache.flags), &file->f_flags);
-    bpf_probe_read(&cache.mode, sizeof(cache.mode), &file->f_mode);
-    bpf_probe_read(&cache.src_dir, sizeof(cache.src_dir), &file->f_inode);
-
-    struct path path;
-    bpf_probe_read(&path, sizeof(path), &file->f_path);
-    cache.src_dentry = path.dentry;
-
-    // Filter process
-    fill_event_context(&cache.event_context);
-    if (!filter(&cache.event_context))
+SEC("kprobe/__x64_sys_openat")
+int kprobe__sys_openat(struct pt_regs *ctx) {
+    if (filter_process())
         return 0;
 
-    push_dentry_event_cache(&cache);
+    struct syscall_cache_t syscall = {
+        .open = {
+            .flags = (int) PT_REGS_PARM3(ctx),
+            .mode = (umode_t) PT_REGS_PARM4(ctx)
+        }
+    };
+
+    cache_syscall(&syscall);
 
     return 0;
 }
 
-SEC("kprobe/security_file_open")
-int kprobe__security_file_open(struct pt_regs *ctx) {
-    struct file *file = (struct file *) PT_REGS_PARM1(ctx);
+SEC("kprobe/vfs_open")
+int kprobe__vfs_open(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;
 
-    return trace__security_file_open(ctx, file);
+#ifdef DEBUG
+    struct dentry *dentry;
+    bpf_probe_read(&dentry, sizeof(dentry), &path->dentry);
+
+    struct qstr qstr;
+    bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
+
+    printk("kprobe/vfs_open %s\n", qstr.name);
+#endif
+
+    syscall->open.path = (struct path *)PT_REGS_PARM1(ctx);
+    syscall->open.file = (struct file *)PT_REGS_PARM2(ctx);
+
+    return 0;
 }
 
-int __attribute__((always_inline)) trace__security_file_open_ret(struct pt_regs *ctx, int retval) {
-    struct dentry_event_cache_t *cache = pop_dentry_event_cache();
-    if (!cache)
-        return -1;
+SEC("kretprobe/__x64_sys_openat")
+int kretprobe__sys_openat(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall();
+    if (!syscall)
+        return 0;
+
+    struct inode *f_inode = get_file_inode(syscall->open.file);
+    struct dentry *f_dentry = get_file_dentry(syscall->open.file);
 
     struct open_event_t event = {
-        .event.retval = retval,
+        .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_MAY_OPEN,
         .event.timestamp = bpf_ktime_get_ns(),
-        .mode = cache->mode,
-        .flags = cache->flags,
-        .pathname_key = bpf_get_prandom_u32(),
-        .inode = get_dentry_inode(cache->src_dentry),
-        .mount_id = get_inode_mount_id(cache->src_dir),
+        .mount_id = get_inode_mount_id(f_inode),
+        .inode = get_inode_ino(f_inode),
+        .flags = syscall->open.flags,
+        .mode = syscall->open.mode,
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(cache->src_dentry, event.pathname_key);
+    resolve_dentry(f_dentry, event.inode);
 
     send_event(ctx, event);
 
-    return 0;
-}
+#ifdef DEBUG
+    if (event.process.comm[0] == 'c' && event.process.comm[1] == 'a') {
+        printk("trace__sys_openat_ret %p %p %d\n", file, f_dentry, event.mount_id);
+    }
+#endif
 
-SEC("kretprobe/security_file_open")
-int kretprobe__security_file_open(struct pt_regs *ctx) {
-    return trace__security_file_open_ret(ctx, PT_REGS_RC(ctx));
+    return 0;
 }
 
 #endif

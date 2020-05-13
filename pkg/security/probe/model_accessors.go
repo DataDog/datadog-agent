@@ -45,8 +45,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "mkdir.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Mkdir.HandlePathnameKey(m.event.resolvers) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.HandlePathnameKey(m.event.resolvers) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Mkdir.ResolveInode(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Mkdir.ResolveInode(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -81,8 +81,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "open.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Open.HandlePathnameKey(m.event.resolvers) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Open.HandlePathnameKey(m.event.resolvers) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Open.ResolveInode(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Open.ResolveInode(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -189,8 +189,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "rename.newfilename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Rename.HandleTargetPathnameKey(m.event.resolvers) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.HandleTargetPathnameKey(m.event.resolvers) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Rename.ResolveTargetInode(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.ResolveTargetInode(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -216,8 +216,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "rename.oldfilename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Rename.HandleSrcPathnameKey(m.event.resolvers) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.HandleSrcPathnameKey(m.event.resolvers) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Rename.ResolveSrcInode(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Rename.ResolveSrcInode(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -240,11 +240,11 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "rmdir.PathnameKey":
+	case "rmdir.filename":
 
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Rmdir.PathnameKey) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rmdir.PathnameKey) },
+		return &eval.StringEvaluator{
+			Eval:      func(ctx *eval.Context) string { return m.event.Rmdir.ResolveInode(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Rmdir.ResolveInode(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -270,8 +270,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "unlink.filename":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Unlink.HandlePathnameKey(m.event.resolvers) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Unlink.HandlePathnameKey(m.event.resolvers) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Unlink.ResolveInode(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Unlink.ResolveInode(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -377,7 +377,7 @@ func (m *Model) GetTags(key string) ([]string, error) {
 	case "rename.oldmountid":
 		return []string{}, nil
 
-	case "rmdir.PathnameKey":
+	case "rmdir.filename":
 		return []string{}, nil
 
 	case "rmdir.inode":
@@ -440,25 +440,25 @@ func (m *Model) GetEventType(key string) (string, error) {
 		return "open", nil
 
 	case "process.gid":
-		return "process", nil
+		return "", nil
 
 	case "process.name":
-		return "process", nil
+		return "", nil
 
 	case "process.pid":
-		return "process", nil
+		return "", nil
 
 	case "process.pidns":
-		return "process", nil
+		return "", nil
 
 	case "process.tid":
-		return "process", nil
+		return "", nil
 
 	case "process.tty_name":
-		return "process", nil
+		return "", nil
 
 	case "process.uid":
-		return "process", nil
+		return "", nil
 
 	case "rename.newfilename":
 		return "rename", nil
@@ -478,7 +478,7 @@ func (m *Model) GetEventType(key string) (string, error) {
 	case "rename.oldmountid":
 		return "rename", nil
 
-	case "rmdir.PathnameKey":
+	case "rmdir.filename":
 		return "rmdir", nil
 
 	case "rmdir.inode":

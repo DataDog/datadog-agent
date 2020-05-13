@@ -8,125 +8,67 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/pkg/errors"
+
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// handleDentryEvent - Handles a dentry event
-func (p *Probe) handleDentryEvent(data []byte) {
-	log.Debugf("Handling dentry event")
-
-	offset := 0
-	event := NewEvent(p.resolvers)
-
-	read, err := event.Event.UnmarshalBinary(data)
-	if err != nil {
-		log.Errorf("failed to decode event")
-		return
-	}
-	offset += read
-
-	read, err = event.Process.UnmarshalBinary(data[offset:])
-	if err != nil {
-		log.Errorf("failed to decode process event")
-		return
-	}
-	offset += read
-
-	switch ProbeEventType(event.Event.Type) {
-	case FileOpenEventType:
-		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileMkdirEventType:
-		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileRmdirEventType:
-		if _, err := event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileUnlinkEventType:
-		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case FileRenameEventType:
-		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
-			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	default:
-		log.Errorf("Unsupported event type %d\n", event.Event.Type)
-	}
-
-	log.Debugf("Dispatching event %+v\n", event)
-	p.DispatchEvent(event)
-}
 
 type DentryResolver struct {
 	pathnames eprobe.Table
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) resolve(pathnameKey uint32) (string, error) {
+func (dr *DentryResolver) resolve(pathnameKey uint64) (filename string, err error) {
 	// Don't resolve path if pathnameKey isn't valid
 	if pathnameKey <= 0 {
 		return "", fmt.Errorf("invalid pathname key %v", pathnameKey)
 	}
 
 	// Convert key into bytes
-	key := make([]byte, 4)
-	binary.LittleEndian.PutUint32(key, pathnameKey)
-	filename := ""
+	key := make([]byte, 8)
+	byteOrder.PutUint64(key, pathnameKey)
 	done := false
 	pathRaw := []byte{}
 	var path struct {
-		ParentKey uint32
-		Name      [255]byte
+		ParentKey uint64
+		Name      [256]byte
 	}
-	var err1, err2 error
+
 	// Fetch path recursively
 	for !done {
-		pathRaw, err1 = dr.pathnames.Get(key)
-		if err1 != nil {
+		if pathRaw, err = dr.pathnames.Get(key); err != nil {
 			filename = "*ERROR*" + filename
 			break
 		}
-		err1 = binary.Read(bytes.NewBuffer(pathRaw), byteOrder, &path)
-		if err1 != nil {
-			err1 = fmt.Errorf("failed to decode received data (pathLeaf): %s", err1)
-			done = true
-		}
-		// Delete key
-		if err2 = dr.pathnames.Delete(key); err2 != nil {
-			err1 = fmt.Errorf("pathnames map deletion error: %v", err2)
-		}
-		if done {
+
+		path.ParentKey = byteOrder.Uint64(pathRaw[0:8])
+		if err = binary.Read(bytes.NewBuffer(pathRaw[8:]), byteOrder, &path.Name); err != nil {
+			err = errors.Wrap(err, "failed to decode received data (pathLeaf)")
 			break
 		}
+
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '/' {
 			filename = "/" + C.GoString((*C.char)(unsafe.Pointer(&path.Name))) + filename
 		}
+
 		if path.ParentKey == 0 {
 			break
 		}
+
 		// Prepare next key
-		binary.LittleEndian.PutUint32(key, path.ParentKey)
+		byteOrder.PutUint64(key, path.ParentKey)
 	}
+
 	if len(filename) == 0 {
 		filename = "/"
 	}
 
-	return filename, err1
+	return
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) Resolve(pathnameKey uint32) string {
+func (dr *DentryResolver) Resolve(pathnameKey uint64) string {
 	path, _ := dr.resolve(pathnameKey)
 	return path
 }
