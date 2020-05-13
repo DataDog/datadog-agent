@@ -44,6 +44,17 @@ var (
 	stateError = "error"
 )
 
+const (
+	// AgentName is the default agent name
+	AgentName = "agent"
+	// IotAgentName is the name for an IoT instance of the Agent
+	IotAgentName = "iot_agent"
+	// ClusterAgentName is the Cluster Agent name
+	ClusterAgentName = "cluster_agent"
+	// SecurityAgentName is the Security Agent name
+	SecurityAgentName = "security_agent"
+)
+
 func (s *Stats) add(stat int64) {
 	s.m.Lock()
 	defer s.m.Unlock()

@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -76,7 +77,6 @@ type AgentConfig struct {
 	DisableIPv6Tracing             bool
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
-	CollectDNSStats                bool
 	SystemProbeSocketPath          string
 	SystemProbeLogFile             string
 	MaxTrackedConnections          uint
@@ -85,12 +85,16 @@ type AgentConfig struct {
 	ExcludedSourceConnections      map[string][]string
 	ExcludedDestinationConnections map[string][]string
 	EnableConntrack                bool
-	ConntrackIgnoreENOBUFS         bool
 	ConntrackMaxStateSize          int
+	ConntrackRateLimit             int
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
 	MaxClosedConnectionsBuffered   int
 	MaxConnectionsStateBuffered    int
+
+	// DNS stats configuration
+	CollectDNSStats bool
+	DNSTimeout      time.Duration
 
 	// Orchestrator collection configuration
 	OrchestrationCollectionEnabled bool
@@ -184,18 +188,18 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		StatsdPort: 8125,
 
 		// System probe collection configuration
-		EnableSystemProbe:      false,
-		DisableTCPTracing:      false,
-		DisableUDPTracing:      false,
-		DisableIPv6Tracing:     false,
-		DisableDNSInspection:   false,
-		SystemProbeSocketPath:  defaultSystemProbeSocketPath,
-		SystemProbeLogFile:     defaultSystemProbeFilePath,
-		MaxTrackedConnections:  defaultMaxTrackedConnections,
-		EnableConntrack:        true,
-		ConntrackIgnoreENOBUFS: false,
-		ClosedChannelSize:      500,
-		ConntrackMaxStateSize:  defaultMaxTrackedConnections * 2,
+		EnableSystemProbe:     false,
+		DisableTCPTracing:     false,
+		DisableUDPTracing:     false,
+		DisableIPv6Tracing:    false,
+		DisableDNSInspection:  false,
+		SystemProbeSocketPath: defaultSystemProbeSocketPath,
+		SystemProbeLogFile:    defaultSystemProbeFilePath,
+		MaxTrackedConnections: defaultMaxTrackedConnections,
+		EnableConntrack:       true,
+		ClosedChannelSize:     500,
+		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
+		ConntrackRateLimit:    500,
 
 		// Check config
 		EnabledChecks: enabledChecks,
@@ -375,7 +379,6 @@ func loadEnvVariables() {
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_ORCHESTRATOR_URL", "process_config.orchestrator_dd_url"},
-
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
 		{"DD_BIND_HOST", "bind_host"},
@@ -409,6 +412,24 @@ func loadEnvVariables() {
 
 	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
 		config.Datadog.Set("process_config.custom_sensitive_words", strings.Split(v, ","))
+	}
+
+	if v := os.Getenv("DD_PROCESS_ADDITIONAL_ENDPOINTS"); v != "" {
+		endpoints := make(map[string][]string)
+		if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
+			log.Errorf(`Could not parse DD_PROCESS_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
+		} else {
+			config.Datadog.Set("process_config.additional_endpoints", endpoints)
+		}
+	}
+
+	if v := os.Getenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS"); v != "" {
+		endpoints := make(map[string][]string)
+		if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
+			log.Errorf(`Could not parse DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS: %v. It must be of the form '{"https://process.agent.datadoghq.com": ["apikey1", ...], ...}'.`, err)
+		} else {
+			config.Datadog.Set("process_config.orchestrator_additional_endpoints", endpoints)
+		}
 	}
 }
 

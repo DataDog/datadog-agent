@@ -76,8 +76,8 @@ func StartController(ctx ControllerContext) error {
 
 	ctx.UnassignedPodInformerFactory.Start(ctx.StopCh)
 
-	return apiserver.SyncInformers(map[string]cache.SharedInformer{
-		"pods": ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
+	return apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
+		apiserver.PodsInformer: ctx.UnassignedPodInformerFactory.Core().V1().Pods().Informer(),
 	})
 }
 
