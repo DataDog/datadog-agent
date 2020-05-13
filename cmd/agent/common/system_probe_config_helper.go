@@ -46,4 +46,3 @@ func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
 	proc_config.LoadSysProbeEnvVariables()
 	return nil
 }
-
