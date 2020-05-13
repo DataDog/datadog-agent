@@ -316,7 +316,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				continue
 			}
 
-			if statuses := readResponseStatuses(responses); len(statuses) > 0 {
+			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
 				l.updateStatus(statuses)
 			}
 		}
@@ -378,23 +378,23 @@ func getContainerCount(mb model.MessageBody) int {
 	return 0
 }
 
-func readResponseStatuses(responses chan forwarder.Response) []*model.CollectorStatus {
+func readResponseStatuses(checkName string, responses chan forwarder.Response) []*model.CollectorStatus {
 	var statuses []*model.CollectorStatus
 
 	for response := range responses {
 		if response.Err != nil {
-			log.Errorf("Error from %s: %s", response.Domain, response.Err)
+			log.Errorf("[%s] Error from %s: %s", checkName, response.Domain, response.Err)
 			continue
 		}
 
 		if response.StatusCode >= 300 {
-			log.Errorf("Invalid response from %s: %d -> %s", response.Domain, response.StatusCode, response.Err)
+			log.Errorf("[%s] Invalid response from %s: %d -> %s", checkName, response.Domain, response.StatusCode, response.Err)
 			continue
 		}
 
 		r, err := model.DecodeMessage(response.Body)
 		if err != nil {
-			log.Errorf("Could not decode response body: %s", err)
+			log.Errorf("[%s] Could not decode response body: %s", checkName, err)
 			continue
 		}
 
@@ -402,12 +402,12 @@ func readResponseStatuses(responses chan forwarder.Response) []*model.CollectorS
 		case model.TypeResCollector:
 			rm := r.Body.(*model.ResCollector)
 			if len(rm.Message) > 0 {
-				log.Errorf("Error in response from %s: %s", response.Domain, rm.Message)
+				log.Errorf("[%s] Error in response from %s: %s", checkName, response.Domain, rm.Message)
 			} else {
 				statuses = append(statuses, rm.Status)
 			}
 		default:
-			log.Errorf("Unexpected response type from %s: %d", response.Domain, r.Header.Type)
+			log.Errorf("[%s] Unexpected response type from %s: %d", checkName, response.Domain, r.Header.Type)
 		}
 	}
 
