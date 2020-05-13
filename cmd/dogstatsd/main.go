@@ -224,13 +224,13 @@ func stopAgent(ctx context.Context, cancel context.CancelFunc) {
 
 	// gracefully shut down any component
 	cancel()
-	
+
 	// stop metaScheduler and statsd if they are initiated
-	if metaScheduler!=nil {
+	if metaScheduler != nil {
 		metaScheduler.Stop()
 	}
 
-	if statsd!=nil{
+	if statsd != nil {
 		statsd.Stop()
 	}
 
