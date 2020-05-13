@@ -554,7 +554,7 @@ api_key:
 # profiling:
 #
   ## @param enabled - boolean - optional - default: false
-  ## Enable profiling for the agent process
+  ## Enable profiling for the Agent process.
   #
   # enabled: false
 
