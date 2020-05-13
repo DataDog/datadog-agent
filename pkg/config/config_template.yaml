@@ -549,7 +549,7 @@ api_key:
 {{- if .Profiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for profiling.
-## Uncomment this parameter and the one below to enable them.
+## Uncomment this parameter and the one below to enable profiling.
 #
 # profiling:
 #
