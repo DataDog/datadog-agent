@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	ErrUnnamedRule = errors.New("policy has no name")
-	ErrEmptyRule   = errors.New("policy has no expression")
+	ErrUnnamedRule = errors.New("rule has no name")
+	ErrEmptyRule   = errors.New("rule has no expression")
 )
 
 type Section struct {
