@@ -17,7 +17,7 @@ The Java HashMap implementation contains a "collision resolution" algorithm: whe
 two keys generate the same hash, because the HashMap stores values in buckets, it
 can test the different entries behind the same hash and return the proper value.
 This does not exist in the aggregator: while writing to the map, it is unknown if
-the value form another sample is being overwritten. For the aggregator, it is important
+the value from another sample is being overwritten. For the aggregator, it is important
 to avoid collisions as much as possible.
 
 

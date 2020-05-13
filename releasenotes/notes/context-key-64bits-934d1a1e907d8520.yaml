@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+enhancements:
   - |
     Improved performances in metric aggregation logic.
     Use 64 bits context keys instead of 128 bits in order to benefit from better
