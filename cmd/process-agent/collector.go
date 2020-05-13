@@ -155,11 +155,11 @@ func (l *Collector) run(exit chan bool) error {
 	}()
 
 	processForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.APIEndpoints))
-	processForwarderOpts.EnableHealthChecking = false
+	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
 	podForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.OrchestratorEndpoints))
-	podForwarderOpts.EnableHealthChecking = false
+	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
 	if err := processForwarder.Start(); err != nil {

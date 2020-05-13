@@ -81,7 +81,7 @@ func event(cmd *cobra.Command, args []string) error {
 	destinationsCtx.Start()
 	defer destinationsCtx.Stop()
 
-	health := health.Register("security-agent")
+	health := health.RegisterLiveness("security-agent")
 
 	// setup the auditor
 	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
