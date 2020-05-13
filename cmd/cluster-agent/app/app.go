@@ -174,6 +174,7 @@ func start(cmd *cobra.Command, args []string) error {
 	// Serving stale data is better than serving no data at all.
 	forwarderOpts.DisableAPIKeyChecking = true
 	f := forwarder.NewDefaultForwarder(forwarderOpts)
+	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.ClusterAgentName)

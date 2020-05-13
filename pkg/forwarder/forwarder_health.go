@@ -92,6 +92,7 @@ func (fh *forwarderHealth) Stop() {
 		return
 	}
 
+	fh.health.Deregister() //nolint:errcheck
 	fh.stop <- true
 	<-fh.stopped
 }
