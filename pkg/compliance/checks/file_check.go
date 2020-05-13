@@ -2,18 +2,19 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
-package compliance
+package checks
 
 import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type fileCheck struct {
 	baseCheck
-	File *File
+	File *compliance.File
 }
 
 func (c *fileCheck) Run() error {
@@ -28,7 +29,7 @@ func (c *fileCheck) Run() error {
 }
 
 func (c *fileCheck) reportFile(filePath string) error {
-	kv := KV{}
+	kv := compliance.KV{}
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		return log.Errorf("failed to stat %s", filePath)
