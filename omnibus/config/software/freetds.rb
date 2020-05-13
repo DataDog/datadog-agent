@@ -1,4 +1,4 @@
-name "unixodbc"
+name "freetds"
 default_version "1.1.36"
 
 version "1.1.36" do
