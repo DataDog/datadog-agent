@@ -11,12 +11,6 @@ INSTALL_DIR=/opt/datadog-agent
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent
 
-KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
-DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
-if [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "SUSE" ]; then
-    DISTRIBUTION_FAMILY="SUSE"
-fi
-
 # Create a symlink to the agent's binary
 ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
 
