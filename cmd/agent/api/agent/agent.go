@@ -216,7 +216,7 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHealth(w http.ResponseWriter, r *http.Request) {
-	h := health.GetStatus()
+	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
 		log.Debugf("Healthcheck failed on: %v", h.Unhealthy)

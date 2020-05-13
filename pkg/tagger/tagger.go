@@ -70,7 +70,7 @@ func (t *Tagger) Init(catalog collectors.Catalog) {
 	t.Lock()
 
 	// Only register the health check when the tagger is started
-	t.health = health.Register("tagger")
+	t.health = health.RegisterLiveness("tagger")
 
 	// Populate collector candidate list from catalog
 	// as we'll remove entries we need to copy the map

@@ -43,7 +43,7 @@ type Agent struct {
 
 // NewAgent returns a new Logs Agent
 func NewAgent(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
-	health := health.Register("logs-agent")
+	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most

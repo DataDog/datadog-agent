@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gorilla/mux"
 )
 
 const defaultTimeout = time.Second
@@ -32,8 +33,14 @@ func Serve(ctx context.Context, port int) error {
 		return err
 	}
 
+	r := mux.NewRouter()
+	r.HandleFunc("/live", liveHandler)
+	r.HandleFunc("/ready", readyHandler)
+	// Default route for backward compatibility
+	r.NewRoute().HandlerFunc(liveHandler)
+
 	srv := &http.Server{
-		Handler:           healthHandler{},
+		Handler:           r,
 		ReadTimeout:       defaultTimeout,
 		ReadHeaderTimeout: defaultTimeout,
 		WriteTimeout:      defaultTimeout,
@@ -54,10 +61,8 @@ func closeOnContext(ctx context.Context, srv *http.Server) {
 	srv.Shutdown(timeout) //nolint:errcheck
 }
 
-type healthHandler struct{}
-
-func (h healthHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	health, err := health.GetStatusNonBlocking()
+func healthHandler(getStatusNonBlocking func() (health.Status, error), w http.ResponseWriter, _ *http.Request) {
+	health, err := getStatusNonBlocking()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -69,11 +74,19 @@ func (h healthHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	jsonHealth, err := json.Marshal(health)
 	if err != nil {
-		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
+		log.Errorf("Error marshalling status. Error: %v", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), 500)
 		return
 	}
 
 	w.Write(jsonHealth)
+}
+
+func liveHandler(w http.ResponseWriter, r *http.Request) {
+	healthHandler(health.GetLiveNonBlocking, w, r)
+}
+
+func readyHandler(w http.ResponseWriter, r *http.Request) {
+	healthHandler(health.GetReadyNonBlocking, w, r)
 }

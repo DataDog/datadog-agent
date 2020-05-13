@@ -61,7 +61,7 @@ func (pd *configPoller) start(ac *AutoConfig) {
 		return
 	}
 	pd.stopChan = make(chan struct{})
-	pd.healthHandle = health.Register(fmt.Sprintf("ad-config-provider-%s", pd.provider.String()))
+	pd.healthHandle = health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", pd.provider.String()))
 	pd.isPolling = true
 	go pd.poll(ac)
 }

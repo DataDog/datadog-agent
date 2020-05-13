@@ -231,6 +231,9 @@ func StartAgent() error {
 		}
 	}
 
+	// is this instance running as an iot agent
+	var iotAgent bool = config.Datadog.GetBool("iot_host")
+
 	// start the GUI server
 	guiPort := config.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
@@ -249,9 +252,14 @@ func StartAgent() error {
 	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
 
+	agentName := "agent"
+	if iotAgent {
+		agentName = "iot_agent"
+	}
+
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(s, hostname, "agent")
+	agg := aggregator.InitAggregator(s, hostname, agentName)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
@@ -305,8 +313,8 @@ func StartAgent() error {
 // StopAgent Tears down the agent process
 func StopAgent() {
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {

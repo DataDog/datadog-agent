@@ -171,7 +171,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		aggregator:                aggregator,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
-		health:                    health.Register("dogstatsd-main"),
+		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
 		defaultHostname:           defaultHostname,

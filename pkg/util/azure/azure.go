@@ -35,6 +35,9 @@ func IsRunningOn() bool {
 
 // GetHostAlias returns the VM ID from the Azure Metadata api
 func GetHostAlias() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	res, err := getResponseWithMaxLength(metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
@@ -45,6 +48,9 @@ func GetHostAlias() (string, error) {
 
 // GetClusterName returns the name of the cluster containing the current VM
 func GetClusterName() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	all, err := getResponse(metadataURL + "/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
 	if err != nil {
 		return "", fmt.Errorf("unable to query metadata endpoint: %s", err)

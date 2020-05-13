@@ -26,9 +26,20 @@ import (
 	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
 
 	"github.com/DataDog/datadog-agent/pkg/logs"
+
+	yaml "gopkg.in/yaml.v2"
+	"io/ioutil"
 )
 
 const packageCachePrefix = "host"
+
+type installInfo struct {
+	Method struct {
+		Tool             string `yaml:"tool"`
+		ToolVersion      string `yaml:"tool_version"`
+		InstallerVersion string `yaml:"installer_version"`
+	} `yaml:"install_method"`
+}
 
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
@@ -45,6 +56,7 @@ func GetPayload(hostnameData util.HostnameData) *Payload {
 		ContainerMeta: getContainerMeta(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(),
 		LogsMeta:      getLogsMeta(),
+		InstallMethod: getInstallMethod(getInstallInfoPath()),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -216,4 +228,45 @@ func getLogsMeta() *LogsMeta {
 
 func buildKey(key string) string {
 	return path.Join(common.CachePrefix, packageCachePrefix, key)
+}
+
+func getInstallInfoPath() string {
+	return path.Join(config.FileUsedDir(), "install_info")
+}
+
+func getInstallInfo(infoPath string) (*installInfo, error) {
+	yamlContent, err := ioutil.ReadFile(infoPath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var install installInfo
+
+	if err := yaml.UnmarshalStrict(yamlContent, &install); err != nil {
+		// file was manipulated and is not relevant to format
+		return nil, err
+	}
+
+	return &install, nil
+}
+
+func getInstallMethod(infoPath string) *InstallMethod {
+	install, err := getInstallInfo(infoPath)
+
+	// if we could not get install info
+	if err != nil {
+		// consider install info is kept "undefined"
+		return &InstallMethod{
+			ToolVersion:      "undefined",
+			Tool:             nil,
+			InstallerVersion: nil,
+		}
+	}
+
+	return &InstallMethod{
+		ToolVersion:      install.Method.ToolVersion,
+		Tool:             &install.Method.Tool,
+		InstallerVersion: &install.Method.InstallerVersion,
+	}
 }

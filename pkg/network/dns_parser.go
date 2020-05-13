@@ -83,19 +83,40 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 	for _, layer := range p.layers {
 		switch layer {
 		case layers.LayerTypeIPv4:
-			pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv4Payload.SrcIP)
-			pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
+			if pktInfo.pktType == Query {
+				pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv4Payload.SrcIP)
+				pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
+			} else {
+				pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv4Payload.SrcIP)
+				pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv4Payload.DstIP)
+			}
 		case layers.LayerTypeIPv6:
-			pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv6Payload.SrcIP)
-			pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
+			if pktInfo.pktType == Query {
+				pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv6Payload.SrcIP)
+				pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
+			} else {
+				pktInfo.key.serverIP = util.AddressFromNetIP(p.ipv6Payload.SrcIP)
+				pktInfo.key.clientIP = util.AddressFromNetIP(p.ipv6Payload.DstIP)
+
+			}
 		case layers.LayerTypeUDP:
-			pktInfo.key.clientPort = uint16(p.udpPayload.DstPort)
+			if pktInfo.pktType == Query {
+				pktInfo.key.clientPort = uint16(p.udpPayload.SrcPort)
+			} else {
+				pktInfo.key.clientPort = uint16(p.udpPayload.DstPort)
+
+			}
 			pktInfo.key.protocol = UDP
 		case layers.LayerTypeTCP:
-			pktInfo.key.clientPort = uint16(p.tcpPayload.DstPort)
+			if pktInfo.pktType == Query {
+				pktInfo.key.clientPort = uint16(p.tcpPayload.SrcPort)
+			} else {
+				pktInfo.key.clientPort = uint16(p.tcpPayload.DstPort)
+			}
 			pktInfo.key.protocol = TCP
 		}
 	}
+
 	pktInfo.transactionID = p.dnsPayload.ID
 	return nil
 }
@@ -106,24 +127,25 @@ func (p *dnsParser) parseAnswerInto(
 	t *translation,
 	pktInfo *dnsPacketInfo,
 ) error {
-	// Only consider responses
-	if !dns.QR {
-		return skippedPayload
-	}
-
-	if dns.ResponseCode != 0 {
-		pktInfo.pktType = FailedResponse
-		return nil
-	}
-
-	// Only consider responses to singleton, A-record questions
-	if dns.ResponseCode != 0 || len(dns.Questions) != 1 {
+	// Only consider singleton, A-record questions
+	if len(dns.Questions) != 1 {
 		return skippedPayload
 	}
 
 	question := dns.Questions[0]
 	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
 		return skippedPayload
+	}
+
+	// Only consider responses
+	if !dns.QR {
+		pktInfo.pktType = Query
+		return nil
+	}
+
+	if dns.ResponseCode != 0 {
+		pktInfo.pktType = FailedResponse
+		return nil
 	}
 
 	var alias []byte
