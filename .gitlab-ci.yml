@@ -473,7 +473,6 @@ molecule_tests_vms:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
     - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
-    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s vms
   artifacts:
     when: always
@@ -492,7 +491,6 @@ molecule_tests_compose:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
     - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
-    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s compose
   artifacts:
     when: always
@@ -512,32 +510,30 @@ molecule_tests_local_install:
    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
    - export MOLECULE_RUN_ID=${CI_JOB_ID}
-   - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s localinstall
   only:
     - master
     - tags
     - STAC-5977-local-install
 
-#molecule_tests_kubernetes:
-#  stage: acceptance
-#  needs:
-#    - pre_release_cluster_agent_image
-#    - pre_release_image
-#  dependencies: []
-#  before_script: []
-#  script:
-#    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-#    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-#    - export MOLECULE_RUN_ID=${CI_JOB_ID}
-#    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
-#    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s kubernetes
-#  artifacts:
-#    when: always
-#    paths:
-#      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
-#      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
-#    expire_in: 1 week
+molecule_tests_kubernetes:
+  stage: acceptance
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_image
+  dependencies: []
+  before_script: []
+  script:
+    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
+    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s kubernetes
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
+    expire_in: 1 week
 
 molecule_tests_secrets:
   stage: acceptance
@@ -549,7 +545,6 @@ molecule_tests_secrets:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
     - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
-    - export AGENT_GITLAB_BRANCH=${CI_COMMIT_REF_NAME}
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s secrets
   only:
     - master

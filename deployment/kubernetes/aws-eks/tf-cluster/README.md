@@ -15,17 +15,12 @@ In order to start with cluster setup, you will need:
 
 ## Variables
 
-
-Set the following environment variables:
+Set the following environment variables (use the molecule user credentials):
 
 ```
 export AWS_ACCESS_KEY_ID=
 export AWS_SECRET_ACCESS_KEY=
-export TF_VAR_AWS_SECRET_ACCESS_KEY=
-export TF_VAR_AWS_ACCESS_KEY_ID=
-export TF_VAR_AWS_REGION=us-east-1
 export TF_VAR_CLUSTER_NAME=
-export TF_VAR_SCALING_DESIRED_CAPACITY=
 ```
 
 ## Deploy
@@ -38,12 +33,6 @@ $ make apply
 ```
 
 Plan will check what changes Terraform needs to apply, then apply deploys the changes.
-
-To logon to the instances the private key can be generated from the terraform output.
-
-```bash 
-$ terraform output eks_rsa > eks_rsa 
-```
 
 The operation takes around 20 minutes.
 
@@ -62,6 +51,17 @@ $ make config-map-aws-auth
 and wait for nodes to appear.
 
 Your are now ready.
+
+### Login into worker instances
+
+To login into the instances the private key can be generated from the terraform output:
+
+```bash
+$ make private-key
+```
+
+Prior login you would need to switch the gateway used by the workers private route table from the nat to the internet one
+ and open the SSH port on the worker security group.
 
 ### Destroy
 
