@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Add ``tdsodbc`` linux dep needed for SQL Server to run in Docker Agent.
+    Add ``freetds`` linux dep needed for SQL Server to run in Docker Agent.
