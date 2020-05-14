@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+enhancements:
   - |
-    Upgrading the python2 to the latest, and final, 2.7.18 release.
+    Upgrading the embedded Python 2 to the latest, and final, 2.7.18 release.
