@@ -101,9 +101,9 @@ fi
 # This is done in the postinst script for .deb packages
 if [ ! -f "$CONFIG_DIR/install_info" ]; then
 
-    if rpm --version; then
+    if command -v rpm >/dev/null 2>&1; then
         tool=rpm
-        tool_version=rpm-$(rpm --version | cut -d " " -f 3)
+        tool_version=rpm-$(rpm --version | cut -d " " -f 3 || echo "unknown")
     else
         tool=unknown
         tool_version=unknown

@@ -57,9 +57,9 @@ if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
 	# Set the installation information if not already present;
 	if [ ! -f "$CONFIG_DIR/install_info" ]; then
 
-		if dpkg --version; then
+		if command -v dpkg >/dev/null 2>&1; then
 			tool=dpkg
-			tool_version=dpkg-$(dpkg --version | head -n 1 | cut -d " " -f 7)
+			tool_version=dpkg-$(dpkg --version | head -n 1 | cut -d " " -f 7 || echo "unknown")
 		else
 			tool=unknown
 			tool_version=unknown
