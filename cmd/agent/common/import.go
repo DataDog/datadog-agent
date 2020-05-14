@@ -252,7 +252,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 		}
 	}
 
-	ioutil.WriteFile(dst, data, 0640)
+	ioutil.WriteFile(dst, data, 0640) //nolint:errcheck
 
 	ddGroup, errGroup := user.LookupGroup("dd-agent")
 	ddUser, errUser := user.LookupId("dd-agent")

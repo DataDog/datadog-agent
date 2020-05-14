@@ -350,7 +350,7 @@ func (c *safeConfig) GetEnvVars() []string {
 // BindEnvAndSetDefault implements the Config interface
 func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}) {
 	c.SetDefault(key, val)
-	c.BindEnv(key)
+	c.BindEnv(key) //nolint:errcheck
 }
 
 // NewConfig returns a new Config object.

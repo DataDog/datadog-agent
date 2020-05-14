@@ -168,7 +168,7 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 	}
 
 	healthProbe := health.RegisterLiveness("clusterchecks-leadership")
-	defer health.Deregister(healthProbe)
+	defer health.Deregister(healthProbe) //nolint:errcheck
 
 	watchTicker := time.NewTicker(h.leaderStatusFreq)
 	defer watchTicker.Stop()

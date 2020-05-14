@@ -52,7 +52,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 		return err
 	}
 	var out bytes.Buffer
-	json.Indent(&out, jsonStats, "", "\t")
+	json.Indent(&out, jsonStats, "", "\t") //nolint:errcheck
 	serialized := out.Bytes()
 
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")

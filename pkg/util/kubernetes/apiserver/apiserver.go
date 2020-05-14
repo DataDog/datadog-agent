@@ -75,7 +75,7 @@ func GetAPIClient() (*APIClient, error) {
 		globalAPIClient = &APIClient{
 			timeoutSeconds: config.Datadog.GetInt64("kubernetes_apiserver_client_timeout"),
 		}
-		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
+		globalAPIClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "apiserver",
 			AttemptMethod:     globalAPIClient.connect,
 			Strategy:          retry.Backoff,

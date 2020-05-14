@@ -90,17 +90,17 @@ func (c *Config) String() string {
 
 	rawConfig["check_name"] = c.Name
 
-	yaml.Unmarshal(c.InitConfig, &initConfig)
+	yaml.Unmarshal(c.InitConfig, &initConfig) //nolint:errcheck
 	rawConfig["init_config"] = initConfig
 
 	for _, i := range c.Instances {
 		var instance interface{}
-		yaml.Unmarshal(i, &instance)
+		yaml.Unmarshal(i, &instance) //nolint:errcheck
 		instances = append(instances, instance)
 	}
 	rawConfig["instances"] = instances
 
-	yaml.Unmarshal(c.LogsConfig, &logsConfig)
+	yaml.Unmarshal(c.LogsConfig, &logsConfig) //nolint:errcheck
 	rawConfig["logs_config"] = logsConfig
 
 	buffer, err := yaml.Marshal(&rawConfig)
@@ -274,7 +274,7 @@ func (c *Data) SetField(key string, value interface{}) error {
 // between the cluster-agent and the node-agents
 func (c *Config) Digest() string {
 	h := fnv.New64()
-	h.Write([]byte(c.Name))
+	h.Write([]byte(c.Name)) //nolint:errcheck
 	for _, i := range c.Instances {
 		inst := RawMap{}
 		err := yaml.Unmarshal(i, &inst)
@@ -302,15 +302,15 @@ func (c *Config) Digest() string {
 			log.Debugf("Error while calculating config digest for %s, skipping: %v", c.Name, err)
 			continue
 		}
-		h.Write(out)
+		h.Write(out) //nolint:errcheck
 	}
-	h.Write([]byte(c.InitConfig))
+	h.Write([]byte(c.InitConfig)) //nolint:errcheck
 	for _, i := range c.ADIdentifiers {
-		h.Write([]byte(i))
+		h.Write([]byte(i)) //nolint:errcheck
 	}
-	h.Write([]byte(c.NodeName))
-	h.Write([]byte(c.LogsConfig))
-	h.Write([]byte(c.Entity))
+	h.Write([]byte(c.NodeName))   //nolint:errcheck
+	h.Write([]byte(c.LogsConfig)) //nolint:errcheck
+	h.Write([]byte(c.Entity))     //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

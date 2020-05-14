@@ -282,7 +282,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	loadConfigIfExists(netYamlPath)
+	loadConfigIfExists(netYamlPath) //nolint:errcheck
 	if err = cfg.loadSysProbeYamlConfig(netYamlPath); err != nil {
 		return nil, err
 	}
@@ -345,7 +345,7 @@ func NewSystemProbeConfig(loggerName config.LoggerName, yamlPath string) (*Agent
 		return cfg, nil
 	}
 
-	loadConfigIfExists(yamlPath)
+	loadConfigIfExists(yamlPath) //nolint:errcheck
 	if err := cfg.loadSysProbeYamlConfig(yamlPath); err != nil {
 		return nil, err
 	}
