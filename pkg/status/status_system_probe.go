@@ -14,10 +14,10 @@ import (
 )
 
 // GetSystemProbeStats returns the expvar stats of the system probe
-func GetSystemProbeStats() map[string]interface{} {
+func GetSystemProbeStats(socketPath string) map[string]interface{} {
 
 	// TODO: Pull system-probe path from system-probe.yaml
-	net.SetSystemProbePath("/opt/datadog-agent/run/sysprobe.sock")
+	net.SetSystemProbePath(socketPath)
 	probeUtil, err := net.GetRemoteSystemProbeUtil()
 
 	if err != nil {
