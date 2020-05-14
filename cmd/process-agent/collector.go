@@ -214,7 +214,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
 	podForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.OrchestratorEndpoints))
-	podForwarderOpts.DisableAPIKeyChecking = false
+	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
