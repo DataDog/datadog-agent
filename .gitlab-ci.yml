@@ -55,6 +55,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
   SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
@@ -552,6 +553,21 @@ cluster_agent-build_arm64:
     - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     - cd $SRC_PATH
     - inv -e deps --no-checks --verbose --dep-vendor-only
+
+# build cluster-agent-cloudfoundry bin
+cluster_agent_cloudfoundry-build_amd64:
+  stage: binary_build
+  needs: ["fail_on_non_triggered_tag", "run_go_tidy_check"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: [ "runner:main", "size:large" ]
+  variables:
+    ARCH: amd64
+  before_script:
+    - source /root/.bashrc && conda activate ddpy3
+    - inv -e deps --no-checks --verbose --dep-vendor-only
+  script:
+    - inv -e cluster-agent-cloudfoundry.build
+    - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR/datadog-cluster-agent-cloudfoundry $S3_ARTIFACTS_URI/datadog-cluster-agent-cloudfoundry.$ARCH
 
 
 
