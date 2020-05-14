@@ -197,6 +197,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
 
 	config.BindEnvAndSetDefault("cluster_name", "")
+	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
 
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
