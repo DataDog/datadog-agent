@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build process, !windows
+// +build !windows, process
 
 package common
 
@@ -16,17 +16,19 @@ import (
 	proc_config "github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
+const sysProbeConfigFile = "system-probe.yaml"
+
 // SetupSystemProbeConfig reads the system-probe.yaml into the global config object
 func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
 	// Open the system-probe.yaml file if it's in a custom location
 	if sysProbeConfFilePath != "" {
 		// If file is not set directly assume we need to add /system-probe.yaml
 		if !strings.HasSuffix(sysProbeConfFilePath, ".yaml") {
-			sysProbeConfFilePath = path.Join(sysProbeConfFilePath, "/system-probe.yaml")
+			sysProbeConfFilePath = path.Join(sysProbeConfFilePath, sysProbeConfFilePath)
 		}
 	} else {
 		// Assume it is in the default location if nothing is passed in
-		sysProbeConfFilePath = path.Join(DefaultConfPath, "/system-probe.yaml")
+		sysProbeConfFilePath = path.Join(DefaultConfPath, sysProbeConfFilePath)
 	}
 
 	file, err := os.Open(sysProbeConfFilePath)

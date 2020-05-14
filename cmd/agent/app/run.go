@@ -285,8 +285,7 @@ func StartAgent() error {
 		log.Info("logs-agent disabled")
 	}
 
-	err = common.SetupSystemProbeConfig(sysProbeConfFilePath)
-	if err != nil {
+	if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
 		log.Errorf("System probe config not read: %v", err)
 	}
 
