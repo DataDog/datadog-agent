@@ -6,7 +6,6 @@ suites:
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-system-files-check::list-files-before-install]"
     - "recipe[dd-agent-install]"
-    - "recipe[dd-agent-system-files-check::check-files-after-uninstall]"
   attributes:
     apt:
       unattended_upgrades:
