@@ -331,8 +331,12 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 	// only set if we're trying to limit load on the backend.
 	shouldEnableRT := false
 	maxInterval := 0 * time.Second
+	activeClients := int32(0)
 	for _, s := range statuses {
 		shouldEnableRT = shouldEnableRT || (s.ActiveClients > 0 && l.cfg.AllowRealTime)
+		if s.ActiveClients > 0 {
+			activeClients = s.ActiveClients
+		}
 		interval := time.Duration(s.Interval) * time.Second
 		if interval > maxInterval {
 			maxInterval = interval
@@ -343,7 +347,7 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 		log.Info("Detected 0 clients, disabling real-time mode")
 		atomic.StoreInt32(&l.realTimeEnabled, 0)
 	} else if !curEnabled && shouldEnableRT {
-		log.Info("Detected active clients, enabling real-time mode")
+		log.Infof("Detected %d active clients, enabling real-time mode", activeClients)
 		atomic.StoreInt32(&l.realTimeEnabled, 1)
 	}
 
