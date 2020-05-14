@@ -24,11 +24,11 @@ func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
 	if sysProbeConfFilePath != "" {
 		// If file is not set directly assume we need to add /system-probe.yaml
 		if !strings.HasSuffix(sysProbeConfFilePath, ".yaml") {
-			sysProbeConfFilePath = path.Join(sysProbeConfFilePath, sysProbeConfFilePath)
+			sysProbeConfFilePath = path.Join(sysProbeConfFilePath, sysProbeConfigFile)
 		}
 	} else {
 		// Assume it is in the default location if nothing is passed in
-		sysProbeConfFilePath = path.Join(DefaultConfPath, sysProbeConfFilePath)
+		sysProbeConfFilePath = path.Join(DefaultConfPath, sysProbeConfigFile)
 	}
 
 	file, err := os.Open(sysProbeConfFilePath)
