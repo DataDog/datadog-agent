@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -37,7 +37,7 @@ type SNMPListener struct {
 	newService chan<- Service
 	delService chan<- Service
 	stop       chan bool
-	config     util.SNMPListenerConfig
+	config     snmp.ListenerConfig
 	services   map[string]Service
 }
 
@@ -47,7 +47,7 @@ type SNMPService struct {
 	entityID     string
 	deviceIP     string
 	creationTime integration.CreationTime
-	config       util.SNMPConfig
+	config       snmp.Config
 }
 
 // Make sure SNMPService implements the Service interface
@@ -55,7 +55,7 @@ var _ Service = &SNMPService{}
 
 type snmpSubnet struct {
 	adIdentifier   string
-	config         util.SNMPConfig
+	config         snmp.Config
 	defaultParams  *gosnmp.GoSNMP
 	startingIP     net.IP
 	network        net.IPNet
@@ -71,7 +71,7 @@ type snmpJob struct {
 
 // NewSNMPListener creates a SNMPListener
 func NewSNMPListener() (ServiceListener, error) {
-	snmpConfig, err := util.NewSNMPListenerConfig()
+	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
 		return nil, err
 	}

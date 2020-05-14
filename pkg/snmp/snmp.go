@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020 Datadog, Inc.
 
-package util
+package snmp
 
 import (
 	"errors"
@@ -27,16 +27,16 @@ const (
 	defaultRetries = 3
 )
 
-// SNMPListenerConfig holds global configuration for SNMP discovery
-type SNMPListenerConfig struct {
-	Workers           int          `mapstructure:"workers"`
-	DiscoveryInterval int          `mapstructure:"discovery_interval"`
-	AllowedFailures   int          `mapstructure:"allowed_failures"`
-	Configs           []SNMPConfig `mapstructure:"configs"`
+// ListenerConfig holds global configuration for SNMP discovery
+type ListenerConfig struct {
+	Workers           int      `mapstructure:"workers"`
+	DiscoveryInterval int      `mapstructure:"discovery_interval"`
+	AllowedFailures   int      `mapstructure:"allowed_failures"`
+	Configs           []Config `mapstructure:"configs"`
 }
 
-// SNMPConfig holds configuration for a particular subnet
-type SNMPConfig struct {
+// Config holds configuration for a particular subnet
+type Config struct {
 	Network            string          `mapstructure:"network"`
 	Port               uint16          `mapstructure:"port"`
 	Version            string          `mapstructure:"version"`
@@ -54,9 +54,9 @@ type SNMPConfig struct {
 	ADIdentifier       string          `mapstructure:"ad_identifier"`
 }
 
-// NewSNMPListenerConfig parses configuration and returns a built SNMPListenerConfig
-func NewSNMPListenerConfig() (SNMPListenerConfig, error) {
-	var snmpConfig SNMPListenerConfig
+// NewListenerConfig parses configuration and returns a built ListenerConfig
+func NewListenerConfig() (ListenerConfig, error) {
+	var snmpConfig ListenerConfig
 	opt := viper.DecodeHook(
 		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
 			// Turn an array into a map for ignored addresses
@@ -96,19 +96,20 @@ func NewSNMPListenerConfig() (SNMPListenerConfig, error) {
 }
 
 // Digest returns an hash value representing the data stored in this configuration, minus the network address
-func (c *SNMPConfig) Digest(address string) string {
+func (c *Config) Digest(address string) string {
 	h := fnv.New64()
-	h.Write([]byte(address))
-	h.Write([]byte(fmt.Sprintf("%d", c.Port)))
-	h.Write([]byte(c.Version))
-	h.Write([]byte(c.Community))
-	h.Write([]byte(c.User))
-	h.Write([]byte(c.AuthKey))
-	h.Write([]byte(c.AuthProtocol))
-	h.Write([]byte(c.PrivKey))
-	h.Write([]byte(c.PrivProtocol))
-	h.Write([]byte(c.ContextEngineID))
-	h.Write([]byte(c.ContextName))
+	// Hash write never returns an error
+	h.Write([]byte(address))                   //nolint:errcheck
+	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
+	h.Write([]byte(c.Version))                 //nolint:errcheck
+	h.Write([]byte(c.Community))               //nolint:errcheck
+	h.Write([]byte(c.User))                    //nolint:errcheck
+	h.Write([]byte(c.AuthKey))                 //nolint:errcheck
+	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
+	h.Write([]byte(c.PrivKey))                 //nolint:errcheck
+	h.Write([]byte(c.PrivProtocol))            //nolint:errcheck
+	h.Write([]byte(c.ContextEngineID))         //nolint:errcheck
+	h.Write([]byte(c.ContextName))             //nolint:errcheck
 
 	// Sort the addresses to get a stable digest
 	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
@@ -117,14 +118,14 @@ func (c *SNMPConfig) Digest(address string) string {
 	}
 	sort.Strings(addresses)
 	for _, ip := range addresses {
-		h.Write([]byte(ip))
+		h.Write([]byte(ip)) //nolint:errcheck
 	}
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (c *SNMPConfig) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
+func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 	if c.Community == "" && c.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
@@ -187,7 +188,7 @@ func (c *SNMPConfig) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 }
 
 // IsIPIgnored checks the given IP against IgnoredIPAddresses
-func (c *SNMPConfig) IsIPIgnored(ip net.IP) bool {
+func (c *Config) IsIPIgnored(ip net.IP) bool {
 	ipString := ip.String()
 	_, present := c.IgnoredIPAddresses[ipString]
 	return present

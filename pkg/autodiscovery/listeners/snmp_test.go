@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,12 +20,12 @@ func TestSNMPListener(t *testing.T) {
 	delSvc := make(chan Service, 10)
 	testChan := make(chan snmpJob, 10)
 
-	snmpConfig := util.SNMPConfig{
+	snmpConfig := snmp.Config{
 		Network:   "192.168.0.0/24",
 		Community: "public",
 	}
-	listenerConfig := util.SNMPListenerConfig{
-		Configs: []util.SNMPConfig{snmpConfig},
+	listenerConfig := snmp.ListenerConfig{
+		Configs: []snmp.Config{snmpConfig},
 		Workers: 1,
 	}
 
@@ -62,13 +62,13 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	delSvc := make(chan Service, 10)
 	testChan := make(chan snmpJob, 10)
 
-	snmpConfig := util.SNMPConfig{
+	snmpConfig := snmp.Config{
 		Network:            "192.168.0.0/24",
 		Community:          "public",
 		IgnoredIPAddresses: map[string]bool{"192.168.0.0": true},
 	}
-	listenerConfig := util.SNMPListenerConfig{
-		Configs: []util.SNMPConfig{snmpConfig},
+	listenerConfig := snmp.ListenerConfig{
+		Configs: []snmp.Config{snmpConfig},
 		Workers: 1,
 	}
 
@@ -98,7 +98,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 }
 
 func TestExtraConfig(t *testing.T) {
-	snmpConfig := util.SNMPConfig{
+	snmpConfig := snmp.Config{
 		Network:   "192.168.0.0/24",
 		Community: "public",
 		Timeout:   5,
@@ -127,7 +127,7 @@ func TestExtraConfig(t *testing.T) {
 }
 
 func TestExtraConfigv3(t *testing.T) {
-	snmpConfig := util.SNMPConfig{
+	snmpConfig := snmp.Config{
 		Network:      "192.168.0.0/24",
 		User:         "admin",
 		AuthKey:      "secret",

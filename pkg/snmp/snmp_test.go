@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020 Datadog, Inc.
 
-package util
+package snmp
 
 import (
 	"testing"
@@ -13,13 +13,13 @@ import (
 )
 
 func TestBuildSNMPParams(t *testing.T) {
-	config := SNMPConfig{
+	config := Config{
 		Network: "192.168.0.0/24",
 	}
 	_, err := config.BuildSNMPParams()
 	assert.Equal(t, "No authentication mechanism specified", err.Error())
 
-	config = SNMPConfig{
+	config = Config{
 		Network: "192.168.0.0/24",
 		User:    "admin",
 		Version: "4",
@@ -27,14 +27,14 @@ func TestBuildSNMPParams(t *testing.T) {
 	_, err = config.BuildSNMPParams()
 	assert.Equal(t, "SNMP version not supported: 4", err.Error())
 
-	config = SNMPConfig{
+	config = Config{
 		Network:   "192.168.0.0/24",
 		Community: "public",
 	}
 	params, _ := config.BuildSNMPParams()
 	assert.Equal(t, gosnmp.Version2c, params.Version)
 
-	config = SNMPConfig{
+	config = Config{
 		Network: "192.168.0.0/24",
 		User:    "admin",
 	}
@@ -42,7 +42,7 @@ func TestBuildSNMPParams(t *testing.T) {
 	assert.Equal(t, gosnmp.Version3, params.Version)
 	assert.Equal(t, gosnmp.NoAuthNoPriv, params.MsgFlags)
 
-	config = SNMPConfig{
+	config = Config{
 		Network:      "192.168.0.0/24",
 		User:         "admin",
 		AuthProtocol: "foo",
@@ -50,7 +50,7 @@ func TestBuildSNMPParams(t *testing.T) {
 	_, err = config.BuildSNMPParams()
 	assert.Equal(t, "Unsupported authentication protocol: foo", err.Error())
 
-	config = SNMPConfig{
+	config = Config{
 		Network:      "192.168.0.0/24",
 		User:         "admin",
 		PrivProtocol: "bar",
