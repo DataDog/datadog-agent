@@ -255,15 +255,13 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	}
 
 	if k := key(ns, "process_queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes <= 0 {
-		} else {
+		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
 			a.ProcessQueueBytes = queueBytes
 		}
 	}
 
 	if k := key(ns, "pod_queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes <= 0 {
-		} else {
+		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
 			a.PodQueueBytes = queueBytes
 		}
 	}
