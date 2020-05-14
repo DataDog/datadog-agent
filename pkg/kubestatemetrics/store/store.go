@@ -81,9 +81,6 @@ func (s *MetricsStore) Add(obj interface{}) error {
 		return err
 	}
 
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	metricsForUID := s.generateMetricsFunc(obj)
 	convertedMetricsForUID := make([]DDMetricsFam, len(metricsForUID))
 	for i, f := range metricsForUID {
@@ -95,7 +92,9 @@ func (s *MetricsStore) Add(obj interface{}) error {
 		convertedMetricsForUID[i] = metricConvertedList
 	}
 	// We need to keep the store with UID as a key to handle the lifecycle of the objects and the metrics attached.
+	s.mutex.Lock()
 	s.metrics[o.GetUID()] = convertedMetricsForUID
+	s.mutex.Unlock()
 
 	return nil
 }

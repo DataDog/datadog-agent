@@ -43,6 +43,10 @@ type KSMCheck struct {
 	store    []cache.Store
 }
 
+func init() {
+	core.RegisterCheck(kubeStateMetricsCheckName, KubeStateMetricsFactory)
+}
+
 func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
 	err := k.CommonConfigure(config, source)
 	if err != nil {
@@ -137,8 +141,4 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 		CheckBase: base,
 		instance:  instance,
 	}
-}
-
-func init() {
-	core.RegisterCheck(kubeStateMetricsCheckName, KubeStateMetricsFactory)
 }
