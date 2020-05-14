@@ -1560,16 +1560,17 @@ func TestConntrackExpiration(t *testing.T) {
 	// Warm-up tracer state
 	_ = getConnections(t, tr)
 
-	server := &TCPServer{
-		address: "1.1.1.1:5432",
-		onMessage: func(c net.Conn) {
-			io.Copy(ioutil.Discard, c)
-		},
-	}
+	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
+	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
+	rand.Seed(time.Now().UnixNano())
+	port := 5430 + rand.Intn(100)
+	server := NewUDPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func([]byte, int) []byte {
+		return nil
+	})
 	doneChan := make(chan struct{})
-	server.Run(doneChan)
+	server.Run(doneChan, clientMessageSize)
 
-	c, err := net.Dial("tcp", "2.2.2.2:5432")
+	c, err := net.Dial("udp", fmt.Sprintf("2.2.2.2:%d", port))
 	require.NoError(t, err)
 	defer c.Close()
 	_, err = c.Write([]byte("ping"))
@@ -1584,7 +1585,7 @@ func TestConntrackExpiration(t *testing.T) {
 	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
 
 	// This will force the connection to be expired next time we call getConnections
-	tr.config.TCPConnTimeout = time.Duration(0)
+	tr.config.UDPConnTimeout = time.Duration(-1)
 	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
