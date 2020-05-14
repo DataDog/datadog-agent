@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Perform necessary datadog-agent removal steps after package is uninstalled.
+# Perform necessary datadog-iot-agent removal steps after package is uninstalled.
 #
 # .deb: STEP 3 of 5
 # .rpm: STEP 5 of 6
