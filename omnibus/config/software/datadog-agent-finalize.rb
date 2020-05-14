@@ -139,9 +139,6 @@ build do
             delete "#{install_dir}/embedded/share/aclocal"
             delete "#{install_dir}/embedded/share/examples"
 
-            # removing useless `tsql` brought by `freetds`
-            delete "#{install_dir}/embedded/bin/tsql"
-
             # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
             # default to `pip2` if the default Python runtime is Python 2.
             if with_python_runtime? "2"
@@ -187,7 +184,7 @@ build do
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
-            else
+            else 
                 hardened_runtime = ""
             end
 

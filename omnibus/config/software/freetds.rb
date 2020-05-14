@@ -23,4 +23,7 @@ build do
   command configure_command, env: env, in_msys_bash: true
   make env: env
   make "install", env: env
+
+  # removing unused files
+  delete "#{install_dir}/embedded/bin/tsql"
 end
