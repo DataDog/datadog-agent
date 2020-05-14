@@ -84,7 +84,9 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 
-	stats["systemProbeStats"] = GetSystemProbeStats()
+	if config.Datadog.GetBool("system_probe_config.enabled") {
+		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	}
 
 	return stats, nil
 }
