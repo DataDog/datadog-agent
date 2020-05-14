@@ -8,9 +8,10 @@ package checks
 import (
 	"context"
 	"errors"
+	"strings"
+	"text/template"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,13 +21,16 @@ import (
 // object is requested by check
 var ErrDockerKindNotSupported = errors.New("unsupported docker object kind")
 
-// Client abstracts Docker API client
-type Client client.CommonAPIClient
+// DockerClient abstracts Docker API client
+type DockerClient interface {
+	ImageInspectWithRaw(ctx context.Context, image string) (types.ImageInspect, []byte, error)
+	ImageList(ctx context.Context, options types.ImageListOptions) ([]types.ImageSummary, error)
+}
 
 type dockerCheck struct {
 	baseCheck
 
-	client         Client
+	client         DockerClient
 	dockerResource *compliance.DockerResource
 }
 
@@ -35,7 +39,7 @@ type iterFn func(id string, obj interface{})
 func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 	switch c.dockerResource.Kind {
 	case "image":
-		images, err := c.client.ImageList(ctx, types.ImageListOptions{})
+		images, err := c.client.ImageList(ctx, types.ImageListOptions{All: true})
 		if err != nil {
 			return err
 		}
@@ -46,6 +50,7 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 			}
 			fn(i.ID, imageInspect)
 		}
+		return nil
 	}
 	return ErrDockerKindNotSupported
 }
@@ -53,7 +58,61 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 func (c *dockerCheck) Run() error {
 	// TODO: timeout for checks here
 	ctx := context.Background()
-	return c.iterate(ctx, func(id string, obj interface{}) {
-		log.Debugf("Iterating %s[id=%s]", c.dockerResource.Kind, id)
-	})
+	return c.iterate(ctx, c.inspect)
+}
+
+func (c *dockerCheck) inspect(id string, obj interface{}) {
+	log.Debugf("Iterating %s[id=%s]", c.dockerResource.Kind, id)
+
+	for _, f := range c.dockerResource.Filter {
+		if f.Include != nil {
+			eval, err := evalTemplate(f.Include.Exists, obj)
+			if err != nil || eval == "" {
+				return
+			}
+		} else if f.Exclude != nil {
+			eval, err := evalTemplate(f.Exclude.Exists, obj)
+			if err == nil && eval != "" {
+				return
+			}
+		}
+	}
+
+	kv := compliance.KV{}
+	for _, field := range c.dockerResource.Report {
+
+		key := field.As
+
+		if field.Value != "" {
+			if key == "" {
+				// TODO: erorr here
+			}
+
+			kv[key] = field.Value
+			continue
+		}
+
+		if field.Attribute == "id" {
+			if key == "" {
+				key = "id"
+			}
+			kv[key] = id
+			continue
+		}
+	}
+
+	c.report(nil, kv)
+}
+
+func evalTemplate(s string, obj interface{}) (string, error) {
+	tmpl, err := template.New("tmpl").Parse(s)
+	if err != nil {
+		return "", err
+	}
+
+	b := &strings.Builder{}
+	if err := tmpl.Execute(b, obj); err != nil {
+		return "", err
+	}
+	return b.String(), nil
 }
