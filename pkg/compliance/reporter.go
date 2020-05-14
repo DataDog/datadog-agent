@@ -19,8 +19,6 @@ type Reporter interface {
 }
 
 type reporter struct {
-	suiteMeta *SuiteMeta
-
 	logSource *config.LogSource
 	logChan   chan *message.Message
 }

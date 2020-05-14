@@ -1,0 +1,50 @@
+[
+    {
+        "Containers": -1,
+        "Created": 1588383619,
+        "Id": "sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c",
+        "Labels": null,
+        "ParentId": "",
+        "RepoDigests": [
+            "redis@sha256:f7ee67d8d9050357a6ea362e2a7e8b65a6823d9b612bc430d057416788ef6df9"
+        ],
+        "RepoTags": [
+            "redis:latest"
+        ],
+        "SharedSize": -1,
+        "Size": 104101893,
+        "VirtualSize": 104101893
+    },
+    {
+        "Containers": -1,
+        "Created": 1587748637,
+        "Id": "sha256:ae192c4d3adaebbbf2f023e1e50eaadfabccb6b08c855ac13d6ce2232381a58a",
+        "Labels": null,
+        "ParentId": "",
+        "RepoDigests": [
+            "postgres@sha256:9ea72265275674225b1eaa2ae897dd244028af4ee7ef6e4e89fe474938e0992e"
+        ],
+        "RepoTags": [
+            "postgres:alpine"
+        ],
+        "SharedSize": -1,
+        "Size": 151518775,
+        "VirtualSize": 151518775
+    },
+    {
+        "Containers": -1,
+        "Created": 1587738682,
+        "Id": "sha256:dda4232b2bd580bbf633be12d62e8d0e00f6b7bd60ea6faee157bad1809c53c4",
+        "Labels": null,
+        "ParentId": "",
+        "RepoDigests": [
+            "golang@sha256:9b3ad7928626126b72b916609ad081cfb6c0149f6e60cef7fc1e9e15a0d1e973"
+        ],
+        "RepoTags": [
+            "golang:alpine"
+        ],
+        "SharedSize": -1,
+        "Size": 369582448,
+        "VirtualSize": 369582448
+    }
+]

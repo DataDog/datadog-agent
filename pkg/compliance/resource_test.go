@@ -227,57 +227,38 @@ group:
 		},
 		{
 
-			name: "api with filter",
+			name: "docker image with filter",
 			input: `
-api:
-  kind: docker
-  get: /images/{image_id}/json
-
-  vars:
-  - name: image_id
-    enumerate:
-      get: /images/json
-      jsonpath: $.[Id]
+docker:
+  kind: image
 
   filter:
   - exclude:
-      jsonpath: $.Config.Healthcheck
-      exists: true
+      exists: "{{ $.Config.Healthcheck }}"
 
   report:
+  - attribute: id
   - as: image_healthcheck_missing
     value: true
-
-  - var: image_id
 `,
 			expected: Resource{
-				API: &API{
-					Kind: "docker",
-					Get:  "/images/{image_id}/json",
-					Vars: APIVars{
+				Docker: &DockerResource{
+					Kind: "image",
+
+					Filter: []DockerFilter{
 						{
-							Name: "image_id",
-							List: &APIVarValue{
-								Get:      "/images/json",
-								JSONPath: "$.[Id]",
-							},
-						},
-					},
-					Filter: []APIFilter{
-						{
-							Exclude: &APICondition{
-								JSONPath: "$.Config.Healthcheck",
-								Exists:   true,
+							Exclude: &DockerCondition{
+								Exists: "{{ $.Config.Healthcheck }}",
 							},
 						},
 					},
 					Report: Report{
 						{
-							As:    "image_healthcheck_missing",
-							Value: "true",
+							Attribute: "id",
 						},
 						{
-							Var: "image_id",
+							As:    "image_healthcheck_missing",
+							Value: "true",
 						},
 					},
 				},

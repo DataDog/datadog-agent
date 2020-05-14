@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
+
+// Package checks implements Compliance Agent checks
 package checks
 
 import (
@@ -45,9 +47,12 @@ func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 
 		if resource.File != nil {
 			return b.fileCheck(meta, rule.ID, resource.File)
-		} /* else if {
+		} else if resource.Docker != nil {
+			return b.dockerCheck(meta, rule.ID, resource.Docker)
+		} /* else {
 			// ... other supported resources
 		} */
+
 	}
 	return nil, ErrResourceNotSupported
 }
@@ -57,6 +62,14 @@ func (b *builder) fileCheck(meta *compliance.SuiteMeta, ruleID string, file *com
 	return &fileCheck{
 		baseCheck: b.baseCheck(ruleID, meta),
 		File:      file,
+	}, nil
+}
+
+func (b *builder) dockerCheck(meta *compliance.SuiteMeta, ruleID string, dockerResource *compliance.DockerResource) (check.Check, error) {
+	// TODO: validate config for the file here
+	return &dockerCheck{
+		baseCheck:      b.baseCheck(ruleID, meta),
+		dockerResource: dockerResource,
 	}, nil
 }
 

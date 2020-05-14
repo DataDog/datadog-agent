@@ -5,16 +5,15 @@
 
 package compliance
 
-type ResourceKind int
-
 // Resource describes supported resource types observed by a Rule
 type Resource struct {
-	File    *File    `yaml:"file,omitempty"`
-	Process *Process `yaml:"process,omitempty"`
-	Group   *Group   `yaml:"group,omitempty"`
-	Command *Command `yaml:"command,omitempty"`
-	Audit   *Audit   `yaml:"audit,omitempty"`
-	API     *API     `yaml:"api,omitempty"`
+	File    *File           `yaml:"file,omitempty"`
+	Process *Process        `yaml:"process,omitempty"`
+	Group   *Group          `yaml:"group,omitempty"`
+	Command *Command        `yaml:"command,omitempty"`
+	Audit   *Audit          `yaml:"audit,omitempty"`
+	Docker  *DockerResource `yaml:"docker,omitempty"`
+	API     *API            `yaml:"api,omitempty"`
 }
 
 // File describes a file resource
@@ -59,6 +58,14 @@ type Audit struct {
 	Report Report `yaml:"report,omitempty"`
 }
 
+// DockerResource describes a resource from docker daemon
+type DockerResource struct {
+	Kind   string         `yaml:"kind"`
+	Filter []DockerFilter `yaml:"filter,omitempty"`
+	Report Report         `yaml:"report,omitempty"`
+}
+
+// API describes a generic API query resource
 type API struct {
 	Kind string `yaml:"kind"`
 	Get  string `yaml:"get,omitempty"`
@@ -123,9 +130,20 @@ type CommandFilter struct {
 	Exclude *CommandCondition `yaml:"exclude,omitempty"`
 }
 
-// CommandCondition specicies conditions to include or exclude a Command from reporting
+// CommandCondition specifies conditions to include or exclude a Command from reporting
 type CommandCondition struct {
 	ExitCode *int `yaml:"exitCode,omitempty"`
+}
+
+// DockerFilter specifies filtering options to include or exclude a Docker resource from reporting
+type DockerFilter struct {
+	Include *DockerCondition `yaml:"include,omitempty"`
+	Exclude *DockerCondition `yaml:"exclude,omitempty"`
+}
+
+// DockerCondition specifies filtering conditions for Docker resources
+type DockerCondition struct {
+	Exists string `yaml:"exists,omitempty"`
 }
 
 // APIVars defines a list of variables substituted in generic API resource endpoint queries
