@@ -284,6 +284,7 @@ func (l *Collector) run(exit chan struct{}) error {
 
 func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder, exit chan struct{}) {
 	for {
+		// results.Poll() will block until either `exit` is closed, or an item is available on the queue (a check run occurs and adds data)
 		item, ok := results.Poll(exit)
 		if !ok {
 			return
