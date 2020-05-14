@@ -474,8 +474,12 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 			continue
 		}
 
+		// Delete conntrack entry for this connection
+		connStats := connStats(entries[i], statsWithTs, tcpStats)
+		t.conntracker.DeleteTranslation(connStats)
+
 		// Append the connection key to the keys to remove from the userspace state
-		bk, err := connStats(entries[i], statsWithTs, tcpStats).ByteKey(t.buf)
+		bk, err := connStats.ByteKey(t.buf)
 		if err != nil {
 			log.Warnf("failed to create connection byte_key: %s", err)
 		} else {
