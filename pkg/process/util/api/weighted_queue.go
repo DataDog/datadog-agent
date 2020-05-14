@@ -112,18 +112,15 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 		return
 	}
 
-	newWeight := q.currentWeight + item.Weight()
+	q.currentWeight += item.Weight()
 
-	if newWeight > q.maxWeight {
-		weightToRemove := newWeight - q.maxWeight
-		weightRemoved := int64(0)
-
+	if q.currentWeight > q.maxWeight {
 		// Try to find an item of the same type that we can expire
 		for iter := q.iterator(); iter.hasNext(); iter.next() {
 			if v := iter.value(); v.Type() == item.Type() {
 				iter.remove()
-				weightRemoved += v.Weight()
-				if weightRemoved >= weightToRemove {
+				q.currentWeight -= v.Weight()
+				if q.currentWeight <= q.maxWeight {
 					break
 				}
 			}
@@ -131,12 +128,12 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 
 		// If we didn't find enough free weight removing similar items, start purging the earliest items
 		// until there is room
-		if weightRemoved < weightToRemove {
+		if q.currentWeight > q.maxWeight {
 			for iter := q.iterator(); iter.hasNext(); iter.next() {
 				v := iter.value()
 				iter.remove()
-				weightRemoved += v.Weight()
-				if weightRemoved >= weightToRemove {
+				q.currentWeight -= v.Weight()
+				if q.currentWeight <= q.maxWeight {
 					break
 				}
 			}
@@ -162,7 +159,6 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 	}
 
 	q.queue.PushBack(item)
-	q.currentWeight = newWeight
 
 	// Send a signal on the dataAvailable channel if needed
 	select {
