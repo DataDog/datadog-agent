@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -108,6 +109,50 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "GetTarget", 1)
 	assert.Equal(t, mock, retryTransaction)
 	assert.True(t, w.blockedList.isBlock("error_url"))
+}
+
+func TestWorkerResetConnections(t *testing.T) {
+	highPrio := make(chan Transaction)
+	lowPrio := make(chan Transaction)
+	requeue := make(chan Transaction, 1)
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+
+	mock := newTestTransaction()
+	mock.On("Process", w.Client).Return(nil).Times(1)
+	mock.On("GetTarget").Return("").Times(1)
+
+	w.Start()
+
+	highPrio <- mock
+	<-mock.processed
+
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Process", 1)
+
+	httpClientBefore := w.Client
+	w.ScheduleConnectionReset()
+
+	// Leave 2 seconds for the connection reset to complete
+	testutil.AssertTrueBeforeTimeout(
+		t,
+		10*time.Millisecond,
+		2*time.Second,
+		func() bool {
+			return w.Client != httpClientBefore
+		},
+	)
+
+	mock2 := newTestTransaction()
+	mock2.On("Process", w.Client).Return(nil).Times(1)
+	mock2.On("GetTarget").Return("").Times(1)
+	highPrio <- mock2
+	<-mock2.processed
+	mock2.AssertExpectations(t)
+	mock2.AssertNumberOfCalls(t, "Process", 1)
+
+	assert.NotSame(t, httpClientBefore, w.Client)
+
+	w.Stop(false)
 }
 
 func TestWorkerPurgeOnStop(t *testing.T) {

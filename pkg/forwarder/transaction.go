@@ -24,6 +24,8 @@ import (
 )
 
 var (
+	connectionDNSSuccess           = expvar.Int{}
+	connectionConnectSuccess       = expvar.Int{}
 	transactionsRetryQueueSize     = expvar.Int{}
 	transactionsSuccessful         = expvar.Int{}
 	transactionsDroppedOnInput     = expvar.Int{}
@@ -37,6 +39,8 @@ var (
 	transactionsHTTPErrors         = expvar.Int{}
 	transactionsHTTPErrorsByCode   = expvar.Map{}
 
+	tlmConnectEvents = telemetry.NewCounter("forwarder", "connection_events",
+		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
 	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
 	tlmTxSuccess = telemetry.NewCounter("transactions", "success",
@@ -55,7 +59,11 @@ var trace = &httptrace.ClientTrace{
 			transactionsDNSErrors.Add(1)
 			tlmTxErrors.Inc("unknown", "dns_lookup_failure")
 			log.Debugf("DNS Lookup failure: %s", dnsInfo.Err)
+			return
 		}
+		connectionDNSSuccess.Add(1)
+		tlmConnectEvents.Inc("dns_lookup_success")
+		log.Tracef("DNS Lookup success, addresses: %s", dnsInfo.Addrs)
 	},
 	WroteRequest: func(wroteInfo httptrace.WroteRequestInfo) {
 		if wroteInfo.Err != nil {
@@ -69,7 +77,11 @@ var trace = &httptrace.ClientTrace{
 			transactionsConnectionErrors.Add(1)
 			tlmTxErrors.Inc("unknown", "connection_failure")
 			log.Debugf("Connection failure: %s", err)
+			return
 		}
+		connectionConnectSuccess.Add(1)
+		tlmConnectEvents.Inc("connection_success")
+		log.Tracef("New successful connection to address: %q", addr)
 	},
 	TLSHandshakeDone: func(tlsState tls.ConnectionState, err error) {
 		if err != nil {
@@ -102,6 +114,8 @@ func initTransactionExpvars() {
 	transactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 	transactionsExpvars.Set("Errors", &transactionsErrors)
 	transactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
+	connectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
+	connectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
 	transactionsErrorsByType.Set("DNSErrors", &transactionsDNSErrors)
 	transactionsErrorsByType.Set("TLSErrors", &transactionsTLSErrors)
 	transactionsErrorsByType.Set("ConnectionErrors", &transactionsConnectionErrors)
