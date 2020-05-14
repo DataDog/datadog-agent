@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -142,18 +143,20 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 	}
 
 	var authProtocol gosnmp.SnmpV3AuthProtocol
-	if c.AuthProtocol == "MD5" {
+	lowerAuthProtocol := strings.ToLower(c.AuthProtocol)
+	if lowerAuthProtocol == "md5" {
 		authProtocol = gosnmp.MD5
-	} else if c.AuthProtocol == "SHA" {
+	} else if lowerAuthProtocol == "sha" {
 		authProtocol = gosnmp.SHA
 	} else if c.AuthProtocol != "" {
 		return nil, fmt.Errorf("Unsupported authentication protocol: %s", c.AuthProtocol)
 	}
 
 	var privProtocol gosnmp.SnmpV3PrivProtocol
-	if c.PrivProtocol == "DES" {
+	lowerPrivProtocol := strings.ToLower(c.PrivProtocol)
+	if lowerPrivProtocol == "des" {
 		privProtocol = gosnmp.DES
-	} else if c.PrivProtocol == "AES" {
+	} else if lowerPrivProtocol == "aes" {
 		privProtocol = gosnmp.AES
 	} else if c.PrivProtocol != "" {
 		return nil, fmt.Errorf("Unsupported privacy protocol: %s", c.PrivProtocol)
