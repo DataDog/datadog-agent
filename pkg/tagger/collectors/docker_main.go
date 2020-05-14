@@ -56,7 +56,7 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 // Stream runs the continuous event watching loop and sends new info
 // to the channel. But be called in a goroutine.
 func (c *DockerCollector) Stream() error {
-	healthHandle := health.Register("tagger-docker")
+	healthHandle := health.RegisterLiveness("tagger-docker")
 
 	messages, errs, err := c.dockerUtil.SubscribeToContainerEvents("DockerCollector")
 	if err != nil {

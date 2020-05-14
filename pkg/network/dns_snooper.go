@@ -5,7 +5,6 @@ package network
 import (
 	"fmt"
 	"reflect"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -15,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket/afpacket"
 	bpflib "github.com/iovisor/gobpf/elf"
-	"github.com/vishvananda/netns"
 )
 
 const (
@@ -54,6 +52,7 @@ func NewSocketFilterSnooper(
 	filter *bpflib.SocketFilter,
 	collectDNSStats bool,
 	collectLocalDNS bool,
+	dnsTimeout time.Duration,
 ) (*SocketFilterSnooper, error) {
 
 	var (
@@ -62,7 +61,7 @@ func NewSocketFilterSnooper(
 	)
 
 	// Create the RAW_SOCKET inside the root network namespace
-	nsErr := WithRootNS(rootPath, func() {
+	nsErr := util.WithRootNS(rootPath, func() {
 		packetSrc, srcErr = newPacketSource(filter)
 	})
 	if nsErr != nil {
@@ -75,7 +74,7 @@ func NewSocketFilterSnooper(
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if collectDNSStats {
-		statKeeper = newDNSStatkeeper()
+		statKeeper = newDNSStatkeeper(dnsTimeout)
 	}
 	snooper := &SocketFilterSnooper{
 		source:          packetSrc,
@@ -134,6 +133,9 @@ func (s *SocketFilterSnooper) Close() {
 	s.wg.Wait()
 	s.source.Close()
 	s.cache.Close()
+	if s.statKeeper != nil {
+		s.statKeeper.Close()
+	}
 }
 
 // processPacket retrieves DNS information from the received packet data and adds it to
@@ -141,6 +143,7 @@ func (s *SocketFilterSnooper) Close() {
 // call since the underlying memory content gets invalidated by `afpacket`.
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 func (s *SocketFilterSnooper) processPacket(data []byte) {
+	ts := time.Now() // record the timestamp before we do any processing
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
@@ -157,7 +160,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte) {
 	}
 
 	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.serverIP.IsLoopback()) {
-		s.statKeeper.ProcessPacketInfo(pktInfo)
+		s.statKeeper.ProcessPacketInfo(pktInfo, ts)
 	}
 
 	if pktInfo.pktType == SuccessfulResponse {
@@ -280,34 +283,4 @@ func (p *packetSource) Close() {
 	}
 
 	p.TPacket.Close()
-}
-
-// WithRootNS executes a function within root network namespace and then switch back
-// to the previous namespace. If the thread is already in the root network namespace,
-// the function is executed without calling SYS_SETNS.
-func WithRootNS(procRoot string, fn func()) error {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	prevNS, err := netns.Get()
-	if err != nil {
-		return err
-	}
-
-	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", procRoot))
-	if err != nil {
-		return err
-	}
-
-	if rootNS.Equal(prevNS) {
-		fn()
-		return nil
-	}
-
-	if err := netns.Set(rootNS); err != nil {
-		return err
-	}
-
-	fn()
-	return netns.Set(prevNS)
 }

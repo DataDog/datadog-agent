@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -39,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -165,11 +167,17 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
+	forwarderOpts := forwarder.NewOptions(keysPerDomain)
+	// If a cluster-agent looses the connectivity to DataDog, we still want it to remain ready so that its endpoint remains in the service because:
+	// * It is still able to serve metrics to the WPA controller and
+	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
+	// Serving stale data is better than serving no data at all.
+	forwarderOpts.DisableAPIKeyChecking = true
+	f := forwarder.NewDefaultForwarder(forwarderOpts)
 	f.Start()
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.ClusterAgentName)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
@@ -200,8 +208,10 @@ func start(cmd *cobra.Command, args []string) error {
 			StopCh:             stopCh,
 		}
 
-		if err := apiserver.StartControllers(ctx); err != nil {
-			log.Errorf("Could not start controllers: %v", err)
+		if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
+			for _, err := range aggErr.Errors() {
+				log.Warnf("Error while starting controller: %v", err)
+			}
 		}
 
 		// Generate and persist a cluster ID
@@ -220,7 +230,7 @@ func start(cmd *cobra.Command, args []string) error {
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
 			Hostname:                     hostname,
-			ClusterName:                  config.Datadog.GetString("cluster_name"),
+			ClusterName:                  clustername.GetClusterName(),
 			ConfigPath:                   confPath,
 		}
 		err = orchestrator.StartController(orchestratorCtx)
@@ -259,7 +269,8 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	wg := sync.WaitGroup{}
-	// Autoscaler Controller Process
+
+	// Autoscaler Controller Goroutine
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
 		wg.Add(1)
@@ -273,12 +284,26 @@ func start(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
+	// Admission Controller Goroutine
+	if config.Datadog.GetBool("admission_controller.enabled") {
+		// Start the k8s admission controller webhook.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			errServ := admission.RunServer(mainCtx)
+			if errServ != nil {
+				log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
+			}
+		}()
+	}
+
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Cluster Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
@@ -287,7 +312,9 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
-	// wait for the External Metrics Server to stop properly
+
+	// wait for the External Metrics Server and
+	// the Admission Webhook Server to stop properly
 	wg.Wait()
 
 	if stopCh != nil {

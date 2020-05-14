@@ -243,7 +243,7 @@ func GetHostnameData() (HostnameData, error) {
 				log.Debug(err)
 			}
 		} else {
-			err := fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance, and other providers already retrieve non-default hostnames")
+			err := fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance and other providers already retrieve non-default hostnames")
 			log.Debug(err.Error())
 			expErr := new(expvar.String)
 			expErr.Set(err.Error())

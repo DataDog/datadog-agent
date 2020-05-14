@@ -81,7 +81,7 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 
 	sc := &scheduledCollector{
 		sendTimer:    newTimer(interval),
-		healthHandle: health.Register("metadata-" + name),
+		healthHandle: health.RegisterLiveness("metadata-" + name),
 	}
 
 	go func() {

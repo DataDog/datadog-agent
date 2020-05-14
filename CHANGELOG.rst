@@ -2,6 +2,43 @@
 Release Notes
 =============
 
+.. _Release Notes_7.19.2:
+
+7.19.2 / 6.19.2
+======
+
+.. _Release Notes_7.19.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-05-12
+
+- Please refer to the `7.19.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7192>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.19.1:
+
+7.19.1
+======
+
+.. _Release Notes_7.19.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2020-05-04
+
+This release is only an Agent v7 release, as Agent v6 is not affected by the undermentioned bug.
+
+.. _Release Notes_7.19.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix panic in the dogstatsd standalone package when running in a containerized environment.
+
+
 .. _Release Notes_7.19.0:
 
 7.19.0 / 6.19.0

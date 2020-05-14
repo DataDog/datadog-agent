@@ -21,3 +21,14 @@ $packageArgs = @{
   validExitCodes= @(0, 3010, 1641)
 }
 Install-ChocolateyInstallPackage @packageArgs
+
+$installInfo = @"
+---
+install_method:
+  tool: chocolatey
+  tool_version: chocolatey-$($env:CHOCOLATEY_VERSION)
+  installer_version: chocolatey-$($env:chocolateyPackageVersion)-offline
+"@
+
+$appDataDir = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Datadog\Datadog Agent").ConfigRoot
+Out-File -FilePath $appDataDir\install_info -InputObject $installInfo
