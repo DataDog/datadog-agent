@@ -210,10 +210,12 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	processForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.APIEndpoints))
 	processForwarderOpts.EnableHealthChecking = false
+	processForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
 	podForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.OrchestratorEndpoints))
 	podForwarderOpts.EnableHealthChecking = false
+	podForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
 	if err := processForwarder.Start(); err != nil {
