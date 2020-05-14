@@ -128,7 +128,7 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
-	mux.Handle("/proxy/profile", r.profileProxyHandler())
+	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
