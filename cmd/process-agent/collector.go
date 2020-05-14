@@ -385,7 +385,7 @@ func getContainerCount(mb model.MessageBody) int {
 	return 0
 }
 
-func readResponseStatuses(checkName string, responses chan forwarder.Response) []*model.CollectorStatus {
+func readResponseStatuses(checkName string, responses <-chan forwarder.Response) []*model.CollectorStatus {
 	var statuses []*model.CollectorStatus
 
 	for response := range responses {
