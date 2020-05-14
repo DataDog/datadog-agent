@@ -21,6 +21,12 @@ import (
 	"github.com/soniah/gosnmp"
 )
 
+const (
+	defaultWorkers           = 2
+	defaultAllowedFailures   = 3
+	defaultDiscoveryInterval = 3600
+)
+
 func init() {
 	Register("snmp", NewSNMPListener)
 }
@@ -59,7 +65,7 @@ type snmpSubnet struct {
 }
 
 type snmpJob struct {
-	subnet    snmpSubnet
+	subnet    *snmpSubnet
 	currentIP net.IP
 }
 
@@ -85,7 +91,7 @@ func (l *SNMPListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	go l.checkDevices()
 }
 
-func (l *SNMPListener) loadCache(subnet snmpSubnet) {
+func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	cacheValue, err := persistentcache.Read(subnet.cacheKey)
 	if err != nil {
 		log.Errorf("Couldn't read cache for %s: %s", subnet.cacheKey, err)
@@ -105,7 +111,7 @@ func (l *SNMPListener) loadCache(subnet snmpSubnet) {
 	}
 }
 
-func (l *SNMPListener) writeCache(subnet snmpSubnet, lock bool) {
+func (l *SNMPListener) writeCache(subnet *snmpSubnet, lock bool) {
 	if lock {
 		l.Lock()
 		defer l.Unlock()
@@ -203,19 +209,19 @@ func (l *SNMPListener) checkDevices() {
 		}
 		subnets = append(subnets, subnet)
 
-		l.loadCache(subnet)
+		l.loadCache(&subnet)
 	}
 
 	if l.config.Workers == 0 {
-		l.config.Workers = 2
+		l.config.Workers = defaultWorkers
 	}
 
 	if l.config.AllowedFailures == 0 {
-		l.config.AllowedFailures = 3
+		l.config.AllowedFailures = defaultAllowedFailures
 	}
 
 	if l.config.DiscoveryInterval == 0 {
-		l.config.DiscoveryInterval = 3600
+		l.config.DiscoveryInterval = defaultDiscoveryInterval
 	}
 
 	jobs := make(chan snmpJob)
@@ -238,7 +244,7 @@ func (l *SNMPListener) checkDevices() {
 				jobIP := make(net.IP, len(currentIP))
 				copy(jobIP, currentIP)
 				job := snmpJob{
-					subnet:    subnet,
+					subnet:    &subnet,
 					currentIP: jobIP,
 				}
 				jobs <- job
@@ -249,7 +255,7 @@ func (l *SNMPListener) checkDevices() {
 				default:
 				}
 			}
-			l.writeCache(subnet, true)
+			l.writeCache(&subnet, true)
 		}
 
 		select {
@@ -260,7 +266,7 @@ func (l *SNMPListener) checkDevices() {
 	}
 }
 
-func (l *SNMPListener) createService(entityID string, subnet snmpSubnet, deviceIP string, writeCache bool) {
+func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
 	l.Lock()
 	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
@@ -282,7 +288,7 @@ func (l *SNMPListener) createService(entityID string, subnet snmpSubnet, deviceI
 	l.newService <- svc
 }
 
-func (l *SNMPListener) deleteService(entityID string, subnet snmpSubnet) {
+func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 	l.Lock()
 	defer l.Unlock()
 	if svc, present := l.services[entityID]; present {
