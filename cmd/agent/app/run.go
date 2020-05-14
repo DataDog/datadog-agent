@@ -285,6 +285,10 @@ func StartAgent() error {
 		log.Info("logs-agent disabled")
 	}
 
+	if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
+		log.Errorf("System probe config not read: %v", err)
+	}
+
 	// Detect Cloud Provider
 	go util.DetectCloudProvider()
 
