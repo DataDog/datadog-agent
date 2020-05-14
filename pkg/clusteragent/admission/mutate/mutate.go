@@ -5,11 +5,16 @@
 
 // +build kubeapiserver
 
-package admission
+package mutate
 
 import admiv1beta1 "k8s.io/api/admission/v1beta1"
 
-func Mutate(req *admiv1beta1.AdmissionRequest) (*admiv1beta1.AdmissionResponse, error) {
+func InjectConfig(req *admiv1beta1.AdmissionRequest) (*admiv1beta1.AdmissionResponse, error) {
+	// TODO: implement me
+	return nil, nil
+}
+
+func InjectTags(req *admiv1beta1.AdmissionRequest) (*admiv1beta1.AdmissionResponse, error) {
 	// TODO: implement me
 	return nil, nil
 }

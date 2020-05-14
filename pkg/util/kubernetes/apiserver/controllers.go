@@ -47,10 +47,6 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		startEndpointsInformer,
 	},
-	secretsController: {
-		func() bool { return config.Datadog.GetBool("admission_controller.enabled") },
-		startSecretsInformer,
-	},
 }
 
 type ControllerContext struct {
@@ -106,23 +102,17 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 }
 
 // startMetadataController starts the informers needed for metadata collection.
-// The synchronization of the informers is handled in this function.
+// The synchronization of the informers is handled by the controller.
 func startMetadataController(ctx ControllerContext, c chan error) {
 	metaController := NewMetadataController(
 		ctx.InformerFactory.Core().V1().Nodes(),
 		ctx.InformerFactory.Core().V1().Endpoints(),
 	)
 	go metaController.Run(ctx.StopCh)
-
-	// Wait for the cache to sync
-	c <- SyncInformers(map[InformerName]cache.SharedInformer{
-		nodesInformer:     ctx.InformerFactory.Core().V1().Nodes().Informer(),
-		endpointsInformer: ctx.InformerFactory.Core().V1().Endpoints().Informer(),
-	})
 }
 
 // startAutoscalersController starts the informers needed for autoscaling.
-// The synchronization of the informers is handled in this function.
+// The synchronization of the informers is handled by the controller.
 func startAutoscalersController(ctx ControllerContext, c chan error) {
 	dogCl, err := autoscalers.NewDatadogClient()
 	if err != nil {
@@ -139,20 +129,14 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 		c <- err
 		return
 	}
-	informers := map[InformerName]cache.SharedInformer{}
 	if ctx.WPAInformerFactory != nil {
 		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, ctx.WPAInformerFactory)
-		informers[wpaInformer] = ctx.WPAInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers().Informer()
 	}
 	// mutate the Autoscaler controller to embed an informer against the HPAs
 	autoscalersController.EnableHPA(ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
 	go autoscalersController.RunHPA(ctx.StopCh)
-	informers[hpaInformer] = ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers().Informer()
 
 	autoscalersController.RunControllerLoop(ctx.StopCh)
-
-	// Wait for the cache to sync
-	c <- SyncInformers(informers)
 }
 
 // startServicesInformer starts the service informer.
@@ -178,18 +162,5 @@ func startEndpointsInformer(ctx ControllerContext, c chan error) {
 	// Wait for the cache to sync
 	c <- SyncInformers(map[InformerName]cache.SharedInformer{
 		endpointsInformer: ctx.InformerFactory.Core().V1().Endpoints().Informer(),
-	})
-}
-
-// startSecretsInformer starts the secrets informer.
-// The synchronization of the secrets informer is handled in this function.
-func startSecretsInformer(ctx ControllerContext, c chan error) {
-	// Just start the shared informer, the admission
-	// controller will access it when needed.
-	go ctx.InformerFactory.Core().V1().Secrets().Informer().Run(ctx.StopCh)
-
-	// Wait for the cache to sync
-	c <- SyncInformers(map[InformerName]cache.SharedInformer{
-		secretsInformer: ctx.InformerFactory.Core().V1().Secrets().Informer(),
 	})
 }
