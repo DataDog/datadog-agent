@@ -69,7 +69,7 @@ func (w *Worker) Stop(purgeHighPrio bool) {
 			select {
 			case t := <-w.HighPrio:
 				log.Debugf("Flushing one new transaction before stopping Worker")
-				w.callProcess(t)
+				w.callProcess(t) //nolint:errcheck
 			default:
 				break L
 			}

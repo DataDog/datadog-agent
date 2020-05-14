@@ -1,4 +1,4 @@
-//go:generate go-bindata -pkg gui -prefix views/ -o ./templates.go views/...
+//go:generate go-bindata -pkg gui -prefix views -o ./templates.go views/...
 //go:generate go fmt ./templates.go
 
 package gui
@@ -82,7 +82,7 @@ func StartGUIServer(port string) error {
 	if e != nil {
 		return e
 	}
-	go http.Serve(listener, router)
+	go http.Serve(listener, router) //nolint:errcheck
 	log.Infof("GUI server is listening at 127.0.0.1:" + port)
 
 	// Create a CSRF token (unique to each session)
@@ -111,7 +111,7 @@ func createCSRFToken() error {
 }
 
 func generateIndex(w http.ResponseWriter, r *http.Request) {
-	data, err := Asset("templates/index.tmpl")
+	data, err := Asset("/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -130,7 +130,7 @@ func generateIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
-	data, err := Asset("templates/auth.tmpl")
+	data, err := Asset("/templates/auth.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -149,7 +149,7 @@ func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
-	path := filepath.Join("private", req.URL.Path)
+	path := filepath.Join("/private", req.URL.Path)
 	data, err := Asset(path)
 	if err != nil {
 		if os.IsNotExist(err) {

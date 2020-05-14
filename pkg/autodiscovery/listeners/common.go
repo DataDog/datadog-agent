@@ -103,9 +103,9 @@ func standardTagsDigest(labels map[string]string) string {
 		return ""
 	}
 	h := fnv.New64()
-	h.Write([]byte(labels[kubernetes.EnvTagLabelKey]))
-	h.Write([]byte(labels[kubernetes.VersionTagLabelKey]))
-	h.Write([]byte(labels[kubernetes.ServiceTagLabelKey]))
+	h.Write([]byte(labels[kubernetes.EnvTagLabelKey]))     //nolint:errcheck
+	h.Write([]byte(labels[kubernetes.VersionTagLabelKey])) //nolint:errcheck
+	h.Write([]byte(labels[kubernetes.ServiceTagLabelKey])) //nolint:errcheck
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 

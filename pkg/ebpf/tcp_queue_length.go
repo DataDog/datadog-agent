@@ -78,7 +78,7 @@ func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 
 	kprobe_sendmsg, err := m.LoadKprobe("kprobe__tcp_sendmsg")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load kprobe__tcp_recvmsg: %s\n", err)
+		return nil, fmt.Errorf("Failed to load kprobe__tcp_sendmsg: %s\n", err)
 	}
 
 	if err := m.AttachKprobe("tcp_sendmsg", kprobe_sendmsg, -1); err != nil {
@@ -87,7 +87,7 @@ func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 
 	kretprobe_sendmsg, err := m.LoadKprobe("kretprobe__tcp_sendmsg")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load kretprobe__tcp_recvmsg: %s\n", err)
+		return nil, fmt.Errorf("Failed to load kretprobe__tcp_sendmsg: %s\n", err)
 	}
 
 	if err := m.AttachKretprobe("tcp_sendmsg", kretprobe_sendmsg, -1); err != nil {

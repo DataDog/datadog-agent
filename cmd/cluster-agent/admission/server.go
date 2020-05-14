@@ -70,7 +70,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 	}
 	go func() error {
 		return log.Error(server.ListenAndServeTLS("", ""))
-	}()
+	}() //nolint:errcheck
 
 	<-mainCtx.Done()
 

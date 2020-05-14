@@ -21,7 +21,7 @@ const defaultLogFile = "/var/log/datadog/dogstatsd.log"
 
 func main() {
 	// go_expvar server
-	go http.ListenAndServe(
+	go http.ListenAndServe( //nolint:errcheck
 		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
 		http.DefaultServeMux)
 

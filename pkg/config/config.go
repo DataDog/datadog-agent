@@ -130,14 +130,15 @@ func init() {
 func initConfig(config Config) {
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
-	config.BindEnv("site")
-	config.BindEnv("dd_url")
+	config.BindEnv("site")   //nolint:errcheck
+	config.BindEnv("dd_url") //nolint:errcheck
 	config.BindEnvAndSetDefault("app_key", "")
+	config.BindEnvAndSetDefault("cloud_provider_metadata", "all")
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("tags", []string{})
-	config.BindEnv("env")
+	config.BindEnv("env") //nolint:errcheck
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
@@ -196,6 +197,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
 
 	config.BindEnvAndSetDefault("cluster_name", "")
+	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
 
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
@@ -249,9 +251,9 @@ func initConfig(config Config) {
 		}
 	}
 
-	config.BindEnv("procfs_path")
-	config.BindEnv("container_proc_root")
-	config.BindEnv("container_cgroup_root")
+	config.BindEnv("procfs_path")           //nolint:errcheck
+	config.BindEnv("container_proc_root")   //nolint:errcheck
+	config.BindEnv("container_cgroup_root") //nolint:errcheck
 
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
@@ -470,8 +472,8 @@ func initConfig(config Config) {
 		overrideVars["process_config.enabled"] = ddProcessAgentEnabled
 	}
 
-	config.BindEnv("process_config.process_dd_url", "")
-	config.BindEnv("process_config.orchestrator_dd_url", "")
+	config.BindEnv("process_config.process_dd_url", "")      //nolint:errcheck
+	config.BindEnv("process_config.orchestrator_dd_url", "") //nolint:errcheck
 
 	// Logs Agent
 
@@ -484,9 +486,9 @@ func initConfig(config Config) {
 	// add a socks5 proxy:
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// send the logs to a proxy:
-	config.BindEnv("logs_config.logs_dd_url") // must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnv("logs_config.logs_dd_url") //nolint:errcheck // must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	// specific logs-agent api-key
-	config.BindEnv("logs_config.api_key")
+	config.BindEnv("logs_config.api_key") //nolint:errcheck
 	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
@@ -495,7 +497,7 @@ func initConfig(config Config) {
 	// increase the number of files that can be tailed in parallel:
 	config.BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 	// add global processing rules that are applied on all logs
-	config.BindEnv("logs_config.processing_rules")
+	config.BindEnv("logs_config.processing_rules") //nolint:errcheck
 	// enforce the agent to use files to collect container logs on kubernetes environment
 	config.BindEnvAndSetDefault("logs_config.k8s_container_use_file", false)
 	// additional config to ensure initial logs are tagged with kubelet tags
@@ -509,7 +511,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
-	config.BindEnv("logs_config.dd_url")
+	config.BindEnv("logs_config.dd_url") //nolint:errcheck
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 	config.BindEnvAndSetDefault("logs_config.use_compression", true)
@@ -519,7 +521,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
-	config.BindEnv("logs_config.additional_endpoints")
+	config.BindEnv("logs_config.additional_endpoints") //nolint:errcheck
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -532,7 +534,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
 
-	config.BindEnv("api_key")
+	config.BindEnv("api_key") //nolint:errcheck
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
@@ -630,9 +632,8 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.collect_local_dns")
 	config.SetKnown("system_probe_config.use_local_system_probe")
 	config.SetKnown("system_probe_config.enable_conntrack")
-	config.SetKnown("system_probe_config.conntrack_ignore_enobufs")
 	config.SetKnown("system_probe_config.sysprobe_socket")
-	config.SetKnown("system_probe_config.conntrack_short_term_buffer_size")
+	config.SetKnown("system_probe_config.conntrack_rate_limit")
 	config.SetKnown("system_probe_config.max_conns_per_message")
 	config.SetKnown("system_probe_config.max_tracked_connections")
 	config.SetKnown("system_probe_config.max_closed_connections_buffered")
@@ -643,7 +644,7 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.closed_channel_size")
 
 	// Network
-	config.BindEnv("network.id")
+	config.BindEnv("network.id") //nolint:errcheck
 
 	// APM
 	config.SetKnown("apm_config.enabled")
@@ -1012,6 +1013,17 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 	}
 
 	return keysPerDomain, nil
+}
+
+// IsCloudProviderEnabled checks the cloud provider family provided in pkg/util/<cloud_provider>.go against the value for cloud_provider: on the global config object Datadog
+func IsCloudProviderEnabled(cloudProviderName string) bool {
+	cloudProviderFromConfig := Datadog.GetString("cloud_provider_metadata")
+	if strings.ToLower(cloudProviderFromConfig) == "all" || strings.ToLower(cloudProviderFromConfig) == strings.ToLower(cloudProviderName) {
+		log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider", cloudProviderFromConfig, cloudProviderName)
+		return true
+	}
+	log.Debugf("cloud_provider_metadata is set to %s in agent configuration, skipping %s Cloud Provider", cloudProviderFromConfig, cloudProviderName)
+	return false
 }
 
 // IsContainerized returns whether the Agent is running on a Docker container

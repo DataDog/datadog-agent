@@ -3,7 +3,6 @@ package encoding
 import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -26,6 +25,9 @@ func FormatConnection(conn network.ConnectionStats) *model.Connection {
 		IntraHost:              conn.IntraHost,
 		DnsSuccessfulResponses: conn.DNSSuccessfulResponses,
 		DnsFailedResponses:     conn.DNSFailedResponses,
+		DnsTimeouts:            conn.DNSTimeouts,
+		DnsSuccessLatencySum:   conn.DNSSuccessLatencySum,
+		DnsFailureLatencySum:   conn.DNSFailureLatencySum,
 	}
 }
 
@@ -88,7 +90,7 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	}
 }
 
-func formatIPTranslation(ct *netlink.IPTranslation) *model.IPTranslation {
+func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 	if ct == nil {
 		return nil
 	}
