@@ -40,8 +40,6 @@ func TestParseSuite(t *testing.T) {
 		},
 	}
 
-	actual := &Suite{}
-
 	actual, err := ParseSuite("./testdata/cis-docker.yaml")
 	assert.NoError(t, err)
 	assert.Equal(t, expected, actual)

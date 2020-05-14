@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// Package compliance defines common interfaces and types for Compliance Agent
 package compliance
 
 // Rule defines a rule in a compliance config
