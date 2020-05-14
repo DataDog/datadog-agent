@@ -143,7 +143,6 @@ require (
 	k8s.io/api v0.17.3
 	k8s.io/apimachinery v0.17.3
 	k8s.io/apiserver v0.17.3
-	k8s.io/autoscaler v0.0.0-20190607113959-1b4f1855cb8e // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.0.0-20200123122250-fa95810cfc1e
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/component-base v0.17.3 // indirect
