@@ -1479,15 +1479,20 @@ func teardown(t *testing.T) {
 	}
 }
 
-func testDNSStats(t *testing.T, domain string, success int) {
+const (
+	validDNSServer = "8.8.8.8"
+)
+
+func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
 	config := NewDefaultConfig()
 	config.CollectDNSStats = true
 	config.CollectLocalDNS = true
+	config.DNSTimeout = 1 * time.Second
 	tr, err := NewTracer(config)
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53}
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
 
 	queryMsg := new(dns.Msg)
 	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
@@ -1507,7 +1512,7 @@ func testDNSStats(t *testing.T, domain string, success int) {
 	dnsClient := dns.Client{Net: "udp", Dialer: localAddrDialer}
 	_, _, err = dnsClient.Exchange(queryMsg, dnsServerAddr.String())
 
-	if err != nil {
+	if err != nil && timeout == 0 {
 		t.Fatalf("Failed to get dns response %s\n", err.Error())
 	}
 
@@ -1525,13 +1530,18 @@ func testDNSStats(t *testing.T, domain string, success int) {
 
 	// DNS Stats
 	assert.Equal(t, uint32(success), conn.DNSSuccessfulResponses)
-	assert.Equal(t, uint32(1-success), conn.DNSFailedResponses)
+	assert.Equal(t, uint32(failure), conn.DNSFailedResponses)
+	assert.Equal(t, uint32(timeout), conn.DNSTimeouts)
 }
 
 func TestDNSStatsForValidDomain(t *testing.T) {
-	testDNSStats(t, "golang.org", 1)
+	testDNSStats(t, "golang.org", 1, 0, 0, validDNSServer)
 }
 
 func TestDNSStatsForInvalidDomain(t *testing.T) {
-	testDNSStats(t, "abcdedfg", 0)
+	testDNSStats(t, "abcdedfg", 0, 1, 0, validDNSServer)
+}
+
+func TestDNSStatsForTimeout(t *testing.T) {
+	testDNSStats(t, "golang.org", 0, 0, 1, "1.2.3.4")
 }

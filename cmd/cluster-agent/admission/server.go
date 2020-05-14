@@ -44,7 +44,7 @@ func RunServer(mainCtx context.Context) error {
 	}
 	go func() error {
 		return log.Error(server.ListenAndServeTLS("", ""))
-	}()
+	}() //nolint:errcheck
 
 	<-mainCtx.Done()
 

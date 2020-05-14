@@ -71,7 +71,7 @@ func runCheck(w http.ResponseWriter, r *http.Request) {
 	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
 
 	for _, ch := range instances {
-		common.Coll.RunCheck(ch)
+		common.Coll.RunCheck(ch) //nolint:errcheck
 	}
 	log.Infof("Scheduled new check: " + name)
 	w.Write([]byte("Scheduled new check:" + name))
@@ -223,13 +223,13 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 
 		// Attempt to write new configs to custom checks directory
 		path := filepath.Join(checkConfFolderPath, fileName)
-		os.MkdirAll(checkConfFolderPath, os.FileMode(0755))
+		os.MkdirAll(checkConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 		e = ioutil.WriteFile(path, data, 0600)
 
 		// If the write didn't work, try writing to the default checks directory
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
 			path = filepath.Join(defaultCheckConfFolderPath, fileName)
-			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755))
+			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 			e = ioutil.WriteFile(path, data, 0600)
 		}
 

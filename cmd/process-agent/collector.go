@@ -198,7 +198,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		for {
 			select {
 			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
+				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
 				updateQueueBytes(processResults.Weight(), podResults.Weight())
 				updateQueueSize(processResults.Len(), podResults.Len())
@@ -209,12 +209,12 @@ func (l *Collector) run(exit chan struct{}) error {
 	}()
 
 	processForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.APIEndpoints))
-	processForwarderOpts.EnableHealthChecking = false
+	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
 	podForwarderOpts := forwarder.NewOptions(keysPerDomains(l.cfg.OrchestratorEndpoints))
-	podForwarderOpts.EnableHealthChecking = false
+	podForwarderOpts.DisableAPIKeyChecking = false
 	podForwarderOpts.RetryQueueSize = l.cfg.QueueSize // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 

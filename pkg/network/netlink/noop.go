@@ -3,10 +3,7 @@
 
 package netlink
 
-import (
-	"github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-)
+import "github.com/DataDog/datadog-agent/pkg/network"
 
 type noOpConntracker struct{}
 
@@ -15,22 +12,11 @@ func NewNoOpConntracker() Conntracker {
 	return &noOpConntracker{}
 }
 
-func (*noOpConntracker) GetTranslationForConn(
-	srcIP util.Address,
-	srcPort uint16,
-	dstIP util.Address,
-	dstPort uint16,
-	transport process.ConnectionType,
-) *IPTranslation {
+func (*noOpConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	return nil
 }
 
-func (*noOpConntracker) DeleteTranslation(
-	srcIP util.Address,
-	srcPort uint16,
-	dstIP util.Address,
-	dstPort uint16,
-	transport process.ConnectionType) {
+func (*noOpConntracker) DeleteTranslation(c network.ConnectionStats) {
 
 }
 

@@ -42,7 +42,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	nodeName := vars["nodeName"]
 	nodeLabels, err := as.GetNodeLabels(nodeName)
 	if err != nil {
-		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error())
+		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
 			"getNodeMetadata",
@@ -52,7 +52,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	labelBytes, err = json.Marshal(nodeLabels)
 	if err != nil {
-		log.Errorf("Could not process the labels of the node %s from the informer's cache: %v", nodeName, err.Error())
+		log.Errorf("Could not process the labels of the node %s from the informer's cache: %v", nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
 			"getNodeMetadata",
@@ -104,7 +104,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	ns := vars["ns"]
 	metaList, errMetaList := as.GetPodMetadataNames(nodeName, ns, podName)
 	if errMetaList != nil {
-		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName)
+		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName) //nolint:errcheck
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
 			"getPodMetadata",
@@ -115,7 +115,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 
 	metaBytes, err := json.Marshal(metaList)
 	if err != nil {
-		log.Errorf("Could not process the list of services for: %s", podName)
+		log.Errorf("Could not process the list of services for: %s", podName) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
 			"getPodMetadata",
@@ -147,7 +147,7 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("Fetching metadata map on all pods of the node %s", nodeName)
 	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
-		log.Warnf("Could not collect the service map for %s, err: %v", nodeName, errNodes)
+		log.Warnf("Could not collect the service map for %s, err: %v", nodeName, errNodes) //nolint:errcheck
 	}
 	slcB, err := json.Marshal(metaList)
 	if err != nil {
@@ -197,7 +197,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	log.Trace("Computing metadata map on all nodes")
 	cl, err := as.GetAPIClient()
 	if err != nil {
-		log.Errorf("Can't create client to query the API Server: %v", err)
+		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		apiRequests.Inc(
 			"getAllMetadata",
@@ -209,7 +209,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	// If we hit an error at this point, it is because we don't have access to the API server.
 	if errAPIServer != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		log.Errorf("There was an error querying the nodes from the API: %s", errAPIServer.Error())
+		log.Errorf("There was an error querying the nodes from the API: %s", errAPIServer.Error()) //nolint:errcheck
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}

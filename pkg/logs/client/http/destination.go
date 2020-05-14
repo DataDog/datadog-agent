@@ -133,7 +133,7 @@ func (d *Destination) sendInBackground(payloadChan chan []byte) {
 		for {
 			select {
 			case payload := <-payloadChan:
-				d.Send(payload)
+				d.Send(payload) //nolint:errcheck
 			case <-ctx.Done():
 				return
 			}

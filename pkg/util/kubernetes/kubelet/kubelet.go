@@ -102,7 +102,7 @@ func GetKubeUtil() (KubeUtilInterface, error) {
 	defer globalKubeUtilMutex.Unlock()
 	if globalKubeUtil == nil {
 		globalKubeUtil = newKubeUtil()
-		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{
+		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "kubeutil",
 			AttemptMethod:     globalKubeUtil.init,
 			Strategy:          retry.Backoff,

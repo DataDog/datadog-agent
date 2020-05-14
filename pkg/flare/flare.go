@@ -41,7 +41,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 	bodyReader, bodyWriter := io.Pipe()
 
 	writer := multipart.NewWriter(bodyWriter)
-	writer.SetBoundary(multipartBoundary)
+	writer.SetBoundary(multipartBoundary) //nolint:errcheck
 
 	//Write stuff to the pipe will block until it is read from the other end, so we don't load everything in memory
 	go func() {
@@ -50,32 +50,32 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 		defer writer.Close()
 
 		if caseID != "" {
-			writer.WriteField("case_id", caseID)
+			writer.WriteField("case_id", caseID) //nolint:errcheck
 		}
 		if email != "" {
-			writer.WriteField("email", email)
+			writer.WriteField("email", email) //nolint:errcheck
 		}
 
 		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
 		if err != nil {
-			bodyWriter.CloseWithError(err)
+			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
 		file, err := os.Open(archivePath)
 		defer file.Close()
 		if err != nil {
-			bodyWriter.CloseWithError(err)
+			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
 		_, err = io.Copy(p, file)
 		if err != nil {
-			bodyWriter.CloseWithError(err)
+			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
 
 		agentFullVersion, _ := version.Agent()
-		writer.WriteField("agent_version", agentFullVersion.String())
-		writer.WriteField("hostname", hostname)
+		writer.WriteField("agent_version", agentFullVersion.String()) //nolint:errcheck
+		writer.WriteField("hostname", hostname)                       //nolint:errcheck
 
 	}()
 

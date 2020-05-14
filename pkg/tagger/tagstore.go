@@ -99,7 +99,7 @@ func computeTagsHash(tags []string) string {
 		h := fnv.New64()
 		sort.Strings(tags)
 		for _, i := range tags {
-			h.Write([]byte(i))
+			h.Write([]byte(i)) //nolint:errcheck
 		}
 		hash = strconv.FormatUint(h.Sum64(), 16)
 	}

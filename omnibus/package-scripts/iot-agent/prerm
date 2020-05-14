@@ -3,9 +3,7 @@
 # Perform necessary datadog-agent setup steps prior to remove the old package.
 #
 # .deb: STEP 1 of 5
-
-KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
-DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
+# .rpm: STEP 4 of 6
 
 SERVICE_NAME=datadog-agent
 
@@ -36,11 +34,7 @@ deregister_agent()
     fi
 }
 
-if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
-    stop_agent
-    deregister_agent
-else
-    echo "[ FAILED ]\tYour system is currently not supported by this script.";
-fi
+stop_agent
+deregister_agent
 
 exit 0
