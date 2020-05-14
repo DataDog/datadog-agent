@@ -238,6 +238,8 @@ docker:
 
   report:
   - attribute: id
+	as: image_id
+
   - as: image_healthcheck_missing
     value: true
 `,
@@ -255,6 +257,7 @@ docker:
 					Report: Report{
 						{
 							Attribute: "id",
+							As:        "image_id",
 						},
 						{
 							As:    "image_healthcheck_missing",

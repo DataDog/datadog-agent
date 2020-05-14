@@ -6,9 +6,7 @@ package checks
 
 import (
 	"testing"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,26 +14,8 @@ import (
 func TestFileCheck(t *testing.T) {
 	reporter := &compliance.MockReporter{}
 
-	const (
-		framework    = "cis-docker"
-		version      = "1.2.0"
-		ruleID       = "rule"
-		resourceID   = "host"
-		resourceType = "docker"
-	)
-
 	fc := &fileCheck{
-		baseCheck: baseCheck{
-			id:        check.ID("check-1"),
-			interval:  time.Minute,
-			framework: framework,
-			version:   version,
-
-			ruleID:       ruleID,
-			resourceType: resourceType,
-			resourceID:   resourceID,
-			reporter:     reporter,
-		},
+		baseCheck: newTestBaseCheck(reporter),
 		File: &compliance.File{
 			Path: "./testdata/644.dat",
 			Report: compliance.Report{
@@ -47,16 +27,12 @@ func TestFileCheck(t *testing.T) {
 	}
 	reporter.On(
 		"Report",
-		&compliance.RuleEvent{
-			RuleID:       ruleID,
-			Framework:    framework,
-			Version:      version,
-			ResourceType: resourceType,
-			ResourceID:   resourceID,
-			Data: compliance.KV{
+		newTestRuleEvent(
+			nil,
+			compliance.KV{
 				"permissions": "644",
 			},
-		},
+		),
 	).Once()
 
 	err := fc.Run()

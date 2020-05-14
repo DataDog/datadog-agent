@@ -1,6 +1,22 @@
 [
     {
         "Containers": -1,
+        "Created": 1589486441,
+        "Id": "sha256:09f3f4e9394f7620fb6f1025755c85dac07f7e7aa4fca4ba19e4a03590b63750",
+        "Labels": {
+            "maintainer": "NGINX Docker Maintainers <docker-maint@nginx.com>"
+        },
+        "ParentId": "sha256:89ec9da682137d6b18ab8244ca263b6771067f251562f884c7510c8f1e5ac910",
+        "RepoDigests": null,
+        "RepoTags": [
+            "nginx-healthcheck:latest"
+        ],
+        "SharedSize": -1,
+        "Size": 19936884,
+        "VirtualSize": 19936884
+    },
+    {
+        "Containers": -1,
         "Created": 1588383619,
         "Id": "sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c",
         "Labels": null,
@@ -17,34 +33,20 @@
     },
     {
         "Containers": -1,
-        "Created": 1587748637,
-        "Id": "sha256:ae192c4d3adaebbbf2f023e1e50eaadfabccb6b08c855ac13d6ce2232381a58a",
-        "Labels": null,
+        "Created": 1587733117,
+        "Id": "sha256:89ec9da682137d6b18ab8244ca263b6771067f251562f884c7510c8f1e5ac910",
+        "Labels": {
+            "maintainer": "NGINX Docker Maintainers <docker-maint@nginx.com>"
+        },
         "ParentId": "",
         "RepoDigests": [
-            "postgres@sha256:9ea72265275674225b1eaa2ae897dd244028af4ee7ef6e4e89fe474938e0992e"
+            "nginx@sha256:763e7f0188e378fef0c761854552c70bbd817555dc4de029681a2e972e25e30e"
         ],
         "RepoTags": [
-            "postgres:alpine"
+            "nginx:alpine"
         ],
         "SharedSize": -1,
-        "Size": 151518775,
-        "VirtualSize": 151518775
-    },
-    {
-        "Containers": -1,
-        "Created": 1587738682,
-        "Id": "sha256:dda4232b2bd580bbf633be12d62e8d0e00f6b7bd60ea6faee157bad1809c53c4",
-        "Labels": null,
-        "ParentId": "",
-        "RepoDigests": [
-            "golang@sha256:9b3ad7928626126b72b916609ad081cfb6c0149f6e60cef7fc1e9e15a0d1e973"
-        ],
-        "RepoTags": [
-            "golang:alpine"
-        ],
-        "SharedSize": -1,
-        "Size": 369582448,
-        "VirtualSize": 369582448
+        "Size": 19936884,
+        "VirtualSize": 19936884
     }
 ]
