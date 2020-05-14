@@ -26,4 +26,5 @@ build do
 
   # removing unused files
   delete "#{install_dir}/embedded/bin/tsql"
+  delete "#{install_dir}/embedded/bin/fisql"
 end
