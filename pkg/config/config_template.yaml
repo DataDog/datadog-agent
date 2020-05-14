@@ -6,8 +6,25 @@
 ## @param api_key - string - required
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
+##
+## It’s mandatory to set either api_key or api_key_file.
+## If both are set, it’s the key found in the file pointed to by api_key_file which is used.
 #
 api_key:
+
+## @param api_key_file - string - optional
+## Path to a file containing the Datadog API key to associate your Agent's data with your organization.
+## Create a new API key here: https://app.datadoghq.com/account/settings
+##
+## Note that, in order to store sensitive information in a separate file than the general configuration,
+## the secret feature is a more versatile solution.
+## More about the secret feature: https://docs.datadoghq.com/agent/guide/secrets-management/?tab=linux
+##
+## It’s mandatory to set either api_key or api_key_file.
+## If both are set, it’s the key found in the file pointed to by api_key_file which is used.
+#
+# api_key_file:
+
 
 ## @param site - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.

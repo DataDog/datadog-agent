@@ -114,7 +114,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.Endpoints[0].APIKey = config.Datadog.GetString("api_key")
 	}
 	if apiKeyFile := config.Datadog.GetString("api_key_file"); apiKeyFile != "" {
-		if apiKey, err := ioutil.ReadFile(apiKeyFile); err == nil {
+		if apiKey, err := ioutil.ReadFile(apiKeyFile); err != nil {
+			log.Errorf("`api_key_file` parameter is set to \"%s\" but this file cannot be read: %v", apiKeyFile, err)
+		} else {
 			c.Endpoints[0].APIKey = string(apiKey)
 		}
 	}
