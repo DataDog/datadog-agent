@@ -3,26 +3,9 @@ require 'open-uri'
 require 'rspec'
 require 'rbconfig'
 require 'yaml'
+require 'find'
 
 os_cache = nil
-
-def list_files
-  require 'find'
-  exclude = [
-#    'C:/Windows/Temp/',
-#    'C:/Windows/Prefetch/',
-#    'C:/Windows/Installer/',
-#    'C:/Windows/WinSxS/',
-#    'C:/Windows/Logs/',
-#    'C:/Windows/servicing/',
-#    'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
-#    'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
-#    'C:/Windows/SoftwareDistribution/DataStore/Logs/',
-#    'C:/Windows/System32/wbem/Performance/',
-#    'c:/windows/System32/LogFiles/'
-  ].each { |e| e.downcase! }
-  return Find.find('c:/windows/').reject { |f| f.downcase.start_with?(*exclude) }
-end
 
 def os
   # OS Detection from https://stackoverflow.com/questions/11784109/detecting-operating-systems-in-ruby
@@ -683,10 +666,27 @@ shared_examples_for 'an Agent that is removed' do
 
   if os == :windows
     it 'should not make changes to system files' do
+      exclude = [
+        #    'C:/Windows/Temp/',
+        #    'C:/Windows/Prefetch/',
+        #    'C:/Windows/Installer/',
+        #    'C:/Windows/WinSxS/',
+        #    'C:/Windows/Logs/',
+        #    'C:/Windows/servicing/',
+        #    'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
+        #    'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
+        #    'C:/Windows/SoftwareDistribution/DataStore/Logs/',
+        #    'C:/Windows/System32/wbem/Performance/',
+        #    'c:/windows/System32/LogFiles/'
+      ].each { |e| e.downcase! }
+
+      # We don't really need to create this file since we consume it right afterwards, but it's useful for debugging
       File.open("c:/after-files.txt", "w") do |out|
-        list_files().each { |f| out.puts(f) }
+        Find.find('c:/windows/').each { |f| out.puts(f) }
       end
-      after_files = File.readlines('c:/after-files.txt')
+
+      before_files = File.readlines('c:/before-files.txt').reject { |f| f.downcase.start_with?(*exclude) }
+      after_files = File.readlines('c:/after-files.txt').reject { |f| f.downcase.start_with?(*exclude) }
 
       missing_files = before_files - after_files
       new_files = after_files - before_files
