@@ -34,6 +34,9 @@ func IsRunningOn() bool {
 
 // GetInstanceID fetches the instance id for current host from the Tencent metadata API
 func GetInstanceID() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	res, err := getMetadataItemWithMaxLength(metadataURL+"/meta-data/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		return "", fmt.Errorf("unable to get TencentCloud CVM instanceID: %s", err)
