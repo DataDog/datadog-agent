@@ -3,9 +3,26 @@ require 'open-uri'
 require 'rspec'
 require 'rbconfig'
 require 'yaml'
-require_relative '../../../../site-cookbooks/dd-agent-system-files-check/libraries/list-files.rb'
 
 os_cache = nil
+
+def list_files
+  require 'find'
+  exclude = [
+#    'C:/Windows/Temp/',
+#    'C:/Windows/Prefetch/',
+#    'C:/Windows/Installer/',
+#    'C:/Windows/WinSxS/',
+#    'C:/Windows/Logs/',
+#    'C:/Windows/servicing/',
+#    'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
+#    'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
+#    'C:/Windows/SoftwareDistribution/DataStore/Logs/',
+#    'C:/Windows/System32/wbem/Performance/',
+#    'c:/windows/System32/LogFiles/'
+  ].each { |e| e.downcase! }
+  return Find.find('c:/windows/').reject { |f| f.downcase.start_with?(*exclude) }
+end
 
 def os
   # OS Detection from https://stackoverflow.com/questions/11784109/detecting-operating-systems-in-ruby
