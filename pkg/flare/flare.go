@@ -7,7 +7,6 @@ package flare
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -129,7 +128,19 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 		return response, err
 	}
 	if r.StatusCode == http.StatusForbidden {
-		return response, errors.New("HTTP 403 Forbidden: Make sure your API key is valid")
+		apiKey := config.Datadog.GetString("api_key")
+		var errStr string
+
+		if len(apiKey) == 0 {
+			errStr = "API key is missing"
+		} else {
+			if len(apiKey) > 5 {
+				apiKey = apiKey[len(apiKey)-5:]
+			}
+			errStr = fmt.Sprintf("Make sure your API key is valid. API Key ending with: %v", apiKey)
+		}
+
+		return response, fmt.Errorf("HTTP 403 Forbidden: %s", errStr)
 	}
 
 	b, _ := ioutil.ReadAll(r.Body)
