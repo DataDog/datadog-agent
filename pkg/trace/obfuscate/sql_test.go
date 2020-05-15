@@ -147,9 +147,9 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
 		},
 	} {
-		oq, err := NewObfuscator(nil).obfuscateSQLString(tt.in)
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
 		assert.NoError(err)
-		assert.Equal(tt.out, oq.query)
+		assert.Equal(tt.out, oq.Query)
 	}
 }
 
@@ -213,17 +213,17 @@ func TestSQLTableFinder(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).obfuscateSQLString(tt.query)
+				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
-				assert.Equal(tt.tables, oq.tablesCSV)
+				assert.Equal(tt.tables, oq.TablesCSV)
 			})
 		}
 	})
 
 	t.Run("off", func(t *testing.T) {
-		oq, err := NewObfuscator(nil).obfuscateSQLString("DELETE FROM table WHERE table.a=1")
+		oq, err := NewObfuscator(nil).ObfuscateSQLString("DELETE FROM table WHERE table.a=1")
 		assert.NoError(t, err)
-		assert.Empty(t, oq.tablesCSV)
+		assert.Empty(t, oq.TablesCSV)
 	})
 }
 
@@ -837,9 +837,9 @@ LIMIT 1000`,
 
 	// The consumer is the same between executions
 	for _, tc := range testCases {
-		oq, err := NewObfuscator(nil).obfuscateSQLString(tc.query)
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(tc.query)
 		assert.Nil(err)
-		assert.Equal(tc.expected, oq.query)
+		assert.Equal(tc.expected, oq.Query)
 	}
 }
 
@@ -850,7 +850,7 @@ func TestConsumerError(t *testing.T) {
 	// what to do with malformed SQL
 	input := "SELECT * FROM users WHERE users.id = '1 AND users.name = 'dog'"
 
-	_, err := NewObfuscator(nil).obfuscateSQLString(input)
+	_, err := NewObfuscator(nil).ObfuscateSQLString(input)
 	assert.NotNil(err)
 }
 
@@ -934,7 +934,7 @@ func TestSQLErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
-			_, err := NewObfuscator(nil).obfuscateSQLString(tc.query)
+			_, err := NewObfuscator(nil).ObfuscateSQLString(tc.query)
 			assert.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
@@ -988,7 +988,7 @@ func TestLiteralEscapesUpdates(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			o := NewObfuscator(nil)
 			o.SetSQLLiteralEscapes(c.initial)
-			_, err := o.obfuscateSQLString(c.query)
+			_, err := o.ObfuscateSQLString(c.query)
 			if c.err != nil {
 				assert.Equal(t, c.err, err)
 			} else {
@@ -1013,7 +1013,7 @@ func BenchmarkTokenizer(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, _ = NewObfuscator(nil).obfuscateSQLString(bm.query)
+				_, _ = NewObfuscator(nil).ObfuscateSQLString(bm.query)
 			}
 		})
 	}
