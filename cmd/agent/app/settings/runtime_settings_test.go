@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package config
+package settings
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -62,8 +63,7 @@ func TestRuntimeSettings(t *testing.T) {
 
 func TestLogLevel(t *testing.T) {
 	cleanRuntimeSetting()
-	setupConf()
-	SetupLogger("TEST", "debug", "", "", true, true, true)
+	config.SetupLogger("TEST", "debug", "", "", true, true, true)
 
 	ll := logLevelRuntimeSetting("log_level")
 	assert.Equal(t, "log_level", ll.Name())
