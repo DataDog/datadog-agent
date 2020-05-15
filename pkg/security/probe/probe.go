@@ -2,7 +2,6 @@ package probe
 
 import (
 	"bytes"
-	"io/ioutil"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/gobpf"
@@ -38,6 +37,16 @@ var AllKProbes = []*KProbe{
 			EntryEvent: "sys_mkdir",
 			ExitFunc:   "kretprobe/__x64_sys_mkdir",
 			ExitEvent:  "sys_mkdir",
+		},
+		EventTypes: []string{"mkdir"},
+	},
+	{
+		KProbe: &eprobe.KProbe{
+			Name:       "sys_mkdirat",
+			EntryFunc:  "kprobe/__x64_sys_mkdirat",
+			EntryEvent: "sys_mkdirat",
+			ExitFunc:   "kretprobe/__x64_sys_mkdirat",
+			ExitEvent:  "sys_mkdirat",
 		},
 		EventTypes: []string{"mkdir"},
 	},

@@ -11,8 +11,7 @@ struct mkdir_event_t {
     int    mode;
 };
 
-SEC("kprobe/__x64_sys_mkdir")
-int kprobe__sys_mkdir(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx) {
     if (filter_process())
         return 0;
 
@@ -27,6 +26,16 @@ int kprobe__sys_mkdir(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/__x64_sys_mkdir")
+int kprobe__sys_mkdir(struct pt_regs *ctx) {
+    return trace__sys_mkdir(ctx);
+}
+
+SEC("kprobe/__x64_sys_mkdirat")
+int kprobe__sys_mkdirat(struct pt_regs *ctx) {
+    return trace__sys_mkdir(ctx);
+}
+
 SEC("kprobe/vfs_mkdir")
 int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall();
@@ -39,8 +48,7 @@ int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/__x64_sys_mkdir")
-int kretprobe__sys_mkdir(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = pop_syscall();
     if (!syscall)
         return 0;
@@ -60,6 +68,16 @@ int kretprobe__sys_mkdir(struct pt_regs *ctx) {
     send_event(ctx, event);
 
     return 0;
+}
+
+SEC("kretprobe/__x64_sys_mkdir")
+int kretprobe__sys_mkdir(struct pt_regs *ctx) {
+    return trace__sys_mkdir_ret(ctx);
+}
+
+SEC("kretprobe/__x64_sys_mkdirat")
+int kretprobe__sys_mkdirat(struct pt_regs *ctx) {
+    return trace__sys_mkdir_ret(ctx);
 }
 
 #endif
