@@ -338,7 +338,7 @@ func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
 	for _, s := range statuses {
 		shouldEnableRT = shouldEnableRT || (s.ActiveClients > 0 && l.cfg.AllowRealTime)
 		if s.ActiveClients > 0 {
-			activeClients = s.ActiveClients
+			activeClients += s.ActiveClients
 		}
 		interval := time.Duration(s.Interval) * time.Second
 		if interval > maxInterval {
