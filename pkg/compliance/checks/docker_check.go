@@ -141,7 +141,7 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 	c.report(nil, kv)
 }
 
-func evalCondition(property string, condition *compliance.GenericCondition) bool {
+func evalCondition(property string, condition *compliance.Condition) bool {
 	switch condition.Operation {
 	case compliance.OpExists, "":
 		return property != ""
