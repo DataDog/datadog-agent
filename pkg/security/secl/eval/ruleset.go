@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/cihub/seelog"
@@ -37,9 +38,21 @@ func (rl *RuleBucket) AddRule(rule *Rule) {
 
 type RuleSet struct {
 	eventRuleBuckets map[string]*RuleBucket
+	macros           map[string]*ast.Macro
 	model            Model
 	listeners        []RuleSetListener
 	debug            bool
+}
+
+func (rs *RuleSet) AddMacro(id, expression string) (*ast.Macro, error) {
+	astMacro, err := ast.ParseMacro(expression)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("invalid macro `%s`", expression))
+	}
+
+	rs.macros[id] = astMacro
+
+	return astMacro, nil
 }
 
 func (rs *RuleSet) AddRule(id, expression string, tags ...string) (*Rule, error) {
@@ -48,7 +61,7 @@ func (rs *RuleSet) AddRule(id, expression string, tags ...string) (*Rule, error)
 		return nil, errors.Wrap(err, "invalid rule")
 	}
 
-	evaluator, err := RuleToEvaluator(astRule, nil, rs.model, rs.debug)
+	evaluator, err := RuleToEvaluator(astRule, rs.macros, rs.model, rs.debug)
 	if err != nil {
 		return nil, err
 	}
@@ -167,5 +180,6 @@ func NewRuleSet(model Model, debug bool) *RuleSet {
 		model:            model,
 		debug:            debug,
 		eventRuleBuckets: make(map[string]*RuleBucket),
+		macros:           make(map[string]*ast.Macro),
 	}
 }

@@ -78,6 +78,12 @@ func (a *Module) LoadPolicies() error {
 				return err
 			}
 
+			for _, macroDef := range policy.Macros {
+				if _, err := a.ruleSet.AddMacro(macroDef.ID, macroDef.Expression); err != nil {
+					return err
+				}
+			}
+
 			for _, ruleDef := range policy.Rules {
 				var tags []string
 				for k, v := range ruleDef.Tags {
