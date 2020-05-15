@@ -7,6 +7,7 @@ package flare
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/pkg/errors"
 )
 
 var datadogSupportURL = "/support/flare"
@@ -136,7 +136,7 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 	var res = flareResponse{}
 	err = json.Unmarshal(b, &res)
 	if err != nil {
-		response = fmt.Sprintf("An unknown error has occurred - Please contact support by email.")
+		response = fmt.Sprintf("Error: could not deserialize response body -- Please contact support by email.")
 		return response, fmt.Errorf("%v\nServer returned:\n%s", err, string(b)[:150])
 	}
 
