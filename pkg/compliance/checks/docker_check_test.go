@@ -82,9 +82,9 @@ func TestDockerImageCheck(t *testing.T) {
 	resource := &compliance.DockerResource{
 		Kind: "image",
 
-		Filter: []compliance.DockerFilter{
+		Filter: []compliance.Filter{
 			{
-				Exclude: &compliance.GenericCondition{
+				Exclude: &compliance.Condition{
 					Property:  "{{- $.Config.Healthcheck.Test -}}",
 					Operation: compliance.OpExists,
 				},
@@ -158,9 +158,9 @@ func TestDockerNetworkCheck(t *testing.T) {
 	resource := &compliance.DockerResource{
 		Kind: "network",
 
-		Filter: []compliance.DockerFilter{
+		Filter: []compliance.Filter{
 			{
-				Include: &compliance.GenericCondition{
+				Include: &compliance.Condition{
 					Property:  `{{- index $.Options "com.docker.network.bridge.default_bridge" -}}`,
 					Operation: compliance.OpEqual,
 					Value:     "true",

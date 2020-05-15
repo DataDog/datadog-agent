@@ -22,7 +22,7 @@ type File struct {
 	PathFrom ValueFrom `yaml:"pathFrom,omitempty"`
 	Glob     string    `yaml:"glob,omitempty"`
 
-	Filter []FileFilter `yaml:"filter,omitempty"`
+	Filter []Filter `yaml:"filter,omitempty"`
 
 	Report Report `yaml:"report,omitempty"`
 }
@@ -31,12 +31,16 @@ type File struct {
 type Process struct {
 	Name string `yaml:"name"`
 
+	Filter []Filter `yaml:"filter,omitempty"`
+
 	Report Report `yaml:"report,omitempty"`
 }
 
 // Group describes a group membership resource
 type Group struct {
 	Name string `yaml:"name"`
+
+	Filter []Filter `yaml:"filter,omitempty"`
 
 	Report Report `yaml:"report,omitempty"`
 }
@@ -45,6 +49,7 @@ type Group struct {
 type Command struct {
 	Run string `yaml:"run"`
 
+	// TODO: generalize to use the same filter types
 	Filter []CommandFilter `yaml:"filter,omitempty"`
 
 	Report Report `yaml:"report,omitempty"`
@@ -55,14 +60,18 @@ type Audit struct {
 	Path     string    `yaml:"path,omitempty"`
 	PathFrom ValueFrom `yaml:"pathFrom,omitempty"`
 
+	Filter []Filter `yaml:"filter,omitempty"`
+
 	Report Report `yaml:"report,omitempty"`
 }
 
 // DockerResource describes a resource from docker daemon
 type DockerResource struct {
-	Kind   string         `yaml:"kind"`
-	Filter []DockerFilter `yaml:"filter,omitempty"`
-	Report Report         `yaml:"report,omitempty"`
+	Kind string `yaml:"kind"`
+
+	Filter []Filter `yaml:"filter,omitempty"`
+
+	Report Report `yaml:"report,omitempty"`
 }
 
 // API describes a generic API query resource
@@ -72,7 +81,7 @@ type API struct {
 
 	Vars APIVars `yaml:"vars,omitempty"`
 
-	Filter []APIFilter `yaml:"filter,omitempty"`
+	Filter []Filter `yaml:"filter,omitempty"`
 
 	Report Report `yaml:"report,omitempty"`
 }
@@ -103,10 +112,17 @@ type ValueFromProcess struct {
 type Report []ReportedField
 
 const (
+	// PropertyKindAttribute describes an attribute
 	PropertyKindAttribute = "attribute"
-	PropertyKindJSONPath  = "jsonpath"
-	PropertyKindFlag      = "flag"
-	PropertyKindTemplate  = "template"
+
+	// PropertyKindJSONPath describes a JSONPath query
+	PropertyKindJSONPath = "jsonpath"
+
+	// PropertyKindFlag describes a process flag
+	PropertyKindFlag = "flag"
+
+	// PropertyKindTemplate describes a template
+	PropertyKindTemplate = "template"
 )
 
 // ReportedField defines options for reporting various attributes of observed resources
@@ -115,17 +131,6 @@ type ReportedField struct {
 	Kind     string `yaml:"kind,omitempty"`
 	As       string `yaml:"as,omitempty"`
 	Value    string `yaml:"value,omitempty"`
-}
-
-// FileFilter specifies filtering options for including or excluding a File from reporting
-type FileFilter struct {
-	Include *FileCondition `yaml:"include,omitempty"`
-	Exclude *FileCondition `yaml:"exclude,omitempty"`
-}
-
-// FileCondition specifies a condition to include or exclude a File from reporting
-type FileCondition struct {
-	Owner string `yaml:"owner,omitempty"`
 }
 
 // CommandFilter specifies filtering options to include or exclude a Command from reporting
@@ -140,17 +145,20 @@ type CommandCondition struct {
 }
 
 // DockerFilter specifies filtering options to include or exclude a Docker resource from reporting
-type DockerFilter struct {
-	Include *GenericCondition `yaml:"include,omitempty"`
-	Exclude *GenericCondition `yaml:"exclude,omitempty"`
+type Filter struct {
+	Include *Condition `yaml:"include,omitempty"`
+	Exclude *Condition `yaml:"exclude,omitempty"`
 }
 
 const (
+	// OpExists defines an operation that checks for property presence
 	OpExists = "exists"
-	OpEqual  = "equal"
+	// OpEqual defines an operation that checks for property equality
+	OpEqual = "equal"
 )
 
-type GenericCondition struct {
+// Condition defines a filter condition
+type Condition struct {
 	Operation string `yaml:"op,omitempty"`
 	Property  string `yaml:"property,omitempty"`
 	Kind      string `yaml:"kind,omitempty"`
@@ -171,16 +179,4 @@ type APIVar struct {
 type APIVarValue struct {
 	Get      string `yaml:"get"`
 	JSONPath string `yaml:"jsonpath"`
-}
-
-// APIFilter specifies filtering options to include or exclude an API resource
-type APIFilter struct {
-	Include *APICondition `yaml:"include,omitempty"`
-	Exclude *APICondition `yaml:"exclude,omitempty"`
-}
-
-// APICondition specifies a filtering condition to include or exclude an API resource
-type APICondition struct {
-	JSONPath string `yaml:"jsonpath"`
-	Exists   bool   `yaml:"exists"`
 }

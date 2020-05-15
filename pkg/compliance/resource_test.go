@@ -276,9 +276,9 @@ func TestResources(t *testing.T) {
 				Docker: &DockerResource{
 					Kind: "image",
 
-					Filter: []DockerFilter{
+					Filter: []Filter{
 						{
-							Exclude: &GenericCondition{
+							Exclude: &Condition{
 								Property:  "{{ $.Config.Healthcheck }}",
 								Kind:      PropertyKindTemplate,
 								Operation: OpExists,
