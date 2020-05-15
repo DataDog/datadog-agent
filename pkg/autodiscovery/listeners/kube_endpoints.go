@@ -27,6 +27,7 @@ import (
 
 const (
 	kubeEndpointsAnnotationFormat = "ad.datadoghq.com/endpoints.instances"
+	leaderAnnotation              = "control-plane.alpha.kubernetes.io/leader"
 )
 
 // KubeEndpointsListener listens to kubernetes endpoints creation
@@ -118,6 +119,10 @@ func (l *KubeEndpointsListener) endpointsAdded(obj interface{}) {
 		log.Errorf("Expected an Endpoints type, got: %v", obj)
 		return
 	}
+	if isLockForLE(castedObj) {
+		// Ignore Endpoints objects used for leader election
+		return
+	}
 	l.createService(castedObj, false, true)
 }
 
@@ -125,6 +130,10 @@ func (l *KubeEndpointsListener) endpointsDeleted(obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		return
+	}
+	if isLockForLE(castedObj) {
+		// Ignore Endpoints objects used for leader election
 		return
 	}
 	l.removeService(castedObj)
@@ -135,6 +144,10 @@ func (l *KubeEndpointsListener) endpointsUpdated(old, obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		return
+	}
+	if isLockForLE(castedObj) {
+		// Ignore Endpoints objects used for leader election
 		return
 	}
 	// Cast the old object, consider it an add on cast failure
@@ -322,6 +335,16 @@ func (l *KubeEndpointsListener) removeService(kep *v1.Endpoints) {
 	} else {
 		log.Debugf("Entity %s not found, not removing", kep.UID)
 	}
+}
+
+// isLockForLE returns true if the Endpoints object is used for leader election.
+func isLockForLE(kep *v1.Endpoints) bool {
+	if kep != nil {
+		if _, found := kep.GetAnnotations()[leaderAnnotation]; found {
+			return true
+		}
+	}
+	return false
 }
 
 // getStandardTagsForEndpoints returns the standard tags defined in the labels

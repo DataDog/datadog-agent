@@ -216,7 +216,7 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHealth(w http.ResponseWriter, r *http.Request) {
-	h := health.GetStatus()
+	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
 		log.Debugf("Healthcheck failed on: %v", h.Unhealthy)
@@ -321,7 +321,7 @@ func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	setting := vars["setting"]
 	log.Infof("Got a request to change a setting: %s", setting)
-	r.ParseForm()
+	r.ParseForm() //nolint:errcheck
 	value := html.UnescapeString(r.Form.Get("value"))
 
 	if err := config.SetRuntimeSetting(setting, value); err != nil {

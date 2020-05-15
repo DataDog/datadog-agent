@@ -98,7 +98,7 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 func (d *DockerConfigProvider) listen() {
 	d.Lock()
 	d.streaming = true
-	d.health = health.Register("ad-dockerprovider")
+	d.health = health.RegisterLiveness("ad-dockerprovider")
 	d.Unlock()
 
 CONNECT:
@@ -148,7 +148,7 @@ CONNECT:
 
 	d.Lock()
 	d.streaming = false
-	d.health.Deregister()
+	d.health.Deregister() //nolint:errcheck
 	d.Unlock()
 }
 

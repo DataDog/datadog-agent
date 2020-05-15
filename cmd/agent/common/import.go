@@ -70,36 +70,6 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		return fmt.Errorf("unable to convert configuration data from %s: %v", datadogConfPath, err)
 	}
 
-	// backup the original datadog.yaml to datadog.yaml.bak
-	if !created {
-		err = os.Rename(datadogYamlPath, datadogYamlPath+".bak")
-		if err != nil {
-			return fmt.Errorf("unable to create a backup for the existing file: %s", datadogYamlPath)
-		}
-	}
-
-	// marshal the config object to YAML
-	b, err := yaml.Marshal(config.Datadog.AllSettings())
-	if err != nil {
-		return fmt.Errorf("unable to marshal config to YAML: %v", err)
-	}
-
-	// dump the current configuration to datadog.yaml
-	// file permissions will be used only to create the file if doesn't exist,
-	// please note on Windows such permissions have no effect.
-	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
-		return fmt.Errorf("unable to write config to %s: %v", datadogYamlPath, err)
-	}
-
-	fmt.Fprintln(
-		color.Output,
-		fmt.Sprintf("%s imported the contents of %s into %s",
-			color.GreenString("Success:"),
-			datadogConfPath,
-			datadogYamlPath,
-		),
-	)
-
 	// move existing config files to the new configuration directory
 	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
 	if err != nil {
@@ -157,6 +127,36 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			),
 		)
 	}
+
+	// backup the original datadog.yaml to datadog.yaml.bak
+	if !created {
+		err = os.Rename(datadogYamlPath, datadogYamlPath+".bak")
+		if err != nil {
+			return fmt.Errorf("unable to create a backup for the existing file: %s", datadogYamlPath)
+		}
+	}
+
+	// marshal the config object to YAML
+	b, err := yaml.Marshal(config.Datadog.AllSettings())
+	if err != nil {
+		return fmt.Errorf("unable to marshal config to YAML: %v", err)
+	}
+
+	// dump the current configuration to datadog.yaml
+	// file permissions will be used only to create the file if doesn't exist,
+	// please note on Windows such permissions have no effect.
+	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
+		return fmt.Errorf("unable to write config to %s: %v", datadogYamlPath, err)
+	}
+
+	fmt.Fprintln(
+		color.Output,
+		fmt.Sprintf("%s imported the contents of %s into %s",
+			color.GreenString("Success:"),
+			datadogConfPath,
+			datadogYamlPath,
+		),
+	)
 
 	// move existing config templates to the new auto_conf directory
 	autoConfFiles, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
@@ -252,7 +252,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 		}
 	}
 
-	ioutil.WriteFile(dst, data, 0640)
+	ioutil.WriteFile(dst, data, 0640) //nolint:errcheck
 
 	ddGroup, errGroup := user.LookupGroup("dd-agent")
 	ddUser, errUser := user.LookupId("dd-agent")

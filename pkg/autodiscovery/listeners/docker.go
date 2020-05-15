@@ -79,7 +79,7 @@ func NewDockerListener() (ServiceListener, error) {
 		filters:    filters,
 		services:   make(map[string]Service),
 		stop:       make(chan bool),
-		health:     health.Register("ad-dockerlistener"),
+		health:     health.RegisterLiveness("ad-dockerlistener"),
 	}, nil
 }
 
@@ -103,8 +103,8 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
-				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener")
-				l.health.Deregister()
+				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener") //nolint:errcheck
+				l.health.Deregister()                                         //nolint:errcheck
 				return
 			case <-l.health.C:
 			case msg := <-messages:

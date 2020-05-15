@@ -5,7 +5,7 @@
 
 name 'system-probe'
 
-if ENV.has_key?('WITH_BCC')
+if ENV['WITH_BCC'] == 'true'
   dependency 'libbcc'
 end
 

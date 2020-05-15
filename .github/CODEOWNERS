@@ -26,6 +26,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
 /cmd/system-probe/                      @DataDog/networks
+/cmd/security-agent                     @DataDog/container-integrations
 
 /Dockerfiles/                           @DataDog/container-integrations
 
@@ -77,17 +78,19 @@
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
 /pkg/util/containers/collectors/cloudfoundry.go              @DataDog/integrations-tools-and-libraries
-/pkg/util/docker/                       @DataDog/container-integrations @DataDog/processes
-/pkg/util/ecs/                          @DataDog/container-integrations @DataDog/processes
-/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/processes @DataDog/container-app
+/pkg/util/docker/                       @DataDog/container-integrations
+/pkg/util/ecs/                          @DataDog/container-integrations
+/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/logs-intake @DataDog/agent-core
 /pkg/metadata/ecs/                      @DataDog/networks
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
 /pkg/quantile                           @DataDog/metrics-aggregation
+/pkg/compliance                         @DataDog/container-integrations
 
 /releasenotes/                          @DataDog/agent-all
 /releasenotes-dca/                      @DataDog/container-integrations

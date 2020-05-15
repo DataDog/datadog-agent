@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
@@ -28,7 +29,7 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
-	source_raw, err := Asset("tcp-queue-length-kern.c")
+	source_raw, err := bytecode.Asset("tcp-queue-length-kern.c")
 	if err != nil {
 		return nil, fmt.Errorf("Couldn’t find asset “tcp-queue-length-kern.c”: %v", err)
 	}
@@ -42,7 +43,7 @@ func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 	for scanner.Scan() {
 		match := includeRegexp.FindSubmatch(scanner.Bytes())
 		if len(match) == 2 {
-			header, err := Asset(string(match[1]))
+			header, err := bytecode.Asset(string(match[1]))
 			if err == nil {
 				source.Write(header)
 				continue
@@ -77,7 +78,7 @@ func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 
 	kprobe_sendmsg, err := m.LoadKprobe("kprobe__tcp_sendmsg")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load kprobe__tcp_recvmsg: %s\n", err)
+		return nil, fmt.Errorf("Failed to load kprobe__tcp_sendmsg: %s\n", err)
 	}
 
 	if err := m.AttachKprobe("tcp_sendmsg", kprobe_sendmsg, -1); err != nil {
@@ -86,7 +87,7 @@ func NewTCPQueueLengthTracer() (*TCPQueueLengthTracer, error) {
 
 	kretprobe_sendmsg, err := m.LoadKprobe("kretprobe__tcp_sendmsg")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load kretprobe__tcp_recvmsg: %s\n", err)
+		return nil, fmt.Errorf("Failed to load kretprobe__tcp_sendmsg: %s\n", err)
 	}
 
 	if err := m.AttachKretprobe("tcp_sendmsg", kretprobe_sendmsg, -1); err != nil {

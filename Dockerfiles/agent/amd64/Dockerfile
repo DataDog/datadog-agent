@@ -162,7 +162,7 @@ COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
 
-HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
+HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag

@@ -3,30 +3,7 @@ module github.com/DataDog/datadog-agent
 go 1.13
 
 // Pinned to kubernetes-1.16.2
-replace (
-	github.com/kubernetes-incubator/custom-metrics-apiserver => github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-20190918110929-3d9be26a50eb
-	k8s.io/api => k8s.io/api v0.0.0-20191016110408-35e52d86657a
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.0.0-20191016113550-5357c4baaf65
-	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20191004115801-a2eda9f80ab8
-	k8s.io/apiserver => k8s.io/apiserver v0.0.0-20191016112112-5190913f932d
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.0.0-20191016114015-74ad18325ed5
-	k8s.io/client-go => k8s.io/client-go v0.0.0-20191016111102-bec269661e48
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.0.0-20191016115326-20453efc2458
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.0.0-20191016115129-c07a134afb42
-	k8s.io/code-generator => k8s.io/code-generator v0.0.0-20191004115455-8e001e5d1894
-	k8s.io/component-base => k8s.io/component-base v0.0.0-20191016111319-039242c015a9
-	k8s.io/cri-api => k8s.io/cri-api v0.0.0-20190828162817-608eb1dad4ac
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.0.0-20191016115521-756ffa5af0bd
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.0.0-20191016112429-9587704a8ad4
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.0.0-20191016114939-2b2b218dc1df
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.0.0-20191016114407-2e83b6f20229
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.0.0-20191016114748-65049c67a58b
-	k8s.io/kubectl => k8s.io/kubectl v0.0.0-20191016120415-2ed914427d51
-	k8s.io/kubelet => k8s.io/kubelet v0.0.0-20191016114556-7841ed97f1b2
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.0.0-20191016115753-cf0698c3a16b
-	k8s.io/metrics => k8s.io/metrics v0.0.0-20191016113814-3b1a734dba6e
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191016112829-06bb3c9d77c9
-)
+replace github.com/kubernetes-incubator/custom-metrics-apiserver => github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-20190918110929-3d9be26a50eb
 
 // Fix tooling version
 replace (
@@ -70,13 +47,13 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v0.0.0-20200416172112-13d2aa7ab86f // 4.31.0
+	github.com/DataDog/agent-payload v0.0.0-20200428185529-63c9964e037d // 4.33.0
 	github.com/DataDog/datadog-go v3.5.0+incompatible
-	github.com/DataDog/gohai v0.0.0-20200124154531-8cbe900337f1
+	github.com/DataDog/gohai v0.0.0-20200416230846-f32fac1c10c3
 	github.com/DataDog/gopsutil v0.0.0-20191127151039-7e1a4eadb59e
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/watermarkpodautoscaler v0.1.0
-	github.com/DataDog/zstd v1.4.5
+	github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360
 	github.com/Microsoft/go-winio v0.4.11
 	github.com/aws/aws-sdk-go v1.30.5
 	github.com/beevik/ntp v0.3.0
@@ -107,7 +84,6 @@ require (
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/gogo/googleapis v1.3.2 // indirect
 	github.com/gogo/protobuf v1.3.1
-	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/gopacket v1.1.17
 	github.com/gorilla/mux v1.7.4
 	github.com/hashicorp/consul/api v1.4.0
@@ -122,12 +98,10 @@ require (
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mdlayher/netlink v1.1.0
 	github.com/mholt/archiver v0.0.0-00010101000000-000000000000
-	github.com/miekg/dns v1.0.14
+	github.com/miekg/dns v1.1.27
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
-	github.com/opencontainers/image-spec v1.0.1 // indirect
-	github.com/opencontainers/runc v1.0.0-rc10 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/openshift/api v3.9.1-0.20190424152011-77b8897ec79a+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -135,8 +109,6 @@ require (
 	github.com/pierrec/lz4 v2.5.0+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.1
-	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4 // indirect
-	github.com/prometheus/procfs v0.0.0-20190104112138-b1a0a9a36d74 // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil v2.20.3+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
@@ -154,13 +126,12 @@ require (
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netns v0.0.0-20171111001504-be1fbeda1936
 	github.com/vito/go-sse v1.0.0 // indirect
-	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
 	go.etcd.io/bbolt v1.3.4 // indirect
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/mobile v0.0.0-20190312151609-d3739f865fa6
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
-	golang.org/x/sync v0.0.0-20190423024810-112230192c58
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd
 	golang.org/x/text v0.3.2
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
@@ -169,11 +140,42 @@ require (
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8
 	gopkg.in/zorkian/go-datadog-api.v2 v2.28.0
-	k8s.io/api v0.0.0
-	k8s.io/apimachinery v0.0.0
-	k8s.io/apiserver v0.0.0
+	k8s.io/api v0.17.3
+	k8s.io/apimachinery v0.17.3
+	k8s.io/apiserver v0.17.3
+	k8s.io/autoscaler/vertical-pod-autoscaler v0.0.0-20200123122250-fa95810cfc1e
 	k8s.io/client-go v11.0.0+incompatible
+	k8s.io/component-base v0.17.3 // indirect
 	k8s.io/cri-api v0.0.0
-	k8s.io/kubernetes v1.15.4
-	k8s.io/metrics v0.0.0
+	k8s.io/kube-state-metrics v1.8.1-0.20200108124505-369470d6ead8
+	k8s.io/kubernetes v1.16.2
+	k8s.io/metrics v0.17.3
+)
+
+// Pinned to kubernetes-1.16.2
+replace (
+	k8s.io/api => k8s.io/api v0.0.0-20191016110408-35e52d86657a
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.0.0-20191016113550-5357c4baaf65
+	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20191004115801-a2eda9f80ab8
+	k8s.io/apiserver => k8s.io/apiserver v0.0.0-20191016112112-5190913f932d
+	k8s.io/autoscaler => k8s.io/autoscaler v0.0.0-20191115143342-4cf961056038
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.0.0-20191016114015-74ad18325ed5
+	k8s.io/client-go => k8s.io/client-go v0.0.0-20191016111102-bec269661e48
+	k8s.io/cloud-provider => k8s.io/cloud-provider v0.0.0-20191016115326-20453efc2458
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.0.0-20191016115129-c07a134afb42
+	k8s.io/code-generator => k8s.io/code-generator v0.0.0-20191004115455-8e001e5d1894
+	k8s.io/component-base => k8s.io/component-base v0.0.0-20191016111319-039242c015a9
+	k8s.io/cri-api => k8s.io/cri-api v0.0.0-20190828162817-608eb1dad4ac
+	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.0.0-20191016115521-756ffa5af0bd
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.0.0-20191016112429-9587704a8ad4
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.0.0-20191016114939-2b2b218dc1df
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.0.0-20191016114407-2e83b6f20229
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.0.0-20191016114748-65049c67a58b
+	k8s.io/kube-state-metrics => github.com/clamoriniere/kube-state-metrics v1.8.1-0.20200412142917-6c764c23fffb
+	k8s.io/kubectl => k8s.io/kubectl v0.0.0-20191016120415-2ed914427d51
+	k8s.io/kubelet => k8s.io/kubelet v0.0.0-20191016114556-7841ed97f1b2
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.0.0-20191016115753-cf0698c3a16b
+	k8s.io/metrics => k8s.io/metrics v0.0.0-20191016113814-3b1a734dba6e
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191016112829-06bb3c9d77c9
+
 )
