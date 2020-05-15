@@ -149,7 +149,7 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start()
+	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.SecurityAgentName)

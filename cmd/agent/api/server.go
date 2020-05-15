@@ -89,7 +89,7 @@ func StartServer() error {
 	}
 	tlsListener := tls.NewListener(listener, &tlsConfig)
 
-	go srv.Serve(tlsListener)
+	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
 }
 

@@ -69,7 +69,7 @@ func init() {
 	checkCmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
 	checkCmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
 	checkCmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
-	config.Datadog.BindPFlag("cmd.check.fullsketches", checkCmd.Flags().Lookup("full-sketches"))
+	config.Datadog.BindPFlag("cmd.check.fullsketches", checkCmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(&profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
@@ -104,7 +104,7 @@ var checkCmd = &cobra.Command{
 		if len(args) != 0 {
 			checkName = args[0]
 		} else {
-			cmd.Help()
+			cmd.Help() //nolint:errcheck
 			return nil
 		}
 
@@ -460,7 +460,7 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 		// https://github.com/DataDog/datadog-agent/blob/b2d9527ec0ec0eba1a7ae64585df443c5b761610/pkg/metrics/series.go#L109-L122
 		var data map[string]interface{}
 		sj, _ := json.Marshal(series)
-		json.Unmarshal(sj, &data)
+		json.Unmarshal(sj, &data) //nolint:errcheck
 
 		aggData["metrics"] = data["series"]
 	}
@@ -487,7 +487,7 @@ func singleCheckRun() bool {
 
 func createHiddenStringFlag(p *string, name string, value string, usage string) {
 	checkCmd.Flags().StringVar(p, name, value, usage)
-	checkCmd.Flags().MarkHidden(name)
+	checkCmd.Flags().MarkHidden(name) //nolint:errcheck
 }
 
 func populateMemoryProfileConfig(initConfig map[string]interface{}) error {

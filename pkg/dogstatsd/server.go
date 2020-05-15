@@ -433,7 +433,7 @@ func (s *Server) Stop() {
 	if s.Statistics != nil {
 		s.Statistics.Stop()
 	}
-	s.health.Deregister()
+	s.health.Deregister() //nolint:errcheck
 	s.Started = false
 }
 

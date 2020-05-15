@@ -22,7 +22,7 @@ $installInfo = @"
 install_method:
   tool: chocolatey
   tool_version: chocolatey-$($env:CHOCOLATEY_VERSION)
-  installer_version: chocolatey-$($env:chocolateyPackageVersion)-online
+  installer_version: chocolatey_package-online
 "@
 
 $appDataDir = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Datadog\Datadog Agent").ConfigRoot

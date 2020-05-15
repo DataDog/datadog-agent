@@ -176,9 +176,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Errorf("Could not zip exp var: %s", err)
 	}
 
-	err = zipSystemProbeStats(tempDir, hostname)
-	if err != nil {
-		log.Errorf("Could not zip system probe exp var stats: %s", err)
+	if config.Datadog.GetBool("system_probe_config.enabled") {
+		err = zipSystemProbeStats(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not zip system probe exp var stats: %s", err)
+		}
 	}
 
 	err = zipDiagnose(tempDir, hostname)
@@ -314,7 +316,7 @@ func zipExpVar(tempDir, hostname string) error {
 	var variables = make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
 		var variable = make(map[string]interface{})
-		json.Unmarshal([]byte(kv.Value.String()), &variable)
+		json.Unmarshal([]byte(kv.Value.String()), &variable) //nolint:errcheck
 		variables[kv.Key] = variable
 	})
 
@@ -386,7 +388,7 @@ func zipExpVar(tempDir, hostname string) error {
 }
 
 func zipSystemProbeStats(tempDir, hostname string) error {
-	sysProbeStats := status.GetSystemProbeStats()
+	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
 	sysProbeWriter, err := newRedactingWriter(sysProbeFile, os.ModePerm, true)
 	if err != nil {
@@ -479,7 +481,7 @@ func zipDiagnose(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	diagnose.RunAll(writer)
+	diagnose.RunAll(writer) //nolint:errcheck
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
@@ -502,7 +504,7 @@ func zipConfigCheck(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetConfigCheck(writer, true)
+	GetConfigCheck(writer, true) //nolint:errcheck
 	writer.Flush()
 
 	return writeConfigCheck(tempDir, hostname, b.Bytes())

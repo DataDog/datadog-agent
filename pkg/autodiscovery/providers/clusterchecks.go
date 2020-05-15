@@ -44,7 +44,7 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 	}
 
 	// Register in the cluster agent as soon as possible
-	c.IsUpToDate()
+	c.IsUpToDate() //nolint:errcheck
 
 	return c, nil
 }

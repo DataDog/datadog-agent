@@ -69,7 +69,7 @@ func GetContainerdUtil() (ContainerdItf, error) {
 			globalContainerdUtil.socketPath = containerdDefaultSocketPath
 		}
 		// Initialize the client in the connect method
-		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{
+		globalContainerdUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "containerdutil",
 			AttemptMethod:     globalContainerdUtil.connect,
 			Strategy:          retry.Backoff,

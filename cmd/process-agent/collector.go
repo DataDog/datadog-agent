@@ -145,7 +145,7 @@ func (l *Collector) run(exit chan bool) error {
 		for {
 			select {
 			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1)
+				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
 				updateQueueSize(len(processPayloads), len(podPayloads))
 			case <-exit:

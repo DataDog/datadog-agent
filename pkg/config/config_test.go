@@ -434,18 +434,28 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 	assert.True(t, IsCloudProviderEnabled("GCP"))
 	assert.True(t, IsCloudProviderEnabled("Alibaba"))
 	assert.True(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
 
 	Datadog.Set("cloud_provider_metadata", "AWS")
 	assert.True(t, IsCloudProviderEnabled("AWS"))
 	assert.False(t, IsCloudProviderEnabled("GCP"))
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
 	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", "Tencent")
+	assert.False(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
 
 	Datadog.Set("cloud_provider_metadata", "none")
 	assert.False(t, IsCloudProviderEnabled("AWS"))
 	assert.False(t, IsCloudProviderEnabled("GCP"))
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
 	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
 }
 
 func TestEnvNestedConfig(t *testing.T) {
