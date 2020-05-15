@@ -3398,6 +3398,7 @@ deploy_staging_suse_rpm-7:
   dependencies:
     - agent_suse-x64-a7
     - dogstatsd_suse-x64
+    - iot_agent_suse-x64
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
