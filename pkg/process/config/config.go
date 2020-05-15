@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -403,6 +404,13 @@ func loadEnvVariables() {
 	apiKey, envKey := os.Getenv("DD_API_KEY"), "DD_API_KEY"
 	if apiKey == "" {
 		apiKey, envKey = os.Getenv("API_KEY"), "API_KEY"
+	}
+	if apiKeyFile := os.Getenv("DD_API_KEY_FILE"); apiKeyFile != "" {
+		if apiKeyFromFile, err := ioutil.ReadFile(apiKeyFile); err != nil {
+			log.Errorf("`DD_API_KEY_FILE` environment variable is set to \"%s\" but this file cannot be read: %v", apiKeyFile, err)
+		} else {
+			apiKey, envKey = string(apiKeyFromFile), "DD_API_KEY_FILE"
+		}
 	}
 
 	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
