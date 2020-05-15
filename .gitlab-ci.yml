@@ -556,6 +556,7 @@ cluster_agent-build_arm64:
 
 # build cluster-agent-cloudfoundry bin
 cluster_agent_cloudfoundry-build_amd64:
+  <<: *skip_when_unwanted_on_7
   stage: binary_build
   needs: ["fail_on_non_triggered_tag", "run_go_tidy_check"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
