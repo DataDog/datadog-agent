@@ -20,7 +20,8 @@ func TestFileCheck(t *testing.T) {
 			Path: "./testdata/644.dat",
 			Report: compliance.Report{
 				{
-					Attribute: "permissions",
+					Property: "permissions",
+					Kind:     "attribute",
 				},
 			},
 		},

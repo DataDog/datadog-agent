@@ -9,4 +9,5 @@ rules:
   - file:
       path: /etc/docker/daemon.json
       report:
-      - attribute: permissions
+      - property: permissions
+        kind: attribute

@@ -9,4 +9,5 @@ rules:
   - file:
       path: ./testdata/daemon.json
       report:
-      - attribute: permissions
+      - property: permissions
+        kind: attribute
