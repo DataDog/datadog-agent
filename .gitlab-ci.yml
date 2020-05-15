@@ -27,6 +27,7 @@ stages:
   - deploy7
   - deploy7-manifests
   - deploy_invalidate
+  - trigger_release
   - e2e
   - testkitchen_cleanup
   - notify
@@ -3744,6 +3745,29 @@ deploy_cloudfront_invalidate_on_success:
 deploy_cloudfront_invalidate_on_failure:
   <<: *deploy_cloudfront_invalidate
   when: on_failure
+
+#
+# Trigger release pipelines
+#
+trigger_release_7:
+  <<: *run_only_when_triggered_on_tag_7
+  stage: trigger_release
+  needs: ["deploy_cloudfront_invalidate_on_success"]
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_7
+  trigger:
+    project: DataDog/agent-release-management
+    branch: master
+
+trigger_release_6:
+  <<: *run_only_when_triggered_on_tag_6
+  stage: trigger_release
+  needs: ["deploy_cloudfront_invalidate_on_success"]
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_6
+  trigger:
+    project: DataDog/agent-release-management
+    branch: master
 
 #
 # end to end
