@@ -451,6 +451,11 @@ void set_read_persistent_cache_cb(rtloader_t *rtloader, cb_read_persistent_cache
     AS_TYPE(RtLoader, rtloader)->setReadPersistentCacheCb(cb);
 }
 
+void set_obfuscate_sql_cb(rtloader_t *rtloader, cb_obfuscate_sql_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setObfuscateSqlCb(cb);
+}
+
 /*
  * _util API
  */

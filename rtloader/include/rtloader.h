@@ -427,6 +427,15 @@ public:
     */
     virtual void setReadPersistentCacheCb(cb_read_persistent_cache_t) = 0;
 
+    //! setObfuscateSqlCb member.
+    /*!
+      \param A cb_obfuscate_sql_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow retrieving value for
+      specific check instances.
+    */
+    virtual void setObfuscateSqlCb(cb_obfuscate_sql_t) = 0;
+
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */
     mutable bool _errorFlag; /*!< boolean indicating whether an error was set on RtLoader */
