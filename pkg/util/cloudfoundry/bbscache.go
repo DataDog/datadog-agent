@@ -26,7 +26,7 @@ type BBSCacheI interface {
 	LastUpdated() time.Time
 	GetPollAttempts() int
 	GetPollSuccesses() int
-	GetActualLRPsForApp(appGUID string) ([]*ActualLRP, error)
+	GetActualLRPsForProcessGUID(appGUID string) ([]*ActualLRP, error)
 	GetActualLRPsForCell(cellID string) ([]*ActualLRP, error)
 	GetDesiredLRPFor(appGUID string) (DesiredLRP, error)
 	GetAllLRPs() (map[string][]*ActualLRP, map[string]*DesiredLRP)
