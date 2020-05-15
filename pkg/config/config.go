@@ -56,9 +56,17 @@ var (
 	proxies *Proxy
 )
 
+//Values for AgentFlavor below
+const (
+	DefaultAgentFlavor = "agent"
+	IotAgentFlavor     = "iot_agent"
+	DogstatsdFlavor    = "dogstatsd"
+)
+
 // Variables to initialize at build time
 var (
 	DefaultPython string
+	AgentFlavor   = DefaultAgentFlavor
 
 	// ForceDefaultPython has its value set to true at compile time if we should ignore
 	// the Python version set in the configuration and use `DefaultPython` instead.
@@ -170,6 +178,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
+	config.BindEnvAndSetDefault("iot_host", AgentFlavor == IotAgentFlavor)
+
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
