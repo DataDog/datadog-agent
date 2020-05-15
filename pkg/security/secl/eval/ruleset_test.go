@@ -1,30 +1,49 @@
 package eval
 
 import (
+	"reflect"
 	"syscall"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
+type testFieldValues map[string][]interface{}
+
 type testHandler struct {
-	discarders map[string][]string
+	model   *testModel
+	filters map[string]testFieldValues
 }
 
 func (f *testHandler) RuleMatch(rule *Rule, event Event) {
-
 }
 
 func (f *testHandler) EventDiscarderFound(event Event, field string) {
-	fields, ok := f.discarders[event.GetType()]
+	values, ok := f.filters[event.GetType()]
 	if !ok {
-		fields = []string{}
+		values = make(testFieldValues)
+		f.filters[event.GetType()] = values
 	}
-	fields = append(fields, field)
-	f.discarders[event.GetType()] = fields
-}
 
-func (f *testHandler) EventApproverFound(event Event, field string) {
+	discarders, ok := values[field]
+	if !ok {
+		discarders = []interface{}{}
+	}
+	evaluator, _ := f.model.GetEvaluator(field)
+
+	value := evaluator.(Evaluator).Value()
+
+	found := false
+	for _, d := range discarders {
+		if d == value {
+			found = true
+		}
+	}
+
+	if !found {
+		discarders = append(discarders, evaluator.(Evaluator).Value())
+	}
+	values[field] = discarders
 }
 
 func addRuleExpr(t *testing.T, rs *RuleSet, expr string) {
@@ -50,23 +69,24 @@ func TestRuleBuckets(t *testing.T) {
 	}
 }
 
-func TestRuleSetEval(t *testing.T) {
+func TestRuleSetDiscarders(t *testing.T) {
+	model := &testModel{event: &testEvent{}}
+
 	handler := &testHandler{
-		discarders: make(map[string][]string),
+		model:   model,
+		filters: make(map[string]testFieldValues),
 	}
 	rs := NewRuleSet(&testModel{}, Opts{Debug: true, Constants: testConstants})
 	rs.AddListener(handler)
 
+	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.uid != 0`)
 	addRuleExpr(t, rs, `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
-	addRuleExpr(t, rs, `(open.filename =~ "/var/run/*") && open.flags & O_CREAT > 0`)
-	addRuleExpr(t, rs, `open.flags & O_CREAT > 0`)
-	addRuleExpr(t, rs, `mkdir.filename =~ "/etc/*" && process.uid != 0`)
+	addRuleExpr(t, rs, `(open.filename =~ "/var/run/*") && open.flags & O_CREAT > 0 && process.uid != 0`)
+	addRuleExpr(t, rs, `(mkdir.filename =~ "/var/run/*") && process.uid != 0`)
 
 	event := &testEvent{
 		process: testProcess{
-			name:   "abc",
-			uid:    0,
-			isRoot: true,
+			uid: 0,
 		},
 	}
 
@@ -87,10 +107,53 @@ func TestRuleSetEval(t *testing.T) {
 	rs.Evaluate(&ev1)
 	rs.Evaluate(&ev2)
 
-	if fields, ok := handler.discarders["open"]; !ok || len(fields) != 1 {
-		t.Fatalf("unable to find a discarder for `open` or bad number of fields: %v", fields)
+	expected := map[string]testFieldValues{
+		"open": testFieldValues{
+			"open.filename": []interface{}{
+				"/usr/local/bin/rootkit",
+			},
+			"process.uid": []interface{}{
+				0,
+			},
+		},
+		"mkdir": testFieldValues{
+			"mkdir.filename": []interface{}{
+				"/usr/local/bin/rootkit",
+			},
+			"process.uid": []interface{}{
+				0,
+			},
+		},
 	}
-	if fields, ok := handler.discarders["mkdir"]; !ok || len(fields) != 2 {
-		t.Fatalf("unable to find a discarder for `mkdir` or bad number of fields: %v", fields)
+
+	if !reflect.DeepEqual(expected, handler.filters) {
+		t.Fatalf("unable to find expected discarders, expected: `%v`, got: `%v`", expected, handler.filters)
+	}
+}
+
+func TestRuleSetApprovers(t *testing.T) {
+	model := &testModel{event: &testEvent{}}
+
+	rs := NewRuleSet(model, Opts{Debug: true, Constants: testConstants})
+
+	addRuleExpr(t, rs, `open.filename == "/etc/passwd"`)
+	addRuleExpr(t, rs, `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
+	addRuleExpr(t, rs, `open.filename =~ "/var/lib/containerd/*" && process.name != "containerd"`)
+	addRuleExpr(t, rs, `open.flags & O_CREAT > 0 && open.mode & 4000 > 0`)
+
+	approvers := rs.GetEventApprovers()
+
+	open, ok := approvers["open"]
+	if !ok {
+		t.Fatal("no open approver")
+	}
+	if len(open.FieldApprovers["open.filename"]) != 4 {
+		t.Fatal("wrong number of approver")
+	}
+	if len(open.FieldApprovers["process.uid"]) != 1 {
+		t.Fatal("wrong number of approver")
+	}
+	if len(open.FieldApprovers["process.name"]) != 1 {
+		t.Fatal("wrong number of approver")
 	}
 }

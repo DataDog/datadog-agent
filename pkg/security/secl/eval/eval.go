@@ -15,13 +15,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var ErrFieldNotFound = errors.New("field not found")
+var (
+	ErrEvaluatorNotFound     = errors.New("evaluator not found")
+	ErrTagsNotFound          = errors.New("tags not found")
+	ErrEventTypeNotFound     = errors.New("event type not found")
+	ErrSetEventValueNotFound = errors.New("set event value error field not found")
+)
 
 type Model interface {
 	GetEvaluator(key string) (interface{}, error)
 	GetTags(key string) ([]string, error)
 	GetEventType(key string) (string, error)
 	SetEvent(event interface{})
+	SetEventValue(key string, value interface{}) error
 }
 
 type Context struct {
@@ -38,9 +44,10 @@ var (
 )
 
 type RuleEvaluator struct {
-	Eval   func(ctx *Context) bool
-	Events []string
-	Tags   []string
+	Eval        func(ctx *Context) bool
+	EventTypes  []string
+	Tags        []string
+	FieldValues map[string][]FieldValue
 
 	partialEval map[string]func(ctx *Context) bool
 }
@@ -49,13 +56,25 @@ type IdentEvaluator struct {
 	Eval func(ctx *Context) bool
 }
 
-type State struct {
-	model  Model
-	field  string
-	events map[string]bool
-	tags   map[string]bool
-	fields map[string]bool
-	macros map[string]*MacroEvaluator
+type state struct {
+	model       Model
+	field       string
+	events      map[string]bool
+	tags        map[string]bool
+	fieldValues map[string][]FieldValue
+	macros      map[string]*MacroEvaluator
+}
+
+type FieldValueType int
+
+const (
+	ScalarValueType FieldValueType = iota + 1
+	PatternValueType
+)
+
+type FieldValue struct {
+	Value interface{}
+	Type  FieldValueType
 }
 
 type Opts struct {
@@ -75,10 +94,10 @@ type Evaluator interface {
 type BoolEvaluator struct {
 	Eval      func(ctx *Context) bool
 	DebugEval func(ctx *Context) bool
+	Field     string
 	Value     bool
 
-	Field     string
-	IsPartial bool
+	isPartial bool
 }
 
 func (b *BoolEvaluator) StringValue() string {
@@ -88,10 +107,10 @@ func (b *BoolEvaluator) StringValue() string {
 type IntEvaluator struct {
 	Eval      func(ctx *Context) int
 	DebugEval func(ctx *Context) int
+	Field     string
 	Value     int
 
-	Field     string
-	IsPartial bool
+	isPartial bool
 }
 
 func (i *IntEvaluator) StringValue() string {
@@ -101,10 +120,10 @@ func (i *IntEvaluator) StringValue() string {
 type StringEvaluator struct {
 	Eval      func(ctx *Context) string
 	DebugEval func(ctx *Context) string
+	Field     string
 	Value     string
 
-	Field     string
-	IsPartial bool
+	isPartial bool
 }
 
 func (s *StringEvaluator) StringValue() string {
@@ -124,23 +143,30 @@ type AstToEvalError struct {
 	Text string
 }
 
-func (s *State) UpdateTags(tags []string) {
+func (s *state) UpdateTags(tags []string) {
 	for _, tag := range tags {
 		s.tags[tag] = true
 	}
 }
 
-func (s *State) UpdateEvents(event string) {
-	if event != "" {
-		s.events[event] = true
+func (s *state) UpdateFields(field string) {
+	values, ok := s.fieldValues[field]
+	if !ok {
+		values = []FieldValue{}
 	}
+	s.fieldValues[field] = values
 }
 
-func (s *State) UpdateFields(field string) {
-	s.fields[field] = true
+func (s *state) UpdateFieldValues(field string, value FieldValue) {
+	values, ok := s.fieldValues[field]
+	if !ok {
+		values = []FieldValue{}
+	}
+	values = append(values, value)
+	s.fieldValues[field] = values
 }
 
-func (s *State) Tags() []string {
+func (s *state) Tags() []string {
 	var tags []string
 
 	for tag := range s.tags {
@@ -151,7 +177,7 @@ func (s *State) Tags() []string {
 	return tags
 }
 
-func (s *State) Events() []string {
+func (s *state) Events() []string {
 	var events []string
 
 	for event := range s.events {
@@ -162,7 +188,7 @@ func (s *State) Events() []string {
 	return events
 }
 
-func (s *State) MacroToEvaluator(macro *ast.Macro, model Model, opts *Opts) (*MacroEvaluator, error) {
+func (s *state) MacroToEvaluator(macro *ast.Macro, model Model, opts *Opts) (*MacroEvaluator, error) {
 	var eval interface{}
 	var err error
 
@@ -184,7 +210,7 @@ func (s *State) MacroToEvaluator(macro *ast.Macro, model Model, opts *Opts) (*Ma
 	}, nil
 }
 
-func (s *State) GenMacroEvaluators(macros map[string]*ast.Macro, model Model, opts *Opts) error {
+func (s *state) GenMacroEvaluators(macros map[string]*ast.Macro, model Model, opts *Opts) error {
 	s.macros = make(map[string]*MacroEvaluator)
 	for name, macro := range macros {
 		eval, err := s.MacroToEvaluator(macro, model, opts)
@@ -197,13 +223,13 @@ func (s *State) GenMacroEvaluators(macros map[string]*ast.Macro, model Model, op
 	return nil
 }
 
-func NewState(model Model, field string) *State {
-	return &State{
-		field:  field,
-		model:  model,
-		events: make(map[string]bool),
-		tags:   make(map[string]bool),
-		fields: make(map[string]bool),
+func newState(model Model, field string) *state {
+	return &state{
+		field:       field,
+		model:       model,
+		events:      make(map[string]bool),
+		tags:        make(map[string]bool),
+		fieldValues: make(map[string][]FieldValue),
 	}
 }
 
@@ -223,7 +249,7 @@ func NewOpError(pos lexer.Position, op string) *AstToEvalError {
 	return NewError(pos, fmt.Sprintf("unknown operator %s", op))
 }
 
-func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, interface{}, lexer.Position, error) {
+func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, interface{}, lexer.Position, error) {
 	switch obj := obj.(type) {
 	case *ast.BooleanExpression:
 		return nodeToEvaluator(obj.Expression, opts, state)
@@ -450,12 +476,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 				state.UpdateTags(tags)
 			}
 
-			event, err := state.model.GetEventType(*obj.Ident)
-			if err != nil {
-				return nil, nil, obj.Pos, err
-			}
-			state.UpdateEvents(event)
-
 			state.UpdateFields(*obj.Ident)
 
 			return accessor, nil, obj.Pos, nil
@@ -493,13 +513,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, in
 	return nil, nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
 }
 
-func (r *RuleEvaluator) IsDiscarder(ctx *Context, field string) (bool, error) {
+func (r *RuleEvaluator) PartialEval(ctx *Context, field string) (bool, error) {
 	eval, ok := r.partialEval[field]
 	if !ok {
 		return false, errors.New("field not found")
 	}
 
-	return !eval(ctx), nil
+	return eval(ctx), nil
 }
 
 func (r *RuleEvaluator) GetFields() []string {
@@ -512,9 +532,28 @@ func (r *RuleEvaluator) GetFields() []string {
 	return fields
 }
 
-func RuleToEvaluator(rule *ast.Rule, model Model, opts Opts) (*RuleEvaluator, error) {
-	state := NewState(model, "")
+func eventFromFields(model Model, state *state) ([]string, error) {
+	events := make(map[string]bool)
+	for field := range state.fieldValues {
+		eventType, err := model.GetEventType(field)
+		if err != nil {
+			return nil, err
+		}
 
+		if eventType != "*" {
+			events[eventType] = true
+		}
+	}
+
+	var uniq []string
+	for event := range events {
+		uniq = append(uniq, event)
+	}
+	return uniq, nil
+}
+
+func RuleToEvaluator(rule *ast.Rule, model Model, opts Opts) (*RuleEvaluator, error) {
+	state := newState(model, "")
 	if err := state.GenMacroEvaluators(opts.Macros, model, &opts); err != nil {
 		return nil, err
 	}
@@ -529,14 +568,11 @@ func RuleToEvaluator(rule *ast.Rule, model Model, opts Opts) (*RuleEvaluator, er
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
-	// Generates an evaluator which allows to guarranty that a value for a given parameter will cause the evaluation of an expression to always
-	// return false regardless of the other parameters.
-	// The evaluator is a function that accepts only one argument : the value of the selected parameter.
-	// If the return value of this function is "false", the argument is called a discriminator :
-	// if we see this discriminator for the selected parameter, we can skip the evaluation of the whole rule.
+	// transform the whole rule to a partial boolean evaluation function depending only on the given
+	// parameters. The goal is to see wheter the rule depends on the given field.
 	partialEval := make(map[string]func(ctx *Context) bool)
-	for field := range state.fields {
-		state = NewState(model, field)
+	for field := range state.fieldValues {
+		state = newState(model, field)
 
 		if err := state.GenMacroEvaluators(opts.Macros, model, &opts); err != nil {
 			return nil, err
@@ -561,13 +597,19 @@ func RuleToEvaluator(rule *ast.Rule, model Model, opts Opts) (*RuleEvaluator, er
 		partialEval[field] = pEvalBool.Eval
 	}
 
+	events, err := eventFromFields(model, state)
+	if err != nil {
+		return nil, err
+	}
+
 	if evalBool.Eval == nil {
 		return &RuleEvaluator{
 			Eval: func(ctx *Context) bool {
 				return evalBool.Value
 			},
-			Events:      state.Events(),
+			EventTypes:  events,
 			Tags:        state.Tags(),
+			FieldValues: state.fieldValues,
 			partialEval: partialEval,
 		}, nil
 	}
@@ -575,16 +617,18 @@ func RuleToEvaluator(rule *ast.Rule, model Model, opts Opts) (*RuleEvaluator, er
 	if opts.Debug {
 		return &RuleEvaluator{
 			Eval:        evalBool.DebugEval,
-			Events:      state.Events(),
+			EventTypes:  events,
 			Tags:        state.Tags(),
+			FieldValues: state.fieldValues,
 			partialEval: partialEval,
 		}, nil
 	}
 
 	return &RuleEvaluator{
 		Eval:        evalBool.Eval,
-		Events:      state.Events(),
+		EventTypes:  events,
 		Tags:        state.Tags(),
+		FieldValues: state.fieldValues,
 		partialEval: partialEval,
 	}, nil
 }

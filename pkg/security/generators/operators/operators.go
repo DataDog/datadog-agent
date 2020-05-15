@@ -20,8 +20,8 @@ package	eval
 
 {{ range . }}
 
-func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *State) *{{ .FuncReturnType }} {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) *{{ .FuncReturnType }} {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -41,12 +41,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
-				if a.IsPartial {
+				if a.isPartial {
 					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
-				if b.IsPartial {
+				if b.isPartial {
 					eb = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
@@ -66,7 +66,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			Eval: func(ctx *Context) {{ .EvalReturnType }} {
 				return ea(ctx) {{ .Op }} eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -75,10 +75,10 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 		if state.field != "" {
-			if a.IsPartial {
+			if a.isPartial {
 				ea = true
 			}
-			if b.IsPartial {
+			if b.isPartial {
 				eb = true
 			}
 		}
@@ -86,7 +86,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 		return &{{ .FuncReturnType }}{
 			Value: ea {{ .Op }} eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -94,14 +94,18 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
+
 		{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 			if state.field != "" {
-				if a.IsPartial {
+				if a.isPartial {
 					ea = func(ctx *Context) {{ .EvalReturnType }} {
 						return true
 					}
 				}
-				if b.IsPartial {
+				if b.isPartial {
 					eb = true
 				}
 			}
@@ -119,19 +123,23 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			Eval: func(ctx *Context) {{ .EvalReturnType }} {
 				return ea(ctx) {{ .Op }} eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
 
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
+
 	{{ if or (eq .FuncName "Or") (eq .FuncName "And") }}
 		if state.field != "" {
-			if a.IsPartial {
+			if a.isPartial {
 				ea = true
 			}
-			if b.IsPartial {
+			if b.isPartial {
 				eb = func(ctx *Context) {{ .EvalReturnType }} {
 					return true
 				}
@@ -151,7 +159,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		Eval: func(ctx *Context) {{ .EvalReturnType }} {
 			return ea {{ .Op }} eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 {{ end }}

@@ -265,16 +265,16 @@ func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 type ProcessEvent struct {
-	Pidns   uint64   `field:"pidns"`
-	Comm    [16]byte `field:"name" handler:"HandleComm,string"`
-	TTYName [64]byte `field:"tty_name" handler:"HandleTTY,string"`
-	Pid     uint32   `field:"pid"`
-	Tid     uint32   `field:"tid"`
-	UID     uint32   `field:"uid"`
-	GID     uint32   `field:"gid"`
+	Pidns   uint64 `field:"pidns" event:"*"`
+	Comm    string `field:"name" handler:"ResolveComm,string" event:"*"`
+	TTYName string `field:"tty_name" handler:ResolveTTY",string" event:"*"`
+	Pid     uint32 `field:"pid" event:"*"`
+	Tid     uint32 `field:"tid" event:"*"`
+	UID     uint32 `field:"uid" event:"*"`
+	GID     uint32 `field:"gid" event:"*"`
 
-	commStr    string `json:"" field:"-"`
-	ttyNameStr string `json:"tty" field:"-"`
+	CommRaw    [16]byte `field:"-"`
+	TTYNameRaw [64]byte `field:"-"`
 }
 
 func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -298,26 +298,26 @@ func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (p *ProcessEvent) HandleTTY(resolvers *Resolvers) string {
+func (p *ProcessEvent) ResolveTTY(resolvers *Resolvers) string {
 	return p.GetTTY()
 }
 
 func (p *ProcessEvent) GetTTY() string {
-	if len(p.ttyNameStr) == 0 {
-		p.ttyNameStr = string(bytes.Trim(p.TTYName[:], "\x00"))
+	if len(p.TTYName) == 0 {
+		p.TTYName = string(bytes.Trim(p.TTYNameRaw[:], "\x00"))
 	}
-	return p.ttyNameStr
+	return p.TTYName
 }
 
-func (p *ProcessEvent) HandleComm(resolvers *Resolvers) string {
+func (p *ProcessEvent) ResolveComm(resolvers *Resolvers) string {
 	return p.GetComm()
 }
 
 func (p *ProcessEvent) GetComm() string {
-	if len(p.commStr) == 0 {
-		p.commStr = string(bytes.Trim(p.Comm[:], "\x00"))
+	if len(p.Comm) == 0 {
+		p.Comm = string(bytes.Trim(p.CommRaw[:], "\x00"))
 	}
-	return p.commStr
+	return p.Comm
 }
 
 func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {

@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"math/rand"
 	"sort"
 
 	"github.com/cihub/seelog"
@@ -9,10 +10,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type Approver struct {
+	Field string
+	Value FieldValue
+	Not   bool
+}
+
 type RuleSetListener interface {
 	RuleMatch(rule *Rule, event Event)
 	EventDiscarderFound(event Event, field string)
-	EventApproverFound(event Event, field string)
 }
 
 type RuleBucket struct {
@@ -41,6 +47,57 @@ type RuleSet struct {
 	listeners        []RuleSetListener
 }
 
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func RandStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
+func (rs *RuleSet) getApprovers(evaluator *RuleEvaluator, isValidEventTypeFnc func(eventType string) bool) []Approver {
+	var ctx Context
+
+	var approvers []Approver
+	for field, fValues := range evaluator.FieldValues {
+		if eventType, _ := rs.model.GetEventType(field); !isValidEventTypeFnc(eventType) {
+			continue
+		}
+
+		for _, fValue := range fValues {
+			rs.model.SetEventValue(field, fValue.Value)
+			if result, _ := evaluator.PartialEval(&ctx, field); result {
+				approvers = append(approvers, Approver{
+					Field: field,
+					Value: fValue,
+					Not:   false,
+				})
+			}
+
+			// not
+			switch v := fValue.Value.(type) {
+			case int:
+				rs.model.SetEventValue(field, ^v)
+			case string:
+				rs.model.SetEventValue(field, RandStringRunes(256))
+			case bool:
+				rs.model.SetEventValue(field, !v)
+			}
+			if result, _ := evaluator.PartialEval(&ctx, field); result {
+				approvers = append(approvers, Approver{
+					Field: field,
+					Value: fValue,
+					Not:   true,
+				})
+			}
+		}
+	}
+
+	return approvers
+}
+
 func (rs *RuleSet) AddRule(id string, astRule *ast.Rule, tags ...string) (*Rule, error) {
 	evaluator, err := RuleToEvaluator(astRule, rs.model, rs.opts)
 	if err != nil {
@@ -54,7 +111,7 @@ func (rs *RuleSet) AddRule(id string, astRule *ast.Rule, tags ...string) (*Rule,
 		Tags:       tags,
 	}
 
-	for _, event := range evaluator.Events {
+	for _, event := range evaluator.EventTypes {
 		bucket, exists := rs.eventRuleBuckets[event]
 		if !exists {
 			bucket = &RuleBucket{}
@@ -91,10 +148,60 @@ func (rs *RuleSet) HasRulesForEventType(kind string) bool {
 	return len(bucket.rules) > 0
 }
 
+type EventApprover struct {
+	FieldApprovers map[string][]Approver
+}
+
+func (rs *RuleSet) GetEventApprovers() map[string]EventApprover {
+	eventApprovers := make(map[string]EventApprover)
+
+	updateEventApprovers := func(eventType string, approver Approver) {
+		eventApprover, ok := eventApprovers[eventType]
+		if !ok {
+			eventApprover = EventApprover{
+				FieldApprovers: make(map[string][]Approver),
+			}
+			eventApprovers[eventType] = eventApprover
+		}
+
+		approvers, ok := eventApprover.FieldApprovers[approver.Field]
+		if !ok {
+			approvers = []Approver{}
+		}
+
+		found := false
+		for _, a := range approvers {
+			if a == approver {
+				found = true
+			}
+		}
+
+		if !found {
+			approvers = append(approvers, approver)
+		}
+		eventApprover.FieldApprovers[approver.Field] = approvers
+	}
+
+	for eventType, bucket := range rs.eventRuleBuckets {
+		for _, rule := range bucket.rules {
+			wildcardApprovers := rs.getApprovers(rule.evaluator, func(kind string) bool { return kind == "*" })
+			for _, approver := range wildcardApprovers {
+				updateEventApprovers(eventType, approver)
+			}
+
+			for _, approver := range rs.getApprovers(rule.evaluator, func(kind string) bool { return kind == eventType }) {
+				updateEventApprovers(eventType, approver)
+			}
+		}
+	}
+
+	return eventApprovers
+}
+
 func (rs *RuleSet) Evaluate(event Event) bool {
 	result := false
 	rs.model.SetEvent(event)
-	context := &Context{}
+	ctx := &Context{}
 	eventType := event.GetType()
 	eventID := event.GetID()
 
@@ -105,7 +212,7 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 	log.Debugf("Evaluating event `%s` of type `%s` against set of %d rules", eventID, eventType, len(bucket.rules))
 
 	for _, rule := range bucket.rules {
-		if rule.evaluator.Eval(context) {
+		if rule.evaluator.Eval(ctx) {
 			log.Infof("Rule `%s` matches with event `%s`\n", rule.ID, event)
 
 			rs.NotifyRuleMatch(rule, event)
@@ -125,15 +232,11 @@ func (rs *RuleSet) Evaluate(event Event) bool {
 
 			found = true
 			for _, rule := range bucket.rules {
-				partial, ok := rule.evaluator.partialEval[field]
-				if !ok {
-					found = false
-					break
-				}
+				isTrue, err := rule.evaluator.PartialEval(ctx, field)
 
-				isTrue := partial(context)
 				log.Debugf("Partial eval of rule %s(`%s`) with field `%s` with value `%s` => %t\n", rule.ID, rule.Expression, field, value, isTrue)
-				if isTrue {
+
+				if err != nil || isTrue {
 					found = false
 					break
 				}

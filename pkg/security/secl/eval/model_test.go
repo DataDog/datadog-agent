@@ -117,7 +117,7 @@ func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 
 	}
 
-	return nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrEvaluatorNotFound, key)
 }
 
 func (m *testModel) GetTags(key string) ([]string, error) {
@@ -157,7 +157,7 @@ func (m *testModel) GetTags(key string) ([]string, error) {
 
 	}
 
-	return nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrTagsNotFound, key)
 }
 
 func (m *testModel) GetEventType(key string) (string, error) {
@@ -165,15 +165,15 @@ func (m *testModel) GetEventType(key string) (string, error) {
 
 	case "process.name":
 
-		return "", nil
+		return "*", nil
 
 	case "process.uid":
 
-		return "", nil
+		return "*", nil
 
 	case "process.is_root":
 
-		return "", nil
+		return "*", nil
 
 	case "open.filename":
 
@@ -197,7 +197,55 @@ func (m *testModel) GetEventType(key string) (string, error) {
 
 	}
 
-	return "", errors.Wrap(ErrFieldNotFound, key)
+	return "", errors.Wrap(ErrEventTypeNotFound, key)
+}
+
+func (m *testModel) SetEventValue(key string, value interface{}) error {
+	switch key {
+
+	case "process.name":
+
+		m.event.process.name = value.(string)
+		return nil
+
+	case "process.uid":
+
+		m.event.process.uid = value.(int)
+		return nil
+
+	case "process.is_root":
+
+		m.event.process.isRoot = value.(bool)
+		return nil
+
+	case "open.filename":
+
+		m.event.open.filename = value.(string)
+		return nil
+
+	case "open.flags":
+
+		m.event.open.flags = value.(int)
+		return nil
+
+	case "open.mode":
+
+		m.event.open.mode = value.(int)
+		return nil
+
+	case "mkdir.filename":
+
+		m.event.mkdir.filename = value.(string)
+		return nil
+
+	case "mkdir.mode":
+
+		m.event.mkdir.mode = value.(int)
+		return nil
+
+	}
+
+	return errors.Wrap(ErrSetEventValueNotFound, key)
 }
 
 var testConstants = map[string]interface{}{

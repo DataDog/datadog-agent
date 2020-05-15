@@ -10,8 +10,8 @@ func TestMkdirJSON(t *testing.T) {
 	e := NewEvent(nil)
 	e.Process = ProcessEvent{
 		Pidns:   333,
-		Comm:    [16]byte{'a', 'a', 'a'},
-		TTYName: [64]byte{'b', 'b', 'b'},
+		Comm:    "aaa",
+		TTYName: "bbb",
 		Pid:     123,
 		Tid:     456,
 		UID:     8,
