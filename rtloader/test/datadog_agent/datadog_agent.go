@@ -28,6 +28,7 @@ extern void setCheckMetadata(char*, char*, char*);
 extern void setExternalHostTags(char*, char*, char**);
 extern void writePersistentCache(char*, char*);
 extern char* readPersistentCache(char*);
+extern char* obfuscateSQL(char*, char**);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -43,6 +44,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_set_external_tags_cb(rtloader, setExternalHostTags);
    set_write_persistent_cache_cb(rtloader, writePersistentCache);
    set_read_persistent_cache_cb(rtloader, readPersistentCache);
+   set_obfuscate_sql_cb(rtloader, obfuscateSQL);
 }
 */
 import "C"
@@ -228,4 +230,20 @@ func writePersistentCache(key, value *C.char) {
 //export readPersistentCache
 func readPersistentCache(key *C.char) *C.char {
 	return (*C.char)(helpers.TrackedCString("somevalue"))
+}
+
+//export obfuscateSQL
+func obfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
+	s := C.GoString(rawQuery)
+	switch s {
+	case "select * from table where id = 1":
+		return (*C.char)(helpers.TrackedCString("select * from table where id = ?"))
+	// expected error results from obfuscator
+	case "":
+		*errResult = (*C.char)(helpers.TrackedCString("result is empty"))
+		return nil
+	default:
+		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
+		return nil
+	}
 }
