@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	ErrFieldNotFound = errors.New("field not found")
+	ErrFieldNotFound  = errors.New("field not found")
+	ErrWrongValueType = errors.New("wrong value type")
 )
 
 func (m *Model) GetEvaluator(key string) (interface{}, error) {
@@ -117,8 +118,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "process.name":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Process.HandleComm(m.event.resolvers) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Process.HandleComm(m.event.resolvers) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Process.ResolveComm(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Process.ResolveComm(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -153,8 +154,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "process.tty_name":
 
 		return &eval.StringEvaluator{
-			Eval:      func(ctx *eval.Context) string { return m.event.Process.HandleTTY(m.event.resolvers) },
-			DebugEval: func(ctx *eval.Context) string { return m.event.Process.HandleTTY(m.event.resolvers) },
+			Eval:      func(ctx *eval.Context) string { return m.event.Process.TTYName },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Process.TTYName },
 
 			Field: key,
 		}, nil
@@ -362,25 +363,25 @@ func (m *Model) GetEventType(key string) (string, error) {
 		return "open", nil
 
 	case "process.gid":
-		return "", nil
+		return "*", nil
 
 	case "process.name":
-		return "", nil
+		return "*", nil
 
 	case "process.pid":
-		return "", nil
+		return "*", nil
 
 	case "process.pidns":
-		return "", nil
+		return "*", nil
 
 	case "process.tid":
-		return "", nil
+		return "*", nil
 
 	case "process.tty_name":
 		return "", nil
 
 	case "process.uid":
-		return "", nil
+		return "*", nil
 
 	case "rename.newfilename":
 		return "rename", nil
@@ -409,4 +410,213 @@ func (m *Model) GetEventType(key string) (string, error) {
 	}
 
 	return "", errors.Wrap(ErrFieldNotFound, key)
+}
+
+func (m *Model) SetEventValue(key string, value interface{}) error {
+	var ok bool
+	switch key {
+
+	case "container.id":
+
+		if m.event.Container.ID, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "event.retval":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Event.Retval = int64(v)
+		return nil
+
+	case "event.type":
+
+	case "mkdir.filename":
+
+		if m.event.Mkdir.PathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "mkdir.inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Mkdir.Inode = uint64(v)
+		return nil
+
+	case "mkdir.mode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Mkdir.Mode = int32(v)
+		return nil
+
+	case "open.filename":
+
+		if m.event.Open.PathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "open.flags":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Open.Flags = uint32(v)
+		return nil
+
+	case "open.inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Open.Inode = uint64(v)
+		return nil
+
+	case "open.mode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Open.Mode = uint32(v)
+		return nil
+
+	case "process.gid":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Process.GID = uint32(v)
+		return nil
+
+	case "process.name":
+
+		if m.event.Process.Comm, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "process.pid":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Process.Pid = uint32(v)
+		return nil
+
+	case "process.pidns":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Process.Pidns = uint64(v)
+		return nil
+
+	case "process.tid":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Process.Tid = uint32(v)
+		return nil
+
+	case "process.tty_name":
+
+		if m.event.Process.TTYName, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "process.uid":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Process.UID = uint32(v)
+		return nil
+
+	case "rename.newfilename":
+
+		if m.event.Rename.TargetPathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "rename.newinode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Rename.TargetInode = uint64(v)
+		return nil
+
+	case "rename.oldfilename":
+
+		if m.event.Rename.SrcPathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "rename.oldinode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Rename.SrcInode = uint64(v)
+		return nil
+
+	case "rmdir.filename":
+
+		if m.event.Rmdir.PathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "rmdir.inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Rmdir.Inode = uint64(v)
+		return nil
+
+	case "unlink.filename":
+
+		if m.event.Unlink.PathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "unlink.inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		m.event.Unlink.Inode = uint64(v)
+		return nil
+
+	}
+
+	return errors.Wrap(ErrFieldNotFound, key)
 }

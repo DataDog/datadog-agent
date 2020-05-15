@@ -9,5 +9,5 @@ type Rule struct {
 }
 
 func (r *Rule) GetEventTypes() []string {
-	return r.evaluator.Events
+	return r.evaluator.EventTypes
 }

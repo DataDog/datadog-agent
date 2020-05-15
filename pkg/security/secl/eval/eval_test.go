@@ -432,12 +432,12 @@ func TestPartial(t *testing.T) {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
 
-		result, err := evaluator.IsDiscarder(&Context{}, test.Field)
+		result, err := evaluator.PartialEval(&Context{}, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
 		}
 
-		if result != test.IsDiscarder {
+		if !result != test.IsDiscarder {
 			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
 		}
 	}
@@ -522,12 +522,12 @@ func TestMacroPartial(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	result, err := evaluator.IsDiscarder(&Context{}, "open.filename")
+	result, err := evaluator.PartialEval(&Context{}, "open.filename")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !result {
+	if result {
 		t.Fatal("should be a discriminator")
 	}
 }
@@ -598,7 +598,7 @@ func BenchmarkPartial(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		if ok, _ := evaluator.IsDiscarder(ctx, "process.name"); !ok {
+		if ok, _ := evaluator.PartialEval(ctx, "process.name"); ok {
 			b.Fatal("unexpected result")
 		}
 	}

@@ -2,8 +2,8 @@
 
 package eval
 
-func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -22,12 +22,12 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 		dea, deb := a.DebugEval, b.DebugEval
 
 		if state.field != "" {
-			if a.IsPartial {
+			if a.isPartial {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if b.IsPartial {
+			if b.isPartial {
 				eb = func(ctx *Context) bool {
 					return true
 				}
@@ -46,7 +46,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) || eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -54,17 +54,17 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 		ea, eb := a.Value, b.Value
 
 		if state.field != "" {
-			if a.IsPartial {
+			if a.isPartial {
 				ea = true
 			}
-			if b.IsPartial {
+			if b.isPartial {
 				eb = true
 			}
 		}
 
 		return &BoolEvaluator{
 			Value:     ea || eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -72,13 +72,17 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
+
 		if state.field != "" {
-			if a.IsPartial {
+			if a.isPartial {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if b.IsPartial {
+			if b.isPartial {
 				eb = true
 			}
 		}
@@ -95,18 +99,22 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) || eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
 
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
+
 	if state.field != "" {
-		if a.IsPartial {
+		if a.isPartial {
 			ea = true
 		}
-		if b.IsPartial {
+		if b.isPartial {
 			eb = func(ctx *Context) bool {
 				return true
 			}
@@ -125,12 +133,12 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 		Eval: func(ctx *Context) bool {
 			return ea || eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -149,12 +157,12 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 		dea, deb := a.DebugEval, b.DebugEval
 
 		if state.field != "" {
-			if a.IsPartial {
+			if a.isPartial {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if b.IsPartial {
+			if b.isPartial {
 				eb = func(ctx *Context) bool {
 					return true
 				}
@@ -173,7 +181,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) && eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -181,17 +189,17 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 		ea, eb := a.Value, b.Value
 
 		if state.field != "" {
-			if a.IsPartial {
+			if a.isPartial {
 				ea = true
 			}
-			if b.IsPartial {
+			if b.isPartial {
 				eb = true
 			}
 		}
 
 		return &BoolEvaluator{
 			Value:     ea && eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -199,13 +207,17 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
+
 		if state.field != "" {
-			if a.IsPartial {
+			if a.isPartial {
 				ea = func(ctx *Context) bool {
 					return true
 				}
 			}
-			if b.IsPartial {
+			if b.isPartial {
 				eb = true
 			}
 		}
@@ -222,18 +234,22 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) && eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
 
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
+
 	if state.field != "" {
-		if a.IsPartial {
+		if a.isPartial {
 			ea = true
 		}
-		if b.IsPartial {
+		if b.isPartial {
 			eb = func(ctx *Context) bool {
 				return true
 			}
@@ -252,12 +268,12 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 		Eval: func(ctx *Context) bool {
 			return ea && eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -287,7 +303,7 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) == eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -296,13 +312,17 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 
 		return &BoolEvaluator{
 			Value:     ea == eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -316,12 +336,16 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) == eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -335,12 +359,12 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 		Eval: func(ctx *Context) bool {
 			return ea == eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -370,7 +394,7 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) != eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -379,13 +403,17 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 
 		return &BoolEvaluator{
 			Value:     ea != eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -399,12 +427,16 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) != eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -418,12 +450,12 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 		Eval: func(ctx *Context) bool {
 			return ea != eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -453,7 +485,7 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 			Eval: func(ctx *Context) int {
 				return ea(ctx) & eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -462,13 +494,17 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 
 		return &IntEvaluator{
 			Value:     ea & eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &IntEvaluator{
 			DebugEval: func(ctx *Context) int {
@@ -482,12 +518,16 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 			Eval: func(ctx *Context) int {
 				return ea(ctx) & eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &IntEvaluator{
 		DebugEval: func(ctx *Context) int {
@@ -501,12 +541,12 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 		Eval: func(ctx *Context) int {
 			return ea & eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -536,7 +576,7 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 			Eval: func(ctx *Context) int {
 				return ea(ctx) | eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -545,13 +585,17 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 
 		return &IntEvaluator{
 			Value:     ea | eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &IntEvaluator{
 			DebugEval: func(ctx *Context) int {
@@ -565,12 +609,16 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 			Eval: func(ctx *Context) int {
 				return ea(ctx) | eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &IntEvaluator{
 		DebugEval: func(ctx *Context) int {
@@ -584,12 +632,12 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 		Eval: func(ctx *Context) int {
 			return ea | eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -619,7 +667,7 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 			Eval: func(ctx *Context) int {
 				return ea(ctx) ^ eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -628,13 +676,17 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 
 		return &IntEvaluator{
 			Value:     ea ^ eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &IntEvaluator{
 			DebugEval: func(ctx *Context) int {
@@ -648,12 +700,16 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 			Eval: func(ctx *Context) int {
 				return ea(ctx) ^ eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &IntEvaluator{
 		DebugEval: func(ctx *Context) int {
@@ -667,12 +723,12 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 		Eval: func(ctx *Context) int {
 			return ea ^ eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -702,7 +758,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) == eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -711,13 +767,17 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 
 		return &BoolEvaluator{
 			Value:     ea == eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -731,12 +791,16 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) == eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -750,12 +814,12 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 		Eval: func(ctx *Context) bool {
 			return ea == eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -785,7 +849,7 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) != eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -794,13 +858,17 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 
 		return &BoolEvaluator{
 			Value:     ea != eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -814,12 +882,16 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) != eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -833,12 +905,12 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 		Eval: func(ctx *Context) bool {
 			return ea != eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -868,7 +940,7 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) == eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -877,13 +949,17 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 
 		return &BoolEvaluator{
 			Value:     ea == eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -897,12 +973,16 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) == eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -916,12 +996,12 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 		Eval: func(ctx *Context) bool {
 			return ea == eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -951,7 +1031,7 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) != eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -960,13 +1040,17 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 
 		return &BoolEvaluator{
 			Value:     ea != eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -980,12 +1064,16 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) != eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -999,12 +1087,12 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 		Eval: func(ctx *Context) bool {
 			return ea != eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -1034,7 +1122,7 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) > eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -1043,13 +1131,17 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 
 		return &BoolEvaluator{
 			Value:     ea > eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -1063,12 +1155,16 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) > eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -1082,12 +1178,12 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 		Eval: func(ctx *Context) bool {
 			return ea > eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -1117,7 +1213,7 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) >= eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -1126,13 +1222,17 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 
 		return &BoolEvaluator{
 			Value:     ea >= eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -1146,12 +1246,16 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) >= eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -1165,12 +1269,12 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 		Eval: func(ctx *Context) bool {
 			return ea >= eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -1200,7 +1304,7 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) < eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -1209,13 +1313,17 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 
 		return &BoolEvaluator{
 			Value:     ea < eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -1229,12 +1337,16 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) < eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -1248,12 +1360,12 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 		Eval: func(ctx *Context) bool {
 			return ea < eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }
 
-func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
-	partialA, partialB := a.IsPartial, b.IsPartial
+func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) *BoolEvaluator {
+	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
@@ -1283,7 +1395,7 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) <= eb(ctx)
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
@@ -1292,13 +1404,17 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 
 		return &BoolEvaluator{
 			Value:     ea <= eb,
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	if a.Eval != nil {
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
+
+		if a.Field != "" {
+			state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType})
+		}
 
 		return &BoolEvaluator{
 			DebugEval: func(ctx *Context) bool {
@@ -1312,12 +1428,16 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 			Eval: func(ctx *Context) bool {
 				return ea(ctx) <= eb
 			},
-			IsPartial: isPartialLeaf,
+			isPartial: isPartialLeaf,
 		}
 	}
 
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
+
+	if b.Field != "" {
+		state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType})
+	}
 
 	return &BoolEvaluator{
 		DebugEval: func(ctx *Context) bool {
@@ -1331,6 +1451,6 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Stat
 		Eval: func(ctx *Context) bool {
 			return ea <= eb(ctx)
 		},
-		IsPartial: isPartialLeaf,
+		isPartial: isPartialLeaf,
 	}
 }

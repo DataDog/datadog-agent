@@ -44,12 +44,14 @@ type Module struct {
 var module *Module
 
 type structField struct {
-	Name    string
-	Type    string
-	IsArray bool
-	Public  bool
-	Tags    string
-	Event   string
+	Name     string
+	Type     string
+	IsArray  bool
+	Public   bool
+	Tags     string
+	Event    string
+	Handler  string
+	OrigType string
 }
 
 func (f *structField) ElemType() string {
@@ -84,7 +86,7 @@ func handleBasic(name, alias, kind, tags, event string) {
 
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
-		module.Fields[alias] = &structField{Name: "m.event." + name, Type: "int", Public: true, Tags: tags, Event: event}
+		module.Fields[alias] = &structField{Name: "m.event." + name, Type: "int", Public: true, Tags: tags, Event: event, OrigType: kind}
 	default:
 		public := false
 		firstChar := strings.TrimPrefix(kind, "[]")
@@ -95,12 +97,13 @@ func handleBasic(name, alias, kind, tags, event string) {
 			public = true
 		}
 		module.Fields[alias] = &structField{
-			Name:    "m.event." + name,
-			Type:    kind,
-			IsArray: strings.HasPrefix(kind, "[]"),
-			Public:  public,
-			Tags:    tags,
-			Event:   event,
+			Name:     "m.event." + name,
+			Type:     kind,
+			IsArray:  strings.HasPrefix(kind, "[]"),
+			Public:   public,
+			Tags:     tags,
+			Event:    event,
+			OrigType: kind,
 		}
 	}
 }
@@ -182,12 +185,18 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 								fieldAlias = aliasPrefix + "." + fieldAlias
 							}
 
-							module.Fields[fieldAlias] = &structField{
-								Name:   fmt.Sprintf("m.event.%s.%s(m.event.resolvers)", prefix, fnc),
-								Type:   kind,
-								Public: true,
-								Tags:   tags,
-								Event:  event,
+							fieldType, ok := field.Type.(*ast.Ident)
+							if ok {
+
+								module.Fields[fieldAlias] = &structField{
+									Name:     fmt.Sprintf("m.event.%s.%s", prefix, fieldName),
+									Handler:  fmt.Sprintf("m.event.%s.%s(m.event.resolvers)", prefix, fnc),
+									Type:     kind,
+									Public:   true,
+									Tags:     tags,
+									Event:    event,
+									OrigType: fieldType.Name,
+								}
 							}
 							continue
 						}
@@ -317,28 +326,34 @@ import (
 
 var (
 	ErrFieldNotFound = errors.New("field not found")
+	ErrWrongValueType = errors.New("wrong value type")
 )
 
 func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	switch key {
 	{{range $Name, $Field := .Fields}}
+	{{$Return := $Field.Name}}
+	{{if ne $Field.Handler ""}}
+		{{$Return = $Field.Handler}}
+	{{end}}
+
 	case "{{$Name}}":
 	{{if eq $Field.Type "string"}}
 		return &eval.StringEvaluator{
-			Eval: func(ctx *eval.Context) string { return {{$Field.Name}} },
-			DebugEval: func(ctx *eval.Context) string { return {{$Field.Name}} },
+			Eval: func(ctx *eval.Context) string { return {{$Return}} },
+			DebugEval: func(ctx *eval.Context) string { return {{$Return}} },
 	{{else if eq $Field.Type "stringer"}}
 		return &eval.StringEvaluator{
-			Eval: func(ctx *eval.Context) string { return {{$Field.Name}}.String() },
-			DebugEval: func(ctx *eval.Context) string { return {{$Field.Name}}.String() },
+			Eval: func(ctx *eval.Context) string { return {{$Return}}.String() },
+			DebugEval: func(ctx *eval.Context) string { return {{$Return}}.String() },
 	{{else if eq .Type "int"}}
 		return &eval.IntEvaluator{
-			Eval: func(ctx *eval.Context) int { return int({{$Field.Name}}) },
-			DebugEval: func(ctx *eval.Context) int { return int({{$Field.Name}}) },
+			Eval: func(ctx *eval.Context) int { return int({{$Return}}) },
+			DebugEval: func(ctx *eval.Context) int { return int({{$Return}}) },
 	{{else if eq .Type "bool"}}
 		return &eval.BoolEvaluator{
-			Eval: func(ctx *eval.Context) bool { return {{$Field.Name}} },
-			DebugEval: func(ctx *eval.Context) bool { return {{$Field.Name}} },
+			Eval: func(ctx *eval.Context) bool { return {{$Return}} },
+			DebugEval: func(ctx *eval.Context) bool { return {{$Return}} },
 	{{end}}
 			Field: key,
 		}, nil
@@ -370,7 +385,38 @@ func (m *Model) GetEventType(key string) (string, error) {
 	return "", errors.Wrap(ErrFieldNotFound, key)
 }
 
+func (m *Model) SetEventValue(key string, value interface{}) error {
+	var ok bool
+	switch key {
+		{{range $Name, $Field := .Fields}}
+		case "{{$Name}}":
+		{{if eq $Field.OrigType "string"}}
+			if {{$Field.Name}}, ok = value.(string); !ok {
+				return ErrWrongValueType
+			}
+			return nil
+		{{else if eq .Type "int"}}
+			v, ok := value.(int)
+			if !ok {
+				return ErrWrongValueType
+			}
+			{{$Field.Name}} = {{$Field.OrigType}}(v)
+			return nil
+		{{else if eq .Type "bool"}}
+			if {{$Field.Name}}, ok = value.(string); !ok {
+				return ErrWrongValueType
+			}
+			return nil
+		{{end}}
+		{{end}}
+		}
+
+		return errors.Wrap(ErrFieldNotFound, key)
+}
+
 `))
+
+	os.Remove(output)
 
 	module, err = parseFile(filename, pkgname)
 	if err != nil {
