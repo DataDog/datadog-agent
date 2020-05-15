@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/pkg/errors"
 )
 
 var datadogSupportURL = "/support/flare"
@@ -127,6 +128,10 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 	if err != nil {
 		return response, err
 	}
+	if r.StatusCode == http.StatusForbidden {
+		return response, errors.New("HTTP 403 Forbidden: Make sure your API key is valid")
+	}
+
 	b, _ := ioutil.ReadAll(r.Body)
 	var res = flareResponse{}
 	err = json.Unmarshal(b, &res)
