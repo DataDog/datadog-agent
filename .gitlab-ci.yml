@@ -1199,6 +1199,8 @@ windows_zip_agent_binaries_x64-a7:
     expire_in: 2 weeks
     paths:
       - .omnibus/pkg
+  <<: *skip_when_triggered
+  allow_failure: true
 
 .windows_old_main_agent_base:
   extends: .windows_old_msi_base
