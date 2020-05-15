@@ -53,10 +53,10 @@ func StartServer(sc clusteragent.ServerContext) error {
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
 	// Internal token
-	util.CreateAndSetAuthToken()
+	util.CreateAndSetAuthToken() //nolint:errcheck
 
 	// DCA client token
-	util.InitDCAAuthToken()
+	util.InitDCAAuthToken() //nolint:errcheck
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}
@@ -90,7 +90,7 @@ func StartServer(sc clusteragent.ServerContext) error {
 
 	tlsListener := tls.NewListener(listener, &tlsConfig)
 
-	go srv.Serve(tlsListener)
+	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
 }
 

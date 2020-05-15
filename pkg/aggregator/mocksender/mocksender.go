@@ -27,7 +27,7 @@ func NewMockSender(id check.ID) *MockSender {
 
 // SetSender sets passed sender with the passed ID.
 func SetSender(sender *MockSender, id check.ID) {
-	aggregator.SetSender(sender, id)
+	aggregator.SetSender(sender, id) //nolint:errcheck
 }
 
 //MockSender allows mocking of the checks sender for unit testing

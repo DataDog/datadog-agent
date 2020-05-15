@@ -43,7 +43,7 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 	}
 
 	return rawconn.Control(func(fd uintptr) {
-		unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_PASSCRED, 1)
+		unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_PASSCRED, 1) //nolint:errcheck
 	})
 }
 

@@ -10,3 +10,24 @@ package apiserver
 const (
 	autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
 )
+
+// controllerName represents the cluster agent controller names
+type controllerName string
+
+const (
+	metadataController    controllerName = "metadata"
+	autoscalersController controllerName = "autoscalers"
+	servicesController    controllerName = "services"
+	endpointsController   controllerName = "endpoints"
+)
+
+// InformerName represents the kubernetes informer names
+type InformerName string
+
+const (
+	endpointsInformer InformerName = "endpoints"
+	servicesInformer  InformerName = "services"
+	SecretsInformer   InformerName = "secrets"
+	WebhooksInformer  InformerName = "webhooks"
+	PodsInformer      InformerName = "pods"
+)

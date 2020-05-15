@@ -82,9 +82,9 @@ func init() {
 
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
-	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
+	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket"))
+	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
 }
 
 func start(cmd *cobra.Command, args []string) error {
@@ -175,7 +175,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start()
+	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
 	hname, err := util.GetHostname()
@@ -203,7 +203,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 		tagger.Init()
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname, "agent")
+	aggregatorInstance := aggregator.InitAggregator(s, hname, aggregator.AgentName)
 	statsd, err = dogstatsd.NewServer(aggregatorInstance)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
@@ -214,8 +214,8 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 
 func stopAgent(ctx context.Context, cancel context.CancelFunc) {
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Dogstatsd health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {

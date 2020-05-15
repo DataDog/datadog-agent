@@ -157,6 +157,14 @@ func New() *AgentConfig {
 	}
 }
 
+// APIKey returns the first (main) endpoint's API key.
+func (c *AgentConfig) APIKey() string {
+	if len(c.Endpoints) == 0 {
+		return ""
+	}
+	return c.Endpoints[0].APIKey
+}
+
 // Validate validates if the current configuration is good for the agent to start with.
 func (c *AgentConfig) validate() error {
 	if len(c.Endpoints) == 0 || c.Endpoints[0].APIKey == "" {

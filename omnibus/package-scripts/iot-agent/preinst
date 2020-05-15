@@ -1,9 +1,11 @@
 #!/bin/sh
 #
-# Perform necessary datadog-agent setup steps before package is installed.
+# Perform necessary datadog-iot-agent setup steps before package is installed.
 #
 # .deb: STEP 2 of 5
+# .rpm: STEP 2 of 6
 
+INSTALL_DIR=/opt/datadog-agent
 SERVICE_NAME=datadog-agent
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
@@ -21,7 +23,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         elif command -v initctl >/dev/null 2>&1; then
             initctl stop $SERVICE_NAME || true
         else
-            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-iot-agent package only provides service files for systemd and upstart."
         fi
     fi
 
@@ -29,10 +31,20 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Nothing specific on Debian
         :
         #DEBHELPER#
+    elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
+        # Set up `dd-agent` user and group
+        getent group dd-agent >/dev/null || groupadd -r dd-agent
+        getent passwd dd-agent >/dev/null || \
+            useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin \
+                -c "Datadog Agent" dd-agent && \
+                { usermod -L dd-agent || echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"; }
     else
         echo "[ FAILED ]\tYour system is currently not supported by this script.";
         exit 1;
     fi
+else
+	echo "The IoT Agent is not supported on MacOS"
+	exit 0
 fi
 
 exit 0

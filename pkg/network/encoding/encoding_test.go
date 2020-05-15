@@ -6,7 +6,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +28,7 @@ func TestSerialization(t *testing.T) {
 				NetNS:                7,
 				SPort:                1000,
 				DPort:                9000,
-				IPTranslation: &netlink.IPTranslation{
+				IPTranslation: &network.IPTranslation{
 					ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 					ReplDstIP:   util.AddressFromString("20.1.1.1"),
 					ReplSrcPort: 40,

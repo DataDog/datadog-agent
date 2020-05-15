@@ -460,6 +460,7 @@ func TestPatchConfiguration(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, rawConfig["tags"], "foo:bar")
 	assert.Contains(t, rawConfig["tags"], "cluster_name:testing")
+	assert.Contains(t, rawConfig["tags"], "kube_cluster_name:testing")
 	assert.Equal(t, true, rawConfig["empty_default_hostname"])
 }
 
@@ -490,6 +491,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, rawConfig["tags"], "foo:bar")
 	assert.Contains(t, rawConfig["tags"], "cluster_name:testing")
+	assert.Contains(t, rawConfig["tags"], "kube_cluster_name:testing")
 	assert.Equal(t, nil, rawConfig["empty_default_hostname"])
 }
 
@@ -500,12 +502,12 @@ func TestExtraTags(t *testing.T) {
 		tagNameConfig     string
 		expected          []string
 	}{
-		{nil, "testing", "cluster_name", []string{"cluster_name:testing"}},
-		{nil, "mycluster", "custom_name", []string{"custom_name:mycluster"}},
+		{nil, "testing", "cluster_name", []string{"cluster_name:testing", "kube_cluster_name:testing"}},
+		{nil, "mycluster", "custom_name", []string{"custom_name:mycluster", "kube_cluster_name:mycluster"}},
 		{nil, "", "cluster_name", nil},
-		{nil, "testing", "", nil},
+		{nil, "testing", "", []string{"kube_cluster_name:testing"}},
 		{[]string{"one", "two"}, "", "", []string{"one", "two"}},
-		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster"}},
+		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster", "kube_cluster_name:mycluster"}},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
 			mockConfig := config.Mock()

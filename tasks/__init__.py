@@ -17,6 +17,7 @@ from . import (agent,
     pylauncher,
     release,
     rtloader,
+    security_agent,
     selinux,
     system_probe,
     systray,
@@ -73,6 +74,7 @@ ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(uninstallcmd)
+ns.add_collection(security_agent)
 
 ns.configure({
     'run': {

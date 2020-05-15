@@ -1,8 +1,9 @@
 #!/bin/sh
 #
-# Perform necessary datadog-agent removal steps after package is uninstalled.
+# Perform necessary datadog-iot-agent removal steps after package is uninstalled.
 #
 # .deb: STEP 3 of 5
+# .rpm: STEP 5 of 6
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
@@ -27,6 +28,18 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
             rm -rf $INSTALL_DIR
             rm -rf $LOG_DIR
             rm -rf $CONFIG_DIR
+        ;;
+        *)
+        ;;
+    esac
+elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
+    case "$*" in
+        0)
+            # We're uninstalling.
+            # We don't delete the dd-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
+        ;;
+        1)
+            # We're upgrading.
         ;;
         *)
         ;;

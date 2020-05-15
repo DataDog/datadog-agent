@@ -91,7 +91,7 @@ func NewKubeletListener() (ServiceListener, error) {
 		services: make(map[string]Service),
 		ticker:   time.NewTicker(config.Datadog.GetDuration("kubelet_listener_polling_interval") * time.Second),
 		stop:     make(chan bool),
-		health:   health.Register("ad-kubeletlistener"),
+		health:   health.RegisterLiveness("ad-kubeletlistener"),
 	}, nil
 }
 
@@ -110,7 +110,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
-				l.health.Deregister()
+				l.health.Deregister() //nolint:errcheck
 				return
 			case <-l.health.C:
 			case <-l.ticker.C:
