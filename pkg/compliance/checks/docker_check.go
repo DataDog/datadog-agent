@@ -12,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,8 +24,13 @@ var ErrDockerKindNotSupported = errors.New("unsupported docker object kind")
 
 // DockerClient abstracts Docker API client
 type DockerClient interface {
-	ImageInspectWithRaw(ctx context.Context, image string) (types.ImageInspect, []byte, error)
-	ImageList(ctx context.Context, options types.ImageListOptions) ([]types.ImageSummary, error)
+	client.ConfigAPIClient
+	client.ContainerAPIClient
+	client.ImageAPIClient
+	client.NodeAPIClient
+	client.NetworkAPIClient
+	client.SystemAPIClient
+	client.VolumeAPIClient
 }
 
 type dockerCheck struct {
@@ -43,16 +49,37 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 		if err != nil {
 			return err
 		}
-		for _, i := range images {
-			imageInspect, _, err := c.client.ImageInspectWithRaw(ctx, i.ID)
+		for _, image := range images {
+			imageInspect, _, err := c.client.ImageInspectWithRaw(ctx, image.ID)
 			if err != nil {
-				// TODO: log here
+				log.Errorf("failed to inspect image %s", image.ID)
 			}
-			fn(i.ID, imageInspect)
+			fn(image.ID, imageInspect)
 		}
-		return nil
+	case "container":
+		containers, err := c.client.ContainerList(ctx, types.ContainerListOptions{All: true})
+		if err != nil {
+			return err
+		}
+		for _, container := range containers {
+			containerInspect, err := c.client.ContainerInspect(ctx, container.ID)
+			if err != nil {
+				log.Errorf("failed to inspect container %s", container.ID)
+			}
+			fn(container.ID, containerInspect)
+		}
+	case "network":
+		networks, err := c.client.NetworkList(ctx, types.NetworkListOptions{})
+		if err != nil {
+			return err
+		}
+		for _, network := range networks {
+			fn(network.ID, network)
+		}
+	default:
+		return ErrDockerKindNotSupported
 	}
-	return ErrDockerKindNotSupported
+	return nil
 }
 
 func (c *dockerCheck) Run() error {
@@ -66,13 +93,13 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 
 	for _, f := range c.dockerResource.Filter {
 		if f.Include != nil {
-			eval, err := evalTemplate(f.Include.Exists, obj)
-			if err != nil || eval == "" {
+			prop := evalTemplate(f.Include.Property, obj)
+			if !evalCondition(prop, f.Include) {
 				return
 			}
 		} else if f.Exclude != nil {
-			eval, err := evalTemplate(f.Exclude.Exists, obj)
-			if err == nil && eval != "" {
+			prop := evalTemplate(f.Exclude.Property, obj)
+			if evalCondition(prop, f.Exclude) {
 				return
 			}
 		}
@@ -85,14 +112,24 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 
 		if field.Value != "" {
 			if key == "" {
-				// TODO: erorr here
+				// TODO: error here
+				continue
 			}
 
 			kv[key] = field.Value
 			continue
 		}
 
-		if field.Attribute == "id" {
+		if field.Kind == compliance.PropertyKindTemplate {
+			if key == "" {
+				// TODO: error here
+				continue
+			}
+			value := evalTemplate(field.Property, obj)
+			kv[key] = value
+		}
+
+		if field.Property == "id" {
 			if key == "" {
 				key = "id"
 			}
@@ -104,15 +141,29 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 	c.report(nil, kv)
 }
 
-func evalTemplate(s string, obj interface{}) (string, error) {
+func evalCondition(property string, condition *compliance.GenericCondition) bool {
+	switch condition.Operation {
+	case compliance.OpExists, "":
+		return property != ""
+
+	case compliance.OpEqual:
+		return property == condition.Value
+	default:
+		log.Warnf("unsupported operation in condition: %s", condition.Operation)
+		return false
+	}
+}
+
+func evalTemplate(s string, obj interface{}) string {
 	tmpl, err := template.New("tmpl").Parse(s)
 	if err != nil {
-		return "", err
+		log.Warn("failed to parse template")
+		return ""
 	}
 
 	b := &strings.Builder{}
 	if err := tmpl.Execute(b, obj); err != nil {
-		return "", err
+		return ""
 	}
-	return b.String(), nil
+	return b.String()
 }

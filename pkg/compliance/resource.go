@@ -102,14 +102,19 @@ type ValueFromProcess struct {
 // Report defines a set of reported fields which are sent in a RuleEvent
 type Report []ReportedField
 
+const (
+	PropertyKindAttribute = "attribute"
+	PropertyKindJSONPath  = "jsonpath"
+	PropertyKindFlag      = "flag"
+	PropertyKindTemplate  = "template"
+)
+
 // ReportedField defines options for reporting various attributes of observed resources
 type ReportedField struct {
-	Attribute string `yaml:"attribute,omitempty"`
-	Name      string `yaml:"name,omitempty"`
-	JSONPath  string `yaml:"jsonpath,omitempty"`
-	Var       string `yaml:"var,omitempty"`
-	As        string `yaml:"as,omitempty"`
-	Value     string `yaml:"value,omitempty"`
+	Property string `yaml:"property,omitempty"`
+	Kind     string `yaml:"kind,omitempty"`
+	As       string `yaml:"as,omitempty"`
+	Value    string `yaml:"value,omitempty"`
 }
 
 // FileFilter specifies filtering options for including or excluding a File from reporting
@@ -120,8 +125,7 @@ type FileFilter struct {
 
 // FileCondition specifies a condition to include or exclude a File from reporting
 type FileCondition struct {
-	Owner          string `yaml:"owner,omitempty"`
-	MostPermissive bool   `yaml:"mostPermissive"`
+	Owner string `yaml:"owner,omitempty"`
 }
 
 // CommandFilter specifies filtering options to include or exclude a Command from reporting
@@ -137,13 +141,20 @@ type CommandCondition struct {
 
 // DockerFilter specifies filtering options to include or exclude a Docker resource from reporting
 type DockerFilter struct {
-	Include *DockerCondition `yaml:"include,omitempty"`
-	Exclude *DockerCondition `yaml:"exclude,omitempty"`
+	Include *GenericCondition `yaml:"include,omitempty"`
+	Exclude *GenericCondition `yaml:"exclude,omitempty"`
 }
 
-// DockerCondition specifies filtering conditions for Docker resources
-type DockerCondition struct {
-	Exists string `yaml:"exists,omitempty"`
+const (
+	OpExists = "exists"
+	OpEqual  = "equal"
+)
+
+type GenericCondition struct {
+	Operation string `yaml:"op,omitempty"`
+	Property  string `yaml:"property,omitempty"`
+	Kind      string `yaml:"kind,omitempty"`
+	Value     string `yaml:"value,omitempty"`
 }
 
 // APIVars defines a list of variables substituted in generic API resource endpoint queries

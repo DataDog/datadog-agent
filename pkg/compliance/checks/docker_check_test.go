@@ -84,15 +84,16 @@ func TestDockerImageCheck(t *testing.T) {
 
 		Filter: []compliance.DockerFilter{
 			{
-				Exclude: &compliance.DockerCondition{
-					Exists: "{{- $.Config.Healthcheck.Test -}}",
+				Exclude: &compliance.GenericCondition{
+					Property:  "{{- $.Config.Healthcheck.Test -}}",
+					Operation: compliance.OpExists,
 				},
 			},
 		},
 		Report: compliance.Report{
 			{
-				Attribute: "id",
-				As:        "image_id",
+				Property: "id",
+				As:       "image_id",
 			},
 			{
 				Value: "true",
@@ -140,6 +141,65 @@ func TestDockerImageCheck(t *testing.T) {
 			),
 		).Once()
 	}
+
+	dockerCheck := dockerCheck{
+		baseCheck:      newTestBaseCheck(reporter),
+		client:         client,
+		dockerResource: resource,
+	}
+
+	err := dockerCheck.Run()
+	assert.NoError(err)
+}
+
+func TestDockerNetworkCheck(t *testing.T) {
+	assert := assert.New(t)
+
+	resource := &compliance.DockerResource{
+		Kind: "network",
+
+		Filter: []compliance.DockerFilter{
+			{
+				Include: &compliance.GenericCondition{
+					Property:  `{{- index $.Options "com.docker.network.bridge.default_bridge" -}}`,
+					Operation: compliance.OpEqual,
+					Value:     "true",
+				},
+			},
+		},
+		Report: compliance.Report{
+			{
+				Property: "id",
+				As:       "network_id",
+			},
+			{
+				Property: `{{- index $.Options "com.docker.network.bridge.enable_icc" }}`,
+				Kind:     "template",
+				As:       "default_bridge_traffic_restricted",
+			},
+		},
+	}
+
+	client := &MockDockerClient{}
+	defer client.AssertExpectations(t)
+
+	var networks []types.NetworkResource
+	assert.NoError(loadTestJSON("./testdata/docker/network-list.json", &networks))
+	client.On("NetworkList", mockCtx, types.NetworkListOptions{}).Return(networks, nil)
+
+	reporter := &compliance.MockReporter{}
+	defer reporter.AssertExpectations(t)
+
+	reporter.On(
+		"Report",
+		newTestRuleEvent(
+			nil,
+			compliance.KV{
+				"network_id":                        "e7ed6c335383178f99b61a8a44b82b62abc17b31d68b792180728bf8f2c599ec",
+				"default_bridge_traffic_restricted": "true",
+			},
+		),
+	).Once()
 
 	dockerCheck := dockerCheck{
 		baseCheck:      newTestBaseCheck(reporter),

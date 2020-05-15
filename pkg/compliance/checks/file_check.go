@@ -37,7 +37,7 @@ func (c *fileCheck) reportFile(filePath string) error {
 	}
 
 	for _, field := range c.File.Report {
-		if field.Attribute == "permissions" {
+		if field.Property == "permissions" {
 			kv["permissions"] = fmt.Sprintf("%3o", fi.Mode()&os.ModePerm)
 		}
 	}

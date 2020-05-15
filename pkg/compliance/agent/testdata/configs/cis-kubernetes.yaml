@@ -11,4 +11,5 @@ rules:
   - file:
       path: ./testdata/kube-apiserver.yaml
       report:
-      - attribute: permissions
+      - property: permissions
+        kind: attribute
