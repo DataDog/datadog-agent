@@ -2,21 +2,31 @@ package main
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	_ "net/http/pprof"
+
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	_ "net/http/pprof"
 )
+
+// All System Probe modules should register their factories here
+var factories = []api.Factory{
+	modules.NetworkTracer,
+	modules.TCPQueueLength,
+}
 
 // Flag values
 var opts struct {
@@ -24,9 +34,6 @@ var opts struct {
 	pidFilePath string
 	debug       bool
 	version     bool
-	checkCmd    *flag.FlagSet
-	checkType   string
-	checkClient string
 }
 
 // Version info sourced from build flags
@@ -74,9 +81,6 @@ func runAgent() {
 		gracefulExit()
 	}
 
-	// Check if socket is available on unix, or Pipe is available on windows
-	runCheck(cfg)
-
 	log.Infof("running system-probe with version: %s", versionString(", "))
 
 	// configure statsd
@@ -85,19 +89,47 @@ func runAgent() {
 		cleanupAndExit(1)
 	}
 
-	sysprobe, err := CreateSystemProbe(cfg)
-	if err != nil && strings.HasPrefix(err.Error(), ErrSysprobeUnsupported.Error()) {
+	// Setting up the unix socket
+	conn, err := net.NewListener(cfg)
+	if err != nil {
+		log.Criticalf("Error creating unix socket: %s", err)
+		cleanupAndExit(1)
+	}
+
+	loader := NewLoader()
+	httpMux := http.NewServeMux()
+
+	err = loader.Register(cfg, httpMux, factories)
+	if err != nil && strings.HasPrefix(err.Error(), modules.ErrSysprobeUnsupported.Error()) {
 		// If tracer is unsupported by this operating system, then exit gracefully
 		log.Infof("%s, exiting.", err)
 		gracefulExit()
-	} else if err != nil {
+	}
+	if err != nil {
 		log.Criticalf("failed to create system probe: %s", err)
 		cleanupAndExit(1)
 	}
-	defer sysprobe.Close()
+	defer loader.Close()
 
-	go sysprobe.Run()
+	// Register stats endpoint
+	httpMux.HandleFunc("/debug/stats", func(w http.ResponseWriter, req *http.Request) {
+		stats := loader.GetStats()
+		utils.WriteAsJSON(w, stats)
+	})
+
+	http.Serve(conn.GetListener(), httpMux) //nolint:errcheck
 	log.Infof("system probe successfully started")
+
+	go func() {
+		tags := []string{
+			fmt.Sprintf("version:%s", Version),
+			fmt.Sprintf("revision:%s", GitCommit),
+		}
+		heartbeat := time.NewTicker(15 * time.Second)
+		for range heartbeat.C {
+			statsd.Client.Gauge("datadog.system_probe.agent", 1, tags, 1) //nolint:errcheck
+		}
+	}()
 
 	// Handles signals, which tells us whether we should exit.
 	e := make(chan struct{})
