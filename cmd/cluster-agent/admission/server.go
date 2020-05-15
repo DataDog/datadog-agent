@@ -121,7 +121,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionF
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
-				Allowed: false,
+				Allowed: true, // do not block resources creation in case of mutation failure
 			},
 		}
 	} else {

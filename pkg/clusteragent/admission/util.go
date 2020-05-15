@@ -19,8 +19,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const admissionEnabledLabelKey = "admission.datadoghq.com/enabled"
-
 // generateWebhooks returns mutating webhooks based on the configuration
 func generateWebhooks() []admiv1beta1.MutatingWebhook {
 	webhooks := []admiv1beta1.MutatingWebhook{}
@@ -33,7 +31,7 @@ func generateWebhooks() []admiv1beta1.MutatingWebhook {
 			webhook.ObjectSelector = &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
-						Key:      admissionEnabledLabelKey,
+						Key:      EnabledLabelKey,
 						Operator: metav1.LabelSelectorOpNotIn,
 						Values:   []string{"false"},
 					},
@@ -43,7 +41,7 @@ func generateWebhooks() []admiv1beta1.MutatingWebhook {
 			// Ignore all, accept pods if they're explicitly whitelisted
 			webhook.ObjectSelector = &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					admissionEnabledLabelKey: "true",
+					EnabledLabelKey: "true",
 				},
 			}
 		}
