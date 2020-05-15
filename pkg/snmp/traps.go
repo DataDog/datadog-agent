@@ -18,7 +18,7 @@ type TrapServer struct {
 // NewTrapServer returns a running SNMP traps server.
 func NewTrapServer() (*TrapServer, error) {
 	c := TrapConfig{
-		Host:      config.Datadog.GetString("bind_host"),
+		BindHost:  config.Datadog.GetString("bind_host"),
 		Port:      1620,
 		Version:   "2",
 		Community: "public",
@@ -50,7 +50,7 @@ func (s *TrapServer) handleTrapPacket(packet *gosnmp.SnmpPacket, addr *net.UDPAd
 
 // Run the traps intake loop. Should be run in its own goroutine.
 func (s *TrapServer) listenForTraps() {
-	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
+	addr := fmt.Sprintf("%s:%d", s.config.BindHost, s.config.Port)
 	log.Infof("snmp-traps: starting to listen on %s", addr)
 
 	err := s.listener.Listen(addr)

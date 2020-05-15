@@ -447,8 +447,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 10)
 
 	// SNMP
-	// FIXME: should default to `false`, but can't figure out yet how to make the locally built Agent read my config file.
-	config.BindEnvAndSetDefault("snmp_traps_enabled", true)
+	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")

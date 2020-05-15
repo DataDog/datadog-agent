@@ -10,7 +10,7 @@ import (
 
 // TrapConfig contains configuration for SNMP traps listeners.
 type TrapConfig struct {
-	Host            string
+	BindHost        string
 	Port            uint16
 	Version         string
 	Timeout         int
