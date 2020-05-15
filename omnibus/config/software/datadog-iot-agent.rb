@@ -35,8 +35,7 @@ build do
 
   if linux?
     command "invoke agent.build --iot --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
-    copy('bin', install_dir)
-
+    mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
 
 
@@ -47,6 +46,7 @@ build do
 
     move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
     move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
+    copy 'bin/agent', "#{install_dir}/bin/"
 
     # Upstart
     if debian?
