@@ -3110,6 +3110,9 @@ deploy_staging_deb-7:
   dependencies:
     - agent_deb-x64-a7
     - agent_deb-arm-a7
+    - iot_agent_deb-x64
+    - iot_agent_deb-arm64
+    - dogstatsd_deb-x64
   script:
     # We first check that the current version hasn't already been deployed
     # (same as the check_already_deployed_version). We do this twice to mitigate
@@ -3308,6 +3311,9 @@ deploy_staging_rpm-7:
   dependencies:
     - agent_rpm-x64-a7
     - agent_rpm-arm-a7
+    - iot_agent_rpm-x64
+    - iot_agent_rpm-arm64
+    - dogstatsd_rpm-x64
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
@@ -3361,6 +3367,7 @@ deploy_staging_suse_rpm-7:
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_suse-x64-a7
+    - dogstatsd_suse-x64
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
