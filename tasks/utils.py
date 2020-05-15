@@ -61,7 +61,7 @@ def get_win_py_runtime_var(python_runtimes):
 
 def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
                     rtloader_root=None, python_home_2=None, python_home_3=None,
-                    major_version='7', python_runtimes='3', arch="x64", agent_flavor="datadog-agent"):
+                    major_version='7', python_runtimes='3', arch="x64", agent_flavor="agent"):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
 

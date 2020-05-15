@@ -99,7 +99,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    agent_flavor = "datadog-iot-agent" if iot else "datadog-agent"
+    agent_flavor = "iot_agent" if iot else "agent"
 
     ldflags, gcflags, env = get_build_flags(ctx, embedded_path=embedded_path,
             rtloader_root=rtloader_root, python_home_2=python_home_2, python_home_3=python_home_3,
