@@ -24,7 +24,7 @@ spec:
       imagePullSecrets: null
       containers:
       - name: agent
-        image: "datadog/agent:7"
+        image: "datadog/agent:7.19.0"
         imagePullPolicy: IfNotPresent
         env:
         - name: DD_API_KEY
