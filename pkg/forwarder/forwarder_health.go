@@ -55,6 +55,7 @@ type forwarderHealth struct {
 	keysPerDomains        map[string][]string
 	keysPerAPIEndpoint    map[string][]string
 	disableAPIKeyChecking bool
+	validationInterval    time.Duration
 }
 
 func (fh *forwarderHealth) init() {
@@ -100,7 +101,7 @@ func (fh *forwarderHealth) Stop() {
 func (fh *forwarderHealth) healthCheckLoop() {
 	log.Debug("Waiting for APIkey validity to be confirmed.")
 
-	validateTicker := time.NewTicker(time.Hour * 1)
+	validateTicker := time.NewTicker(fh.validationInterval)
 	defer validateTicker.Stop()
 	defer close(fh.stopped)
 
@@ -205,7 +206,7 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 				log.Debugf("api_key '%s' for domain %s is valid", apiKey, domain)
 				validKey = true
 			} else {
-				log.Debugf("api_key '%s' for domain %s is invalid", apiKey, domain)
+				log.Warnf("api_key '%s' for domain %s is invalid", apiKey, domain)
 			}
 		}
 	}

@@ -157,21 +157,33 @@ var _ Forwarder = &DefaultForwarder{}
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
-	NumberOfWorkers         int
-	RetryQueueSize          int
-	DisableAPIKeyChecking   bool
-	KeysPerDomain           map[string][]string
-	ConnectionResetInterval time.Duration
+	NumberOfWorkers          int
+	RetryQueueSize           int
+	DisableAPIKeyChecking    bool
+	APIKeyValidationInterval time.Duration
+	KeysPerDomain            map[string][]string
+	ConnectionResetInterval  time.Duration
 }
 
 // NewOptions creates new Options with default values
 func NewOptions(keysPerDomain map[string][]string) *Options {
+	validationInterval := config.Datadog.GetInt("forwarder_apikey_validation_interval")
+	if validationInterval <= 0 {
+		log.Warnf(
+			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
+			validationInterval,
+			config.DefaultAPIKeyValidationInterval,
+		)
+		validationInterval = config.DefaultAPIKeyValidationInterval
+	}
+
 	return &Options{
-		NumberOfWorkers:         config.Datadog.GetInt("forwarder_num_workers"),
-		RetryQueueSize:          config.Datadog.GetInt("forwarder_retry_queue_max_size"),
-		DisableAPIKeyChecking:   false,
-		KeysPerDomain:           keysPerDomain,
-		ConnectionResetInterval: time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
+		NumberOfWorkers:          config.Datadog.GetInt("forwarder_num_workers"),
+		RetryQueueSize:           config.Datadog.GetInt("forwarder_retry_queue_max_size"),
+		DisableAPIKeyChecking:    false,
+		APIKeyValidationInterval: time.Duration(validationInterval) * time.Minute,
+		KeysPerDomain:            keysPerDomain,
+		ConnectionResetInterval:  time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
 	}
 }
 
@@ -197,6 +209,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		healthChecker: &forwarderHealth{
 			keysPerDomains:        options.KeysPerDomain,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
+			validationInterval:    options.APIKeyValidationInterval,
 		},
 	}
 
