@@ -667,17 +667,18 @@ shared_examples_for 'an Agent that is removed' do
   if os == :windows
     it 'should not make changes to system files' do
       exclude = [
-        #    'C:/Windows/Temp/',
-        #    'C:/Windows/Prefetch/',
-        #    'C:/Windows/Installer/',
-        #    'C:/Windows/WinSxS/',
-        #    'C:/Windows/Logs/',
-        #    'C:/Windows/servicing/',
-        #    'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
-        #    'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
-        #    'C:/Windows/SoftwareDistribution/DataStore/Logs/',
-        #    'C:/Windows/System32/wbem/Performance/',
-        #    'c:/windows/System32/LogFiles/'
+            'C:/Windows/Temp/',
+            'C:/Windows/Prefetch/',
+            'C:/Windows/Installer/',
+            'C:/Windows/WinSxS/',
+            'C:/Windows/Logs/',
+            'C:/Windows/servicing/',
+            'c:/windows/System32/config/',
+            'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
+            'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
+            'C:/Windows/SoftwareDistribution/DataStore/Logs/',
+            'C:/Windows/System32/wbem/Performance/',
+            'c:/windows/System32/LogFiles/'
       ].each { |e| e.downcase! }
 
       # We don't really need to create this file since we consume it right afterwards, but it's useful for debugging
