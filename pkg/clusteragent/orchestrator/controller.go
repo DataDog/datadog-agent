@@ -163,7 +163,7 @@ func (o *Controller) Run(stopCh <-chan struct{}) {
 }
 
 func (o *Controller) processDeploys() {
-	if !o.IsLeaderFunc() {
+	if !o.isLeaderFunc() {
 		return
 	}
 
@@ -183,7 +183,7 @@ func (o *Controller) processDeploys() {
 }
 
 func (o *Controller) processReplicasets() {
-	if !o.IsLeaderFunc() {
+	if !o.isLeaderFunc() {
 		return
 	}
 

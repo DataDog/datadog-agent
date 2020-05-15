@@ -35,7 +35,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 			continue
 		}
 		var jsonObj interface{}
-		yaml.Unmarshal(jsonDeploy, &jsonObj)
+		_ = yaml.Unmarshal(jsonDeploy, &jsonObj)
 		yamlDeploy, _ := yaml.Marshal(jsonObj)
 		deployModel.Yaml = yamlDeploy
 
@@ -90,13 +90,13 @@ func processReplicasetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.A
 
 		// k8s objects only have json "omitempty" annotations
 		// we're doing json<>yaml to get rid of the null properties
-		jsonDeploy, err := jsoniter.Marshal(rsList[d])
+		jsonRs, err := jsoniter.Marshal(rsList[d])
 		if err != nil {
 			log.Debugf("Could not marshal replica set in JSON: %s", err)
 			continue
 		}
 		var jsonObj interface{}
-		yaml.Unmarshal(jsonDeploy, &jsonObj)
+		_ = yaml.Unmarshal(jsonRs, &jsonObj)
 		yamlDeploy, _ := yaml.Marshal(jsonObj)
 		rsModel.Yaml = yamlDeploy
 
