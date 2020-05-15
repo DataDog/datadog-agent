@@ -43,6 +43,8 @@ func NewTrapServer() (*TrapServer, error) {
 
 func (s *TrapServer) startListeners() {
 	for _, l := range s.listeners {
+		// XXX: prevent the gotcha where the enclosed `l` would always refer to the last listener
+		// (i.e. the value of `l` when the goroutine starts executing).
 		l := l
 		go l.Listen()
 	}

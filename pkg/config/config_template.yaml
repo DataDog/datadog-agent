@@ -1553,8 +1553,42 @@ api_key:
 ########################
 
 ## @param snmp_traps_enabled - boolean - optional - default: false
-## Set this option to true to enable the Agent SNMP traps server.
+## Set this option to true to enable the SNMP traps server.
 #
 # snmp_traps_enabled: false
+
+## @param snmp_traps_listeners - list of objects - optional
+## Configure SNMP traps listeners. Each listener is associated to a port and a set of SNMP credentials.
+##
+## The following options are available for each listener:
+##
+## * port - integer - optional - default: 162
+##   The port to listen on for incoming trap packets.
+##   Devices should use this port when configuring the Agent as the traps destination.
+## * version - string - optional
+##   The SNMP version to use.
+##   One of: "1" (SNMPv1), "2c" (SNMPv2c), "3" (SNMPv3).
+##   Automatically set to "2c" if `community` is set.
+##   Automatically set to "3" if `user` is set.
+## * community - string - optional
+##   (v1/v2c only) The community string of the listener.
+##   Required if `user` is not set.
+## * user - string - optional
+##   (v3 only) Username of the user that is authorized to send traps to this listener.
+##   Required if `community` is not set.
+## * auth_password - string - optional - v3 only
+##   (v3 only) Authentication password of the user.
+##   Required if `priv_key` is set.
+## * auth_protocol - string - optional - default: "SHA"
+##   (v3 only) Authentication protocol to use.
+##   One of: "MD5", "SHA".
+## * priv_password - string - optional
+##   (v3 only) Privacy password of the user.
+## * priv_protocol - string - optional - default: "AES"
+##   (v3 only) Privacy protocol to use.
+##   One of: "DES", "AES".
+#
+# snmp_traps_listeners:
+#   - community: public
 
 {{end -}}
