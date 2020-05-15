@@ -1,4 +1,4 @@
-package snmp
+package traps
 
 import (
 	"errors"
@@ -8,25 +8,24 @@ import (
 	"github.com/soniah/gosnmp"
 )
 
-// TrapConfig contains configuration for SNMP traps listeners.
-type TrapConfig struct {
-	BindHost        string
-	Port            uint16
-	Version         string
-	Timeout         int
-	Retries         int
-	Community       string
-	User            string
-	AuthKey         string
-	AuthProtocol    string
-	PrivKey         string
-	PrivProtocol    string
-	ContextEngineID string
-	ContextName     string
+// TrapListenerConfig contains configuration for an SNMP trap listener.
+type TrapListenerConfig struct {
+	Port            uint16 `mapstructure:"port"`
+	Version         string `mapstructure:"version"`
+	Timeout         int    `mapstructure:"timeout"`
+	Retries         int    `mapstructure:"retries"`
+	Community       string `mapstructure:"community"`
+	User            string `mapstructure:"user"`
+	AuthKey         string `mapstructure:"auth_key"`
+	AuthProtocol    string `mapstructure:"auth_protocol"`
+	PrivKey         string `mapstructure:"privacy_key"`
+	PrivProtocol    string `mapstructure:"privacy_protocol"`
+	ContextEngineID string `mapstructure:"context_engine_id"`
+	ContextName     string `mapstructure:"context_name"`
 }
 
-// BuildParams returns a valid GoSNMP struct to start making queries
-func (c *TrapConfig) BuildParams() (*gosnmp.GoSNMP, error) {
+// BuildParams returns a valid GoSNMP params structure from a listener configuration.
+func (c *TrapListenerConfig) BuildParams() (*gosnmp.GoSNMP, error) {
 	port := c.Port
 	if port == 0 {
 		port = 162
@@ -44,7 +43,7 @@ func (c *TrapConfig) BuildParams() (*gosnmp.GoSNMP, error) {
 	} else if c.Version == "3" || (c.Version == "" && c.User != "") {
 		version = gosnmp.Version3
 	} else {
-		return nil, fmt.Errorf("SNMP version not supported: %s", c.Version)
+		return nil, fmt.Errorf("Unsupported SNMP version: %s", c.Version)
 	}
 
 	var authProtocol gosnmp.SnmpV3AuthProtocol
@@ -79,10 +78,10 @@ func (c *TrapConfig) BuildParams() (*gosnmp.GoSNMP, error) {
 		Version:         version,
 		Timeout:         time.Duration(c.Timeout) * time.Second,
 		Retries:         c.Retries,
-		SecurityModel:   gosnmp.UserSecurityModel,
 		MsgFlags:        msgFlags,
 		ContextEngineID: c.ContextEngineID,
 		ContextName:     c.ContextName,
+		SecurityModel:   gosnmp.UserSecurityModel,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{
 			UserName:                 c.User,
 			AuthenticationProtocol:   authProtocol,

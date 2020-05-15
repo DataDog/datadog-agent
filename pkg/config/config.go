@@ -448,6 +448,7 @@ func initConfig(config Config) {
 
 	// SNMP
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
+	config.SetKnown("snmp_traps_listeners")
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")

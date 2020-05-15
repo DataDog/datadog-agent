@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/snmp"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -265,11 +265,11 @@ func StartAgent() error {
 	}
 	log.Debugf("statsd started")
 
-	// Start snmp-related services
+	// Start SNMP-related services
 	if config.Datadog.GetBool("snmp_traps_enabled") {
-		common.TrapServer, err = snmp.NewTrapServer()
+		common.TrapServer, err = traps.NewTrapServer()
 		if err != nil {
-			log.Errorf("Could not start snmp_traps: %s", err)
+			log.Errorf("snmp-traps: failed to start server: %s", err)
 		}
 	}
 
