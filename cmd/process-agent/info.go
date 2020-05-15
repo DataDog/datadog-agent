@@ -19,18 +19,20 @@ import (
 )
 
 var (
-	infoMutex            sync.RWMutex
-	infoOnce             sync.Once
-	infoStart            = time.Now()
-	infoNotRunningTmpl   *template.Template
-	infoTmpl             *template.Template
-	infoErrorTmpl        *template.Template
-	infoDockerSocket     string
-	infoLastCollectTime  string
-	infoProcCount        int
-	infoContainerCount   int
-	infoProcessQueueSize int
-	infoPodQueueSize     int
+	infoMutex             sync.RWMutex
+	infoOnce              sync.Once
+	infoStart             = time.Now()
+	infoNotRunningTmpl    *template.Template
+	infoTmpl              *template.Template
+	infoErrorTmpl         *template.Template
+	infoDockerSocket      string
+	infoLastCollectTime   string
+	infoProcCount         int
+	infoContainerCount    int
+	infoProcessQueueSize  int
+	infoPodQueueSize      int
+	infoProcessQueueBytes int
+	infoPodQueueBytes     int
 )
 
 const (
@@ -49,6 +51,8 @@ const (
   Number of containers: {{.Status.ContainerCount}}
   Process Queue length: {{.Status.ProcessQueueSize}}
   Pod Queue length: {{.Status.PodQueueSize}}
+  Process Bytes enqueued: {{.Status.ProcessQueueBytes}}
+  Pod Bytes enqueued: {{.Status.PodQueueBytes}}
 
   Logs: {{.Status.Config.LogFile}}{{if .Status.ProxyURL}}
   HttpProxy: {{.Status.ProxyURL}}{{end}}{{if ne .Status.ContainerID ""}}
@@ -157,6 +161,25 @@ func publishPodQueueSize() interface{} {
 	return infoPodQueueSize
 }
 
+func updateQueueBytes(processQueueBytes, podQueueBytes int64) {
+	infoMutex.Lock()
+	defer infoMutex.Unlock()
+	infoProcessQueueBytes = int(processQueueBytes)
+	infoPodQueueBytes = int(podQueueBytes)
+}
+
+func publishProcessQueueBytes() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoProcessQueueBytes
+}
+
+func publishPodQueueBytes() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoPodQueueBytes
+}
+
 func publishContainerID() interface{} {
 	cgroupFile := "/proc/self/cgroup"
 	if !util.PathExists(cgroupFile) {
@@ -205,19 +228,21 @@ type infoVersion struct {
 
 // StatusInfo is a structure to get information from expvar and feed to template
 type StatusInfo struct {
-	Pid              int                    `json:"pid"`
-	Uptime           int                    `json:"uptime"`
-	MemStats         struct{ Alloc uint64 } `json:"memstats"`
-	Version          infoVersion            `json:"version"`
-	Config           config.AgentConfig     `json:"config"`
-	DockerSocket     string                 `json:"docker_socket"`
-	LastCollectTime  string                 `json:"last_collect_time"`
-	ProcessCount     int                    `json:"process_count"`
-	ContainerCount   int                    `json:"container_count"`
-	ProcessQueueSize int                    `json:"process_queue_size"`
-	PodQueueSize     int                    `json:"pod_queue_size"`
-	ContainerID      string                 `json:"container_id"`
-	ProxyURL         string                 `json:"proxy_url"`
+	Pid               int                    `json:"pid"`
+	Uptime            int                    `json:"uptime"`
+	MemStats          struct{ Alloc uint64 } `json:"memstats"`
+	Version           infoVersion            `json:"version"`
+	Config            config.AgentConfig     `json:"config"`
+	DockerSocket      string                 `json:"docker_socket"`
+	LastCollectTime   string                 `json:"last_collect_time"`
+	ProcessCount      int                    `json:"process_count"`
+	ContainerCount    int                    `json:"container_count"`
+	ProcessQueueSize  int                    `json:"process_queue_size"`
+	PodQueueSize      int                    `json:"pod_queue_size"`
+	ProcessQueueBytes int                    `json:"process_queue_bytes"`
+	PodQueueBytes     int                    `json:"pod_queue_bytes"`
+	ContainerID       string                 `json:"container_id"`
+	ProxyURL          string                 `json:"proxy_url"`
 }
 
 func initInfo(_ *config.AgentConfig) error {
@@ -241,6 +266,8 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("container_count", expvar.Func(publishContainerCount))
 		expvar.Publish("process_queue_size", expvar.Func(publishProcessQueueSize))
 		expvar.Publish("pod_queue_size", expvar.Func(publishPodQueueSize))
+		expvar.Publish("process_queue_bytes", expvar.Func(publishProcessQueueBytes))
+		expvar.Publish("pod_queue_bytes", expvar.Func(publishPodQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
