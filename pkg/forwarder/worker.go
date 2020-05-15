@@ -89,14 +89,7 @@ func (w *Worker) Start() {
 		defer close(w.stopped)
 
 		for {
-			// poll for connection reset events first
-			select {
-			case <-w.resetConnectionChan:
-				w.resetConnections()
-			default:
-			}
-
-			// handling high priority transactions before low priority ones
+			// handling high priority transactions first
 			select {
 			case t := <-w.HighPrio:
 				if w.callProcess(t) == nil {
@@ -109,8 +102,6 @@ func (w *Worker) Start() {
 			}
 
 			select {
-			case <-w.resetConnectionChan:
-				w.resetConnections()
 			case t := <-w.HighPrio:
 				if w.callProcess(t) != nil {
 					return
@@ -139,6 +130,13 @@ func (w *Worker) ScheduleConnectionReset() {
 // callProcess will process a transaction and cancel it if we need to stop the
 // worker.
 func (w *Worker) callProcess(t Transaction) error {
+	// poll for connection reset events first
+	select {
+	case <-w.resetConnectionChan:
+		w.resetConnections()
+	default:
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = httptrace.WithClientTrace(ctx, trace)
 	done := make(chan interface{})

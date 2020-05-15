@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -132,18 +131,9 @@ func TestWorkerResetConnections(t *testing.T) {
 	httpClientBefore := w.Client
 	w.ScheduleConnectionReset()
 
-	// Leave 2 seconds for the connection reset to complete
-	testutil.AssertTrueBeforeTimeout(
-		t,
-		10*time.Millisecond,
-		2*time.Second,
-		func() bool {
-			return w.Client != httpClientBefore
-		},
-	)
-
-	mock2 := newTestTransaction()
-	mock2.On("Process", w.Client).Return(nil).Times(1)
+	// tricky to test here that "Process" is called with a new http client
+	mock2 := newTestTransactionWithoutClientAssert()
+	mock2.On("Process").Return(nil).Times(1)
 	mock2.On("GetTarget").Return("").Times(1)
 	highPrio <- mock2
 	<-mock2.processed
@@ -151,6 +141,14 @@ func TestWorkerResetConnections(t *testing.T) {
 	mock2.AssertNumberOfCalls(t, "Process", 1)
 
 	assert.NotSame(t, httpClientBefore, w.Client)
+
+	mock3 := newTestTransaction()
+	mock3.On("Process", w.Client).Return(nil).Times(1)
+	mock3.On("GetTarget").Return("").Times(1)
+	highPrio <- mock3
+	<-mock3.processed
+	mock3.AssertExpectations(t)
+	mock3.AssertNumberOfCalls(t, "Process", 1)
 
 	w.Stop(false)
 }
