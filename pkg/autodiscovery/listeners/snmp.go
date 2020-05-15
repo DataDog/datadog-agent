@@ -111,12 +111,8 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	}
 }
 
-func (l *SNMPListener) writeCache(subnet *snmpSubnet, lock bool) {
-	if lock {
-		l.Lock()
-		defer l.Unlock()
-	}
-
+func (l *SNMPListener) writeCache(subnet *snmpSubnet) {
+	// We don't lock the subnet for now, because the listener ought to be already locked
 	devices := make([]string, 0, len(subnet.devices))
 	for _, v := range subnet.devices {
 		devices = append(devices, v)
@@ -255,7 +251,6 @@ func (l *SNMPListener) checkDevices() {
 				default:
 				}
 			}
-			l.writeCache(&subnet, true)
 		}
 
 		select {
@@ -283,7 +278,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 	subnet.devices[entityID] = deviceIP
 	subnet.deviceFailures[entityID] = 0
 	if writeCache {
-		l.writeCache(subnet, false)
+		l.writeCache(subnet)
 	}
 	l.newService <- svc
 }
@@ -305,7 +300,7 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 			l.delService <- svc
 			delete(l.services, entityID)
 			delete(subnet.devices, entityID)
-			l.writeCache(subnet, false)
+			l.writeCache(subnet)
 		}
 	}
 }
