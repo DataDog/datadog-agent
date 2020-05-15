@@ -9,13 +9,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var (
-	ErrUnnamedRule = errors.New("rule has no name")
-	ErrEmptyRule   = errors.New("rule has no expression")
-)
-
 type Section struct {
 	Type string
+}
+
+type MacroDefinition struct {
+	ID         string
+	Expression string
 }
 
 type RuleDefinition struct {
@@ -25,7 +25,8 @@ type RuleDefinition struct {
 }
 
 type Policy struct {
-	Rules []*RuleDefinition
+	Rules  []*RuleDefinition
+	Macros []*MacroDefinition
 }
 
 func LoadPolicy(r io.Reader) (*Policy, error) {
@@ -53,14 +54,32 @@ func LoadPolicy(r io.Reader) (*Policy, error) {
 				}
 
 				if ruleDef.ID == "" {
-					return nil, ErrUnnamedRule
+					return nil, errors.New("rule has no name")
 				}
 
 				if ruleDef.Expression == "" {
-					return nil, ErrEmptyRule
+					return nil, errors.New("rule has no expression")
 				}
 
 				policy.Rules = append(policy.Rules, ruleDef)
+
+			case "macro":
+				macroDef := &MacroDefinition{}
+
+				if err := mapstructure.Decode(value, macroDef); err != nil {
+					return nil, errors.Wrap(err, "invalid policy")
+				}
+
+				if macroDef.ID == "" {
+					return nil, errors.New("macro has no name")
+				}
+
+				if macroDef.Expression == "" {
+					return nil, errors.New("macro has no expression")
+				}
+
+				policy.Macros = append(policy.Macros, macroDef)
+
 			default:
 				return nil, fmt.Errorf("invalid policy item '%s'", key)
 			}
