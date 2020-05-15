@@ -10,8 +10,9 @@ import (
 
 // TrapListener receives traps over a socket connection and processes them.
 type TrapListener struct {
-	addr string
-	impl *gosnmp.TrapListener
+	addr   string
+	impl   *gosnmp.TrapListener
+	errors chan error
 }
 
 // NewTrapListener creates a configured trap listener.
@@ -27,9 +28,12 @@ func NewTrapListener(bindHost string, c TrapListenerConfig) (*TrapListener, erro
 	impl.Params = params
 	impl.OnNewTrap = handleTrap
 
+	errors := make(chan error, 1)
+
 	listener := &TrapListener{
-		addr: addr,
-		impl: impl,
+		addr:   addr,
+		impl:   impl,
+		errors: errors,
 	}
 
 	return listener, nil
@@ -44,15 +48,28 @@ func (ln *TrapListener) Listen() {
 	log.Infof("snmp-traps: starting to listen on %s", ln.addr)
 
 	err := ln.impl.Listen(ln.addr)
-
 	if err != nil {
-		log.Errorf("snmp-traps: error occurred while listening on %s: %s", ln.addr, err)
+		ln.errors <- err
 	}
+}
+
+// WaitReadyOrError blocks until the listener is ready to receive incoming packets, or an error occurred.
+func (ln *TrapListener) WaitReadyOrError() error {
+	ready := ln.impl.Listening()
+
+	select {
+	case <-ready:
+		break
+	case err := <-ln.errors:
+		close(ln.errors)
+		return err
+	}
+
+	return nil
 }
 
 // Stop stops accepting incoming packets and closes the socket connection.
 func (ln *TrapListener) Stop() {
-	log.Infof("snmp-traps: stopping %s", ln.addr)
-	// FIXME consider the case when an error occurred while listening (the socket may already be closed).
+	log.Debugf("snmp-traps: stopping %s", ln.addr)
 	ln.impl.Close()
 }
