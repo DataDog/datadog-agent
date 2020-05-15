@@ -305,42 +305,52 @@ def finish(
     if not integration_version:
         integration_version = _get_highest_repo_version(github_token, "integrations-core", highest_version, version_re)
         if integration_version is None:
-            print("EREROR: No version found for integrationscore - did you create the tag ?")
+            print("ERROR: No version found for integrations-core - did you create the tag?")
             return Exit(code=1)
         if integration_version["rc"] != None:
-            print("ERROR: Integration-Core tag is still an RC tag. That's probably NOT what you want in the final artifact.")
+            print("ERROR: integrations-core tag is still an RC tag. That's probably NOT what you want in the final artifact.")
             if ignore_rc_tag:
-                print("Continuing with RC tag on Integration-Core.")
+                print("Continuing with RC tag on integrations-core.")
             else:
                 print("Aborting.")
                 return Exit(code=1)
         integration_version = _stringify_version(integration_version)
-    print("Integration-Core's tag is {}".format(integration_version))
+    print("integrations-core's tag is {}".format(integration_version))
 
     if not omnibus_software_version:
         omnibus_software_version = _get_highest_repo_version(github_token, "omnibus-software", highest_version, version_re)
         if omnibus_software_version is None:
-            print("EREROR: No version found for omnibus-software - did you create the tag ?")
+            print("ERROR: No version found for omnibus-software - did you create the tag?")
             return Exit(code=1)
         if omnibus_software_version["rc"] != None:
-            print("ERROR: Omnibus-Software tag is still an RC tag. That's probably NOT what you want in the final artifact.")
+            print("ERROR: omnibus-software tag is still an RC tag. That's probably NOT what you want in the final artifact.")
             if ignore_rc_tag:
-                print("Continuing with RC tag on Omnibus-Software.")
+                print("Continuing with RC tag on omnibus-software.")
             else:
                 print("Aborting.")
                 return Exit(code=1)
         omnibus_software_version = _stringify_version(omnibus_software_version)
-    print("Omnibus-Software's tag is {}".format(omnibus_software_version))
+    print("omnibus-software's tag is {}".format(omnibus_software_version))
 
     if not jmxfetch_version:
         jmxfetch_version = _get_highest_repo_version(github_token, "jmxfetch", highest_jmxfetch_version, version_re)
         jmxfetch_version = _stringify_version(jmxfetch_version)
-    print("Jmxfetch's tag is {}".format(jmxfetch_version))
+    print("jmxfetch's tag is {}".format(jmxfetch_version))
 
     if not omnibus_ruby_version:
-        print("ERROR: No omnibus_ruby_version found. Please specify it manually via '--omnibus-ruby-version' until we start tagging omnibus-ruby builds.")
-        return Exit(code=1)
-
+        omnibus_ruby_version = _get_highest_repo_version(github_token, "omnibus-ruby", highest_version, version_re)
+        if omnibus_ruby_version is None:
+            print("ERROR: No version found for omnibus-ruby - did you create the tag?")
+            return Exit(code=1)
+        if omnibus_ruby_version["rc"] != None:
+            print("ERROR: omnibus-ruby tag is still an RC tag. That's probably NOT what you want in the final artifact.")
+            if ignore_rc_tag:
+                print("Continuing with RC tag on omnibus-ruby.")
+            else:
+                print("Aborting.")
+                return Exit(code=1)
+        omnibus_ruby_version = _stringify_version(omnibus_ruby_version)
+    print("omnibus-ruby's tag is {}".format(omnibus_ruby_version))
 
     _save_release_json(
         release_json,
@@ -406,21 +416,22 @@ def create_rc(
     if not integration_version:
         integration_version = _get_highest_repo_version(github_token, "integrations-core", highest_version, version_re)
         integration_version = _stringify_version(integration_version)
-    print("Integration-Core's tag is {}".format(integration_version))
+    print("integrations-core's tag is {}".format(integration_version))
 
     if not omnibus_software_version:
         omnibus_software_version = _get_highest_repo_version(github_token, "omnibus-software", highest_version, version_re)
         omnibus_software_version = _stringify_version(omnibus_software_version)
-    print("Omnibus-Software's tag is {}".format(omnibus_software_version))
+    print("omnibus-software's tag is {}".format(omnibus_software_version))
 
     if not jmxfetch_version:
         jmxfetch_version = _get_highest_repo_version(github_token, "jmxfetch", highest_jmxfetch_version, version_re)
         jmxfetch_version = _stringify_version(jmxfetch_version)
-    print("Jmxfetch's tag is {}".format(jmxfetch_version))
+    print("jmxfetch's tag is {}".format(jmxfetch_version))
 
     if not omnibus_ruby_version:
-        print("ERROR: No omnibus_ruby_version found. Please specify it manually via '--omnibus-ruby-version' until we start tagging omnibus-ruby builds.")
-        return Exit(code=1)
+        omnibus_ruby_version = _get_highest_repo_version(github_token, "omnibus-ruby", highest_version, version_re)
+        omnibus_ruby_version = _stringify_version(omnibus_ruby_version)
+    print("omnibus-ruby's tag is {}".format(omnibus_ruby_version))
 
     _save_release_json(
         release_json,
