@@ -46,10 +46,8 @@ func TestReportIOMetrics(t *testing.T) {
 			"sdb": 0,
 		},
 	}
-	sdaTags := append(tags, "device:sda")
-	sdaTags = append(tags, "device_name:sda")
-	sdbTags := append(tags, "device:sdb")
-	sdbTags = append(tags, "device_name:sdb")
+	sdaTags := append(tags, "device:sda", "device_name:sda")
+	sdbTags := append(tags, "device:sdb", "device_name:sdb")
 	dockerCheck.reportIOMetrics(ioPerDevice, tags, mockSender)
 	mockSender.AssertMetric(t, "Rate", "docker.io.read_bytes", float64(37858816), "", sdaTags)
 	mockSender.AssertMetric(t, "Rate", "docker.io.write_bytes", float64(671846400), "", sdaTags)
