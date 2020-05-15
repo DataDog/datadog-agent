@@ -62,7 +62,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
 
             if command -v dpkg >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1; then
                 tool=dpkg
-                tool_version=dpkg-$(dpkg-query --showformat='${Version}' --show dpkg || echo "unknown")
+                tool_version=dpkg-$(dpkg-query --showformat='${Version}' --show dpkg  | cut -d "." -f 1-3 || echo "unknown")
             else
                 tool=unknown
                 tool_version=unknown
