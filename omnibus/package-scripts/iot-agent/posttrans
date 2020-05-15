@@ -43,6 +43,7 @@ install_method:
   installer_version: rpm_package-iot
 "
     echo "$install_info_content" > $CONFIG_DIR/install_info
+    chown -R dd-agent:dd-agent ${CONFIG_DIR}
 fi
 
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
