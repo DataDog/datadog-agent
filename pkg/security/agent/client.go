@@ -41,12 +41,12 @@ func (c *EventClient) Start() {
 
 	c.running.Store(true)
 	for c.running.Load() == true {
-		for {
-			stream, err := apiClient.GetEvents(context.Background(), &api.GetParams{})
-			if err != nil {
-				panic(err)
-			}
+		stream, err := apiClient.GetEvents(context.Background(), &api.GetParams{})
+		if err != nil {
+			panic(err)
+		}
 
+		for {
 			in, err := stream.Recv()
 			if err == io.EOF || in == nil {
 				break
