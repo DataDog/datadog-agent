@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/types"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -376,21 +377,25 @@ func (m *Model) GetEventType(key string) (string, error) {
 		panic(err)
 	}
 
-	outputFile, err := os.Create(output)
+	tmpfile, err := ioutil.TempFile("", "accessors")
 	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := tmpl.Execute(tmpfile, module); err != nil {
 		panic(err)
 	}
 
-	if err := tmpl.Execute(outputFile, module); err != nil {
+	if err := tmpfile.Close(); err != nil {
 		panic(err)
 	}
 
-	if err := outputFile.Close(); err != nil {
-		panic(err)
-	}
-
-	cmd := exec.Command("gofmt", "-s", "-w", output)
+	cmd := exec.Command("gofmt", "-s", "-w", tmpfile.Name())
 	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
+
+	if err := os.Rename(tmpfile.Name(), output); err != nil {
 		panic(err)
 	}
 }
