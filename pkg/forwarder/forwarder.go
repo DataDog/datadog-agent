@@ -24,6 +24,7 @@ import (
 
 var (
 	forwarderExpvars              = expvar.NewMap("forwarder")
+	connectionEvents              = expvar.Map{}
 	transactionsExpvars           = expvar.Map{}
 	transactionsSeries            = expvar.Int{}
 	transactionsEvents            = expvar.Int{}
@@ -67,7 +68,9 @@ var (
 
 func init() {
 	transactionsExpvars.Init()
+	connectionEvents.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
+	forwarderExpvars.Set("ConnectionEvents", &connectionEvents)
 	transactionsExpvars.Set("Series", &transactionsSeries)
 	transactionsExpvars.Set("Events", &transactionsEvents)
 	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
@@ -154,19 +157,21 @@ var _ Forwarder = &DefaultForwarder{}
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
-	NumberOfWorkers       int
-	RetryQueueSize        int
-	DisableAPIKeyChecking bool
-	KeysPerDomain         map[string][]string
+	NumberOfWorkers         int
+	RetryQueueSize          int
+	DisableAPIKeyChecking   bool
+	KeysPerDomain           map[string][]string
+	ConnectionResetInterval time.Duration
 }
 
 // NewOptions creates new Options with default values
 func NewOptions(keysPerDomain map[string][]string) *Options {
 	return &Options{
-		NumberOfWorkers:       config.Datadog.GetInt("forwarder_num_workers"),
-		RetryQueueSize:        config.Datadog.GetInt("forwarder_retry_queue_max_size"),
-		DisableAPIKeyChecking: false,
-		KeysPerDomain:         keysPerDomain,
+		NumberOfWorkers:         config.Datadog.GetInt("forwarder_num_workers"),
+		RetryQueueSize:          config.Datadog.GetInt("forwarder_retry_queue_max_size"),
+		DisableAPIKeyChecking:   false,
+		KeysPerDomain:           keysPerDomain,
+		ConnectionResetInterval: time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
 	}
 }
 
@@ -201,7 +206,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize)
+			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize, options.ConnectionResetInterval)
 		}
 	}
 
