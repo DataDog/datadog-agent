@@ -238,7 +238,7 @@ docker:
 
   report:
   - attribute: id
-	as: image_id
+    as: image_id
 
   - as: image_healthcheck_missing
     value: true
