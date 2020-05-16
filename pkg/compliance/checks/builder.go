@@ -22,17 +22,22 @@ type Builder interface {
 	CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error)
 }
 
+type BuilderEnv struct {
+	Reporter     compliance.Reporter
+	DockerClient DockerClient
+}
+
 // NewBuilder constructs a check builder
-func NewBuilder(checkInterval time.Duration, reporter compliance.Reporter) Builder {
+func NewBuilder(checkInterval time.Duration, env BuilderEnv) Builder {
 	return &builder{
 		checkInterval: checkInterval,
-		reporter:      reporter,
+		env:           env,
 	}
 }
 
 type builder struct {
 	checkInterval time.Duration
-	reporter      compliance.Reporter
+	env           BuilderEnv
 }
 
 func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
@@ -70,6 +75,7 @@ func (b *builder) dockerCheck(meta *compliance.SuiteMeta, ruleID string, dockerR
 	return &dockerCheck{
 		baseCheck:      b.baseCheck(ruleID, meta),
 		dockerResource: dockerResource,
+		client:         b.env.DockerClient,
 	}, nil
 }
 
@@ -77,7 +83,7 @@ func (b *builder) baseCheck(ruleID string, meta *compliance.SuiteMeta) baseCheck
 	return baseCheck{
 		id:        check.ID(ruleID),
 		interval:  b.checkInterval,
-		reporter:  b.reporter,
+		reporter:  b.env.Reporter,
 		framework: meta.Framework,
 		version:   meta.Version,
 

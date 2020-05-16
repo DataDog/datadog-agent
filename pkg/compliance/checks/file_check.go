@@ -21,7 +21,7 @@ type fileCheck struct {
 func (c *fileCheck) Run() error {
 	// TODO: here we will introduce various cached results lookups
 
-	log.Debugf("File check: %s", c.File.Path)
+	log.Debugf("%s:%s file check: %s", c.framework, c.ruleID, c.File.Path)
 	if c.File.Path != "" {
 		return c.reportFile(c.File.Path)
 	}

@@ -83,6 +83,7 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 }
 
 func (c *dockerCheck) Run() error {
+	log.Debugf("%s:%s docker check: %s", c.framework, c.ruleID, c.dockerResource.Kind)
 	// TODO: timeout for checks here
 	ctx := context.Background()
 	return c.iterate(ctx, c.inspect)
@@ -138,6 +139,7 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 		}
 	}
 
+	log.Debugf("%s:%s docker check reporting: %s id=%s", c.framework, c.ruleID, c.dockerResource.Kind, id)
 	c.report(nil, kv)
 }
 
