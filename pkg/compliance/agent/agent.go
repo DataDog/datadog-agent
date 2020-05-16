@@ -35,7 +35,10 @@ type Agent struct {
 
 // New creates a new instance of Agent
 func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, checkInterval time.Duration) *Agent {
-	builder := checks.NewBuilder(checkInterval, reporter)
+	builder := checks.NewBuilder(checkInterval, checks.BuilderEnv{
+		Reporter:     reporter,
+		DockerClient: dockerClient(),
+	})
 
 	return &Agent{
 		builder:   builder,

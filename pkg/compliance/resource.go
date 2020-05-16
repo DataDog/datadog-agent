@@ -144,7 +144,7 @@ type CommandCondition struct {
 	ExitCode *int `yaml:"exitCode,omitempty"`
 }
 
-// DockerFilter specifies filtering options to include or exclude a Docker resource from reporting
+// Filter specifies filtering options to include or exclude a Docker resource from reporting
 type Filter struct {
 	Include *Condition `yaml:"include,omitempty"`
 	Exclude *Condition `yaml:"exclude,omitempty"`
