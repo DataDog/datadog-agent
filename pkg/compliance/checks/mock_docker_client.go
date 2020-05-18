@@ -1433,6 +1433,27 @@ func (_m *MockDockerClient) RegistryLogin(ctx context.Context, auth types.AuthCo
 	return r0, r1
 }
 
+// ServerVersion provides a mock function with given fields: ctx
+func (_m *MockDockerClient) ServerVersion(ctx context.Context) (types.Version, error) {
+	ret := _m.Called(ctx)
+
+	var r0 types.Version
+	if rf, ok := ret.Get(0).(func(context.Context) types.Version); ok {
+		r0 = rf(ctx)
+	} else {
+		r0 = ret.Get(0).(types.Version)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // VolumeCreate provides a mock function with given fields: ctx, options
 func (_m *MockDockerClient) VolumeCreate(ctx context.Context, options volume.VolumeCreateBody) (types.Volume, error) {
 	ret := _m.Called(ctx, options)
