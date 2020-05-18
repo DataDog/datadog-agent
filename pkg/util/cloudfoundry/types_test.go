@@ -133,7 +133,7 @@ func TestADIdentifier(t *testing.T) {
 	}{
 		{
 			dLRP: DesiredLRP{
-				AppGUID: "1234",
+				AppGUID:     "1234",
 				ProcessGUID: "4321",
 			},
 			svcName:  "postgres",
@@ -142,7 +142,7 @@ func TestADIdentifier(t *testing.T) {
 		},
 		{
 			dLRP: DesiredLRP{
-				AppGUID: "1234",
+				AppGUID:     "1234",
 				ProcessGUID: "4321",
 			},
 			svcName: "flask-app",
