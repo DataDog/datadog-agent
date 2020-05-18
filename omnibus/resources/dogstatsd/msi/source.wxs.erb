@@ -230,7 +230,10 @@
             Name="dogstatsd.yaml"
             Source="$(var.EtcFiles)\dogstatsd.yaml.example"/>
       </Component>
-      
+
+      <Component Id="install_info" Guid="4143C6C9-7D58-4001-AD6C-CAAEA193D22C">
+        <RemoveFile Id="removeInstallInfo" On="uninstall" Name="install_info"/>
+      </Component>
 
 
       <Directory Id="EXAMPLECONFSLOCATION" Name= "conf.d">
@@ -270,6 +273,7 @@
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentRef Id="conffolder" />
       <ComponentRef Id="datadog.yaml.example" />
+      <ComponentRef Id="install_info" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="DATADOGDSDSERVICE" />

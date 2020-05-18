@@ -312,7 +312,10 @@
             Name="datadog.yaml"
             Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
-      
+
+      <Component Id="install_info" Guid="D187C786-9493-47FC-8A84-1A6EF80281CC">
+        <RemoveFile Id="removeInstallInfo" On="uninstall" Name="install_info"/>
+      </Component>
 
       <Directory Id="checks.d" Name="checks.d">
         <Component Id="checks.d"
@@ -396,6 +399,7 @@
       <ComponentRef Id="conffolder" />
       <ComponentGroupRef Id="ProjectDir" />
       <ComponentRef Id="datadog.yaml.example" />
+      <ComponentRef Id="install_info" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="checks.d" />
