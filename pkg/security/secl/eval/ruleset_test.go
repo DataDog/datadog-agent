@@ -31,7 +31,7 @@ func (f *testHandler) EventDiscarderFound(event Event, field string) {
 	}
 	evaluator, _ := f.model.GetEvaluator(field)
 
-	value := evaluator.(Evaluator).Value()
+	value := evaluator.(Evaluator).Value(&Context{})
 
 	found := false
 	for _, d := range discarders {
@@ -41,7 +41,7 @@ func (f *testHandler) EventDiscarderFound(event Event, field string) {
 	}
 
 	if !found {
-		discarders = append(discarders, evaluator.(Evaluator).Value())
+		discarders = append(discarders, evaluator.(Evaluator).Value(&Context{}))
 	}
 	values[field] = discarders
 }
@@ -57,7 +57,7 @@ func addRuleExpr(t *testing.T, rs *RuleSet, expr string) {
 }
 
 func TestRuleBuckets(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
 	addRuleExpr(t, rs, `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
 	addRuleExpr(t, rs, `(mkdir.filename =~ "/sbin/*" || mkdir.filename =~ "/usr/sbin/*") && process.uid != 0`)
 
@@ -70,13 +70,13 @@ func TestRuleBuckets(t *testing.T) {
 }
 
 func TestRuleSetDiscarders(t *testing.T) {
-	model := &testModel{event: &testEvent{}}
+	model := &testModel{}
 
 	handler := &testHandler{
 		model:   model,
 		filters: make(map[string]testFieldValues),
 	}
-	rs := NewRuleSet(&testModel{}, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
 	rs.AddListener(handler)
 
 	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.uid != 0`)
@@ -134,26 +134,64 @@ func TestRuleSetDiscarders(t *testing.T) {
 func TestRuleSetApprovers(t *testing.T) {
 	model := &testModel{event: &testEvent{}}
 
-	rs := NewRuleSet(model, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(model, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
 
 	addRuleExpr(t, rs, `open.filename == "/etc/passwd"`)
 	addRuleExpr(t, rs, `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
 	addRuleExpr(t, rs, `open.filename =~ "/var/lib/containerd/*" && process.name != "containerd"`)
 	addRuleExpr(t, rs, `open.flags & O_CREAT > 0 && open.mode & 4000 > 0`)
 
-	approvers := rs.GetEventApprovers()
+	capabilities := []FilteringCapability{
+		{
+			Field: "open.filename",
+			Types: ScalarValueType,
+		},
+		{
+			Field: "open.flags",
+			Types: ScalarValueType,
+		},
+		{
+			Field: "open.mode",
+			Types: ScalarValueType,
+		},
+		{
+			Field: "process.uid",
+			Types: ScalarValueType,
+		},
+		{
+			Field: "process.name",
+			Types: ScalarValueType,
+		},
+	}
 
-	open, ok := approvers["open"]
-	if !ok {
-		t.Fatal("no open approver")
+	approvers, err := rs.GetEventApprovers("open", capabilities...)
+	if err == nil {
+		t.Fatal("should return no approvers")
 	}
-	if len(open.FieldApprovers["open.filename"]) != 4 {
-		t.Fatal("wrong number of approver")
+
+	capabilities = append(capabilities, FilteringCapability{
+		Field: "process.uid",
+		Types: ScalarValueType,
+	})
+
+	approvers, err = rs.GetEventApprovers("open", capabilities...)
+	if err == nil {
+		t.Fatal("should return no approvers")
 	}
-	if len(open.FieldApprovers["process.uid"]) != 1 {
-		t.Fatal("wrong number of approver")
+
+	capabilities[0].Types |= PatternValueType
+	approvers, err = rs.GetEventApprovers("open", capabilities...)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(open.FieldApprovers["process.name"]) != 1 {
-		t.Fatal("wrong number of approver")
+
+	if len(approvers["open.filename"]) != 4 {
+		t.Fatalf("wrong number of approver: %+v", approvers)
+	}
+	if len(approvers["process.uid"]) != 1 {
+		t.Fatalf("wrong number of approver: %+v", approvers)
+	}
+	if len(approvers["process.name"]) != 1 {
+		t.Fatalf("wrong number of approver: %+v", approvers)
 	}
 }
