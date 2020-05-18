@@ -118,3 +118,10 @@ Severity=Warning
 Language=English
 Unable to determine the location of Program Data using the default value %1.
 .
+
+MessageId=16
+SymbolicName=MSG_WARN_INSTALL_INFO_FAILED
+Severity=Warning
+Language=English
+Unable to save installation information: %1.
+.

@@ -65,6 +65,9 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		elog.Warning(0x80000002, err.Error())
 		// continue running with what we have.
 	}
+	if err := common.SetInstallInfo(); err != nil {
+		elog.Warning(0x80000010, err.Error())
+	}
 	if err := app.StartAgent(); err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc000000B, err.Error())

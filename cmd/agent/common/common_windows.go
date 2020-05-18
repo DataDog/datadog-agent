@@ -138,6 +138,69 @@ func CheckAndUpgradeConfig() error {
 	return ImportConfig(DefaultConfPath, DefaultConfPath, false)
 }
 
+// SetInstallInfo imports installation information from Windows registry into
+// the install_info file. It leaves the file untouched if it already exists
+func SetInstallInfo() error {
+	// get install_info path
+	dataDir, err := winutil.GetProgramDataDir()
+	if err != nil {
+		return err
+	}
+	installInfoPath := filepath.Join(dataDir, "install_info")
+
+	// check that the file does not already exist
+	_, err = os.Stat(installInfoPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("unable to stat %s: %s", installInfoPath, err)
+	} else if err == nil {
+		// File already exists
+		return nil
+	}
+
+	// Get msiexec version if possible
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		"SOFTWARE\\Datadog\\Datadog Agent",
+		registry.ALL_ACCESS)
+	if err != nil {
+		return fmt.Errorf("unable to open registry config %s", err.Error())
+	}
+	defer k.Close()
+
+	val, _, err := k.GetStringValue("msiexec_version")
+	if err != nil || val == "" {
+		return fmt.Errorf("unable to fetch msiexec version: %s", err.Error())
+	}
+
+	// install info data type for marshalling
+	type Method struct {
+		Tool             string `yaml:"tool"`
+		ToolVersion      string `yaml:"tool_version"`
+		InstallerVersion string `yaml:"installer_version"`
+	}
+	type installInfo struct {
+		Method Method `yaml:"install_method"`
+	}
+	info := installInfo{
+		Method: Method{
+			Tool:             "windows_msi",
+			ToolVersion:      fmt.Sprintf("windows_msi-%s", val),
+			InstallerVersion: "msi_package",
+		},
+	}
+
+	// Save data into install_info file
+	infoBytes, err := yaml.Marshal(&info)
+	if err != nil {
+		return fmt.Errorf("unable to marshall install info: %s", err)
+	}
+	err = ioutil.WriteFile(installInfoPath, infoBytes, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("unable to write to %s: %s", installInfoPath, err)
+	}
+	return nil
+
+}
+
 // ImportRegistryConfig imports settings from Windows registry into datadog.yaml
 func ImportRegistryConfig() error {
 
