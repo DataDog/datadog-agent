@@ -367,6 +367,21 @@
                         SupportsInformationals="yes"
                         SupportsWarnings="yes"/>
             </Component>
+            <!-- Windows service declaration for Security agent -->
+            <Component Id="DATADOGPROCESSSERVICE" Guid="30e39252-8251-4e12-8274-55ceb27db71d">
+                <File Id="security_agent.exe"
+                    Name="security-agent.exe"
+                    Vital="yes"
+                    KeyPath="yes"
+                    DiskId="1"
+                    Source="$(var.BinFiles)/security-agent.exe"/>
+                <!-- The "Name" field must match the argument to eventlog.Open() -->
+                <util:EventSource Log="Application" Name="datadog-security-agent"
+                        EventMessageFile="[AGENT]security-agent.exe"
+                        SupportsErrors="yes"
+                        SupportsInformationals="yes"
+                        SupportsWarnings="yes"/>
+            </Component>
           <?endif ?>
         </Directory>
       </Directory>

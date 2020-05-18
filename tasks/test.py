@@ -47,7 +47,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     verbose=False, race=False, profile=False, fail_on_fmt=False,
     rtloader_root=None, python_home_2=None, python_home_3=None, cpus=0, major_version='7',
     python_runtimes='3', timeout=120, arch="x64", cache=True, skip_linters=False,
-    go_mod="vendor"):
+    skip_licenses=False, go_mod="vendor"):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -76,13 +76,18 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     print("--- go generating:")
     generate(ctx)
 
+
+    if skip_licenses:
+        print("--- [skipping licenses]")
+    else:
+        print("--- Linting licenses:")
+        lint_licenses(ctx)
+
     if skip_linters:
         print("--- [skipping linters]")
     else:
         print("--- Linting filenames:")
         lint_filenames(ctx)
-        print("--- Linting licenses:")
-        lint_licenses(ctx)
 
         # Until all packages whitelisted in .golangci.yml are fixed and removed
         # from the 'skip-dirs' list we need to keep using the old functions that
