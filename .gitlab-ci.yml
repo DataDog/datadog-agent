@@ -179,7 +179,7 @@ fail_on_non_triggered_tag:
   tags: [ "runner:main", "size:2xlarge" ]
   script:
     - echo CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE CI_COMMIT_TAG=$CI_COMMIT_TAG
-    - '[ "$CI_COMMIT_TAG" == "" -o "$CI_PIPELINE_SOURCE" != "push" ]'
+    - '[[ $CI_COMMIT_TAG == dca-* || $CI_COMMIT_TAG == "" || $CI_PIPELINE_SOURCE != "push" ]]'
 
 #
 # deps_build
