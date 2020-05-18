@@ -76,7 +76,7 @@ type Server struct {
 	histToDist                bool
 	histToDistPrefix          string
 	extraTags                 []string
-	debugMetricsStats         bool
+	DebugMetricsStats         bool
 	metricsStats              map[string]metricStat
 	statsLock                 sync.Mutex
 	mapper                    *mapper.MetricMapper
@@ -178,7 +178,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
 		extraTags:                 extraTags,
-		debugMetricsStats:         metricsStats,
+		DebugMetricsStats:         metricsStats,
 		metricsStats:              make(map[string]metricStat),
 		telemetryEnabled:          telemetry.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
@@ -350,7 +350,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 					}
 					continue
 				}
-				if s.debugMetricsStats {
+				if s.DebugMetricsStats {
 					s.storeMetricStats(sample.Name)
 				}
 				batcher.appendSample(sample)

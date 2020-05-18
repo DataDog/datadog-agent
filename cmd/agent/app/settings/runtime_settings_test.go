@@ -8,7 +8,11 @@ package settings
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -89,4 +93,63 @@ func TestLogLevel(t *testing.T) {
 	v, err = ll.Get()
 	assert.Equal(t, "warn", v)
 	assert.Nil(t, err)
+}
+
+func TestDogstatsdMetricsStats(t *testing.T) {
+	assert := assert.New(t)
+	var err error
+
+	serializer := serializer.NewSerializer(common.Forwarder)
+	agg := aggregator.InitAggregator(serializer, "", "agent")
+	common.DSD, err = dogstatsd.NewServer(agg)
+	assert.Nil(err)
+
+	cleanRuntimeSetting()
+
+	s := dsdStatsRuntimeSetting("dogstatsd_stats")
+
+	// setter + getter
+
+	// true string
+
+	err = s.Set("true")
+	assert.Nil(err)
+	assert.Equal(common.DSD.DebugMetricsStats, true)
+	v, err := s.Get()
+	assert.Nil(err)
+	assert.Equal(v, true)
+
+	// false string
+
+	err = s.Set("false")
+	assert.Nil(err)
+	assert.Equal(common.DSD.DebugMetricsStats, false)
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, false)
+
+	// true boolean
+
+	err = s.Set(true)
+	assert.Nil(err)
+	assert.Equal(common.DSD.DebugMetricsStats, true)
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, true)
+
+	// false boolean
+
+	err = s.Set(false)
+	assert.Nil(err)
+	assert.Equal(common.DSD.DebugMetricsStats, false)
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, false)
+
+	// ensure the getter uses the value from the actual server
+
+	common.DSD.DebugMetricsStats = true
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, true)
 }

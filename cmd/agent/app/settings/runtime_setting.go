@@ -35,6 +35,9 @@ func InitRuntimeSettings() error {
 	if err := registerRuntimeSetting(logLevelRuntimeSetting("log_level")); err != nil {
 		return err
 	}
+	if err := registerRuntimeSetting(dsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
+		return err
+	}
 	return nil
 }
 
