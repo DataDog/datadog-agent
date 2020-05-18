@@ -50,15 +50,14 @@ func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 		// to support overrides of reported values, e.g.:
 		// default value checked in a file but can be overwritten by a process
 		// argument.
-
-		if resource.File != nil {
+		switch {
+		case resource.File != nil:
 			return b.fileCheck(meta, rule.ID, resource.File)
-		} else if resource.Docker != nil {
+		case resource.Docker != nil:
 			return b.dockerCheck(meta, rule.ID, resource.Docker)
-		} /* else {
-			// ... other supported resources
-		} */
-
+		case resource.Process != nil:
+			return newProcessCheck(b.baseCheck(rule.ID, meta), resource.Process)
+		}
 	}
 	return nil, ErrResourceNotSupported
 }
