@@ -241,6 +241,11 @@ func initConfig(config Config) {
 		if pathExists("/host/proc") {
 			config.SetDefault("procfs_path", "/host/proc")
 			config.SetDefault("container_proc_root", "/host/proc")
+
+			// Used by some librairies (like gopsutil)
+			if v := os.Getenv("HOST_PROC"); v == "" {
+				os.Setenv("HOST_PROC", "/host/proc")
+			}
 		} else {
 			config.SetDefault("procfs_path", "/proc")
 			config.SetDefault("container_proc_root", "/proc")
