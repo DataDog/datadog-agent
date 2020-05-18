@@ -310,8 +310,11 @@ def fetch_python_version(timeout = 15)
 end
 
 
-shared_examples_for 'Agent' do
+shared_examples_for 'Agent install' do
   it_behaves_like 'an installed Agent'
+end
+
+shared_examples_for 'Agent behavior' do
   it_behaves_like 'a running Agent with no errors'
   it_behaves_like 'a running Agent with APM'
   it_behaves_like 'a running Agent with APM manually disabled'
@@ -319,6 +322,9 @@ shared_examples_for 'Agent' do
   it_behaves_like 'an Agent with integrations'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
+end
+
+shared_examples_for 'Agent uninstall' do
   it_behaves_like 'an Agent that is removed'
 end
 
