@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	cacheValidity time.Duration = time.Duration(10 * time.Minute)
+	cacheValidity time.Duration = 10 * time.Minute
 )
 
 type processCheck struct {
