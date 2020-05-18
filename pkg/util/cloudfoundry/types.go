@@ -71,11 +71,12 @@ func (id ADIdentifier) GetActualLRP() *ActualLRP {
 
 // String returns the string representation of this ADIdentifier
 func (id ADIdentifier) String() string {
-	ret := fmt.Sprintf("%s/%s", id.desiredLRP.AppGUID, id.svcName)
 	if id.actualLRP != nil {
-		ret = fmt.Sprintf("%s/%d", ret, id.actualLRP.Index)
+		// For container checks, use processGUID to have 1 check per container, even during rolling redeployments
+		return fmt.Sprintf("%s/%s/%d", id.desiredLRP.ProcessGUID, id.svcName, id.actualLRP.Index)
 	}
-	return ret
+	// For non container checks, use appGUID to have one check per service, even during rolling redeployments
+	return fmt.Sprintf("%s/%s", id.desiredLRP.AppGUID, id.svcName)
 }
 
 // ActualLRP carries the necessary data about an Actual LRP obtained through BBS API

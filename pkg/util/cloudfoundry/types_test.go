@@ -134,6 +134,7 @@ func TestADIdentifier(t *testing.T) {
 		{
 			dLRP: DesiredLRP{
 				AppGUID: "1234",
+				ProcessGUID: "4321",
 			},
 			svcName:  "postgres",
 			aLRP:     nil,
@@ -142,12 +143,13 @@ func TestADIdentifier(t *testing.T) {
 		{
 			dLRP: DesiredLRP{
 				AppGUID: "1234",
+				ProcessGUID: "4321",
 			},
 			svcName: "flask-app",
 			aLRP: &ActualLRP{
 				Index: 2,
 			},
-			expected: "1234/flask-app/2",
+			expected: "4321/flask-app/2",
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {

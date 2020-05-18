@@ -151,7 +151,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 			},
 			expNew: map[string]Service{
-				"appguid1/flask-app/0": &CloudFoundryService{
+				"processguid1/flask-app/0": &CloudFoundryService{
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
 					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
 					creationTime:   integration.After,
@@ -165,7 +165,7 @@ func TestCloudFoundryListener(t *testing.T) {
 			dLRP:   map[string]*cloudfoundry.DesiredLRP{},
 			expNew: map[string]Service{},
 			expDel: map[string]Service{
-				"appguid1/flask-app/0": &CloudFoundryService{
+				"processguid1/flask-app/0": &CloudFoundryService{
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
 					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
 					creationTime:   integration.After,
@@ -316,7 +316,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 			},
 			expNew: map[string]Service{
-				"appguid1/flask-app/0": &CloudFoundryService{
+				"processguid1/flask-app/0": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.4"},
 					containerPorts: []ContainerPort{
 						{
@@ -330,7 +330,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					},
 					creationTime: integration.After,
 				},
-				"appguid1/flask-app/1": &CloudFoundryService{
+				"processguid1/flask-app/1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.5"},
 					containerPorts: []ContainerPort{
 						{
@@ -349,7 +349,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					containerPorts: []ContainerPort{},
 					creationTime:   integration.After,
 				},
-				"appguid2/flask-app/0": &CloudFoundryService{
+				"processguid2/flask-app/0": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.7"},
 					containerPorts: []ContainerPort{
 						{
@@ -363,7 +363,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					},
 					creationTime: integration.After,
 				},
-				"appguid2/flask-app/1": &CloudFoundryService{
+				"processguid2/flask-app/1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.8"},
 					containerPorts: []ContainerPort{
 						{
