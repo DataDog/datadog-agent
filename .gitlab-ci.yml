@@ -3479,7 +3479,6 @@ deploy_cluster_agent_cloudfoundry:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
-  needs: [ "cluster_agent_cloudfoundry-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
