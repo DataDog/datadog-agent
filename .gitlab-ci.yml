@@ -3313,7 +3313,9 @@ deploy_staging_android_tags:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+  # This means this job is never run, but let's keep it around in case we need it one day
   <<: *run_only_when_triggered_on_tag_7
+  <<: *skip_when_triggered
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_android_apk
