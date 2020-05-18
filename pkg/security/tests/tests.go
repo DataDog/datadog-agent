@@ -3,25 +3,34 @@ package tests
 import (
 	"bytes"
 	"context"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
+	"path"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"text/template"
 	"time"
+	"unsafe"
 
+	"github.com/cihub/seelog"
+	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"gopkg.in/freddierice/go-losetup.v1"
 
 	smodule "github.com/DataDog/datadog-agent/cmd/system-probe/module"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 )
 
 const grpcAddr = "127.0.0.1:18787"
@@ -198,13 +207,34 @@ func (tc *testClient) Close() {
 type simpleTest struct {
 	module *testModule
 	client *testClient
+	drive  *testDrive
 	cancel context.CancelFunc
 }
 
 func (t *simpleTest) Close() {
+	t.drive.Close()
 	t.module.Close()
 	t.client.Close()
 	t.cancel()
+}
+
+func (t *simpleTest) GetEvent() (*probe.Event, error) {
+	event, err := t.client.GetEvent(3 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(event.GetData(), &data); err != nil {
+		return nil, err
+	}
+
+	var probeEvent probe.Event
+	if err := mapstructure.WeakDecode(data, &probeEvent); err != nil {
+		return nil, err
+	}
+
+	return &probeEvent, nil
 }
 
 func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
@@ -218,6 +248,11 @@ func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 			return nil, err
 		}
 		log.SetupDatadogLogger(logger, "DEBUG")
+	}
+
+	drive, err := newTestDrive()
+	if err != nil {
+		return nil, err
 	}
 
 	module, err := newTestModule(macros, rules)
@@ -236,6 +271,89 @@ func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	return &simpleTest{
 		module: module,
 		client: client,
+		drive:  drive,
 		cancel: cancel,
 	}, nil
+}
+
+type testDrive struct {
+	file       *os.File
+	dev        losetup.Device
+	mountPoint string
+}
+
+func (td *testDrive) Path(filename string) (string, unsafe.Pointer, error) {
+	filename = path.Join(td.mountPoint, filename)
+	filenamePtr, err := syscall.BytePtrFromString(filename)
+	if err != nil {
+		return "", nil, err
+	}
+	return filename, unsafe.Pointer(filenamePtr), nil
+}
+
+func newTestDrive() (*testDrive, error) {
+	backingFile, err := ioutil.TempFile("", "secagent-testdrive-")
+	if err != nil {
+		return nil, err
+	}
+
+	mountPoint, err := ioutil.TempDir("", "secagent-testdrive-")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.Truncate(backingFile.Name(), 1*1024*1024); err != nil {
+		return nil, err
+	}
+
+	dev, err := losetup.Attach(backingFile.Name(), 0, false)
+	if err != nil {
+		os.Remove(backingFile.Name())
+		return nil, err
+	}
+
+	mkfsCmd := exec.Command("mkfs.ext4", dev.Path())
+	if err := mkfsCmd.Run(); err != nil {
+		dev.Detach()
+		os.Remove(backingFile.Name())
+		return nil, errors.Wrap(err, "failed to create ext4 filesystem")
+	}
+
+	mountCmd := exec.Command("mount", dev.Path(), mountPoint)
+	if err := mountCmd.Run(); err != nil {
+		dev.Detach()
+		os.Remove(backingFile.Name())
+		return nil, errors.Wrap(err, "failed to mount filesystem")
+	}
+
+	return &testDrive{
+		file:       backingFile,
+		dev:        dev,
+		mountPoint: mountPoint,
+	}, nil
+}
+
+func (td *testDrive) Unmount() error {
+	unmountCmd := exec.Command("umount", "-f", td.mountPoint)
+	if err := unmountCmd.Run(); err != nil {
+		return errors.Wrap(err, "failed to unmount filesystem")
+	}
+
+	return nil
+}
+
+func (td *testDrive) Close() {
+	os.RemoveAll(td.mountPoint)
+	if err := td.Unmount(); err != nil {
+		fmt.Print(err)
+	}
+	os.Remove(td.file.Name())
+	os.Remove(td.mountPoint)
+	time.Sleep(time.Second)
+	if err := td.dev.Detach(); err != nil {
+		fmt.Print(err)
+	}
+	if err := td.dev.Remove(); err != nil {
+		fmt.Print(err)
+	}
 }

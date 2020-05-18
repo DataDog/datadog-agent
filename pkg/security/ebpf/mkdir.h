@@ -11,13 +11,13 @@ struct mkdir_event_t {
     int    mode;
 };
 
-int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t mode) {
     if (filter_process())
         return 0;
 
     struct syscall_cache_t syscall = {
         .mkdir = {
-            .mode = (umode_t) PT_REGS_PARM2(ctx)
+            .mode = mode
         }
     };
 
@@ -26,14 +26,29 @@ int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/__x64_sys_mkdir")
+SEC("kprobe/sys_mkdir")
 int kprobe__sys_mkdir(struct pt_regs *ctx) {
-    return trace__sys_mkdir(ctx);
+    umode_t mode;
+#ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
+    ctx = (struct pt_regs *) ctx->di;
+    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM2(ctx));
+#else
+    mode = (umode_t) PT_REGS_PARM2(ctx);
+#endif
+    return trace__sys_mkdir(ctx, mode);
 }
 
-SEC("kprobe/__x64_sys_mkdirat")
+SEC("kprobe/sys_mkdirat")
 int kprobe__sys_mkdirat(struct pt_regs *ctx) {
-    return trace__sys_mkdir(ctx);
+    umode_t mode;
+#ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
+    ctx = (struct pt_regs *) ctx->di;
+    bpf_probe_read(&mode, sizeof(mode), &PT_REGS_PARM3(ctx));
+#else
+    mode = (umode_t) PT_REGS_PARM3(ctx);
+#endif
+
+    return trace__sys_mkdir(ctx, mode);
 }
 
 SEC("kprobe/vfs_mkdir")
@@ -70,12 +85,12 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/__x64_sys_mkdir")
+SEC("kretprobe/sys_mkdir")
 int kretprobe__sys_mkdir(struct pt_regs *ctx) {
     return trace__sys_mkdir_ret(ctx);
 }
 
-SEC("kretprobe/__x64_sys_mkdirat")
+SEC("kretprobe/sys_mkdirat")
 int kretprobe__sys_mkdirat(struct pt_regs *ctx) {
     return trace__sys_mkdir_ret(ctx);
 }

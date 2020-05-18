@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"sort"
 
+	"github.com/iovisor/gobpf/elf"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/gobpf"
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/probe/types"
@@ -29,134 +31,119 @@ type KProbe struct {
 	EventTypes []string
 }
 
+func getSyscallFnName(name string) string {
+	syscall, err := elf.GetSyscallFnName(name)
+	if err != nil {
+		panic(err)
+	}
+	return syscall
+}
+
 var AllKProbes = []*KProbe{
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "sys_mkdir",
-			EntryFunc:  "kprobe/__x64_sys_mkdir",
-			EntryEvent: "sys_mkdir",
-			ExitFunc:   "kretprobe/__x64_sys_mkdir",
-			ExitEvent:  "sys_mkdir",
+			Name:      "sys_mkdir",
+			EntryFunc: "kprobe/" + getSyscallFnName("mkdir"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("mkdir"),
 		},
 		EventTypes: []string{"mkdir"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "sys_mkdirat",
-			EntryFunc:  "kprobe/__x64_sys_mkdirat",
-			EntryEvent: "sys_mkdirat",
-			ExitFunc:   "kretprobe/__x64_sys_mkdirat",
-			ExitEvent:  "sys_mkdirat",
+			Name:      "sys_mkdirat",
+			EntryFunc: "kprobe/" + getSyscallFnName("mkdirat"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("mkdirat"),
 		},
 		EventTypes: []string{"mkdir"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "vfs_mkdir",
-			EntryFunc:  "kprobe/vfs_mkdir",
-			EntryEvent: "vfs_mkdir",
+			Name:      "vfs_mkdir",
+			EntryFunc: "kprobe/vfs_mkdir",
 		},
 		EventTypes: []string{"mkdir"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "sys_rmdir",
-			EntryFunc:  "kprobe/__x64_sys_rmdir",
-			EntryEvent: "sys_rmdir",
-			ExitFunc:   "kretprobe/__x64_sys_rmdir",
-			ExitEvent:  "sys_rmdir",
+			Name:      "sys_rmdir",
+			EntryFunc: "kprobe/" + getSyscallFnName("rmdir"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("rmdir"),
 		},
 		EventTypes: []string{"rmdir"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "vfs_rmdir",
-			EntryFunc:  "kprobe/vfs_rmdir",
-			EntryEvent: "vfs_rmdir",
+			Name:      "vfs_rmdir",
+			EntryFunc: "kprobe/vfs_rmdir",
 		},
 		EventTypes: []string{"rmdir"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "sys_openat",
-			EntryFunc:  "kprobe/__x64_sys_openat",
-			EntryEvent: "sys_openat",
-			ExitFunc:   "kretprobe/__x64_sys_openat",
-			ExitEvent:  "sys_openat",
+			Name:      "sys_openat",
+			EntryFunc: "kprobe/" + getSyscallFnName("openat"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("openat"),
 		},
 		EventTypes: []string{"open"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "vfs_open",
-			EntryFunc:  "kprobe/vfs_open",
-			EntryEvent: "vfs_open",
+			Name:      "vfs_open",
+			EntryFunc: "kprobe/vfs_open",
 		},
 		EventTypes: []string{"open"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "sys_unlink",
-			EntryFunc:  "kprobe/__x64_sys_unlink",
-			EntryEvent: "sys_unlink",
-			ExitFunc:   "kretprobe/__x64_sys_unlink",
-			ExitEvent:  "sys_unlink",
+			Name:      "sys_unlink",
+			EntryFunc: "kprobe/" + getSyscallFnName("unlink"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("unlink"),
 		},
 		EventTypes: []string{"unlink"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "sys_unlinkat",
-			EntryFunc:  "kprobe/__x64_sys_unlinkat",
-			EntryEvent: "sys_unlinkat",
-			ExitFunc:   "kretprobe/__x64_sys_unlinkat",
-			ExitEvent:  "sys_unlinkat",
+			Name:      "sys_unlinkat",
+			EntryFunc: "kprobe/" + getSyscallFnName("unlinkat"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("unlinkat"),
 		},
 		EventTypes: []string{"unlink"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "vfs_unlink",
-			EntryFunc:  "kprobe/vfs_unlink",
-			EntryEvent: "vfs_unlink",
+			Name:      "vfs_unlink",
+			EntryFunc: "kprobe/vfs_unlink",
 		},
 		EventTypes: []string{"unlink"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "sys_rename",
-			EntryFunc:  "kprobe/__x64_sys_rename",
-			EntryEvent: "sys_rename",
-			ExitFunc:   "kretprobe/__x64_sys_rename",
-			ExitEvent:  "sys_rename",
+			Name:      "sys_rename",
+			EntryFunc: "kprobe/" + getSyscallFnName("rename"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("rename"),
 		},
 		EventTypes: []string{"rename"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "sys_renameat",
-			EntryFunc:  "kprobe/__x64_sys_renameat",
-			EntryEvent: "sys_renameat",
-			ExitFunc:   "kretprobe/__x64_sys_renameat",
-			ExitEvent:  "sys_renameat",
+			Name:      "sys_renameat",
+			EntryFunc: "kprobe/" + getSyscallFnName("renameat"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("renameat"),
 		},
 		EventTypes: []string{"rename"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "sys_renameat2",
-			EntryFunc:  "kprobe/__x64_sys_renameat2",
-			EntryEvent: "sys_renameat2",
-			ExitFunc:   "kretprobe/__x64_sys_renameat2",
-			ExitEvent:  "sys_renameat2",
+			Name:      "sys_renameat2",
+			EntryFunc: "kprobe/" + getSyscallFnName("renameat2"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("renameat2"),
 		},
 		EventTypes: []string{"rename"},
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:       "vfs_rename",
-			EntryFunc:  "kprobe/vfs_rename",
-			EntryEvent: "vfs_rename",
+			Name:      "vfs_rename",
+			EntryFunc: "kprobe/vfs_rename",
 		},
 		EventTypes: []string{"rename"},
 	},
@@ -173,6 +160,8 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		return nil, err
 	}
 	log.Infof("Loaded security agent eBPF module: %+v", module)
+
+	module.EnableOptionCompatProbe()
 
 	p := &Probe{}
 
