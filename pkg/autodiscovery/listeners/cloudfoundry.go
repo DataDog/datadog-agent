@@ -248,3 +248,8 @@ func (s *CloudFoundryService) GetCheckNames() []string {
 func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
+
+// GetExtraConfig isn't supported
+func (s *CloudFoundryService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
+}

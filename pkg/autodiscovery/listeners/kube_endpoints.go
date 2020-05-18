@@ -427,3 +427,8 @@ func (s *KubeEndpointService) GetCheckNames() []string {
 func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
+
+// GetExtraConfig isn't supported
+func (s *KubeEndpointService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
+}
