@@ -32,9 +32,9 @@ func (m *Module) UnregisterKprobe(k *types.KProbe) error {
 		}
 	}
 	if k.ExitFunc != "" {
-		funcName := strings.TrimPrefix(k.EntryFunc, "kretprobe/")
+		funcName := strings.TrimPrefix(k.ExitFunc, "kretprobe/")
 		if err := disableKprobe("r" + funcName); err != nil {
-			return fmt.Errorf("failed to unregister Kprobe %v: %s", k.EntryFunc, err)
+			return fmt.Errorf("failed to unregister Kprobe %v: %s", k.ExitFunc, err)
 		}
 	}
 

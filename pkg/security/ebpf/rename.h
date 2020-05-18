@@ -14,7 +14,7 @@ struct rename_event_t {
     u32           padding2;
 };
 
-int __attribute__((always_inline)) trace__sys_rename(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__sys_rename() {
     if (filter_process())
         return 0;
 
@@ -24,19 +24,19 @@ int __attribute__((always_inline)) trace__sys_rename(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/__x64_sys_rename")
+SEC("kprobe/sys_rename")
 int kprobe__sys_rename(struct pt_regs *ctx) {
-    return trace__sys_rename(ctx);
+    return trace__sys_rename();
 }
 
-SEC("kprobe/__x64_sys_renameat")
+SEC("kprobe/sys_renameat")
 int kprobe__sys_renameat(struct pt_regs *ctx) {
-    return trace__sys_rename(ctx);
+    return trace__sys_rename();
 }
 
-SEC("kprobe/__x64_sys_renameat2")
+SEC("kprobe/sys_renameat2")
 int kprobe__sys_renameat2(struct pt_regs *ctx) {
-    return trace__sys_rename(ctx);
+    return trace__sys_rename();
 }
 
 SEC("kprobe/vfs_rename")
@@ -80,18 +80,18 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/__x64_sys_rename")
+SEC("kretprobe/sys_rename")
 int kretprobe__sys_rename(struct pt_regs *ctx) {
     return trace__sys_rename_ret(ctx);
 
 }
 
-SEC("kretprobe/__x64_sys_renameat")
+SEC("kretprobe/sys_renameat")
 int kretprobe__sys_renameat(struct pt_regs *ctx) {
     return trace__sys_rename_ret(ctx);
 }
 
-SEC("kretprobe/__x64_sys_renameat2")
+SEC("kretprobe/sys_renameat2")
 int kretprobe__sys_renameat2(struct pt_regs *ctx) {
     return trace__sys_rename_ret(ctx);
 }

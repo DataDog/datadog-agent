@@ -12,7 +12,7 @@ struct unlink_event_t {
     int    mount_id;
 };
 
-int trace__sys_unlink(struct pt_regs *ctx) {
+int trace__sys_unlink() {
     if (filter_process())
         return 0;
 
@@ -22,14 +22,14 @@ int trace__sys_unlink(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/__x64_sys_unlink")
+SEC("kprobe/sys_unlink")
 int kprobe__sys_unlink(struct pt_regs *ctx) {
-    return trace__sys_unlink(ctx);
+    return trace__sys_unlink();
 }
 
-SEC("kprobe/__x64_sys_unlinkat")
+SEC("kprobe/sys_unlinkat")
 int kprobe__sys_unlinkat(struct pt_regs *ctx) {
-    return trace__sys_unlink(ctx);
+    return trace__sys_unlink();
 }
 
 SEC("kprobe/vfs_unlink")
@@ -67,12 +67,12 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/__x64_sys_unlink")
+SEC("kretprobe/sys_unlink")
 int kretprobe__sys_unlink(struct pt_regs *ctx) {
     return trace__sys_unlink_ret(ctx);
 }
 
-SEC("kretprobe/__x64_sys_unlinkat")
+SEC("kretprobe/sys_unlinkat")
 int kretprobe__sys_unlinkat(struct pt_regs *ctx) {
     return trace__sys_unlink_ret(ctx);
 }

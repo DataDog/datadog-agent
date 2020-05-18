@@ -3,7 +3,6 @@ package tests
 import (
 	"os"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 )
@@ -33,13 +32,17 @@ func TestMacros(t *testing.T) {
 	}
 	defer test.Close()
 
-	// Simple generate an event
-	if err := os.Mkdir("/tmp/test", 0777); err != nil {
+	testFile, _, err := test.drive.Path("test")
+	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove("/tmp/test")
 
-	event, err := test.client.GetEvent(3 * time.Second)
+	if err := os.Mkdir(testFile, 0777); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	event, err := test.GetEvent()
 	if event.GetType() != "mkdir" {
 		t.Errorf("expected mkdir event, got %s", event.GetType())
 	}

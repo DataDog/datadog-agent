@@ -10,7 +10,7 @@ struct rmdir_event_t {
     int    mount_id;
 };
 
-SEC("kprobe/__x64_sys_rmdir")
+SEC("kprobe/sys_rmdir")
 int kprobe__sys_rmdir(struct pt_regs *ctx) {
     if (filter_process())
         return 0;
@@ -36,7 +36,7 @@ int kprobe__vfs_rmdir(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/__x64_sys_rmdir")
+SEC("kretprobe/sys_rmdir")
 int kretprobe__sys_rmdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = pop_syscall();
     if (!syscall)

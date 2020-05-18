@@ -8,10 +8,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 )
 
-func TestRmdir(t *testing.T) {
+func TestOpen(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `rmdir.filename == "/test"`,
+		Expression: `open.filename == "/test" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
@@ -25,21 +25,23 @@ func TestRmdir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := syscall.Mkdir(testFile, 0777); err != nil {
+	fd, _, errno := syscall.Syscall(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT)
+	if errno != 0 {
 		t.Fatal(err)
 	}
+	defer syscall.Close(int(fd))
 	defer os.Remove(testFile)
-
-	if _, _, err := syscall.Syscall(syscall.SYS_RMDIR, uintptr(testFilePtr), 0, 0); err != 0 {
-		t.Fatal(error(err))
-	}
 
 	event, err := test.GetEvent()
 	if err != nil {
 		t.Error(err)
 	}
 
-	if event.GetType() != "rmdir" {
-		t.Errorf("expected rmdir event, got %s", event.GetType())
+	if event.GetType() != "open" {
+		t.Errorf("expected open event, got %s", event.GetType())
+	}
+
+	if flags := event.Open.Flags; flags != syscall.O_CREAT {
+		t.Errorf("expected open mode O_CREAT, got %d", flags)
 	}
 }
