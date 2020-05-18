@@ -22,6 +22,7 @@ type Builder interface {
 	CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error)
 }
 
+// BuilderEnv defines builder environment used to instantiate different checks
 type BuilderEnv struct {
 	Reporter     compliance.Reporter
 	DockerClient DockerClient

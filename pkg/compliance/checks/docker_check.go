@@ -31,6 +31,7 @@ type DockerClient interface {
 	client.NetworkAPIClient
 	client.SystemAPIClient
 	client.VolumeAPIClient
+	ServerVersion(ctx context.Context) (types.Version, error)
 }
 
 type dockerCheck struct {
@@ -76,6 +77,18 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 		for _, network := range networks {
 			fn(network.ID, network)
 		}
+	case "info":
+		info, err := c.client.Info(ctx)
+		if err != nil {
+			return err
+		}
+		fn(info.ID, info)
+	case "version":
+		version, err := c.client.ServerVersion(ctx)
+		if err != nil {
+			return err
+		}
+		fn("", version)
 	default:
 		return ErrDockerKindNotSupported
 	}

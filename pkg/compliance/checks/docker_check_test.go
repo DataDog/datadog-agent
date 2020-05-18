@@ -210,3 +210,153 @@ func TestDockerNetworkCheck(t *testing.T) {
 	err := dockerCheck.Run()
 	assert.NoError(err)
 }
+
+func TestDockerContainerCheck(t *testing.T) {
+	assert := assert.New(t)
+
+	resource := &compliance.DockerResource{
+		Kind: "container",
+
+		Filter: []compliance.Filter{
+			{
+				Include: &compliance.Condition{
+					Property:  `{{- $.HostConfig.Privileged -}}`,
+					Operation: compliance.OpEqual,
+					Value:     "true",
+				},
+			},
+		},
+		Report: compliance.Report{
+			{
+				Property: "id",
+				As:       "container_id",
+			},
+			{
+				As:    "privileged",
+				Value: "true",
+			},
+		},
+	}
+
+	client := &MockDockerClient{}
+	defer client.AssertExpectations(t)
+
+	var containers []types.Container
+	assert.NoError(loadTestJSON("./testdata/docker/container-list.json", &containers))
+	client.On("ContainerList", mockCtx, types.ContainerListOptions{All: true}).Return(containers, nil)
+
+	var container types.ContainerJSON
+	assert.NoError(loadTestJSON("./testdata/docker/container-3c4bd9d35d42.json", &container))
+	client.On("ContainerInspect", mockCtx, "3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87").Return(container, nil, nil)
+
+	reporter := &compliance.MockReporter{}
+	defer reporter.AssertExpectations(t)
+
+	reporter.On(
+		"Report",
+		newTestRuleEvent(
+			nil,
+			compliance.KV{
+				"container_id": "3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87",
+				"privileged":   "true",
+			},
+		),
+	).Once()
+
+	dockerCheck := dockerCheck{
+		baseCheck:      newTestBaseCheck(reporter),
+		client:         client,
+		dockerResource: resource,
+	}
+
+	err := dockerCheck.Run()
+	assert.NoError(err)
+}
+
+func TestDockerInfoCheck(t *testing.T) {
+	assert := assert.New(t)
+
+	resource := &compliance.DockerResource{
+		Kind: "info",
+		Report: compliance.Report{
+			{
+				Property: "{{- $.RegistryConfig.InsecureRegistryCIDRs -}}",
+				Kind:     "template",
+				As:       "insecure_registries",
+			},
+		},
+	}
+
+	client := &MockDockerClient{}
+	defer client.AssertExpectations(t)
+
+	var info types.Info
+	assert.NoError(loadTestJSON("./testdata/docker/info.json", &info))
+	client.On("Info", mockCtx).Return(info, nil)
+
+	reporter := &compliance.MockReporter{}
+	defer reporter.AssertExpectations(t)
+
+	reporter.On(
+		"Report",
+		newTestRuleEvent(
+			nil,
+			compliance.KV{
+				"insecure_registries": "[127.0.0.0/8]",
+			},
+		),
+	).Once()
+
+	dockerCheck := dockerCheck{
+		baseCheck:      newTestBaseCheck(reporter),
+		client:         client,
+		dockerResource: resource,
+	}
+
+	err := dockerCheck.Run()
+	assert.NoError(err)
+}
+
+func TestDockerVersionCheck(t *testing.T) {
+	assert := assert.New(t)
+
+	resource := &compliance.DockerResource{
+		Kind: "version",
+		Report: compliance.Report{
+			{
+				Property: `{{ range $.Components }}{{ if eq .Name "Engine" }}{{- .Details.Experimental -}}{{ end }}{{ end }}`,
+				Kind:     "template",
+				As:       "experimental_features",
+			},
+		},
+	}
+
+	client := &MockDockerClient{}
+	defer client.AssertExpectations(t)
+
+	var version types.Version
+	assert.NoError(loadTestJSON("./testdata/docker/version.json", &version))
+	client.On("ServerVersion", mockCtx).Return(version, nil)
+
+	reporter := &compliance.MockReporter{}
+	defer reporter.AssertExpectations(t)
+
+	reporter.On(
+		"Report",
+		newTestRuleEvent(
+			nil,
+			compliance.KV{
+				"experimental_features": "true",
+			},
+		),
+	).Once()
+
+	dockerCheck := dockerCheck{
+		baseCheck:      newTestBaseCheck(reporter),
+		client:         client,
+		dockerResource: resource,
+	}
+
+	err := dockerCheck.Run()
+	assert.NoError(err)
+}
