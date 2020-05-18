@@ -43,5 +43,5 @@ const loggerName config.LoggerName = "CORE"
 func init() {
 	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	AgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
-	AgentCmd.PersistentFlags().StringVarP(&sysProbeConfFilePath, "sysprobecfgpath", "x", "", "path to directory containing system-probe.yaml")
+	AgentCmd.PersistentFlags().StringVarP(&sysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 }
