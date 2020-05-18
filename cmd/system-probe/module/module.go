@@ -27,7 +27,7 @@ func (l *Loader) Register(cfg *config.AgentConfig, server *grpc.Server, factorie
 	for _, factory := range factories {
 		module, err := factory.Fn(cfg)
 		if err != nil {
-			return fmt.Errorf("new module `%s` error", factory.Name)
+			return fmt.Errorf("new module `%s` error: %s", factory.Name, err)
 		}
 
 		if err = module.Register(server); err != nil {

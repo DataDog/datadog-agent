@@ -68,8 +68,8 @@ type state struct {
 type FieldValueType int
 
 const (
-	ScalarValueType FieldValueType = iota + 1
-	PatternValueType
+	ScalarValueType  FieldValueType = 1
+	PatternValueType FieldValueType = 2
 )
 
 type FieldValue struct {
@@ -88,7 +88,7 @@ type MacroEvaluator struct {
 }
 
 type Evaluator interface {
-	StringValue() string
+	StringValue(ctx *Context) string
 }
 
 type BoolEvaluator struct {
@@ -100,7 +100,7 @@ type BoolEvaluator struct {
 	isPartial bool
 }
 
-func (b *BoolEvaluator) StringValue() string {
+func (b *BoolEvaluator) StringValue(ctx *Context) string {
 	return fmt.Sprintf("%t", b.Eval(nil))
 }
 
@@ -113,7 +113,7 @@ type IntEvaluator struct {
 	isPartial bool
 }
 
-func (i *IntEvaluator) StringValue() string {
+func (i *IntEvaluator) StringValue(ctx *Context) string {
 	return fmt.Sprintf("%d", i.Eval(nil))
 }
 
@@ -126,8 +126,8 @@ type StringEvaluator struct {
 	isPartial bool
 }
 
-func (s *StringEvaluator) StringValue() string {
-	return s.Eval(nil)
+func (s *StringEvaluator) StringValue(ctx *Context) string {
+	return s.Eval(ctx)
 }
 
 type StringArray struct {

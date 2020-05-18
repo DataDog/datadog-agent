@@ -37,7 +37,7 @@ func (a *Module) Register(server *grpc.Server) error {
 		return err
 	}
 
-	if err := a.probe.SetEventTypes(a.ruleSet.GetEventTypes()); err != nil {
+	if err := a.probe.Setup(a.ruleSet); err != nil {
 		log.Warnf(err.Error())
 	}
 
@@ -93,7 +93,7 @@ func (a *Module) loadMacros() (map[string]*ast.Macro, error) {
 	return macros, nil
 }
 
-func (a *Module) LoadPolicies(model eval.Model, debug bool) error {
+func (a *Module) LoadPolicies(debug bool) error {
 	macros, err := a.loadMacros()
 	if err != nil {
 		log.Error(err)
@@ -106,7 +106,7 @@ func (a *Module) LoadPolicies(model eval.Model, debug bool) error {
 		Constants: probe.SECLConstants,
 	}
 
-	a.ruleSet = eval.NewRuleSet(model, opts)
+	a.ruleSet = a.probe.NewRuleSet(opts)
 
 	for _, policyDef := range a.config.Policies {
 		for _, policyPath := range policyDef.Files {
@@ -170,18 +170,18 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 		return nil, err
 	}
 
-	probe, err := probe.NewProbe(config)
+	p, err := probe.NewProbe(config)
 	if err != nil {
 		return nil, err
 	}
 
 	agent := &Module{
 		config: config,
-		probe:  probe,
+		probe:  p,
 		server: NewEventServer(),
 	}
 
-	if err := agent.LoadPolicies(probe.GetModel(), config.Debug); err != nil {
+	if err := agent.LoadPolicies(config.Debug); err != nil {
 		return nil, err
 	}
 
