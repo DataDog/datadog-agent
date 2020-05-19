@@ -239,9 +239,13 @@ type ContainerEvent struct {
 }
 
 type KernelEvent struct {
-	Type      uint64 `field:"type"`
+	Type      uint64 `field:"type" handler:"ResolveType,string"`
 	Timestamp uint64 `field:"-"`
 	Retval    int64  `field:"retval"`
+}
+
+func (k *KernelEvent) ResolveType(resolvers *Resolvers) string {
+	return ProbeEventType(k.Type).String()
 }
 
 func (k *KernelEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {

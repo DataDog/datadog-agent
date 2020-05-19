@@ -10,7 +10,7 @@ import (
 func TestMkdir(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `mkdir.filename == "/test" || mkdir.filename == "/testat"`,
+		Expression: `mkdir.filename == "/test" || mkdir.filename == "/testat" || (event.type == "mkdir" && event.retval == EEXIST)`,
 	}
 
 	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
@@ -32,14 +32,14 @@ func TestMkdir(t *testing.T) {
 	event, err := test.GetEvent()
 	if err != nil {
 		t.Error(err)
-	}
+	} else {
+		if event.GetType() != "mkdir" {
+			t.Errorf("expected mkdir event, got %s", event.GetType())
+		}
 
-	if event.GetType() != "mkdir" {
-		t.Errorf("expected mkdir event, got %s", event.GetType())
-	}
-
-	if mode := event.Mkdir.Mode; mode != 0707 {
-		t.Errorf("expected mkdir mode 0707, got %#o", mode)
+		if mode := event.Mkdir.Mode; mode != 0707 {
+			t.Errorf("expected mkdir mode 0707, got %#o", mode)
+		}
 	}
 
 	testatFile, testatFilePtr, err := test.drive.Path("testat")
@@ -55,13 +55,30 @@ func TestMkdir(t *testing.T) {
 	event, err = test.GetEvent()
 	if err != nil {
 		t.Error(err)
+	} else {
+		if event.GetType() != "mkdir" {
+			t.Errorf("expected mkdir event, got %s", event.GetType())
+		}
+
+		if mode := event.Mkdir.Mode; mode != 0777 {
+			t.Errorf("expected mkdir mode 0777, got %#o", mode)
+		}
 	}
 
-	if event.GetType() != "mkdir" {
-		t.Errorf("expected mkdir event, got %s", event.GetType())
+	if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
+		t.Fatal(error(errno))
 	}
 
-	if mode := event.Mkdir.Mode; mode != 0777 {
-		t.Errorf("expected mkdir mode 0777, got %#o", mode)
+	event, err = test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		if event.GetType() != "mkdir" {
+			t.Errorf("expected mkdir event, got %s", event.GetType())
+		}
+
+		if retval := event.Event.Retval; retval != -int64(syscall.EEXIST) {
+			t.Errorf("expected retval != EEXIST, got %#o", retval)
+		}
 	}
 }
