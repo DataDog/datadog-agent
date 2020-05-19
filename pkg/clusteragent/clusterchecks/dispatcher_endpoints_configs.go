@@ -65,7 +65,7 @@ func (d *dispatcher) patchEndpointsConfiguration(in integration.Config) (integra
 	if out.Provider == names.CloudFoundryBBS {
 		// Remove ADIdentifiers if the config comes from the cloudfoundry provider, so that they are ready
 		// to be scheduled on the node agent directly (config is already resolved by the DCA)
-		out.ADIdentifiers = []string{}
+		out.ADIdentifiers = nil
 	}
 
 	// Deep copy the instances to avoid modifying the original
