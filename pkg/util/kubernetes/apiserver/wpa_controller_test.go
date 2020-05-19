@@ -11,14 +11,18 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
+
 	"github.com/cenkalti/backoff"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	corev1 "k8s.io/api/core/v1"
@@ -152,6 +156,7 @@ func TestUpdateWPA(t *testing.T) {
 
 }
 
+// newFakeWPAController creates an AutoscalersController. Use enableWPA(wpa_informers.SharedInformerFactory) to add the event handlers to it. Use Run() to add the event handlers and start processing the events.
 func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client wpa_client.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.SharedInformerFactory) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(t.Logf)
@@ -165,7 +170,6 @@ func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client 
 		dcl,
 	)
 
-	autoscalerController.enableWPA(inf)
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
 
 	return autoscalerController, inf
@@ -196,6 +200,9 @@ func newFakeWatermarkPodAutoscaler(name, ns string, uid string, metricName strin
 
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestWPAController(t *testing.T) {
+	logFlush := configureLoggerForTest(t)
+	defer logFlush()
+
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "default", name, nil)
@@ -244,7 +251,7 @@ func TestWPAController(t *testing.T) {
 	require.NotNil(t, c)
 
 	mockedWPA := newFakeWatermarkPodAutoscaler(
-		"hpa_1",
+		"wpa_1",
 		"default",
 		"1",
 		"foo",
@@ -259,10 +266,10 @@ func TestWPAController(t *testing.T) {
 	frequency := 500 * time.Millisecond
 
 	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
-		<-hctrl.autoscalers
+		key := <-hctrl.autoscalers
+		t.Logf("hctrl process key:%s", key)
 		return true
 	})
-
 	// Check local cache store is 1:1 with expectations
 	storedWPA, err := hctrl.wpaLister.WatermarkPodAutoscalers(mockedWPA.Namespace).Get(mockedWPA.Name)
 	require.NoError(t, err)
@@ -306,7 +313,8 @@ func TestWPAController(t *testing.T) {
 	_, err = c.WatermarkPodAutoscalers(mockedWPA.Namespace).Update(mockedWPA)
 	require.NoError(t, err)
 	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
-		<-hctrl.autoscalers
+		key := <-hctrl.autoscalers
+		t.Logf("hctrl process key:%s", key)
 		return true
 	})
 
@@ -367,7 +375,7 @@ func TestWPASync(t *testing.T) {
 	wpaClient := fake.NewSimpleClientset()
 	d := &fakeDatadogClient{}
 	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, d)
-
+	hctrl.enableWPA(inf)
 	obj := newFakeWatermarkPodAutoscaler(
 		"wpa_1",
 		"default",
@@ -554,4 +562,25 @@ func TestWPACRDCheck(t *testing.T) {
 			require.Equal(t, testCase.expectedError, actualError)
 		})
 	}
+}
+
+func configureLoggerForTest(t *testing.T) func() {
+	logger, err := seelog.LoggerFromWriterWithMinLevel(testWriter{t}, seelog.TraceLvl)
+	if err != nil {
+		t.Fatalf("unable to configure logger, err: %v", err)
+	}
+	seelog.ReplaceLogger(logger) //nolint:errcheck
+	log.SetupDatadogLogger(logger, "trace")
+	return log.Flush
+}
+
+type testWriter struct {
+	t *testing.T
+}
+
+func (tw testWriter) Write(p []byte) (n int, err error) {
+	line := string(p)
+	strings.TrimRight(line, "\r\n")
+	tw.t.Log(line)
+	return len(p), nil
 }
