@@ -544,9 +544,17 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
         batch_ptr->c4 = conn;
         batch_ptr->pos++;
         return;
-    default:
-        // This should never happen but let's ensure pos field is set to a sane value
-        batch_ptr->pos = 0;
+    }
+
+    // In case we hit this section it means we had one or more interleaved tcp_close calls.
+    // This could result in missed tcp_close events.
+    u64 key = 0;
+    telemetry_t empty = {};
+    telemetry_t* val;
+    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
+    val = bpf_map_lookup_elem(&telemetry, &key);
+    if (val != NULL) {
+        __sync_fetch_and_add(&val->missed_tcp_close, 1);
     }
 }
 
