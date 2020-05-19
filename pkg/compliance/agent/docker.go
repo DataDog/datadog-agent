@@ -25,7 +25,7 @@ func dockerClient() checks.DockerClient {
 	defer cancel()
 	client, err := docker.ConnectToDocker(ctx)
 	if err != nil {
-		log.Errorf("failed to connect to docker: %v", err)
+		log.Debugf("no docker client: %v", err)
 		return nil
 	}
 	return client
