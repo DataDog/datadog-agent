@@ -51,10 +51,6 @@ func getPort(t *testing.T, listener net.Listener) uint16 {
 	listenerURL := url.URL{Scheme: addr.Network(), Host: addr.String()}
 	port, err := strconv.Atoi(listenerURL.Port())
 	require.NoError(t, err)
-
-	go func() {
-		_, _ = listener.Accept()
-	}()
 	return uint16(port)
 }
 
