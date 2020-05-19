@@ -373,9 +373,9 @@ func (s *SNMPService) IsReady() bool {
 	return true
 }
 
-// GetCheckNames returns an empty slice
+// GetCheckNames returns nil
 func (s *SNMPService) GetCheckNames() []string {
-	return []string{}
+	return nil
 }
 
 // HasFilter returns false on SNMP
