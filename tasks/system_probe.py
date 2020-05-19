@@ -66,11 +66,11 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
         build_tags.append(BCC_TAG)
 
     # TODO static option
-    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build {go_mod_opt} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
     args = {
-        "go_mod": go_mod,
+        "go_mod_opt": "-mod="+go_mod if go_mod else "",
         "race_opt": "-race" if race else "",
         "build_type": "" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
