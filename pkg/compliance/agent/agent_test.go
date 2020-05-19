@@ -30,6 +30,7 @@ func TestRun(t *testing.T) {
 	assert.NoError(err)
 
 	files, err := filepath.Glob(filepath.Join(tempDir, "files/*"))
+	assert.NoError(err)
 	for _, file := range files {
 		_ = os.Chmod(file, 0644)
 	}
