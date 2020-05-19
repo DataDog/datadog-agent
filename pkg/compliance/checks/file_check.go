@@ -8,6 +8,7 @@ package checks
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/bhmj/jsonslice"
 )
 
 var (
@@ -72,12 +74,17 @@ func (c *fileCheck) reportFile(filePath string) error {
 		default:
 			return ErrPropertyKindNotSupported
 		}
+		if err != nil {
+			return err
+		}
 
 		if key == "" {
 			key = field.Property
 		}
 
-		kv[key] = v
+		if v != "" {
+			kv[key] = v
+		}
 	}
 	c.report(nil, kv)
 	return nil
@@ -106,6 +113,24 @@ func (c *fileCheck) getAttribute(fi os.FileInfo, property string) (string, error
 }
 
 func (c *fileCheck) getJSONPathValue(filePath string, jsonPath string) (string, error) {
-	// TODO: implement
-	return "", nil
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	data, err = jsonslice.Get(data, jsonPath)
+	if err != nil {
+		return "", err
+	}
+	s := string(data)
+	if len(s) != 0 && s[0] == '"' {
+		return strconv.Unquote(string(data))
+	}
+	return s, nil
 }

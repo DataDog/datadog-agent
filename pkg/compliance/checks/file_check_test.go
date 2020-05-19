@@ -5,8 +5,12 @@
 package checks
 
 import (
+	"fmt"
+	"os"
+	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
@@ -15,22 +19,30 @@ import (
 
 func TestFileCheck(t *testing.T) {
 	tests := []struct {
-		name string
-		file *compliance.File
-		onKV func(t *testing.T, kv compliance.KV)
+		name     string
+		file     *compliance.File
+		setup    func(t *testing.T) *compliance.File
+		validate func(t *testing.T, kv compliance.KV)
 	}{
 		{
 			name: "permissions",
-			file: &compliance.File{
-				Path: "./testdata/file/644.dat",
-				Report: compliance.Report{
-					{
-						Property: "permissions",
-						Kind:     "attribute",
+			setup: func(t *testing.T) *compliance.File {
+				dir := os.TempDir()
+				path := path.Join(dir, fmt.Sprintf("test-permissions-file-check-%d.dat", time.Now().Unix()))
+				f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+				defer f.Close()
+				assert.NoError(t, err)
+				return &compliance.File{
+					Path: path,
+					Report: compliance.Report{
+						{
+							Property: "permissions",
+							Kind:     "attribute",
+						},
 					},
-				},
+				}
 			},
-			onKV: func(t *testing.T, kv compliance.KV) {
+			validate: func(t *testing.T, kv compliance.KV) {
 				assert.Equal(t, compliance.KV{
 					"permissions": "644",
 				}, kv)
@@ -47,7 +59,7 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			},
-			onKV: func(t *testing.T, kv compliance.KV) {
+			validate: func(t *testing.T, kv compliance.KV) {
 				owner, ok := kv["owner"]
 				assert.True(t, ok)
 				parts := strings.SplitN(owner, ":", 2)
@@ -55,21 +67,79 @@ func TestFileCheck(t *testing.T) {
 				assert.Contains(t, []string{"root", "wheel"}, parts[1])
 			},
 		},
+		{
+			name: "jsonpath log-driver",
+			file: &compliance.File{
+				Path: "./testdata/file/daemon.json",
+				Report: compliance.Report{
+					{
+						Property: "$['log-driver']",
+						Kind:     "jsonpath",
+						As:       "log_driver",
+					},
+				},
+			},
+			validate: func(t *testing.T, kv compliance.KV) {
+				assert.Equal(t, compliance.KV{
+					"log_driver": "json-file",
+				}, kv)
+			},
+		},
+		{
+			name: "jsonpath experimental",
+			file: &compliance.File{
+				Path: "./testdata/file/daemon.json",
+				Report: compliance.Report{
+					{
+						Property: "$.experimental",
+						Kind:     "jsonpath",
+						As:       "experimental",
+					},
+				},
+			},
+			validate: func(t *testing.T, kv compliance.KV) {
+				assert.Equal(t, compliance.KV{
+					"experimental": "false",
+				}, kv)
+			},
+		},
+		{
+			name: "jsonpath ulimits",
+			file: &compliance.File{
+				Path: "./testdata/file/daemon.json",
+				Report: compliance.Report{
+					{
+						Property: "$['default-ulimits'].nofile.Hard",
+						Kind:     "jsonpath",
+						As:       "nofile_hard",
+					},
+				},
+			},
+			validate: func(t *testing.T, kv compliance.KV) {
+				assert.Equal(t, compliance.KV{
+					"nofile_hard": "64000",
+				}, kv)
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			file := test.file
+			if test.setup != nil {
+				file = test.setup(t)
+			}
 			reporter := &compliance.MockReporter{}
 			fc := &fileCheck{
 				baseCheck: newTestBaseCheck(reporter),
-				File:      test.file,
+				File:      file,
 			}
 			reporter.On(
 				"Report",
 				mock.AnythingOfType("*compliance.RuleEvent"),
 			).Run(func(args mock.Arguments) {
 				event := args.Get(0).(*compliance.RuleEvent)
-				test.onKV(t, event.Data)
+				test.validate(t, event.Data)
 			})
 
 			err := fc.Run()
