@@ -265,15 +265,14 @@ def deps(ctx, no_checks=False, core_dir=None, verbose=False, android=False, dep_
         ctx.run(cmd)
 
     if not no_dep_ensure:
-        with ctx.cd("/git/datadog-agent"):
-            # source level deps
-            print("calling go mod vendor")
-            start = datetime.datetime.now()
-            verbosity = ' -v' if verbose else ''
-            ctx.run("go mod vendor{}".format(verbosity))
-            # use modvendor to copy missing files dependencies
-            ctx.run('{}/bin/modvendor -copy="**/*.c **/*.h **/*.proto"{}'.format(get_gopath(ctx), verbosity))
-            dep_done = datetime.datetime.now()
+        # source level deps
+        print("calling go mod vendor")
+        start = datetime.datetime.now()
+        verbosity = ' -v' if verbose else ''
+        ctx.run("go mod vendor{}".format(verbosity))
+        # use modvendor to copy missing files dependencies
+        ctx.run('{}/bin/modvendor -copy="**/*.c **/*.h **/*.proto"{}'.format(get_gopath(ctx), verbosity))
+        dep_done = datetime.datetime.now()
 
         # If github.com/DataDog/datadog-agent gets vendored too - nuke it
         #

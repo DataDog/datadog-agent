@@ -25,10 +25,10 @@ func readProcNet(path string) ([]uint16, error) {
 // readProcNet reads a /proc/net/ file and returns a list of all source ports for connections in the given state
 func readProcNetWithStatus(path string, status int64) ([]uint16, error) {
 	f, err := os.Open(path)
-	defer func() { _ = f.Close() }()
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = f.Close() }()
 
 	reader := bufio.NewReader(f)
 
