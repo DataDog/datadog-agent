@@ -34,7 +34,7 @@ const (
 	TCPCleanupRBuf KProbeName = "kprobe/tcp_cleanup_rbuf"
 	// TCPClose traces the tcp_close() system call
 	TCPClose KProbeName = "kprobe/tcp_close"
-	// TCPClose traces the return of tcp_close() system call
+	// TCPCloseReturn traces the return of tcp_close() system call
 	TCPCloseReturn KProbeName = "kretprobe/tcp_close"
 
 	// UDPSendMsg traces the udp_sendmsg() system call
