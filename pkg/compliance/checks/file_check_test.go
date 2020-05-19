@@ -5,17 +5,19 @@
 package checks
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestFileCheck(t *testing.T) {
 	tests := []struct {
-		name       string
-		file       *compliance.File
-		expectedKV compliance.KV
+		name string
+		file *compliance.File
+		onKV func(t *testing.T, kv compliance.KV)
 	}{
 		{
 			name: "permissions",
@@ -28,14 +30,16 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			},
-			expectedKV: compliance.KV{
-				"permissions": "644",
+			onKV: func(t *testing.T, kv compliance.KV) {
+				assert.Equal(t, compliance.KV{
+					"permissions": "644",
+				}, kv)
 			},
 		},
 		{
-			name: "owner nobody:nobody",
+			name: "owner root",
 			file: &compliance.File{
-				Path: "./testdata/file/nobody-nobody.dat",
+				Path: "/tmp",
 				Report: compliance.Report{
 					{
 						Property: "owner",
@@ -43,23 +47,12 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			},
-			expectedKV: compliance.KV{
-				"owner": "nobody:nobody",
-			},
-		},
-		{
-			name: "owner 2048:2048",
-			file: &compliance.File{
-				Path: "./testdata/file/2048-2048.dat",
-				Report: compliance.Report{
-					{
-						Property: "owner",
-						Kind:     "attribute",
-					},
-				},
-			},
-			expectedKV: compliance.KV{
-				"owner": "2048:2048",
+			onKV: func(t *testing.T, kv compliance.KV) {
+				owner, ok := kv["owner"]
+				assert.True(t, ok)
+				parts := strings.SplitN(owner, ":", 2)
+				assert.Equal(t, parts[0], "root")
+				assert.Contains(t, []string{"root", "wheel"}, parts[1])
 			},
 		},
 	}
@@ -73,11 +66,11 @@ func TestFileCheck(t *testing.T) {
 			}
 			reporter.On(
 				"Report",
-				newTestRuleEvent(
-					nil,
-					test.expectedKV,
-				),
-			).Once()
+				mock.AnythingOfType("*compliance.RuleEvent"),
+			).Run(func(args mock.Arguments) {
+				event := args.Get(0).(*compliance.RuleEvent)
+				test.onKV(t, event.Data)
+			})
 
 			err := fc.Run()
 			assert.NoError(t, err)
