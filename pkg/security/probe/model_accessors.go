@@ -35,9 +35,9 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 
 	case "event.type":
 
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Event.Type) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Event.Type) },
+		return &eval.StringEvaluator{
+			Eval:      func(ctx *eval.Context) string { return m.event.Event.ResolveType(m.event.resolvers) },
+			DebugEval: func(ctx *eval.Context) string { return m.event.Event.ResolveType(m.event.resolvers) },
 
 			Field: key,
 		}, nil
