@@ -37,9 +37,9 @@ func TestRmdir(t *testing.T) {
 	event, err := test.GetEvent()
 	if err != nil {
 		t.Error(err)
-	}
-
-	if event.GetType() != "rmdir" {
-		t.Errorf("expected rmdir event, got %s", event.GetType())
+	} else {
+		if event.GetType() != "rmdir" {
+			t.Errorf("expected rmdir event, got %s", event.GetType())
+		}
 	}
 }

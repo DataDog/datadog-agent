@@ -64,9 +64,9 @@ func TestUnlink(t *testing.T) {
 	event, err = test.GetEvent()
 	if err != nil {
 		t.Error(err)
-	}
-
-	if event.GetType() != "unlink" {
-		t.Errorf("expected unlink event, got %s", event.GetType())
+	} else {
+		if event.GetType() != "unlink" {
+			t.Errorf("expected unlink event, got %s", event.GetType())
+		}
 	}
 }

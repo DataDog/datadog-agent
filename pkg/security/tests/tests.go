@@ -194,7 +194,7 @@ func (tc *testClient) GetEvent(timeout time.Duration) (*api.SecurityEventMessage
 	select {
 	case event := <-tc.events:
 		return event, nil
-	case <-time.After(3 * time.Second):
+	case <-time.After(timeout):
 		return nil, errors.New("timeout")
 	}
 }
@@ -230,7 +230,7 @@ func (t *simpleTest) GetEvent() (*probe.Event, error) {
 	}
 
 	var probeEvent probe.Event
-	if err := mapstructure.WeakDecode(data, &probeEvent); err != nil {
+	if err := mapstructure.Decode(data, &probeEvent); err != nil {
 		return nil, err
 	}
 
