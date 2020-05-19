@@ -35,13 +35,13 @@ func TestOpen(t *testing.T) {
 	event, err := test.GetEvent()
 	if err != nil {
 		t.Error(err)
-	}
+	} else {
+		if event.GetType() != "open" {
+			t.Errorf("expected open event, got %s", event.GetType())
+		}
 
-	if event.GetType() != "open" {
-		t.Errorf("expected open event, got %s", event.GetType())
-	}
-
-	if flags := event.Open.Flags; flags != syscall.O_CREAT {
-		t.Errorf("expected open mode O_CREAT, got %d", flags)
+		if flags := event.Open.Flags; flags != syscall.O_CREAT {
+			t.Errorf("expected open mode O_CREAT, got %d", flags)
+		}
 	}
 }
