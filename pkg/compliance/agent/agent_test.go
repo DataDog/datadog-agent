@@ -6,6 +6,9 @@
 package agent
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,11 +16,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/containerd/continuity/fs"
 )
 
 func TestRun(t *testing.T) {
 	assert := assert.New(t)
-	configDir := "./testdata/configs"
+
+	tempDir, err := ioutil.TempDir("", "compliance-agent-*")
+	assert.NoError(err)
+
+	err = fs.CopyDir(tempDir, "./testdata/configs")
+	assert.NoError(err)
+
+	files, err := filepath.Glob(filepath.Join(tempDir, "files/*"))
+	for _, file := range files {
+		_ = os.Chmod(file, 0644)
+	}
+
+	prev, _ := os.Getwd()
+	_ = os.Chdir(tempDir)
+	defer os.Chdir(prev)
+
 	interval := time.Hour
 
 	reporter := &compliance.MockReporter{}
@@ -52,9 +72,9 @@ func TestRun(t *testing.T) {
 		check.Run()
 	})
 
-	a := New(reporter, scheduler, configDir, interval)
+	a := New(reporter, scheduler, tempDir, interval)
 
-	err := a.Run()
+	err = a.Run()
 	assert.NoError(err)
 	a.Stop()
 }

@@ -9,7 +9,7 @@ rules:
       value: master
   resources:
   - file:
-      path: ./testdata/kube-apiserver.yaml
+      path: ./files/kube-apiserver.yaml
       report:
       - property: permissions
         kind: attribute
