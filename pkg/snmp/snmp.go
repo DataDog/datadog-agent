@@ -45,10 +45,10 @@ type Config struct {
 	Retries            int             `mapstructure:"retries"`
 	Community          string          `mapstructure:"community"`
 	User               string          `mapstructure:"user"`
-	AuthKey            string          `mapstructure:"authentication_key"`
-	AuthProtocol       string          `mapstructure:"authentication_protocol"`
-	PrivKey            string          `mapstructure:"privacy_key"`
-	PrivProtocol       string          `mapstructure:"privacy_protocol"`
+	AuthKey            string          `mapstructure:"auth_key"`
+	AuthProtocol       string          `mapstructure:"auth_protocol"`
+	PrivKey            string          `mapstructure:"priv_key"`
+	PrivProtocol       string          `mapstructure:"priv_protocol"`
 	ContextEngineID    string          `mapstructure:"context_engine_id"`
 	ContextName        string          `mapstructure:"context_name"`
 	IgnoredIPAddresses map[string]bool `mapstructure:"ignored_ip_addresses"`
