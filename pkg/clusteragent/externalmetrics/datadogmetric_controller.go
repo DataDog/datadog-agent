@@ -47,7 +47,7 @@ type DatadogMetricController struct {
 // NewAutoscalersController returns a new AutoscalersController
 func NewDatadogMetricController(client dd_clientset.Interface, informer dd_informers.SharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*DatadogMetricController, error) {
 	if store == nil {
-		return nil, fmt.Errorf("Store cannot be nil")
+		return nil, fmt.Errorf("Store must be initialized")
 	}
 
 	datadogMetricsInformer := informer.Datadoghq().V1alpha1().DatadogMetrics()
@@ -80,14 +80,14 @@ func NewDatadogMetricController(client dd_clientset.Interface, informer dd_infor
 func (c *DatadogMetricController) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
-	log.Infof("Starting DatadogMetric Controller... ")
+	log.Infof("Starting DatadogMetric Controller (waiting for cache sync)")
 	if !cache.WaitForCacheSync(stopCh, c.synced) {
 		return fmt.Errorf("Failed to wait for DatadogMetric caches to sync")
 	}
 
 	go wait.Until(c.worker, time.Second, stopCh)
 
-	log.Infof("Started DatadogMetric Controller")
+	log.Infof("Started DatadogMetric Controller (cache sync finished)")
 	<-stopCh
 	log.Infof("Stopping DatadogMetric Controller")
 	return nil
@@ -194,6 +194,7 @@ func (c *DatadogMetricController) processDatadogMetric(key interface{}) error {
 	return nil
 }
 
+// Synchronize DatadogMetric state between internal store and Kubernetes objects
 func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey string, datadogMetric *datadoghq.DatadogMetric) error {
 	datadogMetricInternal := c.store.LockRead(datadogMetricKey, true)
 	if datadogMetricInternal == nil {

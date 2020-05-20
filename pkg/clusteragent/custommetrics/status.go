@@ -26,6 +26,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 
 	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
 		status["NoStatus"] = "External metrics provider uses DatadogMetric - Check status directly from Kubernetes with: `kubectl get datadogmetric`"
+		return status
 	}
 
 	configMapName := GetConfigmapName()

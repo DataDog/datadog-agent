@@ -15,6 +15,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestMetricNameToDatadogMetricID(t *testing.T) {
+	tests := []struct {
+		metricName   string
+		expID        string
+		expParsed    bool
+		expHasPrefix bool
+	}{
+		{
+			metricName:   "datadogmetric@myns:name",
+			expID:        "myns/name",
+			expParsed:    true,
+			expHasPrefix: true,
+		},
+		{
+			metricName:   "datadogmetric@name",
+			expID:        "",
+			expParsed:    false,
+			expHasPrefix: true,
+		},
+		{
+			metricName:   "nginx.responsetime",
+			expID:        "",
+			expParsed:    false,
+			expHasPrefix: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.metricName, func(t *testing.T) {
+			id, parsed, hasPrefix := metricNameToDatadogMetricID(test.metricName)
+			assert.Equal(t, test.expID, id)
+			assert.Equal(t, test.expParsed, parsed)
+			assert.Equal(t, test.expHasPrefix, hasPrefix)
+		})
+	}
+}
+
 func TestDatadogMetricNameGeneration(t *testing.T) {
 	testMetricName := "metricName1"
 	testLabels := map[string]string{

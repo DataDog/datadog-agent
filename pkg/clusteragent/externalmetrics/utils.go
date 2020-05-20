@@ -15,8 +15,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -30,10 +28,13 @@ const (
 
 var (
 	datadogMetricFormat regexp.Regexp = *regexp.MustCompile("^" + datadogMetricRefPrefix + kubernetesNameFormat + datadogMetricRefSep + kubernetesNameFormat + "$")
+	// These values are set by the provider when starting, here are default values for unit tests
+	queryConfigAggregator string = "avg"
+	queryConfigRollup     int    = 30
 )
 
 // datadogMetric.ID is namespace/name
-func metricNameToDatadogMetricID(metricName string) (string, bool, bool) {
+func metricNameToDatadogMetricID(metricName string) (id string, parsed bool, hasPrefix bool) {
 	metricName = strings.ToLower(metricName)
 	if matches := datadogMetricFormat.FindStringSubmatch(metricName); matches != nil {
 		return matches[1] + kubernetesNamespaceSep + matches[2], true, true
@@ -73,8 +74,6 @@ func getAutogenDatadogMetricName(query string) string {
 }
 
 func buildDatadogQueryForExternalMetric(metricName string, labels map[string]string) string {
-	aggregator := config.Datadog.GetString("external_metrics.aggregator")
-	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
 	var result string
 
 	if len(labels) == 0 {
@@ -89,5 +88,10 @@ func buildDatadogQueryForExternalMetric(metricName string, labels map[string]str
 		result = fmt.Sprintf("%s{%s}", metricName, tags)
 	}
 
-	return fmt.Sprintf("%s:%s.rollup(%d)", aggregator, result, rollup)
+	return fmt.Sprintf("%s:%s.rollup(%d)", queryConfigAggregator, result, queryConfigRollup)
+}
+
+func setQueryConfigValues(aggregator string, rollup int) {
+	queryConfigAggregator = aggregator
+	queryConfigRollup = rollup
 }

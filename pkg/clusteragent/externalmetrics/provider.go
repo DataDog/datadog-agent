@@ -45,8 +45,12 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as LeaderElection failed with: %v", err)
 	}
 
+	aggregator := config.Datadog.GetString("external_metrics.aggregator")
+	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
+	setQueryConfigValues(aggregator, rollup)
+
 	refreshPeriod := config.Datadog.GetInt64("external_metrics_provider.refresh_period")
-	retrieverMetricsMaxAge := int64(math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog.GetFloat64("external_metrics_provider.rollup")))
+	retrieverMetricsMaxAge := int64(math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
 	autogenNamespace := common.GetResourcesNamespace()
 
 	provider := &datadogMetricProvider{

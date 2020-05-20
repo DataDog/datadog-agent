@@ -51,7 +51,7 @@ type externalMetric struct {
 // We need at least one of them
 func NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours int64, autogenNamespace string, informer informers.SharedInformerFactory, wpaInformer wpa_informer.SharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*AutoscalerWatcher, error) {
 	if store == nil {
-		return nil, fmt.Errorf("Store cannot be nil")
+		return nil, fmt.Errorf("Store must be initialized")
 	}
 
 	// Check that we have at least one valid resource to watch
@@ -91,7 +91,7 @@ func NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours int64, aut
 }
 
 func (w *AutoscalerWatcher) Run(stopCh <-chan struct{}) {
-	log.Infof("Starting AutoscalerWatcher")
+	log.Infof("Starting AutoscalerWatcher (waiting for cache sync)")
 	if w.autoscalerListerSynced != nil {
 		cache.WaitForCacheSync(stopCh, w.autoscalerListerSynced)
 	}
@@ -99,7 +99,7 @@ func (w *AutoscalerWatcher) Run(stopCh <-chan struct{}) {
 	if w.wpaListerSynced != nil {
 		cache.WaitForCacheSync(stopCh, w.wpaListerSynced)
 	}
-	log.Infof("AutoscalerWatcher started")
+	log.Infof("AutoscalerWatcher started (cache sync finished)")
 
 	tickerRefreshProcess := time.NewTicker(time.Duration(w.refreshPeriod) * time.Second)
 	for {
@@ -123,43 +123,53 @@ func (w *AutoscalerWatcher) processAutoscalers() {
 		return
 	}
 
-	// Go through all DatadogMetric and check if we have a reference or not
+	// Go through all DatadogMetric and perform necessary actions
 	for _, datadogMetric := range w.store.GetAll() {
 		_, active := datadogMetricReferences[datadogMetric.ID]
-		if active != datadogMetric.Active {
-			log.Debugf("Updating active status for: %s to: %t", datadogMetric.ID, active)
 
-			if currentDatadogMetric := w.store.LockRead(datadogMetric.ID, false); currentDatadogMetric != nil {
-				currentDatadogMetric.UpdateTime = time.Now().UTC()
-				currentDatadogMetric.Active = active
-				// If we move from Active to Inactive, we discard current valid state to avoid using unrefreshed metrics upon re-activation
-				if !currentDatadogMetric.Active {
-					currentDatadogMetric.Valid = false
-				}
-
-				w.store.UnlockSet(currentDatadogMetric.ID, *currentDatadogMetric, autoscalerWatcherStoreID)
-			}
-		}
+		// Update DatadogMetric active status
+		w.updateDatadogMetricStatus(active, datadogMetric)
 
 		// Delete autogen DatadogMetrics that haven't been updated for some time
-		if !active && datadogMetric.Autogen && !datadogMetric.HasBeenUpdatedFor(w.autogenExpirationPeriod) {
-			log.Infof("Flagging old autogen DatadogMetric: %s for deletion - last update: %v", datadogMetric.ID, datadogMetric.UpdateTime)
-			if currentDatadogMetric := w.store.LockRead(datadogMetric.ID, false); currentDatadogMetric != nil {
-				currentDatadogMetric.Deleted = true
-				w.store.UnlockSet(currentDatadogMetric.ID, *currentDatadogMetric, autoscalerWatcherStoreID)
-			}
-		}
+		w.cleanupAutogenDatadogMetric(active, datadogMetric)
 
-		// We clean reference map to keep only
+		// We clean reference map to keep references only existing on Kubernetes side
 		delete(datadogMetricReferences, datadogMetric.ID)
 	}
 
-	// In `datadogMetricReferences` we now only have existing references that we should be able to handle, creating them
+	// In `datadogMetricReferences` we now only have existing references that we should create
 	for datadogMetricID, externalMetric := range datadogMetricReferences {
 		autogenQuery := buildDatadogQueryForExternalMetric(externalMetric.metricName, externalMetric.metricLabels)
 		autogenDatadogMetric := model.NewDatadogMetricInternalFromExternalMetric(datadogMetricID, autogenQuery, externalMetric.metricName)
 		log.Infof("Creating DatadogMetric: %s for ExternalMetric: %s, Query: %s", datadogMetricID, externalMetric.metricName, autogenQuery)
 		w.store.Set(datadogMetricID, autogenDatadogMetric, autoscalerWatcherStoreID)
+	}
+}
+
+func (w *AutoscalerWatcher) updateDatadogMetricStatus(active bool, datadogMetric model.DatadogMetricInternal) {
+	if active != datadogMetric.Active {
+		log.Debugf("Updating active status for: %s to: %t", datadogMetric.ID, active)
+
+		if currentDatadogMetric := w.store.LockRead(datadogMetric.ID, false); currentDatadogMetric != nil {
+			currentDatadogMetric.UpdateTime = time.Now().UTC()
+			currentDatadogMetric.Active = active
+			// If we move from Active to Inactive, we discard current valid state to avoid using unrefreshed metrics upon re-activation
+			if !currentDatadogMetric.Active {
+				currentDatadogMetric.Valid = false
+			}
+
+			w.store.UnlockSet(currentDatadogMetric.ID, *currentDatadogMetric, autoscalerWatcherStoreID)
+		}
+	}
+}
+
+func (w *AutoscalerWatcher) cleanupAutogenDatadogMetric(active bool, datadogMetric model.DatadogMetricInternal) {
+	if !active && datadogMetric.Autogen && !datadogMetric.HasBeenUpdatedFor(w.autogenExpirationPeriod) {
+		log.Infof("Flagging old autogen DatadogMetric: %s for deletion - last update: %v", datadogMetric.ID, datadogMetric.UpdateTime)
+		if currentDatadogMetric := w.store.LockRead(datadogMetric.ID, false); currentDatadogMetric != nil {
+			currentDatadogMetric.Deleted = true
+			w.store.UnlockSet(currentDatadogMetric.ID, *currentDatadogMetric, autoscalerWatcherStoreID)
+		}
 	}
 }
 
