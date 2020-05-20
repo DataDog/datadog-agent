@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"os"
-	"os/exec"
 	"path"
 	"sync/atomic"
 	"syscall"
@@ -22,7 +20,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
-	"gopkg.in/freddierice/go-losetup.v1"
 
 	smodule "github.com/DataDog/datadog-agent/cmd/system-probe/module"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -207,15 +204,28 @@ func (tc *testClient) Close() {
 type simpleTest struct {
 	module *testModule
 	client *testClient
-	drive  *testDrive
 	cancel context.CancelFunc
+	root   string
 }
 
 func (t *simpleTest) Close() {
-	t.drive.Close()
 	t.module.Close()
 	t.client.Close()
 	t.cancel()
+	os.RemoveAll(t.root)
+}
+
+func (t *simpleTest) Root() string {
+	return t.root
+}
+
+func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
+	filename = path.Join(t.root, filename)
+	filenamePtr, err := syscall.BytePtrFromString(filename)
+	if err != nil {
+		return "", nil, err
+	}
+	return filename, unsafe.Pointer(filenamePtr), nil
 }
 
 func (t *simpleTest) GetEvent() (*probe.Event, error) {
@@ -230,7 +240,7 @@ func (t *simpleTest) GetEvent() (*probe.Event, error) {
 	}
 
 	var probeEvent probe.Event
-	if err := mapstructure.Decode(data, &probeEvent); err != nil {
+	if err := mapstructure.WeakDecode(data, &probeEvent); err != nil {
 		return nil, err
 	}
 
@@ -250,110 +260,54 @@ func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		log.SetupDatadogLogger(logger, "DEBUG")
 	}
 
-	drive, err := newTestDrive()
+	root, err := ioutil.TempDir("", "test-secagent-root")
 	if err != nil {
 		return nil, err
 	}
 
-	module, err := newTestModule(macros, rules)
+	t := &simpleTest{
+		root: root,
+	}
+
+	executeExpressionTemplate := func(expression string) (string, error) {
+		buffer := new(bytes.Buffer)
+		tmpl, err := template.New("").Parse(expression)
+		if err != nil {
+			return "", err
+		}
+
+		if err := tmpl.Execute(buffer, t); err != nil {
+			return "", err
+		}
+
+		return buffer.String(), nil
+	}
+
+	for _, rule := range rules {
+		if rule.Expression, err = executeExpressionTemplate(rule.Expression); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, macro := range macros {
+		if macro.Expression, err = executeExpressionTemplate(macro.Expression); err != nil {
+			return nil, err
+		}
+	}
+
+	t.module, err = newTestModule(macros, rules)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := newTestClient()
+	t.client, err = newTestClient()
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client.Run(ctx)
+	t.client.Run(ctx)
+	t.cancel = cancel
 
-	return &simpleTest{
-		module: module,
-		client: client,
-		drive:  drive,
-		cancel: cancel,
-	}, nil
-}
-
-type testDrive struct {
-	file       *os.File
-	dev        losetup.Device
-	mountPoint string
-}
-
-func (td *testDrive) Path(filename string) (string, unsafe.Pointer, error) {
-	filename = path.Join(td.mountPoint, filename)
-	filenamePtr, err := syscall.BytePtrFromString(filename)
-	if err != nil {
-		return "", nil, err
-	}
-	return filename, unsafe.Pointer(filenamePtr), nil
-}
-
-func newTestDrive() (*testDrive, error) {
-	backingFile, err := ioutil.TempFile("", "secagent-testdrive-")
-	if err != nil {
-		return nil, err
-	}
-
-	mountPoint, err := ioutil.TempDir("", "secagent-testdrive-")
-	if err != nil {
-		return nil, err
-	}
-
-	if err := os.Truncate(backingFile.Name(), 1*1024*1024); err != nil {
-		return nil, err
-	}
-
-	dev, err := losetup.Attach(backingFile.Name(), 0, false)
-	if err != nil {
-		os.Remove(backingFile.Name())
-		return nil, err
-	}
-
-	mkfsCmd := exec.Command("mkfs.ext4", dev.Path())
-	if err := mkfsCmd.Run(); err != nil {
-		dev.Detach()
-		os.Remove(backingFile.Name())
-		return nil, errors.Wrap(err, "failed to create ext4 filesystem")
-	}
-
-	mountCmd := exec.Command("mount", dev.Path(), mountPoint)
-	if err := mountCmd.Run(); err != nil {
-		dev.Detach()
-		os.Remove(backingFile.Name())
-		return nil, errors.Wrap(err, "failed to mount filesystem")
-	}
-
-	return &testDrive{
-		file:       backingFile,
-		dev:        dev,
-		mountPoint: mountPoint,
-	}, nil
-}
-
-func (td *testDrive) Unmount() error {
-	unmountCmd := exec.Command("umount", "-f", td.mountPoint)
-	if err := unmountCmd.Run(); err != nil {
-		return errors.Wrap(err, "failed to unmount filesystem")
-	}
-
-	return nil
-}
-
-func (td *testDrive) Close() {
-	os.RemoveAll(td.mountPoint)
-	if err := td.Unmount(); err != nil {
-		fmt.Print(err)
-	}
-	os.Remove(td.file.Name())
-	os.Remove(td.mountPoint)
-	time.Sleep(time.Second)
-	if err := td.dev.Detach(); err != nil {
-		fmt.Print(err)
-	}
-	if err := td.dev.Remove(); err != nil {
-		fmt.Print(err)
-	}
+	return t, nil
 }

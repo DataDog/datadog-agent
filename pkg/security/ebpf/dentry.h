@@ -47,6 +47,21 @@ int __attribute__((always_inline)) get_inode_mount_id(struct inode *dir) {
     return mount_id;
 }
 
+struct dentry * __attribute__((always_inline)) get_inode_mountpoint(struct inode *dir) {
+    // Mount ID
+    struct dentry *mountpoint = NULL;
+    struct super_block *spb;
+    bpf_probe_read(&spb, sizeof(spb), &dir->i_sb);
+
+    struct list_head s_mounts;
+    bpf_probe_read(&s_mounts, sizeof(s_mounts), &spb->s_mounts);
+
+    // bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *) s_mounts.next - offsetof(struct mount, mnt_instance) + offsetof(struct mount, mnt_mountpoint));
+    bpf_probe_read(&mountpoint, sizeof(mountpoint), (void *) s_mounts.next - 88);
+
+    return mountpoint;
+}
+
 struct inode * __attribute__((always_inline)) get_dentry_inode(struct dentry *dentry) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
@@ -79,19 +94,24 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
 #pragma unroll
     for (int i = 0; i < DENTRY_MAX_DEPTH; i++)
     {
-        bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
-
         struct dentry *d_parent;
         bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
 
         inode = next_inode;
         if (dentry == d_parent) {
             next_inode = 0;
+            struct inode *d_inode = get_dentry_inode(dentry);
+            dentry = get_inode_mountpoint(d_inode);
+            d_inode = get_dentry_inode(dentry);
+            next_inode = get_inode_ino(d_inode);
+            bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
         } else {
             next_inode = get_inode_ino(get_dentry_inode(d_parent));
         }
 
+        bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
         bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void*) qstr.name);
+
         if (map_value.name[0] == 47 || map_value.name[0] == 0)
             next_inode = 0;
 
