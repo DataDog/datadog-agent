@@ -56,7 +56,7 @@ def wait_until_stopped(timeout = 60)
   sleep 2
 end
 
-def wait_until_started(timeout = 60)
+def wait_until_started(timeout = 30)
   # Check if the agent has started every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
