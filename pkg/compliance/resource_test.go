@@ -12,10 +12,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-func intPtr(v int) *int {
-	return &v
-}
-
 const testResourceFileReportingOwner = `
 file:
   path: /etc/docker/daemon.json
@@ -59,7 +55,8 @@ process:
 
 const testResourceCommand = `
 command:
-  run: mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"
+  shell:
+    run: mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"
   filter:
   - include:
       exitCode: 0
@@ -203,11 +200,13 @@ func TestResources(t *testing.T) {
 			input: testResourceCommand,
 			expected: Resource{
 				Command: &Command{
-					Run: `mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"`,
+					ShellCmd: &ShellCmd{
+						Run: `mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"`,
+					},
 					Filter: []CommandFilter{
 						{
 							Include: &CommandCondition{
-								ExitCode: intPtr(0),
+								ExitCode: 0,
 							},
 						},
 					},

@@ -88,7 +88,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/cgroups v0.0.0-00010101000000-000000000000
 	github.com/containerd/containerd v1.0.2
-	github.com/containerd/continuity v0.0.0-20200228182428-0f16d7a0959c
+	github.com/containerd/continuity v0.0.0-20200228182428-0f16d7a0959c // indirect
 	github.com/containerd/fifo v0.0.0-20191213151349-ff969a566b00 // indirect
 	github.com/containerd/typeurl v1.0.0
 	github.com/coreos/etcd v3.3.15+incompatible

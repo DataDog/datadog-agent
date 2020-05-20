@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
 )
 
@@ -44,6 +45,8 @@ func getProcesses(maxAge time.Duration) (processes, error) {
 	if processesUpdateTime.Before(time.Now().Add(-maxAge)) {
 		processCacheLock.Lock()
 		defer processCacheLock.Unlock()
+
+		log.Debug("Updating process cache")
 
 		var err error
 		cachedProcesses, err = processFetcherFunc()
