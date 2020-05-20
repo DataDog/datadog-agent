@@ -43,29 +43,32 @@ func initDomainForwarderExpvars() {
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
-	isRetrying          int32
-	domain              string
-	numberOfWorkers     int
-	highPrio            chan Transaction // use to receive new transactions
-	lowPrio             chan Transaction // use to retry transactions
-	requeuedTransaction chan Transaction
-	stopRetry           chan bool
-	workers             []*Worker
-	retryQueue          []Transaction
-	retryQueueLimit     int
-	internalState       uint32
-	m                   sync.Mutex // To control Start/Stop races
+	isRetrying              int32
+	domain                  string
+	numberOfWorkers         int
+	highPrio                chan Transaction // use to receive new transactions
+	lowPrio                 chan Transaction // use to retry transactions
+	requeuedTransaction     chan Transaction
+	stopRetry               chan bool
+	stopConnectionReset     chan bool
+	workers                 []*Worker
+	retryQueue              []Transaction
+	retryQueueLimit         int
+	connectionResetInterval time.Duration
+	internalState           uint32
+	m                       sync.Mutex // To control Start/Stop races
 
 	blockedList *blockedEndpoints
 }
 
-func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int) *domainForwarder {
+func newDomainForwarder(domain string, numberOfWorkers int, retryQueueLimit int, connectionResetInterval time.Duration) *domainForwarder {
 	return &domainForwarder{
-		domain:          domain,
-		numberOfWorkers: numberOfWorkers,
-		retryQueueLimit: retryQueueLimit,
-		internalState:   Stopped,
-		blockedList:     newBlockedEndpoints(),
+		domain:                  domain,
+		numberOfWorkers:         numberOfWorkers,
+		retryQueueLimit:         retryQueueLimit,
+		connectionResetInterval: connectionResetInterval,
+		internalState:           Stopped,
+		blockedList:             newBlockedEndpoints(),
 	}
 }
 
@@ -144,11 +147,30 @@ func (f *domainForwarder) handleFailedTransactions() {
 	}
 }
 
+// scheduleConnectionResets signals the workers to recreate their connections to DD
+// at the configured interval
+func (f *domainForwarder) scheduleConnectionResets() {
+	ticker := time.NewTicker(f.connectionResetInterval)
+	for {
+		select {
+		case <-ticker.C:
+			log.Debugf("Scheduling reset of connections used for domain: %q", f.domain)
+			for _, worker := range f.workers {
+				worker.ScheduleConnectionReset()
+			}
+		case <-f.stopConnectionReset:
+			ticker.Stop()
+			return
+		}
+	}
+}
+
 func (f *domainForwarder) init() {
 	f.highPrio = make(chan Transaction, chanBufferSize)
 	f.lowPrio = make(chan Transaction, chanBufferSize)
 	f.requeuedTransaction = make(chan Transaction, chanBufferSize)
 	f.stopRetry = make(chan bool)
+	f.stopConnectionReset = make(chan bool)
 	f.workers = []*Worker{}
 	f.retryQueue = []Transaction{}
 }
@@ -172,6 +194,9 @@ func (f *domainForwarder) Start() error {
 		f.workers = append(f.workers, w)
 	}
 	go f.handleFailedTransactions()
+	if f.connectionResetInterval != 0 {
+		go f.scheduleConnectionResets()
+	}
 
 	f.internalState = Started
 	return nil
@@ -188,6 +213,9 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 		return
 	}
 
+	if f.connectionResetInterval != 0 {
+		f.stopConnectionReset <- true
+	}
 	f.stopRetry <- true
 	for _, w := range f.workers {
 		w.Stop(purgeHighPrio)

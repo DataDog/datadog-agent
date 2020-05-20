@@ -32,12 +32,18 @@ var (
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
 func GetInstanceID() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	return getMetadataItemWithMaxLength("/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 }
 
 // GetLocalIPv4 gets the local IPv4 for the currently running host using the EC2 metadata API.
 // Returns a []string to implement the HostIPProvider interface expected in pkg/process/util
 func GetLocalIPv4() ([]string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	ip, err := getMetadataItem("/local-ipv4")
 	if err != nil {
 		return nil, err
@@ -55,6 +61,9 @@ func IsRunningOn() bool {
 
 // GetHostname fetches the hostname for current host from the EC2 metadata API
 func GetHostname() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	return getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 }
 
@@ -62,6 +71,9 @@ func GetHostname() (string, error) {
 // EC2 instances, the the network ID is the VPC ID, if the instance is found to
 // be a part of exactly one VPC.
 func GetNetworkID() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	resp, err := getMetadataItem("/network/interfaces/macs")
 	if err != nil {
 		return "", err
@@ -120,6 +132,9 @@ func getMetadataItem(endpoint string) (string, error) {
 
 // GetClusterName returns the name of the cluster containing the current EC2 instance
 func GetClusterName() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
 	tags, err := GetTags()
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve clustername from EC2: %s", err)

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,6 +47,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 	a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
+	a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
@@ -71,6 +73,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	}
 	if s := config.Datadog.GetInt(key(spNS, "conntrack_max_state_size")); s > 0 {
 		a.ConntrackMaxStateSize = s
+	}
+	if config.Datadog.IsSet(key(spNS, "conntrack_rate_limit")) {
+		a.ConntrackRateLimit = config.Datadog.GetInt(key(spNS, "conntrack_rate_limit"))
 	}
 
 	if logFile := config.Datadog.GetString(key(spNS, "log_file")); logFile != "" {
@@ -251,6 +256,18 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
+	if k := key(ns, "process_queue_bytes"); config.Datadog.IsSet(k) {
+		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
+			a.ProcessQueueBytes = queueBytes
+		}
+	}
+
+	if k := key(ns, "pod_queue_bytes"); config.Datadog.IsSet(k) {
+		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
+			a.PodQueueBytes = queueBytes
+		}
+	}
+
 	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_per_message"); config.Datadog.IsSet(k) {
 		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
@@ -338,7 +355,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		a.OrchestrationCollectionEnabled = true
 		// Set clustername
-		if clusterName := config.Datadog.GetString("cluster_name"); clusterName != "" {
+		if clusterName := clustername.GetClusterName(); clusterName != "" {
 			a.KubeClusterName = clusterName
 		}
 	}

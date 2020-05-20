@@ -13,7 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -61,7 +61,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 
 	globalUtilOnce.Do(func() {
 		globalUtil = newSystemProbe()
-		globalUtil.initRetry.SetupRetrier(&retry.Config{
+		globalUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:          "system-probe-util",
 			AttemptMethod: globalUtil.init,
 			Strategy:      retry.RetryCount,

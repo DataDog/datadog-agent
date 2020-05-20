@@ -29,6 +29,7 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
+	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -127,6 +128,7 @@ func (r *HTTPReceiver) Start() {
 	mux.HandleFunc("/v0.3/services", r.handleWithVersion(v03, r.handleServices))
 	mux.HandleFunc("/v0.4/traces", r.handleWithVersion(v04, r.handleTraces))
 	mux.HandleFunc("/v0.4/services", r.handleWithVersion(v04, r.handleServices))
+	mux.Handle("/profiling/v1/input", r.profileProxyHandler())
 
 	timeout := 5 * time.Second
 	if r.conf.ReceiverTimeout > 0 {
@@ -201,7 +203,11 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 		runtime.SetBlockProfileRate(0)
 	})
 
-	mux.Handle("/debug/vars", expvar.Handler())
+	mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// allow the GUI to call this endpoint so that the status can be reported
+		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+mainconfig.Datadog.GetString("GUI_port"))
+		expvar.Handler().ServeHTTP(w, req)
+	}))
 }
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.

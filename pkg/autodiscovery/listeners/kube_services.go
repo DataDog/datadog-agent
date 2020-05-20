@@ -308,3 +308,8 @@ func (s *KubeServiceService) GetCheckNames() []string {
 func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
+
+// GetExtraConfig isn't supported
+func (s *KubeServiceService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
+}

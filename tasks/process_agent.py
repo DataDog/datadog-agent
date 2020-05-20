@@ -9,7 +9,7 @@ from invoke import task
 from invoke.exceptions import Exit
 from subprocess import check_output
 
-from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only, check_go111module_envvar
+from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
@@ -18,14 +18,10 @@ GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False,
-          major_version='7', python_runtimes='3', arch="x64"):
+          major_version='7', python_runtimes='3', arch="x64", go_mod="vendor"):
     """
     Build the process agent
     """
-
-    # bail out if GO111MODULE is set to on
-    check_go111module_envvar("process-agent.build")
-
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
@@ -77,7 +73,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(puppy=False, process=True, arch=arch)
+    build_tags = get_default_build_tags(iot=False, process=True, arch=arch)
 
     ## secrets is not supported on windows because the process agent still runs as
     ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
@@ -85,10 +81,11 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
         build_tags.remove("secrets")
 
     # TODO static option
-    cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
 
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),

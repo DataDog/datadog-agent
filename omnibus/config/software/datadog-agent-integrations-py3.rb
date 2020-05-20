@@ -22,6 +22,10 @@ if arm?
   dependency 'libxslt'
 end
 
+if osx?
+  dependency 'unixodbc'
+end
+
 if linux?
   # add nfsiostat script
   dependency 'unixodbc'

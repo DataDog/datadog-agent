@@ -121,3 +121,8 @@ func (s *DockerKubeletService) GetCheckNames() []string {
 func (s *DockerKubeletService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
+
+// GetExtraConfig isn't supported
+func (s *DockerKubeletService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
+}

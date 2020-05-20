@@ -74,7 +74,7 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		listenerCandidates: make(map[string]listeners.ServiceListenerFactory),
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
-		healthListening:    health.Register("ad-servicelistening"),
+		healthListening:    health.RegisterLiveness("ad-servicelistening"),
 		newService:         make(chan listeners.Service),
 		delService:         make(chan listeners.Service),
 		store:              newStore(),
@@ -95,7 +95,7 @@ func (ac *AutoConfig) serviceListening() {
 	for {
 		select {
 		case <-ac.listenerStop:
-			ac.healthListening.Deregister()
+			ac.healthListening.Deregister() //nolint:errcheck
 			return
 		case <-ac.healthListening.C:
 		case svc := <-ac.newService:

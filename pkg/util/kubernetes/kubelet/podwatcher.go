@@ -185,8 +185,8 @@ func (w *PodWatcher) GetPodForEntityID(entityID string) (*Pod, error) {
 // it hashes labels then annotations and makes a single hash of both maps
 func digestPodMeta(meta PodMetadata) string {
 	h := fnv.New64()
-	h.Write([]byte(digestMapValues(meta.Labels)))
-	h.Write([]byte(digestMapValues(meta.Annotations)))
+	h.Write([]byte(digestMapValues(meta.Labels)))      //nolint:errcheck
+	h.Write([]byte(digestMapValues(meta.Annotations))) //nolint:errcheck
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
@@ -207,7 +207,7 @@ func digestMapValues(m map[string]string) string {
 	sort.Strings(keys)
 	h := fnv.New64()
 	for _, k := range keys {
-		h.Write([]byte(m[k]))
+		h.Write([]byte(m[k])) //nolint:errcheck
 	}
 	return strconv.FormatUint(h.Sum64(), 16)
 }
