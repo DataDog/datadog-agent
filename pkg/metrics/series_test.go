@@ -72,7 +72,12 @@ func TestPopulateDeviceField(t *testing.T) {
 		},
 		{
 			[]string{"some:tag", "device_name:/dev/sda1"},
-			[]string{"some:tag"},
+			[]string{"some:tag", "device_name:/dev/sda1"},
+			"/dev/sda1",
+		},
+		{
+			[]string{"some:tag", "device:/dev/sda1", "device_name:sda1"},
+			[]string{"some:tag", "device_name:sda1"},
 			"/dev/sda1",
 		},
 		{
