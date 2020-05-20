@@ -1,11 +1,9 @@
 package eval
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/cihub/seelog"
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,38 +35,21 @@ func (rl *RuleBucket) AddRule(rule *Rule) {
 }
 
 type RuleSet struct {
+	opts             Opts
 	eventRuleBuckets map[string]*RuleBucket
-	macros           map[string]*ast.Macro
 	model            Model
 	listeners        []RuleSetListener
-	debug            bool
 }
 
-func (rs *RuleSet) AddMacro(id, expression string) (*ast.Macro, error) {
-	astMacro, err := ast.ParseMacro(expression)
-	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("invalid macro `%s`", expression))
-	}
-
-	rs.macros[id] = astMacro
-
-	return astMacro, nil
-}
-
-func (rs *RuleSet) AddRule(id, expression string, tags ...string) (*Rule, error) {
-	astRule, err := ast.ParseRule(expression)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid rule")
-	}
-
-	evaluator, err := RuleToEvaluator(astRule, rs.macros, rs.model, rs.debug)
+func (rs *RuleSet) AddRule(id string, astRule *ast.Rule, tags ...string) (*Rule, error) {
+	evaluator, err := RuleToEvaluator(astRule, rs.model, rs.opts)
 	if err != nil {
 		return nil, err
 	}
 
 	rule := &Rule{
 		ID:         id,
-		Expression: expression,
+		Expression: astRule.Expr,
 		evaluator:  evaluator,
 		Tags:       tags,
 	}
@@ -175,11 +156,10 @@ func (rs *RuleSet) GetEventTypes() []string {
 	return eventTypes
 }
 
-func NewRuleSet(model Model, debug bool) *RuleSet {
+func NewRuleSet(model Model, opts Opts) *RuleSet {
 	return &RuleSet{
 		model:            model,
-		debug:            debug,
+		opts:             opts,
 		eventRuleBuckets: make(map[string]*RuleBucket),
-		macros:           make(map[string]*ast.Macro),
 	}
 }

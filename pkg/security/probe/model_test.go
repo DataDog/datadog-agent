@@ -21,7 +21,7 @@ func TestMkdirJSON(t *testing.T) {
 		Inode:       33,
 		Mode:        0777,
 		MountID:     555,
-		pathnameStr: "/etc/passwd",
+		PathnameStr: "/etc/passwd",
 	}
 
 	data, err := json.Marshal(e)

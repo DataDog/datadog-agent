@@ -5,10 +5,10 @@ package eval
 func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -21,7 +21,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
 
-		if opts.Field != "" {
+		if state.field != "" {
 			if a.IsPartial {
 				ea = func(ctx *Context) bool {
 					return true
@@ -53,7 +53,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 	if a.Eval == nil && b.Eval == nil {
 		ea, eb := a.Value, b.Value
 
-		if opts.Field != "" {
+		if state.field != "" {
 			if a.IsPartial {
 				ea = true
 			}
@@ -72,7 +72,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		if opts.Field != "" {
+		if state.field != "" {
 			if a.IsPartial {
 				ea = func(ctx *Context) bool {
 					return true
@@ -102,7 +102,7 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
 
-	if opts.Field != "" {
+	if state.field != "" {
 		if a.IsPartial {
 			ea = true
 		}
@@ -132,10 +132,10 @@ func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvalu
 func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -148,7 +148,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 		ea, eb := a.Eval, b.Eval
 		dea, deb := a.DebugEval, b.DebugEval
 
-		if opts.Field != "" {
+		if state.field != "" {
 			if a.IsPartial {
 				ea = func(ctx *Context) bool {
 					return true
@@ -180,7 +180,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 	if a.Eval == nil && b.Eval == nil {
 		ea, eb := a.Value, b.Value
 
-		if opts.Field != "" {
+		if state.field != "" {
 			if a.IsPartial {
 				ea = true
 			}
@@ -199,7 +199,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 		ea, eb := a.Eval, b.Value
 		dea := a.DebugEval
 
-		if opts.Field != "" {
+		if state.field != "" {
 			if a.IsPartial {
 				ea = func(ctx *Context) bool {
 					return true
@@ -229,7 +229,7 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 	ea, eb := a.Value, b.Eval
 	deb := b.DebugEval
 
-	if opts.Field != "" {
+	if state.field != "" {
 		if a.IsPartial {
 			ea = true
 		}
@@ -259,10 +259,10 @@ func And(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEval
 func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -342,10 +342,10 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bool
 func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -425,10 +425,10 @@ func IntNotEquals(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *B
 func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -508,10 +508,10 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -591,10 +591,10 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvalu
 func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -674,10 +674,10 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *IntEval
 func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -757,10 +757,10 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *Sta
 func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -840,10 +840,10 @@ func StringNotEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *
 func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -923,10 +923,10 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *B
 func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -1006,10 +1006,10 @@ func BoolNotEquals(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *State)
 func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -1089,10 +1089,10 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Bo
 func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -1172,10 +1172,10 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *Sta
 func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
@@ -1255,10 +1255,10 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *Boo
 func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	partialA, partialB := a.IsPartial, b.IsPartial
 
-	if a.Eval == nil || (a.Field != "" && a.Field != opts.Field) {
+	if a.Eval == nil || (a.Field != "" && a.Field != state.field) {
 		partialA = true
 	}
-	if b.Eval == nil || (b.Field != "" && b.Field != opts.Field) {
+	if b.Eval == nil || (b.Field != "" && b.Field != state.field) {
 		partialB = true
 	}
 	isPartialLeaf := partialA && partialB
