@@ -162,29 +162,21 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 			return nil, fmt.Errorf("could not parse kubernetes annotation %v", annotation)
 		}
 		cfg = configs[0]
-
 	} else {
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
-		shortImageName, err := l.getShortImageName(container)
-		if err != nil {
-			if serviceLabel != "" {
-				cfg = &config.LogsConfig{
-					Source:  kubernetesIntegration,
-					Service: serviceLabel,
-				}
-			} else {
+		if serviceLabel != "" {
+			cfg = &config.LogsConfig{
+				Source:  kubernetesIntegration,
+				Service: serviceLabel,
+			}
+		} else {
+			shortImageName, err := l.getShortImageName(container)
+			if err != nil {
 				cfg = &config.LogsConfig{
 					Source:  kubernetesIntegration,
 					Service: kubernetesIntegration,
-				}
-			}
-		} else {
-			if serviceLabel != "" {
-				cfg = &config.LogsConfig{
-					Source:  shortImageName,
-					Service: serviceLabel,
 				}
 			} else {
 				cfg = &config.LogsConfig{
@@ -194,7 +186,6 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 			}
 		}
 	}
-
 	if cfg.Service == "" && serviceLabel != "" {
 		cfg.Service = serviceLabel
 	}
@@ -243,11 +234,10 @@ func (l *Launcher) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerSt
 	return ""
 }
 
-//getServiceLabel returns the standard service label for container if present
-//Order of preference is first "tags.datadoghq.com/<container-name>.service" then "tags.datadoghq.com/service"
+// getServiceLabel returns the standard service label for container if present
+// Order of preference is first "tags.datadoghq.com/<container-name>.service" then "tags.datadoghq.com/service"
 func getServiceLabel(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	if pod.Metadata.Labels != nil {
-		//container name should never be a zero value (?)
 		if containerServiceLabel, exists := pod.Metadata.Labels[fmt.Sprintf(podContainerLabelServiceFormat, container.Name)]; exists {
 			return containerServiceLabel
 		}
