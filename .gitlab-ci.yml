@@ -453,7 +453,7 @@ build_dogstatsd-deb_x64:
 # build dogstatsd static for deb-arm
 build_dogstatsd_static-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["run_tests_deb-x64-py3"]
   variables:
@@ -472,7 +472,7 @@ build_dogstatsd_static-deb_arm64:
 # build dogstatsd linked for deb-arm
 build_dogstatsd-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["run_tests_deb-x64-py3"]
   variables:
@@ -504,7 +504,7 @@ build_iot_agent-deb_x64:
 # build iot agent for ARM, to make sure the build is not broken because of build targets
 build_iot_agent-deb_arm64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["run_tests_deb-x64-py3"]
   variables:
@@ -521,7 +521,7 @@ build_iot_agent-deb_arm64:
 
 build_iot_agent-deb_armhf:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   variables:
