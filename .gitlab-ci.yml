@@ -2312,6 +2312,7 @@ send_pkg_size-a7:
     - dogstatsd_rpm-x64
     - agent_suse-x64-a7
     - dogstatsd_suse-x64
+    - iot_agent_suse-x64
   script:
     - source /root/.bashrc && conda activate ddpy3
     - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/iot-agent
