@@ -125,6 +125,13 @@ func getHostAliases() []string {
 		aliases = append(aliases, gceAlias)
 	}
 
+	ec2Alias, err := ec2.GetHostname()
+	if err != nil {
+		log.Debugf("no EC2 Host Alias: %s", err)
+	} else if ec2Alias != "" {
+		aliases = append(aliases, ec2Alias)
+	}
+
 	cfAliases, err := cloudfoundry.GetHostAliases()
 	if err != nil {
 		log.Debugf("no Cloud Foundry Host Alias: %s", err)
