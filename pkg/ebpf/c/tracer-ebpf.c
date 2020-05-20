@@ -540,18 +540,22 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
         batch_ptr->pos++;
         return;
     case 4:
+        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
+        // in order to cope with the eBPF stack limitation of 512 bytes.
         batch_ptr->c4 = conn;
         batch_ptr->pos++;
         return;
-    case 5:
-        // We have a full batch, so we flush it to the perf buffer
-        batch_ptr->c5 = conn;
-        batch_ptr->pos = 0;
-        bpf_perf_event_output(ctx, &tcp_close_event, cpu, batch_ptr, sizeof(tcp_conn_t)*TCP_CLOSED_BATCH_SIZE);
-        return;
-    default:
-        // This should never happen but let's ensure pos field is set to a sane value
-        batch_ptr->pos = 0;
+    }
+
+    // If we hit this section it means we had one or more interleaved tcp_close calls.
+    // This could result in a missed tcp_close event, so we track it using our telemetry map.
+    u64 key = 0;
+    telemetry_t empty = {};
+    bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
+
+    telemetry_t* val = bpf_map_lookup_elem(&telemetry, &key);
+    if (val != NULL) {
+        __sync_fetch_and_add(&val->missed_tcp_close, 1);
     }
 }
 
@@ -758,6 +762,27 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     }
 
     cleanup_tcp_conn(ctx, &t);
+    return 0;
+}
+
+SEC("kretprobe/tcp_close")
+int kretprobe__tcp_close(struct pt_regs* ctx) {
+    u32 cpu = bpf_get_smp_processor_id();
+    batch_t *batch_ptr = bpf_map_lookup_elem(&tcp_close_batch, &cpu);
+    if (batch_ptr == NULL) {
+        return 0;
+    }
+
+    if (batch_ptr->pos >= TCP_CLOSED_BATCH_SIZE) {
+        // Here we copy the batch data to a variable allocated in the eBPF stack
+        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
+        // since you can't directly write a map entry to the perf buffer.
+        batch_t batch_copy = {};
+        __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
+        bpf_perf_event_output(ctx, &tcp_close_event, cpu, &batch_copy, sizeof(tcp_conn_t)*TCP_CLOSED_BATCH_SIZE);
+        batch_ptr->pos = 0;
+    }
+
     return 0;
 }
 
