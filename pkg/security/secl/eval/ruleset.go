@@ -1,7 +1,6 @@
 package eval
 
 import (
-	"fmt"
 	"math/rand"
 	"sort"
 
@@ -140,6 +139,10 @@ func (rs *RuleSet) getFieldApprovers(evaluator *RuleEvaluator, isValidEventTypeF
 			continue
 		}
 
+		if len(fValues) == 0 {
+			return nil, &NoValue{Field: field}
+		}
+
 		for _, fValue := range fValues {
 			rs.model.SetEventValue(field, fValue.Value)
 			if result, _ := evaluator.PartialEval(&ctx, field); result {
@@ -153,7 +156,7 @@ func (rs *RuleSet) getFieldApprovers(evaluator *RuleEvaluator, isValidEventTypeF
 
 			value, err := notOfValue(fValue.Value)
 			if err != nil {
-				return nil, fmt.Errorf("field `%s` error: %s", field, err)
+				return nil, &ValueTypeUnknown{Field: field}
 			}
 
 			rs.model.SetEventValue(field, value)
@@ -186,13 +189,11 @@ func (rs *RuleSet) GetEventApprovers(eventType string, capabitlies ...FilteringC
 
 		cap, ok := capsMap[approver.Field]
 		if !ok {
-			return fmt.Errorf("no capability defined for `%s`", approver.Field)
+			return &CapabilityNotFound{Field: approver.Field}
 		}
 
-		for _, value := range approvers {
-			if value.Type&cap.Types == 0 {
-				return fmt.Errorf("no capability matching for `%s`", approver.Field)
-			}
+		if approver.Type&cap.Types == 0 {
+			return &CapabilityMismatch{Field: approver.Field}
 		}
 
 		found := false

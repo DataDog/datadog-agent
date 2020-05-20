@@ -9,6 +9,7 @@ import (
 type testProcess struct {
 	name   string
 	uid    int
+	gid    int
 	isRoot bool
 }
 
@@ -64,6 +65,14 @@ func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 		return &IntEvaluator{
 			Eval:      func(ctx *Context) int { return m.event.process.uid },
 			DebugEval: func(ctx *Context) int { return m.event.process.uid },
+			Field:     key,
+		}, nil
+
+	case "process.gid":
+
+		return &IntEvaluator{
+			Eval:      func(ctx *Context) int { return m.event.process.gid },
+			DebugEval: func(ctx *Context) int { return m.event.process.gid },
 			Field:     key,
 		}, nil
 
@@ -131,6 +140,10 @@ func (m *testModel) GetTags(key string) ([]string, error) {
 
 		return []string{"process"}, nil
 
+	case "process.gid":
+
+		return []string{"process"}, nil
+
 	case "process.is_root":
 
 		return []string{"process"}, nil
@@ -168,6 +181,10 @@ func (m *testModel) GetEventType(key string) (string, error) {
 		return "*", nil
 
 	case "process.uid":
+
+		return "*", nil
+
+	case "process.gid":
 
 		return "*", nil
 
@@ -211,6 +228,11 @@ func (m *testModel) SetEventValue(key string, value interface{}) error {
 	case "process.uid":
 
 		m.event.process.uid = value.(int)
+		return nil
+
+	case "process.gid":
+
+		m.event.process.gid = value.(int)
 		return nil
 
 	case "process.is_root":
