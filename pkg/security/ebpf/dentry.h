@@ -6,30 +6,46 @@
 
 #define DENTRY_MAX_DEPTH 16
 
+struct path_key_t {
+    unsigned long ino;
+    dev_t dev;
+    u32 padding;
+};
+
 struct path_leaf_t {
-  long parent;
+  struct path_key_t parent;
   char name[64];
 };
 
 struct bpf_map_def SEC("maps/pathnames") pathnames = {
     .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(long),
+    .key_size = sizeof(struct path_key_t),
     .value_size = sizeof(struct path_leaf_t),
     .max_entries = 32000,
     .pinning = 0,
     .namespace = "",
 };
 
-long __attribute__((always_inline)) get_inode(struct inode *inode) {
-    long ino;
-    bpf_probe_read(&ino, sizeof(inode), &inode->i_ino);
-    return ino;
-}
-
 unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) {
     unsigned long ino;
     bpf_probe_read(&ino, sizeof(inode), &inode->i_ino);
     return ino;
+}
+
+dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
+    dev_t dev;
+    struct super_block *sb;
+    bpf_probe_read(&sb, sizeof(sb), &inode->i_sb);
+    bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
+    return dev;
+}
+
+dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
+    dev_t dev;
+    struct super_block *sb;
+    bpf_probe_read(&sb, sizeof(sb), &dentry->d_sb);
+    bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
+    return dev;
 }
 
 int __attribute__((always_inline)) get_inode_mount_id(struct inode *dir) {
@@ -86,43 +102,47 @@ struct dentry* __attribute__((always_inline)) get_file_dentry(struct file *file)
     return f_dentry;
 }
 
-static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, long inode) {
+#define get_dentry_key(dentry) (struct path_key_t) { .ino = get_dentry_ino(dentry), .dev = get_dentry_dev(dentry) }
+#define get_inode_key(inode) (struct path_key_t) { .ino = get_inode_ino(inode), .dev = get_inode_dev(dentry) }
+
+static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key) {
     struct path_leaf_t map_value = {};
-    long next_inode = inode;
+    struct path_key_t next_key = key;
     struct qstr qstr;
+    struct dentry *d_parent;
 
 #pragma unroll
     for (int i = 0; i < DENTRY_MAX_DEPTH; i++)
     {
-        struct dentry *d_parent;
+        d_parent = NULL;
         bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
 
-        inode = next_inode;
+        key = next_key;
         if (dentry == d_parent) {
-            next_inode = 0;
             struct inode *d_inode = get_dentry_inode(dentry);
             dentry = get_inode_mountpoint(d_inode);
-            d_inode = get_dentry_inode(dentry);
-            next_inode = get_inode_ino(d_inode);
+            next_key = get_dentry_key(dentry);
             bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
         } else {
-            next_inode = get_inode_ino(get_dentry_inode(d_parent));
+            next_key = get_dentry_key(d_parent);
         }
 
         bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
         bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void*) qstr.name);
 
-        if (map_value.name[0] == 47 || map_value.name[0] == 0)
-            next_inode = 0;
+        if (map_value.name[0] == '/' || map_value.name[0] == 0) {
+            next_key.ino = 0;
+            next_key.dev = 0;
+        }
 
-        map_value.parent = next_inode;
+        map_value.parent = next_key;
 
-        if (bpf_map_lookup_elem(&pathnames, &inode) == NULL) {
-            bpf_map_update_elem(&pathnames, &inode, &map_value, BPF_ANY);
+        if (bpf_map_lookup_elem(&pathnames, &key) == NULL) {
+            bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
         }
 
         dentry = d_parent;
-        if (next_inode == 0)
+        if (next_key.ino == 0)
             return i + 1;
     }
 
@@ -130,10 +150,11 @@ static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, 
     // TODO: use BPF_PROG_ARRAY to recursively fetch 32 more times. For now, add a fake parent to notify
     // that we couldn't fetch everything.
 
-    if (next_inode != 0) {
+    if (next_key.ino != 0) {
         map_value.name[0] = map_value.name[0];
-        map_value.parent = 0;
-        bpf_map_update_elem(&pathnames, &next_inode, &map_value, BPF_ANY);
+        map_value.parent.dev = 0;
+        map_value.parent.ino = 0;
+        bpf_map_update_elem(&pathnames, &next_key, &map_value, BPF_ANY);
     }
 
     return DENTRY_MAX_DEPTH;

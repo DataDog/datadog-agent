@@ -7,11 +7,11 @@
 struct open_event_t {
     struct   event_t event;
     struct   process_data_t process;
-    int      flags;
-    int      mode;
+    int           flags;
+    int           mode;
     unsigned long inode;
-    int      mount_id;
-    u32      padding;
+    dev_t         dev;
+    u32           padding;
 };
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
@@ -88,21 +88,21 @@ int kretprobe__sys_openat(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    struct inode *f_inode = get_file_inode(syscall->open.file);
     struct dentry *f_dentry = get_file_dentry(syscall->open.file);
+    struct path_key_t path_key = get_dentry_key(f_dentry);
 
     struct open_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_MAY_OPEN,
         .event.timestamp = bpf_ktime_get_ns(),
-        .mount_id = get_inode_mount_id(f_inode),
-        .inode = get_inode_ino(f_inode),
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
+        .dev = path_key.dev,
+        .inode = path_key.ino,
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(f_dentry, event.inode);
+    resolve_dentry(f_dentry, path_key);
 
     send_event(ctx, event);
 
