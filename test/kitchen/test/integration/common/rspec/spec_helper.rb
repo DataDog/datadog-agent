@@ -75,7 +75,7 @@ def wait_until_started(timeout = 30)
   # - after: works correctly
   # Until we understand and fix the problem, we're adding this sleep
   # so that we don't get flakes in the kitchen tests.
-  sleep 2
+  sleep 5
 end
 
 def stop
