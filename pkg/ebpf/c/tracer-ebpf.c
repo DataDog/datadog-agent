@@ -772,7 +772,10 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
         return 0;
     }
 
-    if (batch_ptr->pos == TCP_CLOSED_BATCH_SIZE) {
+    if (batch_ptr->pos >= TCP_CLOSED_BATCH_SIZE) {
+        // Here we copy the batch data to a variable allocated in the eBPF stack
+        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
+        // since you can't directly write a map entry to the perf buffer.
         batch_t batch_copy = {};
         __builtin_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
         bpf_perf_event_output(ctx, &tcp_close_event, cpu, &batch_copy, sizeof(tcp_conn_t)*TCP_CLOSED_BATCH_SIZE);
