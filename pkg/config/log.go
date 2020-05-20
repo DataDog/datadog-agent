@@ -36,6 +36,7 @@ const (
 var syslogTLSConfig *tls.Config
 
 var seelogConfig *seelogCfg.Config
+var jmxSeelogConfig *seelogCfg.Config
 
 func getLogDateFormat() string {
 	if Datadog.GetBool("log_format_rfc3339") {
@@ -58,6 +59,9 @@ func buildCommonFormat(loggerName LoggerName) string {
 // buildJSONFormat returns the log JSON format seelog string
 func buildJSONFormat(loggerName LoggerName) string {
 	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter) //nolint:errcheck
+	if loggerName == "JMX" {
+		return `{"msg":%QuoteMsg}%n`
+	}
 	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg%%ExtraJSONContext}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat())
 }
 
@@ -119,19 +123,67 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		seelogConfig.ConfigureSyslog(syslogURI, useTLS)
 	}
 
-	configTemplate, err := seelogConfig.Render()
+	loggerInterface, err := GenerateLoggerInterface(seelogConfig)
+	log.SetupLogger(loggerInterface, seelogLogLevel)
+	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
+	return err
+}
+
+// SetupJMXLogger sets up a logger with JMX logger name and log level
+// if a non empty logFile is provided, it will also log to the file
+// a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
+// you can also specify to log to the console and in JSON format
+func SetupJMXLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+	seelogLogLevel, err := validateLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
 
-	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
-	if err != nil {
-		return err
+	formatID := "common"
+	if jsonFormat {
+		formatID = "json"
 	}
-	seelog.ReplaceLogger(logger) //nolint:errcheck
-	log.SetupDatadogLogger(logger, seelogLogLevel)
+
+	jmxSeelogConfig = seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel, formatID, buildJSONFormat(loggerName), buildCommonFormat(loggerName), syslogRFC)
+	jmxSeelogConfig.EnableConsoleLog(logToConsole)
+	jmxSeelogConfig.EnableFileLogging(logFile, Datadog.GetSizeInBytes("log_file_max_size"), uint(Datadog.GetInt("log_file_max_rolls")))
+
+	if syslogURI != "" { // non-blank uri enables syslog
+		syslogTLSKeyPair, err := getSyslogTLSKeyPair()
+		if err != nil {
+			return err
+		}
+		var useTLS bool
+		if syslogTLSKeyPair != nil {
+			useTLS = true
+			syslogTLSConfig = &tls.Config{
+				Certificates:       []tls.Certificate{*syslogTLSKeyPair},
+				InsecureSkipVerify: Datadog.GetBool("syslog_tls_verify"),
+			}
+		}
+		jmxSeelogConfig.ConfigureSyslog(syslogURI, useTLS)
+	}
+
+	jmxLoggerInterface, err := GenerateLoggerInterface(jmxSeelogConfig)
+	log.SetupJmxLogger(jmxLoggerInterface, seelogLogLevel)
 	log.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
-	return nil
+	return err
+
+}
+
+//GenerateLoggerInterface return a logger Interface from a log config
+func GenerateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterface, error) {
+	configTemplate, err := logConfig.Render()
+	if err != nil {
+		return nil, err
+	}
+
+	loggerInterface, err := seelog.LoggerFromConfigAsString(configTemplate)
+	if err != nil {
+		return nil, err
+	}
+
+	return loggerInterface, err
 }
 
 // ErrorLogWriter is a Writer that logs all written messages with the global seelog logger

@@ -35,7 +35,7 @@ func BenchmarkLogScrubbing(b *testing.B) {
 	w := bufio.NewWriter(&buff)
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupDatadogLogger(l, "info")
+	SetupLogger(l, "info")
 
 	for n := 0; n < b.N; n++ {
 		Infof("this is a credential encoding uri: %s", "http://user:password@host:port")
@@ -47,7 +47,7 @@ func BenchmarkLogScrubbingLevels(b *testing.B) {
 	w := bufio.NewWriter(&buff)
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupDatadogLogger(l, "info")
+	SetupLogger(l, "info")
 
 	for n := 0; n < b.N; n++ {
 		Debugf("this is a credential encoding uri: %s", "http://user:password@host:port")
@@ -62,7 +62,7 @@ func BenchmarkLogScrubbingMulti(b *testing.B) {
 	lA, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(wA, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	lB, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(wB, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 
-	SetupDatadogLogger(lA, "info")
+	SetupLogger(lA, "info")
 	_ = RegisterAdditionalLogger("extra", lB)
 
 	Info("this is an API KEY: ", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
