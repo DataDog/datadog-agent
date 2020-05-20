@@ -330,6 +330,8 @@ end
 
 
 shared_examples_for "an installed Agent" do
+  wait_until_started
+
   it 'has an example config file' do
     if os != :windows
       expect(File).to exist('/etc/datadog-agent/datadog.yaml.example')
