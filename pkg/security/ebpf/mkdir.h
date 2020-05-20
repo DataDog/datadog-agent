@@ -6,9 +6,9 @@
 struct mkdir_event_t {
     struct event_t event;
     struct process_data_t process;
-    long   inode;
-    int    mount_id;
-    int    mode;
+    int           mode;
+    dev_t         dev;
+    unsigned long inode;
 };
 
 int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t mode) {
@@ -68,17 +68,18 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
+    struct path_key_t path_key = get_dentry_key(syscall->mkdir.dentry);
     struct mkdir_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_VFS_MKDIR,
         .event.timestamp = bpf_ktime_get_ns(),
-        .inode = get_dentry_ino(syscall->mkdir.dentry),
-        .mount_id = get_inode_mount_id(syscall->mkdir.dir),
         .mode = syscall->mkdir.mode,
+        .dev = path_key.dev,
+        .inode = path_key.ino,
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->mkdir.dentry, event.inode);
+    resolve_dentry(syscall->mkdir.dentry, path_key);
 
     send_event(ctx, event);
 

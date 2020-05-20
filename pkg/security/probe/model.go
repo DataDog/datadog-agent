@@ -26,8 +26,8 @@ type OpenEvent struct {
 	Flags       uint32 `yaml:"flags" field:"flags" event:"open"`
 	Mode        uint32 `yaml:"mode" field:"mode" event:"open"`
 	Inode       uint64 `field:"inode" event:"open"`
+	Dev         uint32 `field:"-"`
 	PathnameStr string `field:"filename" handler:"ResolveInode,string" event:"open"`
-	MountID     int32  `field:"mount_id" event:"open"`
 }
 
 func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -39,7 +39,6 @@ func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
 	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"mode":%d,`, e.Mode)
 	fmt.Fprintf(&buf, `"flags":%d`, e.Flags)
 	buf.WriteRune('}')
@@ -49,7 +48,7 @@ func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 func (e *OpenEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Inode)
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Dev, e.Inode)
 	}
 	return e.PathnameStr
 }
@@ -61,15 +60,15 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Flags = byteOrder.Uint32(data[0:4])
 	e.Mode = byteOrder.Uint32(data[4:8])
 	e.Inode = byteOrder.Uint64(data[8:16])
-	e.MountID = int32(byteOrder.Uint32(data[16:20]))
+	e.Dev = byteOrder.Uint32(data[16:20])
 	return 20, nil
 }
 
 type MkdirEvent struct {
+	Mode        int32  `field:"mode" event:"mkdir"`
+	Dev         uint32 `field:"-"`
 	Inode       uint64 `field:"inode" event:"mkdir"`
 	PathnameStr string `field:"filename" handler:"ResolveInode,string" event:"mkdir"`
-	MountID     int32  `field:"mount_id" event:"mkdir"`
-	Mode        int32  `field:"mode" event:"mkdir"`
 }
 
 func (e *MkdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -81,7 +80,6 @@ func (e *MkdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
 	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d,`, e.MountID)
 	fmt.Fprintf(&buf, `"mode":%d`, e.Mode)
 	buf.WriteRune('}')
 
@@ -92,23 +90,23 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, NotEnoughData
 	}
-	e.Inode = byteOrder.Uint64(data[0:8])
-	e.MountID = int32(byteOrder.Uint32(data[8:12]))
-	e.Mode = int32(byteOrder.Uint32(data[12:16]))
+	e.Mode = int32(byteOrder.Uint32(data[0:4]))
+	e.Dev = byteOrder.Uint32(data[4:8])
+	e.Inode = byteOrder.Uint64(data[8:16])
 	return 16, nil
 }
 
 func (e *MkdirEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Inode)
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Dev, e.Inode)
 	}
 	return e.PathnameStr
 }
 
 type RmdirEvent struct {
+	Dev         uint32 `field:"-"`
 	Inode       uint64 `field:"inode" event:"rmdir"`
 	PathnameStr string `field:"filename" handler:"ResolveInode,string" event:"rmdir"`
-	MountID     int32  `field:"mount_id" event:"rmdir"`
 }
 
 func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -119,8 +117,7 @@ func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d`, e.MountID)
+	fmt.Fprintf(&buf, `"inode":%d`, e.Inode)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
@@ -128,7 +125,7 @@ func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 
 func (e *RmdirEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Inode)
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Dev, e.Inode)
 	}
 	return e.PathnameStr
 }
@@ -138,14 +135,14 @@ func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, NotEnoughData
 	}
 	e.Inode = byteOrder.Uint64(data[0:8])
-	e.MountID = int32(byteOrder.Uint32(data[8:12]))
+	e.Dev = byteOrder.Uint32(data[8:12])
 	return 12, nil
 }
 
 type UnlinkEvent struct {
 	Inode       uint64 `field:"inode" event:"unlink"`
+	Dev         uint32 `field:"-"`
 	PathnameStr string `field:"filename" handler:"ResolveInode,string" event:"unlink"`
-	MountID     int32  `field:"mount_id" event:"unlink"`
 }
 
 func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -156,8 +153,7 @@ func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
-	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
-	fmt.Fprintf(&buf, `"mount_id":%d`, e.MountID)
+	fmt.Fprintf(&buf, `"inode":%d`, e.Inode)
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
@@ -168,24 +164,23 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, NotEnoughData
 	}
 	e.Inode = byteOrder.Uint64(data[0:8])
-	e.MountID = int32(byteOrder.Uint32(data[8:12]))
+	e.Dev = byteOrder.Uint32(data[8:12])
 	return 12, nil
 }
 
 func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
 	if len(e.PathnameStr) == 0 {
-		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Inode)
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Dev, e.Inode)
 	}
 	return e.PathnameStr
 }
 
 type RenameEvent struct {
+	Dev               uint32 `field:"-"`
 	SrcInode          uint64 `json:"oldinode,omitempty" field:"oldinode" event:"rename"`
 	SrcPathnameStr    string `json:"-" field:"oldfilename" handler:"ResolveSrcInode,string" event:"rename"`
-	SrcMountID        int32  `json:"oldmountid,omitempty" field:"oldmountid" event:"rename"`
 	TargetInode       uint64 `json:"newinode,omitempty" field:"newinode" event:"rename"`
 	TargetPathnameStr string `json:"-" field:"newfilename" handler:"ResolveTargetInode,string" event:"rename"`
-	TargetMountID     int32  `json:"newmountid,omitempty" field:"newmountid" event:"rename"`
 }
 
 func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -197,38 +192,34 @@ func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
 	buf.WriteRune('{')
 	fmt.Fprintf(&buf, `"old_inode":%d,`, e.SrcInode)
 	fmt.Fprintf(&buf, `"old_filename":"%s",`, e.ResolveSrcInode(resolvers))
-	fmt.Fprintf(&buf, `"old_mount_id":%d,`, e.SrcMountID)
 	fmt.Fprintf(&buf, `"new_inode":%d,`, e.TargetInode)
-	fmt.Fprintf(&buf, `"new_filename":"%s",`, e.ResolveTargetInode(resolvers))
-	fmt.Fprintf(&buf, `"new_mount_id":%d`, e.TargetMountID)
+	fmt.Fprintf(&buf, `"new_filename":"%s"`, e.ResolveTargetInode(resolvers))
 	buf.WriteRune('}')
 
 	return buf.Bytes(), nil
 }
 
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 32 {
+	if len(data) < 24 {
 		return 0, NotEnoughData
 	}
-	e.SrcInode = byteOrder.Uint64(data[0:8])
-	e.SrcMountID = int32(byteOrder.Uint32(data[8:12]))
+	e.Dev = byteOrder.Uint32(data[0:4])
 	// padding
+	e.SrcInode = byteOrder.Uint64(data[8:16])
 	e.TargetInode = byteOrder.Uint64(data[16:24])
-	e.TargetMountID = int32(byteOrder.Uint32(data[24:28]))
-	// padding
-	return 32, nil
+	return 24, nil
 }
 
 func (e *RenameEvent) ResolveSrcInode(resolvers *Resolvers) string {
 	if len(e.SrcPathnameStr) == 0 {
-		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(e.SrcInode)
+		e.SrcPathnameStr = resolvers.DentryResolver.Resolve(0xffffffff, e.SrcInode)
 	}
 	return e.SrcPathnameStr
 }
 
 func (e *RenameEvent) ResolveTargetInode(resolvers *Resolvers) string {
 	if len(e.TargetPathnameStr) == 0 {
-		e.TargetPathnameStr = resolvers.DentryResolver.Resolve(e.TargetInode)
+		e.TargetPathnameStr = resolvers.DentryResolver.Resolve(e.Dev, e.TargetInode)
 	}
 	return e.TargetPathnameStr
 }

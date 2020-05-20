@@ -69,15 +69,6 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "mkdir.mount_id":
-
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Mkdir.MountID) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Mkdir.MountID) },
-
-			Field: key,
-		}, nil
-
 	case "open.filename":
 
 		return &eval.StringEvaluator{
@@ -110,15 +101,6 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 		return &eval.IntEvaluator{
 			Eval:      func(ctx *eval.Context) int { return int(m.event.Open.Mode) },
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Open.Mode) },
-
-			Field: key,
-		}, nil
-
-	case "open.mount_id":
-
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Open.MountID) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Open.MountID) },
 
 			Field: key,
 		}, nil
@@ -204,15 +186,6 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "rename.newmountid":
-
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.TargetMountID) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.TargetMountID) },
-
-			Field: key,
-		}, nil
-
 	case "rename.oldfilename":
 
 		return &eval.StringEvaluator{
@@ -227,15 +200,6 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 		return &eval.IntEvaluator{
 			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.SrcInode) },
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.SrcInode) },
-
-			Field: key,
-		}, nil
-
-	case "rename.oldmountid":
-
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Rename.SrcMountID) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rename.SrcMountID) },
 
 			Field: key,
 		}, nil
@@ -258,15 +222,6 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "rmdir.mount_id":
-
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Rmdir.MountID) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Rmdir.MountID) },
-
-			Field: key,
-		}, nil
-
 	case "unlink.filename":
 
 		return &eval.StringEvaluator{
@@ -281,15 +236,6 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 		return &eval.IntEvaluator{
 			Eval:      func(ctx *eval.Context) int { return int(m.event.Unlink.Inode) },
 			DebugEval: func(ctx *eval.Context) int { return int(m.event.Unlink.Inode) },
-
-			Field: key,
-		}, nil
-
-	case "unlink.mount_id":
-
-		return &eval.IntEvaluator{
-			Eval:      func(ctx *eval.Context) int { return int(m.event.Unlink.MountID) },
-			DebugEval: func(ctx *eval.Context) int { return int(m.event.Unlink.MountID) },
 
 			Field: key,
 		}, nil
@@ -320,9 +266,6 @@ func (m *Model) GetTags(key string) ([]string, error) {
 	case "mkdir.mode":
 		return []string{}, nil
 
-	case "mkdir.mount_id":
-		return []string{}, nil
-
 	case "open.filename":
 		return []string{}, nil
 
@@ -333,9 +276,6 @@ func (m *Model) GetTags(key string) ([]string, error) {
 		return []string{}, nil
 
 	case "open.mode":
-		return []string{}, nil
-
-	case "open.mount_id":
 		return []string{}, nil
 
 	case "process.gid":
@@ -365,16 +305,10 @@ func (m *Model) GetTags(key string) ([]string, error) {
 	case "rename.newinode":
 		return []string{}, nil
 
-	case "rename.newmountid":
-		return []string{}, nil
-
 	case "rename.oldfilename":
 		return []string{}, nil
 
 	case "rename.oldinode":
-		return []string{}, nil
-
-	case "rename.oldmountid":
 		return []string{}, nil
 
 	case "rmdir.filename":
@@ -383,16 +317,10 @@ func (m *Model) GetTags(key string) ([]string, error) {
 	case "rmdir.inode":
 		return []string{}, nil
 
-	case "rmdir.mount_id":
-		return []string{}, nil
-
 	case "unlink.filename":
 		return []string{}, nil
 
 	case "unlink.inode":
-		return []string{}, nil
-
-	case "unlink.mount_id":
 		return []string{}, nil
 
 	}
@@ -421,9 +349,6 @@ func (m *Model) GetEventType(key string) (string, error) {
 	case "mkdir.mode":
 		return "mkdir", nil
 
-	case "mkdir.mount_id":
-		return "mkdir", nil
-
 	case "open.filename":
 		return "open", nil
 
@@ -434,9 +359,6 @@ func (m *Model) GetEventType(key string) (string, error) {
 		return "open", nil
 
 	case "open.mode":
-		return "open", nil
-
-	case "open.mount_id":
 		return "open", nil
 
 	case "process.gid":
@@ -466,16 +388,10 @@ func (m *Model) GetEventType(key string) (string, error) {
 	case "rename.newinode":
 		return "rename", nil
 
-	case "rename.newmountid":
-		return "rename", nil
-
 	case "rename.oldfilename":
 		return "rename", nil
 
 	case "rename.oldinode":
-		return "rename", nil
-
-	case "rename.oldmountid":
 		return "rename", nil
 
 	case "rmdir.filename":
@@ -484,16 +400,10 @@ func (m *Model) GetEventType(key string) (string, error) {
 	case "rmdir.inode":
 		return "rmdir", nil
 
-	case "rmdir.mount_id":
-		return "rmdir", nil
-
 	case "unlink.filename":
 		return "unlink", nil
 
 	case "unlink.inode":
-		return "unlink", nil
-
-	case "unlink.mount_id":
 		return "unlink", nil
 
 	}

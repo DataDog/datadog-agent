@@ -6,8 +6,9 @@
 struct rmdir_event_t {
     struct event_t event;
     struct process_data_t process;
-    long   inode;
-    int    mount_id;
+    unsigned long inode;
+    dev_t         dev;
+    u32           padding;
 };
 
 SEC("kprobe/sys_rmdir")
@@ -28,10 +29,10 @@ int kprobe__vfs_rmdir(struct pt_regs *ctx) {
         return 0;
 
     // we resolve all the information before the file is actually removed
-    syscall->rmdir.mount_id = get_inode_mount_id((struct inode *) PT_REGS_PARM1(ctx));
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-    syscall->rmdir.inode = get_dentry_ino(dentry);
-    resolve_dentry(dentry, syscall->rmdir.inode);
+    struct path_key_t path_key = get_dentry_key(dentry);
+    syscall->rmdir.path_key = path_key;
+    resolve_dentry(dentry, path_key);
 
     return 0;
 }
@@ -46,8 +47,8 @@ int kretprobe__sys_rmdir(struct pt_regs *ctx) {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_VFS_RMDIR,
         .event.timestamp = bpf_ktime_get_ns(),
-        .inode = syscall->rmdir.inode,
-        .mount_id = syscall->rmdir.mount_id,
+        .inode = syscall->rmdir.path_key.ino,
+        .dev = syscall->rmdir.path_key.dev,
     };
 
     fill_process_data(&event.process);

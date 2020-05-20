@@ -19,13 +19,11 @@ struct syscall_cache_t {
         } mkdir;
 
         struct {
-            int mount_id;
-            unsigned long inode;
+            struct path_key_t path_key;
         } unlink;
 
         struct {
-            int mount_id;
-            unsigned long inode;
+            struct path_key_t path_key;
         } rmdir;
 
         struct {
@@ -33,7 +31,7 @@ struct syscall_cache_t {
             struct dentry *src_dentry;
             struct inode *target_dir;
             struct dentry *target_dentry;
-            unsigned long random_inode;
+            struct path_key_t random_key;
         } rename;
     };
 };

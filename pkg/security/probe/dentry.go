@@ -17,47 +17,73 @@ type DentryResolver struct {
 	pathnames eprobe.Table
 }
 
+type PathKey struct {
+	inode uint64
+	dev   uint32
+}
+
+func (p *PathKey) Write(buffer []byte) {
+	byteOrder.PutUint64(buffer[0:8], p.inode)
+	byteOrder.PutUint32(buffer[8:12], p.dev)
+	byteOrder.PutUint32(buffer[12:16], 0)
+}
+
+func (p *PathKey) Read(buffer []byte) {
+	p.inode = byteOrder.Uint64(buffer[0:8])
+	p.dev = byteOrder.Uint32(buffer[8:12])
+}
+
+func (p *PathKey) IsNull() bool {
+	return p.inode == 0 && p.dev == 0
+}
+
+func (p *PathKey) String() string {
+	return fmt.Sprintf("%x/%x", p.dev, p.inode)
+}
+
+type PathValue struct {
+	parent PathKey
+	name   [256]byte
+}
+
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) resolve(pathnameKey uint64) (filename string, err error) {
+func (dr *DentryResolver) resolve(dev uint32, inode uint64) (filename string, err error) {
 	// Don't resolve path if pathnameKey isn't valid
-	if pathnameKey <= 0 {
-		return "", fmt.Errorf("invalid pathname key %v", pathnameKey)
+	key := PathKey{dev: dev, inode: inode}
+	if key.IsNull() {
+		return "", fmt.Errorf("invalid inode/dev couple: %s", key)
 	}
 
-	// Convert key into bytes
-	key := make([]byte, 8)
-	byteOrder.PutUint64(key, pathnameKey)
+	keyBuffer := make([]byte, 16)
+	key.Write(keyBuffer)
 	done := false
 	pathRaw := []byte{}
-	var path struct {
-		ParentKey uint64
-		Name      [256]byte
-	}
+	var path PathValue
 
 	// Fetch path recursively
 	for !done {
-		if pathRaw, err = dr.pathnames.Get(key); err != nil {
+		if pathRaw, err = dr.pathnames.Get(keyBuffer); err != nil {
 			filename = "*ERROR*" + filename
 			break
 		}
 
-		path.ParentKey = byteOrder.Uint64(pathRaw[0:8])
-		if err = binary.Read(bytes.NewBuffer(pathRaw[8:]), byteOrder, &path.Name); err != nil {
+		path.parent.Read(pathRaw)
+		if err = binary.Read(bytes.NewBuffer(pathRaw[16:]), byteOrder, &path.name); err != nil {
 			err = errors.Wrap(err, "failed to decode received data (pathLeaf)")
 			break
 		}
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if path.Name[0] != '/' {
-			filename = "/" + C.GoString((*C.char)(unsafe.Pointer(&path.Name))) + filename
+		if path.name[0] != '/' {
+			filename = "/" + C.GoString((*C.char)(unsafe.Pointer(&path.name))) + filename
 		}
 
-		if path.ParentKey == 0 {
+		if path.parent.inode == 0 {
 			break
 		}
 
 		// Prepare next key
-		byteOrder.PutUint64(key, path.ParentKey)
+		path.parent.Write(keyBuffer)
 	}
 
 	if len(filename) == 0 {
@@ -68,8 +94,8 @@ func (dr *DentryResolver) resolve(pathnameKey uint64) (filename string, err erro
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) Resolve(pathnameKey uint64) string {
-	path, _ := dr.resolve(pathnameKey)
+func (dr *DentryResolver) Resolve(dev uint32, inode uint64) string {
+	path, _ := dr.resolve(dev, inode)
 	return path
 }
 

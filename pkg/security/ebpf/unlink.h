@@ -7,9 +7,8 @@
 struct unlink_event_t {
     struct event_t event;
     struct process_data_t process;
-    long   inode;
-    u32    pathname_key;
-    int    mount_id;
+    unsigned long inode;
+    dev_t         dev;
 };
 
 int trace__sys_unlink() {
@@ -39,10 +38,10 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
         return 0;
 
     // we resolve all the information before the file is actually removed
-    syscall->unlink.mount_id = get_inode_mount_id((struct inode *) PT_REGS_PARM1(ctx));
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-    syscall->unlink.inode = get_dentry_ino(dentry);
-    resolve_dentry(dentry, syscall->unlink.inode);
+    struct path_key_t path_key = get_dentry_key(dentry);
+    syscall->unlink.path_key = path_key;
+    resolve_dentry(dentry, path_key);
 
     return 0;
 }
@@ -56,8 +55,8 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_VFS_UNLINK,
         .event.timestamp = bpf_ktime_get_ns(),
-        .inode = syscall->unlink.inode,
-        .mount_id = syscall->unlink.mount_id,
+        .dev = syscall->unlink.path_key.dev,
+        .inode = syscall->unlink.path_key.ino,
     };
 
     fill_process_data(&event.process);
