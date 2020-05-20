@@ -562,6 +562,10 @@ cluster_agent_cloudfoundry-build_amd64:
   needs: ["fail_on_non_triggered_tag", "run_go_tidy_check"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
   variables:
     ARCH: amd64
   before_script:
@@ -569,9 +573,10 @@ cluster_agent_cloudfoundry-build_amd64:
     - inv -e deps --no-checks --verbose --dep-vendor-only
   script:
     - inv -e cluster-agent-cloudfoundry.build
-    - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR/datadog-cluster-agent-cloudfoundry $S3_ARTIFACTS_URI/datadog-cluster-agent-cloudfoundry.$ARCH
-
-
+    - cd $SRC_PATH/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - tar cf $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent-cloudfoundry-$PACKAGE_VERSION-$ARCH.tar.xz datadog-cluster-agent-cloudfoundry
 
 #
 # integration_test
@@ -3471,6 +3476,19 @@ deploy_staging_datadog_agent_windows_zip:
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.zip" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/bosh/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_cluster_agent_cloudfoundry:
+  <<: *run_only_when_triggered
+  <<: *skip_when_unwanted_on_7
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  dependencies:
+    - cluster_agent_cloudfoundry-build_amd64
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-cluster-agent-cloudfoundry-*.tar.xz" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/linux/cluster-agent-cloudfoundry/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy datadog agent windows binaries to staging bucket. Currently used for cloudfoundry builpack
 deploy_staging_datadog_agent_windows_binaries_zip:
