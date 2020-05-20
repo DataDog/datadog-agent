@@ -10,13 +10,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
-func parse(t *testing.T, expr string, macros map[string]*ast.Macro, model Model, debug bool) (*RuleEvaluator, *ast.Rule, error) {
+func parse(t *testing.T, expr string, model Model, opts Opts) (*RuleEvaluator, *ast.Rule, error) {
 	rule, err := ast.ParseRule(expr)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, macros, model, debug)
+	evaluator, err := RuleToEvaluator(rule, model, opts)
 	if err != nil {
 		return nil, rule, err
 	}
@@ -29,13 +29,13 @@ func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) 
 
 	ctx := &Context{}
 
-	evaluator, rule, err := parse(t, expr, nil, model, false)
+	evaluator, rule, err := parse(t, expr, model, Opts{Constants: testConstants})
 	if err != nil {
 		return false, rule, err
 	}
 	r1 := evaluator.Eval(ctx)
 
-	evaluator, _, err = parse(t, expr, nil, model, true)
+	evaluator, _, err = parse(t, expr, model, Opts{Debug: true, Constants: testConstants})
 	if err != nil {
 		return false, rule, err
 	}
@@ -175,28 +175,6 @@ func TestSimpleBool(t *testing.T) {
 		{Expr: `(444 != 444) && ("test" == "test")`, Expected: false},
 		{Expr: `(444 != 555) && ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 555) && ("test" != "aaaa")`, Expected: true},
-	}
-
-	for _, test := range tests {
-		result, _, err := eval(t, event, test.Expr)
-		if err != nil {
-			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
-		}
-
-		if result != test.Expected {
-			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
-		}
-	}
-}
-
-func TestSyscallConst(t *testing.T) {
-	event := &testEvent{}
-
-	tests := []struct {
-		Expr     string
-		Expected bool
-	}{
-		{Expr: fmt.Sprintf(`%d == S_IEXEC`, syscall.S_IEXEC), Expected: true},
 	}
 
 	for _, test := range tests {
@@ -383,7 +361,7 @@ func TestComplex(t *testing.T) {
 
 func TestTags(t *testing.T) {
 	expr := `process.name != "/usr/bin/vipw" && open.filename == "/etc/passwd"`
-	evaluator, _, err := parse(t, expr, nil, &testModel{}, false)
+	evaluator, _, err := parse(t, expr, &testModel{}, Opts{})
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -449,7 +427,7 @@ func TestPartial(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		evaluator, _, err := parse(t, test.Expr, nil, &testModel{event: &event}, false)
+		evaluator, _, err := parse(t, test.Expr, &testModel{event: &event}, Opts{Constants: testConstants})
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
@@ -478,7 +456,7 @@ func TestMacroList(t *testing.T) {
 	}
 
 	expr = `"/etc/shadow" in list`
-	evaluator, _, err := parse(t, expr, macros, &testModel{event: &testEvent{}}, false)
+	evaluator, _, err := parse(t, expr, &testModel{event: &testEvent{}}, Opts{Macros: macros})
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -510,7 +488,7 @@ func TestMacroExpression(t *testing.T) {
 	}
 
 	expr = `process.name == "httpd" && is_passwd`
-	evaluator, _, err := parse(t, expr, macros, &testModel{event: &event}, false)
+	evaluator, _, err := parse(t, expr, &testModel{event: &event}, Opts{Macros: macros})
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -539,7 +517,7 @@ func TestMacroPartial(t *testing.T) {
 	}
 
 	expr = `is_passwd`
-	evaluator, _, err := parse(t, expr, macros, &testModel{event: &event}, false)
+	evaluator, _, err := parse(t, expr, &testModel{event: &event}, Opts{Macros: macros})
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -578,7 +556,7 @@ func BenchmarkComplex(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, nil, &testModel{event: &event}, false)
+	evaluator, err := RuleToEvaluator(rule, &testModel{event: &event}, Opts{})
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -614,7 +592,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, nil, &testModel{event: &event}, false)
+	evaluator, err := RuleToEvaluator(rule, &testModel{event: &event}, Opts{})
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}

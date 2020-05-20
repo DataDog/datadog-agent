@@ -1,6 +1,8 @@
 package eval
 
 import (
+	"syscall"
+
 	"github.com/pkg/errors"
 )
 
@@ -196,4 +198,20 @@ func (m *testModel) GetEventType(key string) (string, error) {
 	}
 
 	return "", errors.Wrap(ErrFieldNotFound, key)
+}
+
+var testConstants = map[string]interface{}{
+	// boolean
+	"true":  &BoolEvaluator{Value: true},
+	"false": &BoolEvaluator{Value: false},
+
+	// open flags
+	"O_RDONLY": &IntEvaluator{Value: syscall.O_RDONLY},
+	"O_WRONLY": &IntEvaluator{Value: syscall.O_WRONLY},
+	"O_RDWR":   &IntEvaluator{Value: syscall.O_RDWR},
+	"O_APPEND": &IntEvaluator{Value: syscall.O_APPEND},
+	"O_CREAT":  &IntEvaluator{Value: syscall.O_CREAT},
+	"O_EXCL":   &IntEvaluator{Value: syscall.O_EXCL},
+	"O_SYNC":   &IntEvaluator{Value: syscall.O_SYNC},
+	"O_TRUNC":  &IntEvaluator{Value: syscall.O_TRUNC},
 }

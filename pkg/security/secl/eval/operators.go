@@ -10,7 +10,7 @@ import (
 
 func IntNot(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	isPartialLeaf := a.IsPartial
-	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
+	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
 	}
 
@@ -44,7 +44,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 	}
 
 	isPartialLeaf := a.IsPartial
-	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
+	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
 	}
 
@@ -98,7 +98,7 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 
 func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 	isPartialLeaf := a.IsPartial
-	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
+	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
 	}
 
@@ -107,7 +107,7 @@ func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 			return !a.Eval(ctx)
 		}
 
-		if opts.Field != "" {
+		if state.field != "" {
 			if a.IsPartial {
 				ea = func(ctx *Context) bool {
 					return true
@@ -142,7 +142,7 @@ func Not(a *BoolEvaluator, opts *Opts, state *State) *BoolEvaluator {
 
 func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 	isPartialLeaf := a.IsPartial
-	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
+	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
 	}
 
@@ -172,7 +172,7 @@ func Minus(a *IntEvaluator, opts *Opts, state *State) *IntEvaluator {
 
 func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opts, state *State) *BoolEvaluator {
 	isPartialLeaf := a.IsPartial
-	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
+	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
 	}
 
@@ -221,7 +221,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 
 func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state *State) *BoolEvaluator {
 	isPartialLeaf := a.IsPartial
-	if a.Field != "" && opts.Field != "" && a.Field != opts.Field {
+	if a.Field != "" && state.field != "" && a.Field != state.field {
 		isPartialLeaf = true
 	}
 
