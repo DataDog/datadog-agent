@@ -522,7 +522,7 @@ build_iot_agent-deb_arm64:
 build_iot_agent-deb_armhf:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:armhf"]
+  tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   variables:
     ARCH: armhf
@@ -863,7 +863,7 @@ iot_agent_deb-arm64:
 iot_agent_deb-armhf:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:armhf"]
+  tags: ["runner:docker-arm", "platform:arm64"]
   needs: [ "fail_on_non_triggered_tag", "build_iot_agent-deb_armhf"]
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -1082,7 +1082,7 @@ iot_agent_rpm-arm64:
 iot_agent_rpm-armhf:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:armhf"]
+  tags: ["runner:docker-arm", "platform:arm64"]
   needs: [ "fail_on_non_triggered_tag", "build_iot_agent-deb_armhf"]
   variables:
     AGENT_MAJOR_VERSION: 7
