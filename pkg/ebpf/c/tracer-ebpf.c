@@ -540,19 +540,20 @@ static void cleanup_tcp_conn(struct pt_regs* ctx, conn_tuple_t* tup) {
         batch_ptr->pos++;
         return;
     case 4:
-        // In this case the batch is ready to be flushed, which is done by kretprobe/tcp_close
+        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
+        // in order to cope with the eBPF stack limitation of 512 bytes.
         batch_ptr->c4 = conn;
         batch_ptr->pos++;
         return;
     }
 
-    // In case we hit this section it means we had one or more interleaved tcp_close calls.
-    // This could result in missed tcp_close events.
+    // If we hit this section it means we had one or more interleaved tcp_close calls.
+    // This could result in a missed tcp_close event, so we track it using our telemetry map.
     u64 key = 0;
     telemetry_t empty = {};
-    telemetry_t* val;
     bpf_map_update_elem(&telemetry, &key, &empty, BPF_NOEXIST);
-    val = bpf_map_lookup_elem(&telemetry, &key);
+
+    telemetry_t* val = bpf_map_lookup_elem(&telemetry, &key);
     if (val != NULL) {
         __sync_fetch_and_add(&val->missed_tcp_close, 1);
     }
