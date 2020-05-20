@@ -11,7 +11,7 @@ import (
 func TestUnlink(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `unlink.filename == "/test" || unlink.filename == "/testat"`,
+		Expression: `unlink.filename == "{{.Root}}/test" || unlink.filename == "{{.Root}}/testat"`,
 	}
 
 	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
@@ -20,7 +20,7 @@ func TestUnlink(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.drive.Path("test")
+	testFile, testFilePtr, err := test.Path("test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestUnlink(t *testing.T) {
 		t.Errorf("expected unlink event, got %s", event.GetType())
 	}
 
-	testatFile, testatFilePtr, err := test.drive.Path("testat")
+	testatFile, testatFilePtr, err := test.Path("testat")
 	if err != nil {
 		t.Fatal(err)
 	}

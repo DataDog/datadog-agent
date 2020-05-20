@@ -11,7 +11,7 @@ import (
 func TestOpen(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `open.filename == "/test" && open.flags & O_CREAT != 0`,
+		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
@@ -20,7 +20,7 @@ func TestOpen(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.drive.Path("test")
+	testFile, testFilePtr, err := test.Path("test")
 	if err != nil {
 		t.Fatal(err)
 	}

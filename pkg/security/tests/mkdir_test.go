@@ -10,7 +10,7 @@ import (
 func TestMkdir(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `mkdir.filename == "/test" || mkdir.filename == "/testat" || (event.type == "mkdir" && event.retval == EEXIST)`,
+		Expression: `mkdir.filename == "{{.Root}}/test" || mkdir.filename == "{{.Root}}/testat" || (event.type == "mkdir" && event.retval == EEXIST)`,
 	}
 
 	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
@@ -19,7 +19,7 @@ func TestMkdir(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.drive.Path("test")
+	testFile, testFilePtr, err := test.Path("test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestMkdir(t *testing.T) {
 		}
 	}
 
-	testatFile, testatFilePtr, err := test.drive.Path("testat")
+	testatFile, testatFilePtr, err := test.Path("testat")
 	if err != nil {
 		t.Fatal(err)
 	}

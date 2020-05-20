@@ -11,11 +11,11 @@ func TestMacros(t *testing.T) {
 	macros := []*policy.MacroDefinition{
 		{
 			ID:         "testmacro",
-			Expression: `"/test"`,
+			Expression: `"{{.Root}}/test"`,
 		},
 		{
 			ID:         "testmacro2",
-			Expression: `["/test"]`,
+			Expression: `["{{.Root}}/test"]`,
 		},
 	}
 
@@ -32,7 +32,7 @@ func TestMacros(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, _, err := test.drive.Path("test")
+	testFile, _, err := test.Path("test")
 	if err != nil {
 		t.Fatal(err)
 	}
