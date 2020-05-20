@@ -141,6 +141,7 @@ func CheckAndUpgradeConfig() error {
 // SetInstallInfo imports installation information from Windows registry into
 // the install_info file. It leaves the file untouched if it already exists
 func SetInstallInfo() error {
+
 	// get install_info path
 	dataDir, err := winutil.GetProgramDataDir()
 	if err != nil {
@@ -152,12 +153,11 @@ func SetInstallInfo() error {
 	_, err = os.Stat(installInfoPath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("unable to stat %s: %s", installInfoPath, err)
-	} else if err == nil {
-		// File already exists
+	} else if err == nil { // File already exists
 		return nil
 	}
 
-	// Get msiexec version if possible
+	// Get msiexec version from registry
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		"SOFTWARE\\Datadog\\Datadog Agent",
 		registry.ALL_ACCESS)
@@ -165,13 +165,12 @@ func SetInstallInfo() error {
 		return fmt.Errorf("unable to open registry config %s", err.Error())
 	}
 	defer k.Close()
-
 	val, _, err := k.GetStringValue("msiexec_version")
 	if err != nil || val == "" {
 		return fmt.Errorf("unable to fetch msiexec version: %s", err.Error())
 	}
 
-	// install info data type for marshalling
+	//  populate install_info data
 	type Method struct {
 		Tool             string `yaml:"tool"`
 		ToolVersion      string `yaml:"tool_version"`
