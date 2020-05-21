@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/twmb/murmur3"
 )
 
 const sqlQueryTag = "sql.query"
@@ -341,4 +343,10 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 		return
 	}
 	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
+}
+
+// HashObfuscatedSQL returns the hash of an already obfuscated query as 32 char hex string
+// the query must already have been obfuscated using ObfuscateSQLString
+func HashObfuscatedSQL(obfuscatedSQL string) string {
+	return strconv.FormatUint(murmur3.Sum64([]byte(obfuscatedSQL)), 16)
 }
