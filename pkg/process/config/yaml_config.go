@@ -63,7 +63,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	// The full path to the location of the unix socket where connections will be accessed
 	if socketPath := config.Datadog.GetString(key(spNS, "sysprobe_socket")); socketPath != "" {
-		a.SystemProbeSocketPath = socketPath
+		a.SystemProbeAddress = socketPath
 	}
 
 	if config.Datadog.IsSet(key(spNS, "enable_conntrack")) {

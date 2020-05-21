@@ -26,8 +26,6 @@ var (
 	// This mirrors the configuration for the infrastructure agent.
 	defaultProxyPort = 3128
 
-	// defaultSystemProbeSocketPath is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeSocketPath = "/opt/datadog-agent/run/sysprobe.sock"
 	// defaultSystemProbeFilePath is the default logging file for the system probe
 	defaultSystemProbeFilePath = "/var/log/datadog/system-probe.log"
 
@@ -77,7 +75,7 @@ type AgentConfig struct {
 	DisableDNSInspection           bool
 	CollectLocalDNS                bool
 	CollectDNSStats                bool
-	SystemProbeSocketPath          string
+	SystemProbeAddress             string
 	SystemProbeLogFile             string
 	MaxTrackedConnections          uint
 	SysProbeBPFDebug               bool
@@ -189,7 +187,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		DisableUDPTracing:      false,
 		DisableIPv6Tracing:     false,
 		DisableDNSInspection:   false,
-		SystemProbeSocketPath:  defaultSystemProbeSocketPath,
+		SystemProbeAddress:     defaultSystemProbeAddress,
 		SystemProbeLogFile:     defaultSystemProbeFilePath,
 		MaxTrackedConnections:  defaultMaxTrackedConnections,
 		EnableConntrack:        true,
