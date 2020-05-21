@@ -94,7 +94,7 @@ install_method:
             # Nothing to do, this is defined directly in the upstart job file
             :
         else
-            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+            echo "[ WARNING ]\tCannot detect a supported init system. The datadog-iot-agent package only provides service files for systemd and upstart."
         fi
 
 
