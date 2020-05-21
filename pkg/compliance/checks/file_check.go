@@ -27,20 +27,30 @@ var (
 	ErrPropertyNotSupported = errors.New("property not supported")
 )
 
+type pathMapper func(string) string
+
 type fileCheck struct {
 	baseCheck
-	File *compliance.File
+	pathMapper pathMapper
+	file       *compliance.File
 }
 
 func (c *fileCheck) Run() error {
 	// TODO: here we will introduce various cached results lookups
 
-	log.Debugf("%s:%s file check: %s", c.framework, c.ruleID, c.File.Path)
-	if c.File.Path != "" {
-		return c.reportFile(c.File.Path)
+	log.Debugf("%s:%s file check: %s", c.framework, c.ruleID, c.file.Path)
+	if c.file.Path != "" {
+		return c.reportFile(c.normalizePath(c.file.Path))
 	}
 
 	return log.Error("no path for file check")
+}
+
+func (c *fileCheck) normalizePath(path string) string {
+	if c.pathMapper == nil {
+		return path
+	}
+	return c.pathMapper(path)
 }
 
 func (c *fileCheck) reportFile(filePath string) error {
@@ -52,7 +62,7 @@ func (c *fileCheck) reportFile(filePath string) error {
 		return log.Errorf("failed to stat %s", filePath)
 	}
 
-	for _, field := range c.File.Report {
+	for _, field := range c.file.Report {
 
 		key := field.As
 
@@ -68,7 +78,7 @@ func (c *fileCheck) reportFile(filePath string) error {
 
 		switch field.Kind {
 		case compliance.PropertyKindAttribute:
-			v, err = c.getAttribute(fi, field.Property)
+			v, err = c.getAttribute(filePath, fi, field.Property)
 		case compliance.PropertyKindJSONPath:
 			v, err = c.getJSONPathValue(filePath, field.Property)
 		default:
@@ -90,8 +100,10 @@ func (c *fileCheck) reportFile(filePath string) error {
 	return nil
 }
 
-func (c *fileCheck) getAttribute(fi os.FileInfo, property string) (string, error) {
+func (c *fileCheck) getAttribute(filePath string, fi os.FileInfo, property string) (string, error) {
 	switch property {
+	case "path":
+		return filePath, nil
 	case "permissions":
 		return fmt.Sprintf("%3o", fi.Mode()&os.ModePerm), nil
 	case "owner":

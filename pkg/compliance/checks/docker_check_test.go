@@ -99,6 +99,11 @@ func TestDockerImageCheck(t *testing.T) {
 				Value: "true",
 				As:    "image_healthcheck_missing",
 			},
+			{
+				Property: "{{- index $.RepoTags 0 -}}",
+				Kind:     "template",
+				As:       "image_name",
+			},
 		},
 	}
 
@@ -124,18 +129,28 @@ func TestDockerImageCheck(t *testing.T) {
 	reporter := &compliance.MockReporter{}
 	defer reporter.AssertExpectations(t)
 
-	imagesWithMissingHealthcheck := []string{
-		"sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c",
-		"sha256:89ec9da682137d6b18ab8244ca263b6771067f251562f884c7510c8f1e5ac910",
+	imagesWithMissingHealthcheck := []struct {
+		id   string
+		name string
+	}{
+		{
+			id:   "sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c",
+			name: "redis:latest",
+		},
+		{
+			id:   "sha256:89ec9da682137d6b18ab8244ca263b6771067f251562f884c7510c8f1e5ac910",
+			name: "nginx:alpine",
+		},
 	}
 
-	for _, id := range imagesWithMissingHealthcheck {
+	for _, image := range imagesWithMissingHealthcheck {
 		reporter.On(
 			"Report",
 			newTestRuleEvent(
 				nil,
 				compliance.KV{
-					"image_id":                  id,
+					"image_id":                  image.id,
+					"image_name":                image.name,
 					"image_healthcheck_missing": "true",
 				},
 			),
