@@ -6,6 +6,12 @@
 package processor
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -70,6 +76,95 @@ func (p *Processor) run() {
 	}
 }
 
+var obfuscator = obfuscate.NewObfuscator(nil)
+
+type submatchGroup struct {
+	name  string
+	start int
+	end   int
+}
+
+func submatchGroups(r *regexp.Regexp, content []byte) []submatchGroup {
+	// first group is always empty
+	submatches := r.FindSubmatchIndex(content)
+	if submatches == nil {
+		return nil
+	}
+	groups := r.SubexpNames()[1:]
+	result := make([]submatchGroup, len(groups), len(groups))
+	for i, g := range groups {
+		si := 2 + i*2
+		result[i] = submatchGroup{name: g, start: submatches[si], end: submatches[si+1]}
+	}
+	return result
+}
+
+type pgAutoExplain struct {
+	// postgres original query text if logged from auto_explain
+	QueryText string `json:"Query Text"`
+}
+
+var escapedNewlineBytes = []byte(`\n`)
+var newLineBytes = []byte("\n")
+var spaceBytes = []byte(" ")
+
+func applyObfuscateSQLRule(r *regexp.Regexp, content []byte) (result []byte, err error) {
+	// unescape the escaped newlines that come from the multiline handler
+	// we don't need to re-escape these because log obfuscation will remove them all
+	content = bytes.ReplaceAll(content, escapedNewlineBytes, newLineBytes)
+	groups := submatchGroups(r, content)
+	if groups == nil {
+		return nil, nil
+	}
+	rawQuery := ""
+	for _, g := range groups {
+		switch g.name {
+		case "query", "query_raw":
+			rawQuery = string(content[g.start:g.end])
+		case "auto_explain_json":
+			var plan pgAutoExplain
+			// the execution plan json can contain escaped newlines which were unescaped earlier, so we need to re-escape
+			// them else the execution plan will fail to parse the query text. No easy way to easily replace only the
+			// newlines in that one field so just change it all to spaces as it's safer
+			jsonWithoutNewlines := bytes.ReplaceAll(content[g.start:g.end], newLineBytes, spaceBytes)
+			if err := json.Unmarshal(jsonWithoutNewlines, &plan); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal json execution plan='%s' error='%s'", content[g.start:g.end], err)
+			}
+			if plan.QueryText != "" {
+				rawQuery = plan.QueryText
+			}
+		}
+	}
+	if rawQuery == "" {
+		return
+	}
+	obfQuery, err := obfuscator.ObfuscateSQLString(rawQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to obfuscate sql query='%s' error='%s'", rawQuery, err)
+	}
+	ci := 0
+	for _, g := range groups {
+		result = append(result, content[ci:g.start]...)
+		ci = g.start
+		if g.name == "query" {
+			result = append(result, []byte(obfQuery.Query)...)
+			ci = g.end
+		} else if g.name == "query_raw" {
+			result = append(result, content[g.start:g.end]...)
+			ci = g.end
+		} else if g.name == "sig_insert" {
+			result = append(result, []byte(fmt.Sprintf(" %s ", obfuscate.HashObfuscatedSQL(obfQuery.Query)))...)
+			// this is a pure insert so we don't advance the index
+		}
+	}
+	if ci < len(content) {
+		result = append(result, content[ci:]...)
+	}
+	// escape any newlines left in the string again
+	result = bytes.ReplaceAll(result, newLineBytes, escapedNewlineBytes)
+	return result, nil
+}
+
 // applyRedactingRules returns given a message if we should process it or not,
 // and a copy of the message with some fields redacted, depending on config
 func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
@@ -87,6 +182,13 @@ func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
 			}
 		case config.MaskSequences:
 			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+		case config.ObfuscateSQL:
+			c, err := applyObfuscateSQLRule(rule.Regex, content)
+			if err != nil {
+				log.Errorf("failed to apply obfuscate_sql rule: %s", err.Error())
+			} else if len(c) > 0 {
+				content = c
+			}
 		}
 	}
 	return true, content
