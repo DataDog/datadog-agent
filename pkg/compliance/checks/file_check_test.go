@@ -18,28 +18,47 @@ import (
 )
 
 func TestFileCheck(t *testing.T) {
+	type setupFunc func(t *testing.T, bc baseCheck) *fileCheck
+	type validateFunc func(t *testing.T, kv compliance.KV)
+
+	setupFile := func(file *compliance.File) setupFunc {
+		return func(t *testing.T, bc baseCheck) *fileCheck {
+			return &fileCheck{
+				baseCheck: bc,
+				file:      file,
+			}
+		}
+	}
+
 	tests := []struct {
 		name     string
-		file     *compliance.File
-		setup    func(t *testing.T) *compliance.File
-		validate func(t *testing.T, kv compliance.KV)
+		setup    setupFunc
+		validate validateFunc
 	}{
 		{
 			name: "permissions",
-			setup: func(t *testing.T) *compliance.File {
+			setup: func(t *testing.T, bc baseCheck) *fileCheck {
 				dir := os.TempDir()
-				path := path.Join(dir, fmt.Sprintf("test-permissions-file-check-%d.dat", time.Now().Unix()))
-				f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
+				fileName := fmt.Sprintf("test-permissions-file-check-%d.dat", time.Now().Unix())
+				filePath := path.Join(dir, fileName)
+				f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0644)
 				defer f.Close()
 				assert.NoError(t, err)
-				return &compliance.File{
-					Path: path,
+
+				mapper := func(filePath string) string { return path.Join(dir, filePath) }
+				file := &compliance.File{
+					Path: fileName,
 					Report: compliance.Report{
 						{
 							Property: "permissions",
 							Kind:     "attribute",
 						},
 					},
+				}
+				return &fileCheck{
+					baseCheck:  bc,
+					pathMapper: mapper,
+					file:       file,
 				}
 			},
 			validate: func(t *testing.T, kv compliance.KV) {
@@ -50,26 +69,31 @@ func TestFileCheck(t *testing.T) {
 		},
 		{
 			name: "owner root",
-			file: &compliance.File{
+			setup: setupFile(&compliance.File{
 				Path: "/tmp",
 				Report: compliance.Report{
 					{
 						Property: "owner",
 						Kind:     "attribute",
 					},
+					{
+						Property: "path",
+						Kind:     "attribute",
+					},
 				},
-			},
+			}),
 			validate: func(t *testing.T, kv compliance.KV) {
 				owner, ok := kv["owner"]
 				assert.True(t, ok)
 				parts := strings.SplitN(owner, ":", 2)
 				assert.Equal(t, parts[0], "root")
 				assert.Contains(t, []string{"root", "wheel"}, parts[1])
+				assert.Equal(t, "/tmp", kv["path"])
 			},
 		},
 		{
 			name: "jsonpath log-driver",
-			file: &compliance.File{
+			setup: setupFile(&compliance.File{
 				Path: "./testdata/file/daemon.json",
 				Report: compliance.Report{
 					{
@@ -78,7 +102,7 @@ func TestFileCheck(t *testing.T) {
 						As:       "log_driver",
 					},
 				},
-			},
+			}),
 			validate: func(t *testing.T, kv compliance.KV) {
 				assert.Equal(t, compliance.KV{
 					"log_driver": "json-file",
@@ -87,7 +111,7 @@ func TestFileCheck(t *testing.T) {
 		},
 		{
 			name: "jsonpath experimental",
-			file: &compliance.File{
+			setup: setupFile(&compliance.File{
 				Path: "./testdata/file/daemon.json",
 				Report: compliance.Report{
 					{
@@ -96,7 +120,7 @@ func TestFileCheck(t *testing.T) {
 						As:       "experimental",
 					},
 				},
-			},
+			}),
 			validate: func(t *testing.T, kv compliance.KV) {
 				assert.Equal(t, compliance.KV{
 					"experimental": "false",
@@ -105,7 +129,7 @@ func TestFileCheck(t *testing.T) {
 		},
 		{
 			name: "jsonpath ulimits",
-			file: &compliance.File{
+			setup: setupFile(&compliance.File{
 				Path: "./testdata/file/daemon.json",
 				Report: compliance.Report{
 					{
@@ -114,7 +138,7 @@ func TestFileCheck(t *testing.T) {
 						As:       "nofile_hard",
 					},
 				},
-			},
+			}),
 			validate: func(t *testing.T, kv compliance.KV) {
 				assert.Equal(t, compliance.KV{
 					"nofile_hard": "64000",
@@ -125,15 +149,9 @@ func TestFileCheck(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			file := test.file
-			if test.setup != nil {
-				file = test.setup(t)
-			}
 			reporter := &compliance.MockReporter{}
-			fc := &fileCheck{
-				baseCheck: newTestBaseCheck(reporter),
-				File:      file,
-			}
+			fc := test.setup(t, newTestBaseCheck(reporter))
+
 			reporter.On(
 				"Report",
 				mock.AnythingOfType("*compliance.RuleEvent"),

@@ -8,6 +8,7 @@ package checks
 
 import (
 	"errors"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -26,12 +27,20 @@ type Builder interface {
 type BuilderEnv struct {
 	Reporter     compliance.Reporter
 	DockerClient DockerClient
+	HostRoot     string
 }
 
 // NewBuilder constructs a check builder
 func NewBuilder(checkInterval time.Duration, env BuilderEnv) Builder {
+	var mapper pathMapper
+	if len(env.HostRoot) != 0 {
+		mapper = func(path string) string {
+			return filepath.Join(env.HostRoot, path)
+		}
+	}
 	return &builder{
 		checkInterval: checkInterval,
+		pathMapper:    mapper,
 		env:           env,
 	}
 }
@@ -39,6 +48,8 @@ func NewBuilder(checkInterval time.Duration, env BuilderEnv) Builder {
 type builder struct {
 	checkInterval time.Duration
 	env           BuilderEnv
+
+	pathMapper pathMapper
 }
 
 func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
@@ -64,9 +75,11 @@ func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 
 func (b *builder) fileCheck(meta *compliance.SuiteMeta, ruleID string, file *compliance.File) (check.Check, error) {
 	// TODO: validate config for the file here
+
 	return &fileCheck{
-		baseCheck: b.baseCheck(ruleID, meta),
-		File:      file,
+		baseCheck:  b.baseCheck(ruleID, meta),
+		pathMapper: b.pathMapper,
+		file:       file,
 	}, nil
 }
 
