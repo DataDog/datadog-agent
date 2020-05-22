@@ -8,6 +8,8 @@ package checks
 
 import (
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"path/filepath"
 	"time"
 
@@ -79,7 +81,7 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, resou
 	case resource.Docker != nil:
 		return b.dockerCheck(meta, ruleID, resource.Docker)
 	case resource.Process != nil:
-		return newProcessCheck(b.baseCheck(ruleID, meta), resource.Process)
+		return newProcessCheck(b.baseCheck(ruleID, "process", meta), resource.Process)
 	default:
 		log.Errorf("%s: resource not supported", ruleID)
 		return nil, ErrResourceNotSupported
@@ -88,26 +90,25 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, resou
 
 func (b *builder) fileCheck(meta *compliance.SuiteMeta, ruleID string, file *compliance.File) (check.Check, error) {
 	// TODO: validate config for the file here
-
 	return &fileCheck{
-		baseCheck:  b.baseCheck(ruleID, meta),
+		baseCheck:  b.baseCheck(ruleID, "file", meta),
 		pathMapper: b.pathMapper,
 		file:       file,
 	}, nil
 }
 
 func (b *builder) dockerCheck(meta *compliance.SuiteMeta, ruleID string, dockerResource *compliance.DockerResource) (check.Check, error) {
-	// TODO: validate config for the file here
+	// TODO: validate config for the docker resource here
 	return &dockerCheck{
-		baseCheck:      b.baseCheck(ruleID, meta),
+		baseCheck:      b.baseCheck(ruleID, fmt.Sprintf("docker:%s", dockerResource.Kind), meta),
 		dockerResource: dockerResource,
 		client:         b.env.DockerClient,
 	}, nil
 }
 
-func (b *builder) baseCheck(ruleID string, meta *compliance.SuiteMeta) baseCheck {
+func (b *builder) baseCheck(ruleID string, resourceName string, meta *compliance.SuiteMeta) baseCheck {
 	return baseCheck{
-		id:        check.ID(ruleID),
+		id:        newCheckID(ruleID, resourceName),
 		interval:  b.checkInterval,
 		reporter:  b.env.Reporter,
 		framework: meta.Framework,
@@ -115,4 +116,10 @@ func (b *builder) baseCheck(ruleID string, meta *compliance.SuiteMeta) baseCheck
 
 		ruleID: ruleID,
 	}
+}
+
+func newCheckID(ruleID string, resourceName string) check.ID {
+	h := fnv.New64()
+	h.Write([]byte(resourceName))
+	return check.ID(fmt.Sprintf("%s:%x", ruleID, h.Sum64()))
 }
