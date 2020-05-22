@@ -16,7 +16,7 @@ const (
 	IncludeAtMatch = "include_at_match"
 	MaskSequences  = "mask_sequences"
 	MultiLine      = "multi_line"
-	ObfuscateSql   = "obfuscate_sql"
+	ObfuscateSQL   = "obfuscate_sql"
 )
 
 // ProcessingRule defines an exclusion or a masking rule to
@@ -43,7 +43,7 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 		}
 
 		switch rule.Type {
-		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine, ObfuscateSql:
+		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine, ObfuscateSQL:
 			break
 		case "":
 			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
@@ -70,8 +70,8 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 			return err
 		}
 		switch rule.Type {
-		case ExcludeAtMatch, IncludeAtMatch, ObfuscateSql:
-			// TODO: better validation of ObfuscateSql, check for valid named subgroups
+		case ExcludeAtMatch, IncludeAtMatch, ObfuscateSQL:
+			// TODO: better validation of ObfuscateSQL, check for valid named subgroups
 			rule.Regex = re
 		case MaskSequences:
 			rule.Regex = re

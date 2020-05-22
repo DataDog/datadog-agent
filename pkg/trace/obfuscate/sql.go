@@ -345,8 +345,8 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
 }
 
-// HashObfuscatedSql returns the hash of an already obfuscated query as 32 char hex string
+// HashObfuscatedSQL returns the hash of an already obfuscated query as 32 char hex string
 // the query must already have been obfuscated using ObfuscateSQLString
-func HashObfuscatedSql(obfuscatedSql string) string {
-	return strconv.FormatUint(murmur3.Sum64([]byte(obfuscatedSql)), 16)
+func HashObfuscatedSQL(obfuscatedSQL string) string {
+	return strconv.FormatUint(murmur3.Sum64([]byte(obfuscatedSQL)), 16)
 }

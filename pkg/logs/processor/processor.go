@@ -108,7 +108,7 @@ var escapedNewlineBytes = []byte(`\n`)
 var newLineBytes = []byte("\n")
 var spaceBytes = []byte(" ")
 
-func applyObfuscateSqlRule(r *regexp.Regexp, content []byte) (result []byte, err error) {
+func applyObfuscateSQLRule(r *regexp.Regexp, content []byte) (result []byte, err error) {
 	// unescape the escaped newlines that come from the multiline handler
 	// we don't need to re-escape these because log obfuscation will remove them all
 	content = bytes.ReplaceAll(content, escapedNewlineBytes, newLineBytes)
@@ -153,7 +153,7 @@ func applyObfuscateSqlRule(r *regexp.Regexp, content []byte) (result []byte, err
 			result = append(result, content[g.start:g.end]...)
 			ci = g.end
 		} else if g.name == "sig_insert" {
-			result = append(result, []byte(fmt.Sprintf(" %s ", obfuscate.HashObfuscatedSql(obfQuery.Query)))...)
+			result = append(result, []byte(fmt.Sprintf(" %s ", obfuscate.HashObfuscatedSQL(obfQuery.Query)))...)
 			// this is a pure insert so we don't advance the index
 		}
 	}
@@ -182,8 +182,8 @@ func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
 			}
 		case config.MaskSequences:
 			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-		case config.ObfuscateSql:
-			c, err := applyObfuscateSqlRule(rule.Regex, content)
+		case config.ObfuscateSQL:
+			c, err := applyObfuscateSQLRule(rule.Regex, content)
 			if err != nil {
 				log.Errorf("failed to apply obfuscate_sql rule: %s", err.Error())
 			} else if len(c) > 0 {
