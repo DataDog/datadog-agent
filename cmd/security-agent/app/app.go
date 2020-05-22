@@ -246,7 +246,11 @@ func startCompliance(stopper restart.Stopper) error {
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 
-	agent := agent.New(reporter, scheduler, configDir, checkInterval)
+	hostname, err := util.GetHostname()
+	if err != nil {
+		return err
+	}
+	agent := agent.New(reporter, scheduler, configDir, hostname, checkInterval)
 	err = agent.Run()
 	if err != nil {
 		return log.Errorf("Error starting compliance agent, exiting: %v", err)
