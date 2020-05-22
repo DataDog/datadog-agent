@@ -39,6 +39,11 @@ func NewTrapListener(bindHost string, c TrapListenerConfig) (*TrapListener, erro
 	return listener, nil
 }
 
+// SetTrapHandler sets the callback called when a new trap is received.
+func (ln *TrapListener) SetTrapHandler(handler func(s *gosnmp.SnmpPacket, u *net.UDPAddr)) {
+	ln.impl.OnNewTrap = handler
+}
+
 func handleTrap(packet *gosnmp.SnmpPacket, addr *net.UDPAddr) {
 	log.Infof("Received trap packet: %v, %v", packet, addr)
 }

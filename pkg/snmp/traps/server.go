@@ -1,9 +1,11 @@
 package traps
 
 import (
+	"net"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/soniah/gosnmp"
 )
 
 // TrapServer runs multiple SNMP traps listeners.
@@ -47,6 +49,13 @@ func NewTrapServer() (*TrapServer, error) {
 	}
 
 	return s, nil
+}
+
+// SetTrapHandler sets the callback called when a new trap is received for all listeners. Useful for testing purposes.
+func (s TrapServer) SetTrapHandler(handler func(s *gosnmp.SnmpPacket, u *net.UDPAddr)) {
+	for _, l := range s.listeners {
+		l.SetTrapHandler(handler)
+	}
 }
 
 // start spawns listeners in the background, and waits for them to be ready to accept traffic, handling any errors.
