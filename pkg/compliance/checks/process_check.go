@@ -35,7 +35,7 @@ func newProcessCheck(baseCheck baseCheck, process *compliance.Process) (*process
 }
 
 func (c *processCheck) Run() error {
-	log.Debugf("File check: %s", c.process.Name)
+	log.Debugf("%s: process check: %s", c.ruleID, c.process.Name)
 	processes, err := getProcesses(cacheValidity)
 	if err != nil {
 		return log.Errorf("Unable to fetch processes: %v", err)
@@ -53,6 +53,7 @@ func (c *processCheck) Run() error {
 }
 
 func (c *processCheck) reportProcess(p *process.FilledProcess) error {
+	log.Debugf("%s: process check - match %s", c.ruleID, p.Cmdline)
 	kv := compliance.KV{}
 	flagValues := parseProcessCmdLine(p.Cmdline)
 

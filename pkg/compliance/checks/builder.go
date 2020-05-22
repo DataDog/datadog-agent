@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ErrResourceNotSupported is returned when resource type is not supported by CheckBuilder
@@ -34,6 +35,7 @@ type BuilderEnv struct {
 func NewBuilder(checkInterval time.Duration, env BuilderEnv) Builder {
 	var mapper pathMapper
 	if len(env.HostRoot) != 0 {
+		log.Infof("Root filesystem will be remapped to %s", env.HostRoot)
 		mapper = func(path string) string {
 			return filepath.Join(env.HostRoot, path)
 		}
