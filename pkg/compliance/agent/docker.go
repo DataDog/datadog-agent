@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func dockerClient() checks.DockerClient {
+var dockerClient = func() checks.DockerClient {
 	queryTimeout := config.Datadog.GetDuration("docker_query_timeout") * time.Second
 
 	// Major failure risk is here, do that first
