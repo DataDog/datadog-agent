@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TrapServer runs multiple SNMP traps listeners.
@@ -53,40 +52,33 @@ func NewTrapServer() (*TrapServer, error) {
 // start spawns listeners in the background, and waits for them to be ready to accept traffic, handling any errors.
 func (s *TrapServer) start() error {
 	wg := new(sync.WaitGroup)
-	wgDone := make(chan bool)
-	errors := make(chan error)
+	allReady := make(chan struct{})
+	readyErrors := make(chan error)
 
 	wg.Add(len(s.listeners))
 
 	for _, l := range s.listeners {
 		l := l
-
 		go l.Listen()
-
 		go func() {
 			defer wg.Done()
-			log.Debugf("snmp-traps: waiting for %s...", l.addr)
 			err := l.WaitReadyOrError()
-			if err == nil {
-				log.Debugf("snmp-traps: %s ready", l.addr)
-			} else {
-				errors <- err
+			if err != nil {
+				readyErrors <- err
 			}
 		}()
 	}
 
 	go func() {
-		log.Debug("snmp-traps: waiting for listeners...")
 		wg.Wait()
-		close(wgDone)
+		close(allReady)
 	}()
 
 	select {
-	case <-wgDone:
-		log.Debug("snmp-traps: all listeners ready")
+	case <-allReady:
 		break
-	case err := <-errors:
-		close(errors)
+	case err := <-readyErrors:
+		close(readyErrors)
 		return err
 	}
 
