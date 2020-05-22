@@ -38,7 +38,7 @@ type fileCheck struct {
 func (c *fileCheck) Run() error {
 	// TODO: here we will introduce various cached results lookups
 
-	log.Debugf("%s:%s file check: %s", c.framework, c.ruleID, c.file.Path)
+	log.Debugf("%s: file check: %s", c.ruleID, c.file.Path)
 	if c.file.Path != "" {
 		return c.reportFile(c.normalizePath(c.file.Path))
 	}
@@ -59,7 +59,7 @@ func (c *fileCheck) reportFile(filePath string) error {
 
 	fi, err := os.Stat(filePath)
 	if err != nil {
-		return log.Errorf("failed to stat %s", filePath)
+		return log.Errorf("%s: failed to stat %s", c.ruleID, filePath)
 	}
 
 	for _, field := range c.file.Report {

@@ -101,7 +101,7 @@ func TestDockerImageCheck(t *testing.T) {
 			},
 			{
 				Property: "{{- index $.RepoTags 0 -}}",
-				Kind:     "template",
+				Kind:     compliance.PropertyKindTemplate,
 				As:       "image_name",
 			},
 		},
@@ -177,6 +177,7 @@ func TestDockerNetworkCheck(t *testing.T) {
 			{
 				Include: &compliance.Condition{
 					Property:  `{{- index $.Options "com.docker.network.bridge.default_bridge" -}}`,
+					Kind:      compliance.PropertyKindTemplate,
 					Operation: compliance.OpEqual,
 					Value:     "true",
 				},
@@ -188,8 +189,8 @@ func TestDockerNetworkCheck(t *testing.T) {
 				As:       "network_id",
 			},
 			{
-				Property: `{{- index $.Options "com.docker.network.bridge.enable_icc" }}`,
-				Kind:     "template",
+				Property: `{{- index $.Options "com.docker.network.bridge.enable_icc" -}}`,
+				Kind:     compliance.PropertyKindTemplate,
 				As:       "default_bridge_traffic_restricted",
 			},
 		},
@@ -236,6 +237,7 @@ func TestDockerContainerCheck(t *testing.T) {
 			{
 				Include: &compliance.Condition{
 					Property:  `{{- $.HostConfig.Privileged -}}`,
+					Kind:      compliance.PropertyKindTemplate,
 					Operation: compliance.OpEqual,
 					Value:     "true",
 				},
@@ -296,7 +298,7 @@ func TestDockerInfoCheck(t *testing.T) {
 		Report: compliance.Report{
 			{
 				Property: "{{- $.RegistryConfig.InsecureRegistryCIDRs -}}",
-				Kind:     "template",
+				Kind:     compliance.PropertyKindTemplate,
 				As:       "insecure_registries",
 			},
 		},
@@ -340,7 +342,7 @@ func TestDockerVersionCheck(t *testing.T) {
 		Report: compliance.Report{
 			{
 				Property: `{{ range $.Components }}{{ if eq .Name "Engine" }}{{- .Details.Experimental -}}{{ end }}{{ end }}`,
-				Kind:     "template",
+				Kind:     compliance.PropertyKindTemplate,
 				As:       "experimental_features",
 			},
 		},

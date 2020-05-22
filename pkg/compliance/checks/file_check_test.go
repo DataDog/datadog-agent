@@ -51,7 +51,7 @@ func TestFileCheck(t *testing.T) {
 					Report: compliance.Report{
 						{
 							Property: "permissions",
-							Kind:     "attribute",
+							Kind:     compliance.PropertyKindAttribute,
 						},
 					},
 				}
@@ -74,11 +74,11 @@ func TestFileCheck(t *testing.T) {
 				Report: compliance.Report{
 					{
 						Property: "owner",
-						Kind:     "attribute",
+						Kind:     compliance.PropertyKindAttribute,
 					},
 					{
 						Property: "path",
-						Kind:     "attribute",
+						Kind:     compliance.PropertyKindAttribute,
 					},
 				},
 			}),
@@ -98,7 +98,7 @@ func TestFileCheck(t *testing.T) {
 				Report: compliance.Report{
 					{
 						Property: "$['log-driver']",
-						Kind:     "jsonpath",
+						Kind:     compliance.PropertyKindJSONPath,
 						As:       "log_driver",
 					},
 				},

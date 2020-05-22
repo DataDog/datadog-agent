@@ -67,9 +67,9 @@ func (a *Agent) Run() error {
 			return err
 		}
 
-		log.Infof("%s: %s/%s: adding rules", config, suite.Meta.Name, suite.Meta.Version)
-
+		log.Infof("%s/%s: loading suite from %s", suite.Meta.Name, suite.Meta.Version, config)
 		for _, r := range suite.Rules {
+			log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 			check, err := a.builder.CheckFromRule(&suite.Meta, &r)
 			if err != nil {
 				return err
