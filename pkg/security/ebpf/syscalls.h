@@ -8,8 +8,7 @@ struct syscall_cache_t {
         struct {
             int flags;
             umode_t mode;
-            struct path *path;
-            struct file *file;
+            struct dentry *dentry;
         } open;
 
         struct {

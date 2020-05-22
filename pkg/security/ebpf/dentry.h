@@ -102,6 +102,12 @@ struct dentry* __attribute__((always_inline)) get_file_dentry(struct file *file)
     return f_dentry;
 }
 
+struct dentry* __attribute__((always_inline)) get_path_dentry(struct path *path) {
+    struct dentry *dentry;
+    bpf_probe_read(&dentry, sizeof(dentry), &path->dentry);
+    return dentry;
+}
+
 #define get_dentry_key(dentry) (struct path_key_t) { .ino = get_dentry_ino(dentry), .dev = get_dentry_dev(dentry) }
 #define get_inode_key(inode) (struct path_key_t) { .ino = get_inode_ino(inode), .dev = get_inode_dev(dentry) }
 

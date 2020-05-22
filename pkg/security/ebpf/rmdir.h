@@ -11,8 +11,7 @@ struct rmdir_event_t {
     u32           padding;
 };
 
-SEC("kprobe/sys_rmdir")
-int kprobe__sys_rmdir(struct pt_regs *ctx) {
+SYSCALL_KPROBE(rmdir) {
     if (filter_process())
         return 0;
 
@@ -37,8 +36,7 @@ int kprobe__vfs_rmdir(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/sys_rmdir")
-int kretprobe__sys_rmdir(struct pt_regs *ctx) {
+SYSCALL_KRETPROBE(rmdir) {
     struct syscall_cache_t *syscall = pop_syscall();
     if (!syscall)
         return 0;
