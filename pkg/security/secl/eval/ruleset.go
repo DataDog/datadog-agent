@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type FieldApprover struct {
+type Filter struct {
 	Field string
 	Value interface{}
 	Type  FieldValueType
@@ -100,7 +100,7 @@ func (rs *RuleSet) HasRulesForEventType(kind string) bool {
 	return len(bucket.rules) > 0
 }
 
-type EventApprovers map[string][]FieldApprover
+type EventFilters map[string][]Filter
 
 type FilteringCapability struct {
 	Field string
@@ -130,10 +130,10 @@ func notOfValue(value interface{}) (interface{}, error) {
 	return nil, errors.New("value type unknown")
 }
 
-func (rs *RuleSet) getFieldApprovers(evaluator *RuleEvaluator, isValidEventTypeFnc func(eventType string) bool) ([]FieldApprover, error) {
+func (rs *RuleSet) getFilters(evaluator *RuleEvaluator, isValidEventTypeFnc func(eventType string) bool) ([]Filter, error) {
 	var ctx Context
 
-	var approvers []FieldApprover
+	var filters []Filter
 	for field, fValues := range evaluator.FieldValues {
 		if eventType, _ := rs.model.GetEventType(field); !isValidEventTypeFnc(eventType) {
 			continue
@@ -146,7 +146,7 @@ func (rs *RuleSet) getFieldApprovers(evaluator *RuleEvaluator, isValidEventTypeF
 		for _, fValue := range fValues {
 			rs.model.SetEventValue(field, fValue.Value)
 			if result, _ := evaluator.PartialEval(&ctx, field); result {
-				approvers = append(approvers, FieldApprover{
+				filters = append(filters, Filter{
 					Field: field,
 					Value: fValue.Value,
 					Type:  fValue.Type,
@@ -161,7 +161,7 @@ func (rs *RuleSet) getFieldApprovers(evaluator *RuleEvaluator, isValidEventTypeF
 
 			rs.model.SetEventValue(field, value)
 			if result, _ := evaluator.PartialEval(&ctx, field); result {
-				approvers = append(approvers, FieldApprover{
+				filters = append(filters, Filter{
 					Field: field,
 					Value: fValue.Value,
 					Type:  fValue.Type,
@@ -171,73 +171,73 @@ func (rs *RuleSet) getFieldApprovers(evaluator *RuleEvaluator, isValidEventTypeF
 		}
 	}
 
-	return approvers, nil
+	return filters, nil
 }
 
-func (rs *RuleSet) GetEventApprovers(eventType string, capabitlies ...FilteringCapability) (EventApprovers, error) {
+func (rs *RuleSet) GetEventFilters(eventType string, capabilities ...FilteringCapability) (EventFilters, error) {
 	rs.model.SetEvent(rs.eventCtor())
 
 	capsMap := make(map[string]FilteringCapability)
-	for _, cap := range capabitlies {
+	for _, cap := range capabilities {
 		capsMap[cap.Field] = cap
 	}
 
-	eventApprovers := make(EventApprovers)
+	eventFilters := make(EventFilters)
 
-	updateEventApprovers := func(approver FieldApprover) error {
-		approvers := eventApprovers[approver.Field]
+	updateEventFilters := func(filter Filter) error {
+		approvers := eventFilters[filter.Field]
 
-		cap, ok := capsMap[approver.Field]
+		cap, ok := capsMap[filter.Field]
 		if !ok {
-			return &CapabilityNotFound{Field: approver.Field}
+			return &CapabilityNotFound{Field: filter.Field}
 		}
 
-		if approver.Type&cap.Types == 0 {
-			return &CapabilityMismatch{Field: approver.Field}
+		if filter.Type&cap.Types == 0 {
+			return &CapabilityMismatch{Field: filter.Field}
 		}
 
 		found := false
 		for _, a := range approvers {
-			if a == approver {
+			if a == filter {
 				found = true
 			}
 		}
 
 		if !found {
-			approvers = append(approvers, approver)
+			approvers = append(approvers, filter)
 		}
-		eventApprovers[approver.Field] = approvers
+		eventFilters[filter.Field] = approvers
 
 		return nil
 	}
 
 	if bucket, ok := rs.eventRuleBuckets[eventType]; ok {
 		for _, rule := range bucket.rules {
-			wildcardApprovers, err := rs.getFieldApprovers(rule.evaluator, func(kind string) bool { return kind == "*" })
+			wildcardFilters, err := rs.getFilters(rule.evaluator, func(kind string) bool { return kind == "*" })
 			if err != nil {
 				return nil, err
 			}
 
-			for _, approver := range wildcardApprovers {
-				if err := updateEventApprovers(approver); err != nil {
+			for _, approver := range wildcardFilters {
+				if err := updateEventFilters(approver); err != nil {
 					return nil, err
 				}
 			}
 
-			approvers, err := rs.getFieldApprovers(rule.evaluator, func(kind string) bool { return kind == eventType })
+			approvers, err := rs.getFilters(rule.evaluator, func(kind string) bool { return kind == eventType })
 			if err != nil {
 				return nil, err
 			}
 
 			for _, approver := range approvers {
-				if err := updateEventApprovers(approver); err != nil {
+				if err := updateEventFilters(approver); err != nil {
 					return nil, err
 				}
 			}
 		}
 	}
 
-	return eventApprovers, nil
+	return eventFilters, nil
 }
 
 func (rs *RuleSet) Evaluate(event Event) bool {
