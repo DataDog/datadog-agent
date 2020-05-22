@@ -129,11 +129,12 @@ func (t *Tailer) readForever() {
 			// stop reading data from file
 			return
 		default:
-			if err := t.read(); err != nil {
+			if n, err := t.read(); err != nil {
 				return
+			} else if n == 0 {
+				// wait for new data to come
+				t.wait()
 			}
-			// wait for new data to come
-			t.wait()
 		}
 	}
 }
