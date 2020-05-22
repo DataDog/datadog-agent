@@ -75,6 +75,7 @@ func (a *Agent) Run() error {
 				return err
 			}
 			for _, check := range checks {
+				log.Debugf("%s/%s: scheduling check %s", suite.Meta.Name, suite.Meta.Version, check.ID())
 				err = a.scheduler.Enter(check)
 				if err != nil {
 					return err

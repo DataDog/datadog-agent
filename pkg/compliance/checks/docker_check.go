@@ -96,7 +96,7 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 }
 
 func (c *dockerCheck) Run() error {
-	log.Debugf("%s:%s docker check: %s", c.framework, c.ruleID, c.dockerResource.Kind)
+	log.Debugf("%s docker check: %s", c.ruleID, c.dockerResource.Kind)
 	// TODO: timeout for checks here
 	ctx := context.Background()
 	return c.iterate(ctx, c.inspect)
