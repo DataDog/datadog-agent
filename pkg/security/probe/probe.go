@@ -2,8 +2,6 @@ package probe
 
 import (
 	"bytes"
-	"encoding/binary"
-	"path"
 
 	"github.com/iovisor/gobpf/elf"
 
@@ -28,10 +26,9 @@ type Probe struct {
 
 type KProbe struct {
 	*eprobe.KProbe
-	EventTypes       map[string][]eval.FilteringCapability
-	OnApproversFound func(probe *Probe, field string, approvers []eval.FieldApprover)
-	OnDiscarderFound func(probe *Probe, event *Event, field string)
-	SetFilterPolicy  func(probe *Probe, deny bool)
+	EventTypes      map[string][]eval.FilteringCapability
+	OnNewFilter     func(probe *Probe, field string, filters []eval.Filter) error
+	SetFilterPolicy func(probe *Probe, mode PolicyMode) error
 }
 
 func getSyscallFnName(name string) string {
@@ -89,65 +86,6 @@ var AllKProbes = []*KProbe{
 		},
 		EventTypes: map[string][]eval.FilteringCapability{
 			"rmdir": []eval.FilteringCapability{},
-		},
-	},
-	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_open",
-			EntryFunc: "kprobe/" + getSyscallFnName("open"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("open"),
-		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"open": []eval.FilteringCapability{
-				{Field: "open.filename", Types: eval.ScalarValueType},
-			},
-		},
-	},
-	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_openat",
-			EntryFunc: "kprobe/" + getSyscallFnName("openat"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("openat"),
-		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"open": []eval.FilteringCapability{
-				{Field: "open.filename", Types: eval.ScalarValueType},
-			},
-		},
-		SetFilterPolicy: func(probe *Probe, deny bool) {
-			if deny {
-				table := probe.Table("open_policy")
-				table.Set([]byte{0, 0, 0, 0}, []byte{1})
-			}
-		},
-	},
-	{
-		KProbe: &eprobe.KProbe{
-			Name:      "vfs_open",
-			EntryFunc: "kprobe/vfs_open",
-		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"open": []eval.FilteringCapability{
-				{Field: "open.filename", Types: eval.ScalarValueType},
-			},
-		},
-		OnApproversFound: func(probe *Probe, field string, approvers []eval.FieldApprover) {
-			switch field {
-			case "open.filename":
-				for _, approver := range approvers {
-					basename := path.Base(approver.Value.(string))
-
-					buffer := new(bytes.Buffer)
-					if err := binary.Write(buffer, byteOrder, []byte(basename)); err != nil {
-						return
-					}
-					key := make([]byte, 32)
-					copy(key, buffer.Bytes())
-
-					table := probe.Table("open_basename_approvers")
-					table.Set(key, []byte{1})
-				}
-			}
 		},
 	},
 	{
@@ -228,6 +166,28 @@ func (p *Probe) NewRuleSet(opts eval.Opts) *eval.RuleSet {
 	return eval.NewRuleSet(&Model{}, eventCtor, opts)
 }
 
+func (p *Probe) getTables() []*types.Table {
+	tables := []*types.Table{
+		{
+			Name: "pathnames",
+		},
+		{
+			Name: "process_discriminators",
+		},
+	}
+
+	return append(tables, OpenTables...)
+}
+
+func (p *Probe) getPerfMaps() []*types.PerfMap {
+	return []*types.PerfMap{
+		{
+			Name:    "events",
+			Handler: p.handleEvent,
+		},
+	}
+}
+
 func NewProbe(config *config.Config) (*Probe, error) {
 	bytecode, err := Asset("probe.o") // ioutil.ReadFile("pkg/security/ebpf/probe.o")
 	if err != nil {
@@ -243,27 +203,9 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	p := &Probe{}
 
 	ebpfProbe := &eprobe.Probe{
-		Module: module,
-		Tables: []*types.Table{
-			{
-				Name: "pathnames",
-			},
-			{
-				Name: "process_discriminators",
-			},
-			{
-				Name: "open_policy",
-			},
-			{
-				Name: "open_basename_approvers",
-			},
-		},
-		PerfMaps: []*types.PerfMap{
-			{
-				Name:    "events",
-				Handler: p.handleEvent,
-			},
-		},
+		Module:   module,
+		Tables:   p.getTables(),
+		PerfMaps: p.getPerfMaps(),
 	}
 
 	for _, kprobe := range AllKProbes {
@@ -381,23 +323,34 @@ func (p *Probe) Setup(rs *eval.RuleSet) error {
 					already[kprobe] = true
 				}
 
-				eventApprovers, err := rs.GetEventApprovers(eventType, capabilities...)
-				if err != nil {
+				eventFilters, err := rs.GetEventFilters(eventType, capabilities...)
+				if err != nil || len(eventFilters) == 0 {
 					if kprobe.SetFilterPolicy != nil {
 						log.Infof("Setting in-kernel filter policy to `pass` for `%s`", eventType)
-						kprobe.SetFilterPolicy(p, false)
+						if err := kprobe.SetFilterPolicy(p, POLICY_MODE_ACCEPT); err != nil {
+							return err
+						}
 					}
 					continue
 				}
 
 				if kprobe.SetFilterPolicy != nil {
 					log.Infof("Setting in-kernel filter policy to `deny` for `%s`", eventType)
-					kprobe.SetFilterPolicy(p, true)
+					if err := kprobe.SetFilterPolicy(p, POLICY_MODE_DENY); err != nil {
+						return err
+					}
 				}
 
-				for field, approvers := range eventApprovers {
-					if kprobe.OnApproversFound != nil {
-						kprobe.OnApproversFound(p, field, approvers)
+				for field, filters := range eventFilters {
+					if kprobe.OnNewFilter == nil {
+						continue
+					}
+					if err := kprobe.OnNewFilter(p, field, filters); err != nil {
+						if err := kprobe.SetFilterPolicy(p, POLICY_MODE_ACCEPT); err != nil {
+							return err
+						}
+						// error during approver initialization, exit anyway
+						return err
 					}
 				}
 			}
@@ -405,4 +358,8 @@ func (p *Probe) Setup(rs *eval.RuleSet) error {
 	}
 
 	return nil
+}
+
+func init() {
+	AllKProbes = append(AllKProbes, OpenKProbes...)
 }

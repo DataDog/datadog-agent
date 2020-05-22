@@ -108,6 +108,12 @@ struct dentry* __attribute__((always_inline)) get_path_dentry(struct path *path)
     return dentry;
 }
 
+void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
+    struct qstr qstr;
+    bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
+    bpf_probe_read_str(buffer, n, (void *)qstr.name);
+}
+
 #define get_dentry_key(dentry) (struct path_key_t) { .ino = get_dentry_ino(dentry), .dev = get_dentry_dev(dentry) }
 #define get_inode_key(inode) (struct path_key_t) { .ino = get_inode_ino(inode), .dev = get_inode_dev(dentry) }
 

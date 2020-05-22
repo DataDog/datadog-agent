@@ -1,5 +1,5 @@
 #ifndef _DEFS_H
-#define _DEFS_H 1
+#define _DEFS_H
 
 #include "../../ebpf/c/bpf_helpers.h"
 
