@@ -70,13 +70,15 @@ func (a *Agent) Run() error {
 		log.Infof("%s/%s: loading suite from %s", suite.Meta.Name, suite.Meta.Version, config)
 		for _, r := range suite.Rules {
 			log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
-			check, err := a.builder.CheckFromRule(&suite.Meta, &r)
+			checks, err := a.builder.ChecksFromRule(&suite.Meta, &r)
 			if err != nil {
 				return err
 			}
-			err = a.scheduler.Enter(check)
-			if err != nil {
-				return err
+			for _, check := range checks {
+				err = a.scheduler.Enter(check)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}

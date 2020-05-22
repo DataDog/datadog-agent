@@ -21,7 +21,7 @@ var ErrResourceNotSupported = errors.New("resource type not supported")
 
 // Builder defines an interface to build checks from rules
 type Builder interface {
-	CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error)
+	ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error)
 }
 
 // BuilderEnv defines builder environment used to instantiate different checks
@@ -54,25 +54,36 @@ type builder struct {
 	pathMapper pathMapper
 }
 
-func (b *builder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
+func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error) {
 	// TODO: evaluate the rule scope here and return an error for rules
 	// which are not applicable
-	for _, resource := range rule.Resources {
 
-		// TODO: there has to be some logic here to allow for composite checks,
+	var checks []check.Check
+	for _, resource := range rule.Resources {
+		// TODO: there will be some logic introduced here to allow for composite checks,
 		// to support overrides of reported values, e.g.:
 		// default value checked in a file but can be overwritten by a process
-		// argument.
-		switch {
-		case resource.File != nil:
-			return b.fileCheck(meta, rule.ID, resource.File)
-		case resource.Docker != nil:
-			return b.dockerCheck(meta, rule.ID, resource.Docker)
-		case resource.Process != nil:
-			return newProcessCheck(b.baseCheck(rule.ID, meta), resource.Process)
+		// argument. Currently we treat them as independent checks.
+
+		if check, err := b.checkFromRule(meta, rule.ID, resource); err == nil {
+			checks = append(checks, check)
 		}
 	}
-	return nil, ErrResourceNotSupported
+	return checks, nil
+}
+
+func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, resource compliance.Resource) (check.Check, error) {
+	switch {
+	case resource.File != nil:
+		return b.fileCheck(meta, ruleID, resource.File)
+	case resource.Docker != nil:
+		return b.dockerCheck(meta, ruleID, resource.Docker)
+	case resource.Process != nil:
+		return newProcessCheck(b.baseCheck(ruleID, meta), resource.Process)
+	default:
+		log.Errorf("%s: resource not supported", ruleID)
+		return nil, ErrResourceNotSupported
+	}
 }
 
 func (b *builder) fileCheck(meta *compliance.SuiteMeta, ruleID string, file *compliance.File) (check.Check, error) {
