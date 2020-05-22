@@ -78,9 +78,9 @@
 /pkg/util/clusteragent/                 @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
 /pkg/util/containers/collectors/cloudfoundry.go              @DataDog/integrations-tools-and-libraries
-/pkg/util/docker/                       @DataDog/container-integrations @DataDog/processes
-/pkg/util/ecs/                          @DataDog/container-integrations @DataDog/processes
-/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/processes @DataDog/container-app
+/pkg/util/docker/                       @DataDog/container-integrations
+/pkg/util/ecs/                          @DataDog/container-integrations
+/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/logs-intake @DataDog/agent-core
 /pkg/metadata/ecs/                      @DataDog/networks

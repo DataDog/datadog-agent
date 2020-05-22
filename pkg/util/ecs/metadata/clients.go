@@ -38,7 +38,7 @@ type util struct {
 // possible to detect the endpoint address.
 func V1() (*v1.Client, error) {
 	globalUtil.initV1.Do(func() {
-		globalUtil.initRetryV1.SetupRetrier(&retry.Config{
+		globalUtil.initRetryV1.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "ecsutil-meta-v1",
 			AttemptMethod:     initV1,
 			Strategy:          retry.Backoff,
@@ -74,7 +74,7 @@ func V3(containerID string) (*v3.Client, error) {
 // error if it was not possible to detect the endpoint address.
 func V3FromCurrentTask() (*v3.Client, error) {
 	globalUtil.initV3.Do(func() {
-		globalUtil.initRetryV3.SetupRetrier(&retry.Config{
+		globalUtil.initRetryV3.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "ecsutil-meta-v3",
 			AttemptMethod:     initV3,
 			Strategy:          retry.Backoff,

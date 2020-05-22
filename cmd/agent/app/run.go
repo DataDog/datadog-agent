@@ -184,7 +184,7 @@ func StartAgent() error {
 	if config.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -232,6 +232,9 @@ func StartAgent() error {
 		}
 	}
 
+	// is this instance running as an iot agent
+	var iotAgent bool = config.Datadog.GetBool("iot_host")
+
 	// start the GUI server
 	guiPort := config.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
@@ -247,12 +250,17 @@ func StartAgent() error {
 	}
 	common.Forwarder = forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	log.Debugf("Starting forwarder")
-	common.Forwarder.Start()
+	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
+
+	agentName := "agent"
+	if iotAgent {
+		agentName = "iot_agent"
+	}
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(s, hostname, "agent")
+	agg := aggregator.InitAggregator(s, hostname, agentName)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
@@ -286,6 +294,10 @@ func StartAgent() error {
 		log.Info("logs-agent disabled")
 	}
 
+	if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
+		log.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
+	}
+
 	// Detect Cloud Provider
 	go util.DetectCloudProvider()
 
@@ -314,8 +326,8 @@ func StartAgent() error {
 // StopAgent Tears down the agent process
 func StopAgent() {
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {

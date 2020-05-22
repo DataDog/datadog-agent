@@ -20,17 +20,21 @@ const (
 	// - gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/gke-release/pause-win:1.1.0
 	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/gke-release/|/)pause(.*)`
-	pauseContainerOpenshift  = "image:openshift/origin-pod"
+	pauseContainerOpenshift3 = "image:(openshift/origin-pod|(.*)rhel7/pod-infrastructure)"
+	pauseContainerOpenshift4 = "image:(.*)/openshift-release-dev/ocp-v4.0-art-dev"
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
-	pauseContainerEKS        = "image:eks/pause-amd64"
+	pauseContainerEKS        = "image:(amazonaws.com/)?eks/pause-(amd64|windows)"
 	// pauseContainerAzure regex matches:
 	// - k8s-gcrio.azureedge.net/pause-amd64
 	// - gcrio.azureedge.net/google_containers/pause-amd64
 	pauseContainerAzure   = `image:(.*)azureedge\.net(/google_containers/|/)pause(.*)`
 	pauseContainerRancher = `image:rancher/pause(.*)`
-	pauseContainerAKS     = `image:mcr.microsoft.com/k8s/core/pause(.*)`
-	pauseContainerECR     = `image:ecr(.*)amazonaws.com/pause(.*)`
+	// pauseContainerAKS regex matches:
+	// - mcr.microsoft.com/k8s/core/pause-amd64
+	// - aksrepos.azurecr.io/mirror/pause-amd64
+	pauseContainerAKS = `image:(mcr.microsoft.com/k8s/core/|aksrepos.azurecr.io/mirror/|kubeletwin/)pause(.*)`
+	pauseContainerECR = `image:ecr(.*)amazonaws.com/pause(.*)`
 )
 
 // Filter holds the state for the container filtering logic
@@ -137,7 +141,8 @@ func NewFilterFromConfig() (*Filter, error) {
 	if config.Datadog.GetBool("exclude_pause_container") {
 		blacklist = append(blacklist,
 			pauseContainerGCR,
-			pauseContainerOpenshift,
+			pauseContainerOpenshift3,
+			pauseContainerOpenshift4,
 			pauseContainerKubernetes,
 			pauseContainerAzure,
 			pauseContainerECS,

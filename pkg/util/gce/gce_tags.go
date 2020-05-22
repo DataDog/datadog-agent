@@ -38,6 +38,10 @@ type gceProjectMetadata struct {
 func GetTags() ([]string, error) {
 	tags := []string{}
 
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return tags, fmt.Errorf("cloud provider is disabled by configuration")
+	}
+
 	metadataResponse, err := getResponse(metadataURL + "/?recursive=true")
 	if err != nil {
 		return tags, err

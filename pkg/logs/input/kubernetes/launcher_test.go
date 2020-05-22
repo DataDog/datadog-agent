@@ -106,6 +106,110 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 	assert.Nil(t, source)
 }
 
+func TestGetSourceShouldHaveStandardServiceLabelifNoAnnotation(t *testing.T) {
+	launcher := &Launcher{collectAll: true}
+	container := kubelet.ContainerStatus{
+		Name:  "foo",
+		Image: "bar",
+		ID:    "boo",
+	}
+
+	cases := []struct {
+		testName string
+		pod      *kubelet.Pod
+		expected string
+	}{
+		{
+			testName: "onlyServiceLabel",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Labels: map[string]string{
+						"component":                  "kube-proxy",
+						"tags.datadoghq.com/env":     "production",
+						"tags.datadoghq.com/service": "dd-agent",
+						"tags.datadoghq.com/version": "1.1.0",
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "dd-agent",
+		},
+		{
+			testName: "hasAnnotation",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Labels: map[string]string{
+						"component":                  "kube-proxy",
+						"tags.datadoghq.com/env":     "production",
+						"tags.datadoghq.com/service": "dd-agent",
+						"tags.datadoghq.com/version": "1.1.0",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "any_service",
+		},
+		{
+			testName: "noServiceLabelOrAnnotation",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Labels: map[string]string{
+						"component": "kube-proxy",
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "bar",
+		},
+		{
+			testName: "noAnnotationServicebutHasServiceLabel",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Labels: map[string]string{
+						"component":                  "kube-proxy",
+						"tags.datadoghq.com/service": "dd-agent",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","tags":["tag1","tag2"]}]`,
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "dd-agent",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.testName, func(t *testing.T) {
+			source, _ := launcher.getSource(tc.pod, container)
+			assert.Equal(t, tc.expected, source.Config.Service)
+		})
+	}
+}
+
 func TestGetSourceAddContainerdParser(t *testing.T) {
 	launcher := &Launcher{collectAll: true}
 	container := kubelet.ContainerStatus{
@@ -264,4 +368,112 @@ func contains(list []string, items ...string) bool {
 		}
 	}
 	return true
+}
+
+func TestGetServiceLabel(t *testing.T) {
+	container := kubelet.ContainerStatus{
+		Name:  "foo",
+		Image: "bar",
+		ID:    "boo",
+	}
+
+	cases := []struct {
+		testName string
+		pod      *kubelet.Pod
+		expected string
+	}{
+		{
+			testName: "hasContainerServiceLabel",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Labels: map[string]string{
+						"component":                      "kube-proxy",
+						"tags.datadoghq.com/foo.env":     "foo-production",
+						"tags.datadoghq.com/foo.service": "foo-agent",
+						"tags.datadoghq.com/foo.version": "1.1.0",
+						"tags.datadoghq.com/env":         "production",
+						"tags.datadoghq.com/service":     "dd-agent",
+						"tags.datadoghq.com/version":     "1.1.0",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "foo-agent",
+		},
+		{
+			testName: "hasOnlyStandardServiceLavel",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Labels: map[string]string{
+						"component":                  "kube-proxy",
+						"tags.datadoghq.com/env":     "production",
+						"tags.datadoghq.com/service": "dd-agent",
+						"tags.datadoghq.com/version": "1.1.0",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "dd-agent",
+		},
+		{
+			testName: "noLabels",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "",
+		},
+		{
+			testName: "labelsExistButNoService",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "fuz",
+					Namespace: "buu",
+					UID:       "baz",
+					Labels: map[string]string{
+						"tags.datadoghq.com/env": "kube-proxy",
+					},
+					Annotations: map[string]string{
+						"ad.datadoghq.com/foo.logs": `[{"source":"any_source","service":"any_service","tags":["tag1","tag2"]}]`,
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{container},
+				},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.testName, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getServiceLabel(tc.pod, container))
+		})
+	}
+
 }

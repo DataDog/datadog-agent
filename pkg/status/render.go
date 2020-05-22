@@ -25,7 +25,7 @@ func FormatStatus(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
 
 	stats := make(map[string]interface{})
-	json.Unmarshal(data, &stats)
+	json.Unmarshal(data, &stats) //nolint:errcheck
 	forwarderStats := stats["forwarderStats"]
 	runnerStats := stats["runnerStats"]
 	pyLoaderStats := stats["pyLoaderStats"]
@@ -47,7 +47,9 @@ func FormatStatus(data []byte) (string, error) {
 	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
 	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
 	renderStatusTemplate(b, "/logsagent.tmpl", logsStats)
-	renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
+	if config.Datadog.GetBool("system_probe_config.enabled") {
+		renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
+	}
 	renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"])
 	renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
 	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)
@@ -63,7 +65,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
 
 	stats := make(map[string]interface{})
-	json.Unmarshal(data, &stats)
+	json.Unmarshal(data, &stats) //nolint:errcheck
 	forwarderStats := stats["forwarderStats"]
 	runnerStats := stats["runnerStats"]
 	autoConfigStats := stats["autoConfigStats"]
@@ -83,7 +85,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 func FormatHPAStatus(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
 	stats := make(map[string]interface{})
-	json.Unmarshal(data, &stats)
+	json.Unmarshal(data, &stats) //nolint:errcheck
 	renderStatusTemplate(b, "/custommetricsprovider.tmpl", stats)
 	return b.String(), nil
 }
@@ -117,7 +119,7 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	var b = new(bytes.Buffer)
 
 	stats := make(map[string]interface{})
-	json.Unmarshal(data, &stats)
+	json.Unmarshal(data, &stats) //nolint:errcheck
 	runnerStats := stats["runnerStats"]
 	pyLoaderStats := stats["pyLoaderStats"]
 	pythonInit := stats["pythonInit"]

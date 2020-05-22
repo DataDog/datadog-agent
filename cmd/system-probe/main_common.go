@@ -100,7 +100,7 @@ func runAgent() {
 	log.Infof("system probe successfully started")
 
 	// Handles signals, which tells us whether we should exit.
-	e := make(chan bool)
+	e := make(chan struct{})
 	go util.HandleSignals(e)
 	<-e
 }

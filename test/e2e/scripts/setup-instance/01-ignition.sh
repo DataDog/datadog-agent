@@ -41,7 +41,7 @@ tee ignition.json << EOF
       {
         "enabled": true,
         "name": "setup-pupernetes.service",
-        "contents": "[Unit]\nDescription=Setup pupernetes\n\n[Service]\nType=oneshot\nExecStart=/opt/bin/setup-pupernetes\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n"
+        "contents": "[Unit]\nDescription=Setup pupernetes\nWants=network-online.target\nAfter=network-online.target\n\n[Service]\nType=oneshot\nExecStart=/opt/bin/setup-pupernetes\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n"
       },
       {
         "enabled": true,
@@ -73,7 +73,7 @@ tee ignition.json << EOF
         "path": "/opt/bin/setup-pupernetes",
         "mode": 320,
         "contents": {
-          "source": "data:,%23%21%2Fbin%2Fbash%20-ex%0Acurl%20-Lf%20https%3A%2F%2Fgithub.com%2FDataDog%2Fpupernetes%2Freleases%2Fdownload%2Fv0.6.1%2Fpupernetes%20-o%20%2Fopt%2Fbin%2Fpupernetes%0Asha512sum%20-c%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0Achmod%20%2Bx%20%2Fopt%2Fbin%2Fpupernetes%0A"
+          "source": "data:,%23%21%2Fbin%2Fbash%20-ex%0Acurl%20-Lf%20https%3A%2F%2Fgithub.com%2FDataDog%2Fpupernetes%2Freleases%2Fdownload%2Fv0.11.0%2Fpupernetes%20-o%20%2Fopt%2Fbin%2Fpupernetes%0Asha512sum%20-c%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0Achmod%20%2Bx%20%2Fopt%2Fbin%2Fpupernetes%0A"
         },
         "filesystem": "root"
       },
@@ -81,7 +81,7 @@ tee ignition.json << EOF
         "path": "/opt/bin/pupernetes.sha512sum",
         "mode": 256,
         "contents": {
-          "source": "data:,25dc8bcf68b5bd8d38e3a05068ee97766c6086f4aafff747a942785d0d334bd405ffd5c2651ad04aba237c2ee35e9f743f82a7cd110b319df6b498ad0bd664b4%20%20.%2F/opt/bin/pupernetes%0A"
+          "source": "data:,fcbf42316b9fbfbf6966b2f010f1bbc5006f7c882fc856d36b5e9f67a323d6b02361a45b88a4b4f7c64ac733078d9fd7d0cf72ef1229697f191b740c9fc95e61%20%20.%2F/opt/bin/pupernetes%0A"
         },
         "filesystem": "root"
       }

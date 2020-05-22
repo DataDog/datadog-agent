@@ -24,12 +24,14 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -40,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -166,11 +169,17 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start()
+	forwarderOpts := forwarder.NewOptions(keysPerDomain)
+	// If a cluster-agent looses the connectivity to DataDog, we still want it to remain ready so that its endpoint remains in the service because:
+	// * It is still able to serve metrics to the WPA controller and
+	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
+	// Serving stale data is better than serving no data at all.
+	forwarderOpts.DisableAPIKeyChecking = true
+	f := forwarder.NewDefaultForwarder(forwarderOpts)
+	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname, "cluster_agent")
+	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.ClusterAgentName)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	log.Infof("Datadog Cluster Agent is now running.")
@@ -223,12 +232,28 @@ func start(cmd *cobra.Command, args []string) error {
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
 			Hostname:                     hostname,
-			ClusterName:                  config.Datadog.GetString("cluster_name"),
+			ClusterName:                  clustername.GetClusterName(),
 			ConfigPath:                   confPath,
 		}
 		err = orchestrator.StartController(orchestratorCtx)
 		if err != nil {
 			log.Errorf("Could not start orchestrator controller: %v", err)
+		}
+
+		if config.Datadog.GetBool("admission_controller.enabled") {
+			admissionCtx := admissionpkg.ControllerContext{
+				IsLeaderFunc:     le.IsLeader,
+				SecretInformers:  apiCl.CertificateSecretInformerFactory,
+				WebhookInformers: apiCl.WebhookConfigInformerFactory,
+				Client:           apiCl.Cl,
+				StopCh:           stopCh,
+			}
+			err = admissionpkg.StartControllers(admissionCtx)
+			if err != nil {
+				log.Errorf("Could not start admission controller: %v", err)
+			}
+		} else {
+			log.Info("Admission controller is disabled")
 		}
 	}
 
@@ -279,12 +304,17 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Admission Controller Goroutine
 	if config.Datadog.GetBool("admission_controller.enabled") {
-		// Start the k8s admission controller webhook.
+		// Setup the the k8s admission webhook server
+		server := admissioncmd.NewServer()
+		server.Register(config.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig)
+		server.Register(config.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags)
+
+		// Start the k8s admission webhook server
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			errServ := admission.RunServer(mainCtx)
+			errServ := server.Run(mainCtx, apiCl.Cl)
 			if errServ != nil {
 				log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
 			}
@@ -295,8 +325,8 @@ func start(cmd *cobra.Command, args []string) error {
 	<-signalCh
 
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Cluster Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {

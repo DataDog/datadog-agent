@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build process
+// +build process,!windows
 
 package status
 
@@ -14,10 +14,10 @@ import (
 )
 
 // GetSystemProbeStats returns the expvar stats of the system probe
-func GetSystemProbeStats() map[string]interface{} {
+func GetSystemProbeStats(socketPath string) map[string]interface{} {
 
 	// TODO: Pull system-probe path from system-probe.yaml
-	net.SetSystemProbePath("/opt/datadog-agent/run/sysprobe.sock")
+	net.SetSystemProbePath(socketPath)
 	probeUtil, err := net.GetRemoteSystemProbeUtil()
 
 	if err != nil {

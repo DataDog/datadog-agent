@@ -12,7 +12,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -165,6 +164,15 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	var reverseDNS network.ReverseDNS = network.NewNullReverseDNS()
 	if enableSocketFilter {
+
+		if config.CollectDNSStats {
+			mp := m.Map(string(configMap))
+			if mp == nil {
+				return nil, fmt.Errorf("error retrieving the bpf %s map: %s", configMap, err)
+			}
+			m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&zero), 0)
+		}
+
 		filter := m.SocketFilter("socket/dns_filter")
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")
@@ -175,6 +183,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 			filter,
 			config.CollectDNSStats,
 			config.CollectLocalDNS,
+			config.DNSTimeout,
 		); err == nil {
 			reverseDNS = snooper
 		} else {
@@ -194,7 +203,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 
 	conntracker := netlink.NewNoOpConntracker()
 	if config.EnableConntrack {
-		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackIgnoreENOBUFS); err != nil {
+		if c, err := netlink.NewConntracker(config.ProcRoot, config.ConntrackMaxStateSize, config.ConntrackRateLimit); err != nil {
 			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		} else {
 			conntracker = c
@@ -220,6 +229,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 		conntracker:    conntracker,
 		sourceExcludes: network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+	}
+
+	err = tr.initTCPCloseBatchMap()
+	if err != nil {
+		return nil, err
 	}
 
 	tr.perfMap, err = tr.initPerfPolling()
@@ -273,35 +287,15 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 
 		for {
 			select {
-			case conn, ok := <-closedChannel:
+			case rawConns, ok := <-closedChannel:
 				if !ok {
 					log.Infof("Exiting closed connections polling")
 					return
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
-				cs := decodeRawTCPConn(conn)
-				cs.Direction = t.determineConnectionDirection(&cs)
-				if t.shouldSkipConnection(&cs) {
-					atomic.AddInt64(&t.skippedConns, 1)
-				} else {
-					cs.IPTranslation = t.conntracker.GetTranslationForConn(
-						cs.Source,
-						cs.SPort,
-						cs.Dest,
-						cs.DPort,
-						process.ConnectionType(cs.Type),
-					)
-
-					t.state.StoreClosedConnection(cs)
-					if cs.IPTranslation != nil {
-						t.conntracker.DeleteTranslation(
-							cs.Source,
-							cs.SPort,
-							cs.Dest,
-							cs.DPort,
-							process.ConnectionType(cs.Type),
-						)
-					}
+				conns := decodeRawTCPConns(rawConns)
+				for _, c := range conns {
+					t.storeClosedConn(c)
 				}
 			case lostCount, ok := <-lostChannel:
 				if !ok {
@@ -333,6 +327,20 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 		return true
 	}
 	return false
+}
+
+func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
+	cs.Direction = t.determineConnectionDirection(&cs)
+	if t.shouldSkipConnection(&cs) {
+		atomic.AddInt64(&t.skippedConns, 1)
+		return
+	}
+
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
+	t.state.StoreClosedConnection(cs)
+	if cs.IPTranslation != nil {
+		t.conntracker.DeleteTranslation(cs)
+	}
 }
 
 func (t *Tracer) Stop() {
@@ -427,14 +435,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
-				conn.IPTranslation = t.conntracker.GetTranslationForConn(
-					conn.Source,
-					conn.SPort,
-					conn.Dest,
-					conn.DPort,
-					process.ConnectionType(conn.Type),
-				)
-
+				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn)
 				active = append(active, conn)
 			}
 		}
@@ -485,8 +486,12 @@ func (t *Tracer) removeEntries(mp, tcpMp *bpflib.Map, entries []*ConnTuple) {
 			continue
 		}
 
+		// Delete conntrack entry for this connection
+		connStats := connStats(entries[i], statsWithTs, tcpStats)
+		t.conntracker.DeleteTranslation(connStats)
+
 		// Append the connection key to the keys to remove from the userspace state
-		bk, err := connStats(entries[i], statsWithTs, tcpStats).ByteKey(t.buf)
+		bk, err := connStats.ByteKey(t.buf)
 		if err != nil {
 			log.Warnf("failed to create connection byte_key: %s", err)
 		} else {
@@ -566,6 +571,7 @@ func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 
 	return map[string]int64{
 		"tcp_sent_miscounts": int64(telemetry.tcp_sent_miscounts),
+		"missed_tcp_close":   int64(telemetry.missed_tcp_close),
 	}
 }
 
@@ -690,6 +696,22 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 	}
 
 	return network.OUTGOING
+}
+
+// initTCPCloseBatchMap initializes the tcp_close_batch map in eBPF By initializing it
+// in user-space we can save some precious bytes in the eBPF stack and increase the batch size.
+func (t *Tracer) initTCPCloseBatchMap() error {
+	batchMap, err := t.getMap(tcpCloseBatchMap)
+	if err != nil {
+		return fmt.Errorf("error retrieving the bpf %s map: %s", tcpCloseBatchMap, err)
+	}
+
+	for i := 0; i < 1024; i++ {
+		b := new(batch)
+		t.m.UpdateElement(batchMap, unsafe.Pointer(&i), unsafe.Pointer(b), 0)
+	}
+
+	return nil
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)

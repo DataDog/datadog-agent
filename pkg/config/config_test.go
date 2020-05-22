@@ -41,6 +41,7 @@ func TestDefaults(t *testing.T) {
 	assert.False(t, config.IsSet("dd_url"))
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
+	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba"}, config.GetStringSlice("cloud_provider_metadata"))
 }
 
 func TestDefaultSite(t *testing.T) {
@@ -422,6 +423,39 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	newURL, err = AddAgentVersionToDomain("https://app.myproxy.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://app.myproxy.com", newURL)
+}
+
+func TestIsCloudProviderEnabled(t *testing.T) {
+	holdValue := Datadog.Get("cloud_provider_metadata")
+	defer Datadog.Set("cloud_provider_metadata", holdValue)
+
+	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	assert.True(t, IsCloudProviderEnabled("AWS"))
+	assert.True(t, IsCloudProviderEnabled("GCP"))
+	assert.True(t, IsCloudProviderEnabled("Alibaba"))
+	assert.True(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{"aws"})
+	assert.True(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	assert.False(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.True(t, IsCloudProviderEnabled("Tencent"))
+
+	Datadog.Set("cloud_provider_metadata", []string{})
+	assert.False(t, IsCloudProviderEnabled("AWS"))
+	assert.False(t, IsCloudProviderEnabled("GCP"))
+	assert.False(t, IsCloudProviderEnabled("Alibaba"))
+	assert.False(t, IsCloudProviderEnabled("Azure"))
+	assert.False(t, IsCloudProviderEnabled("Tencent"))
 }
 
 func TestEnvNestedConfig(t *testing.T) {

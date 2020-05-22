@@ -171,7 +171,7 @@ func (l *CloudFoundryListener) getAllADIdentifiers(desiredLRPs map[string]*cloud
 				ret = append(ret, cloudfoundry.NewADNonContainerIdentifier(*dLRP, adName))
 			} else {
 				// if it's not in VCAP_SERVICES, it's a container service and we want one instance per container
-				aLRPs, ok := actualLRPs[dLRP.AppGUID]
+				aLRPs, ok := actualLRPs[dLRP.ProcessGUID]
 				if !ok {
 					aLRPs = []*cloudfoundry.ActualLRP{}
 				}
@@ -247,4 +247,9 @@ func (s *CloudFoundryService) GetCheckNames() []string {
 // HasFilter returns false on CF
 func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
 	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *CloudFoundryService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

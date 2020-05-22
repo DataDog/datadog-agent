@@ -34,6 +34,17 @@ __u32 metadata;
 */
 type ConnTuple C.conn_tuple_t
 
+/* batch_t
+tcp_conn_t c0;
+tcp_conn_t c1;
+tcp_conn_t c2;
+tcp_conn_t c3;
+tcp_conn_t c4;
+tcp_conn_t c5;
+__u8 pos;
+*/
+type batch C.batch_t
+
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
 		pid:      t.pid,
@@ -123,13 +134,21 @@ func connFamily(m uint) network.ConnectionFamily {
 	return network.AFINET6
 }
 
-func decodeRawTCPConn(data []byte) network.ConnectionStats {
-	ct := TCPConn(*(*C.tcp_conn_t)(unsafe.Pointer(&data[0])))
-	tup := ConnTuple(ct.tup)
-	cst := ConnStatsWithTimestamp(ct.conn_stats)
-	tst := TCPStats(ct.tcp_stats)
+func decodeRawTCPConns(data []byte) []network.ConnectionStats {
+	var _conn C.tcp_conn_t
+	connSize := int(unsafe.Sizeof(_conn))
 
-	return connStats(&tup, &cst, &tst)
+	conns := make([]network.ConnectionStats, 0, len(data)/connSize)
+	for len(data) > 0 {
+		ct := TCPConn(*(*C.tcp_conn_t)(unsafe.Pointer(&data[0])))
+		tup := ConnTuple(ct.tup)
+		cst := ConnStatsWithTimestamp(ct.conn_stats)
+		tst := TCPStats(ct.tcp_stats)
+		conns = append(conns, connStats(&tup, &cst, &tst))
+		data = data[connSize:]
+	}
+
+	return conns
 }
 
 func isPortClosed(state uint8) bool {

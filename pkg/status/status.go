@@ -84,7 +84,9 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 
-	stats["systemProbeStats"] = GetSystemProbeStats()
+	if config.Datadog.GetBool("system_probe_config.enabled") {
+		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	}
 
 	return stats, nil
 }
@@ -253,41 +255,41 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
-	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
+	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
 	stats["forwarderStats"] = forwarderStats
 
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats)
+	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
 	stats["runnerStats"] = runnerStats
 
 	autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
 	autoConfigStats := make(map[string]interface{})
-	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats)
+	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
 	stats["autoConfigStats"] = autoConfigStats
 
 	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
 	checkSchedulerStats := make(map[string]interface{})
-	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats)
+	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats) //nolint:errcheck
 	stats["checkSchedulerStats"] = checkSchedulerStats
 
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})
-	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
+	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
 	stats["aggregatorStats"] = aggregatorStats
 
 	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
 	dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
 	dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
 	dogstatsdStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
 	dogstatsdUdsStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats)
+	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
 	for name, value := range dogstatsdUdsStats {
 		dogstatsdStats["Uds"+name] = value
 	}
 	dogstatsdUDPStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats)
+	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
 	for name, value := range dogstatsdUDPStats {
 		dogstatsdStats["Udp"+name] = value
 	}
@@ -297,7 +299,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	if pyLoaderData != nil {
 		pyLoaderStatsJSON := []byte(pyLoaderData.String())
 		pyLoaderStats := make(map[string]interface{})
-		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats)
+		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats) //nolint:errcheck
 		stats["pyLoaderStats"] = pyLoaderStats
 	} else {
 		stats["pyLoaderStats"] = nil
@@ -307,7 +309,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	if pythonInitData != nil {
 		pythonInitJSON := []byte(pythonInitData.String())
 		pythonInit := make(map[string]interface{})
-		json.Unmarshal(pythonInitJSON, &pythonInit)
+		json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
 		stats["pythonInit"] = pythonInit
 	} else {
 		stats["pythonInit"] = nil
@@ -315,7 +317,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
-	json.Unmarshal(hostnameStatsJSON, &hostnameStats)
+	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
 	if expvar.Get("ntpOffset").String() != "" {
@@ -326,7 +328,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	var inventoriesStats map[string]interface{}
 	if inventories != nil {
 		inventoriesStatsJSON := []byte(inventories.String())
-		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats)
+		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats) //nolint:errcheck
 	}
 
 	checkMetadata := map[string]map[string]string{}
