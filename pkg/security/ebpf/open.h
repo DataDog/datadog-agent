@@ -30,8 +30,7 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     return 0;
 }
 
-SEC("kprobe/sys_open")
-int kprobe__sys_open(struct pt_regs *ctx) {
+SYSCALL_KPROBE(open) {
     int flags;
     umode_t mode;
 #ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
@@ -45,8 +44,7 @@ int kprobe__sys_open(struct pt_regs *ctx) {
     return trace__sys_openat(flags, mode);
 }
 
-SEC("kprobe/sys_openat")
-int kprobe__sys_openat(struct pt_regs *ctx) {
+SYSCALL_KPROBE(openat) {
     int flags;
     umode_t mode;
 #ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
@@ -76,19 +74,17 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
     printk("kprobe/vfs_open %s\n", qstr.name);
 #endif
 
-    syscall->open.path = (struct path *)PT_REGS_PARM1(ctx);
-    syscall->open.file = (struct file *)PT_REGS_PARM2(ctx);
+    syscall->open.dentry = get_path_dentry((struct path *)PT_REGS_PARM1(ctx));
 
     return 0;
 }
 
-SEC("kretprobe/sys_openat")
-int kretprobe__sys_openat(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = pop_syscall();
     if (!syscall)
         return 0;
 
-    struct dentry *f_dentry = get_file_dentry(syscall->open.file);
+    struct dentry *f_dentry = syscall->open.dentry;
     struct path_key_t path_key = get_dentry_key(f_dentry);
 
     struct open_event_t event = {
@@ -107,6 +103,14 @@ int kretprobe__sys_openat(struct pt_regs *ctx) {
     send_event(ctx, event);
 
     return 0;
+}
+
+SYSCALL_KRETPROBE(open) {
+    return trace__sys_open_ret(ctx);
+}
+
+SYSCALL_KRETPROBE(openat) {
+    return trace__sys_open_ret(ctx);
 }
 
 #endif

@@ -3,6 +3,16 @@
 
 #include "../../ebpf/c/bpf_helpers.h"
 
+#ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
+  #define SYSCALL_PREFIX "__x64_sys_"
+  #define SYSCALL_KPROBE(syscall) SEC("kprobe/" SYSCALL_PREFIX #syscall) int kprobe__sys_##syscall(struct pt_regs *ctx)
+  #define SYSCALL_KRETPROBE(syscall) SEC("kretprobe/" SYSCALL_PREFIX #syscall) int kretprobe__sys_##syscall(struct pt_regs *ctx)
+#else
+  #define SYSCALL_PREFIX "_sys_"
+  #define SYSCALL_KPROBE(syscall) SEC("kprobe/" SYSCALL_PREFIX #syscall) int kprobe__sys_##syscall(struct pt_regs *ctx)
+  #define SYSCALL_KRETPROBE(syscall) SEC("kretprobe/" SYSCALL_PREFIX #syscall) int kretprobe__sys_##syscall(struct pt_regs *ctx)
+#endif
+
 #define TTY_NAME_LEN 64
 
 # define printk(fmt, ...)						\

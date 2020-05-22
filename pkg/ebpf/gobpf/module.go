@@ -75,7 +75,6 @@ func NewModuleFromReader(reader io.ReaderAt) (*Module, error) {
 	if module == nil {
 		return nil, ErrEBPFNotSupported
 	}
-	module.EnableOptionCompatProbe()
 
 	if err := module.Load(nil); err != nil {
 		log.Printf("eBPF verifiers logs: %s", string(module.Log()))

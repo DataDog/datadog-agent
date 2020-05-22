@@ -80,6 +80,14 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
+			Name:      "sys_open",
+			EntryFunc: "kprobe/" + getSyscallFnName("open"),
+			ExitFunc:  "kretprobe/" + getSyscallFnName("open"),
+		},
+		EventTypes: []string{"open"},
+	},
+	{
+		KProbe: &eprobe.KProbe{
 			Name:      "sys_openat",
 			EntryFunc: "kprobe/" + getSyscallFnName("openat"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("openat"),
@@ -160,8 +168,6 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		return nil, err
 	}
 	log.Infof("Loaded security agent eBPF module: %+v", module)
-
-	module.EnableOptionCompatProbe()
 
 	p := &Probe{}
 

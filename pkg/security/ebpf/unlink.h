@@ -21,13 +21,11 @@ int trace__sys_unlink() {
     return 0;
 }
 
-SEC("kprobe/sys_unlink")
-int kprobe__sys_unlink(struct pt_regs *ctx) {
+SYSCALL_KPROBE(unlink) {
     return trace__sys_unlink();
 }
 
-SEC("kprobe/sys_unlinkat")
-int kprobe__sys_unlinkat(struct pt_regs *ctx) {
+SYSCALL_KPROBE(unlinkat) {
     return trace__sys_unlink();
 }
 
@@ -66,13 +64,11 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/sys_unlink")
-int kretprobe__sys_unlink(struct pt_regs *ctx) {
+SYSCALL_KRETPROBE(unlink) {
     return trace__sys_unlink_ret(ctx);
 }
 
-SEC("kretprobe/sys_unlinkat")
-int kretprobe__sys_unlinkat(struct pt_regs *ctx) {
+SYSCALL_KRETPROBE(unlinkat) {
     return trace__sys_unlink_ret(ctx);
 }
 

@@ -26,8 +26,7 @@ int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t
     return 0;
 }
 
-SEC("kprobe/sys_mkdir")
-int kprobe__sys_mkdir(struct pt_regs *ctx) {
+SYSCALL_KPROBE(mkdir) {
     umode_t mode;
 #ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
     ctx = (struct pt_regs *) ctx->di;
@@ -38,8 +37,7 @@ int kprobe__sys_mkdir(struct pt_regs *ctx) {
     return trace__sys_mkdir(ctx, mode);
 }
 
-SEC("kprobe/sys_mkdirat")
-int kprobe__sys_mkdirat(struct pt_regs *ctx) {
+SYSCALL_KPROBE(mkdirat) {
     umode_t mode;
 #ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
     ctx = (struct pt_regs *) ctx->di;
@@ -86,13 +84,11 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/sys_mkdir")
-int kretprobe__sys_mkdir(struct pt_regs *ctx) {
+SYSCALL_KRETPROBE(mkdir) {
     return trace__sys_mkdir_ret(ctx);
 }
 
-SEC("kretprobe/sys_mkdirat")
-int kretprobe__sys_mkdirat(struct pt_regs *ctx) {
+SYSCALL_KRETPROBE(mkdirat) {
     return trace__sys_mkdir_ret(ctx);
 }
 

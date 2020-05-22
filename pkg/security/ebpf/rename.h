@@ -22,18 +22,15 @@ int __attribute__((always_inline)) trace__sys_rename() {
     return 0;
 }
 
-SEC("kprobe/sys_rename")
-int kprobe__sys_rename(struct pt_regs *ctx) {
+SYSCALL_KPROBE(rename) {
     return trace__sys_rename();
 }
 
-SEC("kprobe/sys_renameat")
-int kprobe__sys_renameat(struct pt_regs *ctx) {
+SYSCALL_KPROBE(renameat) {
     return trace__sys_rename();
 }
 
-SEC("kprobe/sys_renameat2")
-int kprobe__sys_renameat2(struct pt_regs *ctx) {
+SYSCALL_KPROBE(renameat2) {
     return trace__sys_rename();
 }
 
@@ -79,19 +76,15 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/sys_rename")
-int kretprobe__sys_rename(struct pt_regs *ctx) {
-    return trace__sys_rename_ret(ctx);
-
-}
-
-SEC("kretprobe/sys_renameat")
-int kretprobe__sys_renameat(struct pt_regs *ctx) {
+SYSCALL_KRETPROBE(rename) {
     return trace__sys_rename_ret(ctx);
 }
 
-SEC("kretprobe/sys_renameat2")
-int kretprobe__sys_renameat2(struct pt_regs *ctx) {
+SYSCALL_KRETPROBE(renameat) {
+    return trace__sys_rename_ret(ctx);
+}
+
+SYSCALL_KRETPROBE(renameat2) {
     return trace__sys_rename_ret(ctx);
 }
 
