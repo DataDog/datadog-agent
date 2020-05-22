@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -21,6 +22,11 @@ import (
 )
 
 func TestRun(t *testing.T) {
+
+	dockerClient = func() checks.DockerClient {
+		return &checks.MockDockerClient{}
+	}
+
 	assert := assert.New(t)
 
 	tempDir, err := ioutil.TempDir("", "compliance-agent-*")
@@ -44,18 +50,22 @@ func TestRun(t *testing.T) {
 	reporter := &compliance.MockReporter{}
 
 	reporter.On("Report", &compliance.RuleEvent{
-		RuleID:    "cis-docker-1",
-		Framework: "cis-docker",
-		Version:   "1.2.0",
+		RuleID:       "cis-docker-1",
+		Framework:    "cis-docker",
+		Version:      "1.2.0",
+		ResourceID:   "the-host",
+		ResourceType: "docker",
 		Data: compliance.KV{
 			"permissions": "644",
 		},
 	})
 
 	reporter.On("Report", &compliance.RuleEvent{
-		RuleID:    "cis-kubernetes-1",
-		Framework: "cis-kubernetes",
-		Version:   "1.5.0",
+		RuleID:       "cis-kubernetes-1",
+		Framework:    "cis-kubernetes",
+		Version:      "1.5.0",
+		ResourceID:   "the-host",
+		ResourceType: "worker",
 		Data: compliance.KV{
 			"permissions": "644",
 		},
@@ -73,7 +83,7 @@ func TestRun(t *testing.T) {
 		check.Run()
 	})
 
-	a := New(reporter, scheduler, tempDir, interval)
+	a := New(reporter, scheduler, tempDir, "the-host", interval)
 
 	err = a.Run()
 	assert.NoError(err)

@@ -21,6 +21,9 @@ import (
 // ErrResourceNotSupported is returned when resource type is not supported by CheckBuilder
 var ErrResourceNotSupported = errors.New("resource type not supported")
 
+// ErrRuleScopeNotSupported is returned when resource scope is not supported
+var ErrRuleScopeNotSupported = errors.New("rule scope not supported")
+
 // Builder defines an interface to build checks from rules
 type Builder interface {
 	ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error)
@@ -31,6 +34,7 @@ type BuilderEnv struct {
 	Reporter     compliance.Reporter
 	DockerClient DockerClient
 	HostRoot     string
+	Hostname     string
 }
 
 // NewBuilder constructs a check builder
@@ -57,8 +61,10 @@ type builder struct {
 }
 
 func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error) {
-	// TODO: evaluate the rule scope here and return an error for rules
-	// which are not applicable
+	ruleScope, err := b.getRuleScope(meta, rule)
+	if err != nil {
+		return nil, err
+	}
 
 	var checks []check.Check
 	for _, resource := range rule.Resources {
@@ -67,46 +73,61 @@ func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Ru
 		// default value checked in a file but can be overwritten by a process
 		// argument. Currently we treat them as independent checks.
 
-		if check, err := b.checkFromRule(meta, rule.ID, resource); err == nil {
+		if check, err := b.checkFromRule(meta, rule.ID, ruleScope, resource); err == nil {
 			checks = append(checks, check)
 		}
 	}
 	return checks, nil
 }
 
-func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, resource compliance.Resource) (check.Check, error) {
+func (b *builder) getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (string, error) {
+	if rule.Scope.Docker {
+		if b.env.DockerClient == nil {
+			return "", log.Warnf("%s/%s - rule skipped - docker not running", meta.Framework, rule.ID)
+		}
+		return "docker", nil
+	}
+
+	if len(rule.Scope.Kubernetes) > 0 {
+		// TODO: - resource actual scope for Kubernetes role here
+		return "worker", nil
+	}
+	return "", ErrRuleScopeNotSupported
+}
+
+func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, ruleScope string, resource compliance.Resource) (check.Check, error) {
 	switch {
 	case resource.File != nil:
-		return b.fileCheck(meta, ruleID, resource.File)
+		return b.fileCheck(meta, ruleID, ruleScope, resource.File)
 	case resource.Docker != nil:
-		return b.dockerCheck(meta, ruleID, resource.Docker)
+		return b.dockerCheck(meta, ruleID, ruleScope, resource.Docker)
 	case resource.Process != nil:
-		return newProcessCheck(b.baseCheck(ruleID, "process", meta), resource.Process)
+		return newProcessCheck(b.baseCheck(ruleID, "process", ruleScope, meta), resource.Process)
 	default:
 		log.Errorf("%s: resource not supported", ruleID)
 		return nil, ErrResourceNotSupported
 	}
 }
 
-func (b *builder) fileCheck(meta *compliance.SuiteMeta, ruleID string, file *compliance.File) (check.Check, error) {
+func (b *builder) fileCheck(meta *compliance.SuiteMeta, ruleID string, ruleScope string, file *compliance.File) (check.Check, error) {
 	// TODO: validate config for the file here
 	return &fileCheck{
-		baseCheck:  b.baseCheck(ruleID, "file", meta),
+		baseCheck:  b.baseCheck(ruleID, "file", ruleScope, meta),
 		pathMapper: b.pathMapper,
 		file:       file,
 	}, nil
 }
 
-func (b *builder) dockerCheck(meta *compliance.SuiteMeta, ruleID string, dockerResource *compliance.DockerResource) (check.Check, error) {
+func (b *builder) dockerCheck(meta *compliance.SuiteMeta, ruleID string, ruleScope string, dockerResource *compliance.DockerResource) (check.Check, error) {
 	// TODO: validate config for the docker resource here
 	return &dockerCheck{
-		baseCheck:      b.baseCheck(ruleID, fmt.Sprintf("docker:%s", dockerResource.Kind), meta),
+		baseCheck:      b.baseCheck(ruleID, fmt.Sprintf("docker:%s", dockerResource.Kind), ruleScope, meta),
 		dockerResource: dockerResource,
 		client:         b.env.DockerClient,
 	}, nil
 }
 
-func (b *builder) baseCheck(ruleID string, resourceName string, meta *compliance.SuiteMeta) baseCheck {
+func (b *builder) baseCheck(ruleID string, resourceName string, ruleScope string, meta *compliance.SuiteMeta) baseCheck {
 	return baseCheck{
 		id:        newCheckID(ruleID, resourceName),
 		interval:  b.checkInterval,
@@ -114,7 +135,9 @@ func (b *builder) baseCheck(ruleID string, resourceName string, meta *compliance
 		framework: meta.Framework,
 		version:   meta.Version,
 
-		ruleID: ruleID,
+		ruleID:       ruleID,
+		resourceType: ruleScope,
+		resourceID:   b.env.Hostname,
 	}
 }
 

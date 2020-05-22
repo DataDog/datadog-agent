@@ -9,6 +9,6 @@ package agent
 
 import "github.com/DataDog/datadog-agent/pkg/compliance/checks"
 
-func dockerClient() checks.DockerClient {
+var dockerClient = func() checks.DockerClient {
 	return nil
 }
