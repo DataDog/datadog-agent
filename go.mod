@@ -77,6 +77,7 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/watermarkpodautoscaler v0.1.0
 	github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360
+	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.11
 	github.com/aws/aws-sdk-go v1.30.5
 	github.com/beevik/ntp v0.3.0
