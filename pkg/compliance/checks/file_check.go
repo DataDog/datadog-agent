@@ -96,7 +96,10 @@ func (c *fileCheck) reportFile(filePath string) error {
 			kv[key] = v
 		}
 	}
-	c.report(nil, kv)
+	if len(kv) != 0 {
+		log.Debugf("%s: reporting", c.id, )
+		c.report(nil, kv)
+	}
 	return nil
 }
 

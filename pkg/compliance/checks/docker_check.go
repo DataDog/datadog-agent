@@ -83,7 +83,7 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 		if err != nil {
 			return err
 		}
-		fn(info.ID, info)
+		fn("", info)
 	case "version":
 		version, err := c.client.ServerVersion(ctx)
 		if err != nil {
@@ -97,14 +97,14 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 }
 
 func (c *dockerCheck) Run() error {
-	log.Debugf("%s docker check: %s", c.ruleID, c.dockerResource.Kind)
+	log.Debugf("%s: running docker check", c.id)
 	// TODO: timeout for checks here
 	ctx := context.Background()
 	return c.iterate(ctx, c.inspect)
 }
 
 func (c *dockerCheck) inspect(id string, obj interface{}) {
-	log.Debugf("Iterating %s[id=%s]", c.dockerResource.Kind, id)
+	log.Debugf("%s: iterating %s[id=%s]", c.id, c.dockerResource.Kind, id)
 
 	for _, f := range c.dockerResource.Filter {
 		if f.Include != nil {
@@ -153,8 +153,10 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 		}
 	}
 
-	log.Debugf("%s:%s docker check reporting: %s id=%s", c.framework, c.ruleID, c.dockerResource.Kind, id)
-	c.report(nil, kv)
+	if len(kv) != 0 {
+		log.Debugf("%s: reporting %s[id=%s]", c.id, c.dockerResource.Kind, id)
+		c.report(nil, kv)
+	}
 }
 
 func evalCondition(property string, condition *compliance.Condition) bool {

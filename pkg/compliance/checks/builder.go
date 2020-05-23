@@ -9,7 +9,6 @@ package checks
 import (
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"path/filepath"
 	"time"
 
@@ -142,7 +141,5 @@ func (b *builder) baseCheck(ruleID string, resourceName string, ruleScope string
 }
 
 func newCheckID(ruleID string, resourceName string) check.ID {
-	h := fnv.New64()
-	h.Write([]byte(resourceName))
-	return check.ID(fmt.Sprintf("%s:%x", ruleID, h.Sum64()))
+	return check.ID(fmt.Sprintf("%s:%s", ruleID, resourceName))
 }
