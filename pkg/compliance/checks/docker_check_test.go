@@ -297,7 +297,7 @@ func TestDockerInfoCheck(t *testing.T) {
 		Kind: "info",
 		Report: compliance.Report{
 			{
-				Property: "{{- $.RegistryConfig.InsecureRegistryCIDRs -}}",
+				Property: `{{- $.RegistryConfig.InsecureRegistryCIDRs | join "," -}}`,
 				Kind:     compliance.PropertyKindTemplate,
 				As:       "insecure_registries",
 			},
@@ -319,7 +319,7 @@ func TestDockerInfoCheck(t *testing.T) {
 		newTestRuleEvent(
 			nil,
 			compliance.KV{
-				"insecure_registries": "[127.0.0.0/8]",
+				"insecure_registries": "127.0.0.0/8",
 			},
 		),
 	).Once()

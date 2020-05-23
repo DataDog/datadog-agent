@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/Masterminds/sprig"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 
@@ -170,7 +171,7 @@ func evalCondition(property string, condition *compliance.Condition) bool {
 }
 
 func evalTemplate(s string, obj interface{}) string {
-	tmpl, err := template.New("tmpl").Parse(s)
+	tmpl, err := template.New("tmpl").Funcs(sprig.TxtFuncMap()).Parse(s)
 	if err != nil {
 		log.Warn("failed to parse template")
 		return ""
