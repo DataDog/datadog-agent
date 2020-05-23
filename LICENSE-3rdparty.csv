@@ -415,8 +415,6 @@ core,"golang.org/x/crypto/scrypt",NewBSD
 core,"golang.org/x/crypto/ssh/terminal",NewBSD
 core,"golang.org/x/lint",NewBSD
 core,"golang.org/x/lint/golint",NewBSD
-core,"golang.org/x/mobile/asset",NewBSD
-core,"golang.org/x/mobile/internal/mobileinit",NewBSD
 core,"golang.org/x/net/bpf",NewBSD
 core,"golang.org/x/net/context",NewBSD
 core,"golang.org/x/net/context/ctxhttp",NewBSD
