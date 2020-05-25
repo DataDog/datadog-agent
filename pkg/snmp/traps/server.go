@@ -51,7 +51,7 @@ func NewTrapServer() (*TrapServer, error) {
 	return s, nil
 }
 
-// SetTrapHandler sets the callback called when a new trap is received for all listeners. Useful for testing purposes.
+// SetTrapHandler sets the trap handler for all listeners. Useful for unit testing.
 func (s TrapServer) SetTrapHandler(handler func(s *gosnmp.SnmpPacket, u *net.UDPAddr)) {
 	for _, l := range s.listeners {
 		l.SetTrapHandler(handler)

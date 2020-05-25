@@ -40,29 +40,79 @@ func configure(t *testing.T, yaml string) {
 	require.NoError(t, err)
 }
 
-func sendTrapV2c(port uint16, community string, variables []gosnmp.SnmpPDU) error {
-	params := &gosnmp.GoSNMP{
-		Target:    "127.0.0.1",
-		Port:      port,
-		Version:   gosnmp.Version2c,
-		Community: community,
-		Retries:   3,
-		Timeout:   time.Duration(5) * time.Second,
-	}
-
-	err := params.Connect()
-	if err != nil {
-		return err
-	}
-
-	defer params.Conn.Close()
-
-	_, err = params.SendTrap(gosnmp.SnmpTrap{Variables: variables})
-
-	return err
+// http://www.circitor.fr/Mibs/Html/N/NET-SNMP-EXAMPLES-MIB.php#netSnmpExampleHeartbeatNotification
+var netSnmpExampleHeartbeatNotification = []gosnmp.SnmpPDU{
+	// snmpTrapOID
+	{Name: "1.3.6.1.6.3.1.1.4.1", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
+	// heartBeatRate
+	{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
+	// heartBeatName
+	{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
 }
 
-func TestNewServer(t *testing.T) {
+func sendTestTrap(t *testing.T, s *TrapServer, config TrapListenerConfig) *gosnmp.SnmpPacket {
+	packets := make(chan *gosnmp.SnmpPacket)
+	s.SetTrapHandler(func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+		packets <- p
+	})
+
+	params, err := config.BuildParams()
+	require.NoError(t, err)
+	params.Timeout = 1 * time.Second // Must be non-zero
+	params.Retries = 1               // Must be non-zero
+
+	err = params.Connect()
+	require.NoError(t, err)
+	defer params.Conn.Close()
+
+	_, err = params.SendTrap(gosnmp.SnmpTrap{Variables: netSnmpExampleHeartbeatNotification})
+	require.NoError(t, err)
+
+	var p *gosnmp.SnmpPacket
+
+	select {
+	case p = <-packets:
+		close(packets)
+		return p
+	case <-time.After(3 * time.Second):
+		close(packets)
+		t.Errorf("Trap not received")
+		return nil
+	}
+}
+
+func assertV2c(t *testing.T, p *gosnmp.SnmpPacket, config TrapListenerConfig) {
+	require.Equal(t, gosnmp.Version2c, p.Version)
+	require.Equal(t, config.Community, p.Community)
+}
+
+// func assertV3(t *testing.T, p *gosnmp.SnmpPacket, config TrapListenerConfig) {
+// 	require.Equal(t, gosnmp.Version3, p.Version)
+// }
+
+func assertVariables(t *testing.T, p *gosnmp.SnmpPacket) {
+	assert.Equal(t, 4, len(p.Variables))
+	uptime := p.Variables[0]
+	assert.Equal(t, ".1.3.6.1.2.1.1.3.0", uptime.Name)
+	assert.Equal(t, gosnmp.TimeTicks, uptime.Type)
+
+	snmptrapOID := p.Variables[1]
+	assert.Equal(t, ".1.3.6.1.6.3.1.1.4.1", snmptrapOID.Name)
+	assert.Equal(t, gosnmp.OctetString, snmptrapOID.Type)
+	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", string(snmptrapOID.Value.([]byte)))
+
+	heartBeatRate := p.Variables[2]
+	assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.1", heartBeatRate.Name)
+	assert.Equal(t, gosnmp.Integer, heartBeatRate.Type)
+	assert.Equal(t, 1024, heartBeatRate.Value.(int))
+
+	heartBeatName := p.Variables[3]
+	assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.2", heartBeatName.Name)
+	assert.Equal(t, gosnmp.OctetString, heartBeatName.Type)
+	assert.Equal(t, "test", string(heartBeatName.Value.([]byte)))
+}
+
+func TestTraps(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		s, err := NewTrapServer()
 		require.NoError(t, err)
@@ -75,99 +125,63 @@ func TestNewServer(t *testing.T) {
 		port, err := getAvailableUDPPort()
 		require.NoError(t, err)
 
+		config := TrapListenerConfig{
+			Port:      port,
+			Community: "public",
+		}
+
 		configure(t, fmt.Sprintf(`
 snmp_traps_listeners:
   - port: %d
-    community: public
-`, port))
+    community: %s
+`, config.Port, config.Community))
 
-		// Start the server
 		s, err := NewTrapServer()
 		require.NoError(t, err)
-		assert.NotNil(t, s)
+		require.NotNil(t, s)
 		defer s.Stop()
-		assert.True(t, s.Started)
-		assert.Equal(t, s.NumListeners(), 1)
+		require.True(t, s.Started)
+		require.Equal(t, s.NumListeners(), 1)
 
-		// Prepare to receive test traps
-		packets := make(chan gosnmp.SnmpPacket)
-		s.SetTrapHandler(func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-			packets <- *p
-		})
-
-		// Send an netSnmpExampleHeartbeatNotification trap
-		// http://www.circitor.fr/Mibs/Html/N/NET-SNMP-EXAMPLES-MIB.php#netSnmpExampleHeartbeatNotification
-		err = sendTrapV2c(port, "public", []gosnmp.SnmpPDU{
-			// snmpTrapOID (points to netSnmpExampleHeartbeatNotification)
-			{Name: "1.3.6.1.6.3.1.1.4.1", Type: gosnmp.OctetString, Value: "1.3.6.1.4.1.8072.2.3.0.1"},
-			// heartBeatRate
-			{Name: "1.3.6.1.4.1.8072.2.3.2.1", Type: gosnmp.Integer, Value: 1024},
-			// heartBeatName
-			{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
-		})
-		require.NoError(t, err)
-
-		var p gosnmp.SnmpPacket
-
-		select {
-		case p = <-packets:
-			close(packets)
-			break
-		case <-time.After(3 * time.Second):
-			t.Errorf("Trap not received")
-			return
-		}
-
-		assert.Equal(t, gosnmp.Version2c, p.Version)
-		assert.Equal(t, "public", p.Community)
-		assert.Equal(t, 4, len(p.Variables))
-
-		uptime := p.Variables[0]
-		assert.Equal(t, ".1.3.6.1.2.1.1.3.0", uptime.Name)
-		assert.Equal(t, gosnmp.TimeTicks, uptime.Type)
-
-		snmptrapOID := p.Variables[1]
-		assert.Equal(t, ".1.3.6.1.6.3.1.1.4.1", snmptrapOID.Name)
-		assert.Equal(t, gosnmp.OctetString, snmptrapOID.Type)
-		snmptrapOIDValue, ok := snmptrapOID.Value.([]byte)
-		assert.True(t, ok)
-		assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", string(snmptrapOIDValue))
-
-		heartBeatRate := p.Variables[2]
-		assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.1", heartBeatRate.Name)
-		assert.Equal(t, gosnmp.Integer, heartBeatRate.Type)
-		heartBeatRateValue, ok := heartBeatRate.Value.(int)
-		assert.True(t, ok)
-		assert.Equal(t, 1024, heartBeatRateValue)
-
-		heartBeatName := p.Variables[3]
-		assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.2", heartBeatName.Name)
-		assert.Equal(t, gosnmp.OctetString, heartBeatName.Type)
-		heartBeatNameValue, ok := heartBeatName.Value.([]byte)
-		assert.True(t, ok)
-		assert.Equal(t, "test", string(heartBeatNameValue))
+		p := sendTestTrap(t, s, config)
+		assertV2c(t, p, config)
+		assertVariables(t, p)
 	})
 
 	t.Run("v3-single", func(t *testing.T) {
 		port, err := getAvailableUDPPort()
 		require.NoError(t, err)
 
+		config := TrapListenerConfig{
+			Port:         port,
+			User:         "doggo",
+			AuthProtocol: "MD5",
+			AuthKey:      "doggopass",
+			PrivProtocol: "DES",
+			PrivKey:      "doggokey",
+		}
+
 		configure(t, fmt.Sprintf(`
 snmp_traps_listeners:
   - port: %d
-    user: doggo
-    auth_protocol: MD5
-    auth_key: doggopass
-    priv_protocol: DES
-    priv_key: doggokey
-`, port))
+    user: %s
+    auth_protocol: %s
+    auth_key: %s
+    priv_protocol: %s
+    priv_key: %s
+`, config.Port, config.User, config.AuthProtocol, config.AuthKey, config.PrivProtocol, config.PrivKey))
 
 		s, err := NewTrapServer()
-		assert.NotNil(t, s)
-		defer s.Stop()
 		require.NoError(t, err)
+		require.NotNil(t, s)
+		defer s.Stop()
+		require.True(t, s.Started)
+		require.Equal(t, s.NumListeners(), 1)
 
-		// TODO send and receive a test trap.
+		// FIXME: this triggers a panic during trap unmarshalling
+		// p := sendTestTrap(t, s, config)
+		// assertV3(t, p, config)
+		// assertVariables(t, p)
 	})
 
 	t.Run("v2c-multiple", func(t *testing.T) {
@@ -178,15 +192,21 @@ snmp_traps_listeners:
 		port2, err := getAvailableUDPPort()
 		require.NoError(t, err)
 
+		configs := []TrapListenerConfig{
+			{Port: port0, Community: "public0"},
+			{Port: port1, Community: "public1"},
+			{Port: port2, Community: "public2"},
+		}
+
 		configure(t, fmt.Sprintf(`
 snmp_traps_listeners:
   - port: %d
-    community: public0
+    community: %s
   - port: %d
-    community: public1
+    community: %s
   - port: %d
-    community: public2
-`, port0, port1, port2))
+    community: %s
+`, configs[0].Port, configs[0].Community, configs[1].Port, configs[1].Community, configs[2].Port, configs[2].Community))
 
 		s, err := NewTrapServer()
 		require.NoError(t, err)
@@ -194,6 +214,12 @@ snmp_traps_listeners:
 		defer s.Stop()
 		assert.True(t, s.Started)
 		assert.Equal(t, s.NumListeners(), 3)
+
+		for _, config := range configs {
+			p := sendTestTrap(t, s, config)
+			assertV2c(t, p, config)
+			assertVariables(t, p)
+		}
 	})
 
 	t.Run("handle-listener-error", func(t *testing.T) {
