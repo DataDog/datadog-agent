@@ -5,12 +5,17 @@ if (($domainRole -eq 4) -Or ($domainRole -eq 5)) {
   Write-Host "Installation on a Domain Controller is not yet supported - aborting"
   exit -1
 }
+url = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($env:chocolateyPackageVersion).msi"
+if ($env:chocolateyPackageVersion -match "(\d+\.\d+\.\d+)-rc\.(\d+)") {
+  url = "https://s3.amazonaws.com/dd-agent-mstesting/builds/tagged/datadog-agent-$($env:chocolateyPackageVersion)-1-x86_64.msi"
+}
+
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $packageArgs = @{
   packageName   = $env:ChocolateyPackageName
   unzipLocation = $toolsDir
   fileType      = 'msi'
-  url64bit      = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($env:chocolateyPackageVersion).msi"
+  url64bit      = $url
   softwareName  = 'Datadog Agent'
   silentArgs    = "/qn /norestart /l*v `"$($env:TEMP)\$($packageName).$($env:chocolateyPackageVersion).MsiInstall.log`""
   validExitCodes= @(0, 3010, 1641)
