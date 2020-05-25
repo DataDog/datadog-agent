@@ -88,26 +88,28 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
+	// Main context passed to components
+	ctx, cancel := context.WithCancel(context.Background())
 
-	mainCtx, mainCtxCancel, err := runAgent()
+	defer func(cancel context.CancelFunc) {
+		stopAgent(cancel)
+	}(cancel)
+
+	stopCh := make(chan struct{})
+	go handleSignals(stopCh)
+
+	err := runAgent(ctx)
 	if err != nil {
 		return err
 	}
-	// Setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 
-	// Block here until we receive the interrupt signal
-	<-signalCh
+	// Block here until we receive a stop signal
+	<-stopCh
 
-	stopAgent(mainCtx, mainCtxCancel)
 	return nil
 }
 
-func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err error) {
-	// Main context passed to components
-	mainCtx, mainCtxCancel = context.WithCancel(context.Background())
-
+func runAgent(ctx context.Context) (err error) {
 	configFound := false
 
 	// a path to the folder containing the config file was passed
@@ -161,7 +163,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err = healthprobe.Serve(mainCtx, healthPort)
+		err = healthprobe.Serve(ctx, healthPort)
 		if err != nil {
 			err = log.Errorf("Error starting health port, exiting: %v", err)
 			return
@@ -212,7 +214,29 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 	return
 }
 
-func stopAgent(ctx context.Context, cancel context.CancelFunc) {
+// handleSignals handles OS signals, and sends a message on stopCh when an interrupt
+// signal is received.
+func handleSignals(stopCh chan struct{}) {
+	// Setup a channel to catch OS signals
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
+
+	// Block here until we receive the interrupt signal
+	for signo := range signalCh {
+		switch signo {
+		case syscall.SIGPIPE:
+			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
+			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
+			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
+		default:
+			log.Infof("Received signal '%s', shutting down...", signo)
+			stopCh <- struct{}{}
+			return
+		}
+	}
+}
+
+func stopAgent(cancel context.CancelFunc) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
