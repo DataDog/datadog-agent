@@ -104,6 +104,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc0000008, err.Error())
 		errno = 1 // indicates non-successful return from handler.
+		stopAgent(cancel)
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
