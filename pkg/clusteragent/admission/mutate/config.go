@@ -16,6 +16,7 @@ import (
 
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/dynamic"
 )
 
 const agentHostEnvVarName = "DD_AGENT_HOST"
@@ -31,12 +32,12 @@ var agentHostEnvVar = corev1.EnvVar{
 }
 
 // InjectConfig adds the DD_AGENT_HOST env var to the pod template if it doesn't exist
-func InjectConfig(req *admiv1beta1.AdmissionRequest) (*admiv1beta1.AdmissionResponse, error) {
-	return mutate(req, injectConfig)
+func InjectConfig(req *admiv1beta1.AdmissionRequest, dc dynamic.Interface) (*admiv1beta1.AdmissionResponse, error) {
+	return mutate(req, injectConfig, dc)
 }
 
 // injectConfig injects DD_AGENT_HOST into a pod template if needed
-func injectConfig(pod *corev1.Pod) error {
+func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	if pod == nil {
 		return errors.New("cannot inject config into nil pod")
 	}
@@ -49,9 +50,6 @@ func injectConfig(pod *corev1.Pod) error {
 // shouldInjectConf returns whether the config should be injected
 // based on the pod labels and the cluster agent config
 func shouldInjectConf(pod *corev1.Pod) bool {
-	if pod == nil {
-		return false
-	}
 	if val, found := pod.GetLabels()[admission.EnabledLabelKey]; found {
 		switch val {
 		case "true":

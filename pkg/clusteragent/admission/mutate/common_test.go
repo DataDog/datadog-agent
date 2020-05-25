@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Test_contains(t *testing.T) {
@@ -123,33 +122,5 @@ func Test_injectEnv(t *testing.T) {
 				t.Errorf("injectEnv() = %v, want %v", tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers)
 			}
 		})
-	}
-}
-
-func fakeEnv(name string) corev1.EnvVar {
-	return corev1.EnvVar{
-		Name:  name,
-		Value: name + "-env-value",
-	}
-}
-
-func fakeContainer(name string) corev1.Container {
-	return corev1.Container{
-		Name: name,
-		Env: []corev1.EnvVar{
-			fakeEnv(name + "-env-foo"),
-			fakeEnv(name + "-env-bar"),
-		},
-	}
-}
-
-func fakePodWithContainer(name string, containers ...corev1.Container) *corev1.Pod {
-	return &corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Name: name,
-		},
-		Spec: corev1.PodSpec{
-			Containers: containers,
-		},
 	}
 }

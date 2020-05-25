@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 
 	admiv1beta1 "k8s.io/api/admissionregistration/v1beta1"
@@ -51,22 +50,13 @@ func generateWebhooks() []admiv1beta1.MutatingWebhook {
 	// DD_ENV, DD_VERSION, DD_SERVICE injection
 	if config.Datadog.GetBool("admission_controller.inject_tags.enabled") {
 		webhook := getWebhookSkeleton("tags", config.Datadog.GetString("admission_controller.inject_tags.endpoint"))
+		// Accept all, ignore pods if they're explicitly filtered-out
 		webhook.ObjectSelector = &metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      kubernetes.EnvTagLabelKey,
-					Operator: metav1.LabelSelectorOpExists,
-					Values:   []string{},
-				},
-				{
-					Key:      kubernetes.ServiceTagLabelKey,
-					Operator: metav1.LabelSelectorOpExists,
-					Values:   []string{},
-				},
-				{
-					Key:      kubernetes.VersionTagLabelKey,
-					Operator: metav1.LabelSelectorOpExists,
-					Values:   []string{},
+					Key:      EnabledLabelKey,
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{"false"},
 				},
 			},
 		}

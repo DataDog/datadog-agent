@@ -16,19 +16,20 @@ import (
 	"gomodules.xyz/jsonpatch/v3"
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/dynamic"
 )
 
-type mutateFunc func(*corev1.Pod) error
+type mutateFunc func(*corev1.Pod, string, dynamic.Interface) error
 
 // mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
-func mutate(req *admiv1beta1.AdmissionRequest, m mutateFunc) (*admiv1beta1.AdmissionResponse, error) {
+func mutate(req *admiv1beta1.AdmissionRequest, m mutateFunc, dc dynamic.Interface) (*admiv1beta1.AdmissionResponse, error) {
 	var pod corev1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
 	}
 
-	if err := m(&pod); err != nil {
+	if err := m(&pod, req.Namespace, dc); err != nil {
 		return nil, err
 	}
 

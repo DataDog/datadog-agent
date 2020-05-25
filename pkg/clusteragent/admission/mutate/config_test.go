@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Test_shouldInjectConf(t *testing.T) {
@@ -23,12 +22,6 @@ func Test_shouldInjectConf(t *testing.T) {
 		setupConfig func()
 		want        bool
 	}{
-		{
-			name:        "nil pod",
-			pod:         nil,
-			setupConfig: func() {},
-			want:        false,
-		},
 		{
 			name:        "mutate unlabelled, no label",
 			pod:         fakePodWithLabel("", ""),
@@ -73,15 +66,5 @@ func Test_shouldInjectConf(t *testing.T) {
 				t.Errorf("shouldInjectConf() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func fakePodWithLabel(k, v string) *corev1.Pod {
-	return &corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Labels: map[string]string{
-				k: v,
-			},
-		},
 	}
 }
