@@ -33,3 +33,11 @@ type NoValue struct {
 func (e *NoValue) Error() string {
 	return fmt.Sprintf("no value for `%s`", e.Field)
 }
+
+type OppositeRule struct {
+	Field string
+}
+
+func (e *OppositeRule) Error() string {
+	return fmt.Sprintf("opposite rules for `%s`", e.Field)
+}

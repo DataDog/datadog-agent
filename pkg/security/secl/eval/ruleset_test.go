@@ -360,3 +360,26 @@ func TestRuleSetBitOpFilter(t *testing.T) {
 		t.Fatal("wrong value for open.flags")
 	}
 }
+
+func TestRuleSetOppositeFilters(t *testing.T) {
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+
+	addRuleExpr(t, rs, `open.filename == "/etc/passwd"`)
+	addRuleExpr(t, rs, `open.filename != "/etc/passwd" && open.flags & O_CREAT > 0`)
+
+	capabilities := []FilteringCapability{
+		{
+			Field: "open.filename",
+			Types: ScalarValueType,
+		},
+		{
+			Field: "open.flags",
+			Types: ScalarValueType,
+		},
+	}
+
+	_, err := rs.GetEventFilters("open", capabilities...)
+	if _, ok := err.(*OppositeRule); !ok {
+		t.Fatal("incorrect error type")
+	}
+}

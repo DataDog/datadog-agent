@@ -130,7 +130,23 @@ func notOfValue(value interface{}) (interface{}, error) {
 	return nil, errors.New("value type unknown")
 }
 
-func (rs *RuleSet) getFilters(evaluator *RuleEvaluator, isValidEventTypeFnc func(eventType string) bool) ([]Filter, error) {
+// check is there is no opposite rule invalidating the current value
+func isFilterValid(ctx *Context, bucket *RuleBucket, field string) bool {
+	for _, rule := range bucket.rules {
+		// do not evaluate rule not having the same field
+		if _, ok := rule.evaluator.FieldValues[field]; !ok {
+			continue
+		}
+
+		if result, _ := rule.evaluator.PartialEval(ctx, field); !result {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (rs *RuleSet) getFilters(evaluator *RuleEvaluator, bucket *RuleBucket, isValidEventTypeFnc func(eventType string) bool) ([]Filter, error) {
 	var ctx Context
 
 	var filters []Filter
@@ -146,6 +162,9 @@ func (rs *RuleSet) getFilters(evaluator *RuleEvaluator, isValidEventTypeFnc func
 		for _, fValue := range fValues {
 			rs.model.SetEventValue(field, fValue.Value)
 			if result, _ := evaluator.PartialEval(&ctx, field); result {
+				if !isFilterValid(&ctx, bucket, field) {
+					return nil, &OppositeRule{Field: field}
+				}
 				filters = append(filters, Filter{
 					Field: field,
 					Value: fValue.Value,
@@ -161,6 +180,9 @@ func (rs *RuleSet) getFilters(evaluator *RuleEvaluator, isValidEventTypeFnc func
 
 			rs.model.SetEventValue(field, value)
 			if result, _ := evaluator.PartialEval(&ctx, field); result {
+				if !isFilterValid(&ctx, bucket, field) {
+					return nil, &OppositeRule{Field: field}
+				}
 				filters = append(filters, Filter{
 					Field: field,
 					Value: fValue.Value,
@@ -213,7 +235,7 @@ func (rs *RuleSet) GetEventFilters(eventType string, capabilities ...FilteringCa
 
 	if bucket, ok := rs.eventRuleBuckets[eventType]; ok {
 		for _, rule := range bucket.rules {
-			wildcardFilters, err := rs.getFilters(rule.evaluator, func(kind string) bool { return kind == "*" })
+			wildcardFilters, err := rs.getFilters(rule.evaluator, bucket, func(kind string) bool { return kind == "*" })
 			if err != nil {
 				return nil, err
 			}
@@ -224,7 +246,7 @@ func (rs *RuleSet) GetEventFilters(eventType string, capabilities ...FilteringCa
 				}
 			}
 
-			approvers, err := rs.getFilters(rule.evaluator, func(kind string) bool { return kind == eventType })
+			approvers, err := rs.getFilters(rule.evaluator, bucket, func(kind string) bool { return kind == eventType })
 			if err != nil {
 				return nil, err
 			}
