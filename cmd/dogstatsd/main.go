@@ -90,10 +90,7 @@ func init() {
 func start(cmd *cobra.Command, args []string) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
-
-	defer func(cancel context.CancelFunc) {
-		stopAgent(cancel)
-	}(cancel)
+	defer stopAgent(cancel)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
