@@ -154,7 +154,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 	}
 
 	if !config.Datadog.IsSet("api_key") {
-		log.Critical("no API key configured, exiting")
+		err = log.Critical("no API key configured, exiting")
 		return
 	}
 
