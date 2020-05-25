@@ -8,9 +8,9 @@
 package mutate
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -53,9 +53,9 @@ func Test_injectTagsFromLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			injectTagsFromLabels(tt.pod)
-			if !reflect.DeepEqual(tt.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers) {
-				t.Errorf("injectTagsFromLabels() = %v, want %v", tt.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers)
-			}
+			assert.Len(t, tt.pod.Spec.Containers, 1)
+			assert.Len(t, tt.wantPodFunc().Spec.Containers, 1)
+			assert.ElementsMatch(t, tt.wantPodFunc().Spec.Containers[0].Env, tt.pod.Spec.Containers[0].Env)
 		})
 	}
 }

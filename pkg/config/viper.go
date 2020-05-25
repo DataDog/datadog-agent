@@ -245,10 +245,10 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 }
 
 // UnmarshalKey wraps Viper for concurrent access
-func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}) error {
+func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.Viper.UnmarshalKey(key, rawVal)
+	return c.Viper.UnmarshalKey(key, rawVal, opts...)
 }
 
 // Unmarshal wraps Viper for concurrent access

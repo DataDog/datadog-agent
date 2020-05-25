@@ -207,7 +207,7 @@ func TestFilter(t *testing.T) {
 			c: Container{
 				ID:    "24",
 				Name:  "k8s_POD_AKS_Win",
-				Image: "kubletwin/pause:latest",
+				Image: "kubeletwin/pause:latest",
 			},
 			ns: "default",
 		},

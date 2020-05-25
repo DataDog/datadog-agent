@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tencent"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
@@ -27,8 +28,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs"
 
-	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 const packageCachePrefix = "host"
@@ -136,6 +138,14 @@ func getHostAliases() []string {
 	} else if k8sAlias != "" {
 		aliases = append(aliases, k8sAlias)
 	}
+
+	tencentAlias, err := tencent.GetHostAlias()
+	if err != nil {
+		log.Debugf("no Tencent Host Alias: %s", err)
+	} else if tencentAlias != "" {
+		aliases = append(aliases, tencentAlias)
+	}
+
 	return aliases
 }
 

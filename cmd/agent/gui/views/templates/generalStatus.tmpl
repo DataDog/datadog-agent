@@ -155,7 +155,7 @@
     <span class="stat_data">
       {{- with .forwarderStats -}}
         {{- range $key, $value := .Transactions }}
-            {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode")}}
+            {{- if and (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
           {{formatTitle $key}}: {{humanize $value}}<br>
             {{- end}}
         {{- end}}

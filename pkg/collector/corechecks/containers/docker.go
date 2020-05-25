@@ -383,7 +383,7 @@ func (d *DockerCheck) reportIOMetrics(io *cmetrics.ContainerIOStats, tags []stri
 	// Read values per device, or fallback to sum
 	if len(io.DeviceReadBytes) > 0 {
 		for dev, value := range io.DeviceReadBytes {
-			sender.Rate("docker.io.read_bytes", float64(value), "", append(tags, "device:"+dev))
+			sender.Rate("docker.io.read_bytes", float64(value), "", append(tags, "device:"+dev, "device_name:"+dev))
 		}
 	} else {
 		sender.Rate("docker.io.read_bytes", float64(io.ReadBytes), "", tags)
@@ -392,7 +392,7 @@ func (d *DockerCheck) reportIOMetrics(io *cmetrics.ContainerIOStats, tags []stri
 	// Write values per device, or fallback to sum
 	if len(io.DeviceWriteBytes) > 0 {
 		for dev, value := range io.DeviceWriteBytes {
-			sender.Rate("docker.io.write_bytes", float64(value), "", append(tags, "device:"+dev))
+			sender.Rate("docker.io.write_bytes", float64(value), "", append(tags, "device:"+dev, "device_name:"+dev))
 		}
 	} else {
 		sender.Rate("docker.io.write_bytes", float64(io.WriteBytes), "", tags)

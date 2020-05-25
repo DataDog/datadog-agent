@@ -32,6 +32,14 @@ func IsRunningOn() bool {
 	return false
 }
 
+// GetHostAlias returns the VM ID from the Tencent Metadata api
+func GetHostAlias() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+	return GetInstanceID()
+}
+
 // GetInstanceID fetches the instance id for current host from the Tencent metadata API
 func GetInstanceID() (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {

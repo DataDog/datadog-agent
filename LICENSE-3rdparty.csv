@@ -32,6 +32,7 @@ core,"github.com/DataDog/gopsutil/net",NewBSD
 core,"github.com/DataDog/gopsutil/process",NewBSD
 core,"github.com/DataDog/zstd",NewBSD
 core,"github.com/Microsoft/go-winio",MIT
+core,"github.com/Microsoft/go-winio/pkg/guid",MIT
 core,"github.com/Microsoft/hcsshim",MIT
 core,"github.com/Microsoft/hcsshim/internal/guestrequest",MIT
 core,"github.com/Microsoft/hcsshim/internal/guid",MIT
@@ -365,6 +366,7 @@ core,"github.com/shirou/gopsutil/net",NewBSD
 core,"github.com/shirou/gopsutil/process",NewBSD
 core,"github.com/shirou/w32",FreeBSD
 core,"github.com/sirupsen/logrus",MIT
+core,"github.com/soniah/gosnmp",NewBSD
 core,"github.com/spf13/afero",Apache-2.0
 core,"github.com/spf13/afero/mem",Apache-2.0
 core,"github.com/spf13/cast",MIT

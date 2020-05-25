@@ -88,7 +88,7 @@ func (h *AutoscalersController) enqueue(obj interface{}) {
 
 // RunControllerLoop is the public method to trigger the lifecycle loop of the External Metrics store
 func (h *AutoscalersController) RunControllerLoop(stopCh <-chan struct{}) {
-	h.processingLoop()
+	h.processingLoop(stopCh)
 }
 
 // gc checks if any hpas or wpas have been deleted (possibly while the Datadog Cluster Agent was
@@ -204,12 +204,14 @@ func (h *AutoscalersController) updateExternalMetrics() {
 
 // processingLoop is a go routine that schedules the garbage collection and the refreshing of external metrics
 // in the GlobalStore.
-func (h *AutoscalersController) processingLoop() {
+func (h *AutoscalersController) processingLoop(stopCh <-chan struct{}) {
 	tickerAutoscalerRefreshProcess := time.NewTicker(time.Duration(h.poller.refreshPeriod) * time.Second)
 	gcPeriodSeconds := time.NewTicker(time.Duration(h.poller.gcPeriodSeconds) * time.Second)
 	go func() {
 		for {
 			select {
+			case <-stopCh:
+				return
 			case <-tickerAutoscalerRefreshProcess.C:
 				if !h.isLeaderFunc() {
 					continue

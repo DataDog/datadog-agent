@@ -187,19 +187,28 @@ api_key:
 #
 # forwarder_stop_timeout: 2
 
-## @param cloud_provider_metadata - string - optional - default: <empty>
-## This option restricts which cloud provider endpoint will be used by the agent to retrieve metadata. By default the agent will try
-## all cloud providers.
+## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
+## This option restricts which cloud provider endpoint will be used by the
+## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
+## and alibaba providers. Some cloud provider are not enabled by default to not
+## trigger security alert when querying unknown IP (for example, when enabling
+## Tencent on AWS).
+## Setting an empty list will disable querying any cloud metadata endpoints
+## (falling back on system metadata). Using this setting on a cloud provider
+## host may result in duplicated hosts in your account.
+##
 ## Possible values are:
 ## "aws"     AWS EC2, ECS/Fargate
 ## "gcp"     Google Cloud Provider
 ## "azure"   Azure
 ## "alibaba" Alibaba
 ## "tencent" Tencent
-## "none"    does not query any cloud metadata endpoints (falling back on system metadata). Using this setting on a cloud provider host may result in duplicated hosts in your account.
-## "all"     default: queries all cloud metadata endpoints
 #
-# cloud_provider_metadata: "all"
+# cloud_provider_metadata:
+#   - "aws"
+#   - "gcp"
+#   - "azure"
+#   - "alibaba"
 
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
