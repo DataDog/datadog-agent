@@ -3,8 +3,10 @@ package traps
 import (
 	"net"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/soniah/gosnmp"
 )
 
@@ -12,8 +14,9 @@ import (
 type TrapServer struct {
 	Started bool
 
-	bindHost  string
-	listeners []TrapListener
+	bindHost    string
+	listeners   []TrapListener
+	stopTimeout time.Duration
 }
 
 // NewTrapServer configures and returns a running SNMP traps server.
@@ -25,6 +28,7 @@ func NewTrapServer() (*TrapServer, error) {
 	}
 
 	bindHost := config.Datadog.GetString("bind_host")
+	stopTimeout := config.Datadog.GetDuration("snmp_traps_stop_timeout") * time.Second
 
 	listeners := make([]TrapListener, 0, len(configs))
 
@@ -38,9 +42,10 @@ func NewTrapServer() (*TrapServer, error) {
 	}
 
 	s := &TrapServer{
-		Started:   false,
-		bindHost:  bindHost,
-		listeners: listeners,
+		Started:     false,
+		bindHost:    bindHost,
+		listeners:   listeners,
+		stopTimeout: stopTimeout,
 	}
 
 	err = s.start()
@@ -85,7 +90,6 @@ func (s *TrapServer) start() error {
 
 	select {
 	case <-allReady:
-		break
 	case err := <-readyErrors:
 		close(readyErrors)
 		return err
@@ -103,8 +107,29 @@ func (s *TrapServer) NumListeners() int {
 
 // Stop stops the TrapServer.
 func (s *TrapServer) Stop() {
+	wg := new(sync.WaitGroup)
+	stopped := make(chan bool)
+
+	wg.Add(len(s.listeners))
+
 	for _, listener := range s.listeners {
-		listener.Stop()
+		l := listener
+		go func() {
+			defer wg.Done()
+			l.Stop()
+		}()
 	}
+
+	go func() {
+		wg.Wait()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(s.stopTimeout):
+		log.Error("snmp-traps: stopping listeners timed out")
+	}
+
 	s.Started = false
 }

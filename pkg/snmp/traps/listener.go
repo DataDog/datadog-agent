@@ -3,7 +3,6 @@ package traps
 import (
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/soniah/gosnmp"
@@ -75,19 +74,5 @@ func (ln *TrapListener) WaitReadyOrError() error {
 // Stop stops accepting incoming packets and closes the socket connection.
 func (ln *TrapListener) Stop() {
 	log.Debugf("snmp-traps: stopping %s", ln.addr)
-
-	stopped := make(chan bool)
-
-	go func() {
-		ln.impl.Close() // May hang if the listener was improperly configured.
-		close(stopped)
-	}()
-
-	select {
-	case <-stopped:
-		break
-	case <-time.After(1 * time.Second):
-		log.Errorf("snmp-traps: timed out attempting to stop listener %s", ln.addr)
-		break
-	}
+	ln.impl.Close()
 }
