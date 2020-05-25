@@ -61,6 +61,14 @@ func sendTestTrap(t *testing.T, s *TrapServer, config TrapListenerConfig) *gosnm
 	params.Timeout = 1 * time.Second // Must be non-zero
 	params.Retries = 1               // Must be non-zero
 
+	if sp, ok := params.SecurityParameters.(*gosnmp.UsmSecurityParameters); ok {
+		// The GoSNMP trap listener does not support responding to security parameters discovery requests,
+		// so we need to set these options explicitly (otherwise the discovery request is sent and it times out).
+		sp.AuthoritativeEngineID = "test"
+		sp.AuthoritativeEngineBoots = 1
+		sp.AuthoritativeEngineTime = 0
+	}
+
 	err = params.Connect()
 	require.NoError(t, err)
 	defer params.Conn.Close()
@@ -86,9 +94,20 @@ func assertV2c(t *testing.T, p *gosnmp.SnmpPacket, config TrapListenerConfig) {
 	require.Equal(t, config.Community, p.Community)
 }
 
-// func assertV3(t *testing.T, p *gosnmp.SnmpPacket, config TrapListenerConfig) {
-// 	require.Equal(t, gosnmp.Version3, p.Version)
-// }
+func assertV3(t *testing.T, p *gosnmp.SnmpPacket, config TrapListenerConfig) {
+	require.Equal(t, gosnmp.Version3, p.Version)
+
+	require.NotNil(t, p.SecurityParameters)
+	sp := p.SecurityParameters.(*gosnmp.UsmSecurityParameters)
+
+	authProtocol, err := config.BuildAuthProtocol()
+	require.NoError(t, err)
+	require.Equal(t, authProtocol, sp.AuthenticationProtocol)
+
+	privProtocol, err := config.BuildPrivProtocol()
+	require.NoError(t, err)
+	require.Equal(t, privProtocol, sp.PrivacyProtocol)
+}
 
 func assertVariables(t *testing.T, p *gosnmp.SnmpPacket) {
 	assert.Equal(t, 4, len(p.Variables))
@@ -148,42 +167,6 @@ snmp_traps_listeners:
 		assertVariables(t, p)
 	})
 
-	t.Run("v3-single", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
-
-		config := TrapListenerConfig{
-			Port:         port,
-			User:         "doggo",
-			AuthProtocol: "MD5",
-			AuthKey:      "doggopass",
-			PrivProtocol: "DES",
-			PrivKey:      "doggokey",
-		}
-
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    user: %s
-    auth_protocol: %s
-    auth_key: %s
-    priv_protocol: %s
-    priv_key: %s
-`, config.Port, config.User, config.AuthProtocol, config.AuthKey, config.PrivProtocol, config.PrivKey))
-
-		s, err := NewTrapServer()
-		require.NoError(t, err)
-		require.NotNil(t, s)
-		defer s.Stop()
-		require.True(t, s.Started)
-		require.Equal(t, s.NumListeners(), 1)
-
-		// FIXME: this triggers a panic during trap unmarshalling
-		// p := sendTestTrap(t, s, config)
-		// assertV3(t, p, config)
-		// assertVariables(t, p)
-	})
-
 	t.Run("v2c-multiple", func(t *testing.T) {
 		port0, err := getAvailableUDPPort()
 		require.NoError(t, err)
@@ -220,6 +203,41 @@ snmp_traps_listeners:
 			assertV2c(t, p, config)
 			assertVariables(t, p)
 		}
+	})
+
+	t.Run("v3-auth-priv", func(t *testing.T) {
+		port, err := getAvailableUDPPort()
+		require.NoError(t, err)
+
+		config := TrapListenerConfig{
+			Port:         port,
+			User:         "doggo",
+			AuthProtocol: "MD5",
+			AuthKey:      "doggopass",
+			PrivProtocol: "DES",
+			PrivKey:      "doggokey",
+		}
+
+		configure(t, fmt.Sprintf(`
+snmp_traps_listeners:
+  - port: %d
+    user: %s
+    auth_protocol: %s
+    auth_key: %s
+    priv_protocol: %s
+    priv_key: %s
+`, config.Port, config.User, config.AuthProtocol, config.AuthKey, config.PrivProtocol, config.PrivKey))
+
+		s, err := NewTrapServer()
+		require.NoError(t, err)
+		require.NotNil(t, s)
+		defer s.Stop()
+		require.True(t, s.Started)
+		require.Equal(t, s.NumListeners(), 1)
+
+		p := sendTestTrap(t, s, config)
+		assertV3(t, p, config)
+		assertVariables(t, p)
 	})
 
 	t.Run("handle-listener-error", func(t *testing.T) {
