@@ -115,7 +115,6 @@ func (k *KSMCheck) Run() error {
 }
 
 func processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam) {
-	log.Infof("Metrics to be processsed: %v", metrics)
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			for _, m := range metricFamily.ListMetrics {
