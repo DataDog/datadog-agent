@@ -21,7 +21,6 @@ const (
 	// - gcr.io/gke-release/pause-win:1.1.0
 	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/gke-release/|/)pause(.*)`
 	pauseContainerOpenshift3 = "image:(openshift/origin-pod|(.*)rhel7/pod-infrastructure)"
-	pauseContainerOpenshift4 = "image:(.*)/openshift-release-dev/ocp-v4.0-art-dev"
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
 	pauseContainerEKS        = "image:(amazonaws.com/)?eks/pause-(amd64|windows)"
@@ -142,7 +141,6 @@ func NewFilterFromConfig() (*Filter, error) {
 		blacklist = append(blacklist,
 			pauseContainerGCR,
 			pauseContainerOpenshift3,
-			pauseContainerOpenshift4,
 			pauseContainerKubernetes,
 			pauseContainerAzure,
 			pauseContainerECS,
