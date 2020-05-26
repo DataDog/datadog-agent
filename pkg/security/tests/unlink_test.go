@@ -14,7 +14,7 @@ func TestUnlink(t *testing.T) {
 		Expression: `unlink.filename == "{{.Root}}/test" || unlink.filename == "{{.Root}}/testat"`,
 	}
 
-	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
+	test, err := newTestModule(nil, []*policy.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

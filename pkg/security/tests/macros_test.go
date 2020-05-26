@@ -26,7 +26,7 @@ func TestMacros(t *testing.T) {
 		},
 	}
 
-	test, err := newSimpleTest(macros, rules)
+	test, err := newTestModule(macros, rules)
 	if err != nil {
 		t.Fatal(err)
 	}
