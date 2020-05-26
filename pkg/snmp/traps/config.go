@@ -130,46 +130,49 @@ func (c *TrapListenerConfig) BuildParams() (*gosnmp.GoSNMP, error) {
 
 	logger := &trapLogger{}
 
-	securityParams := &gosnmp.UsmSecurityParameters{
-		UserName: c.User,
-		// NOTE: passing a logger here is critical, otherwise GoSNMP panics upon receiving a v3 trap due to a bug.
-		Logger: logger,
-	}
-
-	if c.AuthProtocol != "" {
-		authProtocol, err := BuildAuthProtocol(c.AuthProtocol)
-		if err != nil {
-			return nil, err
-		}
-		securityParams.AuthenticationProtocol = authProtocol
-		securityParams.AuthenticationPassphrase = c.AuthKey
-	}
-
-	if c.PrivProtocol != "" {
-		privProtocol, err := BuildPrivProtocol(c.PrivProtocol)
-		if err != nil {
-			return nil, err
-		}
-		securityParams.PrivacyProtocol = privProtocol
-		securityParams.PrivacyPassphrase = c.PrivKey
-	}
-
-	msgFlags, err := BuildMsgFlags(c.AuthKey, c.PrivKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: only set Community on SNMPv1/v2c, and MsgFlags/SecurityModel/SecurityParameters on SNMPv3.
-
 	params := &gosnmp.GoSNMP{
-		Port:               port,
-		Community:          c.Community,
-		Transport:          "udp",
-		Version:            version,
-		MsgFlags:           msgFlags,
-		SecurityModel:      gosnmp.UserSecurityModel,
-		SecurityParameters: securityParams,
-		Logger:             logger,
+		Port:      port,
+		Transport: "udp",
+		Version:   version,
+		Logger:    logger,
+	}
+
+	if version == gosnmp.Version1 || version == gosnmp.Version2c {
+		params.Community = c.Community
+	}
+
+	if version == gosnmp.Version3 {
+		sp := &gosnmp.UsmSecurityParameters{
+			UserName: c.User,
+			Logger:   logger,
+		}
+
+		if c.AuthProtocol != "" {
+			authProtocol, err := BuildAuthProtocol(c.AuthProtocol)
+			if err != nil {
+				return nil, err
+			}
+			sp.AuthenticationProtocol = authProtocol
+			sp.AuthenticationPassphrase = c.AuthKey
+		}
+
+		if c.PrivProtocol != "" {
+			privProtocol, err := BuildPrivProtocol(c.PrivProtocol)
+			if err != nil {
+				return nil, err
+			}
+			sp.PrivacyProtocol = privProtocol
+			sp.PrivacyPassphrase = c.PrivKey
+		}
+
+		msgFlags, err := BuildMsgFlags(c.AuthKey, c.PrivKey)
+		if err != nil {
+			return nil, err
+		}
+
+		params.MsgFlags = msgFlags
+		params.SecurityModel = gosnmp.UserSecurityModel
+		params.SecurityParameters = sp
 	}
 
 	return params, nil
