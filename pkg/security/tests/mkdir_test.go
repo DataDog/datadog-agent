@@ -13,7 +13,7 @@ func TestMkdir(t *testing.T) {
 		Expression: `mkdir.filename == "{{.Root}}/test" || mkdir.filename == "{{.Root}}/testat" || (event.type == "mkdir" && event.retval == EEXIST)`,
 	}
 
-	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
+	test, err := newTestModule(nil, []*policy.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

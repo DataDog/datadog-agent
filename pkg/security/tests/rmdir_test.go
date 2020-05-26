@@ -14,7 +14,7 @@ func TestRmdir(t *testing.T) {
 		Expression: `rmdir.filename == "{{.Root}}/test"`,
 	}
 
-	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
+	test, err := newTestModule(nil, []*policy.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

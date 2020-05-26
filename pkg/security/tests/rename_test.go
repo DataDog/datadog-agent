@@ -14,7 +14,7 @@ func TestRename(t *testing.T) {
 		Expression: `rename.oldfilename == "{{.Root}}/test" && rename.newfilename == "{{.Root}}/test2"`,
 	}
 
-	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
+	test, err := newTestModule(nil, []*policy.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

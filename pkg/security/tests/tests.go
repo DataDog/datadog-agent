@@ -63,37 +63,49 @@ const testPolicy = `---
 `
 
 type testModule struct {
+	client   *testClient
+	cancel   context.CancelFunc
+	st       *simpleTest
 	module   smodule.Module
 	listener net.Listener
 }
 
-func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*testModule, error) {
+type testProbe struct {
+	cancel context.CancelFunc
+	st     *simpleTest
+}
+
+func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	testPolicyFile, err := ioutil.TempFile("", "secagent-policy")
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	defer os.Remove(testPolicyFile.Name())
+
+	fail := func(err error) error {
+		os.Remove(testPolicyFile.Name())
+		return err
+	}
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPolicy": testPolicyFile.Name(),
 	}); err != nil {
-		return nil, err
+		return "", fail(err)
 	}
 
 	aconfig.Datadog.SetConfigType("yaml")
 	if err := aconfig.Datadog.ReadConfig(buffer); err != nil {
-		return nil, err
+		return "", fail(err)
 	}
 
 	tmpl, err = template.New("test-policy").Parse(testPolicy)
 	if err != nil {
-		return nil, err
+		return "", fail(err)
 	}
 
 	buffer = new(bytes.Buffer)
@@ -101,17 +113,40 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		"Rules":  rules,
 		"Macros": macros,
 	}); err != nil {
-		return nil, err
+		return "", fail(err)
 	}
 
 	_, err = testPolicyFile.Write(buffer.Bytes())
 	if err != nil {
-		return nil, err
+		return "", fail(err)
 	}
 
 	if err := testPolicyFile.Close(); err != nil {
+		return "", fail(err)
+	}
+
+	return testPolicyFile.Name(), nil
+}
+
+func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*testModule, error) {
+	st, err := newSimpleTest(macros, rules)
+	if err != nil {
 		return nil, err
 	}
+
+	cfgFilename, err := setTestConfig(macros, rules)
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(cfgFilename)
+
+	client, err := newTestClient()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	client.Run(ctx)
 
 	listener, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
@@ -131,14 +166,74 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	go grpcServer.Serve(listener)
 
 	return &testModule{
+		client:   client,
+		cancel:   cancel,
+		st:       st,
 		module:   module,
 		listener: listener,
 	}, nil
 }
 
+func (tm *testModule) Root() string {
+	return tm.st.root
+}
+
+func (tm *testModule) GetEvent() (*probe.Event, error) {
+	event, err := tm.client.GetEvent(3 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(event.GetData(), &data); err != nil {
+		return nil, err
+	}
+
+	var probeEvent probe.Event
+	if err := mapstructure.WeakDecode(data, &probeEvent); err != nil {
+		return nil, err
+	}
+
+	return &probeEvent, nil
+}
+
+func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
+	return tm.st.Path(filename)
+}
+
 func (tm *testModule) Close() {
+	tm.st.Close()
 	tm.module.Close()
 	tm.listener.Close()
+}
+
+func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*testModule, error) {
+	st, err := newSimpleTest(macros, rules)
+	if err != nil {
+		return nil, err
+	}
+
+	cfgFilename, err := setTestConfig(macros, rules)
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(cfgFilename)
+
+	return &testProbe{
+		st: st,
+	}, nil
+}
+
+func (tp *testProbe) Root() string {
+	return tp.st.root
+}
+
+func (tp *testProbe) Path(filename string) (string, unsafe.Pointer, error) {
+	return tp.st.Path(filename)
+}
+
+func (tp *testProbe) Close() {
+	tp.st.Close()
 }
 
 type testClient struct {
@@ -202,16 +297,10 @@ func (tc *testClient) Close() {
 }
 
 type simpleTest struct {
-	module *testModule
-	client *testClient
-	cancel context.CancelFunc
-	root   string
+	root string
 }
 
 func (t *simpleTest) Close() {
-	t.module.Close()
-	t.client.Close()
-	t.cancel()
 	os.RemoveAll(t.root)
 }
 
@@ -226,25 +315,6 @@ func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
 		return "", nil, err
 	}
 	return filename, unsafe.Pointer(filenamePtr), nil
-}
-
-func (t *simpleTest) GetEvent() (*probe.Event, error) {
-	event, err := t.client.GetEvent(3 * time.Second)
-	if err != nil {
-		return nil, err
-	}
-
-	var data map[string]interface{}
-	if err := json.Unmarshal(event.GetData(), &data); err != nil {
-		return nil, err
-	}
-
-	var probeEvent probe.Event
-	if err := mapstructure.WeakDecode(data, &probeEvent); err != nil {
-		return nil, err
-	}
-
-	return &probeEvent, nil
 }
 
 func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*simpleTest, error) {
@@ -294,20 +364,6 @@ func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 			return nil, err
 		}
 	}
-
-	t.module, err = newTestModule(macros, rules)
-	if err != nil {
-		return nil, err
-	}
-
-	t.client, err = newTestClient()
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.client.Run(ctx)
-	t.cancel = cancel
 
 	return t, nil
 }

@@ -17,7 +17,7 @@ func TestOpen(t *testing.T) {
 		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newSimpleTest(nil, []*policy.RuleDefinition{rule})
+	test, err := newTestModule(nil, []*policy.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestOpen(t *testing.T) {
 }
 
 func benchmarkOpenSameFile(b *testing.B, rules ...*policy.RuleDefinition) {
-	test, err := newSimpleTest(nil, rules)
+	test, err := newTestModule(nil, rules)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func createFolder(current string, filesPerFolder, maxDepth int) error {
 }
 
 func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*policy.RuleDefinition) {
-	test, err := newSimpleTest(nil, rules)
+	test, err := newTestModule(nil, rules)
 	if err != nil {
 		b.Fatal(err)
 	}
