@@ -54,6 +54,7 @@ type InstallMethod struct {
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Os            string            `json:"os"`
+	AgentFlavor   string            `json:"agent-flavor"`
 	PythonVersion string            `json:"python"`
 	SystemStats   *systemStats      `json:"systemStats"`
 	Meta          *Meta             `json:"meta"`
