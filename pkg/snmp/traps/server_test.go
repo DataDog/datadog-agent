@@ -7,9 +7,11 @@ package traps
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -55,13 +57,8 @@ var netSnmpExampleHeartbeatNotification = []gosnmp.SnmpPDU{
 	{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
 }
 
-func sendTestTrap(t *testing.T, s *TrapServer, config TrapListenerConfig) *gosnmp.SnmpPacket {
-	packets := make(chan *gosnmp.SnmpPacket)
-	s.SetTrapHandler(func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-		packets <- p
-	})
-
-	params, err := config.BuildParams()
+func sendTestTrap(t *testing.T, c TrapListenerConfig) {
+	params, err := c.BuildParams()
 	require.NoError(t, err)
 	params.Timeout = 1 * time.Second // Must be non-zero
 	params.Retries = 1               // Must be non-zero
@@ -80,15 +77,29 @@ func sendTestTrap(t *testing.T, s *TrapServer, config TrapListenerConfig) *gosnm
 
 	_, err = params.SendTrap(gosnmp.SnmpTrap{Variables: netSnmpExampleHeartbeatNotification})
 	require.NoError(t, err)
+}
 
-	var p *gosnmp.SnmpPacket
+// Receiver is a test utility for receiving traps from the trap server.
+type Receiver struct {
+	packets chan *gosnmp.SnmpPacket
+}
 
+// NewReceiver returns a new test receiver.
+func NewReceiver(s *TrapServer) *Receiver {
+	packets := make(chan *gosnmp.SnmpPacket)
+	s.SetTrapHandler(func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+		packets <- p
+	})
+	r := &Receiver{packets: packets}
+	return r
+}
+
+// Receive waits and returns a trap packet. May not be the same than one that has just been sent.
+func (r *Receiver) Receive(t *testing.T) *gosnmp.SnmpPacket {
 	select {
-	case p = <-packets:
-		close(packets)
+	case p := <-r.packets:
 		return p
 	case <-time.After(3 * time.Second):
-		close(packets)
 		t.Errorf("Trap not received")
 		return nil
 	}
@@ -140,81 +151,45 @@ func assertVariables(t *testing.T, p *gosnmp.SnmpPacket) {
 	assert.Equal(t, "test", string(heartBeatName.Value.([]byte)))
 }
 
-func TestTraps(t *testing.T) {
-	t.Run("empty", func(t *testing.T) {
-		s, err := NewTrapServer()
-		require.NoError(t, err)
-		assert.NotNil(t, s)
-		defer s.Stop()
-		assert.True(t, s.Started)
-	})
+func TestServerEmpty(t *testing.T) {
+	s, err := NewTrapServer()
+	require.NoError(t, err)
+	assert.NotNil(t, s)
+	defer s.Stop()
+	assert.True(t, s.Started)
+}
 
-	t.Run("v2c-single", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
+func TestServerV2(t *testing.T) {
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
 
-		config := TrapListenerConfig{
-			Port:      port,
-			Community: "public",
-		}
+	config := TrapListenerConfig{
+		Port:      port,
+		Community: "public",
+	}
 
-		configure(t, fmt.Sprintf(`
+	configure(t, fmt.Sprintf(`
 snmp_traps_listeners:
   - port: %d
     community: %s
 `, config.Port, config.Community))
 
-		s, err := NewTrapServer()
-		require.NoError(t, err)
-		require.NotNil(t, s)
-		defer s.Stop()
-		require.True(t, s.Started)
-		require.Equal(t, s.NumListeners(), 1)
+	s, err := NewTrapServer()
+	require.NoError(t, err)
+	require.NotNil(t, s)
+	defer s.Stop()
+	require.True(t, s.Started)
+	require.Equal(t, s.NumListeners(), 1)
 
-		p := sendTestTrap(t, s, config)
-		assertV2c(t, p, config)
-		assertVariables(t, p)
-	})
+	r := NewReceiver(s)
+	sendTestTrap(t, config)
+	p := r.Receive(t)
+	assertV2c(t, p, config)
+	assertVariables(t, p)
+}
 
-	t.Run("v2c-multiple", func(t *testing.T) {
-		port0, err := getAvailableUDPPort()
-		require.NoError(t, err)
-		port1, err := getAvailableUDPPort()
-		require.NoError(t, err)
-		port2, err := getAvailableUDPPort()
-		require.NoError(t, err)
-
-		configs := []TrapListenerConfig{
-			{Port: port0, Community: "public0"},
-			{Port: port1, Community: "public1"},
-			{Port: port2, Community: "public2"},
-		}
-
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    community: %s
-  - port: %d
-    community: %s
-  - port: %d
-    community: %s
-`, configs[0].Port, configs[0].Community, configs[1].Port, configs[1].Community, configs[2].Port, configs[2].Community))
-
-		s, err := NewTrapServer()
-		require.NoError(t, err)
-		assert.NotNil(t, s)
-		defer s.Stop()
-		assert.True(t, s.Started)
-		assert.Equal(t, s.NumListeners(), 3)
-
-		for _, config := range configs {
-			p := sendTestTrap(t, s, config)
-			assertV2c(t, p, config)
-			assertVariables(t, p)
-		}
-	})
-
-	t.Run("v3-no-auth-no-priv", func(t *testing.T) {
+func TestServerV3(t *testing.T) {
+	t.Run("no-auth-no-priv", func(t *testing.T) {
 		port, err := getAvailableUDPPort()
 		require.NoError(t, err)
 
@@ -236,12 +211,14 @@ snmp_traps_listeners:
 		require.True(t, s.Started)
 		require.Equal(t, s.NumListeners(), 1)
 
-		p := sendTestTrap(t, s, config)
+		r := NewReceiver(s)
+		sendTestTrap(t, config)
+		p := r.Receive(t)
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
 
-	t.Run("v3-auth-no-priv", func(t *testing.T) {
+	t.Run("auth-no-priv", func(t *testing.T) {
 		port, err := getAvailableUDPPort()
 		require.NoError(t, err)
 
@@ -267,12 +244,14 @@ snmp_traps_listeners:
 		require.True(t, s.Started)
 		require.Equal(t, s.NumListeners(), 1)
 
-		p := sendTestTrap(t, s, config)
+		r := NewReceiver(s)
+		sendTestTrap(t, config)
+		p := r.Receive(t)
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
 
-	t.Run("v3-auth-priv", func(t *testing.T) {
+	t.Run("auth-priv", func(t *testing.T) {
 		port, err := getAvailableUDPPort()
 		require.NoError(t, err)
 
@@ -302,12 +281,93 @@ snmp_traps_listeners:
 		require.True(t, s.Started)
 		require.Equal(t, s.NumListeners(), 1)
 
-		p := sendTestTrap(t, s, config)
+		r := NewReceiver(s)
+		sendTestTrap(t, config)
+		p := r.Receive(t)
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
+}
 
-	t.Run("handle-listener-error", func(t *testing.T) {
+func TestConcurrency(t *testing.T) {
+	port0, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	port1, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	port2, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	port3, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	port4, err := getAvailableUDPPort()
+	require.NoError(t, err)
+
+	configs := []TrapListenerConfig{
+		{Port: port0, Community: "public0"},
+		{Port: port1, Community: "public1"},
+		{Port: port2, User: "doggo"},
+		{Port: port3, User: "bits", AuthProtocol: "MD5", AuthKey: "bitspass"},
+		{Port: port4, User: "buddy", AuthProtocol: "SHA", AuthKey: "buddypass", PrivProtocol: "AES", PrivKey: "buddykey"},
+	}
+
+	configure(t, fmt.Sprintf(`
+snmp_traps_listeners:
+  - port: %d
+    community: %s
+  - port: %d
+    community: %s
+  - port: %d
+    user: %s
+  - port: %d
+    user: %s
+    auth_protocol: %s
+    auth_key: %s
+  - port: %d
+    user: %s
+    auth_protocol: %s
+    auth_key: %s
+    priv_protocol: %s
+    priv_key: %s
+`, configs[0].Port, configs[0].Community, configs[1].Port, configs[1].Community, configs[2].Port, configs[2].User, configs[3].Port, configs[3].User, configs[3].AuthProtocol, configs[3].AuthKey, configs[4].Port, configs[4].User, configs[4].AuthProtocol, configs[4].AuthKey, configs[4].PrivProtocol, configs[4].PrivKey))
+
+	s, err := NewTrapServer()
+	require.NoError(t, err)
+	require.NotNil(t, s)
+	defer s.Stop()
+	require.True(t, s.Started)
+	require.Equal(t, s.NumListeners(), 5)
+
+	numMessagesPerListener := 100
+	totalMessages := numMessagesPerListener * len(configs)
+
+	r := NewReceiver(s)
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(configs) + 1)
+
+	for _, config := range configs {
+		c := config
+		go func() {
+			defer wg.Done()
+			for i := 0; i < numMessagesPerListener; i++ {
+				time.Sleep(time.Duration(rand.Float64()) * time.Microsecond) // Prevent serial execution.
+				sendTestTrap(t, c)
+			}
+		}()
+	}
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < totalMessages; i++ {
+			p := r.Receive(t)
+			assertVariables(t, p)
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestServerErrors(t *testing.T) {
+	t.Run("listener-error", func(t *testing.T) {
 		port, err := getAvailableUDPPort()
 		require.NoError(t, err)
 
@@ -324,4 +384,9 @@ snmp_traps_listeners:
 		require.Error(t, err)
 		assert.Nil(t, s)
 	})
+
+	// TODO test v2 with wrong community string
+	// TODO test v3 with wrong user
+	// TODO test v3 with wrong auth
+	// TODO test v3 with wrong priv
 }

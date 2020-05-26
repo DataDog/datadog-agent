@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCommon(t *testing.T) {
+func TestConfigCommon(t *testing.T) {
 	config := TrapListenerConfig{
 		Community: "public",
 	}
@@ -23,7 +23,7 @@ func TestCommon(t *testing.T) {
 	assert.NotNil(t, params.Logger)
 }
 
-func TestPort(t *testing.T) {
+func TestConfigPort(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		config := TrapListenerConfig{
 			Community: "public",
@@ -44,7 +44,7 @@ func TestPort(t *testing.T) {
 	})
 }
 
-func TestVersion(t *testing.T) {
+func TestConfigVersion(t *testing.T) {
 	t.Run("explicit", func(t *testing.T) {
 		config := TrapListenerConfig{
 			Version:   "1",
@@ -90,7 +90,7 @@ func TestVersion(t *testing.T) {
 	})
 }
 
-func TestV2(t *testing.T) {
+func TestConfigV2(t *testing.T) {
 	config := TrapListenerConfig{
 		Community: "public",
 	}
@@ -103,7 +103,7 @@ func TestV2(t *testing.T) {
 	assert.Nil(t, params.SecurityParameters)
 }
 
-func TestV3(t *testing.T) {
+func TestConfigV3(t *testing.T) {
 	t.Run("no-auth-no-priv", func(t *testing.T) {
 		config := TrapListenerConfig{
 			User: "doggo",
