@@ -7,6 +7,7 @@ package settings
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -24,7 +25,7 @@ func (s dsdStatsRuntimeSetting) Name() string {
 }
 
 func (s dsdStatsRuntimeSetting) Get() (interface{}, error) {
-	return common.DSD.DebugMetricsStats, nil
+	return atomic.LoadUint64(&common.DSD.DebugMetricsStats) == 1, nil
 }
 
 func (s dsdStatsRuntimeSetting) Set(v interface{}) error {
@@ -35,7 +36,12 @@ func (s dsdStatsRuntimeSetting) Set(v interface{}) error {
 		return fmt.Errorf("dsdStatsRuntimeSetting: %v", err)
 	}
 
-	common.DSD.DebugMetricsStats = newValue
+	if newValue {
+		atomic.StoreUint64(&common.DSD.DebugMetricsStats, 1)
+	} else {
+		atomic.StoreUint64(&common.DSD.DebugMetricsStats, 0)
+	}
+
 	config.Datadog.Set("dogstatsd_metrics_stats_enable", newValue)
 	return nil
 }

@@ -114,7 +114,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set("true")
 	assert.Nil(err)
-	assert.Equal(common.DSD.DebugMetricsStats, true)
+	assert.Equal(common.DSD.DebugMetricsStats, 1)
 	v, err := s.Get()
 	assert.Nil(err)
 	assert.Equal(v, true)
@@ -123,7 +123,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set("false")
 	assert.Nil(err)
-	assert.Equal(common.DSD.DebugMetricsStats, false)
+	assert.Equal(common.DSD.DebugMetricsStats, 0)
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, false)
@@ -132,7 +132,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set(true)
 	assert.Nil(err)
-	assert.Equal(common.DSD.DebugMetricsStats, true)
+	assert.Equal(common.DSD.DebugMetricsStats, 1)
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, true)
@@ -141,14 +141,14 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set(false)
 	assert.Nil(err)
-	assert.Equal(common.DSD.DebugMetricsStats, false)
+	assert.Equal(common.DSD.DebugMetricsStats, 0)
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, false)
 
 	// ensure the getter uses the value from the actual server
 
-	common.DSD.DebugMetricsStats = true
+	common.DSD.DebugMetricsStats = 1
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, true)
