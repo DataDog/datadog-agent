@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datadog-cluster-agent
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: datadog-cluster-agent
+  template:
+    metadata:
+      labels:
+        app: datadog-cluster-agent
+      name: datadog-agent
+      annotations:
+        ad.datadoghq.com/datadog-cluster-agent.check_names: '["prometheus"]'
+        ad.datadoghq.com/datadog-cluster-agent.init_configs: '[{}]'
+        ad.datadoghq.com/datadog-cluster-agent.instances: '[{"prometheus_url": "http://%%host%%:5000/metrics","namespace": "datadog.cluster_agent","metrics": ["go_goroutines","go_memstats_*","process_*","api_requests","datadog_requests","external_metrics", "cluster_checks_*"]}]'
+    spec:
+      serviceAccountName: dca
+      containers:
+      - image: datadog/cluster-agent:latest
+        imagePullPolicy: Always
+        name: datadog-cluster-agent
+        env:
+          - name: DD_API_KEY
+            value: '<YOUR_API_KEY>'
+          # Optionally reference an APP KEY for the External Metrics Provider.
+          # - name: DD_APP_KEY
+          #   value: '<YOUR_APP_KEY>'
+          - name: DD_COLLECT_KUBERNETES_EVENTS
+            value: "true"
+          - name: DD_LEADER_ELECTION
+            value: "true"
+          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+            value: <THIRTY_2_CHARACTERS_LONG_TOKEN>
+          - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
+            value: 'true'
+          # If using a secret, you can alternatively use:
+          # - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+          #   valueFrom:
+          #     secretKeyRef:
+          #       name: datadog-auth-token
+          #       key: token

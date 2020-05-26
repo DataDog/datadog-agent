@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: datadog-agent
+  namespace: default
+spec:
+  minReadySeconds: 0
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 15%
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: datadog-agent
+  template:
+    metadata:
+      labels:
+        app: datadog-agent
+      name: datadog-agent
+    spec:
+      serviceAccountName: datadog-agent
+      containers:
+      - image: datadog/agent:7
+        imagePullPolicy: Always
+        name: datadog-agent
+        ports:
+          - {containerPort: 8125, name: dogstatsdport, protocol: UDP}
+          - {containerPort: 8126, name: traceport, protocol: TCP}
+        env:
+          - {name: DD_API_KEY, value: <YOUR_API_KEY>}
+          - {name: KUBERNETES, value: "true"}
+          - {name: DD_HEALTH_PORT, value: "5555"}
+          - name: DD_KUBERNETES_KUBELET_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - {name: DOCKER_HOST, value: unix:///host/var/run/docker.sock}
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        volumeMounts:
+          - {name: dockersocketdir, mountPath: /host/var/run}
+          - {name: procdir, mountPath: /host/proc, readOnly: true}
+          - {name: cgroups, mountPath: /host/sys/fs/cgroup, readOnly: true}
+          - {name: s6-run, mountPath: /var/run/s6}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5555
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+      volumes:
+        - {name: dockersocketdir, hostPath: {path: /var/run}}
+        - {name: procdir, hostPath: {path: /proc}}
+        - {name: cgroups, hostPath: {path: /sys/fs/cgroup}}
+        - {name: s6-run, emptyDir: {}}

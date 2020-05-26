@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: datadog-cluster-agent
+  labels:
+    app: datadog-cluster-agent
+spec:
+  ports:
+  - port: 5005 # Has to be the same as the one exposed in the DCA. Default is 5005.
+    protocol: TCP
+  selector:
+    app: datadog-cluster-agent
