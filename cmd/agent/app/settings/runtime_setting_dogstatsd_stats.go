@@ -29,24 +29,10 @@ func (s dsdStatsRuntimeSetting) Get() (interface{}, error) {
 
 func (s dsdStatsRuntimeSetting) Set(v interface{}) error {
 	var newValue bool
+	var err error
 
-	// to be cautious, take care of both calls with a string (cli) or a bool (programmaticaly)
-	str, ok := v.(string)
-	if !ok {
-		b, ok := v.(bool)
-		if !ok {
-			return fmt.Errorf("bad parameter provided")
-		}
-		newValue = b
-	} else {
-		switch str {
-		case "true":
-			newValue = true
-		case "false":
-			newValue = false
-		default:
-			return fmt.Errorf("bad parameter value provided: %v", str)
-		}
+	if newValue, err = getBool(v); err != nil {
+		return fmt.Errorf("dsdStatsRuntimeSetting: %v", err)
 	}
 
 	common.DSD.DebugMetricsStats = newValue
