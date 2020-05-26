@@ -769,6 +769,13 @@ api_key:
 #
 # dogstatsd_stats_enable: false
 
+## @param dogstatsd_queue_size - integer - optional - default: 1024
+## Configure the internal queue size of the Dogstatsd server.
+## Reducing the size of this queue will reduce the maximum memory usage of the
+## Dogstatsd server but as a trade-off, it could increase the number of packet drops.
+#
+# dogstatsd_queue_size: 1024
+
 ## @param dogstatsd_stats_buffer - integer - optional - default: 10
 ## Set how many items should be in the DogStatsD's stats circular buffer.
 #
