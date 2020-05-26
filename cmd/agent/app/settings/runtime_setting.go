@@ -1,9 +1,9 @@
-/// Unless explicitly stated otherwise all files in this repository are licensed
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package config
+package settings
 
 import (
 	"errors"
@@ -29,9 +29,13 @@ type RuntimeSetting interface {
 	Description() string
 }
 
-func initRuntimeSettings() {
+// InitRuntimeSettings builds the map of runtime settings configurable at runtime.
+func InitRuntimeSettings() error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	registerRuntimeSetting(logLevelRuntimeSetting("log_level")) //nolint:errcheck
+	if err := registerRuntimeSetting(logLevelRuntimeSetting("log_level")); err != nil {
+		return err
+	}
+	return nil
 }
 
 // RegisterRuntimeSettings keeps track of configurable settings

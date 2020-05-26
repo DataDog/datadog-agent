@@ -132,8 +132,6 @@ func init() {
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	initConfig(Datadog)
-	// Configuration settings that can be changed at runtime
-	initRuntimeSettings()
 }
 
 // initConfig initializes the config defaults on a config
