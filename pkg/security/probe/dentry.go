@@ -51,7 +51,7 @@ func (dr *DentryResolver) resolve(dev uint32, inode uint64) (filename string, er
 	// Don't resolve path if pathnameKey isn't valid
 	key := PathKey{dev: dev, inode: inode}
 	if key.IsNull() {
-		return "", fmt.Errorf("invalid inode/dev couple: %s", key)
+		return "", fmt.Errorf("invalid inode/dev couple: %s", key.String())
 	}
 
 	keyBuffer := make([]byte, 16)

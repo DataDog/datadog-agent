@@ -20,7 +20,6 @@ func TestMkdirJSON(t *testing.T) {
 	e.Mkdir = MkdirEvent{
 		Inode:       33,
 		Mode:        0777,
-		MountID:     555,
 		PathnameStr: "/etc/passwd",
 	}
 
