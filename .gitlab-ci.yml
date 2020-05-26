@@ -38,8 +38,6 @@ stages:
   - notify
 
 variables:
-  # The SRC_PATH is in the GOPATH of the builders which
-  # currently is /go
   SRC_PATH: /go/src/github.com/DataDog/datadog-agent
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
