@@ -190,10 +190,10 @@ func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
 
 type RenameEvent struct {
 	Dev               uint32 `field:"-"`
-	SrcInode          uint64 `json:"oldinode,omitempty" field:"oldinode" event:"rename"`
-	SrcPathnameStr    string `json:"-" field:"oldfilename" handler:"ResolveSrcInode,string" event:"rename"`
-	TargetInode       uint64 `json:"newinode,omitempty" field:"newinode" event:"rename"`
-	TargetPathnameStr string `json:"-" field:"newfilename" handler:"ResolveTargetInode,string" event:"rename"`
+	SrcInode          uint64 `field:"old_inode" event:"rename"`
+	SrcPathnameStr    string `field:"old_filename" handler:"ResolveSrcInode,string" event:"rename"`
+	TargetInode       uint64 `field:"new_inode" event:"rename"`
+	TargetPathnameStr string `field:"new_filename" handler:"ResolveTargetInode,string" event:"rename"`
 }
 
 func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
