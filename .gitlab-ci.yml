@@ -3766,25 +3766,31 @@ deploy_cloudfront_invalidate_on_failure:
 #
 # Trigger release pipelines
 #
+
+# The trigger jobs are always run (even on failing pipelines)
+# because there's no way to retry a trigger job once it gets skipped
+# because of a pipeline failure, even when retrying the pipeline.
 trigger_release_7:
   <<: *run_only_when_triggered_on_tag_7
   stage: trigger_release
   needs: ["deploy_cloudfront_invalidate_on_success"]
   variables:
-    RELEASE_VERSION: $RELEASE_VERSION_7
+    RELEASE_VERSION: $RELEASE_VERSION_7-1
   trigger:
     project: DataDog/agent-release-management
     branch: master
+  when: always
 
 trigger_release_6:
   <<: *run_only_when_triggered_on_tag_6
   stage: trigger_release
   needs: ["deploy_cloudfront_invalidate_on_success"]
   variables:
-    RELEASE_VERSION: $RELEASE_VERSION_6
+    RELEASE_VERSION: $RELEASE_VERSION_6-1
   trigger:
     project: DataDog/agent-release-management
     branch: master
+  when: always
 
 #
 # end to end
