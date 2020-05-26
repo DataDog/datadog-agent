@@ -240,6 +240,11 @@ api_key:
 #   - "google-container-manifest"
 #   - "bosh_settings"
 
+## @param gce_metadata_timeout - integer - optional - default: 1000
+## Timeout in milliseconds on calls to the GCE metadata endpoints.
+#
+# gce_metadata_timeout: 1000
+
 ## @param flare_stripped_keys - list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
 ## including them in the flare.
