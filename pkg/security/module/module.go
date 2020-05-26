@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -21,7 +21,7 @@ import (
 var RuleWithoutEventErr = errors.New("rule without event")
 
 type Module struct {
-	probe   *probe.Probe
+	probe   *sprobe.Probe
 	config  *config.Config
 	ruleSet *eval.RuleSet
 	server  *EventServer
@@ -37,7 +37,7 @@ func (a *Module) Register(server *grpc.Server) error {
 		return err
 	}
 
-	if err := a.probe.Setup(a.ruleSet); err != nil {
+	if err := a.probe.ApplyRuleSet(a.ruleSet); err != nil {
 		log.Warnf(err.Error())
 	}
 
@@ -53,21 +53,21 @@ func (a *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
 func (a *Module) EventDiscarderFound(event eval.Event, field string) {
-	a.probe.AddKernelFilter(event.(*probe.Event), field)
+	a.probe.AddKernelFilter(event.(*sprobe.Event), field)
 }
 
 func (a *Module) EventApproverFound(event eval.Event, field string) {
-	a.probe.AddKernelFilter(event.(*probe.Event), field)
+	a.probe.AddKernelFilter(event.(*sprobe.Event), field)
 }
 
-func (a *Module) HandleEvent(event *probe.Event) {
+func (a *Module) HandleEvent(event *sprobe.Event) {
 	a.ruleSet.Evaluate(event)
 }
 
-func (a *Module) loadMacros() (map[string]*ast.Macro, error) {
+func loadMacros(config *config.Config) (map[string]*ast.Macro, error) {
 	macros := make(map[string]*ast.Macro)
 
-	for _, policyDef := range a.config.Policies {
+	for _, policyDef := range config.Policies {
 		for _, policyPath := range policyDef.Files {
 			f, err := os.Open(policyPath)
 			if err != nil {
@@ -93,33 +93,33 @@ func (a *Module) loadMacros() (map[string]*ast.Macro, error) {
 	return macros, nil
 }
 
-func (a *Module) LoadPolicies(debug bool) error {
-	macros, err := a.loadMacros()
+func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, error) {
+	macros, err := loadMacros(config)
 	if err != nil {
 		log.Error(err)
-		return err
+		return nil, err
 	}
 
 	opts := eval.Opts{
-		Debug:     debug,
+		Debug:     config.Debug,
 		Macros:    macros,
-		Constants: probe.SECLConstants,
+		Constants: sprobe.SECLConstants,
 	}
 
-	a.ruleSet = a.probe.NewRuleSet(opts)
+	ruleSet := probe.NewRuleSet(opts)
 
-	for _, policyDef := range a.config.Policies {
+	for _, policyDef := range config.Policies {
 		for _, policyPath := range policyDef.Files {
 			f, err := os.Open(policyPath)
 			if err != nil {
 				log.Errorf("failed to load policy: %s", policyPath)
-				return err
+				return nil, err
 			}
 
 			policy, err := policy.LoadPolicy(f)
 			if err != nil {
 				log.Errorf("failed to load policy `%s`: %s", policyPath, err)
-				return err
+				return nil, err
 			}
 
 			for _, ruleDef := range policy.Rules {
@@ -135,28 +135,28 @@ func (a *Module) LoadPolicies(debug bool) error {
 					} else {
 						log.Errorf("rule parsing error: %s\n%s", err, ruleDef.Expression)
 					}
-					return err
+					return nil, err
 				}
 
-				rule, err := a.ruleSet.AddRule(ruleDef.ID, astRule, tags...)
+				rule, err := ruleSet.AddRule(ruleDef.ID, astRule, tags...)
 				if err != nil {
 					if err, ok := err.(*eval.AstToEvalError); ok {
 						log.Errorf("rule syntax error: %s\n%s", err, secl.SprintExprAt(ruleDef.Expression, err.Pos))
 					} else {
 						log.Errorf("rule compilation error: %s\n%s", err, ruleDef.Expression)
 					}
-					return err
+					return nil, err
 				}
 
 				if len(rule.GetEventTypes()) == 0 {
 					log.Errorf("rule without event specified: %s", ruleDef.Expression)
-					return RuleWithoutEventErr
+					return nil, RuleWithoutEventErr
 				}
 			}
 		}
 	}
 
-	return nil
+	return ruleSet, nil
 }
 
 func (a *Module) GetStats() map[string]interface{} {
@@ -170,19 +170,21 @@ func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 		return nil, err
 	}
 
-	p, err := probe.NewProbe(config)
+	probe, err := sprobe.NewProbe(config)
+	if err != nil {
+		return nil, err
+	}
+
+	ruleSet, err := LoadPolicies(config, probe)
 	if err != nil {
 		return nil, err
 	}
 
 	agent := &Module{
-		config: config,
-		probe:  p,
-		server: NewEventServer(),
-	}
-
-	if err := agent.LoadPolicies(config.Debug); err != nil {
-		return nil, err
+		config:  config,
+		probe:   probe,
+		ruleSet: ruleSet,
+		server:  NewEventServer(),
 	}
 
 	return agent, nil

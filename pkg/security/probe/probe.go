@@ -310,7 +310,7 @@ func (p *Probe) AddKernelFilter(event *Event, field string) {
 	}
 }
 
-func (p *Probe) Setup(rs *eval.RuleSet) error {
+func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 	already := make(map[*KProbe]bool)
 
 	for _, kprobe := range AllKProbes {
