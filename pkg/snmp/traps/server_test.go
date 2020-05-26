@@ -100,13 +100,17 @@ func assertV3(t *testing.T, p *gosnmp.SnmpPacket, config TrapListenerConfig) {
 	require.NotNil(t, p.SecurityParameters)
 	sp := p.SecurityParameters.(*gosnmp.UsmSecurityParameters)
 
-	authProtocol, err := config.BuildAuthProtocol()
-	require.NoError(t, err)
-	require.Equal(t, authProtocol, sp.AuthenticationProtocol)
+	if config.AuthProtocol != "" {
+		authProtocol, err := BuildAuthProtocol(config.AuthProtocol)
+		require.NoError(t, err)
+		require.Equal(t, authProtocol, sp.AuthenticationProtocol)
+	}
 
-	privProtocol, err := config.BuildPrivProtocol()
-	require.NoError(t, err)
-	require.Equal(t, privProtocol, sp.PrivacyProtocol)
+	if config.PrivProtocol != "" {
+		privProtocol, err := BuildPrivProtocol(config.PrivProtocol)
+		require.NoError(t, err)
+		require.Equal(t, privProtocol, sp.PrivacyProtocol)
+	}
 }
 
 func assertVariables(t *testing.T, p *gosnmp.SnmpPacket) {
@@ -203,6 +207,64 @@ snmp_traps_listeners:
 			assertV2c(t, p, config)
 			assertVariables(t, p)
 		}
+	})
+
+	t.Run("v3-no-auth-no-priv", func(t *testing.T) {
+		port, err := getAvailableUDPPort()
+		require.NoError(t, err)
+
+		config := TrapListenerConfig{
+			Port: port,
+			User: "doggo",
+		}
+
+		configure(t, fmt.Sprintf(`
+snmp_traps_listeners:
+  - port: %d
+    user: %s
+`, config.Port, config.User))
+
+		s, err := NewTrapServer()
+		require.NoError(t, err)
+		require.NotNil(t, s)
+		defer s.Stop()
+		require.True(t, s.Started)
+		require.Equal(t, s.NumListeners(), 1)
+
+		p := sendTestTrap(t, s, config)
+		assertV3(t, p, config)
+		assertVariables(t, p)
+	})
+
+	t.Run("v3-auth-no-priv", func(t *testing.T) {
+		port, err := getAvailableUDPPort()
+		require.NoError(t, err)
+
+		config := TrapListenerConfig{
+			Port:         port,
+			User:         "doggo",
+			AuthProtocol: "MD5",
+			AuthKey:      "doggopass",
+		}
+
+		configure(t, fmt.Sprintf(`
+snmp_traps_listeners:
+  - port: %d
+    user: %s
+    auth_protocol: %s
+    auth_key: %s
+`, config.Port, config.User, config.AuthProtocol, config.AuthKey))
+
+		s, err := NewTrapServer()
+		require.NoError(t, err)
+		require.NotNil(t, s)
+		defer s.Stop()
+		require.True(t, s.Started)
+		require.Equal(t, s.NumListeners(), 1)
+
+		p := sendTestTrap(t, s, config)
+		assertV3(t, p, config)
+		assertVariables(t, p)
 	})
 
 	t.Run("v3-auth-priv", func(t *testing.T) {

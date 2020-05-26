@@ -31,61 +31,64 @@ func (x *trapLogger) Printf(format string, v ...interface{}) {
 	log.Debugf(format, v...)
 }
 
-// BuildVersion returns the GoSNMP version value for a listener configuration.
-func (c *TrapListenerConfig) BuildVersion() (gosnmp.SnmpVersion, error) {
-	switch c.Version {
+// BuildVersion returns the GoSNMP version value from a string value.
+func BuildVersion(value string) (gosnmp.SnmpVersion, error) {
+	switch value {
 	case "1":
 		return gosnmp.Version1, nil
 	case "2", "2c":
 		return gosnmp.Version2c, nil
 	case "3":
 		return gosnmp.Version3, nil
-	case "":
-		if c.Community != "" {
-			return gosnmp.Version2c, nil
-		}
-		if c.User != "" {
-			return gosnmp.Version3, nil
-		}
-		return 0, errors.New("One of `community` or `user` is required")
 	default:
-		return 0, fmt.Errorf("Unsupported version: %s (possible values are '1', '2c' and '3')", c.Version)
+		return 0, fmt.Errorf("Unsupported version: '%s' (possible values are '1', '2c' and '3')", value)
 	}
 }
 
-// BuildAuthProtocol returns the GoSNMP authentication protocol value for a listener configuration.
-func (c *TrapListenerConfig) BuildAuthProtocol() (gosnmp.SnmpV3AuthProtocol, error) {
-	switch c.AuthProtocol {
-	case "", "SHA":
+// InferVersion infers the GoSNMP version value from a community string and username.
+func InferVersion(community string, user string) (gosnmp.SnmpVersion, error) {
+	if community != "" {
+		return gosnmp.Version2c, nil
+	}
+	if user != "" {
+		return gosnmp.Version3, nil
+	}
+	return 0, errors.New("Could not infer version: `community` and `user` are not set")
+}
+
+// BuildAuthProtocol returns the GoSNMP authentication protocol value from a string value.
+func BuildAuthProtocol(value string) (gosnmp.SnmpV3AuthProtocol, error) {
+	switch value {
+	case "SHA":
 		return gosnmp.SHA, nil
 	case "MD5":
 		return gosnmp.MD5, nil
 	default:
-		return 0, fmt.Errorf("Unsupported authentication protocol: %s (possible values are 'MD5' and 'SHA')", c.AuthProtocol)
+		return 0, fmt.Errorf("Unsupported authentication protocol: '%s' (possible values are 'MD5' and 'SHA')", value)
 	}
 }
 
-// BuildPrivProtocol returns the GoSNMP privacy protocol value for a listener configuration.
-func (c *TrapListenerConfig) BuildPrivProtocol() (gosnmp.SnmpV3PrivProtocol, error) {
-	switch c.PrivProtocol {
-	case "", "DES":
+// BuildPrivProtocol returns the GoSNMP privacy protocol value from a string value.
+func BuildPrivProtocol(value string) (gosnmp.SnmpV3PrivProtocol, error) {
+	switch value {
+	case "DES":
 		return gosnmp.DES, nil
 	case "AES":
 		return gosnmp.AES, nil
 	default:
-		return 0, fmt.Errorf("Unsupported privacy protocol: %s (possible values are 'DES' and 'AES')", c.PrivProtocol)
+		return 0, fmt.Errorf("Unsupported privacy protocol: '%s' (possible values are 'DES' and 'AES')", value)
 	}
 }
 
 // BuildMsgFlags returns the GoSNMP message flags value for a listener configuration.
-func (c *TrapListenerConfig) BuildMsgFlags() (gosnmp.SnmpV3MsgFlags, error) {
-	if c.PrivKey != "" {
-		if c.AuthKey == "" {
+func BuildMsgFlags(authKey string, privKey string) (gosnmp.SnmpV3MsgFlags, error) {
+	if privKey != "" {
+		if authKey == "" {
 			return 0, errors.New("`auth_key` is required when `priv_key` is set")
 		}
 		return gosnmp.AuthPriv, nil
 	}
-	if c.AuthKey != "" {
+	if authKey != "" {
 		return gosnmp.AuthNoPriv, nil
 	}
 	return gosnmp.NoAuthNoPriv, nil
@@ -102,7 +105,13 @@ func (c *TrapListenerConfig) BuildParams() (*gosnmp.GoSNMP, error) {
 		return nil, errors.New("One of `community` or `user` must be specified")
 	}
 
-	version, err := c.BuildVersion()
+	var version gosnmp.SnmpVersion
+	var err error
+	if c.Version == "" {
+		version, err = InferVersion(c.Community, c.User)
+	} else {
+		version, err = BuildVersion(c.Version)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -114,32 +123,38 @@ func (c *TrapListenerConfig) BuildParams() (*gosnmp.GoSNMP, error) {
 		We probably want to validate these constraints, otherwise hard-to-debug behaviors might happen.
 	*/
 
-	authProtocol, err := c.BuildAuthProtocol()
-	if err != nil {
-		return nil, err
-	}
-
-	privProtocol, err := c.BuildPrivProtocol()
-	if err != nil {
-		return nil, err
-	}
-
-	msgFlags, err := c.BuildMsgFlags()
-	if err != nil {
-		return nil, err
-	}
-
 	logger := &trapLogger{}
 
 	securityParams := &gosnmp.UsmSecurityParameters{
-		UserName:                 c.User,
-		AuthenticationProtocol:   authProtocol,
-		AuthenticationPassphrase: c.AuthKey,
-		PrivacyProtocol:          privProtocol,
-		PrivacyPassphrase:        c.PrivKey,
+		UserName: c.User,
 		// NOTE: passing a logger here is critical, otherwise GoSNMP panics upon receiving a v3 trap due to a bug.
 		Logger: logger,
 	}
+
+	if c.AuthProtocol != "" {
+		authProtocol, err := BuildAuthProtocol(c.AuthProtocol)
+		if err != nil {
+			return nil, err
+		}
+		securityParams.AuthenticationProtocol = authProtocol
+		securityParams.AuthenticationPassphrase = c.AuthKey
+	}
+
+	if c.PrivProtocol != "" {
+		privProtocol, err := BuildPrivProtocol(c.PrivProtocol)
+		if err != nil {
+			return nil, err
+		}
+		securityParams.PrivacyProtocol = privProtocol
+		securityParams.PrivacyPassphrase = c.PrivKey
+	}
+
+	msgFlags, err := BuildMsgFlags(c.AuthKey, c.PrivKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: only set Community on SNMPv1/v2c, and MsgFlags/SecurityModel/SecurityParameters on SNMPv3.
 
 	params := &gosnmp.GoSNMP{
 		Port:               port,
