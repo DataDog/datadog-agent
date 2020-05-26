@@ -6,6 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
-  - Install script creates ``install_info`` report
-  - Agent detects ``install_info`` report and sends it through Host metadata
+fixes:
+  - |
+    APM: The reported "payload_too_large" metric, which counts dropped payloads
+    due to their size, was previously incorrect and showed larger than normal numbers.

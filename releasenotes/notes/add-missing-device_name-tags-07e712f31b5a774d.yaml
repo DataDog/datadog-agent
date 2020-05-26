@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Add missing `device_name` tags on docker, containerd and network checks.
-    Make series manage `device_name` tag if `device` is missing.
+    Add missing ``device_name`` tags on docker, containerd and network checks.
+    Make series manage ``device_name`` tag if ``device`` is missing.
