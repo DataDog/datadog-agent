@@ -11,7 +11,7 @@ import (
 func TestRename(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `rename.oldfilename == "{{.Root}}/test" && rename.newfilename == "{{.Root}}/test2"`,
+		Expression: `rename.old_filename == "{{.Root}}/test" && rename.new_filename == "{{.Root}}/test2"`,
 	}
 
 	test, err := newTestModule(nil, []*policy.RuleDefinition{rule})

@@ -28,8 +28,6 @@ struct syscall_cache_t {
         struct {
             struct inode *src_dir;
             struct dentry *src_dentry;
-            struct inode *target_dir;
-            struct dentry *target_dentry;
             struct path_key_t random_key;
         } rename;
     };

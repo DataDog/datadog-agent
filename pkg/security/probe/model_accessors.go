@@ -178,7 +178,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "rename.newfilename":
+	case "rename.new_filename":
 
 		return &eval.StringEvaluator{
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Rename.ResolveTargetInode(m.event.resolvers) },
@@ -187,7 +187,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "rename.newinode":
+	case "rename.new_inode":
 
 		return &eval.IntEvaluator{
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Rename.TargetInode) },
@@ -196,7 +196,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "rename.oldfilename":
+	case "rename.old_filename":
 
 		return &eval.StringEvaluator{
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Rename.ResolveSrcInode(m.event.resolvers) },
@@ -205,7 +205,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
-	case "rename.oldinode":
+	case "rename.old_inode":
 
 		return &eval.IntEvaluator{
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Rename.SrcInode) },
@@ -420,16 +420,16 @@ func (e *Event) GetFieldTags(key string) ([]string, error) {
 	case "process.uid":
 		return []string{}, nil
 
-	case "rename.newfilename":
+	case "rename.new_filename":
 		return []string{}, nil
 
-	case "rename.newinode":
+	case "rename.new_inode":
 		return []string{}, nil
 
-	case "rename.oldfilename":
+	case "rename.old_filename":
 		return []string{}, nil
 
-	case "rename.oldinode":
+	case "rename.old_inode":
 		return []string{}, nil
 
 	case "rmdir.filename":
@@ -506,16 +506,16 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 	case "process.uid":
 		return "*", nil
 
-	case "rename.newfilename":
+	case "rename.new_filename":
 		return "rename", nil
 
-	case "rename.newinode":
+	case "rename.new_inode":
 		return "rename", nil
 
-	case "rename.oldfilename":
+	case "rename.old_filename":
 		return "rename", nil
 
-	case "rename.oldinode":
+	case "rename.old_inode":
 		return "rename", nil
 
 	case "rmdir.filename":

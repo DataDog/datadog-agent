@@ -42,8 +42,6 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
 
     syscall->rename.src_dir = (struct inode *)PT_REGS_PARM1(ctx);
     syscall->rename.src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-    syscall->rename.target_dir = (struct inode *)PT_REGS_PARM3(ctx);
-    syscall->rename.target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
 
     // we generate a fake source key as the inode is (can be ?) reused
     syscall->rename.random_key.dev = 0xffffffff;
@@ -58,18 +56,18 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    struct path_key_t target_path_key = get_dentry_key(syscall->rename.src_dentry);
+    struct path_key_t path_key = get_dentry_key(syscall->rename.src_dentry);
     struct rename_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
         .event.type = EVENT_VFS_RENAME,
         .event.timestamp = bpf_ktime_get_ns(),
-        .dev = target_path_key.dev,
+        .dev = path_key.dev,
         .src_inode = syscall->rename.random_key.ino,
-        .target_inode = target_path_key.ino,
+        .target_inode = path_key.ino,
     };
 
     fill_process_data(&event.process);
-    resolve_dentry(syscall->rename.target_dentry, target_path_key);
+    resolve_dentry(syscall->rename.src_dentry, path_key);
 
     send_event(ctx, event);
 
