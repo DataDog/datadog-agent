@@ -660,6 +660,8 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.source_excludes")
 	config.SetKnown("system_probe_config.dest_excludes")
 	config.SetKnown("system_probe_config.closed_channel_size")
+	config.SetKnown("system_probe_config.dns_timeout_in_s")
+	config.SetKnown("system_probe_config.collect_dns_stats")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
