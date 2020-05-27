@@ -1985,7 +1985,7 @@ deploy_windows_testing-a7:
 
 .kitchen_scenario_debian_a7:
   extends:
-    - .kitchen_os_windows
+    - .kitchen_os_debian
     - .kitchen_agent_a7
   needs: ["fail_on_non_triggered_tag", "deploy_deb_testing-a7"]
 
