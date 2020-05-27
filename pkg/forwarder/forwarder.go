@@ -24,6 +24,7 @@ import (
 
 var (
 	forwarderExpvars              = expvar.NewMap("forwarder")
+	connectionEvents              = expvar.Map{}
 	transactionsExpvars           = expvar.Map{}
 	transactionsSeries            = expvar.Int{}
 	transactionsEvents            = expvar.Int{}
@@ -67,7 +68,9 @@ var (
 
 func init() {
 	transactionsExpvars.Init()
+	connectionEvents.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
+	forwarderExpvars.Set("ConnectionEvents", &connectionEvents)
 	transactionsExpvars.Set("Series", &transactionsSeries)
 	transactionsExpvars.Set("Events", &transactionsEvents)
 	transactionsExpvars.Set("ServiceChecks", &transactionsServiceChecks)
@@ -154,19 +157,33 @@ var _ Forwarder = &DefaultForwarder{}
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
-	NumberOfWorkers       int
-	RetryQueueSize        int
-	DisableAPIKeyChecking bool
-	KeysPerDomain         map[string][]string
+	NumberOfWorkers          int
+	RetryQueueSize           int
+	DisableAPIKeyChecking    bool
+	APIKeyValidationInterval time.Duration
+	KeysPerDomain            map[string][]string
+	ConnectionResetInterval  time.Duration
 }
 
 // NewOptions creates new Options with default values
 func NewOptions(keysPerDomain map[string][]string) *Options {
+	validationInterval := config.Datadog.GetInt("forwarder_apikey_validation_interval")
+	if validationInterval <= 0 {
+		log.Warnf(
+			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
+			validationInterval,
+			config.DefaultAPIKeyValidationInterval,
+		)
+		validationInterval = config.DefaultAPIKeyValidationInterval
+	}
+
 	return &Options{
-		NumberOfWorkers:       config.Datadog.GetInt("forwarder_num_workers"),
-		RetryQueueSize:        config.Datadog.GetInt("forwarder_retry_queue_max_size"),
-		DisableAPIKeyChecking: false,
-		KeysPerDomain:         keysPerDomain,
+		NumberOfWorkers:          config.Datadog.GetInt("forwarder_num_workers"),
+		RetryQueueSize:           config.Datadog.GetInt("forwarder_retry_queue_max_size"),
+		DisableAPIKeyChecking:    false,
+		APIKeyValidationInterval: time.Duration(validationInterval) * time.Minute,
+		KeysPerDomain:            keysPerDomain,
+		ConnectionResetInterval:  time.Duration(config.Datadog.GetInt("forwarder_connection_reset_interval")) * time.Second,
 	}
 }
 
@@ -192,6 +209,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		healthChecker: &forwarderHealth{
 			keysPerDomains:        options.KeysPerDomain,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
+			validationInterval:    options.APIKeyValidationInterval,
 		},
 	}
 
@@ -201,7 +219,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			f.keysPerDomains[domain] = keys
-			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize)
+			f.domainForwarders[domain] = newDomainForwarder(domain, options.NumberOfWorkers, options.RetryQueueSize, options.ConnectionResetInterval)
 		}
 	}
 
@@ -460,10 +478,6 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep endpoint, payload Payload
 	for _, txn := range transactions {
 		txn.retryable = retryable
 		txn.attemptHandler = func(transaction *HTTPTransaction) {
-			if v := transaction.Headers.Get("X-DD-Agent-Timestamp"); v == "" {
-				transaction.Headers.Set("X-DD-Agent-Timestamp", strconv.Itoa(int(transaction.GetCreatedAt().Unix())))
-			}
-
 			if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
 				transaction.Headers.Set("X-DD-Agent-Attempts", "1")
 			} else {

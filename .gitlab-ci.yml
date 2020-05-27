@@ -27,6 +27,7 @@ stages:
   - deploy7
   - deploy7-manifests
   - deploy_invalidate
+  - trigger_release
   - e2e
   - testkitchen_cleanup
   - notify
@@ -178,7 +179,7 @@ fail_on_non_triggered_tag:
   tags: [ "runner:main", "size:2xlarge" ]
   script:
     - echo CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE CI_COMMIT_TAG=$CI_COMMIT_TAG
-    - '[ "$CI_COMMIT_TAG" == "" -o "$CI_PIPELINE_SOURCE" != "push" ]'
+    - '[[ $CI_COMMIT_TAG == dca-* || $CI_COMMIT_TAG == "" || $CI_PIPELINE_SOURCE != "push" ]]'
 
 #
 # deps_build
@@ -561,6 +562,10 @@ cluster_agent_cloudfoundry-build_amd64:
   needs: ["fail_on_non_triggered_tag", "run_go_tidy_check"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
   variables:
     ARCH: amd64
   before_script:
@@ -568,9 +573,10 @@ cluster_agent_cloudfoundry-build_amd64:
     - inv -e deps --no-checks --verbose --dep-vendor-only
   script:
     - inv -e cluster-agent-cloudfoundry.build
-    - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR/datadog-cluster-agent-cloudfoundry $S3_ARTIFACTS_URI/datadog-cluster-agent-cloudfoundry.$ARCH
-
-
+    - cd $SRC_PATH/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - tar cf $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent-cloudfoundry-$PACKAGE_VERSION-$ARCH.tar.xz datadog-cluster-agent-cloudfoundry
 
 #
 # integration_test
@@ -1758,8 +1764,8 @@ deploy_windows_testing-a7:
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
     - export TEST_PLATFORMS="win2008r2,id,/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/kitchen-test-images/providers/Microsoft.Compute/galleries/kitchenimages/images/Windows2008-R2-SP1/versions/1.0.0"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190603"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190410"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,urn,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20190416"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:2016.127.20190603"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|win2019,urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:2019.0.20190603"
     - cd $DD_AGENT_TESTING_DIR
@@ -1835,7 +1841,7 @@ deploy_windows_testing-a7:
   before_script: # Override kitchen_os_windows default with a smaller set of TEST_PLATFORMS
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190603"
+    - export TEST_PLATFORMS="win2012,urn,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20190410"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
@@ -2306,6 +2312,7 @@ send_pkg_size-a7:
     - dogstatsd_rpm-x64
     - agent_suse-x64-a7
     - dogstatsd_suse-x64
+    - iot_agent_suse-x64
   script:
     - source /root/.bashrc && conda activate ddpy3
     - mkdir -p /tmp/deb/agent /tmp/deb/dogstatsd /tmp/deb/iot-agent
@@ -2542,7 +2549,7 @@ docker_build_agent7_windows1809:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1809 --build-arg WITH_JMX=false
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1809 --build-arg WITH_JMX=false
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
@@ -2567,7 +2574,7 @@ docker_build_agent7_windows1809_jmx:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1809 --build-arg WITH_JMX=true
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1809 --build-arg WITH_JMX=true
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
@@ -2593,7 +2600,7 @@ docker_build_agent7_windows1909:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1909 --build-arg WITH_JMX=false
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1909 --build-arg WITH_JMX=false
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
@@ -2618,7 +2625,7 @@ docker_build_agent7_windows1909_jmx:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-1909 --build-arg WITH_JMX=true
+    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-1909 --build-arg WITH_JMX=true
   script:
     - $ErrorActionPreference = "Stop"
     - $SHORT_CI_COMMIT_SHA = ${CI_COMMIT_SHA}.Substring(0,7)
@@ -3312,7 +3319,9 @@ deploy_staging_android_tags:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+  # This means this job is never run, but let's keep it around in case we need it one day
   <<: *run_only_when_triggered_on_tag_7
+  <<: *skip_when_triggered
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_android_apk
@@ -3385,7 +3394,7 @@ deploy_staging_suse_rpm-6:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_6
   stage: deploy6
-  resource_group: rpm_bucket
+  resource_group: suse_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -3409,7 +3418,7 @@ deploy_staging_suse_rpm-7:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
-  resource_group: rpm_bucket
+  resource_group: suse_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -3468,6 +3477,19 @@ deploy_staging_datadog_agent_windows_zip:
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.zip" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/bosh/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+deploy_cluster_agent_cloudfoundry:
+  <<: *run_only_when_triggered
+  <<: *skip_when_unwanted_on_7
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  dependencies:
+    - cluster_agent_cloudfoundry-build_amd64
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-cluster-agent-cloudfoundry-*.tar.xz" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/linux/cluster-agent-cloudfoundry/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy datadog agent windows binaries to staging bucket. Currently used for cloudfoundry builpack
 deploy_staging_datadog_agent_windows_binaries_zip:
@@ -3744,6 +3766,33 @@ deploy_cloudfront_invalidate_on_success:
 deploy_cloudfront_invalidate_on_failure:
   <<: *deploy_cloudfront_invalidate
   when: on_failure
+
+#
+# Trigger release pipelines
+#
+
+# The trigger jobs are always run (even on failing pipelines)
+# because there's no way to retry a trigger job once it gets skipped
+# because of a pipeline failure, even when retrying the pipeline.
+trigger_release_7:
+  <<: *run_only_when_triggered_on_tag_7
+  stage: trigger_release
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_7-1
+  trigger:
+    project: DataDog/agent-release-management
+    branch: master
+  when: always
+
+trigger_release_6:
+  <<: *run_only_when_triggered_on_tag_6
+  stage: trigger_release
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_6-1
+  trigger:
+    project: DataDog/agent-release-management
+    branch: master
+  when: always
 
 #
 # end to end

@@ -3,6 +3,7 @@ package testdatadogagent
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -435,4 +436,62 @@ func TestReadPersistentCache(t *testing.T) {
 	if out != "somevalue" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
+}
+
+func TestObfuscateSql(t *testing.T) {
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+	result = datadog_agent.obfuscate_sql("select * from table where id = 1")
+	with open(r'%s', 'w') as f:
+		f.write(str(result))
+	`, tmpfile.Name())
+
+	out, err := run(code)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := "select * from table where id = ?"
+	if out != expected {
+		t.Fatalf("expected: '%s', found: '%s'", out, expected)
+	}
+
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestObfuscateSQLErrors(t *testing.T) {
+	helpers.ResetMemoryStats()
+
+	testCases := []struct {
+		input    string
+		expected string
+	}{
+		{"\"\"", "result is empty"},
+		{"{1: 2}", "argument 1 must be str(ing)?, not dict"},
+		{"None", "argument 1 must be str(ing)?, not None"},
+	}
+
+	for _, c := range testCases {
+		code := fmt.Sprintf(`
+	try:
+		result = datadog_agent.obfuscate_sql(%s)
+	except Exception as e:
+		with open(r'%s', 'w') as f:
+			f.write(str(e))
+		`, c.input, tmpfile.Name())
+		out, err := run(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		matched, err := regexp.MatchString(c.expected, out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !matched {
+			t.Fatalf("expected: '%s', found: '%s'", out, c.expected)
+		}
+	}
+
+	helpers.AssertMemoryUsage(t)
 }

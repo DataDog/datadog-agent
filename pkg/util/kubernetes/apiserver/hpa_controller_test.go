@@ -330,7 +330,8 @@ func TestAutoscalerController(t *testing.T) {
 	timeout := time.NewTimer(5 * time.Second)
 	ticker := time.NewTicker(500 * time.Millisecond)
 	select {
-	case <-hctrl.autoscalers:
+	case key := <-hctrl.autoscalers:
+		t.Logf("hctrl process key:%s", key)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -382,7 +383,8 @@ func TestAutoscalerController(t *testing.T) {
 	_, err = c.HorizontalPodAutoscalers(mockedHPA.Namespace).Update(mockedHPA)
 	require.NoError(t, err)
 	select {
-	case <-hctrl.autoscalers:
+	case key := <-hctrl.autoscalers:
+		t.Logf("hctrl process key:%s", key)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
@@ -434,7 +436,8 @@ func TestAutoscalerController(t *testing.T) {
 	_, err = c.HorizontalPodAutoscalers("default").Create(newMockedHPA)
 	require.NoError(t, err)
 	select {
-	case <-hctrl.autoscalers:
+	case key := <-hctrl.autoscalers:
+		t.Logf("hctrl process key:%s", key)
 	case <-timeout.C:
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}

@@ -6,7 +6,7 @@
 // +build kubeapiserver
 // +build !kubelet
 
-// This provider is only useful for the cluser-agent, that does
+// This provider is only useful for the cluster-agent, that does
 // not have kubelet compiled it. Disable it for the node-agent
 // that already has the kubelet provider available.
 

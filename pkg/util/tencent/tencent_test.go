@@ -11,10 +11,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetInstanceID(t *testing.T) {
+	holdValue := config.Datadog.Get("cloud_provider_metadata")
+	defer config.Datadog.Set("cloud_provider_metadata", holdValue)
+	config.Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

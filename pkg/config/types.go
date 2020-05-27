@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 // Config represents an object that can load and store configuration parameters
@@ -47,7 +48,7 @@ type Config interface {
 	BindEnv(input ...string) error
 	SetEnvKeyReplacer(r *strings.Replacer)
 
-	UnmarshalKey(key string, rawVal interface{}) error
+	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
 	Unmarshal(rawVal interface{}) error
 	UnmarshalExact(rawVal interface{}) error
 

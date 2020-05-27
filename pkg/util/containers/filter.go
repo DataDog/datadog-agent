@@ -33,7 +33,7 @@ const (
 	// pauseContainerAKS regex matches:
 	// - mcr.microsoft.com/k8s/core/pause-amd64
 	// - aksrepos.azurecr.io/mirror/pause-amd64
-	pauseContainerAKS = `image:(mcr.microsoft.com/k8s/core/|aksrepos.azurecr.io/mirror/|kubletwin/)pause(.*)`
+	pauseContainerAKS = `image:(mcr.microsoft.com/k8s/core/|aksrepos.azurecr.io/mirror/|kubeletwin/)pause(.*)`
 	pauseContainerECR = `image:ecr(.*)amazonaws.com/pause(.*)`
 )
 

@@ -68,7 +68,7 @@ typedef struct {
 } tcp_conn_t;
 
 #ifndef TCP_CLOSED_BATCH_SIZE
-#define TCP_CLOSED_BATCH_SIZE 6
+#define TCP_CLOSED_BATCH_SIZE 5
 #endif
 
 // This struct is meant to be used as a container for batching
@@ -80,7 +80,6 @@ typedef struct {
     tcp_conn_t c2;
     tcp_conn_t c3;
     tcp_conn_t c4;
-    tcp_conn_t c5;
     __u8 pos;
 } batch_t;
 
@@ -95,6 +94,7 @@ static const __u8 TRACER_IPV6_ENABLED = 1;
 // Telemetry names
 typedef struct {
     __u64 tcp_sent_miscounts;
+    __u64 missed_tcp_close;
 } telemetry_t;
 
 typedef struct {

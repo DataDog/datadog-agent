@@ -72,7 +72,7 @@ to your datadog.yaml file.
 Exiting.`
 )
 
-func runAgent(exit chan bool) {
+func runAgent(exit chan struct{}) {
 	if opts.version {
 		fmt.Print(versionString("\n"))
 		cleanupAndExit(0)

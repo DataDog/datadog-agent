@@ -1,6 +1,6 @@
 # Cluster check package
 
-This package holds the cluser-agent logic to detect and dispatch cluster checks
+This package holds the cluster-agent logic to detect and dispatch cluster checks
 on node-agents that report to it. The actual scheduling as delegated to the
 node-agents' collector, the cluster-agent is only responsible for spreading
 the load across available nodes.

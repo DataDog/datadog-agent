@@ -91,7 +91,12 @@ func NewTraceWriter(cfg *config.AgentConfig, in <-chan *SampledSpans) *TraceWrit
 	qsize := cfg.TraceWriter.QueueSize
 	if qsize == 0 {
 		// default to 50% of maximum memory.
-		qsize = int(math.Max(1, cfg.MaxMemory/2/float64(maxPayloadSize)))
+		maxmem := cfg.MaxMemory / 2
+		if maxmem == 0 {
+			// or 500MB if unbound
+			maxmem = 500 * 1024 * 1024
+		}
+		qsize = int(math.Max(1, maxmem/float64(maxPayloadSize)))
 	}
 	if s := cfg.TraceWriter.FlushPeriodSeconds; s != 0 {
 		tw.tick = time.Duration(s*1000) * time.Millisecond

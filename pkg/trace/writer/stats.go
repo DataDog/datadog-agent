@@ -65,7 +65,12 @@ func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWri
 	if qsize == 0 {
 		payloadSize := float64(maxEntriesPerPayload * bytesPerEntry)
 		// default to 25% of maximum memory.
-		qsize = int(math.Max(1, cfg.MaxMemory/4/payloadSize))
+		maxmem := cfg.MaxMemory / 4
+		if maxmem == 0 {
+			// or 250MB if unbound
+			maxmem = 250 * 1024 * 1024
+		}
+		qsize = int(math.Max(1, maxmem/payloadSize))
 	}
 	log.Debugf("Stats writer initialized (climit=%d qsize=%d)", climit, qsize)
 	sw.senders = newSenders(cfg, sw, pathStats, climit, qsize)

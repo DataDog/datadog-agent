@@ -1,7 +1,8 @@
 require 'spec_helper'
 
 describe 'dd-agent-installation-script' do
-  include_examples 'Agent'
+  include_examples 'Agent install'
+  include_examples 'Agent behavior'
 
   context 'when testing DD_SITE' do
     let(:config) do
@@ -29,5 +30,7 @@ describe 'dd-agent-installation-script' do
         'installer_version' => /^install_script-\d+\.\d+\.\d+$/
       )
     end
+
+    include_examples 'Agent uninstall'
   end
 end
