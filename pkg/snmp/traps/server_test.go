@@ -79,25 +79,10 @@ func sendTestTrap(t *testing.T, c TrapListenerConfig) {
 	require.NoError(t, err)
 }
 
-// Receiver is a test utility for receiving traps from the trap server.
-type Receiver struct {
-	packets chan *gosnmp.SnmpPacket
-}
-
-// NewReceiver returns a new test receiver.
-func NewReceiver(s *TrapServer) *Receiver {
-	packets := make(chan *gosnmp.SnmpPacket)
-	s.SetTrapHandler(func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-		packets <- p
-	})
-	r := &Receiver{packets: packets}
-	return r
-}
-
-// Receive waits and returns a trap packet. May not be the same than one that has just been sent.
-func (r *Receiver) Receive(t *testing.T) *gosnmp.SnmpPacket {
+// receivePacket waits for a received trap packet and returns it. May not be the same than one that has just been sent.
+func receivePacket(t *testing.T, s *TrapServer) *gosnmp.SnmpPacket {
 	select {
-	case p := <-r.packets:
+	case p := <-s.Output():
 		return p
 	case <-time.After(3 * time.Second):
 		t.Errorf("Trap not received")
@@ -181,9 +166,8 @@ snmp_traps_listeners:
 	require.True(t, s.Started)
 	require.Equal(t, s.NumListeners(), 1)
 
-	r := NewReceiver(s)
 	sendTestTrap(t, config)
-	p := r.Receive(t)
+	p := receivePacket(t, s)
 	assertV2c(t, p, config)
 	assertVariables(t, p)
 }
@@ -211,9 +195,8 @@ snmp_traps_listeners:
 		require.True(t, s.Started)
 		require.Equal(t, s.NumListeners(), 1)
 
-		r := NewReceiver(s)
 		sendTestTrap(t, config)
-		p := r.Receive(t)
+		p := receivePacket(t, s)
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
@@ -244,9 +227,8 @@ snmp_traps_listeners:
 		require.True(t, s.Started)
 		require.Equal(t, s.NumListeners(), 1)
 
-		r := NewReceiver(s)
 		sendTestTrap(t, config)
-		p := r.Receive(t)
+		p := receivePacket(t, s)
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
@@ -281,9 +263,8 @@ snmp_traps_listeners:
 		require.True(t, s.Started)
 		require.Equal(t, s.NumListeners(), 1)
 
-		r := NewReceiver(s)
 		sendTestTrap(t, config)
-		p := r.Receive(t)
+		p := receivePacket(t, s)
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
@@ -339,8 +320,6 @@ snmp_traps_listeners:
 	numMessagesPerListener := 100
 	totalMessages := numMessagesPerListener * len(configs)
 
-	r := NewReceiver(s)
-
 	wg := sync.WaitGroup{}
 	wg.Add(len(configs) + 1)
 
@@ -358,7 +337,7 @@ snmp_traps_listeners:
 	go func() {
 		defer wg.Done()
 		for i := 0; i < totalMessages; i++ {
-			p := r.Receive(t)
+			p := receivePacket(t, s)
 			assertVariables(t, p)
 		}
 	}()

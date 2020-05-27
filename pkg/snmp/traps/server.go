@@ -6,7 +6,6 @@
 package traps
 
 import (
-	"net"
 	"sync"
 	"time"
 
@@ -15,14 +14,37 @@ import (
 	"github.com/soniah/gosnmp"
 )
 
+/*
+* Traps pipeline diagram
+* ----------------------
+*
+* (devices) --[udp:port1]-!-> (Listener 1) \
+*                         !                 (TrapServer) --[chan]--> (Forwarder) --[chan]--> (Rest of the logs pipeline...)
+* (devices) --[udp:portN]-!-> (Listener N) /
+*
+* ! = delimitation between the outside world and the Agent
+ */
+
+// SnmpPacket is the type of packets yielded by server listeners.
+type SnmpPacket = gosnmp.SnmpPacket
+
+// OutputChannel is the type of the server output channel.
+type OutputChannel = chan *SnmpPacket
+
 // TrapServer runs multiple SNMP traps listeners.
 type TrapServer struct {
 	Started bool
 
 	bindHost    string
 	listeners   []TrapListener
+	output      OutputChannel
 	stopTimeout time.Duration
 }
+
+var (
+	// RunningServer holds a reference to the trap server instance running in the Agent.
+	RunningServer *TrapServer
+)
 
 // NewTrapServer configures and returns a running SNMP traps server.
 func NewTrapServer() (*TrapServer, error) {
@@ -35,10 +57,12 @@ func NewTrapServer() (*TrapServer, error) {
 	bindHost := config.Datadog.GetString("bind_host")
 	stopTimeout := config.Datadog.GetDuration("snmp_traps_stop_timeout") * time.Second
 
+	// TODO: What is a good channel size to choose?
+	output := make(OutputChannel, 100)
 	listeners := make([]TrapListener, 0, len(configs))
 
 	for _, c := range configs {
-		listener, err := NewTrapListener(bindHost, c)
+		listener, err := NewTrapListener(bindHost, c, output)
 		if err != nil {
 			return nil, err
 		}
@@ -50,6 +74,7 @@ func NewTrapServer() (*TrapServer, error) {
 		Started:     false,
 		bindHost:    bindHost,
 		listeners:   listeners,
+		output:      output,
 		stopTimeout: stopTimeout,
 	}
 
@@ -59,13 +84,6 @@ func NewTrapServer() (*TrapServer, error) {
 	}
 
 	return s, nil
-}
-
-// SetTrapHandler sets the trap handler for all listeners. Useful for unit testing.
-func (s TrapServer) SetTrapHandler(handler func(s *gosnmp.SnmpPacket, u *net.UDPAddr)) {
-	for _, l := range s.listeners {
-		l.SetTrapHandler(handler)
-	}
 }
 
 // start spawns listeners in the background, and waits for them to be ready to accept traffic, handling any errors.
@@ -105,6 +123,11 @@ func (s *TrapServer) start() error {
 	return nil
 }
 
+// Output returns the channel which listeners feed trap packets to.
+func (s *TrapServer) Output() OutputChannel {
+	return s.output
+}
+
 // NumListeners returns the number of listeners managed by this server.
 func (s *TrapServer) NumListeners() int {
 	return len(s.listeners)
@@ -135,6 +158,9 @@ func (s *TrapServer) Stop() {
 	case <-time.After(s.stopTimeout):
 		log.Error("snmp-traps: stopping listeners timed out")
 	}
+
+	// Let consumers know that we will not be sending any more packets.
+	close(s.output)
 
 	s.Started = false
 }

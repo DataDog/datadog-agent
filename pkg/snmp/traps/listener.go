@@ -21,7 +21,7 @@ type TrapListener struct {
 }
 
 // NewTrapListener creates a configured trap listener.
-func NewTrapListener(bindHost string, c TrapListenerConfig) (*TrapListener, error) {
+func NewTrapListener(bindHost string, c TrapListenerConfig, output OutputChannel) (*TrapListener, error) {
 	addr := fmt.Sprintf("%s:%d", bindHost, c.Port)
 
 	params, err := c.BuildParams()
@@ -31,24 +31,17 @@ func NewTrapListener(bindHost string, c TrapListenerConfig) (*TrapListener, erro
 
 	impl := gosnmp.NewTrapListener()
 	impl.Params = params
+	impl.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+		output <- p
+	}
 
 	ln := &TrapListener{
 		addr:   addr,
 		impl:   impl,
 		errors: make(chan error, 1),
 	}
-	ln.SetTrapHandler(defaultHandler)
 
 	return ln, nil
-}
-
-// SetTrapHandler sets the callback called when a new trap is received.
-func (ln *TrapListener) SetTrapHandler(handler func(s *gosnmp.SnmpPacket, u *net.UDPAddr)) {
-	ln.impl.OnNewTrap = handler
-}
-
-func defaultHandler(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-	log.Infof("snmp-traps: received trap (%v): %v", u, p)
 }
 
 // Listen runs the packet reception and processing loop.
