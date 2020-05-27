@@ -101,5 +101,4 @@ func getBool(v interface{}) (bool, error) {
 			return false, fmt.Errorf("getBool: bad parameter value provided: %v", str)
 		}
 	}
-	return false, fmt.Errorf("getBool: bad parameter value provided: %v", str)
 }
