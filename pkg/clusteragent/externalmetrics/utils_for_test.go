@@ -27,7 +27,9 @@ func getIsLeaderFunction(leader bool) func() bool {
 
 func compareDatadogMetricInternal(t *testing.T, expected, actual *model.DatadogMetricInternal) {
 	t.Helper()
-	assert.Condition(t, func() bool { return actual.UpdateTime.After(expected.UpdateTime) })
+	assert.Condition(t, func() bool {
+		return actual.UpdateTime.After(expected.UpdateTime) || actual.UpdateTime.Equal(expected.UpdateTime)
+	})
 	alignedTime := time.Now().UTC()
 	expected.UpdateTime = alignedTime
 	actual.UpdateTime = alignedTime

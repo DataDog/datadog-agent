@@ -77,12 +77,13 @@ func NewDatadogMetricController(client dd_clientset.Interface, informer dd_infor
 }
 
 // Run starts the controller to handle DatadogMetrics
-func (c *DatadogMetricController) Run(stopCh <-chan struct{}) error {
+func (c *DatadogMetricController) Run(stopCh <-chan struct{}) {
 	defer c.workqueue.ShutDown()
 
 	log.Infof("Starting DatadogMetric Controller (waiting for cache sync)")
 	if !cache.WaitForCacheSync(stopCh, c.synced) {
-		return fmt.Errorf("Failed to wait for DatadogMetric caches to sync")
+		log.Errorf("Failed to wait for DatadogMetric caches to sync")
+		return
 	}
 
 	go wait.Until(c.worker, time.Second, stopCh)
@@ -90,7 +91,7 @@ func (c *DatadogMetricController) Run(stopCh <-chan struct{}) error {
 	log.Infof("Started DatadogMetric Controller (cache sync finished)")
 	<-stopCh
 	log.Infof("Stopping DatadogMetric Controller")
-	return nil
+	return
 }
 
 func (c *DatadogMetricController) worker() {

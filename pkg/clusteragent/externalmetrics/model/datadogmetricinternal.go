@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +45,6 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 	internal := DatadogMetricInternal{
 		ID:      id,
 		Query:   datadogMetric.Spec.Query,
-		Value:   datadogMetric.Status.Value,
 		Valid:   false,
 		Active:  false,
 		Deleted: false,
@@ -73,6 +74,16 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 	if internal.UpdateTime.IsZero() {
 		internal.UpdateTime = time.Now().UTC()
 	}
+
+	// Handling value last as we may invalidate DatadogMetric if we get a parsing error
+	value, err := parseDatadogMetricValue(datadogMetric.Status.Value)
+	if err != nil {
+		log.Errorf("Unable to parse DatadogMetric value from string: '%s', invalidating: %s", datadogMetric.Status.Value, id)
+		internal.Valid = false
+		internal.UpdateTime = time.Now().UTC()
+		value = 0
+	}
+	internal.Value = value
 
 	return internal
 }
@@ -145,7 +156,7 @@ func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetr
 	}
 
 	newStatus := datadoghq.DatadogMetricStatus{
-		Value:      d.Value,
+		Value:      formatDatadogMetricValue(d.Value),
 		Conditions: []datadoghq.DatadogMetricCondition{activeCondition, validCondition, updatedCondition, errorCondition},
 	}
 

@@ -79,11 +79,6 @@ func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expecte
 
 	err := controller.processDatadogMetric(datadogMetricID)
 	assert.Equal(f.t, expectedError, err)
-	// if expectedError == nil && err != nil {
-	// 	f.t.Errorf("Unexpected error syncing foo: %v", err)
-	// } else if expectedError != nil && err != expectedError {
-	// 	f.t.Errorf("Expected error syncing foo, got nil or different error. Exepected: %v, Got: %v", expectedError, err)
-	// }
 
 	actions := filterInformerActions(f.client.Actions(), "datadogmetrics")
 	for i, action := range actions {
@@ -154,7 +149,7 @@ func TestLeaderHandlingNewMetric(t *testing.T) {
 	// Now that we validated that `UpdateTime` is after `testTime`, we read `UpdateTime` to allow comparison later
 	updateTimeKube := metav1.NewTime(f.store.Get("default/dd-metric-0").UpdateTime)
 	outputMetric := newFakeDatadogMetric("default", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
-		Value: 0.0,
+		Value: "0",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeActive,
@@ -200,13 +195,13 @@ func TestLeaderUpdateFromStoreInitialUpdate(t *testing.T) {
 		ID:         "default/dd-metric-0",
 		Query:      "metric query0",
 		Valid:      true,
-		Value:      10.0,
+		Value:      2332548489456.557505560,
 		UpdateTime: updateTime,
 		Error:      nil,
 	}, "utest")
 
 	outputMetric := newFakeDatadogMetric("default", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
-		Value: 10.0,
+		Value: "2332548489456.5576",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeActive,
@@ -245,7 +240,7 @@ func TestLeaderUpdateFromStoreAfterInitial(t *testing.T) {
 
 	prevUpdateTimeKube := metav1.NewTime(time.Now().Add(-10 * time.Second))
 	metric := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
-		Value: 10.0,
+		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeActive,
@@ -288,7 +283,7 @@ func TestLeaderUpdateFromStoreAfterInitial(t *testing.T) {
 	}, "utest")
 
 	outputMetric := newFakeDatadogMetric("default", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
-		Value: 10.0,
+		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeActive,
@@ -330,7 +325,7 @@ func TestLeaderNoUpdate(t *testing.T) {
 	updateTime := time.Now()
 	updateTimeKube := metav1.NewTime(updateTime)
 	metric := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
-		Value: 10.0,
+		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeActive,
@@ -422,7 +417,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 
 	// Test successful creation
 	expectedDatadogMetric := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
-		Value: 20.0,
+		Value: "20",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeActive,
@@ -469,7 +464,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 	prevUpdateTime := time.Now().Add(-10 * time.Second)
 	prevUpdateTimeKube := metav1.NewTime(prevUpdateTime)
 	metric0 := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
-		Value: 20.0,
+		Value: "20",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeValid,
@@ -498,7 +493,7 @@ func TestLeaderDeleteExisting(t *testing.T) {
 		},
 	})
 	metric1 := newFakeDatadogMetric("default", "dd-metric-1", "metric query1", datadoghq.DatadogMetricStatus{
-		Value: 20.0,
+		Value: "20",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeValid,
@@ -598,7 +593,7 @@ func TestFollower(t *testing.T) {
 	prevUpdateTime := time.Now().Add(-10 * time.Second)
 	prevUpdateTimeKube := metav1.NewTime(prevUpdateTime)
 	metric0 := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
-		Value: 10.0,
+		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeValid,
@@ -627,7 +622,7 @@ func TestFollower(t *testing.T) {
 		},
 	})
 	metric1 := newFakeDatadogMetric("default", "autogen-1", "metric query1", datadoghq.DatadogMetricStatus{
-		Value: 10.0,
+		Value: "10",
 		Conditions: []datadoghq.DatadogMetricCondition{
 			{
 				Type:               datadoghq.DatadogMetricConditionTypeValid,
