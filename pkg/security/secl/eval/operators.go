@@ -14,13 +14,13 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 		isPartialLeaf = true
 	}
 
-	if a.Eval != nil {
-		ea := a.Eval
+	if a.EvalFnc != nil {
+		ea := a.EvalFnc
 		return &IntEvaluator{
-			Eval: func(ctx *Context) int {
+			EvalFnc: func(ctx *Context) int {
 				return ^ea(ctx)
 			},
-			DebugEval: func(ctx *Context) int {
+			DebugEvalFnc: func(ctx *Context) int {
 				ctx.evalDepth++
 				op := ea(ctx)
 				result := ^ea(ctx)
@@ -39,7 +39,7 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 }
 
 func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
-	if b.Eval != nil {
+	if b.EvalFnc != nil {
 		return nil, errors.New("regex has to be a scalar string")
 	}
 
@@ -58,17 +58,17 @@ func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts,
 		state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: PatternValueType})
 	}
 
-	if a.Eval != nil {
-		ea := a.Eval
+	if a.EvalFnc != nil {
+		ea := a.EvalFnc
 		return &BoolEvaluator{
-			Eval: func(ctx *Context) bool {
+			EvalFnc: func(ctx *Context) bool {
 				result := re.MatchString(ea(ctx))
 				if not {
 					return !result
 				}
 				return result
 			},
-			DebugEval: func(ctx *Context) bool {
+			DebugEvalFnc: func(ctx *Context) bool {
 				ctx.evalDepth++
 				op := ea(ctx)
 				result := re.MatchString(op)
@@ -106,9 +106,9 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 		isPartialLeaf = true
 	}
 
-	if a.Eval != nil {
+	if a.EvalFnc != nil {
 		ea := func(ctx *Context) bool {
-			return !a.Eval(ctx)
+			return !a.EvalFnc(ctx)
 		}
 
 		if state.field != "" {
@@ -120,10 +120,10 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 		}
 
 		return &BoolEvaluator{
-			Eval: ea,
-			DebugEval: func(ctx *Context) bool {
+			EvalFnc: ea,
+			DebugEvalFnc: func(ctx *Context) bool {
 				ctx.evalDepth++
-				op := a.Eval(ctx)
+				op := a.EvalFnc(ctx)
 				result := !op
 				ctx.Logf("Evaluating ! %v => %v", op, result)
 				ctx.evalDepth--
@@ -150,13 +150,13 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 		isPartialLeaf = true
 	}
 
-	if a.Eval != nil {
-		ea := a.Eval
+	if a.EvalFnc != nil {
+		ea := a.EvalFnc
 		return &IntEvaluator{
-			Eval: func(ctx *Context) int {
+			EvalFnc: func(ctx *Context) int {
 				return -ea(ctx)
 			},
-			DebugEval: func(ctx *Context) int {
+			DebugEvalFnc: func(ctx *Context) int {
 				ctx.evalDepth++
 				op := ea(ctx)
 				result := -op
@@ -186,10 +186,10 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 		}
 	}
 
-	if a.Eval != nil {
-		ea := a.Eval
+	if a.EvalFnc != nil {
+		ea := a.EvalFnc
 		return &BoolEvaluator{
-			Eval: func(ctx *Context) bool {
+			EvalFnc: func(ctx *Context) bool {
 				s := ea(ctx)
 				i := sort.SearchStrings(b.Values, s)
 				result := i < len(b.Values) && b.Values[i] == s
@@ -198,7 +198,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 				}
 				return result
 			},
-			DebugEval: func(ctx *Context) bool {
+			DebugEvalFnc: func(ctx *Context) bool {
 				ctx.evalDepth++
 				s := ea(ctx)
 				i := sort.SearchStrings(b.Values, s)
@@ -241,10 +241,10 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 		}
 	}
 
-	if a.Eval != nil {
-		ea := a.Eval
+	if a.EvalFnc != nil {
+		ea := a.EvalFnc
 		return &BoolEvaluator{
-			Eval: func(ctx *Context) bool {
+			EvalFnc: func(ctx *Context) bool {
 				ctx.evalDepth++
 				n := ea(ctx)
 				i := sort.SearchInts(b.Values, n)
@@ -255,7 +255,7 @@ func IntArrayContains(a *IntEvaluator, b *IntArray, not bool, opts *Opts, state 
 				ctx.evalDepth--
 				return result
 			},
-			DebugEval: func(ctx *Context) bool {
+			DebugEvalFnc: func(ctx *Context) bool {
 				ctx.evalDepth++
 				n := ea(ctx)
 				i := sort.SearchInts(b.Values, n)

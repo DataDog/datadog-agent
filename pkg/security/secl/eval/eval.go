@@ -49,7 +49,7 @@ type RuleEvaluator struct {
 	Tags        []string
 	FieldValues map[string][]FieldValue
 
-	partialEval map[string]func(ctx *Context) bool
+	partialEvals map[string]func(ctx *Context) bool
 }
 
 type IdentEvaluator struct {
@@ -89,45 +89,58 @@ type MacroEvaluator struct {
 
 type Evaluator interface {
 	StringValue(ctx *Context) string
+	Eval(ctx *Context) interface{}
 }
 
 type BoolEvaluator struct {
-	Eval      func(ctx *Context) bool
-	DebugEval func(ctx *Context) bool
-	Field     string
-	Value     bool
+	EvalFnc      func(ctx *Context) bool
+	DebugEvalFnc func(ctx *Context) bool
+	Field        string
+	Value        bool
 
 	isPartial bool
 }
 
 func (b *BoolEvaluator) StringValue(ctx *Context) string {
-	return fmt.Sprintf("%t", b.Eval(nil))
+	return fmt.Sprintf("%t", b.EvalFnc(nil))
+}
+
+func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
+	return b.EvalFnc(nil)
 }
 
 type IntEvaluator struct {
-	Eval      func(ctx *Context) int
-	DebugEval func(ctx *Context) int
-	Field     string
-	Value     int
+	EvalFnc      func(ctx *Context) int
+	DebugEvalFnc func(ctx *Context) int
+	Field        string
+	Value        int
 
 	isPartial bool
 }
 
 func (i *IntEvaluator) StringValue(ctx *Context) string {
-	return fmt.Sprintf("%d", i.Eval(nil))
+	return fmt.Sprintf("%d", i.EvalFnc(nil))
+}
+
+func (i *IntEvaluator) Eval(ctx *Context) interface{} {
+	return i.EvalFnc(nil)
 }
 
 type StringEvaluator struct {
-	Eval      func(ctx *Context) string
-	DebugEval func(ctx *Context) string
-	Field     string
-	Value     string
+	EvalFnc      func(ctx *Context) string
+	DebugEvalFnc func(ctx *Context) string
+	Field        string
+	Value        string
 
 	isPartial bool
 }
 
 func (s *StringEvaluator) StringValue(ctx *Context) string {
-	return s.Eval(ctx)
+	return s.EvalFnc(ctx)
+}
+
+func (s *StringEvaluator) Eval(ctx *Context) interface{} {
+	return s.EvalFnc(ctx)
 }
 
 type StringArray struct {
@@ -514,7 +527,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 }
 
 func (r *RuleEvaluator) PartialEval(ctx *Context, field string) (bool, error) {
-	eval, ok := r.partialEval[field]
+	eval, ok := r.partialEvals[field]
 	if !ok {
 		return false, errors.New("field not found")
 	}
@@ -523,9 +536,9 @@ func (r *RuleEvaluator) PartialEval(ctx *Context, field string) (bool, error) {
 }
 
 func (r *RuleEvaluator) GetFields() []string {
-	fields := make([]string, len(r.partialEval))
+	fields := make([]string, len(r.partialEvals))
 	i := 0
-	for key, _ := range r.partialEval {
+	for key, _ := range r.partialEvals {
 		fields[i] = key
 		i++
 	}
@@ -570,7 +583,7 @@ func RuleToEvaluator(rule *ast.Rule, model Model, opts Opts) (*RuleEvaluator, er
 
 	// transform the whole rule to a partial boolean evaluation function depending only on the given
 	// parameters. The goal is to see wheter the rule depends on the given field.
-	partialEval := make(map[string]func(ctx *Context) bool)
+	partialEvals := make(map[string]func(ctx *Context) bool)
 	for field := range state.fieldValues {
 		state = newState(model, field)
 
@@ -588,13 +601,13 @@ func RuleToEvaluator(rule *ast.Rule, model Model, opts Opts) (*RuleEvaluator, er
 			return nil, NewTypeError(rule.Pos, reflect.Bool)
 		}
 
-		if pEvalBool.Eval == nil {
-			pEvalBool.Eval = func(ctx *Context) bool {
+		if pEvalBool.EvalFnc == nil {
+			pEvalBool.EvalFnc = func(ctx *Context) bool {
 				return pEvalBool.Value
 			}
 		}
 
-		partialEval[field] = pEvalBool.Eval
+		partialEvals[field] = pEvalBool.EvalFnc
 	}
 
 	events, err := eventFromFields(model, state)
@@ -602,33 +615,33 @@ func RuleToEvaluator(rule *ast.Rule, model Model, opts Opts) (*RuleEvaluator, er
 		return nil, err
 	}
 
-	if evalBool.Eval == nil {
+	if evalBool.EvalFnc == nil {
 		return &RuleEvaluator{
 			Eval: func(ctx *Context) bool {
 				return evalBool.Value
 			},
-			EventTypes:  events,
-			Tags:        state.Tags(),
-			FieldValues: state.fieldValues,
-			partialEval: partialEval,
+			EventTypes:   events,
+			Tags:         state.Tags(),
+			FieldValues:  state.fieldValues,
+			partialEvals: partialEvals,
 		}, nil
 	}
 
 	if opts.Debug {
 		return &RuleEvaluator{
-			Eval:        evalBool.DebugEval,
-			EventTypes:  events,
-			Tags:        state.Tags(),
-			FieldValues: state.fieldValues,
-			partialEval: partialEval,
+			Eval:         evalBool.DebugEvalFnc,
+			EventTypes:   events,
+			Tags:         state.Tags(),
+			FieldValues:  state.fieldValues,
+			partialEvals: partialEvals,
 		}, nil
 	}
 
 	return &RuleEvaluator{
-		Eval:        evalBool.Eval,
-		EventTypes:  events,
-		Tags:        state.Tags(),
-		FieldValues: state.fieldValues,
-		partialEval: partialEval,
+		Eval:         evalBool.EvalFnc,
+		EventTypes:   events,
+		Tags:         state.Tags(),
+		FieldValues:  state.fieldValues,
+		partialEvals: partialEvals,
 	}, nil
 }

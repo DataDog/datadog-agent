@@ -31,7 +31,7 @@ func (f *testHandler) EventDiscarderFound(event Event, field string) {
 	}
 	evaluator, _ := f.model.GetEvaluator(field)
 
-	value := evaluator.(Evaluator).Value(&Context{})
+	value := evaluator.(Evaluator).Eval(&Context{})
 
 	found := false
 	for _, d := range discarders {
@@ -41,7 +41,7 @@ func (f *testHandler) EventDiscarderFound(event Event, field string) {
 	}
 
 	if !found {
-		discarders = append(discarders, evaluator.(Evaluator).Value(&Context{}))
+		discarders = append(discarders, evaluator.(Evaluator).Eval(&Context{}))
 	}
 	values[field] = discarders
 }
