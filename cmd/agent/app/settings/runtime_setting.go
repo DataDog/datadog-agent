@@ -85,13 +85,8 @@ func GetRuntimeSetting(setting string) (interface{}, error) {
 func getBool(v interface{}) (bool, error) {
 	// to be cautious, take care of both calls with a string (cli) or a bool (programmaticaly)
 	str, ok := v.(string)
-	if !ok {
-		b, ok := v.(bool)
-		if !ok {
-			return false, fmt.Errorf("getBool: bad parameter value provided")
-		}
-		return b, nil
-	} else {
+	if ok {
+		// string value
 		switch str {
 		case "true":
 			return true, nil
@@ -100,5 +95,11 @@ func getBool(v interface{}) (bool, error) {
 		default:
 			return false, fmt.Errorf("getBool: bad parameter value provided: %v", str)
 		}
+
 	}
+	b, ok := v.(bool)
+	if !ok {
+		return false, fmt.Errorf("getBool: bad parameter value provided")
+	}
+	return b, nil
 }
