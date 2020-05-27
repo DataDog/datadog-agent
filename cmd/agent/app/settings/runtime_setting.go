@@ -35,6 +35,9 @@ func InitRuntimeSettings() error {
 	if err := registerRuntimeSetting(logLevelRuntimeSetting("log_level")); err != nil {
 		return err
 	}
+	if err := registerRuntimeSetting(dsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -73,4 +76,30 @@ func GetRuntimeSetting(setting string) (interface{}, error) {
 		return nil, err
 	}
 	return value, nil
+}
+
+// getBool returns the bool value contained in value.
+// If value is a bool, returns its value
+// If value is a string, it converts "true" to true and "false" to false.
+// Else, returns an error.
+func getBool(v interface{}) (bool, error) {
+	// to be cautious, take care of both calls with a string (cli) or a bool (programmaticaly)
+	str, ok := v.(string)
+	if ok {
+		// string value
+		switch str {
+		case "true":
+			return true, nil
+		case "false":
+			return false, nil
+		default:
+			return false, fmt.Errorf("getBool: bad parameter value provided: %v", str)
+		}
+
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return false, fmt.Errorf("getBool: bad parameter value provided")
+	}
+	return b, nil
 }
