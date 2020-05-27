@@ -127,12 +127,28 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 	if err != nil {
 		return response, err
 	}
+	if r.StatusCode == http.StatusForbidden {
+		apiKey := config.Datadog.GetString("api_key")
+		var errStr string
+
+		if len(apiKey) == 0 {
+			errStr = "API key is missing"
+		} else {
+			if len(apiKey) > 5 {
+				apiKey = apiKey[len(apiKey)-5:]
+			}
+			errStr = fmt.Sprintf("Make sure your API key is valid. API Key ending with: %v", apiKey)
+		}
+
+		return response, fmt.Errorf("HTTP 403 Forbidden: %s", errStr)
+	}
+
 	b, _ := ioutil.ReadAll(r.Body)
 	var res = flareResponse{}
 	err = json.Unmarshal(b, &res)
 	if err != nil {
-		response = fmt.Sprintf("An unknown error has occurred - Please contact support by email.")
-		return response, err
+		response = fmt.Sprintf("Error: could not deserialize response body -- Please contact support by email.")
+		return response, fmt.Errorf("%v\nServer returned:\n%s", err, string(b)[:150])
 	}
 
 	if res.Error != "" {

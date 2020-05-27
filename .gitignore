@@ -3,11 +3,14 @@ Dockerfiles/dogstatsd/alpine/static/
 
 # folders
 vendor/
+.vendor-new/
 bin/
 /dev/
 __pycache__
 .pytest_cache
 venv/
+venv27/
+venv3[78]/
 
 **/*.tmp
 **/debug.test

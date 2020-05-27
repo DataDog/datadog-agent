@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -27,6 +28,10 @@ var (
 // GetTags grabs the host tags from the EC2 api
 func GetTags() ([]string, error) {
 	tags := []string{}
+
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return tags, fmt.Errorf("cloud provider is disabled by configuration")
+	}
 
 	instanceIdentity, err := getInstanceIdentity()
 	if err != nil {

@@ -394,6 +394,11 @@ func (s *KubeContainerService) IsReady() bool {
 	return s.ready
 }
 
+// GetExtraConfig isn't supported
+func (s *KubeContainerService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
+}
+
 // GetCheckNames returns names of checks defined in pod annotations
 func (s *KubeContainerService) GetCheckNames() []string {
 	return s.checkNames
@@ -475,4 +480,9 @@ func (s *KubePodService) GetCheckNames() []string {
 // KubePodService doesn't implement this method
 func (s *KubePodService) HasFilter(filter containers.FilterType) bool {
 	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *KubePodService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

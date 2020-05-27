@@ -51,7 +51,7 @@ func TestBBSCachePolling(t *testing.T) {
 }
 
 func TestBBSCache_GetDesiredLRPFor(t *testing.T) {
-	dlrp, _ := c.GetDesiredLRPFor("012345678901234567890123456789012345")
+	dlrp, _ := c.GetDesiredLRPFor("0123456789012345678901234567890123456789")
 	assert.EqualValues(t, ExpectedD1, dlrp)
 }
 
@@ -67,7 +67,7 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 		"0123456789012345678": {
 			"container_name:name_of_the_app_4",
 			"app_name:name_of_the_app",
-			"app_guid:012345678901234567890123456789012345",
+			"app_guid:random_app_guid",
 			"app_instance_index:4",
 			"app_instance_guid:0123456789012345678",
 		},
@@ -79,7 +79,7 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 		"0123456789012345679": {
 			"container_name:name_of_the_app_3",
 			"app_name:name_of_the_app",
-			"app_guid:012345678901234567890123456789012345",
+			"app_guid:random_app_guid",
 			"app_instance_index:3",
 			"app_instance_guid:0123456789012345679",
 		},
@@ -89,15 +89,15 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 	assert.Equal(t, expectedTags, tags)
 }
 
-func TestBBSCache_GetActualLRPsForApp(t *testing.T) {
-	alrps, _ := c.GetActualLRPsForApp("012345678901234567890123456789012345")
+func TestBBSCache_GetActualLRPsForProcessGUID(t *testing.T) {
+	alrps, _ := c.GetActualLRPsForProcessGUID("0123456789012345678901234567890123456789")
 	assert.EqualValues(t, []*ActualLRP{&ExpectedA1, &ExpectedA2}, alrps)
 }
 
 func TestBBSCache_GetAllLRPs(t *testing.T) {
 	a, d := c.GetAllLRPs()
-	assert.EqualValues(t, map[string]*DesiredLRP{ExpectedD1.AppGUID: &ExpectedD1}, d)
-	assert.EqualValues(t, map[string][]*ActualLRP{"012345678901234567890123456789012345": {&ExpectedA1, &ExpectedA2}}, a)
+	assert.EqualValues(t, map[string]*DesiredLRP{ExpectedD1.ProcessGUID: &ExpectedD1}, d)
+	assert.EqualValues(t, map[string][]*ActualLRP{ExpectedD1.ProcessGUID: {&ExpectedA1, &ExpectedA2}}, a)
 }
 
 // These methods ensure we implement the bbs.Client API, but are in fact unused by our functionality

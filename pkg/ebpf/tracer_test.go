@@ -1545,3 +1545,49 @@ func TestDNSStatsForInvalidDomain(t *testing.T) {
 func TestDNSStatsForTimeout(t *testing.T) {
 	testDNSStats(t, "golang.org", 0, 0, 1, "1.2.3.4")
 }
+
+func TestConntrackExpiration(t *testing.T) {
+	cmd := exec.Command("../network/netlink/testdata/setup_dnat.sh")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("setup command output: %s", string(out))
+	}
+	defer teardown(t)
+
+	tr, err := NewTracer(NewDefaultConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
+	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
+	rand.Seed(time.Now().UnixNano())
+	port := 5430 + rand.Intn(100)
+	server := NewUDPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func([]byte, int) []byte {
+		return nil
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan, clientMessageSize)
+
+	c, err := net.Dial("udp", fmt.Sprintf("2.2.2.2:%d", port))
+	require.NoError(t, err)
+	defer c.Close()
+	_, err = c.Write([]byte("ping"))
+	require.NoError(t, err)
+
+	// Give enough time for conntrack cache to be populated
+	time.Sleep(100 * time.Millisecond)
+
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
+
+	// This will force the connection to be expired next time we call getConnections
+	tr.config.UDPConnTimeout = time.Duration(-1)
+	_ = getConnections(t, tr)
+
+	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
+	doneChan <- struct{}{}
+}

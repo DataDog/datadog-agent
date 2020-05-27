@@ -367,6 +367,7 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*v1
 		}
 
 		tags = append(tags, fmt.Sprintf("device:%s", m.Device))
+		tags = append(tags, fmt.Sprintf("device_name:%s", m.Device))
 		if m.Op != "" {
 			tags = append(tags, fmt.Sprintf("operation:%s", m.Op))
 		}

@@ -34,6 +34,8 @@ const (
 	DefaultNumWorkers = 4
 	// MaxNumWorkers maximum number of workers for our check runner
 	MaxNumWorkers = 25
+	// DefaultAPIKeyValidationInterval is the default interval of api key validation checks
+	DefaultAPIKeyValidationInterval = 60
 
 	// DefaultForwarderRecoveryInterval is the default recovery interval,
 	// also used if the user-provided value is invalid.
@@ -56,9 +58,17 @@ var (
 	proxies *Proxy
 )
 
+//Values for AgentFlavor below
+const (
+	DefaultAgentFlavor = "agent"
+	IotAgentFlavor     = "iot_agent"
+	DogstatsdFlavor    = "dogstatsd"
+)
+
 // Variables to initialize at build time
 var (
 	DefaultPython string
+	AgentFlavor   = DefaultAgentFlavor
 
 	// ForceDefaultPython has its value set to true at compile time if we should ignore
 	// the Python version set in the configuration and use `DefaultPython` instead.
@@ -131,7 +141,7 @@ func initConfig(config Config) {
 	config.BindEnv("site")   //nolint:errcheck
 	config.BindEnv("dd_url") //nolint:errcheck
 	config.BindEnvAndSetDefault("app_key", "")
-	config.BindEnvAndSetDefault("cloud_provider_metadata", "all")
+	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba"})
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("hostname", "")
@@ -168,6 +178,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
+	config.BindEnvAndSetDefault("iot_host", AgentFlavor == IotAgentFlavor)
+
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
@@ -280,6 +292,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 30)
+	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
 	config.BindEnvAndSetDefault("forwarder_stop_timeout", 2)
 	// Forwarder retry settings
@@ -383,6 +397,12 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 
+	// SNMP
+	config.SetKnown("snmp_listener.discovery_interval")
+	config.SetKnown("snmp_listener.allowed_failures")
+	config.SetKnown("snmp_listener.workers")
+	config.SetKnown("snmp_listener.configs")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
@@ -416,7 +436,7 @@ func initConfig(config Config) {
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
 	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys"})
-	config.BindEnvAndSetDefault("gce_metadata_timeout", 1*time.Second)
+	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
@@ -1013,14 +1033,24 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 	return keysPerDomain, nil
 }
 
-// IsCloudProviderEnabled checks the cloud provider family provided in pkg/util/<cloud_provider>.go against the value for cloud_provider: on the global config object Datadog
+// IsCloudProviderEnabled checks the cloud provider family provided in
+// pkg/util/<cloud_provider>.go against the value for cloud_provider: on the
+// global config object Datadog
 func IsCloudProviderEnabled(cloudProviderName string) bool {
-	cloudProviderFromConfig := Datadog.GetString("cloud_provider_metadata")
-	if strings.ToLower(cloudProviderFromConfig) == "all" || strings.ToLower(cloudProviderFromConfig) == strings.ToLower(cloudProviderName) {
-		log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider", cloudProviderFromConfig, cloudProviderName)
-		return true
+	cloudProviderFromConfig := Datadog.GetStringSlice("cloud_provider_metadata")
+
+	for _, cloudName := range cloudProviderFromConfig {
+		if strings.ToLower(cloudName) == strings.ToLower(cloudProviderName) {
+			log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider",
+				cloudProviderFromConfig,
+				cloudProviderName)
+			return true
+		}
 	}
-	log.Debugf("cloud_provider_metadata is set to %s in agent configuration, skipping %s Cloud Provider", cloudProviderFromConfig, cloudProviderName)
+
+	log.Debugf("cloud_provider_metadata is set to %s in agent configuration, skipping %s Cloud Provider",
+		cloudProviderFromConfig,
+		cloudProviderName)
 	return false
 }
 
