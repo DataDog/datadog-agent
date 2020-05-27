@@ -102,6 +102,8 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, ruleS
 		return b.dockerCheck(meta, ruleID, ruleScope, resource.Docker)
 	case resource.Process != nil:
 		return newProcessCheck(b.baseCheck(ruleID, "process", ruleScope, meta), resource.Process)
+	case resource.Command != nil:
+		return newCommandCheck(b.baseCheck(ruleID, "command", ruleScope, meta), resource.Command)
 	default:
 		log.Errorf("%s: resource not supported", ruleID)
 		return nil, ErrResourceNotSupported

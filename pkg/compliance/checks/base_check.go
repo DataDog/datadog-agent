@@ -66,6 +66,10 @@ func (c *baseCheck) IsTelemetryEnabled() bool {
 }
 
 func (c *baseCheck) report(tags []string, kv compliance.KV) {
+	if len(kv) == 0 {
+		return
+	}
+
 	event := &compliance.RuleEvent{
 		RuleID:       c.ruleID,
 		Framework:    c.framework,

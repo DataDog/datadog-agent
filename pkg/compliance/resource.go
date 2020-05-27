@@ -5,6 +5,8 @@
 
 package compliance
 
+import "fmt"
+
 // Resource describes supported resource types observed by a Rule
 type Resource struct {
 	File    *File           `yaml:"file,omitempty"`
@@ -45,14 +47,39 @@ type Group struct {
 	Report Report `yaml:"report,omitempty"`
 }
 
+// BinaryCmd describes a command in form of a name + args
+type BinaryCmd struct {
+	Name string   `yaml:"name"`
+	Args []string `yaml:"args,omitempty"`
+}
+
+// ShellCmd describes a command to be run through a shell
+type ShellCmd struct {
+	Run   string     `yaml:"run"`
+	Shell *BinaryCmd `yaml:"shell,omitempty"`
+}
+
 // Command describes a command resource usually reporting exit code or output
 type Command struct {
-	Run string `yaml:"run"`
+	BinaryCmd      *BinaryCmd `yaml:"binary,omitempty"`
+	ShellCmd       *ShellCmd  `yaml:"shell,omitempty"`
+	TimeoutSeconds int        `yaml:"timeout,omitempty"`
+	MaxOutputSize  int        `yaml:"maxOutputSize,omitempty"`
 
 	// TODO: generalize to use the same filter types
 	Filter []CommandFilter `yaml:"filter,omitempty"`
 
 	Report Report `yaml:"report,omitempty"`
+}
+
+func (c Command) String() string {
+	if c.BinaryCmd != nil {
+		return fmt.Sprintf("Binary command: %s, args: %v", c.BinaryCmd.Name, c.BinaryCmd.Args)
+	}
+	if c.ShellCmd != nil {
+		return fmt.Sprintf("Shell command: %s", c.ShellCmd.Run)
+	}
+	return "Empty command"
 }
 
 // Audit describes an audited file resource
@@ -141,7 +168,7 @@ type CommandFilter struct {
 
 // CommandCondition specifies conditions to include or exclude a Command from reporting
 type CommandCondition struct {
-	ExitCode *int `yaml:"exitCode,omitempty"`
+	ExitCode int `yaml:"exitCode"`
 }
 
 // Filter specifies filtering options to include or exclude a Docker resource from reporting
