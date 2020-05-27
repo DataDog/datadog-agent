@@ -340,20 +340,20 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "{{$Name}}":
 	{{if eq $Field.Type "string"}}
 		return &eval.StringEvaluator{
-			Eval: func(ctx *eval.Context) string { return {{$Return}} },
-			DebugEval: func(ctx *eval.Context) string { return {{$Return}} },
+			EvalFnc: func(ctx *eval.Context) string { return {{$Return}} },
+			DebugEvalFnc: func(ctx *eval.Context) string { return {{$Return}} },
 	{{else if eq $Field.Type "stringer"}}
 		return &eval.StringEvaluator{
-			Eval: func(ctx *eval.Context) string { return {{$Return}}.String() },
-			DebugEval: func(ctx *eval.Context) string { return {{$Return}}.String() },
+			EvalFnc: func(ctx *eval.Context) string { return {{$Return}}.String() },
+			DebugEvalFnc: func(ctx *eval.Context) string { return {{$Return}}.String() },
 	{{else if eq .Type "int"}}
 		return &eval.IntEvaluator{
-			Eval: func(ctx *eval.Context) int { return int({{$Return}}) },
-			DebugEval: func(ctx *eval.Context) int { return int({{$Return}}) },
+			EvalFnc: func(ctx *eval.Context) int { return int({{$Return}}) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int({{$Return}}) },
 	{{else if eq .Type "bool"}}
 		return &eval.BoolEvaluator{
-			Eval: func(ctx *eval.Context) bool { return {{$Return}} },
-			DebugEval: func(ctx *eval.Context) bool { return {{$Return}} },
+			EvalFnc: func(ctx *eval.Context) bool { return {{$Return}} },
+			DebugEvalFnc: func(ctx *eval.Context) bool { return {{$Return}} },
 	{{end}}
 			Field: key,
 		}, nil
