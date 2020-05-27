@@ -28,6 +28,7 @@ shared_examples_for 'Agent installed by the install script' do
         'installer_version' => /^install_script-\d+\.\d+\.\d+$/
       )
     end
+  end
 end
 
 describe 'dd-agent-installation-script' do
