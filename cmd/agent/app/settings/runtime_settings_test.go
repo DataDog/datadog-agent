@@ -114,7 +114,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set("true")
 	assert.Nil(err)
-	assert.Equal(common.DSD.DebugMetricsStats, 1)
+	assert.Equal(common.DSD.DebugMetricsStats, uint64(1))
 	v, err := s.Get()
 	assert.Nil(err)
 	assert.Equal(v, true)
@@ -123,7 +123,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set("false")
 	assert.Nil(err)
-	assert.Equal(common.DSD.DebugMetricsStats, 0)
+	assert.Equal(common.DSD.DebugMetricsStats, uint64(0))
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, false)
@@ -132,7 +132,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set(true)
 	assert.Nil(err)
-	assert.Equal(common.DSD.DebugMetricsStats, 1)
+	assert.Equal(common.DSD.DebugMetricsStats, uint64(1))
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, true)
@@ -141,7 +141,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	err = s.Set(false)
 	assert.Nil(err)
-	assert.Equal(common.DSD.DebugMetricsStats, 0)
+	assert.Equal(common.DSD.DebugMetricsStats, uint64(0))
 	v, err = s.Get()
 	assert.Nil(err)
 	assert.Equal(v, false)
