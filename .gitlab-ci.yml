@@ -1587,7 +1587,7 @@ deploy_deb_testing-a6:
 
 deploy_deb_testing-a7:
   stage: testkitchen_deploy
-  needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_deb-x64-a7", "iot_agent_deb-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1612,7 +1612,6 @@ deploy_deb_testing-a7:
 
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
-
 
 # deploy rpm packages to yum staging repo
 deploy_rpm_testing-a6:
@@ -1639,7 +1638,7 @@ deploy_rpm_testing-a7:
   <<: *run_only_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
-  needs: ["fail_on_non_triggered_tag", "agent_rpm-x64-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_rpm-x64-a7", "iot_agent_rpm-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -1680,7 +1679,7 @@ deploy_suse_rpm_testing-a7:
   <<: *run_only_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
-  needs: ["fail_on_non_triggered_tag", "agent_suse-x64-a7"]
+  needs: ["fail_on_non_triggered_tag", "agent_suse-x64-a7", "iot_agent_suse-x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -1808,36 +1807,34 @@ deploy_windows_testing-a7:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-
-
 # Kitchen: tests
 # --------------
 
-.kitchen_test_chef: &kitchen_test_chef
+.kitchen_test_chef:
   script:
-    - AZURE_LOCATION='North Central US' bash -l tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
+    - bash -l tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_step_by_step: &kitchen_test_step_by_step
+.kitchen_test_step_by_step:
   script:
-    - AZURE_LOCATION='Central US' bash -l tasks/run-test-kitchen.sh step-by-step-test $AGENT_MAJOR_VERSION
+    - bash -l tasks/run-test-kitchen.sh step-by-step-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_install_script: &kitchen_test_install_script
+.kitchen_test_install_script:
   script:
-    - AZURE_LOCATION='South Central US' bash -l tasks/run-test-kitchen.sh install-script-test $AGENT_MAJOR_VERSION
+    - bash -l tasks/run-test-kitchen.sh install-script-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_upgrade5: &kitchen_test_upgrade5
+.kitchen_test_upgrade5:
   script:
-    - AZURE_LOCATION='Central US' bash -l tasks/run-test-kitchen.sh upgrade5-test $AGENT_MAJOR_VERSION
+    - bash -l tasks/run-test-kitchen.sh upgrade5-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_upgrade6: &kitchen_test_upgrade6
+.kitchen_test_upgrade6:
   script:
-    - AZURE_LOCATION='South Central US' bash -l tasks/run-test-kitchen.sh upgrade6-test $AGENT_MAJOR_VERSION
+    - bash -l tasks/run-test-kitchen.sh upgrade6-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_upgrade7: &kitchen_test_upgrade7
+.kitchen_test_upgrade7:
   script:
-    - AZURE_LOCATION='North Central US' bash -l tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
+    - bash -l tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_windows_installer: &kitchen_test_windows_installer
+.kitchen_test_windows_installer:
   before_script: # Override kitchen_os_windows default with a smaller set of TEST_PLATFORMS
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
@@ -1845,61 +1842,151 @@ deploy_windows_testing-a7:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
-    - AZURE_LOCATION='North Central US' bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
+    - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
+# Kitchen: Agent flavor locations
+# -------------------------------
+
+.kitchen_datadog_agent_flavor:
+  variables:
+    AGENT_FLAVOR: "datadog-agent"
+
+.kitchen_datadog_iot_agent_flavor:
+  variables:
+    AGENT_FLAVOR: "datadog-iot-agent"
+
+# Kitchen: Azure locations
+# -------------------------------
+
+.kitchen_azure_location_north_central_us:
+  variables:
+    AZURE_LOCATION: "North Central US"
+
+.kitchen_azure_location_west_central_us:
+  variables:
+    AZURE_LOCATION: "West Central US"
+
+.kitchen_azure_location_central_us:
+  variables:
+    AZURE_LOCATION: "Central US"
+
+.kitchen_azure_location_south_central_us:
+  variables:
+    AZURE_LOCATION: "South Central US"
+
+# Kitchen: Test types (test suite * agent flavor + azure location)
+# -------------------------------
+
+.kitchen_test_chef_agent:
+  extends:
+    - .kitchen_test_chef
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+
+.kitchen_test_step_by_step_agent:
+  extends:
+    - .kitchen_test_step_by_step
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_central_us
+
+.kitchen_test_install_script_agent:
+  extends:
+    - .kitchen_test_install_script
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_south_central_us
+
+.kitchen_test_install_script_iot_agent:
+  extends:
+    - .kitchen_test_install_script
+    - .kitchen_datadog_iot_agent_flavor
+    - .kitchen_azure_location_west_central_us
+
+.kitchen_test_upgrade5_agent:
+  extends:
+    - .kitchen_test_upgrade5
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_central_us
+
+.kitchen_test_upgrade6_agent:
+  extends:
+    - .kitchen_test_upgrade6
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_central_us
+
+.kitchen_test_upgrade7_agent:
+  extends:
+    - .kitchen_test_upgrade7
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+
+.kitchen_test_windows_installer_agent:
+    extends:
+    - .kitchen_test_windows_installer
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
 
 
 # Kitchen: scenarios (os * agent)
 # -------------------------------
 
-.kitchen_scenario_windows_a6: &kitchen_scenario_windows_a6
-  <<: *kitchen_os_windows
-  <<: *kitchen_agent_a6
+.kitchen_scenario_windows_a6:
+  extends:
+    - .kitchen_os_windows
+    - .kitchen_agent_a6
   needs: ["fail_on_non_triggered_tag", "deploy_windows_testing-a6"]
 
-.kitchen_scenario_windows_a7: &kitchen_scenario_windows_a7
-  <<: *kitchen_os_windows
-  <<: *kitchen_agent_a7
+.kitchen_scenario_windows_a7:
+  extends:
+    - .kitchen_os_windows
+    - .kitchen_agent_a7
   needs: ["fail_on_non_triggered_tag", "deploy_windows_testing-a7"]
 
-.kitchen_scenario_centos_a6: &kitchen_scenario_centos_a6
-  <<: *kitchen_os_centos
-  <<: *kitchen_agent_a6
+.kitchen_scenario_centos_a6:
+  extends:
+    - .kitchen_os_centos
+    - .kitchen_agent_a6
   needs: ["fail_on_non_triggered_tag", "deploy_rpm_testing-a6"]
 
-.kitchen_scenario_centos_a7: &kitchen_scenario_centos_a7
-  <<: *kitchen_os_centos
-  <<: *kitchen_agent_a7
+.kitchen_scenario_centos_a7:
+  extends:
+    - .kitchen_os_centos
+    - .kitchen_agent_a7
   needs: ["fail_on_non_triggered_tag", "deploy_rpm_testing-a7"]
 
-.kitchen_scenario_ubuntu_a6: &kitchen_scenario_ubuntu_a6
-  <<: *kitchen_os_ubuntu
-  <<: *kitchen_agent_a6
+.kitchen_scenario_ubuntu_a6:
+  extends:
+    - .kitchen_os_ubuntu
+    - .kitchen_agent_a6
   needs: ["fail_on_non_triggered_tag", "deploy_deb_testing-a6"]
 
-.kitchen_scenario_ubuntu_a7: &kitchen_scenario_ubuntu_a7
-  <<: *kitchen_os_ubuntu
-  <<: *kitchen_agent_a7
+.kitchen_scenario_ubuntu_a7:
+  extends:
+    - .kitchen_os_ubuntu
+    - .kitchen_agent_a7
   needs: ["fail_on_non_triggered_tag", "deploy_deb_testing-a7"]
 
-.kitchen_scenario_suse_a6: &kitchen_scenario_suse_a6
-  <<: *kitchen_os_suse
-  <<: *kitchen_agent_a6
+.kitchen_scenario_suse_a6:
+  extends:
+    - .kitchen_os_suse
+    - .kitchen_agent_a6
   needs: ["fail_on_non_triggered_tag", "deploy_suse_rpm_testing-a6"]
 
-.kitchen_scenario_suse_a7: &kitchen_scenario_suse_a7
-  <<: *kitchen_os_suse
-  <<: *kitchen_agent_a7
+.kitchen_scenario_suse_a7:
+  extends:
+    - .kitchen_os_suse
+    - .kitchen_agent_a7
   needs: ["fail_on_non_triggered_tag", "deploy_suse_rpm_testing-a7"]
 
-.kitchen_scenario_debian_a6: &kitchen_scenario_debian_a6
-  <<: *kitchen_os_debian
-  <<: *kitchen_agent_a6
+.kitchen_scenario_debian_a6:
+  extends:
+    - .kitchen_os_debian
+    - .kitchen_agent_a6
   needs: ["fail_on_non_triggered_tag", "deploy_deb_testing-a6"]
 
-.kitchen_scenario_debian_a7: &kitchen_scenario_debian_a7
-  <<: *kitchen_os_debian
-  <<: *kitchen_agent_a7
+.kitchen_scenario_debian_a7:
+  extends:
+    - .kitchen_os_windows
+    - .kitchen_agent_a7
   needs: ["fail_on_non_triggered_tag", "deploy_deb_testing-a7"]
 
 
@@ -1908,279 +1995,356 @@ deploy_windows_testing-a7:
 # ----------------------------------------------
 
 # run dd-agent-testing for the windows installer
-kitchen_windows_installer-a6:
+kitchen_windows_installer_agent-a6:
   allow_failure: true
-  <<: *kitchen_scenario_windows_a6
-  <<: *kitchen_test_windows_installer
+  extends:
+    - .kitchen_scenario_windows_a6
+    - .kitchen_test_windows_installer_agent
   retry: 0
 
-kitchen_windows_installer-a7:
+kitchen_windows_installer_agent-a7:
   allow_failure: true
-  <<: *kitchen_scenario_windows_a7
-  <<: *kitchen_test_windows_installer
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_windows_installer_agent
   retry: 0
 
 # run dd-agent-testing on windows
-kitchen_windows_chef-a6:
+kitchen_windows_chef_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_windows_a6
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_windows_a6
+    - .kitchen_test_chef_agent
 
-kitchen_windows_chef-a7:
+kitchen_windows_chef_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_windows_a7
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_chef_agent
 
-kitchen_windows_upgrade5-a6:
+kitchen_windows_upgrade5_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_windows_a6
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_windows_a6
+    - .kitchen_test_upgrade5_agent
 
-kitchen_windows_upgrade5-a7:
+kitchen_windows_upgrade5_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_windows_a7
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_upgrade5_agent
 
-kitchen_windows_upgrade6-a6:
+kitchen_windows_upgrade6_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_windows_a6
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_windows_a6
+    - .kitchen_test_upgrade6_agent
 
-kitchen_windows_upgrade6-a7:
+kitchen_windows_upgrade6_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_windows_a7
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_upgrade6_agent
 
-kitchen_windows_upgrade7-a7:
+kitchen_windows_upgrade7_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_windows_a7
-  <<: *kitchen_test_upgrade7
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_upgrade7_agent
 
 # run dd-agent-testing on centos
-kitchen_centos_chef-a6:
+kitchen_centos_chef_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a6
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_centos_a6
+    - .kitchen_test_chef_agent
 
-kitchen_centos_chef-a7:
+kitchen_centos_chef_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a7
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_chef_agent
 
-kitchen_centos_install_script-a6:
+kitchen_centos_install_script_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a6
-  <<: *kitchen_test_install_script
+  extends:
+    - .kitchen_scenario_centos_a6
+    - .kitchen_test_install_script_agent
 
-kitchen_centos_install_script-a7:
+kitchen_centos_install_script_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a7
-  <<: *kitchen_test_install_script
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_install_script_agent
 
-kitchen_centos_step_by_step-a6:
+kitchen_centos_install_script_iot_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a6
-  <<: *kitchen_test_step_by_step
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_install_script_iot_agent
 
-kitchen_centos_step_by_step-a7:
+kitchen_centos_step_by_step_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a7
-  <<: *kitchen_test_step_by_step
+  extends:
+    - .kitchen_scenario_centos_a6
+    - .kitchen_test_step_by_step_agent
 
-kitchen_centos_upgrade5-a6:
+kitchen_centos_step_by_step_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a6
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_step_by_step_agent
 
-kitchen_centos_upgrade5-a7:
+kitchen_centos_upgrade5_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a7
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_centos_a6
+    - .kitchen_test_upgrade5_agent
 
-kitchen_centos_upgrade6-a6:
+kitchen_centos_upgrade5_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a6
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_upgrade5_agent
 
-kitchen_centos_upgrade6-a7:
+kitchen_centos_upgrade6_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a7
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_centos_a6
+    - .kitchen_test_upgrade6_agent
 
-kitchen_centos_upgrade7-a7:
+kitchen_centos_upgrade6_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_centos_a7
-  <<: *kitchen_test_upgrade7
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_upgrade6_agent
+
+kitchen_centos_upgrade7_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_upgrade7_agent
 
 # run dd-agent-testing on ubuntu
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
-kitchen_ubuntu_chef-a6:
+kitchen_ubuntu_chef_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a6
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_ubuntu_a6
+    - .kitchen_test_chef_agent
 
-kitchen_ubuntu_chef-a7:
+kitchen_ubuntu_chef_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a7
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_chef_agent
 
-kitchen_ubuntu_install_script-a6:
+kitchen_ubuntu_install_script_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a6
-  <<: *kitchen_test_install_script
+  extends:
+    - .kitchen_scenario_ubuntu_a6
+    - .kitchen_test_install_script_agent
 
-kitchen_ubuntu_install_script-a7:
+kitchen_ubuntu_install_script_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a7
-  <<: *kitchen_test_install_script
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_install_script_agent
 
-kitchen_ubuntu_step_by_step-a6:
+kitchen_ubuntu_install_script_iot_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a6
-  <<: *kitchen_test_step_by_step
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_install_script_iot_agent
 
-kitchen_ubuntu_step_by_step-a7:
+kitchen_ubuntu_step_by_step_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a7
-  <<: *kitchen_test_step_by_step
+  extends:
+    - .kitchen_scenario_ubuntu_a6
+    - .kitchen_test_step_by_step_agent
 
-kitchen_ubuntu_upgrade5-a6:
+kitchen_ubuntu_step_by_step_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a6
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_step_by_step_agent
 
-kitchen_ubuntu_upgrade5-a7:
+kitchen_ubuntu_upgrade5_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a7
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_ubuntu_a6
+    - .kitchen_test_upgrade5_agent
 
-kitchen_ubuntu_upgrade6-a6:
+kitchen_ubuntu_upgrade5_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a6
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_upgrade5_agent
 
-kitchen_ubuntu_upgrade6-a7:
+kitchen_ubuntu_upgrade6_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a7
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_ubuntu_a6
+    - .kitchen_test_upgrade6_agent
 
-kitchen_ubuntu_upgrade7-a7:
+kitchen_ubuntu_upgrade6_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_ubuntu_a7
-  <<: *kitchen_test_upgrade7
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_upgrade6_agent
+
+kitchen_ubuntu_upgrade7_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_upgrade7_agent
 
 # run dd-agent-testing on suse
-kitchen_suse_chef-a6:
+kitchen_suse_chef_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a6
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_suse_a6
+    - .kitchen_test_chef_agent
 
-kitchen_suse_chef-a7:
+kitchen_suse_chef_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a7
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_chef_agent
 
-kitchen_suse_install_script-a6:
+kitchen_suse_install_script_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a6
-  <<: *kitchen_test_install_script
+  extends:
+    - .kitchen_scenario_suse_a6
+    - .kitchen_test_install_script_agent
 
-kitchen_suse_install_script-a7:
+kitchen_suse_install_script_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a7
-  <<: *kitchen_test_install_script
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_install_script_agent
 
-kitchen_suse_step_by_step-a6:
+kitchen_suse_install_script_iot_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a6
-  <<: *kitchen_test_step_by_step
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_install_script_iot_agent
 
-kitchen_suse_step_by_step-a7:
+kitchen_suse_step_by_step_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a7
-  <<: *kitchen_test_step_by_step
+  extends:
+    - .kitchen_scenario_suse_a6
+    - .kitchen_test_step_by_step_agent
 
-kitchen_suse_upgrade5-a6:
+kitchen_suse_step_by_step_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a6
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_step_by_step_agent
 
-kitchen_suse_upgrade5-a7:
+kitchen_suse_upgrade5_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a7
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_suse_a6
+    - .kitchen_test_upgrade5_agent
 
-kitchen_suse_upgrade6-a6:
+kitchen_suse_upgrade5_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a6
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_upgrade5_agent
 
-kitchen_suse_upgrade6-a7:
+kitchen_suse_upgrade6_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a7
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_suse_a6
+    - .kitchen_test_upgrade6_agent
 
-kitchen_suse_upgrade7-a7:
+kitchen_suse_upgrade6_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_suse_a7
-  <<: *kitchen_test_upgrade7
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_upgrade6_agent
+
+kitchen_suse_upgrade7_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_upgrade7_agent
 
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
-kitchen_debian_chef-a6:
+kitchen_debian_chef_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a6
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_debian_a6
+    - .kitchen_test_chef_agent
 
-kitchen_debian_chef-a7:
+kitchen_debian_chef_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a7
-  <<: *kitchen_test_chef
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_chef_agent
 
-kitchen_debian_install_script-a6:
+kitchen_debian_install_script_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a6
-  <<: *kitchen_test_install_script
+  extends:
+    - .kitchen_scenario_debian_a6
+    - .kitchen_test_install_script_agent
 
-kitchen_debian_install_script-a7:
+kitchen_debian_install_script_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a7
-  <<: *kitchen_test_install_script
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_install_script_agent
 
-kitchen_debian_step_by_step-a6:
+kitchen_debian_install_script_iot_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a6
-  <<: *kitchen_test_step_by_step
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_install_script_iot_agent
 
-kitchen_debian_step_by_step-a7:
+kitchen_debian_step_by_step_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a7
-  <<: *kitchen_test_step_by_step
+  extends:
+    - .kitchen_scenario_debian_a6
+    - .kitchen_test_step_by_step_agent
 
-kitchen_debian_upgrade5-a6:
+kitchen_debian_step_by_step_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a6
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_step_by_step_agent
 
-kitchen_debian_upgrade5-a7:
+kitchen_debian_upgrade5_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a7
-  <<: *kitchen_test_upgrade5
+  extends:
+    - .kitchen_scenario_debian_a6
+    - .kitchen_test_upgrade5_agent
 
-kitchen_debian_upgrade6-a6:
+kitchen_debian_upgrade5_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a6
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_upgrade5_agent
 
-kitchen_debian_upgrade6-a7:
+kitchen_debian_upgrade6_agent-a6:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a7
-  <<: *kitchen_test_upgrade6
+  extends:
+    - .kitchen_scenario_debian_a6
+    - .kitchen_test_upgrade6_agent
 
-kitchen_debian_upgrade7-a7:
+kitchen_debian_upgrade6_agent-a7:
   allow_failure: false
-  <<: *kitchen_scenario_debian_a7
-  <<: *kitchen_test_upgrade7
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_upgrade6_agent
+
+kitchen_debian_upgrade7_agent_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_upgrade7_agent
 
 .kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
   stage: testkitchen_cleanup

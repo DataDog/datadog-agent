@@ -10,6 +10,7 @@ suites:
       unattended_upgrades:
         enable: false
     dd-agent-install-script:
+      agent_flavor: <%= ENV['AGENT_FLAVOR'] || datadog-agent %>
       api_key: <%= api_key %>
       install_script_url: https://raw.githubusercontent.com/DataDog/datadog-agent/<%= ENV['CI_COMMIT_SHA'] %>/cmd/agent/install_script.sh
       repo_branch_apt: <%= aptrepo_dist %>
