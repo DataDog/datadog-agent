@@ -68,8 +68,8 @@ func (t *Tailer) readAvailable() (err error) {
 	}
 	f.Seek(t.GetReadOffset(), io.SeekStart)
 
-	inBuf := make([]byte, 4096)
 	for {
+		inBuf := make([]byte, 4096)
 		n, err := f.Read(inBuf)
 		if n == 0 || err != nil {
 			log.Debugf("Done reading")
