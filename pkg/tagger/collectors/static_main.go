@@ -51,14 +51,6 @@ func (c *StaticCollector) Fetch(entity string) ([]string, []string, []string, er
 
 	c.infoOut <- tagInfoList
 
-	// Use a go routine to mark expires as the expire process can be done asynchronously.
-	// We do not need the output as the StaticCollector is not meant run as a standalone and another
-	// collector can handle entity pruning in the tagStore.
-	if time.Now().Sub(c.lastExpire) >= c.expireFreq {
-		go c.expire.ComputeExpires()
-		c.lastExpire = time.Now()
-	}
-
 	return c.ddTagsEnvVar, []string{}, []string{}, nil
 }
 
