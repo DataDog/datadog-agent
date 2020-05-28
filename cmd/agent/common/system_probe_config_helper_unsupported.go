@@ -3,13 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build kubeapiserver
+// +build !process windows
 
-package admission
+package common
 
-import admiv1beta1 "k8s.io/api/admission/v1beta1"
-
-func Mutate(req *admiv1beta1.AdmissionRequest) (*admiv1beta1.AdmissionResponse, error) {
-	// TODO: implement me
-	return nil, nil
+// SetupSystemProbeConfig returns nil on unsupported builds
+func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
+	return nil
 }

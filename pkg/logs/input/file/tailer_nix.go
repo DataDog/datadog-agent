@@ -42,19 +42,19 @@ func (t *Tailer) setup(offset int64, whence int) error {
 
 // read lets the tailer tail the content of a file
 // until it is closed or the tailer is stopped.
-func (t *Tailer) read() error {
+func (t *Tailer) read() (int, error) {
 	// keep reading data from file
 	inBuf := make([]byte, 4096)
 	n, err := t.file.Read(inBuf)
 	if err != nil && err != io.EOF {
 		// an unexpected error occurred, stop the tailor
 		t.source.Status.Error(err)
-		return log.Error("Unexpected error occurred while reading file: ", err)
+		return 0, log.Error("Unexpected error occurred while reading file: ", err)
 	}
 	if n == 0 {
-		return nil
+		return 0, nil
 	}
 	t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 	t.incrementReadOffset(n)
-	return nil
+	return n, nil
 }

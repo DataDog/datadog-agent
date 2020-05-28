@@ -35,7 +35,7 @@ func newJMXCheck(config integration.Config, source string) *JMXCheck {
 		source:    source,
 		telemetry: telemetry.IsCheckEnabled("jmx"),
 	}
-	check.Configure(config.InitConfig, config.MetricConfig, source)
+	check.Configure(config.InitConfig, config.MetricConfig, source) //nolint:errcheck
 
 	return check
 }

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -25,11 +26,7 @@ const (
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
 	podTagsAnnotation                = podAnnotationPrefix + "tags"
-
-	podStandardLabelPrefix  = "tags.datadoghq.com/"
-	podStandardLabelEnv     = podStandardLabelPrefix + tagKeyEnv
-	podStandardLabelVersion = podStandardLabelPrefix + tagKeyVersion
-	podStandardLabelService = podStandardLabelPrefix + tagKeyService
+	podStandardLabelPrefix           = "tags.datadoghq.com/"
 )
 
 // KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
@@ -54,11 +51,11 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		for name, value := range pod.Metadata.Labels {
 			// Standard pod labels
 			switch name {
-			case podStandardLabelEnv:
+			case kubernetes.EnvTagLabelKey:
 				tags.AddLow(tagKeyEnv, value)
-			case podStandardLabelVersion:
+			case kubernetes.VersionTagLabelKey:
 				tags.AddLow(tagKeyVersion, value)
-			case podStandardLabelService:
+			case kubernetes.ServiceTagLabelKey:
 				tags.AddLow(tagKeyService, value)
 			}
 			for pattern, tmpl := range c.labelsAsTags {

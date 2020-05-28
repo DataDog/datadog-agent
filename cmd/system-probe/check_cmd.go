@@ -66,8 +66,8 @@ func querySocketEndpoint(cfg *config.AgentConfig, check string, client string) e
 
 	// print json to stdout
 	var out bytes.Buffer
-	json.Indent(&out, body, "", "  ")
-	out.WriteTo(os.Stdout)
+	json.Indent(&out, body, "", "  ") //nolint:errcheck
+	out.WriteTo(os.Stdout)            //nolint:errcheck
 
 	return nil
 }

@@ -19,8 +19,7 @@ var requiredKernelFuncs = []string{
 	"bpf_map_lookup_elem",
 	"bpf_map_update_elem",
 	"bpf_map_delete_elem",
-	// kprobes (4.1)
-	"bpf_probe_read",
+	// bpf_probe_read intentionally omitted since it was renamed in kernel 5.5
 	// Perf events (4.4)
 	"bpf_perf_event_output",
 	"bpf_perf_event_read",

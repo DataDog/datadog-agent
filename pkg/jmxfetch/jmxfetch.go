@@ -149,7 +149,7 @@ func (j *JMXFetch) Monitor() {
 		default:
 			// restart
 			log.Warnf("JMXFetch process had to be restarted.")
-			j.Start(false)
+			j.Start(false) //nolint:errcheck
 		}
 	}
 
@@ -342,8 +342,8 @@ func (j *JMXFetch) Wait() error {
 }
 
 func (j *JMXFetch) heartbeat(beat *time.Ticker) {
-	health := health.Register("jmxfetch")
-	defer health.Deregister()
+	health := health.RegisterLiveness("jmxfetch")
+	defer health.Deregister() //nolint:errcheck
 
 	for range beat.C {
 		select {

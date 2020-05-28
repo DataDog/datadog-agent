@@ -171,6 +171,30 @@ func TestFilter(t *testing.T) {
 			},
 			ns: "default",
 		},
+		{
+			c: Container{
+				ID:    "20",
+				Name:  "k8s_POD_OSE3",
+				Image: "registry.access.redhat.com/rhel7/pod-infrastructure:latest",
+			},
+			ns: "default",
+		},
+		{
+			c: Container{
+				ID:    "23",
+				Name:  "k8s_POD_EKS_Win",
+				Image: "amazonaws.com/eks/pause-windows:latest",
+			},
+			ns: "default",
+		},
+		{
+			c: Container{
+				ID:    "24",
+				Name:  "k8s_POD_AKS_Win",
+				Image: "kubeletwin/pause:latest",
+			},
+			ns: "default",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -179,25 +203,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			blacklist:   []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			blacklist:   []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			whitelist:   []string{},
 			blacklist:   []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			whitelist:   []string{"name:mysql"},
 			blacklist:   []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			blacklist:   []string{"kube_namespace:.*"},
@@ -206,15 +230,17 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			blacklist:   []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24"},
 		},
 		// Test kubernetes defaults
 		{
 			blacklist: []string{
 				pauseContainerGCR,
-				pauseContainerOpenshift,
+				pauseContainerOpenshift3,
 				pauseContainerKubernetes,
 				pauseContainerAzure,
+				pauseContainerECS,
+				pauseContainerEKS,
 				pauseContainerRancher,
 				pauseContainerAKS,
 				pauseContainerECR,

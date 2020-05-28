@@ -62,7 +62,7 @@ func ProcessPodlist(podList []*v1.Pod, groupID int32, cfg *config.AgentConfig, h
 			continue
 		}
 		var jsonObj interface{}
-		yaml.Unmarshal(jsonPod, &jsonObj)
+		yaml.Unmarshal(jsonPod, &jsonObj) //nolint:errcheck
 		yamlPod, _ := yaml.Marshal(jsonObj)
 		podModel.Yaml = yamlPod
 
