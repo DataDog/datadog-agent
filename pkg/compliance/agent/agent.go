@@ -7,10 +7,8 @@
 package agent
 
 import (
-	"os"
 	"path"
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -35,14 +33,11 @@ type Agent struct {
 }
 
 // New creates a new instance of Agent
-func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, hostname string, checkInterval time.Duration) *Agent {
-
-	builder := checks.NewBuilder(checkInterval, checks.BuilderEnv{
-		Reporter:     reporter,
-		DockerClient: dockerClient(),
-		HostRoot:     os.Getenv("HOST_ROOT"),
-		Hostname:     hostname,
-	})
+func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, options ...checks.BuilderOption) *Agent {
+	builder := checks.NewBuilder(
+		reporter,
+		options...,
+	)
 
 	return &Agent{
 		builder:   builder,

@@ -14,16 +14,16 @@ type MockBuilder struct {
 	mock.Mock
 }
 
-// CheckFromRule provides a mock function with given fields: meta, rule
-func (_m *MockBuilder) CheckFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (check.Check, error) {
+// ChecksFromRule provides a mock function with given fields: meta, rule
+func (_m *MockBuilder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error) {
 	ret := _m.Called(meta, rule)
 
-	var r0 check.Check
-	if rf, ok := ret.Get(0).(func(*compliance.SuiteMeta, *compliance.Rule) check.Check); ok {
+	var r0 []check.Check
+	if rf, ok := ret.Get(0).(func(*compliance.SuiteMeta, *compliance.Rule) []check.Check); ok {
 		r0 = rf(meta, rule)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(check.Check)
+			r0 = ret.Get(0).([]check.Check)
 		}
 	}
 

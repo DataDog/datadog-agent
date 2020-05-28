@@ -12,7 +12,6 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -22,11 +21,6 @@ import (
 )
 
 func TestRun(t *testing.T) {
-
-	dockerClient = func() checks.DockerClient {
-		return &checks.MockDockerClient{}
-	}
-
 	assert := assert.New(t)
 
 	tempDir, err := ioutil.TempDir("", "compliance-agent-")
@@ -44,8 +38,6 @@ func TestRun(t *testing.T) {
 	prev, _ := os.Getwd()
 	_ = os.Chdir(tempDir)
 	defer os.Chdir(prev)
-
-	interval := time.Hour
 
 	reporter := &compliance.MockReporter{}
 
@@ -83,7 +75,7 @@ func TestRun(t *testing.T) {
 		check.Run()
 	})
 
-	a := New(reporter, scheduler, tempDir, "the-host", interval)
+	a := New(reporter, scheduler, tempDir, checks.WithHostname("the-host"), checks.WithDockerClient(&checks.MockDockerClient{}))
 
 	err = a.Run()
 	assert.NoError(err)

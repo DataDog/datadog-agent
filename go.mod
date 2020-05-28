@@ -75,6 +75,7 @@ require (
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/dustin/go-humanize v1.0.0
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
+	github.com/elastic/go-libaudit v0.4.0
 	github.com/fatih/color v1.9.0
 	github.com/florianl/go-conntrack v0.1.0
 	github.com/go-ini/ini v1.55.0

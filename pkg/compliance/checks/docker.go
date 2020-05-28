@@ -5,19 +5,18 @@
 
 // +build docker
 
-package agent
+package checks
 
 import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var dockerClient = func() checks.DockerClient {
+func newDockerClient() DockerClient {
 	queryTimeout := config.Datadog.GetDuration("docker_query_timeout") * time.Second
 
 	// Major failure risk is here, do that first

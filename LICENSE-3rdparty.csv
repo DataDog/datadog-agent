@@ -234,6 +234,10 @@ core,"github.com/dsnet/compress/internal",FreeBSD
 core,"github.com/dsnet/compress/internal/errors",FreeBSD
 core,"github.com/dsnet/compress/internal/prefix",FreeBSD
 core,"github.com/dustin/go-humanize",MIT
+core,"github.com/elastic/go-libaudit",Apache-2.0
+core,"github.com/elastic/go-libaudit/auparse",Apache-2.0
+core,"github.com/elastic/go-libaudit/rule",Apache-2.0
+core,"github.com/elastic/go-libaudit/rule/flags",Apache-2.0
 core,"github.com/emicklei/go-restful",MIT
 core,"github.com/emicklei/go-restful-swagger12",MIT
 core,"github.com/emicklei/go-restful/log",MIT

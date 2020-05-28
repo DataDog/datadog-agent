@@ -33,6 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
+	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -250,7 +251,16 @@ func startCompliance(stopper restart.Stopper) error {
 	if err != nil {
 		return err
 	}
-	agent := agent.New(reporter, scheduler, configDir, hostname, checkInterval)
+	agent := agent.New(
+		reporter,
+		scheduler,
+		configDir,
+		checks.WithInterval(checkInterval),
+		checks.WithHostname(hostname),
+		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
+		checks.WithDocker(),
+		checks.WithAudit(),
+	)
 	err = agent.Run()
 	if err != nil {
 		return log.Errorf("Error starting compliance agent, exiting: %v", err)

@@ -69,8 +69,8 @@ const testResourceAudit = `
 audit:
   path: /usr/bin/dockerd
   report:
-  - as: audited
-    value: true
+  - property: enabled
+    kind: attribute
 `
 
 const testResourceAuditPathFromCommand = `
@@ -78,8 +78,8 @@ audit:
   pathFrom:
   - command: systemctl show -p FragmentPath docker.socket
   report:
-  - as: audited
-    value: true
+  - property: enabled
+    kind: attribute
 `
 
 const testResourceGroup = `
@@ -220,22 +220,22 @@ func TestResources(t *testing.T) {
 			},
 		},
 		{
-			name:  "audit with file path reporting as true",
+			name:  "audit with file path",
 			input: testResourceAudit,
 			expected: Resource{
 				Audit: &Audit{
 					Path: "/usr/bin/dockerd",
 					Report: Report{
 						{
-							As:    "audited",
-							Value: "true",
+							Property: "enabled",
+							Kind:     "attribute",
 						},
 					},
 				},
 			},
 		},
 		{
-			name:  "audit with file path from command reporting as true",
+			name:  "audit with file path from command",
 			input: testResourceAuditPathFromCommand,
 			expected: Resource{
 				Audit: &Audit{
@@ -246,8 +246,8 @@ func TestResources(t *testing.T) {
 					},
 					Report: Report{
 						{
-							As:    "audited",
-							Value: "true",
+							Property: "enabled",
+							Kind:     "attribute",
 						},
 					},
 				},

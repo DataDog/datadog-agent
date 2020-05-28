@@ -28,35 +28,78 @@ type Builder interface {
 	ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error)
 }
 
-// BuilderEnv defines builder environment used to instantiate different checks
-type BuilderEnv struct {
-	Reporter     compliance.Reporter
-	DockerClient DockerClient
-	HostRoot     string
-	Hostname     string
+// BuilderOption defines a configuration option for the builder
+type BuilderOption func(*builder)
+
+// WithInterval configures default check interval
+func WithInterval(interval time.Duration) BuilderOption {
+	return func(b *builder) {
+		b.checkInterval = interval
+	}
+}
+
+// WithHostname configures hostname used by checks
+func WithHostname(hostname string) BuilderOption {
+	return func(b *builder) {
+		b.hostname = hostname
+	}
+}
+
+// WithHostRootMount defines host root filesystem mount location
+func WithHostRootMount(hostRootMount string) BuilderOption {
+	return func(b *builder) {
+		log.Infof("host root filesystem will be remapped to %s", hostRootMount)
+		b.pathMapper = func(path string) string {
+			return filepath.Join(hostRootMount, path)
+		}
+	}
+}
+
+// WithDocker configures using docker
+func WithDocker() BuilderOption {
+	return WithDockerClient(newDockerClient())
+}
+
+// WithDockerClient configurs specific docker client
+func WithDockerClient(cli DockerClient) BuilderOption {
+	return func(b *builder) {
+		b.dockerClient = cli
+	}
+}
+
+// WithAudit configures using audit checks
+func WithAudit() BuilderOption {
+	return WithAuditClient(newAuditClient())
+}
+
+// WithAuditClient configures using specific audit client
+func WithAuditClient(cli AuditClient) BuilderOption {
+	return func(b *builder) {
+		b.auditClient = cli
+	}
 }
 
 // NewBuilder constructs a check builder
-func NewBuilder(checkInterval time.Duration, env BuilderEnv) Builder {
-	var mapper pathMapper
-	if len(env.HostRoot) != 0 {
-		log.Infof("Root filesystem will be remapped to %s", env.HostRoot)
-		mapper = func(path string) string {
-			return filepath.Join(env.HostRoot, path)
-		}
+func NewBuilder(reporter compliance.Reporter, options ...BuilderOption) Builder {
+	b := &builder{
+		reporter:      reporter,
+		checkInterval: 20 * time.Minute,
 	}
-	return &builder{
-		checkInterval: checkInterval,
-		pathMapper:    mapper,
-		env:           env,
+
+	for _, o := range options {
+		o(b)
 	}
+	return b
 }
 
 type builder struct {
 	checkInterval time.Duration
-	env           BuilderEnv
 
-	pathMapper pathMapper
+	reporter     compliance.Reporter
+	dockerClient DockerClient
+	auditClient  AuditClient
+	hostname     string
+	pathMapper   pathMapper
 }
 
 func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error) {
@@ -81,7 +124,7 @@ func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Ru
 
 func (b *builder) getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (string, error) {
 	if rule.Scope.Docker {
-		if b.env.DockerClient == nil {
+		if b.dockerClient == nil {
 			return "", log.Warnf("%s/%s - rule skipped - docker not running", meta.Framework, rule.ID)
 		}
 		return "docker", nil
@@ -99,11 +142,19 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, ruleS
 	case resource.File != nil:
 		return b.fileCheck(meta, ruleID, ruleScope, resource.File)
 	case resource.Docker != nil:
+		if b.dockerClient == nil {
+			return nil, log.Errorf("%s: skipped - docker client not initialized", ruleID)
+		}
 		return b.dockerCheck(meta, ruleID, ruleScope, resource.Docker)
 	case resource.Process != nil:
 		return newProcessCheck(b.baseCheck(ruleID, "process", ruleScope, meta), resource.Process)
 	case resource.Command != nil:
 		return newCommandCheck(b.baseCheck(ruleID, "command", ruleScope, meta), resource.Command)
+	case resource.Audit != nil:
+		if b.auditClient == nil {
+			return nil, log.Errorf("%s: skipped - audit client not initialized", ruleID)
+		}
+		return newAuditCheck(b.baseCheck(ruleID, "audit", ruleScope, meta), b.auditClient, resource.Audit)
 	default:
 		log.Errorf("%s: resource not supported", ruleID)
 		return nil, ErrResourceNotSupported
@@ -124,7 +175,7 @@ func (b *builder) dockerCheck(meta *compliance.SuiteMeta, ruleID string, ruleSco
 	return &dockerCheck{
 		baseCheck:      b.baseCheck(ruleID, fmt.Sprintf("docker:%s", dockerResource.Kind), ruleScope, meta),
 		dockerResource: dockerResource,
-		client:         b.env.DockerClient,
+		client:         b.dockerClient,
 	}, nil
 }
 
@@ -132,13 +183,13 @@ func (b *builder) baseCheck(ruleID string, resourceName string, ruleScope string
 	return baseCheck{
 		id:        newCheckID(ruleID, resourceName),
 		interval:  b.checkInterval,
-		reporter:  b.env.Reporter,
+		reporter:  b.reporter,
 		framework: meta.Framework,
 		version:   meta.Version,
 
 		ruleID:       ruleID,
 		resourceType: ruleScope,
-		resourceID:   b.env.Hostname,
+		resourceID:   b.hostname,
 	}
 }
 
