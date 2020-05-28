@@ -1910,7 +1910,7 @@ deploy_windows_testing-a7:
   extends:
     - .kitchen_test_upgrade6
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_central_us
+    - .kitchen_azure_location_south_central_us
 
 .kitchen_test_upgrade7_agent:
   extends:
@@ -1919,7 +1919,7 @@ deploy_windows_testing-a7:
     - .kitchen_azure_location_north_central_us
 
 .kitchen_test_windows_installer_agent:
-    extends:
+  extends:
     - .kitchen_test_windows_installer
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
