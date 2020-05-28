@@ -13,14 +13,14 @@
         "JMXFETCH_VERSION": "0.36.2",
         "JMXFETCH_HASH": "f782b9a5e9dffbce3463245562858fd8fed1508269222e8bebeefd3f865d10d8"
     },
-    "6.20.0-dbm-beta-rc.5": {
+    "6.20.0-dbm-beta-rc.6": {
         "INTEGRATIONS_CORE_VERSION": "justiniso/7.20.0-dbm-beta-rc.2",
         "OMNIBUS_SOFTWARE_VERSION": "7.20.0-rc.1",
         "OMNIBUS_RUBY_VERSION": "7.20.0-rc.1",
         "JMXFETCH_VERSION": "0.36.2",
         "JMXFETCH_HASH": "f782b9a5e9dffbce3463245562858fd8fed1508269222e8bebeefd3f865d10d8"
     },
-    "7.20.0-dbm-beta-rc.5": {
+    "7.20.0-dbm-beta-rc.6": {
         "INTEGRATIONS_CORE_VERSION": "justiniso/7.20.0-dbm-beta-rc.2",
         "OMNIBUS_SOFTWARE_VERSION": "7.20.0-rc.1",
         "OMNIBUS_RUBY_VERSION": "7.20.0-rc.1",
