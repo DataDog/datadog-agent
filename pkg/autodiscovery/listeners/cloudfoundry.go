@@ -132,11 +132,16 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 		// non-container service
 		// NOTE: non-container services intentionally have no IPs or ports, everything is supposed to be configured
 		// through the "variables" section in the AD configuration
+		dLRP := adID.GetDesiredLRP()
 		svc = &CloudFoundryService{
 			adIdentifier:   adID,
 			containerIPs:   map[string]string{},
 			containerPorts: []ContainerPort{},
 			creationTime:   crTime,
+			tags: []string{
+				fmt.Sprintf("%s:%s", cloudfoundry.AppNameTagKey, dLRP.AppName),
+				fmt.Sprintf("%s:%s", cloudfoundry.AppGUIDTagKey, dLRP.AppGUID),
+			},
 		}
 	} else {
 		if aLRP.State != cloudfoundry.ActualLrpStateRunning {
