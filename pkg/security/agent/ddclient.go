@@ -114,6 +114,7 @@ func (ddc *DDClient) SendAlertWithTags(buf []byte, tags []string) {
 // SendSecurityEvent - Sends a security event with the provided status
 func (ddc *DDClient) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
 	// TODO: the right tags should be set in the security agent module
+	// TODO: the status of the message should follow the severity of the security alert
 	tags := append(
 		evt.GetTags(),
 		fmt.Sprintf("type:%s", evt.GetType()),
