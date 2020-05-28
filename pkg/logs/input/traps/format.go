@@ -21,15 +21,25 @@ const (
 
 // FormatPacketJSON converts an SNMP trap packet to a binary JSON log message content.
 func FormatPacketJSON(p *traps.SnmpPacket) ([]byte, error) {
-	if len(p.Variables) < 2 {
-		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(p.Variables))
+	if len(p.Content.Variables) < 2 {
+		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(p.Content.Variables))
 	}
 
 	data := make(map[string]interface{})
 
-	// TODO sender_ip
+	device := make(map[string]interface{})
+	device["ip"] = p.Addr.IP.String()
+	device["port"] = p.Addr.Port
+	data["device"] = device
 
-	trap, err := getTrap(p)
+	snmp := make(map[string]interface{})
+	snmp["version"] = traps.VersionAsString(p.Content.Version)
+	if p.Content.Community != "" {
+		snmp["community"] = p.Content.Community
+	}
+	data["snmp"] = snmp
+
+	trap, err := parseTrap(p)
 	if err != nil {
 		return nil, err
 	}
@@ -42,27 +52,27 @@ func normalizeOID(value string) string {
 	return strings.TrimLeft(value, ".")
 }
 
-func getTrap(p *traps.SnmpPacket) (map[string]interface{}, error) {
+func parseTrap(p *traps.SnmpPacket) (map[string]interface{}, error) {
 	data := make(map[string]interface{})
 
-	uptime, err := getUptime(p)
+	uptime, err := parseUptime(p.Content)
 	if err != nil {
 		return nil, err
 	}
 	data["uptime"] = uptime
 
-	oid, err := getTrapOID(p)
+	oid, err := parseTrapOID(p.Content)
 	if err != nil {
 		return nil, err
 	}
 	data["oid"] = oid
 
-	data["objects"] = getObjects(p)
+	data["objects"] = parseObjects(p.Content)
 
 	return data, nil
 }
 
-func getUptime(p *traps.SnmpPacket) (uint32, error) {
+func parseUptime(p *gosnmp.SnmpPacket) (uint32, error) {
 	v := p.Variables[0]
 
 	if v.Type != gosnmp.TimeTicks {
@@ -82,7 +92,7 @@ func getUptime(p *traps.SnmpPacket) (uint32, error) {
 	return value * 100, nil
 }
 
-func getTrapOID(p *traps.SnmpPacket) (string, error) {
+func parseTrapOID(p *gosnmp.SnmpPacket) (string, error) {
 	v := p.Variables[1]
 
 	if v.Type != gosnmp.ObjectIdentifier {
@@ -101,7 +111,7 @@ func getTrapOID(p *traps.SnmpPacket) (string, error) {
 	return normalizeOID(value), nil
 }
 
-func getObjects(p *traps.SnmpPacket) []map[string]interface{} {
+func parseObjects(p *gosnmp.SnmpPacket) []map[string]interface{} {
 	var objects []map[string]interface{}
 
 	for _, v := range p.Variables[2:] {
@@ -124,7 +134,7 @@ func formatType(v gosnmp.SnmpPDU) string {
 	case gosnmp.ObjectIdentifier:
 		return "oid"
 	case gosnmp.Counter32, gosnmp.Counter64:
-		return "count"
+		return "counter"
 	case gosnmp.Gauge32:
 		return "gauge"
 	default:

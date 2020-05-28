@@ -6,6 +6,7 @@
 package traps
 
 import (
+	"net"
 	"sync"
 	"time"
 
@@ -26,7 +27,10 @@ import (
  */
 
 // SnmpPacket is the type of packets yielded by server listeners.
-type SnmpPacket = gosnmp.SnmpPacket
+type SnmpPacket struct {
+	Content *gosnmp.SnmpPacket
+	Addr    *net.UDPAddr
+}
 
 // OutputChannel is the type of the server output channel.
 type OutputChannel = chan *SnmpPacket

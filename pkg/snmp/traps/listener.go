@@ -32,7 +32,7 @@ func NewTrapListener(bindHost string, c TrapListenerConfig, output OutputChannel
 	impl := gosnmp.NewTrapListener()
 	impl.Params = params
 	impl.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-		output <- p
+		output <- &SnmpPacket{Content: p, Addr: u}
 	}
 
 	ln := &TrapListener{
