@@ -12,9 +12,6 @@ struct unlink_event_t {
 };
 
 int trace__sys_unlink() {
-    if (filter_process())
-        return 0;
-
     struct syscall_cache_t syscall = {};
     cache_syscall(&syscall);
 

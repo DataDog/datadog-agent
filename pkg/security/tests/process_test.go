@@ -26,7 +26,7 @@ func TestProcess(t *testing.T) {
 		Expression: fmt.Sprintf(`process.user == "%s" && process.name == "%s" && open.filename == "/etc/hosts"`, currentUser.Name, path.Base(executable)),
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{ruleDef})
+	test, err := newTestModule(nil, []*policy.RuleDefinition{ruleDef}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}

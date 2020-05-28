@@ -17,7 +17,7 @@ func TestOpen(t *testing.T) {
 		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*policy.RuleDefinition{rule})
+	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,8 +49,8 @@ func TestOpen(t *testing.T) {
 	}
 }
 
-func benchmarkOpenSameFile(b *testing.B, rules ...*policy.RuleDefinition) {
-	test, err := newTestModule(nil, rules)
+func benchmarkOpenSameFile(b *testing.B, enableFilters bool, rules ...*policy.RuleDefinition) {
+	test, err := newTestModule(nil, rules, testOpts{enableFilters: enableFilters})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -78,10 +78,10 @@ func benchmarkOpenSameFile(b *testing.B, rules ...*policy.RuleDefinition) {
 func BenchmarkOpenNoApprover(b *testing.B) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `open.filename =~ "{{.Root}}/donotmatch"`,
+		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
-	benchmarkOpenSameFile(b, rule)
+	benchmarkOpenSameFile(b, false, rule)
 }
 
 func BenchmarkOpenWithApprover(b *testing.B) {
@@ -90,11 +90,11 @@ func BenchmarkOpenWithApprover(b *testing.B) {
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
-	benchmarkOpenSameFile(b, rule)
+	benchmarkOpenSameFile(b, true, rule)
 }
 
 func BenchmarkOpenNoKprobe(b *testing.B) {
-	benchmarkOpenSameFile(b)
+	benchmarkOpenSameFile(b, false)
 }
 
 func createFolder(current string, filesPerFolder, maxDepth int) error {
@@ -120,7 +120,7 @@ func createFolder(current string, filesPerFolder, maxDepth int) error {
 }
 
 func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*policy.RuleDefinition) {
-	test, err := newTestModule(nil, rules)
+	test, err := newTestModule(nil, rules, testOpts{})
 	if err != nil {
 		b.Fatal(err)
 	}

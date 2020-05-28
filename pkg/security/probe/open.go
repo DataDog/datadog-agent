@@ -73,7 +73,7 @@ var OpenKProbes = []*KProbe{
 
 			return nil
 		},
-		OnNewFilter: func(probe *Probe, field string, filters []eval.Filter) error {
+		OnNewFilter: func(probe *Probe, field string, filters ...eval.Filter) error {
 			switch field {
 			case "open.basename":
 				for _, filter := range filters {

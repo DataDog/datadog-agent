@@ -44,9 +44,6 @@ struct open_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
-    if (filter_process())
-        return 0;
-
     struct syscall_cache_t syscall = {
         .open = {
             .flags = flags,
@@ -116,7 +113,6 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
             struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
             if (filter != NULL) {
                 pass_to_userspace = 1;
-
 #ifdef DEBUG
                 printk("kprobe/vfs_open %s approved\n", basename.value);
 #endif
@@ -133,6 +129,10 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
             struct filter_t *filter = bpf_map_lookup_elem(&open_basename_discarders, &basename);
             if (filter) {
                 pass_to_userspace = 0;
+
+#ifdef DEBUG
+                printk("kprobe/vfs_open %s discarded\n", basename.value);
+#endif
             }
         }
     }

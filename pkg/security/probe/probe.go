@@ -26,6 +26,8 @@ type Stats struct {
 	}
 }
 
+type filterCb func(probe *Probe, field string, filters ...eval.Filter) error
+
 type Probe struct {
 	*eprobe.Probe
 	handler       EventHandler
@@ -38,7 +40,7 @@ type Probe struct {
 type KProbe struct {
 	*eprobe.KProbe
 	EventTypes      map[string][]eval.FilteringCapability
-	OnNewFilter     func(probe *Probe, field string, filters []eval.Filter) error
+	OnNewFilter     filterCb
 	SetFilterPolicy func(probe *Probe, mode PolicyMode) error
 }
 
@@ -188,9 +190,6 @@ func (p *Probe) getTables() []*types.Table {
 		{
 			Name: "pathnames",
 		},
-		{
-			Name: "process_discriminators",
-		},
 	}
 
 	return append(tables, OpenTables...)
@@ -237,6 +236,14 @@ func NewProbe(config *config.Config) (*Probe, error) {
 
 	for _, kprobe := range AllKProbes {
 		ebpfProbe.Kprobes = append(ebpfProbe.Kprobes, kprobe.KProbe)
+
+		for eventType := range kprobe.EventTypes {
+			if kprobe.OnNewFilter != nil {
+				cbs := p.eventFilterCb[eventType]
+				cbs = append(cbs, kprobe.OnNewFilter)
+				p.eventFilterCb[eventType] = cbs
+			}
+		}
 	}
 
 	if err := ebpfProbe.Load(); err != nil {
@@ -334,14 +341,33 @@ func (p *Probe) handleEvent(data []byte) {
 	p.DispatchEvent(event)
 }
 
-func (p *Probe) AddKernelFilter(event *Event, field string) {
-	switch field {
-	case "process.name":
-		processName := event.Process.GetComm()
-
-		log.Infof("Push in-kernel process discriminator '%s'", processName)
-		p.kernelFilters.Push("process_discriminators", CommTableKey(processName))
+func (p *Probe) OnNewDiscarder(event *Event, field string) error {
+	eventType, err := event.GetFieldEventType(field)
+	if err != nil {
+		return err
 	}
+
+	filtersCb := p.eventFilterCb[eventType]
+	for _, filtersCb := range filtersCb {
+		value, err := event.GetFieldValue(field)
+		if err != nil {
+			return err
+		}
+
+		filter := eval.Filter{
+			Field: field,
+			Type:  eval.ScalarValueType,
+			Value: value,
+			Not:   true,
+		}
+
+		err = filtersCb(p, field, filter)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
@@ -389,7 +415,7 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 					if kprobe.OnNewFilter == nil {
 						continue
 					}
-					if err := kprobe.OnNewFilter(p, field, filters); err != nil {
+					if err := kprobe.OnNewFilter(p, field, filters...); err != nil {
 						if err := kprobe.SetFilterPolicy(p, POLICY_MODE_ACCEPT); err != nil {
 							return err
 						}

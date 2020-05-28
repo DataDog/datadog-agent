@@ -39,10 +39,6 @@ struct event_t {
     u64 retval;
 };
 
-struct event_context_t {
-    char comm[TASK_COMM_LEN];
-};
-
 struct process_data_t {
     // Process data
     u64  pidns;
@@ -54,19 +50,6 @@ struct process_data_t {
     u32  gid;
 };
 
-struct process_discriminator_t {
-    char comm[TASK_COMM_LEN];
-};
-
-struct bpf_map_def SEC("maps/process_discriminators") process_discriminators = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(struct process_discriminator_t),
-    .value_size = sizeof(u8),
-    .max_entries = 256,
-    .pinning = 0,
-    .namespace = "",
-};
-
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .key_size = sizeof(__u32),
@@ -75,24 +58,6 @@ struct bpf_map_def SEC("maps/events") events = {
     .pinning = 0,
     .namespace = "",
 };
-
-void __attribute__((always_inline)) fill_event_context(struct event_context_t *event_context) {
-    bpf_get_current_comm(&event_context->comm, sizeof(event_context->comm));
-}
-
-static __attribute__((always_inline)) int filter(struct event_context_t *event_context) {
-    int found = bpf_map_lookup_elem(&process_discriminators, &event_context->comm) != 0;
-    if (found) {
-        printk("Process filter found for %s\n", event_context->comm);
-    }
-    return !found;
-}
-
-int __attribute__((always_inline)) filter_process() {
-    struct event_context_t event_context;
-    fill_event_context(&event_context);
-    return !filter(&event_context);
-}
 
 #define send_event(ctx, event) \
     bpf_perf_event_output(ctx, &events, bpf_get_smp_processor_id(), &event, sizeof(event))
