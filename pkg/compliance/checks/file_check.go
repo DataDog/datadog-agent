@@ -68,7 +68,7 @@ func (c *fileCheck) reportFile(filePath string) error {
 
 		if field.Value != "" {
 			if key == "" {
-				// TODO: error here
+				log.Errorf("%s: value field without an alias key - %s", c.id, field.Value)
 				continue
 			}
 

@@ -131,7 +131,7 @@ func (b *builder) getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule
 	}
 
 	if len(rule.Scope.Kubernetes) > 0 {
-		// TODO: - resource actual scope for Kubernetes role here
+		// TODO: resource actual scope for Kubernetes role here
 		return "worker", nil
 	}
 	return "", ErrRuleScopeNotSupported

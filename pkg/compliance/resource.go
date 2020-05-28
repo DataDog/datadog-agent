@@ -15,7 +15,6 @@ type Resource struct {
 	Command *Command        `yaml:"command,omitempty"`
 	Audit   *Audit          `yaml:"audit,omitempty"`
 	Docker  *DockerResource `yaml:"docker,omitempty"`
-	API     *API            `yaml:"api,omitempty"`
 }
 
 // File describes a file resource
@@ -101,18 +100,6 @@ type DockerResource struct {
 	Report Report `yaml:"report,omitempty"`
 }
 
-// API describes a generic API query resource
-type API struct {
-	Kind string `yaml:"kind"`
-	Get  string `yaml:"get,omitempty"`
-
-	Vars APIVars `yaml:"vars,omitempty"`
-
-	Filter []Filter `yaml:"filter,omitempty"`
-
-	Report Report `yaml:"report,omitempty"`
-}
-
 // ValueFrom provides a lookup list for substitution of a value in a Resource
 type ValueFrom []ValueSource
 
@@ -190,20 +177,4 @@ type Condition struct {
 	Property  string `yaml:"property,omitempty"`
 	Kind      string `yaml:"kind,omitempty"`
 	Value     string `yaml:"value,omitempty"`
-}
-
-// APIVars defines a list of variables substituted in generic API resource endpoint queries
-type APIVars []APIVar
-
-// APIVar defines a variable substitution in generic API resource endpoint query
-type APIVar struct {
-	Name  string       `yaml:"name"`
-	List  *APIVarValue `yaml:"enumerate,omitempty"`
-	Value *APIVarValue `yaml:"value,omitempty"`
-}
-
-// APIVarValue defines how an API variable is retrieved
-type APIVarValue struct {
-	Get      string `yaml:"get"`
-	JSONPath string `yaml:"jsonpath"`
 }
