@@ -415,6 +415,125 @@ api_key:
 #
 # secret_backend_timeout: 5
 
+## @param snmp_listener - custom object - optional
+## Creates and schedules an snmp listener to automatically discover your SNMP devices.
+## Discover devices can then be monitored with the snmp integration by using
+## the provided auto_conf.yaml file.
+#
+# snmp_listener:
+
+  ## @param workers - integer - optional - default: 2
+  ## Number of goroutines used to discover SNMP devices. Increasing this value
+  ## will help to discover devices faster but at the cost of increased resource consumption.
+  #
+  # workers: 2
+
+  ## @param discovery_interval - integer - optional - default: 3600
+  ## How often to discover new SNMP devices. Decreasing this value
+  ## will help to discover devices faster but at the cost of increased resource consumption.
+  #
+  # discovery_interval: 3600
+
+  ## @param allowed_failures - integer - optional - default: 3
+  ## Number of failed requests to a given SNMP device before removing it for the list of monitored
+  ## devices.
+  ## If a device shuts down, the Agent will stop monitoring it after `discovery_interval * allowed_failures`
+  #
+  # allowed_failures: 3
+
+  ## @param configs - custom object - required
+  ## The actual configurations used to discover SNMP devices in various subnets.
+  #
+  # configs:
+
+    ## @param network - string - required
+    ## The subnet in CIDR format to scan for SNMP devices.
+    ## Ex: 10.0.0.0/24
+    #
+    # network: <NETWORK>
+
+    ## @param ignored_ip_addresses - list of strings - optional
+    ## A list of IP addresses to ignore when scanning the network.
+    #
+    # ignored_ip_addresses:
+    #   - <IP_ADDRESS_1>
+    #   - <IP_ADDRESS_2>
+
+    ## @param port - integer - optional - default: 161
+    ## Default SNMP port.
+    #
+    # port: 161
+
+    ## @param version - integer - optional - default: 2
+    ## If you are using SNMP v1 set version to 1. (required)
+    ## If you are using SNMP v3 set version to 3. (required)
+    #
+    # version: 2
+
+    ## @param timeout - integer - optional - default: 5
+    ## Number of seconds before timing out.
+    #
+    # timeout: 5
+
+    ## @param retries - integer - optional - default: 3
+    ## Amount of retries before failure.
+    #
+    # retries: 3
+
+    ## @param community - string - optional
+    ## Required for SNMP v1 & v2.
+    ## Ex: 'public'
+    #
+    # community: <COMMUNITY_STRING>
+
+    ## @param user - string - optional
+    ## The username to connect to your SNMP devices.
+    #
+    # user: <USERNAME>
+
+    ## @param authentication_key - string - optional
+    ## Authentication key to use with your Authentication type.
+    #
+    # authentication_key: <AUTHENTICATION_TYPE_KEY>
+
+    ## @param authentication_protocol - string - optional
+    ## Authentication type to use when connecting to your SNMP devices.
+    ## It can be one of: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
+    ## Default to MD5 when `authentication_key` is specified.
+    #
+    # authentication_protocol: <AUTHENTICATION_PROTOCOL>
+
+    ## @param privacy_key - string - optional
+    ## Privacy type key to use with your Privacy type.
+    #
+    # privacy_key: <PRIVACY_TYPE_KEY>
+
+    ## @param privacy_protocol - string - optional
+    ## Privacy type to use when connecting to your SNMP devices.
+    ## It can be one of: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
+    ## Default to DES when `privKey` is specified.
+    #
+    # privacy_protocol: <PRIVACY_TYPE>
+
+    ## @param context_engine_id - string - optional
+    ## ID of your context engine; typically unneeded.
+    ## (optional SNMP v3-only parameter)
+    #
+    # context_engine_id: <CONTEXT_ENGINE_ID>
+
+    ## @param context_name - string - optional
+    ## Name of your context (optional SNMP v3-only parameter).
+    #
+    # context_name: <CONTEXT_NAME>
+
+    ## @param ad_identifier - string - optional - default: snmp
+    ## A unique identifier to attach to devices from that subnetwork.
+    ## When configuring the snmp integration from the snmp.d/auto_conf.yaml file,
+    ## you can specify the corresponding ad_identifier at the top of the file.
+    ##
+    #
+    # ad_identifier: snmp
+
 {{ end -}}
 {{- if .LogsAgent }}
 
