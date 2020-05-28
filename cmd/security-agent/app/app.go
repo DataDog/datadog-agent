@@ -167,32 +167,31 @@ func start(cmd *cobra.Command, args []string) error {
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
-	stopper := restart.NewSerialStopper()
-	defer stopper.Stop()
-
-	if err = startCompliance(stopper); err != nil {
-		return err
-	}
-
-	srv, err := api.NewServer()
-	if err != nil {
-		return log.Errorf("Error while creating api server, exiting: %v", err)
-	}
-
-	if err = srv.Start(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
+	complianceEnabled := config.Datadog.GetBool("compliance_config.enabled")
+	if complianceEnabled {
+		checkInterval := config.Datadog.GetDuration("compliance_config.check_interval")
+		log.Infof("Running compliance checks every %s", checkInterval.String())
+	} else {
+		log.Info("Datadog compliance agent disabled by config")
 	}
 	defer srv.Stop()
 
-	client, err := agent.NewEventClient()
-	if err != nil {
-		return err
+	var runtimeSecurityAgent *agent.RuntimeSecurityAgent
+	runtimeSecurityEnabled := config.Datadog.GetBool("runtime_security_config.enabled")
+	if runtimeSecurityEnabled {
+		// TODO: add system-probe listen addr in config
+		systemProbeAddr := "localhost:8787"
+		runtimeSecurityAgent, err = agent.NewRuntimeSecurityAgent(systemProbeAddr)
+		if err != nil {
+			return log.Errorf("unable to create a runtime security agent instance: %v", err)
+		}
+		if err := runtimeSecurityAgent.Start(); err != nil {
+			return log.Errorf("unable to start the runtime security agent: %v", err)
+		}
+		log.Info("Datadog runtime security agent is now running")
+	} else {
+		log.Info("Datadog runtime security agent disabled by config")
 	}
-
-	go client.Start()
-	defer client.Stop()
-
-	log.Infof("Datadog Security Agent is now running.")
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -203,6 +202,12 @@ func start(cmd *cobra.Command, args []string) error {
 
 	if stopCh != nil {
 		close(stopCh)
+	}
+
+	if runtimeSecurityEnabled {
+		if err := runtimeSecurityAgent.Stop(); err != nil {
+			log.Criticalf("unable to stop the runtime security agent: %v", err)
+		}
 	}
 
 	log.Info("See ya!")
