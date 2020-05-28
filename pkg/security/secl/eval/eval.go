@@ -24,10 +24,8 @@ var (
 
 type Model interface {
 	GetEvaluator(key string) (interface{}, error)
-	GetTags(key string) ([]string, error)
-	GetEventType(key string) (string, error)
 	SetEvent(event interface{})
-	SetEventValue(key string, value interface{}) error
+	GetEvent() Event
 }
 
 type Context struct {
@@ -484,7 +482,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				return nil, nil, obj.Pos, err
 			}
 
-			tags, err := state.model.GetTags(*obj.Ident)
+			tags, err := state.model.GetEvent().GetFieldTags(*obj.Ident)
 			if err == nil {
 				state.UpdateTags(tags)
 			}
@@ -548,7 +546,7 @@ func (r *RuleEvaluator) GetFields() []string {
 func eventFromFields(model Model, state *state) ([]string, error) {
 	events := make(map[string]bool)
 	for field := range state.fieldValues {
-		eventType, err := model.GetEventType(field)
+		eventType, err := model.GetEvent().GetFieldEventType(field)
 		if err != nil {
 			return nil, err
 		}

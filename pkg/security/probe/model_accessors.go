@@ -246,11 +246,115 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	return nil, errors.Wrap(ErrFieldNotFound, key)
 }
 
-func (m *Model) GetTags(key string) ([]string, error) {
-	return m.event.GetTags(key)
+func (e *Event) GetFieldValue(key string) (interface{}, error) {
+	switch key {
+
+	case "container.id":
+
+		return e.Container.ID, nil
+
+	case "event.retval":
+
+		return int(e.Event.Retval), nil
+
+	case "event.type":
+
+		return e.Event.ResolveType(e.resolvers), nil
+
+	case "mkdir.filename":
+
+		return e.Mkdir.ResolveInode(e.resolvers), nil
+
+	case "mkdir.inode":
+
+		return int(e.Mkdir.Inode), nil
+
+	case "mkdir.mode":
+
+		return int(e.Mkdir.Mode), nil
+
+	case "open.filename":
+
+		return e.Open.ResolveInode(e.resolvers), nil
+
+	case "open.flags":
+
+		return int(e.Open.Flags), nil
+
+	case "open.inode":
+
+		return int(e.Open.Inode), nil
+
+	case "open.mode":
+
+		return int(e.Open.Mode), nil
+
+	case "process.gid":
+
+		return int(e.Process.GID), nil
+
+	case "process.name":
+
+		return e.Process.ResolveComm(e.resolvers), nil
+
+	case "process.pid":
+
+		return int(e.Process.Pid), nil
+
+	case "process.pidns":
+
+		return int(e.Process.Pidns), nil
+
+	case "process.tid":
+
+		return int(e.Process.Tid), nil
+
+	case "process.tty_name":
+
+		return e.Process.TTYName, nil
+
+	case "process.uid":
+
+		return int(e.Process.UID), nil
+
+	case "rename.newfilename":
+
+		return e.Rename.ResolveTargetInode(e.resolvers), nil
+
+	case "rename.newinode":
+
+		return int(e.Rename.TargetInode), nil
+
+	case "rename.oldfilename":
+
+		return e.Rename.ResolveSrcInode(e.resolvers), nil
+
+	case "rename.oldinode":
+
+		return int(e.Rename.SrcInode), nil
+
+	case "rmdir.filename":
+
+		return e.Rmdir.ResolveInode(e.resolvers), nil
+
+	case "rmdir.inode":
+
+		return int(e.Rmdir.Inode), nil
+
+	case "unlink.filename":
+
+		return e.Unlink.ResolveInode(e.resolvers), nil
+
+	case "unlink.inode":
+
+		return int(e.Unlink.Inode), nil
+
+	}
+
+	return nil, errors.Wrap(ErrFieldNotFound, key)
 }
 
-func (e *Event) GetTags(key string) ([]string, error) {
+func (e *Event) GetFieldTags(key string) ([]string, error) {
 	switch key {
 
 	case "container.id":
@@ -333,11 +437,7 @@ func (e *Event) GetTags(key string) ([]string, error) {
 	return nil, errors.Wrap(ErrFieldNotFound, key)
 }
 
-func (m *Model) GetEventType(key string) (string, error) {
-	return m.event.GetEventType(key)
-}
-
-func (e *Event) GetEventType(key string) (string, error) {
+func (e *Event) GetFieldEventType(key string) (string, error) {
 	switch key {
 
 	case "container.id":
@@ -420,11 +520,7 @@ func (e *Event) GetEventType(key string) (string, error) {
 	return "", errors.Wrap(ErrFieldNotFound, key)
 }
 
-func (m *Model) SetEventValue(key string, value interface{}) error {
-	return m.event.SetEventValue(key, value)
-}
-
-func (e *Event) SetEventValue(key string, value interface{}) error {
+func (e *Event) SetFieldValue(key string, value interface{}) error {
 	var ok bool
 	switch key {
 

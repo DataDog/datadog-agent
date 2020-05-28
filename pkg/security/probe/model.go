@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
@@ -20,6 +21,10 @@ type Model struct {
 
 func (m *Model) SetEvent(event interface{}) {
 	m.event = event.(*Event)
+}
+
+func (m *Model) GetEvent() eval.Event {
+	return m.event
 }
 
 type OpenEvent struct {
