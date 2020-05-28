@@ -13,9 +13,6 @@ struct rename_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_rename() {
-    if (filter_process())
-        return 0;
-
     struct syscall_cache_t syscall = {};
     cache_syscall(&syscall);
 

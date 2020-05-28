@@ -12,9 +12,6 @@ struct mkdir_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_mkdir(struct pt_regs *ctx, umode_t mode) {
-    if (filter_process())
-        return 0;
-
     struct syscall_cache_t syscall = {
         .mkdir = {
             .mode = mode

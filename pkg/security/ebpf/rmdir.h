@@ -12,9 +12,6 @@ struct rmdir_event_t {
 };
 
 SYSCALL_KPROBE(rmdir) {
-    if (filter_process())
-        return 0;
-
     struct syscall_cache_t syscall = {};
     cache_syscall(&syscall);
 

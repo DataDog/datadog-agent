@@ -31,7 +31,7 @@ func BenchmarkE2EOpen(b *testing.B) {
 		Expression: `open.filename == "{{.Root}}/test" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule})
+	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
 	if err != nil {
 		b.Fatal(err)
 	}

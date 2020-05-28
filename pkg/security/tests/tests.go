@@ -25,7 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var eventChanLength = 100
+var (
+	eventChanLength     = 100
+	discarderChanLength = 100
+)
 
 const grpcAddr = "127.0.0.1:18787"
 
@@ -37,6 +40,9 @@ system_probe_config:
 
 runtime_security_config:
   debug: true
+{{if not .EnableFilters}}
+  enable_kernel_filters: false
+{{end}}
   policies:
     - name: test-policy
       files:
@@ -64,6 +70,10 @@ type testEvent struct {
 	rule  *eval.Rule
 }
 
+type testOpts struct {
+	enableFilters bool
+}
+
 type testModule struct {
 	st       *simpleTest
 	module   smodule.Module
@@ -71,21 +81,36 @@ type testModule struct {
 	events   chan testEvent
 }
 
+type testDiscarder struct {
+	event eval.Event
+	field string
+}
+
 type testProbe struct {
-	st     *simpleTest
-	probe  *sprobe.Probe
-	events chan *sprobe.Event
+	st         *simpleTest
+	probe      *sprobe.Probe
+	events     chan *sprobe.Event
+	discarders chan *testDiscarder
 }
 
 type testEventHandler struct {
-	events chan *sprobe.Event
+	ruleSet    *eval.RuleSet
+	events     chan *sprobe.Event
+	discarders chan *testDiscarder
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
 	h.events <- event
+	h.ruleSet.Evaluate(event)
 }
 
-func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (string, error) {
+func (h *testEventHandler) RuleMatch(rule *eval.Rule, event eval.Event) {}
+
+func (h *testEventHandler) EventDiscarderFound(event eval.Event, field string) {
+	h.discarders <- &testDiscarder{event: event, field: field}
+}
+
+func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return "", err
@@ -103,7 +128,8 @@ func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPolicy": testPolicyFile.Name(),
+		"TestPolicy":    testPolicyFile.Name(),
+		"EnableFilters": opts.enableFilters,
 	}); err != nil {
 		return "", fail(err)
 	}
@@ -138,13 +164,13 @@ func setTestConfig(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	return testPolicyFile.Name(), nil
 }
 
-func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*testModule, error) {
+func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testModule, error) {
 	st, err := newSimpleTest(macros, rules)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules)
+	cfgFilename, err := setTestConfig(macros, rules, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -201,13 +227,13 @@ func (tm *testModule) Close() {
 	tm.module.Close()
 }
 
-func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*testProbe, error) {
+func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition, opts testOpts) (*testProbe, error) {
 	st, err := newSimpleTest(macros, rules)
 	if err != nil {
 		return nil, err
 	}
 
-	cfgFilename, err := setTestConfig(macros, rules)
+	cfgFilename, err := setTestConfig(macros, rules, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -233,18 +259,21 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 	}
 
 	events := make(chan *sprobe.Event, eventChanLength)
+	discarders := make(chan *testDiscarder, discarderChanLength)
 
-	handler := &testEventHandler{events: events}
+	handler := &testEventHandler{events: events, discarders: discarders, ruleSet: ruleSet}
 	probe.SetEventHandler(handler)
+	ruleSet.AddListener(handler)
 
 	if err := probe.Start(); err != nil {
 		return nil, err
 	}
 
 	return &testProbe{
-		st:     st,
-		probe:  probe,
-		events: events,
+		st:         st,
+		probe:      probe,
+		events:     events,
+		discarders: discarders,
 	}, nil
 }
 

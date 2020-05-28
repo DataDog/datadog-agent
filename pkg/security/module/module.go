@@ -55,11 +55,7 @@ func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
 }
 
 func (m *Module) EventDiscarderFound(event eval.Event, field string) {
-	m.probe.AddKernelFilter(event.(*sprobe.Event), field)
-}
-
-func (m *Module) EventApproverFound(event eval.Event, field string) {
-	m.probe.AddKernelFilter(event.(*sprobe.Event), field)
+	m.probe.OnNewDiscarder(event.(*sprobe.Event), field)
 }
 
 func (m *Module) HandleEvent(event *sprobe.Event) {
