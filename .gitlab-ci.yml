@@ -546,7 +546,8 @@ cluster_agent-build_arm64:
 
 # build cluster-agent-cloudfoundry bin
 cluster_agent_cloudfoundry-build_amd64:
-  <<: *skip_when_unwanted_on_7
+  rules:
+    - <<: *if_version_7
   stage: binary_build
   needs: ["run_go_tidy_check"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
@@ -972,6 +973,8 @@ agent_rpm-arm-a7:
   <<: *agent_build_common_rpm
 
 iot_agent_rpm-x64:
+  rules:
+    - <<: *if_version_7
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
@@ -981,7 +984,6 @@ iot_agent_rpm-x64:
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only --no-checks
-  <<: *skip_when_unwanted_on_7
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -1008,6 +1010,8 @@ iot_agent_rpm-x64:
       - $OMNIBUS_PACKAGE_DIR
 
 iot_agent_rpm-arm64:
+  rules:
+    - <<: *if_version_7
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -1023,7 +1027,6 @@ iot_agent_rpm-arm64:
     # - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-  <<: *skip_when_unwanted_on_7
   script:
     - echo "About to build iot agent for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
@@ -1122,6 +1125,8 @@ agent_suse-x64-a7:
   <<: *agent_build_common_suse_rpm
 
 iot_agent_suse-x64:
+  rules:
+    - <<: *if_version_7
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
@@ -1131,7 +1136,6 @@ iot_agent_suse-x64:
   before_script:
     - source /root/.bashrc && conda activate ddpy3
     - inv -e deps --verbose --dep-vendor-only --no-checks
-  <<: *skip_when_unwanted_on_7
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
@@ -2513,9 +2517,8 @@ docker_build_agent6:
 
 docker_build_agent6_arm64:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - when: on_success
+    - <<: *if_version_6
+      when: on_success
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs:
@@ -2531,9 +2534,8 @@ docker_build_agent6_arm64:
 # build agent6 py2 jmx image
 docker_build_agent6_jmx:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - when: on_success
+    - <<: *if_version_6
+      when: on_success
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs:
@@ -2550,9 +2552,8 @@ docker_build_agent6_jmx:
 # build agent6 py2 jmx image
 docker_build_agent6_jmx_arm64:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - when: on_success
+    - <<: *if_version_6
+      when: on_success
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs:
@@ -2570,9 +2571,8 @@ docker_build_agent6_jmx_arm64:
 # build agent6 jmx unified image (including python3)
 docker_build_agent6_py2py3_jmx:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - when: on_success
+    - <<: *if_version_6
+      when: on_success
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs:
@@ -2588,9 +2588,8 @@ docker_build_agent6_py2py3_jmx:
 # build agent7 image
 docker_build_agent7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: on_success
+    - <<: *if_version_7
+      when: on_success
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs:
@@ -2605,9 +2604,8 @@ docker_build_agent7:
 
 docker_build_agent7_arm64:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: on_success
+    - <<: *if_version_7
+      when: on_success
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs:
@@ -2623,9 +2621,8 @@ docker_build_agent7_arm64:
 # build agent7 jmx image
 docker_build_agent7_jmx:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: on_success
+    - <<: *if_version_7
+      when: on_success
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs:
@@ -2640,9 +2637,8 @@ docker_build_agent7_jmx:
 
 docker_build_agent7_jmx_arm64:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: on_success
+    - <<: *if_version_7
+      when: on_success
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs:
@@ -2658,9 +2654,8 @@ docker_build_agent7_jmx_arm64:
 # build agent7_windows image
 docker_build_agent7_windows1809:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: on_success
+    - <<: *if_version_7
+      when: on_success
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs:
@@ -2685,9 +2680,8 @@ docker_build_agent7_windows1809:
 
 docker_build_agent7_windows1809_jmx:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: on_success
+    - <<: *if_version_7
+      when: on_success
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs:
@@ -2713,9 +2707,8 @@ docker_build_agent7_windows1809_jmx:
 # build agent7_windows image
 docker_build_agent7_windows1909:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: on_success
+    - <<: *if_version_7
+      when: on_success
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs:
@@ -2740,9 +2733,8 @@ docker_build_agent7_windows1909:
 
 docker_build_agent7_windows1909_jmx:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: on_success
+    - <<: *if_version_7
+      when: on_success
   stage: image_build
   before_script: [ "# noop" ] # Override top level entry
   needs:
@@ -2803,9 +2795,8 @@ docker_build_dogstatsd_amd64:
 
 twistlock_scan-6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - when: on_success
+    - <<: *if_version_6
+      when: on_success
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
@@ -2828,9 +2819,8 @@ twistlock_scan-6:
 
 twistlock_scan-7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: on_success
+    - <<: *if_version_7
+      when: on_success
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
@@ -2919,9 +2909,8 @@ twistlock_scan-7:
 
 dev_branch_docker_hub-a6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - when: manual
+    - <<: *if_version_6
+      when: manual
   <<: *docker_tag_job_definition
   needs:
   - docker_build_agent6
@@ -2945,9 +2934,8 @@ dev_branch_docker_hub-dogstatsd:
 
 dev_branch_docker_hub-a7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: manual
+    - <<: *if_version_7
+      when: manual
   <<: *docker_tag_job_definition
   needs:
     - docker_build_agent7
@@ -2958,9 +2946,8 @@ dev_branch_docker_hub-a7:
 
 dev_branch_docker_hub-a7-windows:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: manual
+    - <<: *if_version_7
+      when: manual
   extends: .docker_tag_windows_job_definition
   variables:
     VARIANT: 1909
@@ -2985,9 +2972,8 @@ dev_branch_docker_hub-a7-windows:
 
 dev_branch_multiarch_docker_hub-a6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - when: manual
+    - <<: *if_version_6
+      when: manual
   <<: *docker_tag_job_definition
   needs:
     - docker_build_agent6
@@ -3011,9 +2997,8 @@ dev_branch_multiarch_docker_hub-a6:
 
 dev_branch_multiarch_docker_hub-a7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: manual
+    - <<: *if_version_7
+      when: manual
   <<: *docker_tag_job_definition
   needs:
     - docker_build_agent7
@@ -3030,9 +3015,8 @@ dev_branch_multiarch_docker_hub-a7:
 
 dev_branch_multiarch_docker_hub-dogstatsd:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - when: manual
+    - <<: *if_version_7
+      when: manual
   <<: *docker_tag_job_definition
   needs:
     - docker_build_dogstatsd_amd64
@@ -3110,9 +3094,8 @@ dev_master_docker_hub-dogstatsd:
 
 dca_dev_branch_docker_hub:
   rules:
-    - <<: *if_master_branch
-      when: never
-    - when: manual
+    - <<: *if_not_master_branch
+      when: manual
   <<: *docker_tag_job_definition
   needs:
     - build_cluster_agent_amd64
@@ -3121,9 +3104,8 @@ dca_dev_branch_docker_hub:
 
 dca_dev_branch_multiarch_docker_hub:
   rules:
-    - <<: *if_master_branch
-      when: never
-    - when: manual
+    - <<: *if_not_master_branch
+      when: manual
   <<: *docker_tag_job_definition
   needs:
     - build_cluster_agent_amd64
@@ -3618,8 +3600,10 @@ deploy_staging_datadog_agent_windows_zip:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.zip" $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/bosh/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_cluster_agent_cloudfoundry:
-  <<: *run_only_when_triggered
-  <<: *skip_when_unwanted_on_7
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_triggered
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   dependencies:
@@ -3923,24 +3907,26 @@ deploy_cloudfront_invalidate_on_failure:
 # because there's no way to retry a trigger job once it gets skipped
 # because of a pipeline failure, even when retrying the pipeline.
 trigger_release_7:
-  <<: *run_only_when_triggered_on_tag_7
+  rules:
+    - <<: *if_triggered_on_tag_7
+      when: always
   stage: trigger_release
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_7-1
   trigger:
     project: DataDog/agent-release-management
     branch: master
-  when: always
 
 trigger_release_6:
-  <<: *run_only_when_triggered_on_tag_6
+  rules:
+    - <<: *if_triggered_on_tag_6
+      when: always
   stage: trigger_release
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_6-1
   trigger:
     project: DataDog/agent-release-management
     branch: master
-  when: always
 
 #
 # end to end
