@@ -236,7 +236,6 @@ build_libbcc_arm64:
 run_old_tests_windows-x64:
   # temporarily allow failure for tests
   extends: .run_old_tests_windows_base
-  allow_failure: true
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
@@ -262,7 +261,6 @@ run_old_tests_windows-x86:
 run_tests_windows-x64:
   # temporarily allow failure for tests
   extends: .run_tests_windows_base
-  allow_failure: true
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
