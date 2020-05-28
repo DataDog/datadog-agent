@@ -38,6 +38,7 @@ type CloudFoundryListener struct {
 }
 
 type CloudFoundryService struct {
+	tags           []string
 	adIdentifier   cloudfoundry.ADIdentifier
 	containerIPs   map[string]string
 	containerPorts []ContainerPort
@@ -151,7 +152,16 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier, fir
 				Port: int(p),
 			})
 		}
+		nodeTags, err := l.bbsCache.GetTagsForNode(aLRP.CellID)
+		if err != nil {
+			log.Errorf("Error getting node tags: %v", err)
+		}
+		tags, ok := nodeTags[aLRP.InstanceGUID]
+		if !ok {
+			log.Errorf("Could not find tags for instance %s", aLRP.InstanceGUID)
+		}
 		svc = &CloudFoundryService{
+			tags:           tags,
 			adIdentifier:   adID,
 			containerIPs:   ips,
 			containerPorts: ports,
@@ -214,9 +224,9 @@ func (s *CloudFoundryService) GetPorts() ([]ContainerPort, error) {
 	return s.containerPorts, nil
 }
 
-// GetTags returns the list of container tags - currently always empty
+// GetTags returns the list of container tags
 func (s *CloudFoundryService) GetTags() ([]string, error) {
-	return []string{}, nil
+	return s.tags, nil
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF
