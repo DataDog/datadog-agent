@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,7 +37,7 @@ func (f *commandFixture) run(t *testing.T) {
 	t.Helper()
 
 	f.test = t
-	reporter := f.check.reporter.(*compliance.MockReporter)
+	reporter := f.check.reporter.(*mocks.Reporter)
 	commandRunnerFunc = f.mockRunCommand
 
 	expectedCalls := 0
@@ -57,7 +58,7 @@ func (f *commandFixture) run(t *testing.T) {
 }
 
 func newFakeCommandCheck(t *testing.T, command *compliance.Command) commandCheck {
-	check, err := newCommandCheck(newTestBaseCheck(&compliance.MockReporter{}), command)
+	check, err := newCommandCheck(newTestBaseCheck(&mocks.Reporter{}), command)
 	assert.NoError(t, err)
 	return *check
 }

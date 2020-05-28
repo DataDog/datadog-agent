@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -39,7 +40,7 @@ func TestRun(t *testing.T) {
 	_ = os.Chdir(tempDir)
 	defer os.Chdir(prev)
 
-	reporter := &compliance.MockReporter{}
+	reporter := &mocks.Reporter{}
 
 	reporter.On("Report", &compliance.RuleEvent{
 		RuleID:       "cis-docker-1",
@@ -64,7 +65,7 @@ func TestRun(t *testing.T) {
 	})
 	defer reporter.AssertExpectations(t)
 
-	scheduler := &MockScheduler{}
+	scheduler := &mocks.Scheduler{}
 	defer scheduler.AssertExpectations(t)
 
 	scheduler.On("Run").Once().Return(nil)
@@ -75,7 +76,7 @@ func TestRun(t *testing.T) {
 		check.Run()
 	})
 
-	a := New(reporter, scheduler, tempDir, checks.WithHostname("the-host"), checks.WithDockerClient(&checks.MockDockerClient{}))
+	a := New(reporter, scheduler, tempDir, checks.WithHostname("the-host"), checks.WithDockerClient(&mocks.DockerClient{}))
 
 	err = a.Run()
 	assert.NoError(err)

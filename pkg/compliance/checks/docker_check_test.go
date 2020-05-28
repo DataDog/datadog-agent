@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/docker/docker/api/types"
 
 	"github.com/stretchr/testify/assert"
@@ -107,7 +108,7 @@ func TestDockerImageCheck(t *testing.T) {
 		},
 	}
 
-	client := &MockDockerClient{}
+	client := &mocks.DockerClient{}
 	defer client.AssertExpectations(t)
 
 	var images []types.ImageSummary
@@ -126,7 +127,7 @@ func TestDockerImageCheck(t *testing.T) {
 		client.On("ImageInspectWithRaw", mockCtx, id).Return(image, nil, nil)
 	}
 
-	reporter := &compliance.MockReporter{}
+	reporter := &mocks.Reporter{}
 	defer reporter.AssertExpectations(t)
 
 	imagesWithMissingHealthcheck := []struct {
@@ -196,14 +197,14 @@ func TestDockerNetworkCheck(t *testing.T) {
 		},
 	}
 
-	client := &MockDockerClient{}
+	client := &mocks.DockerClient{}
 	defer client.AssertExpectations(t)
 
 	var networks []types.NetworkResource
 	assert.NoError(loadTestJSON("./testdata/docker/network-list.json", &networks))
 	client.On("NetworkList", mockCtx, types.NetworkListOptions{}).Return(networks, nil)
 
-	reporter := &compliance.MockReporter{}
+	reporter := &mocks.Reporter{}
 	defer reporter.AssertExpectations(t)
 
 	reporter.On(
@@ -255,7 +256,7 @@ func TestDockerContainerCheck(t *testing.T) {
 		},
 	}
 
-	client := &MockDockerClient{}
+	client := &mocks.DockerClient{}
 	defer client.AssertExpectations(t)
 
 	var containers []types.Container
@@ -266,7 +267,7 @@ func TestDockerContainerCheck(t *testing.T) {
 	assert.NoError(loadTestJSON("./testdata/docker/container-3c4bd9d35d42.json", &container))
 	client.On("ContainerInspect", mockCtx, "3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87").Return(container, nil, nil)
 
-	reporter := &compliance.MockReporter{}
+	reporter := &mocks.Reporter{}
 	defer reporter.AssertExpectations(t)
 
 	reporter.On(
@@ -304,14 +305,14 @@ func TestDockerInfoCheck(t *testing.T) {
 		},
 	}
 
-	client := &MockDockerClient{}
+	client := &mocks.DockerClient{}
 	defer client.AssertExpectations(t)
 
 	var info types.Info
 	assert.NoError(loadTestJSON("./testdata/docker/info.json", &info))
 	client.On("Info", mockCtx).Return(info, nil)
 
-	reporter := &compliance.MockReporter{}
+	reporter := &mocks.Reporter{}
 	defer reporter.AssertExpectations(t)
 
 	reporter.On(
@@ -348,14 +349,14 @@ func TestDockerVersionCheck(t *testing.T) {
 		},
 	}
 
-	client := &MockDockerClient{}
+	client := &mocks.DockerClient{}
 	defer client.AssertExpectations(t)
 
 	var version types.Version
 	assert.NoError(loadTestJSON("./testdata/docker/version.json", &version))
 	client.On("ServerVersion", mockCtx).Return(version, nil)
 
-	reporter := &compliance.MockReporter{}
+	reporter := &mocks.Reporter{}
 	defer reporter.AssertExpectations(t)
 
 	reporter.On(

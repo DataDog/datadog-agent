@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -149,7 +150,7 @@ func TestFileCheck(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reporter := &compliance.MockReporter{}
+			reporter := &mocks.Reporter{}
 			fc := test.setup(t, newTestBaseCheck(reporter))
 
 			reporter.On(

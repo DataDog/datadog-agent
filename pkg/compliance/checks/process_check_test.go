@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,7 +25,7 @@ type processFixture struct {
 func (f *processFixture) run(t *testing.T) {
 	t.Helper()
 
-	reporter := f.check.reporter.(*compliance.MockReporter)
+	reporter := f.check.reporter.(*mocks.Reporter)
 	processesUpdateTime = time.Time{}
 	processFetcherFunc = func() (map[int32]*process.FilledProcess, error) {
 		return f.processes, nil
@@ -52,7 +53,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "Simple case",
 			check: processCheck{
-				baseCheck: newTestBaseCheck(&compliance.MockReporter{}),
+				baseCheck: newTestBaseCheck(&mocks.Reporter{}),
 				process: &compliance.Process{
 					Name: "proc1",
 					Report: compliance.Report{
@@ -77,7 +78,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "Process not found",
 			check: processCheck{
-				baseCheck: newTestBaseCheck(&compliance.MockReporter{}),
+				baseCheck: newTestBaseCheck(&mocks.Reporter{}),
 				process: &compliance.Process{
 					Name: "proc1",
 					Report: compliance.Report{
@@ -104,7 +105,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "Argument not found",
 			check: processCheck{
-				baseCheck: newTestBaseCheck(&compliance.MockReporter{}),
+				baseCheck: newTestBaseCheck(&mocks.Reporter{}),
 				process: &compliance.Process{
 					Name: "proc1",
 					Report: compliance.Report{
@@ -127,7 +128,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "Override returned value",
 			check: processCheck{
-				baseCheck: newTestBaseCheck(&compliance.MockReporter{}),
+				baseCheck: newTestBaseCheck(&mocks.Reporter{}),
 				process: &compliance.Process{
 					Name: "proc1",
 					Report: compliance.Report{

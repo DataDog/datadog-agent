@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/elastic/go-libaudit/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -96,10 +97,10 @@ func TestAuditCheck(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			assert := assert.New(t)
 
-			reporter := &compliance.MockReporter{}
+			reporter := &mocks.Reporter{}
 			defer reporter.AssertExpectations(t)
 
-			client := &MockAuditClient{}
+			client := &mocks.AuditClient{}
 			defer client.AssertExpectations(t)
 
 			client.On("GetFileWatchRules").Return(test.rules, nil)
