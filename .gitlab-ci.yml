@@ -229,7 +229,7 @@ build_libbcc_arm64:
   needs: ["fail_on_non_triggered_tag"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e NEW_BUILDER="$NEW_BUILDER" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\unittests.bat
+    - docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e NEW_BUILDER="$NEW_BUILDER" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\unittests.bat
   variables:
     NEW_BUILDER: "false"
 
@@ -255,7 +255,7 @@ run_old_tests_windows-x86:
   needs: ["fail_on_non_triggered_tag"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
-    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e NEW_BUILDER="$NEW_BUILDER" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\unittests.bat
+    - docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e NEW_BUILDER="$NEW_BUILDER" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\unittests.bat
   variables:
     NEW_BUILDER: "true"
 
