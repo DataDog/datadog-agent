@@ -206,7 +206,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 	if runtimeSecurityEnabled {
 		if err := runtimeSecurityAgent.Stop(); err != nil {
-			log.Criticalf("unable to stop the runtime security agent: %v", err)
+			log.Warnf("unable to stop the runtime security agent: %v", err)
 		}
 	}
 
