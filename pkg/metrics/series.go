@@ -97,6 +97,8 @@ func (series Series) Marshal() ([]byte, error) {
 // populate the Serie.Device field
 //FIXME(olivier): remove this as soon as the v1 API can handle `device` as a regular tag
 func populateDeviceField(serie *Serie) {
+	var deviceName string
+
 	if !hasDeviceTag(serie) {
 		return
 	}
@@ -109,11 +111,18 @@ func populateDeviceField(serie *Serie) {
 		if strings.HasPrefix(tag, "device:") {
 			serie.Device = tag[7:]
 		} else if strings.HasPrefix(tag, "device_name:") {
-			serie.Device = tag[12:]
+			deviceName = tag[12:]
+			filteredTags = append(filteredTags, tag)
 		} else {
 			filteredTags = append(filteredTags, tag)
 		}
 	}
+
+	// Use device_name if device is not present
+	if serie.Device == "" {
+		serie.Device = deviceName
+	}
+
 	serie.Tags = filteredTags
 }
 

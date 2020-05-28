@@ -86,6 +86,7 @@ func TestWeightedQueueItemsEvicted(t *testing.T) {
 	assert.Equal(t, int64(4), item.Weight())
 
 	assert.Equal(t, 0, q.Len())
+	assert.Equal(t, int64(0), q.Weight())
 }
 
 func TestWeightedQueueItemsEvictedByType(t *testing.T) {
@@ -113,6 +114,34 @@ func TestWeightedQueueItemsEvictedByType(t *testing.T) {
 	assert.Equal(t, int64(4), item.Weight())
 
 	assert.Equal(t, 0, q.Len())
+}
+
+func TestWeightedQueueItemsEvictedFromHead(t *testing.T) {
+	q := NewWeightedQueue(3, math.MaxInt64)
+	exit := make(chan struct{})
+
+	q.Add(newItem("item", 1))
+	q.Add(newItem("item", 2))
+	q.Add(newItem("item", 3))
+	q.Add(newItem("item-new", 4))
+
+	item, ok := q.Poll(exit)
+	assert.True(t, ok)
+	assert.Equal(t, "item", item.Type())
+	assert.Equal(t, int64(2), item.Weight())
+
+	item, ok = q.Poll(exit)
+	assert.True(t, ok)
+	assert.Equal(t, "item", item.Type())
+	assert.Equal(t, int64(3), item.Weight())
+
+	item, ok = q.Poll(exit)
+	assert.True(t, ok)
+	assert.Equal(t, "item-new", item.Type())
+	assert.Equal(t, int64(4), item.Weight())
+
+	assert.Equal(t, 0, q.Len())
+	assert.Equal(t, int64(0), q.Weight())
 }
 
 func TestWeightedQueueItemsEvictedByTypeForWeight(t *testing.T) {
@@ -157,6 +186,7 @@ func TestWeightedQueueItemsEvictedForWeight(t *testing.T) {
 	assert.Equal(t, int64(10), item.Weight())
 
 	assert.Equal(t, 0, q.Len())
+	assert.Equal(t, int64(0), q.Weight())
 }
 
 func TestWeightedQueueAvailableWeightCorrectlySetEvictingItemsOfSameType(t *testing.T) {

@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/watermarkpodautoscaler v0.1.0
 	github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360
-	github.com/Microsoft/go-winio v0.4.11
+	github.com/Microsoft/go-winio v0.4.14
 	github.com/aws/aws-sdk-go v1.30.5
 	github.com/beevik/ntp v0.3.0
 	github.com/benesch/cgosymbolizer v0.0.0
@@ -63,7 +63,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/cgroups v0.0.0-00010101000000-000000000000
-	github.com/containerd/containerd v1.0.2
+	github.com/containerd/containerd v1.3.0
 	github.com/containerd/continuity v0.0.0-20200228182428-0f16d7a0959c // indirect
 	github.com/containerd/fifo v0.0.0-20191213151349-ff969a566b00 // indirect
 	github.com/containerd/typeurl v1.0.0
@@ -87,7 +87,7 @@ require (
 	github.com/google/gopacket v1.1.17
 	github.com/gorilla/mux v1.7.4
 	github.com/hashicorp/consul/api v1.4.0
-	github.com/hashicorp/golang-lru v0.5.1
+	github.com/hashicorp/golang-lru v0.5.3
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-00010101000000-000000000000 // indirect
 	github.com/iovisor/gobpf v0.0.0-20200329161226-8b2cce9dac28
@@ -130,7 +130,7 @@ require (
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
 	go.etcd.io/bbolt v1.3.4 // indirect
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
-	golang.org/x/mobile v0.0.0-20190312151609-d3739f865fa6
+	golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd
@@ -172,7 +172,7 @@ replace (
 	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.0.0-20191016114939-2b2b218dc1df
 	k8s.io/kube-proxy => k8s.io/kube-proxy v0.0.0-20191016114407-2e83b6f20229
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.0.0-20191016114748-65049c67a58b
-	k8s.io/kube-state-metrics => github.com/clamoriniere/kube-state-metrics v1.8.1-0.20200412142917-6c764c23fffb
+	k8s.io/kube-state-metrics => k8s.io/kube-state-metrics v1.9.6-0.20200413182837-dbbe062e36a4
 	k8s.io/kubectl => k8s.io/kubectl v0.0.0-20191016120415-2ed914427d51
 	k8s.io/kubelet => k8s.io/kubelet v0.0.0-20191016114556-7841ed97f1b2
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.0.0-20191016115753-cf0698c3a16b

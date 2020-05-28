@@ -326,37 +326,37 @@ def lint_licenses(ctx, verbose=False):
     """
     print("Verify licenses")
 
-    licences = []
+    licenses = []
     file='LICENSE-3rdparty.csv'
     with open(file, 'r') as f:
         next(f)
         for line in f:
-            licences.append(line.rstrip())
+            licenses.append(line.rstrip())
 
-    new_licences = get_licenses_list(ctx)
+    new_licenses = get_licenses_list(ctx)
 
     if sys.platform == 'win32':
-        # ignore some licences because we remove
+        # ignore some licenses because we remove
         # the deps in a hack for windows
-        ignore_licences = ['github.com/shirou/gopsutil']
+        ignore_licenses = ['github.com/shirou/gopsutil']
         to_removed = []
-        for ignore in ignore_licences:
-            for license in licences:
+        for ignore in ignore_licenses:
+            for license in licenses:
                 if ignore in license:
                     if verbose:
                         print("[hack-windows] ignore: {}".format(license))
                     to_removed.append(license)
-        licences = [x for x in licences if x not in to_removed]
+        licenses = [x for x in licenses if x not in to_removed]
 
-    removed_licences = [ele for ele in new_licences if ele not in licences]
-    for license in removed_licences:
+    removed_licenses = [ele for ele in new_licenses if ele not in licenses]
+    for license in removed_licenses:
         print("+ {}".format(license))
 
-    added_licences = [ele for ele in licences if ele not in new_licences]
-    for license in added_licences:
+    added_licenses = [ele for ele in licenses if ele not in new_licenses]
+    for license in added_licenses:
         print("- {}".format(license))
 
-    if len(removed_licences) + len(added_licences) > 0:
+    if len(removed_licenses) + len(added_licenses) > 0:
         print("licenses are not up-to-date")
         raise Exit(code=1)
 

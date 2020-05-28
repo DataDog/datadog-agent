@@ -19,6 +19,7 @@ import (
 	"os/signal"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -178,6 +179,11 @@ func StartAgent() error {
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
+	// init settings that can be changed at runtime
+	if err := settings.InitRuntimeSettings(); err != nil {
+		log.Warnf("Can't initiliaze the runtime settings: %v", err)
+	}
+
 	// Setup expvar server
 	var port = config.Datadog.GetString("expvar_port")
 	if config.Datadog.GetBool("telemetry.enabled") {
@@ -286,7 +292,7 @@ func StartAgent() error {
 	}
 
 	if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
-		log.Errorf("System probe config not read: %v", err)
+		log.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
 	}
 
 	// Detect Cloud Provider

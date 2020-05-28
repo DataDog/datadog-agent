@@ -6,6 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
-    Windows Docker image is now based on Windows Server Nano instead of Windows Server Core.
+    APM: Fixes a problem where writer queues would be inexistent if memory
+    and CPU limitations are disabled.

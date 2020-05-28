@@ -56,7 +56,7 @@ def wait_until_stopped(timeout = 60)
   sleep 2
 end
 
-def wait_until_started(timeout = 60)
+def wait_until_started(timeout = 30)
   # Check if the agent has started every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
@@ -75,7 +75,7 @@ def wait_until_started(timeout = 60)
   # - after: works correctly
   # Until we understand and fix the problem, we're adding this sleep
   # so that we don't get flakes in the kitchen tests.
-  sleep 2
+  sleep 5
 end
 
 def stop
@@ -330,6 +330,8 @@ end
 
 
 shared_examples_for "an installed Agent" do
+  wait_until_started
+
   it 'has an example config file' do
     if os != :windows
       expect(File).to exist('/etc/datadog-agent/datadog.yaml.example')

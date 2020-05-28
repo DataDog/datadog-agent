@@ -132,8 +132,6 @@ func init() {
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	initConfig(Datadog)
-	// Configuration settings that can be changed at runtime
-	initRuntimeSettings()
 }
 
 // initConfig initializes the config defaults on a config
@@ -143,7 +141,7 @@ func initConfig(config Config) {
 	config.BindEnv("site")   //nolint:errcheck
 	config.BindEnv("dd_url") //nolint:errcheck
 	config.BindEnvAndSetDefault("app_key", "")
-	config.BindEnvAndSetDefault("cloud_provider_metadata", "all")
+	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba"})
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("hostname", "")
@@ -438,7 +436,7 @@ func initConfig(config Config) {
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
 	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys"})
-	config.BindEnvAndSetDefault("gce_metadata_timeout", 1*time.Second)
+	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
@@ -662,6 +660,8 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.source_excludes")
 	config.SetKnown("system_probe_config.dest_excludes")
 	config.SetKnown("system_probe_config.closed_channel_size")
+	config.SetKnown("system_probe_config.dns_timeout_in_s")
+	config.SetKnown("system_probe_config.collect_dns_stats")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -1035,14 +1035,24 @@ func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) 
 	return keysPerDomain, nil
 }
 
-// IsCloudProviderEnabled checks the cloud provider family provided in pkg/util/<cloud_provider>.go against the value for cloud_provider: on the global config object Datadog
+// IsCloudProviderEnabled checks the cloud provider family provided in
+// pkg/util/<cloud_provider>.go against the value for cloud_provider: on the
+// global config object Datadog
 func IsCloudProviderEnabled(cloudProviderName string) bool {
-	cloudProviderFromConfig := Datadog.GetString("cloud_provider_metadata")
-	if strings.ToLower(cloudProviderFromConfig) == "all" || strings.ToLower(cloudProviderFromConfig) == strings.ToLower(cloudProviderName) {
-		log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider", cloudProviderFromConfig, cloudProviderName)
-		return true
+	cloudProviderFromConfig := Datadog.GetStringSlice("cloud_provider_metadata")
+
+	for _, cloudName := range cloudProviderFromConfig {
+		if strings.ToLower(cloudName) == strings.ToLower(cloudProviderName) {
+			log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider",
+				cloudProviderFromConfig,
+				cloudProviderName)
+			return true
+		}
 	}
-	log.Debugf("cloud_provider_metadata is set to %s in agent configuration, skipping %s Cloud Provider", cloudProviderFromConfig, cloudProviderName)
+
+	log.Debugf("cloud_provider_metadata is set to %s in agent configuration, skipping %s Cloud Provider",
+		cloudProviderFromConfig,
+		cloudProviderName)
 	return false
 }
 
