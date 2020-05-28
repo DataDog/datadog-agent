@@ -188,6 +188,7 @@ func TestCloudFoundryListener(t *testing.T) {
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"myprocessguid1": {
 					AppGUID:     "myappguid1",
+					AppName:     "myappname1",
 					ProcessGUID: "myprocessguid1",
 					EnvAD: cloudfoundry.ADConfig{"my-postgres": map[string]json.RawMessage{
 						"check_names":  json.RawMessage(`["postgres"]`),
@@ -204,6 +205,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
 					creationTime:   integration.After,
+					tags:           []string{"app_name:myappname1", "app_guid:myappguid1"},
 				},
 			},
 			expDel: map[string]Service{},
@@ -285,6 +287,7 @@ func TestCloudFoundryListener(t *testing.T) {
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"processguid1": {
 					AppGUID:     "appguid1",
+					AppName:     "appname1",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{
 						"my-postgres": map[string]json.RawMessage{
@@ -303,6 +306,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"processguid2": {
 					AppGUID:     "appguid2",
+					AppName:     "appname2",
 					ProcessGUID: "processguid2",
 					EnvAD: cloudfoundry.ADConfig{
 						"my-postgres": map[string]json.RawMessage{
@@ -344,6 +348,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
 					creationTime:   integration.After,
+					tags:           []string{"app_name:myappname1", "app_guid:myappguid1"},
 				},
 			},
 			expNew: map[string]Service{
@@ -381,6 +386,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
 					creationTime:   integration.After,
+					tags:           []string{"app_name:appname1", "app_guid:appguid1"},
 				},
 				"processguid2/flask-app/0": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.7"},
@@ -416,6 +422,7 @@ func TestCloudFoundryListener(t *testing.T) {
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
 					creationTime:   integration.After,
+					tags:           []string{"app_name:appname2", "app_guid:appguid2"},
 				},
 			},
 		},
