@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tailer consumes and processes a stream of trap packets, and sends them to a stream of log messages.
@@ -44,19 +45,13 @@ func (t *Tailer) run() {
 		t.done <- true
 	}()
 
-	origin := message.NewOrigin(t.source)
-	status := message.StatusInfo // TODO
-
 	for packet := range t.inputChan {
-		content := encodePacket(packet)
-		t.outputChan <- message.NewMessage(content, origin, status)
+		content, err := FormatPacketJSON(packet)
+		if err != nil {
+			log.Errorf("failed to format packet: %s", err)
+			continue
+		}
+		// TODO: tags (SNMP version, community string, username)
+		t.outputChan <- message.NewMessageWithSource(content, message.StatusInfo, t.source)
 	}
-}
-
-// encodePacket converts an SNMP trap packet to a log message content.
-func encodePacket(p *traps.SnmpPacket) []byte {
-	content := make([]byte, 0)
-	// TODO fill content with packet data.
-	content = append(content, []byte("Hello, traps!")...)
-	return content
 }
