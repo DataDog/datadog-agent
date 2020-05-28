@@ -3436,7 +3436,7 @@ deploy_staging_iot_agent:
 deploy_staging_datadog_agent_windows_zip:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
-  needs: [ "windows_msi_x64-a7"]
+  dependencies: [ "windows_msi_x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3461,7 +3461,7 @@ deploy_cluster_agent_cloudfoundry:
 deploy_staging_datadog_agent_windows_binaries_zip:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
-  needs: [ "windows_zip_agent_binaries_x64-a7"]
+  dependencies: [ "windows_zip_agent_binaries_x64-a7"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -3500,7 +3500,7 @@ tag_release_6:
   <<: *run_only_when_triggered_on_tag_6
   stage: deploy6
   when: manual
-  needs:
+  dependencies:
     - docker_build_agent6
     - docker_build_agent6_arm64
     - docker_build_agent6_jmx
@@ -3519,7 +3519,7 @@ latest_release_6:
   <<: *run_only_when_triggered_on_tag_6
   stage: deploy6
   when: manual
-  needs:
+  dependencies:
     - docker_build_agent6
     - docker_build_agent6_arm64
     - docker_build_agent6_jmx
@@ -3536,7 +3536,7 @@ tag_release_7_linux:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
   when: manual
-  needs:
+  dependencies:
     - docker_build_agent7
     - docker_build_agent7_arm64
     - docker_build_agent7_jmx
@@ -3556,7 +3556,7 @@ tag_release_7_windows:
   variables:
     VARIANT: 1909
   tags: ["runner:windows-docker", "windowsversion:1909"]
-  needs:
+  dependencies:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
     - docker_build_agent7_windows1909
@@ -3604,7 +3604,7 @@ latest_release_7:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
   when: manual
-  needs:
+  dependencies:
     - docker_build_agent7
     - docker_build_agent7_arm64
     - docker_build_agent7_jmx
