@@ -29,7 +29,7 @@ func waitForOpenEvent(test *testProbe, filename string) (*probe.Event, error) {
 	for {
 		select {
 		case event := <-test.events:
-			if event.Open.PathnameStr == filename {
+			if value, _ := event.GetFieldValue("open.filename"); value == filename {
 				return event, nil
 			}
 		case <-time.After(3 * time.Second):

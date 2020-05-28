@@ -82,10 +82,6 @@ type testEventHandler struct {
 }
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
-	// NOTE(safchain) force unmarshalling in order to call all the resolvers
-	// this should be remove once we will introduce getters on events
-	_ = event.String()
-
 	h.events <- event
 }
 
