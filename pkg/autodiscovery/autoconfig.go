@@ -95,7 +95,7 @@ func (ac *AutoConfig) serviceListening() {
 	for {
 		select {
 		case <-ac.listenerStop:
-			ac.healthListening.Deregister()
+			ac.healthListening.Deregister() //nolint:errcheck
 			return
 		case <-ac.healthListening.C:
 		case svc := <-ac.newService:

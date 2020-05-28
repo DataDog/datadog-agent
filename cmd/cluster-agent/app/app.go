@@ -24,12 +24,14 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -174,7 +176,7 @@ func start(cmd *cobra.Command, args []string) error {
 	// Serving stale data is better than serving no data at all.
 	forwarderOpts.DisableAPIKeyChecking = true
 	f := forwarder.NewDefaultForwarder(forwarderOpts)
-	f.Start()
+	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname, aggregator.ClusterAgentName)
@@ -237,6 +239,22 @@ func start(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Errorf("Could not start orchestrator controller: %v", err)
 		}
+
+		if config.Datadog.GetBool("admission_controller.enabled") {
+			admissionCtx := admissionpkg.ControllerContext{
+				IsLeaderFunc:     le.IsLeader,
+				SecretInformers:  apiCl.CertificateSecretInformerFactory,
+				WebhookInformers: apiCl.WebhookConfigInformerFactory,
+				Client:           apiCl.Cl,
+				StopCh:           stopCh,
+			}
+			err = admissionpkg.StartControllers(admissionCtx)
+			if err != nil {
+				log.Errorf("Could not start admission controller: %v", err)
+			}
+		} else {
+			log.Info("Admission controller is disabled")
+		}
 	}
 
 	// Setup a channel to catch OS signals
@@ -286,12 +304,17 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Admission Controller Goroutine
 	if config.Datadog.GetBool("admission_controller.enabled") {
-		// Start the k8s admission controller webhook.
+		// Setup the the k8s admission webhook server
+		server := admissioncmd.NewServer()
+		server.Register(config.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig)
+		server.Register(config.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags)
+
+		// Start the k8s admission webhook server
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			errServ := admission.RunServer(mainCtx)
+			errServ := server.Run(mainCtx, apiCl.Cl)
 			if errServ != nil {
 				log.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
 			}

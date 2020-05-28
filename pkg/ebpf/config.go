@@ -128,6 +128,7 @@ func (c *Config) EnabledKProbes(pre410Kernel bool) map[KProbeName]struct{} {
 		}
 		enabled[TCPCleanupRBuf] = struct{}{}
 		enabled[TCPClose] = struct{}{}
+		enabled[TCPCloseReturn] = struct{}{}
 		enabled[TCPRetransmit] = struct{}{}
 		enabled[InetCskAcceptReturn] = struct{}{}
 		enabled[TCPv4DestroySock] = struct{}{}

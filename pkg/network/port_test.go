@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -23,15 +24,12 @@ func TestReadInitialState(t *testing.T) {
 	tcpPort := getPort(t, l)
 	tcp6Port := getPort(t, l6)
 
-	ports := NewPortMapping("/proc", true, true)
-
-	err = ports.ReadInitialState()
-	require.NoError(t, err)
-
-	require.True(t, ports.IsListening(tcpPort))
-	require.True(t, ports.IsListening(tcp6Port))
-
-	require.False(t, ports.IsListening(999))
+	waitUntil(t, "tcp/tcp6 ports are listening", time.Second, func() bool {
+		ports := NewPortMapping("/proc", true, true)
+		err = ports.ReadInitialState()
+		require.NoError(t, err)
+		return ports.IsListening(tcpPort) && ports.IsListening(tcp6Port) && !ports.IsListening(999)
+	})
 }
 
 func TestAddRemove(t *testing.T) {
@@ -54,4 +52,18 @@ func getPort(t *testing.T, listener net.Listener) uint16 {
 	port, err := strconv.Atoi(listenerURL.Port())
 	require.NoError(t, err)
 	return uint16(port)
+}
+
+func waitUntil(t *testing.T, description string, timeout time.Duration, condition func() bool) {
+	for {
+		select {
+		case <-time.After(timeout):
+			t.Errorf("condition failed: %s after %s", description, timeout)
+			return
+		default:
+			if condition() {
+				return
+			}
+		}
+	}
 }

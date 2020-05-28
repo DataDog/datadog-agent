@@ -155,13 +155,13 @@ func (d *DockerCheck) Run() error {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-		d.Warnf("Error initialising check: %s", err)
+		d.Warnf("Error initialising check: %s", err) //nolint:errcheck
 		return err
 	}
 	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-		d.Warnf("Error collecting containers: %s", err)
+		d.Warnf("Error collecting containers: %s", err) //nolint:errcheck
 		return err
 	}
 
@@ -303,7 +303,7 @@ func (d *DockerCheck) Run() error {
 	if err := d.countAndWeightImages(sender, imageTagsByImageID, du); err != nil {
 		log.Error(err.Error())
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-		d.Warnf("Error collecting images: %s", err)
+		d.Warnf("Error collecting images: %s", err) //nolint:errcheck
 		return err
 	}
 	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
@@ -311,7 +311,7 @@ func (d *DockerCheck) Run() error {
 	if d.instance.CollectEvent || d.instance.CollectExitCodes {
 		events, err := d.retrieveEvents(du)
 		if err != nil {
-			d.Warnf("Error collecting events: %s", err)
+			d.Warnf("Error collecting events: %s", err) //nolint:errcheck
 		} else {
 			if d.instance.CollectEvent {
 				err = d.reportEvents(events, sender)
@@ -331,7 +331,7 @@ func (d *DockerCheck) Run() error {
 	if d.instance.CollectDiskStats {
 		stats, err := du.GetStorageStats()
 		if err != nil {
-			d.Warnf("Error collecting disk stats: %s", err)
+			d.Warnf("Error collecting disk stats: %s", err) //nolint:errcheck
 		} else {
 			for _, stat := range stats {
 				if stat.Name != docker.DataStorageName && stat.Name != docker.MetadataStorageName {
@@ -358,7 +358,7 @@ func (d *DockerCheck) Run() error {
 	if d.instance.CollectVolumeCount {
 		attached, dangling, err := du.CountVolumes()
 		if err != nil {
-			d.Warnf("Error collecting volume stats: %s", err)
+			d.Warnf("Error collecting volume stats: %s", err) //nolint:errcheck
 		} else {
 			sender.Gauge("docker.volume.count", float64(attached), "", []string{"volume_state:attached"})
 			sender.Gauge("docker.volume.count", float64(dangling), "", []string{"volume_state:dangling"})
@@ -383,7 +383,7 @@ func (d *DockerCheck) reportIOMetrics(io *cmetrics.ContainerIOStats, tags []stri
 	// Read values per device, or fallback to sum
 	if len(io.DeviceReadBytes) > 0 {
 		for dev, value := range io.DeviceReadBytes {
-			sender.Rate("docker.io.read_bytes", float64(value), "", append(tags, "device:"+dev))
+			sender.Rate("docker.io.read_bytes", float64(value), "", append(tags, "device:"+dev, "device_name:"+dev))
 		}
 	} else {
 		sender.Rate("docker.io.read_bytes", float64(io.ReadBytes), "", tags)
@@ -392,7 +392,7 @@ func (d *DockerCheck) reportIOMetrics(io *cmetrics.ContainerIOStats, tags []stri
 	// Write values per device, or fallback to sum
 	if len(io.DeviceWriteBytes) > 0 {
 		for dev, value := range io.DeviceWriteBytes {
-			sender.Rate("docker.io.write_bytes", float64(value), "", append(tags, "device:"+dev))
+			sender.Rate("docker.io.write_bytes", float64(value), "", append(tags, "device:"+dev, "device_name:"+dev))
 		}
 	} else {
 		sender.Rate("docker.io.write_bytes", float64(io.WriteBytes), "", tags)
@@ -409,7 +409,7 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 		return err
 	}
 
-	d.instance.Parse(config)
+	d.instance.Parse(config) //nolint:errcheck
 
 	if len(d.instance.FilteredEventType) == 0 {
 		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start", "exec_die"}

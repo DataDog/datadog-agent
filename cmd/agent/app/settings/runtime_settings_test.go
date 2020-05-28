@@ -3,11 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package config
+package settings
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -62,8 +67,7 @@ func TestRuntimeSettings(t *testing.T) {
 
 func TestLogLevel(t *testing.T) {
 	cleanRuntimeSetting()
-	setupConf()
-	SetupLogger("TEST", "debug", "", "", true, true, true)
+	config.SetupLogger("TEST", "debug", "", "", true, true, true)
 
 	ll := logLevelRuntimeSetting("log_level")
 	assert.Equal(t, "log_level", ll.Name())
@@ -89,4 +93,63 @@ func TestLogLevel(t *testing.T) {
 	v, err = ll.Get()
 	assert.Equal(t, "warn", v)
 	assert.Nil(t, err)
+}
+
+func TestDogstatsdMetricsStats(t *testing.T) {
+	assert := assert.New(t)
+	var err error
+
+	serializer := serializer.NewSerializer(common.Forwarder)
+	agg := aggregator.InitAggregator(serializer, "", "agent")
+	common.DSD, err = dogstatsd.NewServer(agg)
+	assert.Nil(err)
+
+	cleanRuntimeSetting()
+
+	s := dsdStatsRuntimeSetting("dogstatsd_stats")
+
+	// setter + getter
+
+	// true string
+
+	err = s.Set("true")
+	assert.Nil(err)
+	assert.Equal(common.DSD.DebugMetricsStats, uint64(1))
+	v, err := s.Get()
+	assert.Nil(err)
+	assert.Equal(v, true)
+
+	// false string
+
+	err = s.Set("false")
+	assert.Nil(err)
+	assert.Equal(common.DSD.DebugMetricsStats, uint64(0))
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, false)
+
+	// true boolean
+
+	err = s.Set(true)
+	assert.Nil(err)
+	assert.Equal(common.DSD.DebugMetricsStats, uint64(1))
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, true)
+
+	// false boolean
+
+	err = s.Set(false)
+	assert.Nil(err)
+	assert.Equal(common.DSD.DebugMetricsStats, uint64(0))
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, false)
+
+	// ensure the getter uses the value from the actual server
+
+	common.DSD.DebugMetricsStats = 1
+	v, err = s.Get()
+	assert.Nil(err)
+	assert.Equal(v, true)
 }

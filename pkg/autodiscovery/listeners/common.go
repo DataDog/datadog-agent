@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
 )
@@ -21,10 +22,6 @@ const (
 	newIdentifierLabel         = "com.datadoghq.ad.check.id"
 	legacyIdentifierLabel      = "com.datadoghq.sd.check.id"
 	dockerADTemplateCheckNames = "com.datadoghq.ad.check_names"
-	// Label keys of standard tags
-	labelKeyEnv     = "tags.datadoghq.com/env"
-	labelKeyVersion = "tags.datadoghq.com/version"
-	labelKeyService = "tags.datadoghq.com/service"
 	// Keys of standard tags
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
@@ -88,9 +85,9 @@ func getStandardTags(labels map[string]string) []string {
 		return tags
 	}
 	labelToTagKeys := map[string]string{
-		labelKeyEnv:     tagKeyEnv,
-		labelKeyVersion: tagKeyVersion,
-		labelKeyService: tagKeyService,
+		kubernetes.EnvTagLabelKey:     tagKeyEnv,
+		kubernetes.VersionTagLabelKey: tagKeyVersion,
+		kubernetes.ServiceTagLabelKey: tagKeyService,
 	}
 	for labelKey, tagKey := range labelToTagKeys {
 		if tagValue, found := labels[labelKey]; found {
@@ -106,9 +103,9 @@ func standardTagsDigest(labels map[string]string) string {
 		return ""
 	}
 	h := fnv.New64()
-	h.Write([]byte(labels[labelKeyEnv]))
-	h.Write([]byte(labels[labelKeyVersion]))
-	h.Write([]byte(labels[labelKeyService]))
+	h.Write([]byte(labels[kubernetes.EnvTagLabelKey]))     //nolint:errcheck
+	h.Write([]byte(labels[kubernetes.VersionTagLabelKey])) //nolint:errcheck
+	h.Write([]byte(labels[kubernetes.ServiceTagLabelKey])) //nolint:errcheck
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 

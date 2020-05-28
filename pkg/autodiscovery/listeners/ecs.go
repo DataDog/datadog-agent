@@ -85,7 +85,7 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
-				l.health.Deregister()
+				l.health.Deregister() //nolint:errcheck
 				return
 			case <-l.health.C:
 			case <-l.t.C:
@@ -282,4 +282,9 @@ func (s *ECSService) HasFilter(filter containers.FilterType) bool {
 		return s.logsExcluded
 	}
 	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *ECSService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

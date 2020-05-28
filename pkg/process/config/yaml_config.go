@@ -47,7 +47,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 	a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
-	a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
+	if config.Datadog.IsSet(key(spNS, "dns_timeout_in_s")) {
+		a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
+	}
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
@@ -253,6 +255,18 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	if k := key(ns, "queue_size"); config.Datadog.IsSet(k) {
 		if queueSize := config.Datadog.GetInt(k); queueSize > 0 {
 			a.QueueSize = queueSize
+		}
+	}
+
+	if k := key(ns, "process_queue_bytes"); config.Datadog.IsSet(k) {
+		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
+			a.ProcessQueueBytes = queueBytes
+		}
+	}
+
+	if k := key(ns, "pod_queue_bytes"); config.Datadog.IsSet(k) {
+		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
+			a.PodQueueBytes = queueBytes
 		}
 	}
 

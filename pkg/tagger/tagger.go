@@ -80,7 +80,7 @@ func (t *Tagger) Init(catalog collectors.Catalog) {
 	t.Unlock()
 
 	t.startCollectors()
-	go t.run()
+	go t.run() //nolint:errcheck
 	go t.pull()
 }
 
@@ -99,19 +99,19 @@ func (t *Tagger) run() error {
 			t.pullTicker.Stop()
 			t.pruneTicker.Stop()
 			t.retryTicker.Stop()
-			t.health.Deregister()
+			t.health.Deregister() //nolint:errcheck
 			return nil
 		case <-t.health.C:
 		case msg := <-t.infoIn:
 			for _, info := range msg {
-				t.tagStore.processTagInfo(info)
+				t.tagStore.processTagInfo(info) //nolint:errcheck
 			}
 		case <-t.retryTicker.C:
 			go t.startCollectors()
 		case <-t.pullTicker.C:
 			go t.pull()
 		case <-t.pruneTicker.C:
-			t.tagStore.prune()
+			t.tagStore.prune() //nolint:errcheck
 		}
 	}
 }
@@ -181,7 +181,7 @@ func (t *Tagger) registerCollectors(replies []collectorReply) {
 			if ok {
 				t.streamers[c.name] = stream
 				t.fetchers[c.name] = stream
-				go stream.Stream()
+				go stream.Stream() //nolint:errcheck
 			} else {
 				log.Errorf("error initializing collector %s: does not implement stream", c.name)
 			}
@@ -262,7 +262,7 @@ IterCollectors:
 			tagArrays = append(tagArrays, high)
 		}
 		// Submit to cache for next lookup
-		t.tagStore.processTagInfo(&collectors.TagInfo{
+		t.tagStore.processTagInfo(&collectors.TagInfo{ //nolint:errcheck
 			Entity:               entity,
 			Source:               name,
 			LowCardTags:          low,

@@ -53,7 +53,7 @@ func main() {
 	}
 
 	paths := strings.Split(*pythonPath, ",")
-	python.Initialize(paths...)
+	python.Initialize(paths...) //nolint:errcheck
 
 	pyRtLoader := python.GetRtLoader()
 	rtloader := (*C.rtloader_t)(pyRtLoader)
