@@ -159,6 +159,7 @@ func TestFileCheck(t *testing.T) {
 				event := args.Get(0).(*compliance.RuleEvent)
 				test.validate(t, event.Data)
 			})
+			defer reporter.AssertExpectations(t)
 
 			err := fc.Run()
 			assert.NoError(t, err)

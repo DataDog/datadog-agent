@@ -111,6 +111,24 @@ func (c *auditCheck) getAttribute(name string, r *rule.FileWatchRule) (string, e
 		return c.audit.Path, nil
 	case "enabled":
 		return fmt.Sprintf("%t", r != nil), nil
+	case "permissions":
+		if r == nil {
+			return "", nil
+		}
+		permissions := ""
+		for _, p := range r.Permissions {
+			switch p {
+			case rule.ReadAccessType:
+				permissions += "r"
+			case rule.WriteAccessType:
+				permissions += "w"
+			case rule.ExecuteAccessType:
+				permissions += "e"
+			case rule.AttributeChangeAccessType:
+				permissions += "a"
+			}
+		}
+		return permissions, nil
 	default:
 		return "", ErrPropertyNotSupported
 	}
