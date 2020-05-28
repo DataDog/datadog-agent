@@ -677,11 +677,6 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
 	config.SetKnown("system_probe_config.enable_oom_kill")
 
-	config.SetDefault("security_agent.debug", false)
-	config.SetDefault("security_agent.perf_map_page_count", 128)
-	config.SetDefault("security_agent.max_kernel_filters", 128)
-	config.SetDefault("security_agent.policies", []interface{}{})
-
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
 
@@ -732,8 +727,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", 600) // 10min
 	config.BindEnvAndSetDefault("inventories_min_interval", 300) // 5min
 
-	// Datadog security agent (compliance)
-	config.BindEnvAndSetDefault("compliance_config.enabled", false)
+	// Datadog security agent
+	config.BindEnvAndSetDefault("security_agent_config.run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("runtime_security_config.enabled", true)
+	config.BindEnvAndSetDefault("runtime_security_config.debug", false)
+	config.BindEnvAndSetDefault("runtime_security_config.perf_map_page_count", 128)
+	config.BindEnvAndSetDefault("runtime_security_config.max_kernel_filters", 128)
+	config.BindEnvAndSetDefault("runtime_security_config.policies", []interface{}{})
+	config.BindEnvAndSetDefault("compliance_config.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)

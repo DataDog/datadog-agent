@@ -99,7 +99,7 @@ func bindataPkgEbpfCTcpqueuelengthkernuserh() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tracer-ebpf.o", size: 38480, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "tracer-ebpf.o", size: 38480, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 
 	return a, nil
@@ -120,7 +120,7 @@ func bindataPkgEbpfCOomkillkernc() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tracer-ebpf-debug.o", size: 55888, mode: os.FileMode(436), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "tracer-ebpf-debug.o", size: 55888, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 
 	return a, nil

@@ -47,7 +47,14 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 		Data:   data,
 	}
 
-	e.msgs <- msg
+	select {
+	case e.msgs <- msg:
+		break
+	default:
+		// Do not wait for the channel to free up, we don't want to delay the processing pipeline further
+		log.Warn("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
+		break
+	}
 }
 
 func NewEventServer() *EventServer {
