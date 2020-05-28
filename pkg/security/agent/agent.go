@@ -42,9 +42,9 @@ func NewRuntimeSecurityAgent(systemProbeAddr string) (*RuntimeSecurityAgent, err
 
 // Start - Starts the Runtime Security agent
 func (rsa *RuntimeSecurityAgent) Start() error {
-	// Start the Datadog log client
+	// Start the Datadog log client. This client is used to ship security events to Datadog.
 	go rsa.logClient.Run(rsa.wg)
-	// Start the system-probe event listener
+	// Start the system-probe events listener
 	go rsa.StartEventListener()
 	return nil
 }
