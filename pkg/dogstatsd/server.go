@@ -103,7 +103,7 @@ type dsdServerDebug struct {
 	// Enabled is an atomic int used as a boolean
 	Enabled uint64                         `json:"enabled"`
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
-	keyGen  *ckey.KeyGenerator             `json:"-"`
+	keyGen  *ckey.KeyGenerator
 }
 
 // NewServer returns a running Dogstatsd server
