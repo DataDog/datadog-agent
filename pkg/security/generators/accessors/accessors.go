@@ -44,33 +44,21 @@ type Module struct {
 var module *Module
 
 type structField struct {
-	Name     string
-	Type     string
-	IsArray  bool
-	Public   bool
-	Tags     string
-	Event    string
-	Handler  string
-	OrigType string
-}
-
-func (f *structField) ElemType() string {
-	return strings.TrimLeft(f.Type, "[]")
+	Name       string
+	BasicType  string
+	ReturnType string
+	IsArray    bool
+	Public     bool
+	Tags       string
+	Event      string
+	Handler    string
+	OrigType   string
 }
 
 type accessor struct {
 	Name    string
 	IsArray bool
 	Fields  []structField
-}
-
-func (g *accessor) Has(kind string) bool {
-	for _, field := range g.Fields {
-		if field.Type == kind {
-			return true
-		}
-	}
-	return false
 }
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
@@ -81,12 +69,20 @@ func resolveSymbol(pkg, symbol string) (types.Object, error) {
 	return nil, fmt.Errorf("Failed to retrieve package info for %s", pkg)
 }
 
+func origTypeToBasicType(kind string) string {
+	switch kind {
+	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
+		return "int"
+	}
+	return kind
+}
+
 func handleBasic(name, alias, kind, tags, event string) {
 	fmt.Printf("handleBasic %s %s\n", name, kind)
 
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
-		module.Fields[alias] = &structField{Name: "m.event." + name, Type: "int", Public: true, Tags: tags, Event: event, OrigType: kind}
+		module.Fields[alias] = &structField{Name: name, ReturnType: "int", Public: true, Tags: tags, Event: event, OrigType: kind, BasicType: origTypeToBasicType(kind)}
 	default:
 		public := false
 		firstChar := strings.TrimPrefix(kind, "[]")
@@ -97,13 +93,14 @@ func handleBasic(name, alias, kind, tags, event string) {
 			public = true
 		}
 		module.Fields[alias] = &structField{
-			Name:     "m.event." + name,
-			Type:     kind,
-			IsArray:  strings.HasPrefix(kind, "[]"),
-			Public:   public,
-			Tags:     tags,
-			Event:    event,
-			OrigType: kind,
+			Name:       name,
+			BasicType:  origTypeToBasicType(kind),
+			ReturnType: kind,
+			IsArray:    strings.HasPrefix(kind, "[]"),
+			Public:     public,
+			Tags:       tags,
+			Event:      event,
+			OrigType:   kind,
 		}
 	}
 }
@@ -189,13 +186,14 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 							if ok {
 
 								module.Fields[fieldAlias] = &structField{
-									Name:     fmt.Sprintf("m.event.%s.%s", prefix, fieldName),
-									Handler:  fmt.Sprintf("m.event.%s.%s(m.event.resolvers)", prefix, fnc),
-									Type:     kind,
-									Public:   true,
-									Tags:     tags,
-									Event:    event,
-									OrigType: fieldType.Name,
+									Name:       fmt.Sprintf("%s.%s", prefix, fieldName),
+									BasicType:  origTypeToBasicType(fieldType.Name),
+									Handler:    fmt.Sprintf("%s.%s", prefix, fnc),
+									ReturnType: kind,
+									Public:     true,
+									Tags:       tags,
+									Event:      event,
+									OrigType:   fieldType.Name,
 								}
 							}
 							continue
@@ -332,25 +330,21 @@ var (
 func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	switch key {
 	{{range $Name, $Field := .Fields}}
-	{{$Return := $Field.Name}}
+	{{$Return := $Field.Name | printf "m.event.%s"}}
 	{{if ne $Field.Handler ""}}
-		{{$Return = $Field.Handler}}
+		{{$Return = $Field.Handler | printf "m.event.%s(m.event.resolvers)"}}
 	{{end}}
 
 	case "{{$Name}}":
-	{{if eq $Field.Type "string"}}
+	{{if eq $Field.ReturnType "string"}}
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string { return {{$Return}} },
 			DebugEvalFnc: func(ctx *eval.Context) string { return {{$Return}} },
-	{{else if eq $Field.Type "stringer"}}
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return {{$Return}}.String() },
-			DebugEvalFnc: func(ctx *eval.Context) string { return {{$Return}}.String() },
-	{{else if eq .Type "int"}}
+	{{else if eq $Field.ReturnType "int"}}
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int { return int({{$Return}}) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int({{$Return}}) },
-	{{else if eq .Type "bool"}}
+	{{else if eq $Field.ReturnType "bool"}}
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool { return {{$Return}} },
 			DebugEvalFnc: func(ctx *eval.Context) bool { return {{$Return}} },
@@ -364,6 +358,10 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 }
 
 func (m *Model) GetTags(key string) ([]string, error) {
+	return m.event.GetTags(key)
+}
+
+func (e *Event) GetTags(key string) ([]string, error) {
 	switch key {
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
@@ -375,6 +373,10 @@ func (m *Model) GetTags(key string) ([]string, error) {
 }
 
 func (m *Model) GetEventType(key string) (string, error) {
+	return m.event.GetEventType(key)
+}
+
+func (e *Event) GetEventType(key string) (string, error) {
 	switch key {
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
@@ -386,24 +388,29 @@ func (m *Model) GetEventType(key string) (string, error) {
 }
 
 func (m *Model) SetEventValue(key string, value interface{}) error {
+	return m.event.SetEventValue(key, value)
+}
+
+func (e *Event) SetEventValue(key string, value interface{}) error {
 	var ok bool
 	switch key {
 		{{range $Name, $Field := .Fields}}
+		{{$FieldName := $Field.Name | printf "e.%s"}}
 		case "{{$Name}}":
 		{{if eq $Field.OrigType "string"}}
-			if {{$Field.Name}}, ok = value.(string); !ok {
+			if {{$FieldName}}, ok = value.(string); !ok {
 				return ErrWrongValueType
 			}
 			return nil
-		{{else if eq .Type "int"}}
+		{{else if eq $Field.BasicType "int"}}
 			v, ok := value.(int)
 			if !ok {
 				return ErrWrongValueType
 			}
-			{{$Field.Name}} = {{$Field.OrigType}}(v)
+			{{$FieldName}} = {{$Field.OrigType}}(v)
 			return nil
-		{{else if eq .Type "bool"}}
-			if {{$Field.Name}}, ok = value.(string); !ok {
+		{{else if eq $Field.BasicType "bool"}}
+			if {{$FieldName}}, ok = value.(string); !ok {
 				return ErrWrongValueType
 			}
 			return nil

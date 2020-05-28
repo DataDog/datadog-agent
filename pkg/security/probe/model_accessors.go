@@ -247,6 +247,10 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 }
 
 func (m *Model) GetTags(key string) ([]string, error) {
+	return m.event.GetTags(key)
+}
+
+func (e *Event) GetTags(key string) ([]string, error) {
 	switch key {
 
 	case "container.id":
@@ -330,6 +334,10 @@ func (m *Model) GetTags(key string) ([]string, error) {
 }
 
 func (m *Model) GetEventType(key string) (string, error) {
+	return m.event.GetEventType(key)
+}
+
+func (e *Event) GetEventType(key string) (string, error) {
 	switch key {
 
 	case "container.id":
@@ -413,12 +421,16 @@ func (m *Model) GetEventType(key string) (string, error) {
 }
 
 func (m *Model) SetEventValue(key string, value interface{}) error {
+	return m.event.SetEventValue(key, value)
+}
+
+func (e *Event) SetEventValue(key string, value interface{}) error {
 	var ok bool
 	switch key {
 
 	case "container.id":
 
-		if m.event.Container.ID, ok = value.(string); !ok {
+		if e.Container.ID, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -429,14 +441,21 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Event.Retval = int64(v)
+		e.Event.Retval = int64(v)
 		return nil
 
 	case "event.type":
 
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Event.Type = uint64(v)
+		return nil
+
 	case "mkdir.filename":
 
-		if m.event.Mkdir.PathnameStr, ok = value.(string); !ok {
+		if e.Mkdir.PathnameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -447,7 +466,7 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Mkdir.Inode = uint64(v)
+		e.Mkdir.Inode = uint64(v)
 		return nil
 
 	case "mkdir.mode":
@@ -456,12 +475,12 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Mkdir.Mode = int32(v)
+		e.Mkdir.Mode = int32(v)
 		return nil
 
 	case "open.filename":
 
-		if m.event.Open.PathnameStr, ok = value.(string); !ok {
+		if e.Open.PathnameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -472,7 +491,7 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Open.Flags = uint32(v)
+		e.Open.Flags = uint32(v)
 		return nil
 
 	case "open.inode":
@@ -481,7 +500,7 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Open.Inode = uint64(v)
+		e.Open.Inode = uint64(v)
 		return nil
 
 	case "open.mode":
@@ -490,7 +509,7 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Open.Mode = uint32(v)
+		e.Open.Mode = uint32(v)
 		return nil
 
 	case "process.gid":
@@ -499,12 +518,12 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Process.GID = uint32(v)
+		e.Process.GID = uint32(v)
 		return nil
 
 	case "process.name":
 
-		if m.event.Process.Comm, ok = value.(string); !ok {
+		if e.Process.Comm, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -515,7 +534,7 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Process.Pid = uint32(v)
+		e.Process.Pid = uint32(v)
 		return nil
 
 	case "process.pidns":
@@ -524,7 +543,7 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Process.Pidns = uint64(v)
+		e.Process.Pidns = uint64(v)
 		return nil
 
 	case "process.tid":
@@ -533,12 +552,12 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Process.Tid = uint32(v)
+		e.Process.Tid = uint32(v)
 		return nil
 
 	case "process.tty_name":
 
-		if m.event.Process.TTYName, ok = value.(string); !ok {
+		if e.Process.TTYName, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -549,12 +568,12 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Process.UID = uint32(v)
+		e.Process.UID = uint32(v)
 		return nil
 
 	case "rename.newfilename":
 
-		if m.event.Rename.TargetPathnameStr, ok = value.(string); !ok {
+		if e.Rename.TargetPathnameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -565,12 +584,12 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Rename.TargetInode = uint64(v)
+		e.Rename.TargetInode = uint64(v)
 		return nil
 
 	case "rename.oldfilename":
 
-		if m.event.Rename.SrcPathnameStr, ok = value.(string); !ok {
+		if e.Rename.SrcPathnameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -581,12 +600,12 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Rename.SrcInode = uint64(v)
+		e.Rename.SrcInode = uint64(v)
 		return nil
 
 	case "rmdir.filename":
 
-		if m.event.Rmdir.PathnameStr, ok = value.(string); !ok {
+		if e.Rmdir.PathnameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -597,12 +616,12 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Rmdir.Inode = uint64(v)
+		e.Rmdir.Inode = uint64(v)
 		return nil
 
 	case "unlink.filename":
 
-		if m.event.Unlink.PathnameStr, ok = value.(string); !ok {
+		if e.Unlink.PathnameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -613,7 +632,7 @@ func (m *Model) SetEventValue(key string, value interface{}) error {
 		if !ok {
 			return ErrWrongValueType
 		}
-		m.event.Unlink.Inode = uint64(v)
+		e.Unlink.Inode = uint64(v)
 		return nil
 
 	}
