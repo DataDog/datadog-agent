@@ -9,12 +9,10 @@ package collectors
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -49,27 +47,7 @@ func (c *StaticCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 
 // Fetch fetches static tags
 func (c *StaticCollector) Fetch(entity string) ([]string, []string, []string, error) {
-	tags := utils.NewTagList()
-	for _, tag := range c.ddTagsEnvVar {
-		tagParts := strings.SplitN(tag, ":", 2)
-		if len(tagParts) != 2 {
-			log.Warnf("Cannot split tag %s", tag)
-			continue
-		}
-		tags.AddLow(tagParts[0], tagParts[1])
-	}
-
-	lowTags, _, _ := tags.Compute()
-
-	var tagInfoList []*TagInfo
-
-	tagInfo := &TagInfo{
-		Source:      staticCollectorName,
-		Entity:      entity,
-		LowCardTags: lowTags,
-	}
-
-	tagInfoList = append(tagInfoList, tagInfo)
+	tagInfoList := c.getTagInfo(entity)
 
 	c.infoOut <- tagInfoList
 
