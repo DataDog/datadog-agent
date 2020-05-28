@@ -357,11 +357,30 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	return nil, errors.Wrap(ErrFieldNotFound, key)
 }
 
-func (m *Model) GetTags(key string) ([]string, error) {
-	return m.event.GetTags(key)
+func (e *Event) GetFieldValue(key string) (interface{}, error) {
+	switch key {
+		{{range $Name, $Field := .Fields}}
+		{{$Return := $Field.Name | printf "e.%s"}}
+		{{if ne $Field.Handler ""}}
+			{{$Return = $Field.Handler | printf "e.%s(e.resolvers)"}}
+		{{end}}
+
+		case "{{$Name}}":
+		{{if eq $Field.ReturnType "string"}}
+			return {{$Return}}, nil
+		{{else if eq $Field.ReturnType "int"}}
+			return int({{$Return}}), nil
+		{{else if eq $Field.ReturnType "bool"}}
+			return &eval.BoolEvaluator{
+				return {{$Return}}, nil
+		{{end}}
+		{{end}}
+		}
+
+		return nil, errors.Wrap(ErrFieldNotFound, key)
 }
 
-func (e *Event) GetTags(key string) ([]string, error) {
+func (e *Event) GetFieldTags(key string) ([]string, error) {
 	switch key {
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
@@ -372,11 +391,7 @@ func (e *Event) GetTags(key string) ([]string, error) {
 	return nil, errors.Wrap(ErrFieldNotFound, key)
 }
 
-func (m *Model) GetEventType(key string) (string, error) {
-	return m.event.GetEventType(key)
-}
-
-func (e *Event) GetEventType(key string) (string, error) {
+func (e *Event) GetFieldEventType(key string) (string, error) {
 	switch key {
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
@@ -387,11 +402,7 @@ func (e *Event) GetEventType(key string) (string, error) {
 	return "", errors.Wrap(ErrFieldNotFound, key)
 }
 
-func (m *Model) SetEventValue(key string, value interface{}) error {
-	return m.event.SetEventValue(key, value)
-}
-
-func (e *Event) SetEventValue(key string, value interface{}) error {
+func (e *Event) SetFieldValue(key string, value interface{}) error {
 	var ok bool
 	switch key {
 		{{range $Name, $Field := .Fields}}

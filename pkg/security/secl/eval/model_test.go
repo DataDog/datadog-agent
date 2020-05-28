@@ -49,6 +49,10 @@ func (m *testModel) SetEvent(event interface{}) {
 	m.event = event.(*testEvent)
 }
 
+func (m *testModel) GetEvent() Event {
+	return m.event
+}
+
 func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 	switch key {
 
@@ -129,12 +133,51 @@ func (m *testModel) GetEvaluator(key string) (interface{}, error) {
 	return nil, errors.Wrap(ErrEvaluatorNotFound, key)
 }
 
-func (m *testModel) GetTags(key string) ([]string, error) {
-	return m.event.GetTags(key)
+func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
+	switch key {
 
+	case "process.name":
+
+		return e.process.name, nil
+
+	case "process.uid":
+
+		return e.process.uid, nil
+
+	case "process.gid":
+
+		return e.process.gid, nil
+
+	case "process.is_root":
+
+		return e.process.isRoot, nil
+
+	case "open.filename":
+
+		return e.open.filename, nil
+
+	case "open.flags":
+
+		return e.open.flags, nil
+
+	case "open.mode":
+
+		return e.open.mode, nil
+
+	case "mkdir.filename":
+
+		return e.mkdir.filename, nil
+
+	case "mkdir.mode":
+
+		return e.mkdir.mode, nil
+
+	}
+
+	return nil, errors.Wrap(ErrEvaluatorNotFound, key)
 }
 
-func (e *testEvent) GetTags(key string) ([]string, error) {
+func (e *testEvent) GetFieldTags(key string) ([]string, error) {
 	switch key {
 
 	case "process.name":
@@ -178,11 +221,7 @@ func (e *testEvent) GetTags(key string) ([]string, error) {
 	return nil, errors.Wrap(ErrTagsNotFound, key)
 }
 
-func (m *testModel) GetEventType(key string) (string, error) {
-	return m.event.GetEventType(key)
-}
-
-func (e *testEvent) GetEventType(key string) (string, error) {
+func (e *testEvent) GetFieldEventType(key string) (string, error) {
 	switch key {
 
 	case "process.name":
@@ -226,11 +265,7 @@ func (e *testEvent) GetEventType(key string) (string, error) {
 	return "", errors.Wrap(ErrEventTypeNotFound, key)
 }
 
-func (m *testModel) SetEventValue(key string, value interface{}) error {
-	return m.event.SetEventValue(key, value)
-}
-
-func (e *testEvent) SetEventValue(key string, value interface{}) error {
+func (e *testEvent) SetFieldValue(key string, value interface{}) error {
 	switch key {
 
 	case "process.name":

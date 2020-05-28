@@ -149,9 +149,11 @@ func isFilterValid(ctx *Context, bucket *RuleBucket, field string) bool {
 func (rs *RuleSet) getFilters(evaluator *RuleEvaluator, bucket *RuleBucket, isValidEventTypeFnc func(eventType string) bool) ([]Filter, error) {
 	var ctx Context
 
+	event := rs.model.GetEvent()
+
 	var filters []Filter
 	for field, fValues := range evaluator.FieldValues {
-		if eventType, _ := rs.model.GetEventType(field); !isValidEventTypeFnc(eventType) {
+		if eventType, _ := event.GetFieldEventType(field); !isValidEventTypeFnc(eventType) {
 			continue
 		}
 
@@ -160,7 +162,7 @@ func (rs *RuleSet) getFilters(evaluator *RuleEvaluator, bucket *RuleBucket, isVa
 		}
 
 		for _, fValue := range fValues {
-			rs.model.SetEventValue(field, fValue.Value)
+			event.SetFieldValue(field, fValue.Value)
 			if result, _ := evaluator.PartialEval(&ctx, field); result {
 				if !isFilterValid(&ctx, bucket, field) {
 					return nil, &OppositeRule{Field: field}
@@ -178,7 +180,7 @@ func (rs *RuleSet) getFilters(evaluator *RuleEvaluator, bucket *RuleBucket, isVa
 				return nil, &ValueTypeUnknown{Field: field}
 			}
 
-			rs.model.SetEventValue(field, value)
+			event.SetFieldValue(field, value)
 			if result, _ := evaluator.PartialEval(&ctx, field); result {
 				if !isFilterValid(&ctx, bucket, field) {
 					return nil, &OppositeRule{Field: field}
