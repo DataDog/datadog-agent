@@ -144,7 +144,7 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 
 	var authProtocol gosnmp.SnmpV3AuthProtocol
 	lowerAuthProtocol := strings.ToLower(c.AuthProtocol)
-	if lowerAuthProtocol == "none" {
+	if lowerAuthProtocol == "" {
 		authProtocol = gosnmp.NoAuth
 	} else if lowerAuthProtocol == "md5" {
 		authProtocol = gosnmp.MD5
@@ -158,13 +158,13 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 		authProtocol = gosnmp.SHA384
 	} else if lowerAuthProtocol == "sha512" {
 		authProtocol = gosnmp.SHA512
-	} else if c.AuthProtocol != "" {
+	} else {
 		return nil, fmt.Errorf("Unsupported authentication protocol: %s", c.AuthProtocol)
 	}
 
 	var privProtocol gosnmp.SnmpV3PrivProtocol
 	lowerPrivProtocol := strings.ToLower(c.PrivProtocol)
-	if lowerPrivProtocol == "none" {
+	if lowerPrivProtocol == "" {
 		privProtocol = gosnmp.NoPriv
 	} else if lowerPrivProtocol == "des" {
 		privProtocol = gosnmp.DES
@@ -178,7 +178,7 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 		privProtocol = gosnmp.AES256
 	} else if lowerPrivProtocol == "aes256c" {
 		privProtocol = gosnmp.AES256C
-	} else if c.PrivProtocol != "" {
+	} else {
 		return nil, fmt.Errorf("Unsupported privacy protocol: %s", c.PrivProtocol)
 	}
 
