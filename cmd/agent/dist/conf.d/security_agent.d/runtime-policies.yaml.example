@@ -1,0 +1,134 @@
+- rule:
+    id: CREDENTIAL_MODIFIED
+    description: credential files modified using unknown tool
+    expression: >-
+      (open.filename == "/etc/shadow" || open.filename == "/etc/gshadow") &&
+      process.name not in ["vipw", "vigr"]
+    tags:
+      mitre: T1003
+- rule:
+    id: MEMORY_DUMP
+    description: memory dump
+    expression: >-
+      open.filename =~ "/proc/*" && open.basename in ["maps", "mem"]
+    tags:
+      mitre: T1003
+- rule:
+    id: LOGS_REMOVED
+    description: log entries removed
+    expression: >-
+      (open.filename =~ "/var/log/*" && open.flags ^ O_TRUNC > 0) ||
+      unlink.filename =~ "/var/log/*"
+    tags:
+      mitre: T1070
+#- rule:
+  #  id: PERMISSIONS_CHANGED
+  #  description: permissions change on sensible files
+  #  expression: >-
+  #    chattr.filename =~ "/etc/*" || chattr.filename =~ "/etc/*" ||
+  #    chattr.filename =~ "/sbin/*" || chattr.filename =~ "/usr/sbin/*" ||
+  #    chattr.filename =~ "/usr/local/sbin*" || chattr.filename =~ "/usr/bin/local/*" ||
+  #    chattr.filename =~ "/var/log/*" || chattr.filename =~ "/usr/lib/*"
+  # tags:
+  #    mitre: T1099
+- rule:
+    id: FILE_CREATED
+    description: file creation/modification in sensible location
+    expression: >-
+      (open.filename =~ "/etc/*" || open.filename =~ "/etc/*" ||
+      open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*" ||
+      open.filename =~ "/usr/local/sbin*" || open.filename =~ "/usr/bin/local/*" ||
+      open.filename =~ "/var/log/*" || open.filename =~ "/usr/lib/*") && open.flags ^ O_RDONLY > 0
+    tags:
+      mitre: T1099
+# - rule:
+  #  id: BASH_HISTORY
+  #  description: command line history read by another user
+  #  expression: >-
+  #    open.basename == ".bash_history" &&
+  #    (open.uid != process.uid || open.gid != process.gid)
+  # tags:
+  #    mitre: T1139  
+# - rule:
+  #  id: SSH_KEYS
+  #  description: ssh private key read by another user
+  #  expression: >-
+  #    open.filename =~ "*/.ssh/*" &&
+  #    (open.uid != process.uid || open.gid != process.gid)
+  # tags:
+  #    mitre: T1139
+- rule:
+    id: HIDDEN_FILE
+    description: hidden file creation
+    expression: >-
+      open.basename =~ ".*" && open.flags & O_CREAT > 0
+    tags:
+      mitre: T1158
+- rule:
+    id: SETUID_SETGID
+    description: setuid, setgid binary creation
+    expression: >-
+      (open.flags & S_ISUID > 0 || open.flags & S_ISGID > 0) &&
+      open.flags & O_CREAT > 0
+    tags:
+      mitre: T1166
+- rule:
+    id: CRON_UPDATED
+    description: new cron entry
+    expression: >-
+      (open.filename =~"/etc/crontab/*" || open.filename =~ "/etc/cron.d/*") &&
+      open.flags ^ O_RDONLY > 0
+    tags:
+      mitre: T1168
+- rule:
+    id: KERNEL_MODULE
+    description: new file in kernel module location
+    expression: >-
+      open.filename =~ "/lib/modules/*" && open.flags & O_CREAT > 0
+    tags:
+      mitre: T1215
+- rule:
+    id: SYSTEMD_UPDATED
+    description: new file in common systemd location
+    expression: >-
+      (open.filename =~ "/etc/systemd/system/*" || open.filename =~ "/usr/lib/systemd/system/*") &&
+      open.flags ^ O_RDONLY > 0
+    tags:
+      mitre: T1501
+# - rule:
+  #  id: BINARY_MODIFIED
+  #  description: a process is trying to modify its binary
+  #  expression: >-
+  #    open.inode == process.inode
+  # tags:
+  #    mitre: T1036  
+- rule:
+    id: REMOTE_COPY
+    description: remote copy
+    expression: >-
+      (open.filename =~ "/var/*" || open.filename =~"/etc/*") &&
+      process.name in ["scp", "ftp", "rsync", "sftp", "curl", "wget", "nc"]
+    tags:
+      mitre: T1105
+# - rule:
+  #  id: TIMESTAMP_TAMPERING
+  #  description: timestamp tampering attempt
+  #  expression: >-
+  #    chattr.mode & ATTR_TIMES_SET > 0 || chattr.mode & ATTR_ATIME_SET > 0 || chattr.mode & ATTR_MTIME_SET > 0
+  # tags:
+  #    mitre: T1099  
+# - rule:
+  #  id: CONTAINER_BINARY_EXEC
+  #  description: a binary that was not part of the original container image was executed
+  #  expression: >-
+  #    event.type == "exec" && process.filename =~ "*/diff/*" && process.ns.mount == "dedicated"
+# - rule:
+  #  id: CONTAINER_LIB_LOADED
+  #  description: a library that was not part of the original container image was loaded
+  #  expression: >-
+  #    open.filename =~ "*/diff/*/usr/lib/*" && process.ns.mount == "dedicated"
+- rule:
+    id: DATADOG_CONFIG
+    description: datadog agent configuration modified
+    expression: >-
+      open.filename =~ "/opt/datadog-agent/*"
