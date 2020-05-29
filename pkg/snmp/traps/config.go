@@ -19,10 +19,10 @@ type TrapListenerConfig struct {
 	Version      string `mapstructure:"version"`
 	Community    string `mapstructure:"community"`
 	User         string `mapstructure:"user"`
-	AuthKey      string `mapstructure:"auth_key"`
-	AuthProtocol string `mapstructure:"auth_protocol"`
-	PrivKey      string `mapstructure:"priv_key"`
-	PrivProtocol string `mapstructure:"priv_protocol"`
+	AuthKey      string `mapstructure:"authentication_key"`
+	AuthProtocol string `mapstructure:"authentication_protocol"`
+	PrivKey      string `mapstructure:"privacy_key"`
+	PrivProtocol string `mapstructure:"privacy_protocol"`
 }
 
 // trapLogger is a GoSNMP logger interface implementation.
@@ -38,7 +38,7 @@ func (x *trapLogger) Printf(format string, v ...interface{}) {
 	log.Debugf(format, v...)
 }
 
-// BuildVersion returns the GoSNMP version value from a string value.
+// BuildVersion returns a GoSNMP version value from a string value.
 func BuildVersion(value string) (gosnmp.SnmpVersion, error) {
 	switch value {
 	case "1":
@@ -63,7 +63,7 @@ func InferVersion(community string, user string) (gosnmp.SnmpVersion, error) {
 	return 0, errors.New("Could not infer version: `community` and `user` are not set")
 }
 
-// BuildAuthProtocol returns the GoSNMP authentication protocol value from a string value.
+// BuildAuthProtocol returns a GoSNMP authentication protocol value from a string value.
 func BuildAuthProtocol(value string) (gosnmp.SnmpV3AuthProtocol, error) {
 	switch value {
 	case "SHA":
@@ -75,7 +75,7 @@ func BuildAuthProtocol(value string) (gosnmp.SnmpV3AuthProtocol, error) {
 	}
 }
 
-// BuildPrivProtocol returns the GoSNMP privacy protocol value from a string value.
+// BuildPrivProtocol returns a GoSNMP privacy protocol value from a string value.
 func BuildPrivProtocol(value string) (gosnmp.SnmpV3PrivProtocol, error) {
 	switch value {
 	case "DES":
@@ -87,29 +87,90 @@ func BuildPrivProtocol(value string) (gosnmp.SnmpV3PrivProtocol, error) {
 	}
 }
 
-// BuildMsgFlags returns the GoSNMP message flags value for a listener configuration.
-func BuildMsgFlags(authKey string, privKey string) (gosnmp.SnmpV3MsgFlags, error) {
-	if privKey != "" {
-		if authKey == "" {
-			return 0, errors.New("`auth_key` is required when `priv_key` is set")
+func hasAuth(authProtocol string, authKey string) bool {
+	return authProtocol != "" && authKey != ""
+}
+
+func hasPriv(privProtocol string, privKey string) bool {
+	return privProtocol != "" && privKey != ""
+}
+
+// BuildMsgFlags returns a GoSNMP message flags value.
+func BuildMsgFlags(authProtocol string, authKey string, privProtocol string, privKey string) gosnmp.SnmpV3MsgFlags {
+	hasAuth := hasAuth(authProtocol, authKey)
+	hasPriv := hasPriv(privProtocol, privKey)
+
+	if hasAuth {
+		if hasPriv {
+			return gosnmp.AuthPriv
 		}
-		return gosnmp.AuthPriv, nil
+		return gosnmp.AuthNoPriv
 	}
-	if authKey != "" {
-		return gosnmp.AuthNoPriv, nil
+
+	return gosnmp.NoAuthNoPriv
+}
+
+// BuildSecurityParams returns a GoSNMP user security parameters value
+func BuildSecurityParams(user string, authProtocol string, authKey string, privProtocol string, privKey string) (*gosnmp.UsmSecurityParameters, error) {
+	// Validation here is cumbersome, but necessary for good UX - passing inconsistent values to GoSNMP
+	// would almost certainly result in panics with hard-to-understand errors.
+
+	if user == "" {
+		return nil, errors.New("`user` is required when using SNMPv3")
 	}
-	return gosnmp.NoAuthNoPriv, nil
+
+	sp := &gosnmp.UsmSecurityParameters{
+		UserName: user,
+	}
+
+	if authProtocol != "" && authKey == "" {
+		return nil, errors.New("`authentication_key` is required when `authentication_protocol` is set")
+	}
+
+	if authKey != "" && authProtocol == "" {
+		return nil, errors.New("`authentication_protocol` is required when `authentication_key` is set")
+	}
+
+	if privProtocol != "" && privKey == "" {
+		return nil, errors.New("`privacy_key` is required when `privacy_protocol` is set")
+	}
+
+	if privKey != "" && privProtocol == "" {
+		return nil, errors.New("`privacy_protocol` is required when `privacy_key` is set")
+	}
+
+	hasAuth := hasAuth(authProtocol, authKey)
+	hasPriv := hasPriv(privProtocol, privKey)
+
+	if hasPriv && !hasAuth {
+		return nil, errors.New("Authentication is required when privacy is enabled")
+	}
+
+	if hasAuth {
+		authProtocolValue, err := BuildAuthProtocol(authProtocol)
+		if err != nil {
+			return nil, err
+		}
+		sp.AuthenticationProtocol = authProtocolValue
+		sp.AuthenticationPassphrase = authKey
+	}
+
+	if hasPriv {
+		privProtocolValue, err := BuildPrivProtocol(privProtocol)
+		if err != nil {
+			return nil, err
+		}
+		sp.PrivacyProtocol = privProtocolValue
+		sp.PrivacyPassphrase = privKey
+	}
+
+	return sp, nil
 }
 
 // BuildParams returns a valid GoSNMP params structure from a listener configuration.
 func (c *TrapListenerConfig) BuildParams() (*gosnmp.GoSNMP, error) {
-	port := c.Port
-	if port == 0 {
-		port = 162
-	}
-
-	if c.Community == "" && c.User == "" {
-		return nil, errors.New("One of `community` or `user` must be specified")
+	if c.Port == 0 {
+		return nil, errors.New("`port` is required")
 	}
 
 	var version gosnmp.SnmpVersion
@@ -123,58 +184,34 @@ func (c *TrapListenerConfig) BuildParams() (*gosnmp.GoSNMP, error) {
 		return nil, err
 	}
 
-	/*
-		FIXME: Depending on the auth/privacy protocol in use, there is a minimum length requirement on the passphrases (see https://tools.ietf.org/html/rfc2264#section-2.1).
-		E.g. AES recommends 12+ characters (see https://www.ietf.org/rfc/rfc3826.txt).
-		Besides, the SNMP protocol generally requires at least 8+ characters (see https://tools.ietf.org/html/rfc3414#section-11.2).
-		We probably want to validate these constraints, otherwise hard-to-debug behaviors might happen.
-	*/
-
 	logger := &trapLogger{}
 
 	params := &gosnmp.GoSNMP{
-		Port:      port,
+		Port:      c.Port,
 		Transport: "udp",
 		Version:   version,
 		Logger:    logger,
 	}
 
 	if version == gosnmp.Version1 || version == gosnmp.Version2c {
+		if c.Community == "" {
+			return nil, errors.New("`community` is required when using SNMPv1 or SNMPv2c")
+		}
 		params.Community = c.Community
 	}
 
 	if version == gosnmp.Version3 {
-		sp := &gosnmp.UsmSecurityParameters{
-			UserName: c.User,
-			Logger:   logger,
-		}
-
-		if c.AuthProtocol != "" {
-			authProtocol, err := BuildAuthProtocol(c.AuthProtocol)
-			if err != nil {
-				return nil, err
-			}
-			sp.AuthenticationProtocol = authProtocol
-			sp.AuthenticationPassphrase = c.AuthKey
-		}
-
-		if c.PrivProtocol != "" {
-			privProtocol, err := BuildPrivProtocol(c.PrivProtocol)
-			if err != nil {
-				return nil, err
-			}
-			sp.PrivacyProtocol = privProtocol
-			sp.PrivacyPassphrase = c.PrivKey
-		}
-
-		msgFlags, err := BuildMsgFlags(c.AuthKey, c.PrivKey)
+		sp, err := BuildSecurityParams(c.User, c.AuthProtocol, c.AuthKey, c.PrivProtocol, c.PrivKey)
 		if err != nil {
 			return nil, err
 		}
+		sp.Logger = logger
 
-		params.MsgFlags = msgFlags
+		msgFlags := BuildMsgFlags(c.AuthProtocol, c.AuthKey, c.PrivProtocol, c.PrivKey)
+
 		params.SecurityModel = gosnmp.UserSecurityModel
 		params.SecurityParameters = sp
+		params.MsgFlags = msgFlags
 	}
 
 	return params, nil

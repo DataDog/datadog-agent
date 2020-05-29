@@ -218,8 +218,8 @@ snmp_traps_listeners:
 snmp_traps_listeners:
   - port: %d
     user: %s
-    auth_protocol: %s
-    auth_key: %s
+    authentication_protocol: %s
+    authentication_key: %s
 `, config.Port, config.User, config.AuthProtocol, config.AuthKey))
 
 		s, err := NewTrapServer()
@@ -252,10 +252,10 @@ snmp_traps_listeners:
 snmp_traps_listeners:
   - port: %d
     user: %s
-    auth_protocol: %s
-    auth_key: %s
-    priv_protocol: %s
-    priv_key: %s
+    authentication_protocol: %s
+    authentication_key: %s
+    privacy_protocol: %s
+    privacy_key: %s
 `, config.Port, config.User, config.AuthProtocol, config.AuthKey, config.PrivProtocol, config.PrivKey))
 
 		s, err := NewTrapServer()
@@ -302,14 +302,14 @@ snmp_traps_listeners:
     user: %s
   - port: %d
     user: %s
-    auth_protocol: %s
-    auth_key: %s
+    authentication_protocol: %s
+    authentication_key: %s
   - port: %d
     user: %s
-    auth_protocol: %s
-    auth_key: %s
-    priv_protocol: %s
-    priv_key: %s
+    authentication_protocol: %s
+    authentication_key: %s
+    privacy_protocol: %s
+    privacy_key: %s
 `, configs[0].Port, configs[0].Community, configs[1].Port, configs[1].Community, configs[2].Port, configs[2].User, configs[3].Port, configs[3].User, configs[3].AuthProtocol, configs[3].AuthKey, configs[4].Port, configs[4].User, configs[4].AuthProtocol, configs[4].AuthKey, configs[4].PrivProtocol, configs[4].PrivKey))
 
 	s, err := NewTrapServer()

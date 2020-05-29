@@ -14,6 +14,7 @@ import (
 
 func TestConfigCommon(t *testing.T) {
 	config := TrapListenerConfig{
+		Port:      162,
 		Community: "public",
 	}
 	params, err := config.BuildParams()
@@ -24,29 +25,71 @@ func TestConfigCommon(t *testing.T) {
 }
 
 func TestConfigPort(t *testing.T) {
-	t.Run("default", func(t *testing.T) {
+	t.Run("err-required", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Community: "public",
+		}
+		_, err := config.BuildParams()
+		assert.Error(t, err)
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port:      162,
 			Community: "public",
 		}
 		params, err := config.BuildParams()
 		assert.NoError(t, err)
 		assert.Equal(t, 162, int(params.Port))
 	})
+}
 
-	t.Run("explicit", func(t *testing.T) {
+func TestConfigVersion(t *testing.T) {
+	t.Run("infer-v2c", func(t *testing.T) {
 		config := TrapListenerConfig{
-			Port:      1620,
+			Port:      162,
 			Community: "public",
 		}
 		params, err := config.BuildParams()
 		assert.NoError(t, err)
-		assert.Equal(t, 1620, int(params.Port))
-	})
-}
 
-func TestConfigVersion(t *testing.T) {
-	t.Run("explicit", func(t *testing.T) {
+		assert.Equal(t, gosnmp.Version2c, params.Version)
+		assert.Equal(t, "public", params.Community)
+		assert.Equal(t, 0, int(params.SecurityModel))
+		assert.Nil(t, params.SecurityParameters)
+	})
+
+	t.Run("infer-v3", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Port: 162,
+			User: "doggo",
+		}
+		params, err := config.BuildParams()
+		assert.NoError(t, err)
+
+		assert.Equal(t, gosnmp.Version3, params.Version)
+		assert.Equal(t, "", params.Community)
+		assert.Equal(t, gosnmp.UserSecurityModel, params.SecurityModel)
+		assert.NotNil(t, params.SecurityParameters)
+		sp := params.SecurityParameters.(*gosnmp.UsmSecurityParameters)
+		assert.Equal(t, "doggo", sp.UserName)
+		assert.Equal(t, 0, int(sp.AuthenticationProtocol))
+		assert.Equal(t, "", sp.AuthenticationPassphrase)
+		assert.Equal(t, 0, int(sp.PrivacyProtocol))
+		assert.Equal(t, "", sp.PrivacyPassphrase)
+	})
+
+	t.Run("err-could-not-infer", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port: 162,
+		}
+		_, err := config.BuildParams()
+		assert.Error(t, err)
+	})
+
+	t.Run("explicit-v1", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port:      162,
 			Version:   "1",
 			Community: "public", // Included
 			User:      "doggo",  // Ignored
@@ -62,6 +105,7 @@ func TestConfigVersion(t *testing.T) {
 
 	t.Run("explicit-2-alias-2c", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Port:      162,
 			Version:   "2", // Convenience alias for '2c'
 			Community: "public",
 		}
@@ -74,16 +118,10 @@ func TestConfigVersion(t *testing.T) {
 		assert.Nil(t, params.SecurityParameters)
 	})
 
-	t.Run("could-not-infer", func(t *testing.T) {
-		config := TrapListenerConfig{}
-		_, err := config.BuildParams()
-		assert.Error(t, err)
-	})
-
-	t.Run("unknown", func(t *testing.T) {
+	t.Run("err-invalid-version", func(t *testing.T) {
 		config := TrapListenerConfig{
-			Version:   "42",
-			Community: "public",
+			Port:    162,
+			Version: "42",
 		}
 		_, err := config.BuildParams()
 		assert.Error(t, err)
@@ -91,21 +129,43 @@ func TestConfigVersion(t *testing.T) {
 }
 
 func TestConfigV2(t *testing.T) {
-	config := TrapListenerConfig{
-		Community: "public",
-	}
-	params, err := config.BuildParams()
-	assert.NoError(t, err)
+	t.Run("community", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port:      162,
+			Community: "public",
+		}
+		params, err := config.BuildParams()
+		assert.NoError(t, err)
 
-	assert.Equal(t, gosnmp.Version2c, params.Version)
-	assert.Equal(t, "public", params.Community)
-	assert.Equal(t, 0, int(params.SecurityModel))
-	assert.Nil(t, params.SecurityParameters)
+		assert.Equal(t, gosnmp.Version2c, params.Version)
+		assert.Equal(t, "public", params.Community)
+		assert.Equal(t, 0, int(params.SecurityModel))
+		assert.Nil(t, params.SecurityParameters)
+	})
+
+	t.Run("err-community-missing", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port:    162,
+			Version: "2c",
+		}
+		_, err := config.BuildParams()
+		assert.Error(t, err)
+	})
 }
 
 func TestConfigV3(t *testing.T) {
+	t.Run("err-user-missing", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port:    162,
+			Version: "3",
+		}
+		_, err := config.BuildParams()
+		assert.Error(t, err)
+	})
+
 	t.Run("no-auth-no-priv", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Port: 162,
 			User: "doggo",
 		}
 		params, err := config.BuildParams()
@@ -125,6 +185,7 @@ func TestConfigV3(t *testing.T) {
 
 	t.Run("auth-no-priv", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Port:         162,
 			User:         "doggo",
 			AuthProtocol: "MD5",
 			AuthKey:      "doggopass",
@@ -144,8 +205,29 @@ func TestConfigV3(t *testing.T) {
 		assert.Equal(t, "", sp.PrivacyPassphrase)
 	})
 
-	t.Run("no-auth-priv", func(t *testing.T) {
+	t.Run("auth-no-priv-err-missing-auth-protocol", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Port:    162,
+			User:    "doggo",
+			AuthKey: "doggopass",
+		}
+		_, err := config.BuildParams()
+		assert.Error(t, err)
+	})
+
+	t.Run("auth-no-priv-err-missing-auth-key", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port:         162,
+			User:         "doggo",
+			AuthProtocol: "MD5",
+		}
+		_, err := config.BuildParams()
+		assert.Error(t, err)
+	})
+
+	t.Run("no-auth-priv-unsupported", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port:         162,
 			User:         "doggo",
 			PrivProtocol: "DES",
 			PrivKey:      "doggokey",
@@ -156,6 +238,7 @@ func TestConfigV3(t *testing.T) {
 
 	t.Run("auth-priv", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Port:         162,
 			User:         "doggo",
 			AuthProtocol: "SHA",
 			AuthKey:      "doggopass",
@@ -177,8 +260,33 @@ func TestConfigV3(t *testing.T) {
 		assert.Equal(t, "doggokey", sp.PrivacyPassphrase)
 	})
 
-	t.Run("unknown-auth", func(t *testing.T) {
+	t.Run("auth-priv-err-missing-priv-protocol", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Port:         162,
+			User:         "doggo",
+			AuthProtocol: "SHA",
+			AuthKey:      "doggopass",
+			PrivKey:      "doggokey",
+		}
+		_, err := config.BuildParams()
+		assert.Error(t, err)
+	})
+
+	t.Run("auth-priv-err-missing-priv-key", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port:         162,
+			User:         "doggo",
+			AuthProtocol: "SHA",
+			AuthKey:      "doggopass",
+			PrivProtocol: "AES",
+		}
+		_, err := config.BuildParams()
+		assert.Error(t, err)
+	})
+
+	t.Run("err-unknown-auth", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Port:         162,
 			User:         "doggo",
 			AuthProtocol: "whatever",
 		}
@@ -186,8 +294,9 @@ func TestConfigV3(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("unknown-priv", func(t *testing.T) {
+	t.Run("err-unknown-priv", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Port:         162,
 			User:         "doggo",
 			AuthProtocol: "SHA",
 			PrivProtocol: "whatever",
@@ -200,6 +309,7 @@ func TestConfigV3(t *testing.T) {
 		// A bug in GoSNMP requires SecurityParameters to have a logger - otherwise receiving a v3 trap would crash
 		// (because GoSNMP will try to access the nil logger).
 		config := TrapListenerConfig{
+			Port: 162,
 			User: "doggo",
 		}
 		params, err := config.BuildParams()

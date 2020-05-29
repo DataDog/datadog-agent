@@ -1604,33 +1604,35 @@ api_key:
 ##
 ## The following options are available for each listener:
 ##
-## * port - integer - optional - default: 162
+## * port - integer - required
 ##   The port to listen on for incoming trap packets.
-##   Devices should use this port when configuring the Agent as the traps destination.
 ## * version - string - optional
 ##   The SNMP version to use.
 ##   One of: "1" (SNMPv1), "2c" (SNMPv2c), "3" (SNMPv3).
 ##   Automatically set to "2c" if `community` is set.
 ##   Automatically set to "3" if `user` is set.
+##   Required in other cases.
 ## * community - string - optional
 ##   (v1/v2c only) The community string of the listener.
 ##   Required if `user` is not set.
 ## * user - string - optional
 ##   (v3 only) Username of the user that is authorized to send traps to this listener.
 ##   Required if `community` is not set.
-## * auth_password - string - optional - v3 only
-##   (v3 only) Authentication password of the user.
-##   Required if `priv_key` is set.
-## * auth_protocol - string - optional - default: "SHA"
+## * authentication_protocol - string - optional
 ##   (v3 only) Authentication protocol to use.
 ##   One of: "MD5", "SHA".
-## * priv_password - string - optional
-##   (v3 only) Privacy password of the user.
-## * priv_protocol - string - optional - default: "AES"
+##   Required if privacy is enabled.
+## * authentication_key - string - optional
+##   (v3 only) Authentication key of the user.
+##   Required if privacy is enabled.
+## * privacy_protocol - string - optional
 ##   (v3 only) Privacy protocol to use.
 ##   One of: "DES", "AES".
+## * privacy_key - string - optional
+##   (v3 only) Privacy key of the user.
 #
 # snmp_traps_listeners:
-#   - community: public
+#   - port: 162
+#     community: public
 
 {{end -}}
