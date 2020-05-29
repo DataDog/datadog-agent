@@ -124,17 +124,25 @@ def get_build_flags(ctx, static=False, prefix=None, embedded_path=None,
 
 def get_payload_version():
     """
-    Return the Agent payload version found in the Gopkg.toml file.
+    Return the Agent payload version (`x.y.z`) found in the go.mod file.
     """
-    with open('go.sum') as f:
-        for line in f:
-            gopkg = line.split(" ")
-            if len(gopkg) != 3:
+    with open('go.mod') as f:
+        for rawline in f:
+            line = rawline.strip()
+            whitespace_split = line.split(" ")
+            if len(whitespace_split) < 2:
                 continue
-            pkgname = gopkg[0]
-            if pkgname == "github.com/DataDog/agent-payload" and gopkg[1].endswith('/go.mod'):
-                return gopkg[1].rstrip('/go.mod')
-    return ""
+            pkgname = whitespace_split[0]
+            if pkgname == "github.com/DataDog/agent-payload":
+                comment_split = line.split("//")
+                if len(comment_split) < 2:
+                    raise Exception("Versioning of agent-payload in go.mod has changed, the version logic needs to be updated")
+                version = comment_split[1].strip()
+                if not re.search("^\d+(\.\d+){2}$", version):
+                    raise Exception("Version of agent-payload in go.mod is invalid: '{}'".format(version))
+                return version
+
+    raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 def get_version_ldflags(ctx, prefix=None, major_version='7'):
     """
