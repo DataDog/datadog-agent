@@ -56,6 +56,13 @@ func TestSNMPListener(t *testing.T) {
 	job = <-testChan
 	assert.Equal(t, "192.168.0.1", job.currentIP.String())
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
+
+	// Make sure we reach the end of checkDevices for better coverage
+	// Will test that listener work fine even if we can't get the metric sender
+	for i := 1; i <= 254; i++ {
+		_ = <-testChan
+	}
+	l.Stop()
 }
 
 func TestSNMPListenerMetrics(t *testing.T) {
