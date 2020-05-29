@@ -104,16 +104,6 @@ func (ddc *DDClient) SendLogWithStatusAndTags(buf []byte, status string, tags []
 	}
 }
 
-// SendInfoWithTags - Sends a new log to Datadog with the Info status and the default tags set
-func (ddc *DDClient) SendInfoWithTags(buf []byte, tags []string) {
-	ddc.SendLogWithStatusAndTags(buf, message.StatusInfo, tags)
-}
-
-// SendAlertWithTags - Sends a new log to Datadog with the Info status and the default tags set
-func (ddc *DDClient) SendAlertWithTags(buf []byte, tags []string) {
-	ddc.SendLogWithStatusAndTags(buf, message.StatusAlert, tags)
-}
-
 // SendSecurityEvent - Sends a security event with the provided status
 func (ddc *DDClient) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
 	// TODO: we should set the rule_id and event type as a tag in the system-probe module,
