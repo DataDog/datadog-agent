@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -26,6 +27,7 @@ const (
 	defaultWorkers           = 2
 	defaultAllowedFailures   = 3
 	defaultDiscoveryInterval = 3600
+	senderCheckId            = check.ID("SNMP_LISTENER")
 )
 
 func init() {
@@ -267,7 +269,7 @@ func (l *SNMPListener) checkDevices() {
 }
 
 func (l *SNMPListener) collectMetrics(subnets []snmpSubnet) {
-	sender, senderErr := aggregator.GetSender("snmp_listener")
+	sender, senderErr := aggregator.GetSender(senderCheckId)
 	if senderErr != nil {
 		log.Errorf("Error getting aggregator sender: %s", senderErr)
 		return
