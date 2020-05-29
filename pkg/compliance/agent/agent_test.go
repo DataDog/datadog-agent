@@ -6,10 +6,8 @@
 package agent
 
 import (
-	"io"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 
@@ -17,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -27,7 +26,7 @@ func TestRun(t *testing.T) {
 	tempDir, err := ioutil.TempDir("", "compliance-agent-")
 	assert.NoError(err)
 
-	err = copyDir("./testdata/configs", tempDir)
+	err = util.CopyDir("./testdata/configs", tempDir)
 	assert.NoError(err)
 
 	files, err := filepath.Glob(filepath.Join(tempDir, "files/*"))
@@ -84,60 +83,4 @@ func TestRun(t *testing.T) {
 	err = agent.Run()
 	assert.NoError(err)
 	agent.Stop()
-}
-
-func copyFile(src, dst string) error {
-	var (
-		err  error
-		s, d *os.File
-	)
-
-	if s, err = os.Open(src); err != nil {
-		return err
-	}
-	defer s.Close()
-
-	if d, err = os.Create(dst); err != nil {
-		return err
-	}
-	defer d.Close()
-
-	if _, err = io.Copy(d, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-func copyDir(src, dst string) error {
-	var (
-		err     error
-		fds     []os.FileInfo
-		srcinfo os.FileInfo
-	)
-
-	if srcinfo, err = os.Stat(src); err != nil {
-		return err
-	}
-
-	if err = os.MkdirAll(dst, srcinfo.Mode()); err != nil {
-		return err
-	}
-
-	if fds, err = ioutil.ReadDir(src); err != nil {
-		return err
-	}
-	for _, fd := range fds {
-		s := path.Join(src, fd.Name())
-		d := path.Join(dst, fd.Name())
-
-		if fd.IsDir() {
-			err = copyDir(s, d)
-		} else {
-			err = copyFile(s, d)
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

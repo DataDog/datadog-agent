@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -30,7 +31,7 @@ type auditCheck struct {
 func newAuditCheck(baseCheck baseCheck, client AuditClient, audit *compliance.Audit) (*auditCheck, error) {
 
 	if len(audit.Path) == 0 {
-		return nil, fmt.Errorf("unable to create audit check without a path")
+		return nil, errors.New("unable to create audit check without a path")
 	}
 	return &auditCheck{
 		baseCheck: baseCheck,

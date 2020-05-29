@@ -8,6 +8,7 @@ package checks
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -36,7 +37,7 @@ func getDefaultShell() compliance.BinaryCmd {
 
 func runCommand(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
 	if len(name) == 0 {
-		return 0, nil, fmt.Errorf("cannot run empty command")
+		return 0, nil, errors.New("cannot run empty command")
 	}
 
 	_, err := exec.LookPath(name)
@@ -46,7 +47,7 @@ func runCommand(ctx context.Context, name string, args []string, captureStdout b
 
 	cmd := exec.CommandContext(ctx, name, args...)
 	if cmd == nil {
-		return 0, nil, fmt.Errorf("unable to create command context")
+		return 0, nil, errors.New("unable to create command context")
 	}
 
 	var stdoutBuffer bytes.Buffer
