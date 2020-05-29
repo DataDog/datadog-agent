@@ -80,7 +80,7 @@ func sendTestTrap(t *testing.T, c TrapListenerConfig) {
 }
 
 // receivePacket waits for a received trap packet and returns it. May not be the same than one that has just been sent.
-func receivePacket(t *testing.T, s *TrapServer) *gosnmp.SnmpPacket {
+func receivePacket(t *testing.T, s *TrapServer) *SnmpPacket {
 	select {
 	case p := <-s.Output():
 		return p
@@ -90,16 +90,16 @@ func receivePacket(t *testing.T, s *TrapServer) *gosnmp.SnmpPacket {
 	}
 }
 
-func assertV2c(t *testing.T, p *gosnmp.SnmpPacket, config TrapListenerConfig) {
-	require.Equal(t, gosnmp.Version2c, p.Version)
-	require.Equal(t, config.Community, p.Community)
+func assertV2c(t *testing.T, p *SnmpPacket, config TrapListenerConfig) {
+	require.Equal(t, gosnmp.Version2c, p.Content.Version)
+	require.Equal(t, config.Community, p.Content.Community)
 }
 
-func assertV3(t *testing.T, p *gosnmp.SnmpPacket, config TrapListenerConfig) {
-	require.Equal(t, gosnmp.Version3, p.Version)
+func assertV3(t *testing.T, p *SnmpPacket, config TrapListenerConfig) {
+	require.Equal(t, gosnmp.Version3, p.Content.Version)
 
-	require.NotNil(t, p.SecurityParameters)
-	sp := p.SecurityParameters.(*gosnmp.UsmSecurityParameters)
+	require.NotNil(t, p.Content.SecurityParameters)
+	sp := p.Content.SecurityParameters.(*gosnmp.UsmSecurityParameters)
 
 	if config.AuthProtocol != "" {
 		authProtocol, err := BuildAuthProtocol(config.AuthProtocol)
@@ -114,23 +114,25 @@ func assertV3(t *testing.T, p *gosnmp.SnmpPacket, config TrapListenerConfig) {
 	}
 }
 
-func assertVariables(t *testing.T, p *gosnmp.SnmpPacket) {
-	assert.Equal(t, 4, len(p.Variables))
-	uptime := p.Variables[0]
+func assertVariables(t *testing.T, p *SnmpPacket) {
+	vars := p.Content.Variables
+	assert.Equal(t, 4, len(vars))
+
+	uptime := vars[0]
 	assert.Equal(t, ".1.3.6.1.2.1.1.3.0", uptime.Name)
 	assert.Equal(t, gosnmp.TimeTicks, uptime.Type)
 
-	snmptrapOID := p.Variables[1]
+	snmptrapOID := vars[1]
 	assert.Equal(t, ".1.3.6.1.6.3.1.1.4.1", snmptrapOID.Name)
 	assert.Equal(t, gosnmp.OctetString, snmptrapOID.Type)
 	assert.Equal(t, "1.3.6.1.4.1.8072.2.3.0.1", string(snmptrapOID.Value.([]byte)))
 
-	heartBeatRate := p.Variables[2]
+	heartBeatRate := vars[2]
 	assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.1", heartBeatRate.Name)
 	assert.Equal(t, gosnmp.Integer, heartBeatRate.Type)
 	assert.Equal(t, 1024, heartBeatRate.Value.(int))
 
-	heartBeatName := p.Variables[3]
+	heartBeatName := vars[3]
 	assert.Equal(t, ".1.3.6.1.4.1.8072.2.3.2.2", heartBeatName.Name)
 	assert.Equal(t, gosnmp.OctetString, heartBeatName.Type)
 	assert.Equal(t, "test", string(heartBeatName.Value.([]byte)))

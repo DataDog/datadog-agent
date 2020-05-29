@@ -25,8 +25,10 @@ type TrapListenerConfig struct {
 	PrivProtocol string `mapstructure:"priv_protocol"`
 }
 
-// GoSNMP logger interface implementation.
-type trapLogger struct{}
+// trapLogger is a GoSNMP logger interface implementation.
+type trapLogger struct {
+	gosnmp.Logger
+}
 
 func (x *trapLogger) Print(v ...interface{}) {
 	log.Debug(v...)
