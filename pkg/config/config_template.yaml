@@ -1609,6 +1609,12 @@ api_key:
     #
     # port: <PORT>
 
+    ## @param bind_host - string - optional
+    ## The hostname to listen on for incoming trap packets.
+    ## Defaults to the global `bind_host` config option value.
+    #
+    # bind_host: <BIND_HOST>
+
     ## @param  version - string - optional
     ## The SNMP version to use.
     ## One of: "1" (SNMPv1), "2c" (SNMPv2c), "3" (SNMPv3).
