@@ -1599,40 +1599,57 @@ api_key:
 #
 # snmp_traps_stop_timeout: 5.0
 
-## @param snmp_traps_listeners - list of objects - optional
-## Configure SNMP traps listeners. Each listener is associated to a port and a set of SNMP credentials.
-##
-## The following options are available for each listener:
-##
-## * port - integer - required
-##   The port to listen on for incoming trap packets.
-## * version - string - optional
-##   The SNMP version to use.
-##   One of: "1" (SNMPv1), "2c" (SNMPv2c), "3" (SNMPv3).
-##   Automatically set to "2c" if `community` is set.
-##   Automatically set to "3" if `user` is set.
-##   Required in other cases.
-## * community - string - optional
-##   (v1/v2c only) The community string of the listener.
-##   Required if `user` is not set.
-## * user - string - optional
-##   (v3 only) Username of the user that is authorized to send traps to this listener.
-##   Required if `community` is not set.
-## * authentication_protocol - string - optional
-##   (v3 only) Authentication protocol to use.
-##   One of: "MD5", "SHA".
-##   Required if privacy is enabled.
-## * authentication_key - string - optional
-##   (v3 only) Authentication key of the user.
-##   Required if privacy is enabled.
-## * privacy_protocol - string - optional
-##   (v3 only) Privacy protocol to use.
-##   One of: "DES", "AES".
-## * privacy_key - string - optional
-##   (v3 only) Privacy key of the user.
+## @param snmp_traps_listeners - list of custom objects - optional
+## Configure SNMP traps listeners. Each listener is associated to a UDP port and a set of SNMP credentials.
 #
 # snmp_traps_listeners:
-#   - port: 162
-#     community: public
+# -
+    ## @param port - integer - required
+    ## The UDP port to listen on for incoming trap packets.
+    #
+    # port: <PORT>
+
+    ## @param  version - string - optional
+    ## The SNMP version to use.
+    ## One of: "1" (SNMPv1), "2c" (SNMPv2c), "3" (SNMPv3).
+    ## Automatically detected for SNMPv2c and SNMPv3, required for SNMPv1.
+    #
+    # version: <VERSION>
+
+    ## @param community - string - optional
+    ## The community string of the listener.
+    ## Required for SNMPv1 or SNMPv2c.
+    #
+    # community: <COMMUNITY>
+
+    ## @param user - string - optional
+    ## Username of the user that is authorized to send traps to this listener.
+    ## Required for SNMPv3.
+    #
+    # user: <USER>
+
+    ## @param authentication_protocol - string - optional
+    ## SNMPv3 authentication protocol to use.
+    ## One of: "MD5", "SHA".
+    ## Required if privacy is enabled.
+    #
+    # authentication_protocol: <AUTHENTICATION_PROTOCOL>
+
+    ## @param authentication_key - string - optional
+    ## SNMPv3 authentication key of the user.
+    ## Required if privacy is enabled.
+    #
+    # authentication_key: <AUTHENTICATION_KEY>
+
+    ## @param privacy_protocol - string - optional
+    ## SNMPv3 privacy protocol to use.
+    ## One of: "DES", "AES".
+    #
+    # privacy_protocol: <PRIVACY_PROTOCOL>
+
+    ## @param privacy_key - string - optional
+    ## SNMPv3 privacy key of the user.
+    #
+    # privacy_key: <PRIVACY_KEY>
 
 {{end -}}
