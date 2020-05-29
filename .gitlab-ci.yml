@@ -830,13 +830,9 @@ iot_agent_deb-arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["build_iot_agent-deb_arm64"]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -865,13 +861,9 @@ iot_agent_deb-armhf:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: [ "fail_on_non_triggered_tag", "build_iot_agent-deb_armhf"]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -1040,9 +1032,6 @@ iot_agent_rpm-arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["build_iot_agent-deb_arm64"]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc
     # Hack to work around the cloning issue with arm runners
@@ -1050,7 +1039,6 @@ iot_agent_rpm-arm64:
     # - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     # - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   script:
     - echo "About to build iot agent for $RELEASE_VERSION"
@@ -1084,9 +1072,6 @@ iot_agent_rpm-armhf:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: [ "fail_on_non_triggered_tag", "build_iot_agent-deb_armhf"]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
   before_script:
     - source /root/.bashrc
     # Hack to work around the cloning issue with arm runners
@@ -1094,7 +1079,6 @@ iot_agent_rpm-armhf:
     # - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
     # - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
   script:
     - echo "About to build iot agent for $RELEASE_VERSION"
