@@ -110,6 +110,7 @@ func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, er
 
 	for _, policyDef := range config.Policies {
 		for _, policyPath := range policyDef.Files {
+			log.Infof("loading security policies from `%s`", policyPath)
 			f, err := os.Open(policyPath)
 			if err != nil {
 				log.Errorf("failed to load policy: %s", policyPath)

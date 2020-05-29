@@ -83,17 +83,5 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
 
     ctx.run(cmd.format(**args), env=env)
 
-
-@task()
-def gen_mocks(ctx):
-    """
-    Generate mocks.
-    """
-
-    gopath = get_gopath(ctx)
-    if not os.path.exists(os.path.join(gopath, "bin/mockery")):
-        with ctx.cd(gopath):
-            ctx.run("go get -u github.com/vektra/mockery/cmd/mockery", env={'GO111MODULE': 'on'})
-
-    with ctx.cd("./pkg/compliance"):
-        ctx.run("./gen_mocks.sh")
+    cmd = "go run ./pkg/config/render_config.go security-agent ./pkg/config/config_template.yaml ./cmd/agent/dist/datadog-security.yaml"
+    ctx.run(cmd, env=env)
