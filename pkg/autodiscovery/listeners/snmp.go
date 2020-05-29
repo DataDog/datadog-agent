@@ -235,9 +235,11 @@ func (l *SNMPListener) checkDevices() {
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
+
 				if ignored := subnet.config.IsIPIgnored(currentIP); ignored {
 					continue
 				}
+
 				jobIP := make(net.IP, len(currentIP))
 				copy(jobIP, currentIP)
 				job := snmpJob{
@@ -253,7 +255,9 @@ func (l *SNMPListener) checkDevices() {
 				}
 			}
 		}
+
 		l.collectMetrics(subnets)
+
 		select {
 		case <-l.stop:
 			return
