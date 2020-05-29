@@ -260,7 +260,7 @@ func (l *SNMPListener) checkDevices() {
 			}
 			if senderErr == nil {
 				tags := []string{"network:" + subnet.configNetwork}
-				sender.Gauge("snmp.discovered_devices_count", float64(discoveredDevicesCount), "", tags)
+				sender.Gauge("snmp.discovered_devices_count", float64(len(subnet.devices)), "", tags)
 			}
 		}
 		if senderErr == nil {

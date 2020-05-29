@@ -58,7 +58,7 @@ func TestSNMPListener(t *testing.T) {
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 
 	// Make sure we reach the end of checkDevices for better coverage
-	// Will test that listener work fine even if we can't get the metric sender
+	// Will test that listener works fine even if we can't get the metric sender
 	for i := 1; i <= 254; i++ {
 		_ = <-testChan
 	}
@@ -101,13 +101,15 @@ func TestSNMPListenerMetrics(t *testing.T) {
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
-	for i := 1; i <= 512; i++ {
+	job := <-testChan
+	job.subnet.devices = map[string]string{"id1": "192.168.0.1", "id2": "192.168.0.1"}
+	for i := 1; i <= 511; i++ {
 		_ = <-testChan
 	}
 	l.Stop()
 
-	mockSender.AssertCalled(t, "Gauge", "snmp.discovered_devices_count", float64(256), "", []string{"network:192.168.0.0/24"})
-	mockSender.AssertCalled(t, "Gauge", "snmp.discovered_devices_count", float64(256), "", []string{"network:192.168.1.0/24"})
+	mockSender.AssertCalled(t, "Gauge", "snmp.discovered_devices_count", float64(2), "", []string{"network:192.168.0.0/24"})
+	mockSender.AssertCalled(t, "Gauge", "snmp.discovered_devices_count", float64(0), "", []string{"network:192.168.1.0/24"})
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
 
