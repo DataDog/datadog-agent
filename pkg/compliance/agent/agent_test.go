@@ -48,6 +48,7 @@ func TestRun(t *testing.T) {
 		Version:      "1.2.0",
 		ResourceID:   "the-host",
 		ResourceType: "docker",
+		Tags:         []string{"check_kind:file"},
 		Data: compliance.KV{
 			"permissions": "644",
 		},
@@ -59,6 +60,7 @@ func TestRun(t *testing.T) {
 		Version:      "1.5.0",
 		ResourceID:   "the-host",
 		ResourceType: "worker",
+		Tags:         []string{"check_kind:file"},
 		Data: compliance.KV{
 			"permissions": "644",
 		},
