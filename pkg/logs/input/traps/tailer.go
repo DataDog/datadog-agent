@@ -51,7 +51,6 @@ func (t *Tailer) run() {
 			log.Errorf("failed to format packet: %s", err)
 			continue
 		}
-		// TODO: tags (SNMP version, community string, username)
 		t.outputChan <- message.NewMessageWithSource(content, message.StatusInfo, t.source)
 	}
 }

@@ -365,9 +365,4 @@ snmp_traps_listeners:
 		require.Error(t, err)
 		assert.Nil(t, s)
 	})
-
-	// TODO test v2 with wrong community string
-	// TODO test v3 with wrong user
-	// TODO test v3 with wrong auth
-	// TODO test v3 with wrong priv
 }

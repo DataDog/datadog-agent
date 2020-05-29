@@ -46,6 +46,7 @@ type TrapServer struct {
 }
 
 var (
+	outputChannelSize = 100
 	// RunningServer holds a reference to the trap server instance running in the Agent.
 	RunningServer *TrapServer
 )
@@ -61,8 +62,7 @@ func NewTrapServer() (*TrapServer, error) {
 	bindHost := config.Datadog.GetString("bind_host")
 	stopTimeout := config.Datadog.GetDuration("snmp_traps_stop_timeout") * time.Second
 
-	// TODO: What is a good channel size to choose?
-	output := make(OutputChannel, 100)
+	output := make(OutputChannel, outputChannelSize)
 	listeners := make([]TrapListener, 0, len(configs))
 
 	for _, c := range configs {
