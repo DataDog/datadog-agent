@@ -273,14 +273,10 @@ func (l *SNMPListener) collectMetrics(subnets []snmpSubnet) {
 		return
 	}
 	for _, subnet := range subnets {
-		if senderErr == nil {
-			tags := []string{"network:" + subnet.configNetwork}
-			sender.Gauge("snmp.discovered_devices_count", float64(len(subnet.devices)), "", tags)
-		}
+		tags := []string{"network:" + subnet.configNetwork}
+		sender.Gauge("snmp.discovered_devices_count", float64(len(subnet.devices)), "", tags)
 	}
-	if senderErr == nil {
-		sender.Commit()
-	}
+	sender.Commit()
 }
 
 func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
