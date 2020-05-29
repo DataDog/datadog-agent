@@ -21,6 +21,7 @@ type KubeUtilInterface interface {
 	GetPodForContainerID(containerID string) (*Pod, error)
 	GetStatusForContainerID(pod *Pod, containerID string) (ContainerStatus, error)
 	GetPodFromUID(podUID string) (*Pod, error)
+	GetPodFromPodIP(podIP string) (*Pod, error)
 	GetPodForEntityID(entityID string) (*Pod, error)
 	QueryKubelet(path string) ([]byte, int, error)
 	GetKubeletAPIEndpoint() string

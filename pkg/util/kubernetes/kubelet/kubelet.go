@@ -314,6 +314,33 @@ func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {
 	return nil, fmt.Errorf("uid %s not found in pod list", podUID)
 }
 
+func (ku *KubeUtil) GetPodFromPodIP(ip string) (*Pod, error) {
+	if ip == "" {
+		return nil, fmt.Errorf("pod IP is empty")
+	}
+	pods, err := ku.GetLocalPodList()
+	if err != nil {
+		return nil, err
+	}
+	for _, pod := range pods {
+		if pod.Status.PodIP == ip {
+			return pod, nil
+		}
+	}
+	log.Debugf("cannot get the pod uid %q: %s, retrying without cache...", ip, err)
+
+	pods, err = ku.ForceGetLocalPodList()
+	if err != nil {
+		return nil, err
+	}
+	for _, pod := range pods {
+		if pod.Status.PodIP == ip {
+			return pod, nil
+		}
+	}
+	return nil, fmt.Errorf("ip %s not found in pod list", ip)
+}
+
 // GetPodForEntityID returns a pointer to the pod that corresponds to an entity ID.
 // If the pod is not found it returns nil and an error.
 func (ku *KubeUtil) GetPodForEntityID(entityID string) (*Pod, error) {
