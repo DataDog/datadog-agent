@@ -170,6 +170,7 @@ snmp_traps_listeners:
 
 	sendTestTrap(t, config)
 	p := receivePacket(t, s)
+	require.NotNil(t, p)
 	assertV2c(t, p, config)
 	assertVariables(t, p)
 }
@@ -199,6 +200,7 @@ snmp_traps_listeners:
 
 		sendTestTrap(t, config)
 		p := receivePacket(t, s)
+		require.NotNil(t, p)
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
@@ -231,6 +233,7 @@ snmp_traps_listeners:
 
 		sendTestTrap(t, config)
 		p := receivePacket(t, s)
+		require.NotNil(t, p)
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
@@ -267,6 +270,7 @@ snmp_traps_listeners:
 
 		sendTestTrap(t, config)
 		p := receivePacket(t, s)
+		require.NotNil(t, p)
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
@@ -340,6 +344,7 @@ snmp_traps_listeners:
 		defer wg.Done()
 		for i := 0; i < totalMessages; i++ {
 			p := receivePacket(t, s)
+			require.NotNil(t, p)
 			assertVariables(t, p)
 		}
 	}()
