@@ -218,7 +218,7 @@ func startCompliance(stopper restart.Stopper) error {
 	destinationsCtx.Start()
 	stopper.Add(destinationsCtx)
 
-	health := health.Register("security-agent")
+	health := health.RegisterLiveness("security-agent")
 
 	// setup the auditor
 	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)

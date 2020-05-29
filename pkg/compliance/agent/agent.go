@@ -85,5 +85,7 @@ func (a *Agent) Run() error {
 
 // Stop stops the Compliance Agent
 func (a *Agent) Stop() {
-	a.scheduler.Stop()
+	if err := a.scheduler.Stop(); err != nil {
+		log.Errorf("scheduler failed to stop: %v", err)
+	}
 }
