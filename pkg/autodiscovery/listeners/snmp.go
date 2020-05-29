@@ -231,16 +231,10 @@ func (l *SNMPListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 
 	for {
-		sender, senderErr := aggregator.GetSender("snmp_listener")
-		if senderErr != nil {
-			log.Errorf("Error getting aggregator sender: %s", senderErr)
-		}
 		for _, subnet := range subnets {
-			discoveredDevicesCount := 0
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
-				discoveredDevicesCount++
 				if ignored := subnet.config.IsIPIgnored(currentIP); ignored {
 					continue
 				}
@@ -258,20 +252,30 @@ func (l *SNMPListener) checkDevices() {
 				default:
 				}
 			}
-			if senderErr == nil {
-				tags := []string{"network:" + subnet.configNetwork}
-				sender.Gauge("snmp.discovered_devices_count", float64(len(subnet.devices)), "", tags)
-			}
 		}
-		if senderErr == nil {
-			sender.Commit()
-		}
-
+		l.collectMetrics(subnets)
 		select {
 		case <-l.stop:
 			return
 		case <-discoveryTicker.C:
 		}
+	}
+}
+
+func (l *SNMPListener) collectMetrics(subnets []snmpSubnet) {
+	sender, senderErr := aggregator.GetSender("snmp_listener")
+	if senderErr != nil {
+		log.Errorf("Error getting aggregator sender: %s", senderErr)
+		return
+	}
+	for _, subnet := range subnets {
+		if senderErr == nil {
+			tags := []string{"network:" + subnet.configNetwork}
+			sender.Gauge("snmp.discovered_devices_count", float64(len(subnet.devices)), "", tags)
+		}
+	}
+	if senderErr == nil {
+		sender.Commit()
 	}
 }
 

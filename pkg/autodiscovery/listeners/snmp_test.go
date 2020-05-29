@@ -102,7 +102,8 @@ func TestSNMPListenerMetrics(t *testing.T) {
 	l.Listen(newSvc, delSvc)
 
 	job := <-testChan
-	job.subnet.devices = map[string]string{"id1": "192.168.0.1", "id2": "192.168.0.1"}
+	job.subnet.devices["id1"] = "192.168.0.1"
+	job.subnet.devices["id2"] = "192.168.0.2"
 	for i := 1; i <= 511; i++ {
 		_ = <-testChan
 	}
