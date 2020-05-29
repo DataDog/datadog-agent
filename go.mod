@@ -18,6 +18,7 @@ replace (
 
 // Internal deps fix version
 replace (
+	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf
 	github.com/containerd/cgroups => github.com/containerd/cgroups v0.0.0-20200327175542-b44481373989
 	github.com/containerd/containerd => github.com/containerd/containerd v1.2.13
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
