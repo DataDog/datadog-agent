@@ -97,10 +97,6 @@ core,"github.com/bhmj/jsonslice",MIT
 core,"github.com/blang/semver",MIT
 core,"github.com/cenkalti/backoff",MIT
 core,"github.com/cihub/seelog",NewBSD
-core,"github.com/cihub/seelog/archive",NewBSD
-core,"github.com/cihub/seelog/archive/gzip",NewBSD
-core,"github.com/cihub/seelog/archive/tar",NewBSD
-core,"github.com/cihub/seelog/archive/zip",NewBSD
 core,"github.com/clbanning/mxj",MIT
 core,"github.com/containerd/cgroups/stats/v1",Apache-2.0
 core,"github.com/containerd/containerd",Apache-2.0
