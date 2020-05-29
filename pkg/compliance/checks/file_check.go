@@ -10,9 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"strconv"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -117,19 +115,7 @@ func (c *fileCheck) getAttribute(filePath string, fi os.FileInfo, property strin
 	case "permissions":
 		return fmt.Sprintf("%3o", fi.Mode()&os.ModePerm), nil
 	case "owner":
-		if statt, ok := fi.Sys().(*syscall.Stat_t); ok {
-			var (
-				u = strconv.Itoa(int(statt.Gid))
-				g = strconv.Itoa(int(statt.Uid))
-			)
-			if group, err := user.LookupGroupId(g); err == nil {
-				g = group.Name
-			}
-			if user, err := user.LookupId(u); err == nil {
-				u = user.Username
-			}
-			return fmt.Sprintf("%s:%s", u, g), nil
-		}
+		return getFileOwner(fi)
 	}
 	return "", ErrPropertyNotSupported
 }
