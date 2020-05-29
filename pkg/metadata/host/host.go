@@ -51,6 +51,7 @@ func GetPayload(hostnameData util.HostnameData) *Payload {
 
 	p := &Payload{
 		Os:            osName,
+		AgentFlavor:   config.AgentFlavor,
 		PythonVersion: GetPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,

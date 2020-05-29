@@ -181,22 +181,6 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			c: Container{
-				ID:    "21",
-				Name:  "k8s_POD_OSE4",
-				Image: "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:102f71fc09bc11085718d24a3221a74a9a517372069447f047a1b19b63f13b66",
-			},
-			ns: "default",
-		},
-		{
-			c: Container{
-				ID:    "22",
-				Name:  "k8s_POD_OSE4",
-				Image: "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:102f71fc09bc11085718d24a3221a74a9a517372069447f047a1b19b63f13b66",
-			},
-			ns: "default",
-		},
-		{
-			c: Container{
 				ID:    "23",
 				Name:  "k8s_POD_EKS_Win",
 				Image: "amazonaws.com/eks/pause-windows:latest",
@@ -219,25 +203,25 @@ func TestFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			blacklist:   []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			blacklist:   []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			whitelist:   []string{},
 			blacklist:   []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			whitelist:   []string{"name:mysql"},
 			blacklist:   []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "21", "22", "23", "24"},
+			expectedIDs: []string{"3", "5", "6", "7", "8", "9", "10", "11", "12", "13", "16", "17", "18", "19", "20", "23", "24"},
 		},
 		{
 			blacklist:   []string{"kube_namespace:.*"},
@@ -246,14 +230,13 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			blacklist:   []string{"kube_namespace:bar"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "21", "22", "23", "24"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "20", "23", "24"},
 		},
 		// Test kubernetes defaults
 		{
 			blacklist: []string{
 				pauseContainerGCR,
 				pauseContainerOpenshift3,
-				pauseContainerOpenshift4,
 				pauseContainerKubernetes,
 				pauseContainerAzure,
 				pauseContainerECS,
