@@ -6,9 +6,10 @@
 package listeners
 
 import (
-	"testing"
-
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/stretchr/testify/mock"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
@@ -55,6 +56,52 @@ func TestSNMPListener(t *testing.T) {
 	job = <-testChan
 	assert.Equal(t, "192.168.0.1", job.currentIP.String())
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
+}
+
+func TestSNMPListenerMetrics(t *testing.T) {
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	testChan := make(chan snmpJob, 10)
+
+	snmpConfig := snmp.Config{
+		Network:   "192.168.0.0/24",
+		Community: "public",
+	}
+	snmpConfig2 := snmp.Config{
+		Network:   "192.168.1.0/24",
+		Community: "public",
+	}
+	listenerConfig := snmp.ListenerConfig{
+		Configs: []snmp.Config{snmpConfig, snmpConfig2},
+		Workers: 1,
+	}
+
+	mockConfig := config.Mock()
+	mockConfig.Set("snmp_listener", listenerConfig)
+
+	mockSender := mocksender.NewMockSender("snmp_listener")
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+		for {
+			job := <-jobs
+			testChan <- job
+		}
+	}
+
+	l, err := NewSNMPListener()
+	assert.Equal(t, nil, err)
+	l.Listen(newSvc, delSvc)
+
+	for i := 1; i <= 512; i++ {
+		_ = <-testChan
+	}
+	l.Stop()
+
+	mockSender.AssertCalled(t, "Gauge", "snmp.discovered_devices_count", float64(256), "", []string{"network:192.168.0.0/24"})
+	mockSender.AssertCalled(t, "Gauge", "snmp.discovered_devices_count", float64(256), "", []string{"network:192.168.1.0/24"})
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
 
 func TestSNMPListenerIgnoredAdresses(t *testing.T) {
