@@ -1083,6 +1083,7 @@ iot_agent_rpm-armhf:
   script:
     - echo "About to build iot agent for $RELEASE_VERSION"
 
+    - echo "Detected architecture $(uname -m)"
     - echo "armhfp" > /etc/yum/vars/basearch
     - echo "armv7hl" > /etc/yum/vars/arch
     - echo "armv7hl-redhat-linux-gnu" > /etc/rpm/platform
