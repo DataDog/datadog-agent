@@ -1098,6 +1098,11 @@ iot_agent_rpm-armhf:
   <<: *skip_when_unwanted_on_7
   script:
     - echo "About to build iot agent for $RELEASE_VERSION"
+
+    - echo "armhfp" > /etc/yum/vars/basearch
+    - echo "armv7hl" > /etc/yum/vars/arch
+    - echo "armv7hl-redhat-linux-gnu" > /etc/rpm/platform
+
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
