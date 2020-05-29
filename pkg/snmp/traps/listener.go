@@ -32,6 +32,10 @@ func NewTrapListener(bindHost string, c TrapListenerConfig, output OutputChannel
 	impl := gosnmp.NewTrapListener()
 	impl.Params = params
 	impl.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+		if params.Community != "" && p.Community != params.Community {
+			log.Warnf("snmp-traps: wrong community on listener %s: %s", addr, p.Community)
+			return
+		}
 		output <- &SnmpPacket{Content: p, Addr: u}
 	}
 

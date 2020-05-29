@@ -365,4 +365,37 @@ snmp_traps_listeners:
 		require.Error(t, err)
 		assert.Nil(t, s)
 	})
+
+	t.Run("v2-wrong-community", func(t *testing.T) {
+		port, err := getAvailableUDPPort()
+		require.NoError(t, err)
+
+		config := TrapListenerConfig{
+			Port:      port,
+			Community: "public",
+		}
+
+		configure(t, fmt.Sprintf(`
+snmp_traps_listeners:
+  - port: %d
+    community: %s
+`, config.Port, config.Community))
+
+		s, err := NewTrapServer()
+		require.NoError(t, err)
+		defer s.Stop()
+
+		badClientConfig := TrapListenerConfig{
+			Port:      config.Port,
+			Community: "cilpub",
+		}
+
+		sendTestTrap(t, badClientConfig)
+		select {
+		case <-s.Output():
+			t.Errorf("Unexpectedly received an unauthorized packet")
+		case <-time.After(100 * time.Millisecond):
+			break
+		}
+	})
 }
