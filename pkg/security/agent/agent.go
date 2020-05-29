@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +24,8 @@ type RuntimeSecurityAgent struct {
 }
 
 // NewRuntimeSecurityAgent - Instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(systemProbeAddr string) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent() (*RuntimeSecurityAgent, error) {
+	systemProbeAddr := coreconfig.Datadog.GetString("runtime_security_config.system_probe_addr")
 	// Dials system-probe
 	conn, err := grpc.Dial(systemProbeAddr, grpc.WithInsecure())
 	if err != nil {
@@ -41,21 +43,19 @@ func NewRuntimeSecurityAgent(systemProbeAddr string) (*RuntimeSecurityAgent, err
 }
 
 // Start - Starts the Runtime Security agent
-func (rsa *RuntimeSecurityAgent) Start() error {
+func (rsa *RuntimeSecurityAgent) Start() {
 	// Start the Datadog log client. This client is used to ship security events to Datadog.
 	go rsa.logClient.Run(rsa.wg)
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
-	return nil
 }
 
 // Stop - Stops the Runtime Security agent
-func (rsa *RuntimeSecurityAgent) Stop() error {
+func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.running.Store(false)
 	rsa.logClient.Stop()
 	rsa.wg.Wait()
 	rsa.conn.Close()
-	return nil
 }
 
 // StartEventListener - Listens for new events from system-probe
@@ -70,7 +70,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 		if err != nil {
 			log.Errorf("grpc stream connection error: %v", err)
 			// retry in 2 seconds
-			time.Sleep(2*time.Second)
+			time.Sleep(2 * time.Second)
 			continue
 		}
 

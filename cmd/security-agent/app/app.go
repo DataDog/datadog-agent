@@ -179,15 +179,11 @@ func start(cmd *cobra.Command, args []string) error {
 	var runtimeSecurityAgent *agent.RuntimeSecurityAgent
 	runtimeSecurityEnabled := config.Datadog.GetBool("runtime_security_config.enabled")
 	if runtimeSecurityEnabled {
-		// TODO: add system-probe listen addr in config
-		systemProbeAddr := "localhost:8787"
-		runtimeSecurityAgent, err = agent.NewRuntimeSecurityAgent(systemProbeAddr)
+		runtimeSecurityAgent, err = agent.NewRuntimeSecurityAgent()
 		if err != nil {
 			return log.Errorf("unable to create a runtime security agent instance: %v", err)
 		}
-		if err := runtimeSecurityAgent.Start(); err != nil {
-			return log.Errorf("unable to start the runtime security agent: %v", err)
-		}
+		runtimeSecurityAgent.Start()
 		log.Info("Datadog runtime security agent is now running")
 	} else {
 		log.Info("Datadog runtime security agent disabled by config")
@@ -205,9 +201,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	if runtimeSecurityEnabled {
-		if err := runtimeSecurityAgent.Stop(); err != nil {
-			log.Warnf("unable to stop the runtime security agent: %v", err)
-		}
+		runtimeSecurityAgent.Stop()
 	}
 
 	log.Info("See ya!")

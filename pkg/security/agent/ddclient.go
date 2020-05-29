@@ -40,9 +40,13 @@ func NewDDClientWithLogSource(src *config.LogSource) *DDClient {
 // Init - Starts the Datadog log client. It follows the API described in pkg/logs/README.md.
 func (ddc *DDClient) Run(wg *sync.WaitGroup) {
 	wg.Add(1)
+	defer wg.Done()
 	// Get Datadog endpoints
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
+	if endpoints, err := config.BuildHTTPEndpoints(); err != nil {
+		log.Errorf("datadog logs client stopped with an error: %v", err)
+		return
+	} else {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
 	endpoints, err := config.BuildEndpoints(httpConnectivity)
@@ -75,7 +79,6 @@ func (ddc *DDClient) Run(wg *sync.WaitGroup) {
 	defer ddc.pipelineProvider.Stop()
 	// Wait until context is cancelled
 	<-ddc.ctx.Done()
-	wg.Done()
 }
 
 // Stop - Stops the Datadog logs client
@@ -113,7 +116,8 @@ func (ddc *DDClient) SendAlertWithTags(buf []byte, tags []string) {
 
 // SendSecurityEvent - Sends a security event with the provided status
 func (ddc *DDClient) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
-	// TODO: the right tags should be set in the security agent module
+	// TODO: we should set the rule_id and event type as a tag in the system-probe module,
+	// or simply put them in the Data field of the event to avoid rebuilding the tags here.
 	// TODO: the status of the message should follow the severity of the security alert
 	tags := append(
 		evt.GetTags(),
