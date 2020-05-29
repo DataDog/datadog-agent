@@ -98,10 +98,7 @@ func (c *auditCheck) reportOnRule(r *rule.FileWatchRule) error {
 		}
 	}
 
-	if len(kv) != 0 {
-		log.Debugf("%s: reporting", c.id)
-		c.report(nil, kv)
-	}
+	c.report(nil, kv)
 	return nil
 }
 

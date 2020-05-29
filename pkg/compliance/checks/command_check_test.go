@@ -45,7 +45,7 @@ func (f *commandFixture) run(t *testing.T) {
 		reporter.On(
 			"Report",
 			newTestRuleEvent(
-				nil,
+				[]string{"check_kind:command"},
 				f.expKV,
 			),
 		).Once()
@@ -58,7 +58,7 @@ func (f *commandFixture) run(t *testing.T) {
 }
 
 func newFakeCommandCheck(t *testing.T, command *compliance.Command) commandCheck {
-	check, err := newCommandCheck(newTestBaseCheck(&mocks.Reporter{}), command)
+	check, err := newCommandCheck(newTestBaseCheck(&mocks.Reporter{}, checkKindCommand), command)
 	assert.NoError(t, err)
 	return *check
 }

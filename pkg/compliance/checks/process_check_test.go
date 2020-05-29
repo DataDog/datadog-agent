@@ -36,7 +36,7 @@ func (f *processFixture) run(t *testing.T) {
 		reporter.On(
 			"Report",
 			newTestRuleEvent(
-				nil,
+				[]string{"check_kind:process"},
 				f.expKV,
 			),
 		).Once()
@@ -53,7 +53,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "Simple case",
 			check: processCheck{
-				baseCheck: newTestBaseCheck(&mocks.Reporter{}),
+				baseCheck: newTestBaseCheck(&mocks.Reporter{}, checkKindProcess),
 				process: &compliance.Process{
 					Name: "proc1",
 					Report: compliance.Report{
@@ -78,7 +78,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "Process not found",
 			check: processCheck{
-				baseCheck: newTestBaseCheck(&mocks.Reporter{}),
+				baseCheck: newTestBaseCheck(&mocks.Reporter{}, checkKindProcess),
 				process: &compliance.Process{
 					Name: "proc1",
 					Report: compliance.Report{
@@ -105,7 +105,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "Argument not found",
 			check: processCheck{
-				baseCheck: newTestBaseCheck(&mocks.Reporter{}),
+				baseCheck: newTestBaseCheck(&mocks.Reporter{}, checkKindProcess),
 				process: &compliance.Process{
 					Name: "proc1",
 					Report: compliance.Report{
@@ -128,7 +128,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "Override returned value",
 			check: processCheck{
-				baseCheck: newTestBaseCheck(&mocks.Reporter{}),
+				baseCheck: newTestBaseCheck(&mocks.Reporter{}, checkKindProcess),
 				process: &compliance.Process{
 					Name: "proc1",
 					Report: compliance.Report{

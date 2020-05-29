@@ -50,9 +50,10 @@ func newTestRuleEvent(tags []string, kv compliance.KV) *compliance.RuleEvent {
 	}
 }
 
-func newTestBaseCheck(reporter compliance.Reporter) baseCheck {
+func newTestBaseCheck(reporter compliance.Reporter, kind checkKind) baseCheck {
 	return baseCheck{
 		id:        check.ID("check-1"),
+		kind:      kind,
 		interval:  time.Minute,
 		framework: testCheckMeta.framework,
 		version:   testCheckMeta.version,
@@ -148,7 +149,7 @@ func TestDockerImageCheck(t *testing.T) {
 		reporter.On(
 			"Report",
 			newTestRuleEvent(
-				nil,
+				[]string{"check_kind:docker"},
 				compliance.KV{
 					"image_id":                  image.id,
 					"image_name":                image.name,
@@ -159,7 +160,7 @@ func TestDockerImageCheck(t *testing.T) {
 	}
 
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter),
+		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
 		client:         client,
 		dockerResource: resource,
 	}
@@ -210,7 +211,7 @@ func TestDockerNetworkCheck(t *testing.T) {
 	reporter.On(
 		"Report",
 		newTestRuleEvent(
-			nil,
+			[]string{"check_kind:docker"},
 			compliance.KV{
 				"network_id":                        "e7ed6c335383178f99b61a8a44b82b62abc17b31d68b792180728bf8f2c599ec",
 				"default_bridge_traffic_restricted": "true",
@@ -219,7 +220,7 @@ func TestDockerNetworkCheck(t *testing.T) {
 	).Once()
 
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter),
+		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
 		client:         client,
 		dockerResource: resource,
 	}
@@ -273,7 +274,7 @@ func TestDockerContainerCheck(t *testing.T) {
 	reporter.On(
 		"Report",
 		newTestRuleEvent(
-			nil,
+			[]string{"check_kind:docker"},
 			compliance.KV{
 				"container_id": "3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87",
 				"privileged":   "true",
@@ -282,7 +283,7 @@ func TestDockerContainerCheck(t *testing.T) {
 	).Once()
 
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter),
+		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
 		client:         client,
 		dockerResource: resource,
 	}
@@ -318,7 +319,7 @@ func TestDockerInfoCheck(t *testing.T) {
 	reporter.On(
 		"Report",
 		newTestRuleEvent(
-			nil,
+			[]string{"check_kind:docker"},
 			compliance.KV{
 				"insecure_registries": "127.0.0.0/8",
 			},
@@ -326,7 +327,7 @@ func TestDockerInfoCheck(t *testing.T) {
 	).Once()
 
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter),
+		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
 		client:         client,
 		dockerResource: resource,
 	}
@@ -362,7 +363,7 @@ func TestDockerVersionCheck(t *testing.T) {
 	reporter.On(
 		"Report",
 		newTestRuleEvent(
-			nil,
+			[]string{"check_kind:docker"},
 			compliance.KV{
 				"experimental_features": "true",
 			},
@@ -370,7 +371,7 @@ func TestDockerVersionCheck(t *testing.T) {
 	).Once()
 
 	dockerCheck := dockerCheck{
-		baseCheck:      newTestBaseCheck(reporter),
+		baseCheck:      newTestBaseCheck(reporter, checkKindDocker),
 		client:         client,
 		dockerResource: resource,
 	}

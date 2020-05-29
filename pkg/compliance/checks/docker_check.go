@@ -42,6 +42,15 @@ type dockerCheck struct {
 	dockerResource *compliance.DockerResource
 }
 
+func newDockerCheck(baseCheck baseCheck, client DockerClient, dockerResource *compliance.DockerResource) (*dockerCheck, error) {
+	// TODO: validate config for the docker resource here
+	return &dockerCheck{
+		baseCheck:      baseCheck,
+		client:         client,
+		dockerResource: dockerResource,
+	}, nil
+}
+
 type iterFn func(id string, obj interface{})
 
 func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
@@ -151,10 +160,7 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 		}
 	}
 
-	if len(kv) != 0 {
-		log.Debugf("%s: reporting %s[id=%s]", c.id, c.dockerResource.Kind, id)
-		c.report(nil, kv)
-	}
+	c.report(nil, kv, "%s[id=%s]", c.dockerResource.Kind, id)
 }
 
 func evalCondition(property string, condition *compliance.Condition) bool {

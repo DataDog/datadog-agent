@@ -151,7 +151,7 @@ func TestFileCheck(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reporter := &mocks.Reporter{}
-			fc := test.setup(t, newTestBaseCheck(reporter))
+			fc := test.setup(t, newTestBaseCheck(reporter, checkKindFile))
 
 			reporter.On(
 				"Report",

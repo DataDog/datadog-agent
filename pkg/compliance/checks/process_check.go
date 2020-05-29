@@ -76,8 +76,6 @@ func (c *processCheck) reportProcess(p *process.FilledProcess) error {
 		}
 	}
 
-	if len(kv) > 0 {
-		c.report(nil, kv)
-	}
+	c.report(nil, kv)
 	return nil
 }

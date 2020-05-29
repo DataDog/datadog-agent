@@ -35,6 +35,15 @@ type fileCheck struct {
 	file       *compliance.File
 }
 
+func newFileCheck(baseCheck baseCheck, pathMapper pathMapper, file *compliance.File) (*fileCheck, error) {
+	// TODO: validate config for the file here
+	return &fileCheck{
+		baseCheck:  baseCheck,
+		pathMapper: pathMapper,
+		file:       file,
+	}, nil
+}
+
 func (c *fileCheck) Run() error {
 	// TODO: here we will introduce various cached results lookups
 
@@ -96,10 +105,8 @@ func (c *fileCheck) reportFile(filePath string) error {
 			kv[key] = v
 		}
 	}
-	if len(kv) != 0 {
-		log.Debugf("%s: reporting", c.id)
-		c.report(nil, kv)
-	}
+
+	c.report(nil, kv)
 	return nil
 }
 

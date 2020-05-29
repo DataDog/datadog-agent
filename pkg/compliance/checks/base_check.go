@@ -6,16 +6,21 @@
 package checks
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+type checkKind string
 
 // baseCheck defines common behavior for all compliance checks
 type baseCheck struct {
 	id       check.ID
+	kind     checkKind
 	interval time.Duration
 	reporter compliance.Reporter
 
@@ -65,10 +70,12 @@ func (c *baseCheck) IsTelemetryEnabled() bool {
 	return false
 }
 
-func (c *baseCheck) report(tags []string, kv compliance.KV) {
+func (c *baseCheck) report(tags []string, kv compliance.KV, logMsgAndArgs ...interface{}) {
 	if len(kv) == 0 {
 		return
 	}
+
+	log.Debugf("%s: reporting %s:[%s]", c.ruleID, c.kind, logFromMsgAndArgs(logMsgAndArgs))
 
 	event := &compliance.RuleEvent{
 		RuleID:       c.ruleID,
@@ -76,8 +83,25 @@ func (c *baseCheck) report(tags []string, kv compliance.KV) {
 		Version:      c.version,
 		ResourceID:   c.resourceID,
 		ResourceType: c.resourceType,
-		Tags:         tags,
+		Tags:         []string{fmt.Sprintf("check_kind:%s", c.kind)},
 		Data:         kv,
 	}
 	c.reporter.Report(event)
+}
+
+func logFromMsgAndArgs(msgAndArgs ...interface{}) string {
+	if len(msgAndArgs) == 0 || msgAndArgs == nil {
+		return ""
+	}
+	if len(msgAndArgs) == 1 {
+		msg := msgAndArgs[0]
+		if msgAsStr, ok := msg.(string); ok {
+			return msgAsStr
+		}
+		return fmt.Sprintf("%+v", msg)
+	}
+	if len(msgAndArgs) > 1 {
+		return fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...)
+	}
+	return ""
 }

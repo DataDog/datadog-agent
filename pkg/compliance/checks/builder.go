@@ -102,6 +102,14 @@ type builder struct {
 	pathMapper   pathMapper
 }
 
+const (
+	checkKindFile    = checkKind("file")
+	checkKindProcess = checkKind("process")
+	checkKindCommand = checkKind("command")
+	checkKindDocker  = checkKind("docker")
+	checkKindAudit   = checkKind("audit")
+)
+
 func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error) {
 	ruleScope, err := b.getRuleScope(meta, rule)
 	if err != nil {
@@ -140,48 +148,31 @@ func (b *builder) getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule
 func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, ruleScope string, resource compliance.Resource) (check.Check, error) {
 	switch {
 	case resource.File != nil:
-		return b.fileCheck(meta, ruleID, ruleScope, resource.File)
+		return newFileCheck(b.baseCheck(ruleID, checkKindFile, ruleScope, meta), b.pathMapper, resource.File)
 	case resource.Docker != nil:
 		if b.dockerClient == nil {
 			return nil, log.Errorf("%s: skipped - docker client not initialized", ruleID)
 		}
-		return b.dockerCheck(meta, ruleID, ruleScope, resource.Docker)
+		return newDockerCheck(b.baseCheck(ruleID, checkKindFile, ruleScope, meta), b.dockerClient, resource.Docker)
 	case resource.Process != nil:
-		return newProcessCheck(b.baseCheck(ruleID, "process", ruleScope, meta), resource.Process)
+		return newProcessCheck(b.baseCheck(ruleID, checkKindProcess, ruleScope, meta), resource.Process)
 	case resource.Command != nil:
-		return newCommandCheck(b.baseCheck(ruleID, "command", ruleScope, meta), resource.Command)
+		return newCommandCheck(b.baseCheck(ruleID, checkKindCommand, ruleScope, meta), resource.Command)
 	case resource.Audit != nil:
 		if b.auditClient == nil {
 			return nil, log.Errorf("%s: skipped - audit client not initialized", ruleID)
 		}
-		return newAuditCheck(b.baseCheck(ruleID, "audit", ruleScope, meta), b.auditClient, resource.Audit)
+		return newAuditCheck(b.baseCheck(ruleID, checkKindAudit, ruleScope, meta), b.auditClient, resource.Audit)
 	default:
 		log.Errorf("%s: resource not supported", ruleID)
 		return nil, ErrResourceNotSupported
 	}
 }
 
-func (b *builder) fileCheck(meta *compliance.SuiteMeta, ruleID string, ruleScope string, file *compliance.File) (check.Check, error) {
-	// TODO: validate config for the file here
-	return &fileCheck{
-		baseCheck:  b.baseCheck(ruleID, "file", ruleScope, meta),
-		pathMapper: b.pathMapper,
-		file:       file,
-	}, nil
-}
-
-func (b *builder) dockerCheck(meta *compliance.SuiteMeta, ruleID string, ruleScope string, dockerResource *compliance.DockerResource) (check.Check, error) {
-	// TODO: validate config for the docker resource here
-	return &dockerCheck{
-		baseCheck:      b.baseCheck(ruleID, fmt.Sprintf("docker:%s", dockerResource.Kind), ruleScope, meta),
-		dockerResource: dockerResource,
-		client:         b.dockerClient,
-	}, nil
-}
-
-func (b *builder) baseCheck(ruleID string, resourceName string, ruleScope string, meta *compliance.SuiteMeta) baseCheck {
+func (b *builder) baseCheck(ruleID string, kind checkKind, ruleScope string, meta *compliance.SuiteMeta) baseCheck {
 	return baseCheck{
-		id:        newCheckID(ruleID, resourceName),
+		id:        newCheckID(ruleID, kind),
+		kind:      kind,
 		interval:  b.checkInterval,
 		reporter:  b.reporter,
 		framework: meta.Framework,
@@ -193,6 +184,6 @@ func (b *builder) baseCheck(ruleID string, resourceName string, ruleScope string
 	}
 }
 
-func newCheckID(ruleID string, resourceName string) check.ID {
-	return check.ID(fmt.Sprintf("%s:%s", ruleID, resourceName))
+func newCheckID(ruleID string, kind checkKind) check.ID {
+	return check.ID(fmt.Sprintf("%s:%s", ruleID, kind))
 }

@@ -105,7 +105,7 @@ func TestAuditCheck(t *testing.T) {
 
 			client.On("GetFileWatchRules").Return(test.rules, nil)
 
-			base := newTestBaseCheck(reporter)
+			base := newTestBaseCheck(reporter, checkKindAudit)
 			check, err := newAuditCheck(base, client, test.audit)
 			assert.NoError(err)
 
