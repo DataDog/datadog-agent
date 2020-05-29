@@ -7,7 +7,6 @@ package checks
 
 import (
 	"fmt"
-	io "io"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -16,8 +15,8 @@ import (
 
 // AuditClient defines the interface for interacting with the auditd client
 type AuditClient interface {
-	io.Closer
 	GetFileWatchRules() ([]*rule.FileWatchRule, error)
+	Close() error
 }
 
 type auditCheck struct {
@@ -31,7 +30,7 @@ type auditCheck struct {
 func newAuditCheck(baseCheck baseCheck, client AuditClient, audit *compliance.Audit) (*auditCheck, error) {
 
 	if len(audit.Path) == 0 {
-		return nil, fmt.Errorf("Unable to create audit check without a path")
+		return nil, fmt.Errorf("unable to create audit check without a path")
 	}
 	return &auditCheck{
 		baseCheck: baseCheck,
@@ -48,6 +47,7 @@ func (c *auditCheck) Run() error {
 		return err
 	}
 
+	// Scal for the rule matching configured path
 	for _, r := range rules {
 		if r.Path == c.audit.Path {
 			log.Debugf("%s: audit check - match %s", c.id, c.audit.Path)
@@ -55,6 +55,7 @@ func (c *auditCheck) Run() error {
 		}
 	}
 
+	// If no rule found we still report this as "not enabled"
 	return c.reportOnRule(nil)
 }
 
@@ -62,7 +63,7 @@ func (c *auditCheck) reportOnRule(r *rule.FileWatchRule) error {
 	var (
 		v   string
 		err error
-		kv  = compliance.KV{}
+		kv  = compliance.KVMap{}
 	)
 
 	for _, field := range c.audit.Report {

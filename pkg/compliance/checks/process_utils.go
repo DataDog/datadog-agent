@@ -59,7 +59,8 @@ func getProcesses(maxAge time.Duration) (processes, error) {
 	return cachedProcesses, nil
 }
 
-// Parsing is far from being exhaustive. In fact it
+// Parsing is far from being exhaustive, however for now it works sufficiently well
+// for standard flag style command args.
 func parseProcessCmdLine(args []string) map[string]string {
 	results := make(map[string]string, 0)
 	pendingFlagValue := false

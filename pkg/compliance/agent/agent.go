@@ -33,17 +33,20 @@ type Agent struct {
 }
 
 // New creates a new instance of Agent
-func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, options ...checks.BuilderOption) *Agent {
-	builder := checks.NewBuilder(
+func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, options ...checks.BuilderOption) (*Agent, error) {
+	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Agent{
 		builder:   builder,
 		scheduler: scheduler,
 		configDir: configDir,
-	}
+	}, nil
 }
 
 // Run starts the Compliance Agent
@@ -86,6 +89,10 @@ func (a *Agent) Run() error {
 // Stop stops the Compliance Agent
 func (a *Agent) Stop() {
 	if err := a.scheduler.Stop(); err != nil {
-		log.Errorf("scheduler failed to stop: %v", err)
+		log.Errorf("Scheduler failed to stop: %v", err)
+	}
+
+	if err := a.builder.Close(); err != nil {
+		log.Errorf("Builder failed to close: %v", err)
 	}
 }

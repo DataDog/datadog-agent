@@ -72,6 +72,20 @@ func (_m *DockerClient) BuildCancel(ctx context.Context, id string) error {
 	return r0
 }
 
+// Close provides a mock function with given fields:
+func (_m *DockerClient) Close() error {
+	ret := _m.Called()
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func() error); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // ConfigCreate provides a mock function with given fields: ctx, config
 func (_m *DockerClient) ConfigCreate(ctx context.Context, config swarm.ConfigSpec) (types.ConfigCreateResponse, error) {
 	ret := _m.Called(ctx, config)

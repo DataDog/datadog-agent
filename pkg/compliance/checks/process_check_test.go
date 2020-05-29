@@ -18,7 +18,7 @@ type processFixture struct {
 	name      string
 	check     processCheck
 	processes map[int32]*process.FilledProcess
-	expKV     compliance.KV
+	expKV     compliance.KVMap
 	expError  error
 }
 
@@ -71,7 +71,7 @@ func TestProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--path=foo"},
 				},
 			},
-			expKV: compliance.KV{
+			expKV: compliance.KVMap{
 				"path": "foo",
 			},
 		},
@@ -147,7 +147,7 @@ func TestProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--verbose"},
 				},
 			},
-			expKV: compliance.KV{
+			expKV: compliance.KVMap{
 				"verbose": "true",
 			},
 		},

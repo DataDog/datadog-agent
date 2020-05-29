@@ -7,9 +7,8 @@
 
 package checks
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import "errors"
 
-func newAuditClient() AuditClient {
-	log.Warn("audit client requires linux build flag")
-	return nil
+func newAuditClient() (AuditClient, error) {
+	return nil, errors.New("audit client requires linux build flag")
 }

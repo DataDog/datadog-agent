@@ -33,6 +33,7 @@ type DockerClient interface {
 	client.SystemAPIClient
 	client.VolumeAPIClient
 	ServerVersion(ctx context.Context) (types.Version, error)
+	Close() error
 }
 
 type dockerCheck struct {
@@ -129,7 +130,7 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 		}
 	}
 
-	kv := compliance.KV{}
+	kv := compliance.KVMap{}
 	for _, field := range c.dockerResource.Report {
 		key := field.As
 
@@ -147,8 +148,7 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 				log.Errorf("%s: template field without an alias key - %s", c.id, field.Property)
 				continue
 			}
-			value := evalTemplate(field.Property, obj)
-			kv[key] = value
+			kv[key] = evalTemplate(field.Property, obj)
 		}
 
 		if field.Property == "id" {
@@ -171,7 +171,7 @@ func evalCondition(property string, condition *compliance.Condition) bool {
 	case compliance.OpEqual:
 		return property == condition.Value
 	default:
-		log.Warnf("unsupported operation in condition: %s", condition.Operation)
+		log.Warnf("Unsupported operation in condition: %s", condition.Operation)
 		return false
 	}
 }

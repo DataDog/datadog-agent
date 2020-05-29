@@ -70,7 +70,7 @@ func (c *baseCheck) IsTelemetryEnabled() bool {
 	return false
 }
 
-func (c *baseCheck) report(tags []string, kv compliance.KV, logMsgAndArgs ...interface{}) {
+func (c *baseCheck) report(tags []string, kv compliance.KVMap, logMsgAndArgs ...interface{}) {
 	if len(kv) == 0 {
 		return
 	}

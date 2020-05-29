@@ -63,7 +63,7 @@ func (c *fileCheck) normalizePath(path string) string {
 }
 
 func (c *fileCheck) reportFile(filePath string) error {
-	kv := compliance.KV{}
+	kv := compliance.KVMap{}
 	var v string
 
 	fi, err := os.Stat(filePath)

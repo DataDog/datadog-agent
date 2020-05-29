@@ -38,7 +38,7 @@ var (
 	}
 )
 
-func newTestRuleEvent(tags []string, kv compliance.KV) *compliance.RuleEvent {
+func newTestRuleEvent(tags []string, kv compliance.KVMap) *compliance.RuleEvent {
 	return &compliance.RuleEvent{
 		RuleID:       testCheckMeta.ruleID,
 		Framework:    testCheckMeta.framework,
@@ -150,7 +150,7 @@ func TestDockerImageCheck(t *testing.T) {
 			"Report",
 			newTestRuleEvent(
 				[]string{"check_kind:docker"},
-				compliance.KV{
+				compliance.KVMap{
 					"image_id":                  image.id,
 					"image_name":                image.name,
 					"image_healthcheck_missing": "true",
@@ -212,7 +212,7 @@ func TestDockerNetworkCheck(t *testing.T) {
 		"Report",
 		newTestRuleEvent(
 			[]string{"check_kind:docker"},
-			compliance.KV{
+			compliance.KVMap{
 				"network_id":                        "e7ed6c335383178f99b61a8a44b82b62abc17b31d68b792180728bf8f2c599ec",
 				"default_bridge_traffic_restricted": "true",
 			},
@@ -275,7 +275,7 @@ func TestDockerContainerCheck(t *testing.T) {
 		"Report",
 		newTestRuleEvent(
 			[]string{"check_kind:docker"},
-			compliance.KV{
+			compliance.KVMap{
 				"container_id": "3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87",
 				"privileged":   "true",
 			},
@@ -320,7 +320,7 @@ func TestDockerInfoCheck(t *testing.T) {
 		"Report",
 		newTestRuleEvent(
 			[]string{"check_kind:docker"},
-			compliance.KV{
+			compliance.KVMap{
 				"insecure_registries": "127.0.0.0/8",
 			},
 		),
@@ -364,7 +364,7 @@ func TestDockerVersionCheck(t *testing.T) {
 		"Report",
 		newTestRuleEvent(
 			[]string{"check_kind:docker"},
-			compliance.KV{
+			compliance.KVMap{
 				"experimental_features": "true",
 			},
 		),

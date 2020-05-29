@@ -20,7 +20,7 @@ import (
 
 func TestFileCheck(t *testing.T) {
 	type setupFunc func(t *testing.T, bc baseCheck) *fileCheck
-	type validateFunc func(t *testing.T, kv compliance.KV)
+	type validateFunc func(t *testing.T, kv compliance.KVMap)
 
 	setupFile := func(file *compliance.File) setupFunc {
 		return func(t *testing.T, bc baseCheck) *fileCheck {
@@ -62,8 +62,8 @@ func TestFileCheck(t *testing.T) {
 					file:       file,
 				}
 			},
-			validate: func(t *testing.T, kv compliance.KV) {
-				assert.Equal(t, compliance.KV{
+			validate: func(t *testing.T, kv compliance.KVMap) {
+				assert.Equal(t, compliance.KVMap{
 					"permissions": "644",
 				}, kv)
 			},
@@ -83,7 +83,7 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			}),
-			validate: func(t *testing.T, kv compliance.KV) {
+			validate: func(t *testing.T, kv compliance.KVMap) {
 				owner, ok := kv["owner"]
 				assert.True(t, ok)
 				parts := strings.SplitN(owner, ":", 2)
@@ -104,8 +104,8 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			}),
-			validate: func(t *testing.T, kv compliance.KV) {
-				assert.Equal(t, compliance.KV{
+			validate: func(t *testing.T, kv compliance.KVMap) {
+				assert.Equal(t, compliance.KVMap{
 					"log_driver": "json-file",
 				}, kv)
 			},
@@ -122,8 +122,8 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			}),
-			validate: func(t *testing.T, kv compliance.KV) {
-				assert.Equal(t, compliance.KV{
+			validate: func(t *testing.T, kv compliance.KVMap) {
+				assert.Equal(t, compliance.KVMap{
 					"experimental": "false",
 				}, kv)
 			},
@@ -140,8 +140,8 @@ func TestFileCheck(t *testing.T) {
 					},
 				},
 			}),
-			validate: func(t *testing.T, kv compliance.KV) {
-				assert.Equal(t, compliance.KV{
+			validate: func(t *testing.T, kv compliance.KVMap) {
+				assert.Equal(t, compliance.KVMap{
 					"nofile_hard": "64000",
 				}, kv)
 			},

@@ -52,7 +52,7 @@ func init() {
 	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceService, "source-service", "", "compliance-agent", "Log source service")
-	eventCmd.Flags().StringVarP(&eventArgs.event.RuleID, "rule-name", "", "", "Rule ID")
+	eventCmd.Flags().StringVarP(&eventArgs.event.RuleID, "rule-id", "", "", "Rule ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.Version, "version", "", "", "Framework version")
 	eventCmd.Flags().StringVarP(&eventArgs.event.Framework, "framework", "", "", "Compliance framework")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")

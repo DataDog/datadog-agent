@@ -30,7 +30,7 @@ type commandCheck struct {
 
 func newCommandCheck(baseCheck baseCheck, command *compliance.Command) (*commandCheck, error) {
 	if command.BinaryCmd == nil && command.ShellCmd == nil {
-		return nil, fmt.Errorf("Unable to create commandCheck - need a binary or a shell command")
+		return nil, fmt.Errorf("unable to create commandCheck - need a binary or a shell command")
 	}
 
 	commandCheck := commandCheck{
@@ -76,7 +76,7 @@ func (c *commandCheck) Run() error {
 	// TODO: Capture stdout only when necessary
 	exitCode, stdout, err := commandRunnerFunc(context, c.execCommand.Name, c.execCommand.Args, true)
 	if exitCode == -1 && err != nil {
-		return log.Warnf("Command '%v' execution failed, error: %v", c.command, err)
+		return log.Warnf("%s: command '%v' execution failed, error: %v", c.id, c.command, err)
 	}
 
 	var shouldReport = false
@@ -98,15 +98,15 @@ func (c *commandCheck) Run() error {
 		return c.reportCommand(exitCode, stdout)
 	}
 
-	return log.Warnf("Command '%v' returned with exitcode: %d (not reportable), error: %v", c.command, exitCode, err)
+	return log.Warnf("%s: command '%v' returned with exitcode: %d (not reportable), error: %v", c.id, c.command, exitCode, err)
 }
 
 func (c *commandCheck) reportCommand(exitCode int, stdout []byte) error {
 	if len(stdout) > c.maxOutputSize {
-		return log.Errorf("Command '%v' output is too large: %d, won't be reported", c.command, len(stdout))
+		return log.Errorf("%s: command '%v' output is too large: %d, won't be reported", c.id, c.command, len(stdout))
 	}
 
-	kv := compliance.KV{
+	kv := compliance.KVMap{
 		"exitCode": strconv.Itoa(exitCode),
 	}
 	strStdout := string(stdout)

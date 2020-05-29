@@ -251,19 +251,24 @@ func startCompliance(stopper restart.Stopper) error {
 	if err != nil {
 		return err
 	}
-	agent := agent.New(
+	agent, err := agent.New(
 		reporter,
 		scheduler,
 		configDir,
 		checks.WithInterval(checkInterval),
 		checks.WithHostname(hostname),
 		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
-		checks.WithDocker(),
-		checks.WithAudit(),
+		checks.MayFail(checks.WithDocker()),
+		checks.MayFail(checks.WithAudit()),
 	)
+	if err != nil {
+		log.Errorf("Compliance agent failed to initialize: %v", err)
+		return err
+	}
 	err = agent.Run()
 	if err != nil {
-		return log.Errorf("Error starting compliance agent, exiting: %v", err)
+		log.Errorf("Error starting compliance agent, exiting: %v", err)
+		return err
 	}
 	stopper.Add(agent)
 

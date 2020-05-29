@@ -13,19 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newDockerClient() DockerClient {
+func newDockerClient() (DockerClient, error) {
 	queryTimeout := config.Datadog.GetDuration("docker_query_timeout") * time.Second
 
-	// Major failure risk is here, do that first
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
-	client, err := docker.ConnectToDocker(ctx)
-	if err != nil {
-		log.Debugf("no docker client: %v", err)
-		return nil
-	}
-	return client
+	return docker.ConnectToDocker(ctx)
 }

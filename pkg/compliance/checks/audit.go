@@ -8,6 +8,7 @@
 package checks
 
 import (
+	"errors"
 	"os"
 
 	"github.com/elastic/go-libaudit"
@@ -17,21 +18,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newAuditClient() AuditClient {
+func newAuditClient() (AuditClient, error) {
 	if os.Geteuid() != 0 {
-		log.Error("you must be root to receive audit data")
-		return nil
+		return nil, errors.New("you must be root to receive audit data")
 	}
 
 	client, err := libaudit.NewMulticastAuditClient(nil)
 	if err != nil {
-		log.Errorf("failed to initialize audit client: %v", err)
-		return nil
+		return nil, err
 	}
 
 	return &auditClient{
 		client: client,
-	}
+	}, err
 }
 
 type auditClient struct {
@@ -42,6 +41,7 @@ func (c *auditClient) Close() error {
 	return c.client.Close()
 }
 
+// GetFileWatchRules returns audit rules for file watching
 func (c *auditClient) GetFileWatchRules() ([]*rule.FileWatchRule, error) {
 	data, err := c.client.GetRules()
 	if err != nil {
@@ -49,19 +49,22 @@ func (c *auditClient) GetFileWatchRules() ([]*rule.FileWatchRule, error) {
 	}
 
 	var rules []*rule.FileWatchRule
+
+	// Enumerate all rules and filter out file watch ones
 	for _, d := range data {
 		cmdline, err := rule.ToCommandLine(rule.WireFormat(d), false)
 		if err != nil {
-			log.Errorf("failed to convert to command line: %s", err)
+			log.Errorf("Failed to convert to command line: %v", err)
 			continue
 		}
 		r, err := flags.Parse(cmdline)
 		if err != nil {
-			log.Errorf("failed to parse rule: %s", err)
+			log.Errorf("Failed to parse rule: %s - %v", cmdline, err)
 			continue
 		}
 
 		if r.TypeOf() != rule.FileWatchRuleType {
+			log.Tracef("Skipped rule of type %d", r.TypeOf())
 			continue
 		}
 		if r, ok := r.(*rule.FileWatchRule); ok {

@@ -23,7 +23,7 @@ type commandFixture struct {
 	commandError    error
 	expCommandName  string
 	expCommandArgs  []string
-	expKV           compliance.KV
+	expKV           compliance.KVMap
 	expError        error
 }
 
@@ -83,7 +83,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  "myCommand",
 			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV: compliance.KV{
+			expKV: compliance.KVMap{
 				"myCommandOutput": "output",
 				"exitCode":        "0",
 			},
@@ -105,7 +105,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  getDefaultShell().Name,
 			expCommandArgs:  append(getDefaultShell().Args, "my command --foo=bar --baz"),
-			expKV: compliance.KV{
+			expKV: compliance.KVMap{
 				"myCommandOutput": "output",
 				"exitCode":        "0",
 			},
@@ -131,7 +131,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  "zsh",
 			expCommandArgs:  []string{"-someoption", "-c", "my command --foo=bar --baz"},
-			expKV: compliance.KV{
+			expKV: compliance.KVMap{
 				"myCommandOutput": "output",
 				"exitCode":        "0",
 			},
@@ -154,7 +154,7 @@ func TestCommandCheck(t *testing.T) {
 			expCommandName:  "myCommand",
 			expCommandArgs:  []string{"--foo=bar", "--baz"},
 			expKV:           nil,
-			expError:        fmt.Errorf("Command 'Binary command: myCommand, args: [--foo=bar --baz]' execution failed, error: some failure"),
+			expError:        fmt.Errorf("check-1: command 'Binary command: myCommand, args: [--foo=bar --baz]' execution failed, error: some failure"),
 		},
 		{
 			name: "Test non-zero return code (no filter)",
@@ -174,7 +174,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  "myCommand",
 			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV: compliance.KV{
+			expKV: compliance.KVMap{
 				"myCommandOutput": "output",
 				"exitCode":        "2",
 			},
@@ -204,7 +204,7 @@ func TestCommandCheck(t *testing.T) {
 			commandError:    nil,
 			expCommandName:  "myCommand",
 			expCommandArgs:  []string{"--foo=bar", "--baz"},
-			expKV: compliance.KV{
+			expKV: compliance.KVMap{
 				"myCommandOutput": "output",
 				"exitCode":        "2",
 			},
@@ -235,7 +235,7 @@ func TestCommandCheck(t *testing.T) {
 			expCommandName:  "myCommand",
 			expCommandArgs:  []string{"--foo=bar", "--baz"},
 			expKV:           nil,
-			expError:        fmt.Errorf("Command 'Binary command: myCommand, args: [--foo=bar --baz]' returned with exitcode: 3 (not reportable), error: some failure"),
+			expError:        fmt.Errorf("check-1: command 'Binary command: myCommand, args: [--foo=bar --baz]' returned with exitcode: 3 (not reportable), error: some failure"),
 		},
 		{
 			name: "Test output is too large",
@@ -256,7 +256,7 @@ func TestCommandCheck(t *testing.T) {
 			expCommandName:  "myCommand",
 			expCommandArgs:  []string{"--foo=bar", "--baz"},
 			expKV:           nil,
-			expError:        fmt.Errorf("Command 'Binary command: myCommand, args: [--foo=bar --baz]' output is too large: 120, won't be reported"),
+			expError:        fmt.Errorf("check-1: command 'Binary command: myCommand, args: [--foo=bar --baz]' output is too large: 120, won't be reported"),
 		},
 	}
 	for _, tt := range tests {

@@ -25,7 +25,7 @@ type processCheck struct {
 
 func newProcessCheck(baseCheck baseCheck, process *compliance.Process) (*processCheck, error) {
 	if len(process.Name) == 0 {
-		return nil, fmt.Errorf("Unable to create processCheck without a process name")
+		return nil, fmt.Errorf("unable to create processCheck without a process name")
 	}
 
 	return &processCheck{
@@ -54,7 +54,7 @@ func (c *processCheck) Run() error {
 
 func (c *processCheck) reportProcess(p *process.FilledProcess) error {
 	log.Debugf("%s: process check - match %s", c.ruleID, p.Cmdline)
-	kv := compliance.KV{}
+	kv := compliance.KVMap{}
 	flagValues := parseProcessCmdLine(p.Cmdline)
 
 	for _, field := range c.process.Report {
@@ -72,7 +72,7 @@ func (c *processCheck) reportProcess(p *process.FilledProcess) error {
 				kv[flagReportName] = flagValue
 			}
 		default:
-			return log.Errorf("Unsupported kind value: '%s' for process: '%s'", field.Kind, p.Name)
+			return log.Errorf("unsupported kind value: '%s' for process: '%s'", field.Kind, p.Name)
 		}
 	}
 

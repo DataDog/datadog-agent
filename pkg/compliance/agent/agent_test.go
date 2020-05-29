@@ -49,7 +49,7 @@ func TestRun(t *testing.T) {
 		ResourceID:   "the-host",
 		ResourceType: "docker",
 		Tags:         []string{"check_kind:file"},
-		Data: compliance.KV{
+		Data: compliance.KVMap{
 			"permissions": "644",
 		},
 	})
@@ -61,7 +61,7 @@ func TestRun(t *testing.T) {
 		ResourceID:   "the-host",
 		ResourceType: "worker",
 		Tags:         []string{"check_kind:file"},
-		Data: compliance.KV{
+		Data: compliance.KVMap{
 			"permissions": "644",
 		},
 	})
@@ -78,11 +78,12 @@ func TestRun(t *testing.T) {
 		check.Run()
 	})
 
-	a := New(reporter, scheduler, tempDir, checks.WithHostname("the-host"), checks.WithDockerClient(&mocks.DockerClient{}))
-
-	err = a.Run()
+	agent, err := New(reporter, scheduler, tempDir, checks.WithHostname("the-host"))
 	assert.NoError(err)
-	a.Stop()
+
+	err = agent.Run()
+	assert.NoError(err)
+	agent.Stop()
 }
 
 func copyFile(src, dst string) error {

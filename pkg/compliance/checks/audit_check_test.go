@@ -16,7 +16,7 @@ import (
 )
 
 func TestAuditCheck(t *testing.T) {
-	type validateFunc func(t *testing.T, kv compliance.KV)
+	type validateFunc func(t *testing.T, kv compliance.KVMap)
 
 	tests := []struct {
 		name     string
@@ -40,9 +40,9 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, kv compliance.KV) {
+			validate: func(t *testing.T, kv compliance.KVMap) {
 				assert.Equal(t,
-					compliance.KV{
+					compliance.KVMap{
 						"enabled": "false",
 						"path":    "/etc/docker/daemon.json",
 					},
@@ -80,9 +80,9 @@ func TestAuditCheck(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, kv compliance.KV) {
+			validate: func(t *testing.T, kv compliance.KVMap) {
 				assert.Equal(t,
-					compliance.KV{
+					compliance.KVMap{
 						"enabled":     "true",
 						"path":        "/etc/docker/daemon.json",
 						"permissions": "rwa",

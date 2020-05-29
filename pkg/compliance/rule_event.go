@@ -5,8 +5,8 @@
 
 package compliance
 
-// KV defines a key value map for storing attributes of a reported rule event
-type KV map[string]string
+// KVMap defines a key value map for storing attributes of a reported rule event
+type KVMap map[string]string
 
 // RuleEvent describes a log event sent for an evaluated compliance rule.
 type RuleEvent struct {
@@ -16,5 +16,5 @@ type RuleEvent struct {
 	ResourceID   string   `json:"resource_id,omitempty"`
 	ResourceType string   `json:"resource_type,omitempty"`
 	Tags         []string `json:"tags"`
-	Data         KV       `json:"data,omitempty"`
+	Data         KVMap    `json:"data,omitempty"`
 }

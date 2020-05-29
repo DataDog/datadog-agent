@@ -36,17 +36,17 @@ func getDefaultShell() compliance.BinaryCmd {
 
 func runCommand(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
 	if len(name) == 0 {
-		return 0, nil, fmt.Errorf("Cannot run empty command")
+		return 0, nil, fmt.Errorf("cannot run empty command")
 	}
 
 	_, err := exec.LookPath(name)
 	if err != nil {
-		return 0, nil, fmt.Errorf("Command '%s' not found, err: %v", name, err)
+		return 0, nil, fmt.Errorf("command '%s' not found, err: %v", name, err)
 	}
 
 	cmd := exec.CommandContext(ctx, name, args...)
 	if cmd == nil {
-		return 0, nil, fmt.Errorf("Unable to create command context")
+		return 0, nil, fmt.Errorf("unable to create command context")
 	}
 
 	var stdoutBuffer bytes.Buffer
@@ -65,5 +65,5 @@ func runCommand(ctx context.Context, name string, args []string, captureStdout b
 	if cmd.ProcessState != nil {
 		return cmd.ProcessState.ExitCode(), stdoutBuffer.Bytes(), err
 	}
-	return -1, nil, fmt.Errorf("Unable to retrieve exit code, err: %v", err)
+	return -1, nil, fmt.Errorf("unable to retrieve exit code, err: %v", err)
 }

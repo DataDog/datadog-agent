@@ -7,9 +7,8 @@
 
 package checks
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import "errors"
 
-func newDockerClient() DockerClient {
-	log.Warn("docker client requires docker build flag")
-	return nil
+func newDockerClient() (DockerClient, error) {
+	return nil, errors.New("docker client requires docker build flag")
 }

@@ -26,70 +26,101 @@ var ErrRuleScopeNotSupported = errors.New("rule scope not supported")
 // Builder defines an interface to build checks from rules
 type Builder interface {
 	ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error)
+	Close() error
 }
 
 // BuilderOption defines a configuration option for the builder
-type BuilderOption func(*builder)
+type BuilderOption func(*builder) error
 
 // WithInterval configures default check interval
 func WithInterval(interval time.Duration) BuilderOption {
-	return func(b *builder) {
+	return func(b *builder) error {
 		b.checkInterval = interval
+		return nil
 	}
 }
 
 // WithHostname configures hostname used by checks
 func WithHostname(hostname string) BuilderOption {
-	return func(b *builder) {
+	return func(b *builder) error {
 		b.hostname = hostname
+		return nil
 	}
 }
 
 // WithHostRootMount defines host root filesystem mount location
 func WithHostRootMount(hostRootMount string) BuilderOption {
-	return func(b *builder) {
-		log.Infof("host root filesystem will be remapped to %s", hostRootMount)
+	return func(b *builder) error {
+		log.Infof("Host root filesystem will be remapped to %s", hostRootMount)
 		b.pathMapper = func(path string) string {
 			return filepath.Join(hostRootMount, path)
 		}
+		return nil
 	}
 }
 
 // WithDocker configures using docker
 func WithDocker() BuilderOption {
-	return WithDockerClient(newDockerClient())
+	return func(b *builder) error {
+		cli, err := newDockerClient()
+		if err == nil {
+			b.dockerClient = cli
+		}
+		return err
+	}
 }
 
 // WithDockerClient configurs specific docker client
 func WithDockerClient(cli DockerClient) BuilderOption {
-	return func(b *builder) {
+	return func(b *builder) error {
 		b.dockerClient = cli
+		return nil
 	}
 }
 
 // WithAudit configures using audit checks
 func WithAudit() BuilderOption {
-	return WithAuditClient(newAuditClient())
+	return func(b *builder) error {
+		cli, err := newAuditClient()
+		if err == nil {
+			b.auditClient = cli
+		}
+		return err
+	}
 }
 
 // WithAuditClient configures using specific audit client
 func WithAuditClient(cli AuditClient) BuilderOption {
-	return func(b *builder) {
+	return func(b *builder) error {
 		b.auditClient = cli
+		return nil
+	}
+}
+
+// MayFail configures a builder option to succeed on failures and logs an error
+func MayFail(o BuilderOption) BuilderOption {
+	return func(b *builder) error {
+		if err := o(b); err != nil {
+			log.Warnf("Ignoring builder initialization failure: %v", err)
+		}
+		return nil
 	}
 }
 
 // NewBuilder constructs a check builder
-func NewBuilder(reporter compliance.Reporter, options ...BuilderOption) Builder {
+func NewBuilder(reporter compliance.Reporter, options ...BuilderOption) (Builder, error) {
 	b := &builder{
 		reporter:      reporter,
 		checkInterval: 20 * time.Minute,
 	}
 
 	for _, o := range options {
-		o(b)
+		if err := o(b); err != nil {
+			return nil, err
+		}
+
 	}
-	return b
+	return b, nil
 }
 
 type builder struct {
@@ -109,6 +140,21 @@ const (
 	checkKindDocker  = checkKind("docker")
 	checkKindAudit   = checkKind("audit")
 )
+
+func (b *builder) Close() error {
+	if b.dockerClient != nil {
+		if err := b.dockerClient.Close(); err != nil {
+			return err
+		}
+	}
+	if b.auditClient != nil {
+		if err := b.auditClient.Close(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error) {
 	ruleScope, err := b.getRuleScope(meta, rule)
@@ -132,9 +178,6 @@ func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Ru
 
 func (b *builder) getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (string, error) {
 	if rule.Scope.Docker {
-		if b.dockerClient == nil {
-			return "", log.Warnf("%s/%s - rule skipped - docker not running", meta.Framework, rule.ID)
-		}
 		return "docker", nil
 	}
 
