@@ -603,6 +603,37 @@ func BenchmarkDecoderJSON(b *testing.B) {
 	}
 }
 
+func BenchmarkDecodeRequest(b *testing.B) {
+	assert := assert.New(b)
+	f, err := ioutil.TempFile("", "decodeRequest-*") //(f *os.File, err error)
+	assert.NoError(err)
+
+	err = msgp.Encode(f, testutil.GetTestTraces(1000, 100, true))
+	assert.NoError(err)
+
+	flen, err := f.Seek(0, os.SEEK_END)
+	assert.NoError(err)
+
+	// benchmark
+	b.ResetTimer()
+	b.ReportAllocs()
+	for n := 0; n < b.N; n++ {
+		b.StopTimer()
+		var traces pb.Traces
+		_, err = f.Seek(0, os.SEEK_SET)
+		assert.NoError(err)
+
+		req, err := http.NewRequest("POST", "http://localhost/", f)
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.ContentLength = flen
+		assert.NoError(err)
+
+		b.StartTimer()
+		err = decodeRequest(req, &traces)
+		assert.NoError(err)		
+	}
+}
+
 func BenchmarkDecoderMsgpack(b *testing.B) {
 	assert := assert.New(b)
 

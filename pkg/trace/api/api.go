@@ -26,6 +26,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	//"bufio"
 
 	"github.com/tinylib/msgp/msgp"
 
@@ -270,9 +271,7 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			httpFormatError(w, v, fmt.Errorf("unsupported media type: %q", mediaType))
 			return
 		}
-
 		req.Body = NewLimitedReader(req.Body, r.maxRequestBodyLength)
-
 		f(v, w, req)
 	}
 }
@@ -562,10 +561,49 @@ func (r *HTTPReceiver) Languages() string {
 	return strings.Join(str, "|")
 }
 
-func decodeRequest(req *http.Request, dest msgp.Decodable) error {
+//var bufioReaderPool sync.Pool
+//
+//func newBufioReader(r io.Reader) *bufio.Reader {
+//	if v := bufioReaderPool.Get(); v != nil {
+//		br := v.(*bufio.Reader)
+//		br.Reset(r)
+//		return br
+//	}
+//
+//	// Note: if this reader size is ever changed, update
+//	// TestHandlerBodyClose's assumptions.
+//	//return bufio.NewReaderSize(r, 1048576)
+//	//return bufio.NewReaderSize(r, 5242880)
+//}
+//
+//func putBufioReader(br *bufio.Reader) {
+//	br.Reset(nil)
+//	bufioReaderPool.Put(br)
+//}
+
+func decodeRequest(req *http.Request, dest *pb.Traces) error {
+	//br := newBufioReader(req.Body)
+	//defer putBufioReader(br)
 	switch mediaType := getMediaType(req); mediaType {
 	case "application/msgpack":
-		return msgp.Decode(req.Body, dest)
+		if req.ContentLength > 0 {
+			bs := make([]byte, req.ContentLength)
+			_, err := io.ReadFull(req.Body, bs)
+			if err != nil {
+				return err
+			}
+			return directDecodeTraces(bs, dest)
+		}
+		panic("failed to decode request.")
+		// Normally we don't use ioutil.ReadAll, but req.Body is limited to maxRequestBodyLength
+		// with a LimitedReader.
+		bs, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			return err
+		}
+		return directDecodeTraces(bs, dest)
+//		return msgp.Decode(br, dest)
+		
 	case "application/json":
 		fallthrough
 	case "text/json":
