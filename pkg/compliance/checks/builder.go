@@ -112,6 +112,7 @@ func NewBuilder(reporter compliance.Reporter, options ...BuilderOption) (Builder
 	b := &builder{
 		reporter:      reporter,
 		checkInterval: 20 * time.Minute,
+		etcGroupPath:  "/etc/group",
 	}
 
 	for _, o := range options {
@@ -131,6 +132,8 @@ type builder struct {
 	auditClient  AuditClient
 	hostname     string
 	pathMapper   pathMapper
+
+	etcGroupPath string
 }
 
 const (
@@ -139,6 +142,7 @@ const (
 	checkKindCommand = checkKind("command")
 	checkKindDocker  = checkKind("docker")
 	checkKindAudit   = checkKind("audit")
+	checkKindGroup   = checkKind("group")
 )
 
 func (b *builder) Close() error {
@@ -206,6 +210,8 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, ruleS
 			return nil, log.Errorf("%s: skipped - audit client not initialized", ruleID)
 		}
 		return newAuditCheck(b.baseCheck(ruleID, checkKindAudit, ruleScope, meta), b.auditClient, resource.Audit)
+	case resource.Group != nil:
+		return newGroupCheck(b.baseCheck(ruleID, checkKindGroup, ruleScope, meta), b.etcGroupPath, resource.Group)
 	default:
 		log.Errorf("%s: resource not supported", ruleID)
 		return nil, ErrResourceNotSupported

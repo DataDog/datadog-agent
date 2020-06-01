@@ -132,17 +132,11 @@ func (c *dockerCheck) inspect(id string, obj interface{}) {
 
 	kv := compliance.KVMap{}
 	for _, field := range c.dockerResource.Report {
-		key := field.As
-
-		if field.Value != "" {
-			if key == "" {
-				log.Errorf("%s: value field without an alias key - %s", c.id, field.Value)
-				continue
-			}
-			kv[key] = field.Value
+		if c.setStaticKV(field, kv) {
 			continue
 		}
 
+		key := field.As
 		if field.Kind == compliance.PropertyKindTemplate {
 			if key == "" {
 				log.Errorf("%s: template field without an alias key - %s", c.id, field.Property)

@@ -70,16 +70,7 @@ func (c *fileCheck) reportFile(filePath string) error {
 	}
 
 	for _, field := range c.file.Report {
-
-		key := field.As
-
-		if field.Value != "" {
-			if key == "" {
-				log.Errorf("%s: value field without an alias key - %s", c.id, field.Value)
-				continue
-			}
-
-			kv[key] = field.Value
+		if c.setStaticKV(field, kv) {
 			continue
 		}
 
@@ -95,6 +86,7 @@ func (c *fileCheck) reportFile(filePath string) error {
 			return err
 		}
 
+		key := field.As
 		if key == "" {
 			key = field.Property
 		}

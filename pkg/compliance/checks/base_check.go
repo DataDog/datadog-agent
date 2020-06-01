@@ -70,6 +70,21 @@ func (c *baseCheck) IsTelemetryEnabled() bool {
 	return false
 }
 
+func (c *baseCheck) setStaticKV(field compliance.ReportedField, kv compliance.KVMap) bool {
+	key := field.As
+
+	if field.Value != "" {
+		if key == "" {
+			log.Errorf("%s: value field without an alias key - %s", c.id, field.Value)
+
+		} else {
+			kv[key] = field.Value
+		}
+		return true
+	}
+	return false
+}
+
 func (c *baseCheck) report(tags []string, kv compliance.KVMap, logMsgAndArgs ...interface{}) {
 	if len(kv) == 0 {
 		return
