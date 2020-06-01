@@ -86,7 +86,7 @@ func TestSNMPListenerMetrics(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("snmp_listener", listenerConfig)
 
-	mockSender := mocksender.NewMockSender(senderCheckId)
+	mockSender := mocksender.NewMockSender(senderCheckID)
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 

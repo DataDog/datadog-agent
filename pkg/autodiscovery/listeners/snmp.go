@@ -27,7 +27,7 @@ const (
 	defaultWorkers           = 2
 	defaultAllowedFailures   = 3
 	defaultDiscoveryInterval = 3600
-	senderCheckId            = check.ID("SNMP_LISTENER")
+	senderCheckID            = check.ID("SNMP_LISTENER")
 )
 
 func init() {
@@ -275,7 +275,7 @@ func (l *SNMPListener) checkDevices() {
 }
 
 func (l *SNMPListener) collectMetrics(subnets []snmpSubnet) {
-	sender, senderErr := aggregator.GetSender(senderCheckId)
+	sender, senderErr := aggregator.GetSender(senderCheckID)
 	if senderErr != nil {
 		log.Errorf("Error getting aggregator sender: %s", senderErr)
 		return
