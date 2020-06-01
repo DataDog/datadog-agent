@@ -321,7 +321,7 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 			subnet.deviceFailures[entityID]++
 			failure++
 		}
-		log.Debugf("Removing service. entityID: %s, failure: %d/%d", entityID, failure, l.config.AllowedFailures)
+		log.Debugf("Service failure status for entityID %s: failure: %d/%d", entityID, failure, l.config.AllowedFailures)
 		if l.config.AllowedFailures != -1 && failure >= l.config.AllowedFailures {
 			l.delService <- svc
 			delete(l.services, entityID)
