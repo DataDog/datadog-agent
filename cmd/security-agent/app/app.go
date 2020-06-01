@@ -102,8 +102,8 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	// we'll search for a config file named `datadog-security.yaml`
-	coreconfig.Datadog.SetConfigName("datadog-security")
+	// we'll search for a config file named `datadog.yaml`
+	coreconfig.Datadog.SetConfigName("datadog")
 	err := common.SetupConfig(confPath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
@@ -198,12 +198,7 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func startCompliance(stopper restart.Stopper) error {
-	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
-	if !enabled {
-		return nil
-	}
-
+func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType string) (compliance.Reporter, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
@@ -211,7 +206,7 @@ func startCompliance(stopper restart.Stopper) error {
 
 	endpoints, err := config.BuildEndpoints(httpConnectivity)
 	if err != nil {
-		return log.Errorf("Invalid endpoints: %v", err)
+		return nil, log.Errorf("Invalid endpoints: %v", err)
 	}
 
 	destinationsCtx := client.NewDestinationsContext()
@@ -230,13 +225,27 @@ func startCompliance(stopper restart.Stopper) error {
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 
-	logSource := config.NewLogSource("compliance-agent", &config.LogsConfig{
-		Type:    "compliance",
-		Service: "compliance-agent",
-		Source:  "compliance-agent",
-	})
+	logSource := config.NewLogSource(
+		sourceName,
+		&config.LogsConfig{
+			Type:    sourceType,
+			Service: sourceName,
+			Source:  sourceName,
+		},
+	)
+	return compliance.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
+}
 
-	reporter := compliance.NewReporter(logSource, pipelineProvider.NextPipelineChan())
+func startCompliance(stopper restart.Stopper) error {
+	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
+	if !enabled {
+		return nil
+	}
+
+	reporter, err := newComplianceReporter(stopper, "compliance-agent", "compliance")
+	if err != nil {
+		return err
+	}
 
 	runner := runner.NewRunner()
 	stopper.Add(runner)
@@ -251,6 +260,7 @@ func startCompliance(stopper restart.Stopper) error {
 	if err != nil {
 		return err
 	}
+
 	agent, err := agent.New(
 		reporter,
 		scheduler,

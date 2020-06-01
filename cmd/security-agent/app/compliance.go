@@ -6,7 +6,6 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -15,13 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
 var (
@@ -61,44 +54,20 @@ func init() {
 }
 
 func event(cmd *cobra.Command, args []string) error {
-	// we'll search for a config file named `datadog-security.yaml`
-	coreconfig.Datadog.SetConfigName("datadog-security")
+	// we'll search for a config file named `datadog.yaml`
+	coreconfig.Datadog.SetConfigName("datadog")
 	err := common.SetupConfig(confPath)
 	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		return fmt.Errorf("unable to set up global agent configuration: %w", err)
 	}
 
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
-	}
-	endpoints, err := config.BuildEndpoints(httpConnectivity)
+	stopper := restart.NewSerialStopper()
+	defer stopper.Stop()
+
+	reporter, err := newComplianceReporter(stopper, eventArgs.sourceName, eventArgs.sourceType)
 	if err != nil {
-		return fmt.Errorf("Invalid endpoints: %v", err)
+		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
 	}
-
-	destinationsCtx := client.NewDestinationsContext()
-	destinationsCtx.Start()
-	defer destinationsCtx.Stop()
-
-	health := health.RegisterLiveness("security-agent")
-
-	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), health)
-	auditor.Start()
-	defer auditor.Stop()
-
-	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, destinationsCtx)
-	pipelineProvider.Start()
-	defer pipelineProvider.Stop()
-
-	src := config.NewLogSource("compliance-agent", &config.LogsConfig{
-		Type:    eventArgs.sourceType,
-		Service: eventArgs.sourceService,
-		Source:  eventArgs.sourceName,
-		Tags:    eventArgs.tags,
-	})
 
 	eventArgs.event.Data = map[string]string{}
 	for _, d := range eventArgs.data {
@@ -108,15 +77,8 @@ func event(cmd *cobra.Command, args []string) error {
 		}
 		eventArgs.event.Data[kv[0]] = kv[1]
 	}
-	buf, err := json.Marshal(eventArgs.event)
-	if err != nil {
-		return err
-	}
 
-	msg := message.NewMessageWithSource(buf, message.StatusInfo, src)
-
-	ch := pipelineProvider.NextPipelineChan()
-	ch <- msg
+	reporter.Report(&eventArgs.event)
 
 	return nil
 }
