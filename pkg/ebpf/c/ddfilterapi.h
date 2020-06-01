@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_FILTER_VERSION       0x03
+#define DD_FILTER_VERSION       0x04
 #define DD_FILTER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_FILTER_VERSION)
 
 // for more information on defining control codes, see
