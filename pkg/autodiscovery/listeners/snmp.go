@@ -96,11 +96,13 @@ func (l *SNMPListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 }
 
 func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
+	log.Debugf("Load cache for network %s using key %s", subnet.configNetwork, subnet.cacheKey)
 	cacheValue, err := persistentcache.Read(subnet.cacheKey)
 	if err != nil {
 		log.Errorf("Couldn't read cache for %s: %s", subnet.cacheKey, err)
 		return
 	}
+	log.Tracef("Read cache. Value: %s", cacheValue)
 	if cacheValue == "" {
 		return
 	}
@@ -116,6 +118,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 }
 
 func (l *SNMPListener) writeCache(subnet *snmpSubnet) {
+	log.Debugf("Write cache for network %s using key %s", subnet.configNetwork, subnet.cacheKey)
 	// We don't lock the subnet for now, because the listener ought to be already locked
 	devices := make([]string, 0, len(subnet.devices))
 	for _, v := range subnet.devices {
@@ -123,6 +126,7 @@ func (l *SNMPListener) writeCache(subnet *snmpSubnet) {
 	}
 
 	cacheValue, err := json.Marshal(devices)
+	log.Tracef("Write cache. Value: %s", cacheValue)
 	if err != nil {
 		log.Errorf("Couldn't marshal cache: %s", err)
 		return
@@ -234,11 +238,13 @@ func (l *SNMPListener) checkDevices() {
 
 	for {
 		for _, subnet := range subnets {
+			log.Debugf("Start subnet discovery: %s", subnet.configNetwork)
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
 
 				if ignored := subnet.config.IsIPIgnored(currentIP); ignored {
+					log.Tracef("Skipping ignored IP: %s", currentIP)
 					continue
 				}
 
@@ -315,12 +321,13 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 			subnet.deviceFailures[entityID]++
 			failure++
 		}
-
+		log.Debugf("Removing service. entityID: %s, failure: %d/%d", entityID, failure, l.config.AllowedFailures)
 		if l.config.AllowedFailures != -1 && failure >= l.config.AllowedFailures {
 			l.delService <- svc
 			delete(l.services, entityID)
 			delete(subnet.devices, entityID)
 			l.writeCache(subnet)
+			log.Debugf("Service removed. entityID: %s", entityID)
 		}
 	}
 }
