@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build kubeapiserver
-
 package app
 
 import (
@@ -18,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
@@ -47,6 +46,7 @@ import (
 const loggerName coreconfig.LoggerName = "SECURITY"
 
 var (
+	// SecurityAgentCmd is the entry point for security agent CLI commands
 	SecurityAgentCmd = &cobra.Command{
 		Use:   "datadog-security-agent [command]",
 		Short: "Datadog Security Agent at your service.",
@@ -175,6 +175,10 @@ func start(cmd *cobra.Command, args []string) error {
 
 	if err = startCompliance(stopper); err != nil {
 		return err
+	}
+
+	if err = api.StartServer(); err != nil {
+		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
 	log.Infof("Datadog Security Agent is now running.")

@@ -30,26 +30,23 @@ var (
 	}
 
 	eventArgs = struct {
-		tags          []string
-		sourceName    string
-		sourceType    string
-		sourceService string
-		event         compliance.RuleEvent
-		data          []string
+		sourceName string
+		sourceType string
+		event      compliance.RuleEvent
+		data       []string
 	}{}
 )
 
 func init() {
 	complianceCmd.AddCommand(eventCmd)
-	eventCmd.Flags().StringSliceVarP(&eventArgs.tags, "tags", "t", []string{"security:compliance"}, "Tags")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.sourceService, "source-service", "", "compliance-agent", "Log source service")
 	eventCmd.Flags().StringVarP(&eventArgs.event.RuleID, "rule-id", "", "", "Rule ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.Version, "version", "", "", "Framework version")
 	eventCmd.Flags().StringVarP(&eventArgs.event.Framework, "framework", "", "", "Compliance framework")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
+	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
 	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
 }
 

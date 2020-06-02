@@ -220,11 +220,13 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, ruleS
 
 func (b *builder) baseCheck(ruleID string, kind checkKind, ruleScope string, meta *compliance.SuiteMeta) baseCheck {
 	return baseCheck{
+		name:      ruleID,
 		id:        newCheckID(ruleID, kind),
 		kind:      kind,
 		interval:  b.checkInterval,
 		reporter:  b.reporter,
 		framework: meta.Framework,
+		suiteName: meta.Name,
 		version:   meta.Version,
 
 		ruleID:       ruleID,

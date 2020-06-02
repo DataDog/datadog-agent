@@ -19,12 +19,14 @@ type checkKind string
 
 // baseCheck defines common behavior for all compliance checks
 type baseCheck struct {
+	name     string
 	id       check.ID
 	kind     checkKind
 	interval time.Duration
 	reporter compliance.Reporter
 
 	framework    string
+	suiteName    string
 	version      string
 	ruleID       string
 	resourceType string
@@ -35,7 +37,7 @@ func (c *baseCheck) Stop() {
 }
 
 func (c *baseCheck) String() string {
-	return ""
+	return c.name
 }
 
 func (c *baseCheck) Configure(config, initConfig integration.Data, source string) error {
@@ -59,11 +61,11 @@ func (c *baseCheck) GetMetricStats() (map[string]int64, error) {
 }
 
 func (c *baseCheck) Version() string {
-	return ""
+	return c.version
 }
 
 func (c *baseCheck) ConfigSource() string {
-	return ""
+	return fmt.Sprintf("%s: %s", c.framework, c.suiteName)
 }
 
 func (c *baseCheck) IsTelemetryEnabled() bool {
