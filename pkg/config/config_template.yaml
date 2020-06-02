@@ -441,11 +441,10 @@ api_key:
   #
   # allowed_failures: 3
 
-  ## @param configs - custom object - required
+  ## @param configs - list - required
   ## The actual configurations used to discover SNMP devices in various subnets.
   #
-  # configs:
-
+  # configs: 
     ## @param network - string - required
     ## The subnet in CIDR format to scan for SNMP devices.
     ## All IP addresses in the CIDR range that are not ignored will be scanned.
@@ -453,7 +452,7 @@ api_key:
     ## possible as is appropriate for your network topology.
     ## Ex: 10.0.0.0/24
     #
-    # network: <NETWORK>
+    # - network: <NETWORK>
 
     ## @param ignored_ip_addresses - list of strings - optional
     ## A list of IP addresses to ignore when scanning the network.
@@ -495,7 +494,8 @@ api_key:
     # user: <USERNAME>
 
     ## @param authentication_key - string - optional
-    ## Authentication key to use with your Authentication type.
+    ## The passphrase to use with your Authentication type.
+    ## SNMPv3 only.
     #
     # authentication_key: <AUTHENTICATION_TYPE_KEY>
 
@@ -503,18 +503,21 @@ api_key:
     ## Authentication protocol to use when connecting to your SNMP devices.
     ## It can be one of: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
     ## Default to MD5 when `authentication_key` is specified.
+    ## SNMPv3 only.
     #
     # authentication_protocol: <AUTHENTICATION_PROTOCOL>
 
     ## @param privacy_key - string - optional
-    ## Privacy type key to use with your Privacy type.
+    ## The passphrase to use with your Privacy protocol.
+    ## SNMPv3 only.
     #
-    # privacy_key: <PRIVACY_TYPE_KEY>
+    # privacy_key: <PRIVACY_KEY>
 
     ## @param privacy_protocol - string - optional
-    ## Privacy type to use when connecting to your SNMP devices.
+    ## Privacy protocol to use when connecting to your SNMP devices.
     ## It can be one of: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
     ## Default to DES when `privacy_key` is specified.
+    ## SNMPv3 only.
     #
     # privacy_protocol: <PRIVACY_TYPE>
 
