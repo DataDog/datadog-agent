@@ -73,7 +73,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		},
 	} {
 		cfg.MaxConnsPerMessage = tc.maxSize
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid")
+		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", map[string]int64{})
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -116,7 +116,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid")
+	chunks := batchConnections(cfg, 0, p, dns, "nid", map[string]int64{})
 
 	assert.Len(t, chunks, 4)
 	total := 0
