@@ -955,6 +955,8 @@ github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9
 github.com/soheilhy/cmux v0.1.3/go.mod h1:IM3LyeVVIOuxMH7sFAkER9+bJ4dT7Ms6E4xg4kGIyLM=
 github.com/soheilhy/cmux v0.1.4 h1:0HKaf1o97UwFjHH9o5XsHUOF+tqmdA7KEzXLpiyaw0E=
 github.com/soheilhy/cmux v0.1.4/go.mod h1:IM3LyeVVIOuxMH7sFAkER9+bJ4dT7Ms6E4xg4kGIyLM=
+github.com/soniah/gosnmp v1.25.0 h1:0y8vpjD07NPmnT+wojnUrKkYLX9Fxw1jI4cGTumWugQ=
+github.com/soniah/gosnmp v1.25.0/go.mod h1:8YvfZxH388NIIw2A+X5z2Oh97VcNhtmxDLt5QeUzVuQ=
 github.com/soniah/gosnmp v1.26.0 h1:WkqN0GVuiaYE/ZG2BC62W8TdDvgve1FrYlafxYffCP8=
 github.com/soniah/gosnmp v1.26.0/go.mod h1:hF/8DZgfcJ/2KObJTGoG1KKjitz0a/kC9rE0RFhdPkY=
 github.com/sony/gobreaker v0.4.1/go.mod h1:ZKptC7FHNvhBz7dN2LGjPVBz2sZJmc0/PkyDJOjmxWY=
