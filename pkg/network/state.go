@@ -48,9 +48,6 @@ type State interface {
 
 	// DebugState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
-
-	// Telemetry returns statistics about the internal behavior of the system-probe
-	Telemetry(khits int64, kmisses int64, conntrackStats map[string]int64, dnsStats map[string]int64) map[string]int64
 }
 
 type telemetry struct {
@@ -61,14 +58,7 @@ type telemetry struct {
 	timeSyncCollisions int64
 	dnsStatsDropped    int64
 	dnsPidCollisions   int64
-
-	// only used/returned in GetTelemetry
-	lastKprobesTriggered    int64
-	lastKprobesMissed       int64
-	lastConntrackTotal      int64
-	lastDnsPacketsProcessed int64
-	connsOpened             int64
-	lastConnsOpened         int64
+	connsOpened        int64
 }
 
 type stats struct {
@@ -516,30 +506,11 @@ func (ns *networkState) GetStats() map[string]interface{} {
 			"time_sync_collisions": ns.telemetry.timeSyncCollisions,
 			"dns_stats_dropped":    ns.telemetry.dnsStatsDropped,
 			"dns_pid_collisions":   ns.telemetry.dnsPidCollisions,
+			"conns_opened":         ns.telemetry.connsOpened,
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,
 	}
-}
-
-// Telemetry returns statistics that are included to evaluate internal behavior of system-probe
-func (ns *networkState) Telemetry(khits int64, kmisses int64, conntrackStats map[string]int64, dnsStats map[string]int64) map[string]int64 {
-	conntrackTotal := conntrackStats["registers_total"] + conntrackStats["registers_dropped"]
-	openedConns := ns.telemetry.connsOpened
-	tm := map[string]int64{
-		// TODO need to handle negative total (underflow) when counter rolls over?
-		"kprobes.triggered": khits - ns.telemetry.lastKprobesTriggered,
-		"kprobes.missed":    kmisses - ns.telemetry.lastKprobesMissed,
-		"conntrack.msgs":    conntrackTotal - ns.telemetry.lastConntrackTotal,
-		"dns.packets":       dnsStats["packets_processed"] - ns.telemetry.lastDnsPacketsProcessed,
-		"conns.opened":      openedConns - ns.telemetry.lastConnsOpened,
-	}
-	ns.telemetry.lastKprobesTriggered = khits
-	ns.telemetry.lastKprobesMissed = kmisses
-	ns.telemetry.lastConntrackTotal = conntrackTotal
-	ns.telemetry.lastDnsPacketsProcessed = dnsStats["packets_processed"]
-	ns.telemetry.lastConnsOpened = openedConns
-	return tm
 }
 
 // DumpState returns the entirety of the network state in memory at the moment for a particular clientID, for debugging

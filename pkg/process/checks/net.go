@@ -33,6 +33,15 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
+	lastTelemetry          telemetry
+}
+
+type telemetry struct {
+	KprobesTriggered    int64
+	KprobesMissed       int64
+	ConntrackTotal      int64
+	DnsPacketsProcessed int64
+	ConnsOpened         int64
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -84,8 +93,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
+	tel := c.diffTelemetry(conns.Telemetry)
+
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.Telemetry), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, tel), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -112,6 +123,27 @@ func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model
 	return conns
 }
 
+func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model.CollectorConnectionsTelemetry {
+	if tel == nil {
+		return nil
+	}
+
+	cct := &model.CollectorConnectionsTelemetry{
+		KprobesTriggered:    tel.KprobesTriggered - c.lastTelemetry.KprobesTriggered,
+		KprobesMissed:       tel.KprobesMissed - c.lastTelemetry.KprobesMissed,
+		ConntrackTotal:      tel.ConntrackTotal - c.lastTelemetry.ConntrackTotal,
+		DnsPacketsProcessed: tel.DnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
+		ConnsOpened:         tel.ConnsOpened - c.lastTelemetry.ConnsOpened,
+	}
+
+	c.lastTelemetry.KprobesTriggered = tel.KprobesTriggered
+	c.lastTelemetry.KprobesMissed = tel.KprobesMissed
+	c.lastTelemetry.ConntrackTotal = tel.ConntrackTotal
+	c.lastTelemetry.DnsPacketsProcessed = tel.DnsPacketsProcessed
+	c.lastTelemetry.ConnsOpened = tel.ConnsOpened
+	return cct
+}
+
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	cfg *config.AgentConfig,
@@ -119,7 +151,7 @@ func batchConnections(
 	cxs []*model.Connection,
 	dns map[string]*model.DNSEntry,
 	networkID string,
-	telemetry map[string]int64,
+	telemetry *model.CollectorConnectionsTelemetry,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)

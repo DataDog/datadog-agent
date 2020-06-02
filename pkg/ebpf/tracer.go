@@ -372,8 +372,15 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	kprobeStats := GetProbeTotals()
 	conntrackStats := t.conntracker.GetStats()
 	dnsStats := t.reverseDNS.GetStats()
-	tm := t.state.Telemetry(kprobeStats.hits, kprobeStats.miss, conntrackStats, dnsStats)
+	stateTelemetry, _ := t.state.GetStats()["telemetry"].(map[string]int64)
 
+	tm := &network.ConnectionsTelemetry{
+		KprobesTriggered:    kprobeStats.hits,
+		KprobesMissed:       kprobeStats.miss,
+		ConntrackTotal:      conntrackStats["registers_total"] + conntrackStats["registers_dropped"],
+		DnsPacketsProcessed: dnsStats["packets_processed"],
+		ConnsOpened:         stateTelemetry["conns_opened"],
+	}
 	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
 }
 

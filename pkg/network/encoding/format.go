@@ -45,6 +45,20 @@ func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
 	return ipToNames
 }
 
+func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
+	if tel == nil {
+		return nil
+	}
+
+	return &model.ConnectionsTelemetry{
+		KprobesTriggered:    tel.KprobesTriggered,
+		KprobesMissed:       tel.KprobesMissed,
+		ConntrackTotal:      tel.ConntrackTotal,
+		DnsPacketsProcessed: tel.DnsPacketsProcessed,
+		ConnsOpened:         tel.ConnsOpened,
+	}
+}
+
 func formatAddr(addr util.Address, port uint16) *model.Addr {
 	if addr == nil {
 		return nil
