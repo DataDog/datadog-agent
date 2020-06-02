@@ -39,7 +39,7 @@ system_probe_config:
   enabled: true
   sysprobe_socket: /tmp/test-sysprobe.sock
 
-security_agent:
+runtime_security_config:
   debug: true
   policies:
     - name: test-policy
