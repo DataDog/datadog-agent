@@ -48,6 +48,9 @@ type State interface {
 
 	// DebugState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
+
+	// Telemetry returns statistics about the internal behavior of the system-probe
+	Telemetry(khits int64, kmisses int64, conntrackStats map[string]int64, dnsStats map[string]int64) map[string]int64
 }
 
 type telemetry struct {
@@ -58,6 +61,14 @@ type telemetry struct {
 	timeSyncCollisions int64
 	dnsStatsDropped    int64
 	dnsPidCollisions   int64
+
+	// only used/returned in GetTelemetry
+	lastKprobesTriggered    int64
+	lastKprobesMissed       int64
+	lastConntrackTotal      int64
+	lastDnsPacketsProcessed int64
+	connsOpened             int64
+	lastConnsOpened         int64
 }
 
 type stats struct {
@@ -252,9 +263,11 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 			prev.LastUpdateEpoch = conn.LastUpdateEpoch
 			client.closedConnections[string(key)] = prev
 		} else if len(client.closedConnections) >= ns.maxClosedConns {
+			ns.telemetry.connsOpened++
 			ns.telemetry.closedConnDropped++
 			continue
 		} else {
+			ns.telemetry.connsOpened++
 			client.closedConnections[string(key)] = conn
 		}
 	}
@@ -419,6 +432,7 @@ func (ns *networkState) handleStatsUnderflow(key string, st *stats, c *Connectio
 // createStatsForKey will create a new stats object for a key if it doesn't already exist.
 func (ns *networkState) createStatsForKey(client *client, key string) {
 	if _, ok := client.stats[key]; !ok {
+		ns.telemetry.connsOpened++
 		if len(client.stats) >= ns.maxClientStats {
 			ns.telemetry.connDropped++
 			return
@@ -506,6 +520,26 @@ func (ns *networkState) GetStats() map[string]interface{} {
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,
 	}
+}
+
+// Telemetry returns statistics that are included to evaluate internal behavior of system-probe
+func (ns *networkState) Telemetry(khits int64, kmisses int64, conntrackStats map[string]int64, dnsStats map[string]int64) map[string]int64 {
+	conntrackTotal := conntrackStats["registers_total"] + conntrackStats["registers_dropped"]
+	openedConns := ns.telemetry.connsOpened
+	tm := map[string]int64{
+		// TODO need to handle negative total (underflow) when counter rolls over?
+		"kprobes.triggered": khits - ns.telemetry.lastKprobesTriggered,
+		"kprobes.missed":    kmisses - ns.telemetry.lastKprobesMissed,
+		"conntrack.msgs":    conntrackTotal - ns.telemetry.lastConntrackTotal,
+		"dns.packets":       dnsStats["packets_processed"] - ns.telemetry.lastDnsPacketsProcessed,
+		"conns.opened":      openedConns - ns.telemetry.lastConnsOpened,
+	}
+	ns.telemetry.lastKprobesTriggered = khits
+	ns.telemetry.lastKprobesMissed = kmisses
+	ns.telemetry.lastConntrackTotal = conntrackTotal
+	ns.telemetry.lastDnsPacketsProcessed = dnsStats["packets_processed"]
+	ns.telemetry.lastConnsOpened = openedConns
+	return tm
 }
 
 // DumpState returns the entirety of the network state in memory at the moment for a particular clientID, for debugging

@@ -369,7 +369,12 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
 	names := t.reverseDNS.Resolve(conns)
 
-	return &network.Connections{Conns: conns, DNS: names}, nil
+	kprobeStats := GetProbeTotals()
+	conntrackStats := t.conntracker.GetStats()
+	dnsStats := t.reverseDNS.GetStats()
+	tm := t.state.Telemetry(kprobeStats.hits, kprobeStats.miss, conntrackStats, dnsStats)
+
+	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes

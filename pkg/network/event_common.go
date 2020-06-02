@@ -72,8 +72,9 @@ func (d ConnectionDirection) String() string {
 
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
-	DNS   map[util.Address][]string
-	Conns []ConnectionStats
+	DNS       map[util.Address][]string
+	Conns     []ConnectionStats
+	Telemetry map[string]int64
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned

@@ -36,6 +36,21 @@ func GetProbeStats() map[string]int64 {
 	return res
 }
 
+func GetProbeTotals() kprobeStats {
+	stats := kprobeStats{}
+	m, err := readKprobeProfile(KprobeProfile)
+	if err != nil {
+		log.Debugf("error retrieving probe stats: %s", err)
+		return stats
+	}
+
+	for _, st := range m {
+		stats.hits += st.hits
+		stats.miss += st.miss
+	}
+	return stats
+}
+
 // readKprobeProfile reads a /sys/kernel/debug/tracing/kprobe_profile file and returns a map of probe -> stats
 func readKprobeProfile(path string) (map[string]kprobeStats, error) {
 	f, err := os.Open(path)

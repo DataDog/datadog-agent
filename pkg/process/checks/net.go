@@ -85,7 +85,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	LocalResolver.Resolve(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.Telemetry), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -119,6 +119,7 @@ func batchConnections(
 	cxs []*model.Connection,
 	dns map[string]*model.DNSEntry,
 	networkID string,
+	telemetry map[string]int64,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -139,7 +140,7 @@ func batchConnections(
 		// Get the container and process relationship from either the process or container checks
 		ctrIDForPID := getCtrIDsByPIDs(connectionPIDs(batchConns))
 
-		batches = append(batches, &model.CollectorConnections{
+		cc := &model.CollectorConnections{
 			HostName:          cfg.HostName,
 			NetworkId:         networkID,
 			Connections:       batchConns,
@@ -148,7 +149,13 @@ func batchConnections(
 			ContainerForPid:   ctrIDForPID,
 			EncodedDNS:        dnsEncoder.Encode(batchDNS),
 			ContainerHostType: cfg.ContainerHostType,
-		})
+		}
+		// only add the telemetry to the first message to prevent double counting
+		if len(batches) == 0 {
+			cc.Telemetry = telemetry
+		}
+		batches = append(batches, cc)
+
 		cxs = cxs[batchSize:]
 	}
 	return batches
