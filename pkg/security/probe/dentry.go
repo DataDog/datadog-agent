@@ -46,6 +46,33 @@ type PathValue struct {
 	name   [256]byte
 }
 
+func (dr *DentryResolver) getName(dev uint32, inode uint64) (name string, err error) {
+	key := PathKey{dev: dev, inode: inode}
+	if key.IsNull() {
+		return "", fmt.Errorf("invalid inode/dev couple: %s", key.String())
+	}
+
+	keyBuffer := make([]byte, 16)
+	key.Write(keyBuffer)
+	pathRaw := []byte{}
+	var nameRaw [256]byte
+
+	if pathRaw, err = dr.pathnames.Get(keyBuffer); err != nil {
+		return "", fmt.Errorf("unable to get filename for dev `%d` and inode `%d`", dev, inode)
+	}
+
+	if err = binary.Read(bytes.NewBuffer(pathRaw[16:]), byteOrder, &nameRaw); err != nil {
+		return "", errors.Wrap(err, "failed to decode received data (pathLeaf)")
+	}
+
+	return C.GoString((*C.char)(unsafe.Pointer(&nameRaw))), nil
+}
+
+func (dr *DentryResolver) GetName(dev uint32, inode uint64) string {
+	name, _ := dr.getName(dev, inode)
+	return name
+}
+
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *DentryResolver) resolve(dev uint32, inode uint64) (filename string, err error) {
 	// Don't resolve path if pathnameKey isn't valid

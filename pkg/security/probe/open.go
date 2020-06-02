@@ -75,23 +75,14 @@ var OpenKProbes = []*KProbe{
 		},
 		OnNewFilter: func(probe *Probe, field string, filters []eval.Filter) error {
 			switch field {
+			case "open.basename":
+				for _, filter := range filters {
+					handleBasenameFilter(probe, filter.Value.(string), filter.Not)
+				}
 			case "open.filename":
 				for _, filter := range filters {
 					basename := path.Base(filter.Value.(string))
-					key, err := StringToKey(basename, BASENAME_FILTER_SIZE)
-					if err != nil {
-						return fmt.Errorf("unable to generate a key for `%s`: %s", basename, err)
-					}
-
-					var kFilter Filter
-
-					if filter.Not {
-						table := probe.Table("open_basename_discarders")
-						table.Set(key, kFilter.Bytes())
-					} else {
-						table := probe.Table("open_basename_approvers")
-						table.Set(key, kFilter.Bytes())
-					}
+					handleBasenameFilter(probe, basename, filter.Not)
 				}
 			default:
 				return errors.New("field unknown")
@@ -100,4 +91,23 @@ var OpenKProbes = []*KProbe{
 			return nil
 		},
 	},
+}
+
+func handleBasenameFilter(probe *Probe, basename string, not bool) error {
+	key, err := StringToKey(basename, BASENAME_FILTER_SIZE)
+	if err != nil {
+		return fmt.Errorf("unable to generate a key for `%s`: %s", basename, err)
+	}
+
+	var kFilter Filter
+
+	if not {
+		table := probe.Table("open_basename_discarders")
+		table.Set(key, kFilter.Bytes())
+	} else {
+		table := probe.Table("open_basename_approvers")
+		table.Set(key, kFilter.Bytes())
+	}
+
+	return nil
 }
