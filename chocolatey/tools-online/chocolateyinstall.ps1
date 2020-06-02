@@ -1,10 +1,4 @@
 $ErrorActionPreference = 'Stop';
-# See https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-computersystem
-$domainRole = (Get-WmiObject -Class Win32_ComputerSystem).DomainRole
-if (($domainRole -eq 4) -Or ($domainRole -eq 5)) {
-  Write-Host "Installation on a Domain Controller is not yet supported - aborting"
-  exit -1
-}
 
 $url = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($env:chocolateyPackageVersion).msi"
 # Note: match x.x.x-rc-x nuspec version format
