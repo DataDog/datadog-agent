@@ -417,27 +417,27 @@ api_key:
 
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules an snmp listener to automatically discover your SNMP devices.
-## Discover devices can then be monitored with the snmp integration by using
-## the provided auto_conf.yaml file.
+## Discovered devices can then be monitored with the snmp integration by using
+## the auto_conf.yaml file provided by default.
 #
 # snmp_listener:
 
   ## @param workers - integer - optional - default: 2
-  ## Number of goroutines used to discover SNMP devices. Increasing this value
+  ## Number of concurrent tasks used to discover SNMP devices. Increasing this value
   ## will help to discover devices faster but at the cost of increased resource consumption.
   #
   # workers: 2
 
   ## @param discovery_interval - integer - optional - default: 3600
-  ## How often to discover new SNMP devices. Decreasing this value
+  ## How often to discover new SNMP devices, in seconds. Decreasing this value
   ## will help to discover devices faster but at the cost of increased resource consumption.
   #
   # discovery_interval: 3600
 
   ## @param allowed_failures - integer - optional - default: 3
-  ## Number of failed requests to a given SNMP device before removing it for the list of monitored
+  ## Number of failed requests to a given SNMP device before removing it from the list of monitored
   ## devices.
-  ## If a device shuts down, the Agent will stop monitoring it after `discovery_interval * allowed_failures`
+  ## If a device shuts down, the Agent will stop monitoring it after `discovery_interval * allowed_failures` seconds.
   #
   # allowed_failures: 3
 
@@ -448,6 +448,9 @@ api_key:
 
     ## @param network - string - required
     ## The subnet in CIDR format to scan for SNMP devices.
+    ## All IP addresses in the CIDR range that are not ignored will be scanned.
+    ## For optimal discovery time, be sure to use the smallest network mask
+    ## possible as is appropriate for your network topology.
     ## Ex: 10.0.0.0/24
     #
     # network: <NETWORK>
@@ -460,13 +463,13 @@ api_key:
     #   - <IP_ADDRESS_2>
 
     ## @param port - integer - optional - default: 161
-    ## Default SNMP port.
+    ## The UDP port to use when connecting to SNMP devices.
     #
     # port: 161
 
     ## @param version - integer - optional - default: 2
-    ## If you are using SNMP v1 set version to 1. (required)
-    ## If you are using SNMP v3 set version to 3. (required)
+    ## If you are using SNMP v1 set version to 1.
+    ## If you are using SNMP v3 set version to 3.
     #
     # version: 2
 
@@ -497,7 +500,7 @@ api_key:
     # authentication_key: <AUTHENTICATION_TYPE_KEY>
 
     ## @param authentication_protocol - string - optional
-    ## Authentication type to use when connecting to your SNMP devices.
+    ## Authentication protocol to use when connecting to your SNMP devices.
     ## It can be one of: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
     ## Default to MD5 when `authentication_key` is specified.
     #
@@ -511,7 +514,7 @@ api_key:
     ## @param privacy_protocol - string - optional
     ## Privacy type to use when connecting to your SNMP devices.
     ## It can be one of: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
-    ## Default to DES when `privKey` is specified.
+    ## Default to DES when `privacy_key` is specified.
     #
     # privacy_protocol: <PRIVACY_TYPE>
 
@@ -530,7 +533,6 @@ api_key:
     ## A unique identifier to attach to devices from that subnetwork.
     ## When configuring the snmp integration from the snmp.d/auto_conf.yaml file,
     ## you can specify the corresponding ad_identifier at the top of the file.
-    ##
     #
     # ad_identifier: snmp
 
