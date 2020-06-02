@@ -33,6 +33,7 @@ type OpenEvent struct {
 	Inode       uint64 `field:"inode" event:"open"`
 	Dev         uint32 `field:"-"`
 	PathnameStr string `field:"filename" handler:"ResolveInode,string" event:"open"`
+	BasenameStr string `field:"basename" handler:"ResolveBasename,string" event:"open"`
 }
 
 func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -56,6 +57,13 @@ func (e *OpenEvent) ResolveInode(resolvers *Resolvers) string {
 		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Dev, e.Inode)
 	}
 	return e.PathnameStr
+}
+
+func (e *OpenEvent) ResolveBasename(resolvers *Resolvers) string {
+	if len(e.BasenameStr) == 0 {
+		e.BasenameStr = resolvers.DentryResolver.GetName(e.Dev, e.Inode)
+	}
+	return e.BasenameStr
 }
 
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {

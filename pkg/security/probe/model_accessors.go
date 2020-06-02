@@ -70,6 +70,15 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
+	case "open.basename":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Open.ResolveBasename(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Open.ResolveBasename(m.event.resolvers) },
+
+			Field: key,
+		}, nil
+
 	case "open.filename":
 
 		return &eval.StringEvaluator{
@@ -375,6 +384,9 @@ func (e *Event) GetFieldTags(key string) ([]string, error) {
 	case "mkdir.mode":
 		return []string{}, nil
 
+	case "open.basename":
+		return []string{}, nil
+
 	case "open.filename":
 		return []string{}, nil
 
@@ -457,6 +469,9 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 
 	case "mkdir.mode":
 		return "mkdir", nil
+
+	case "open.basename":
+		return "open", nil
 
 	case "open.filename":
 		return "open", nil
@@ -572,6 +587,13 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 			return ErrWrongValueType
 		}
 		e.Mkdir.Mode = int32(v)
+		return nil
+
+	case "open.basename":
+
+		if m.event.Open.BasenameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
 		return nil
 
 	case "open.filename":
