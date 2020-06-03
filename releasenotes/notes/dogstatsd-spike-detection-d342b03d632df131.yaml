@@ -1,0 +1,4 @@
+other:
+  - |
+    In Debug mode, DogStatsD log a warning message when a large increase or
+    a large decrease of metrics received is detected.
