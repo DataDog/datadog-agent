@@ -352,6 +352,15 @@ snmp_traps_listeners:
 	wg.Wait()
 }
 
+func assertNoPacketReceived(t *testing.T, s *TrapServer) {
+	select {
+	case <-s.Output():
+		t.Errorf("Unexpectedly received an unauthorized packet")
+	case <-time.After(100 * time.Millisecond):
+		break
+	}
+}
+
 func TestServerErrors(t *testing.T) {
 	t.Run("listener-error", func(t *testing.T) {
 		port, err := getAvailableUDPPort()
@@ -390,17 +399,100 @@ snmp_traps_listeners:
 		require.NoError(t, err)
 		defer s.Stop()
 
-		badClientConfig := TrapListenerConfig{
-			Port:      config.Port,
-			Community: "cilpub",
+		clientConfig := config
+		clientConfig.Community = "wrong"
+
+		sendTestTrap(t, clientConfig)
+		assertNoPacketReceived(t, s)
+	})
+
+	t.Run("v3-wrong-user", func(t *testing.T) {
+		port, err := getAvailableUDPPort()
+		require.NoError(t, err)
+
+		config := TrapListenerConfig{
+			Port: port,
+			User: "doggo",
 		}
 
-		sendTestTrap(t, badClientConfig)
-		select {
-		case <-s.Output():
-			t.Errorf("Unexpectedly received an unauthorized packet")
-		case <-time.After(100 * time.Millisecond):
-			break
+		configure(t, fmt.Sprintf(`
+snmp_traps_listeners:
+  - port: %d
+    user: %s
+`, config.Port, config.User))
+
+		s, err := NewTrapServer()
+		require.NoError(t, err)
+		defer s.Stop()
+
+		clientConfig := config
+		clientConfig.User = "wrong"
+
+		sendTestTrap(t, clientConfig)
+		assertNoPacketReceived(t, s)
+	})
+
+	t.Run("v3-wrong-auth-key", func(t *testing.T) {
+		port, err := getAvailableUDPPort()
+		require.NoError(t, err)
+
+		config := TrapListenerConfig{
+			Port:         port,
+			User:         "doggo",
+			AuthProtocol: "MD5",
+			AuthKey:      "doggopass",
 		}
+
+		configure(t, fmt.Sprintf(`
+snmp_traps_listeners:
+  - port: %d
+    user: %s
+    authentication_protocol: %s
+    authentication_key: %s
+`, config.Port, config.User, config.AuthProtocol, config.AuthKey))
+
+		s, err := NewTrapServer()
+		require.NoError(t, err)
+		defer s.Stop()
+
+		clientConfig := config
+		clientConfig.AuthKey = "wrong"
+
+		sendTestTrap(t, clientConfig)
+		assertNoPacketReceived(t, s)
+	})
+
+	t.Run("v3-wrong-privacy-key", func(t *testing.T) {
+		port, err := getAvailableUDPPort()
+		require.NoError(t, err)
+
+		config := TrapListenerConfig{
+			Port:         port,
+			User:         "doggo",
+			AuthProtocol: "MD5",
+			AuthKey:      "doggopass",
+			PrivProtocol: "AES",
+			PrivKey:      "doggokey",
+		}
+
+		configure(t, fmt.Sprintf(`
+snmp_traps_listeners:
+  - port: %d
+    user: %s
+    authentication_protocol: %s
+    authentication_key: %s
+    privacy_protocol: %s
+    privacy_key: %s
+`, config.Port, config.User, config.AuthProtocol, config.AuthKey, config.PrivProtocol, config.PrivKey))
+
+		s, err := NewTrapServer()
+		require.NoError(t, err)
+		defer s.Stop()
+
+		clientConfig := config
+		clientConfig.PrivKey = "wrong"
+
+		sendTestTrap(t, clientConfig)
+		assertNoPacketReceived(t, s)
 	})
 }
