@@ -25,12 +25,14 @@ GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7',
-          python_runtimes='3', with_bcc=True, go_mod="vendor"):
+          python_runtimes='3', with_bcc=True, go_mod="vendor", windows=False):
     """
     Build the system_probe
     """
 
-    build_object_files(ctx, install=True)
+    # Only build ebpf files on unix
+    if not windows:
+        build_object_files(ctx, install=True)
 
     # TODO use pkg/version for this
     main = "main."
@@ -60,7 +62,11 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
 
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags() + [BPF_TAG]
+
+    if not windows:
+        build_tags = get_default_build_tags() + [BPF_TAG]
+    else:
+        build_tags = get_default_build_tags()
 
     if with_bcc:
         build_tags.append(BCC_TAG)

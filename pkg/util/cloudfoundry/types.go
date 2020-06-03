@@ -69,6 +69,11 @@ func (id ADIdentifier) GetActualLRP() *ActualLRP {
 	return id.actualLRP
 }
 
+// GetDesiredLRP returns DesiredLRP that is part of this ADIdentifier
+func (id ADIdentifier) GetDesiredLRP() *DesiredLRP {
+	return &(id.desiredLRP)
+}
+
 // String returns the string representation of this ADIdentifier
 func (id ADIdentifier) String() string {
 	if id.actualLRP != nil {
@@ -93,6 +98,7 @@ type ActualLRP struct {
 // DesiredLRP carries the necessary data about a Desired LRP obtained through BBS API
 type DesiredLRP struct {
 	AppGUID            string
+	AppName            string
 	EnvAD              ADConfig
 	EnvVcapServices    map[string][]byte
 	EnvVcapApplication map[string]string
@@ -180,8 +186,13 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 	if !ok || appGUID == "" {
 		log.Errorf("Couldn't extract app GUID from LRP %s", bbsLRP.ProcessGuid)
 	}
+	appName, ok := envVA[ApplicationNameKey]
+	if !ok || appName == "" {
+		log.Errorf("Couldn't extract app name from LRP %s", bbsLRP.ProcessGuid)
+	}
 	d := DesiredLRP{
 		AppGUID:            appGUID,
+		AppName:            appName,
 		EnvAD:              envAD,
 		EnvVcapServices:    envVS,
 		EnvVcapApplication: envVA,
