@@ -522,7 +522,7 @@ api_key:
     ## Default to DES when `privacy_key` is specified.
     ## SNMPv3 only.
     #
-    # privacy_protocol: <PRIVACY_TYPE>
+    # privacy_protocol: <PRIVACY_PROTOCOL>
 
     ## @param context_name - string - optional
     ## The name of your context (optional SNMP v3-only parameter).
