@@ -195,17 +195,17 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		StatsdPort: 8125,
 
 		// System probe collection configuration
-		EnableSystemProbe:      false,
-		DisableTCPTracing:      false,
-		DisableUDPTracing:      false,
-		DisableIPv6Tracing:     false,
-		DisableDNSInspection:   false,
-		SystemProbeAddress:     defaultSystemProbeAddress,
-		SystemProbeLogFile:     defaultSystemProbeFilePath,
-		MaxTrackedConnections:  defaultMaxTrackedConnections,
-		EnableConntrack:        true,
-		ClosedChannelSize:      500,
-		ConntrackMaxStateSize:  defaultMaxTrackedConnections * 2,
+		EnableSystemProbe:     false,
+		DisableTCPTracing:     false,
+		DisableUDPTracing:     false,
+		DisableIPv6Tracing:    false,
+		DisableDNSInspection:  false,
+		SystemProbeAddress:    defaultSystemProbeAddress,
+		SystemProbeLogFile:    defaultSystemProbeFilePath,
+		MaxTrackedConnections: defaultMaxTrackedConnections,
+		EnableConntrack:       true,
+		ClosedChannelSize:     500,
+		ConntrackMaxStateSize: defaultMaxTrackedConnections * 2,
 		ConntrackRateLimit:    500,
 
 		// Check config
