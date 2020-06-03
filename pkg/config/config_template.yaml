@@ -500,7 +500,7 @@ api_key:
     ## The passphrase to use with your Authentication type.
     ## SNMPv3 only.
     #
-    # authentication_key: <AUTHENTICATION_TYPE_KEY>
+    # authentication_key: <AUTHENTICATION_KEY>
 
     ## @param authentication_protocol - string - optional
     ## Authentication protocol to use when connecting to your SNMP devices.
