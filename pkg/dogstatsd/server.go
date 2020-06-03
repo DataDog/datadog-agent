@@ -516,13 +516,14 @@ func (s *Server) EnableMetricsStats() {
 				sec := time.Now().Truncate(time.Second)
 				if sec.After(s.Debug.metricsCounts.currentSec) {
 					s.Debug.metricsCounts.currentSec = sec
-					s.Debug.metricsCounts.bucketIdx++
-					if s.Debug.metricsCounts.bucketIdx >= len(s.Debug.metricsCounts.counts) {
-						s.Debug.metricsCounts.bucketIdx = 0
-					}
 
 					if s.hasSpike() {
 						log.Warnf("A spike, a large increase or a large decrease of metrics has been observed by DogStatSd: here is the last 5 seconds count of metrics: %v", s.Debug.metricsCounts.counts)
+					}
+
+					s.Debug.metricsCounts.bucketIdx++
+					if s.Debug.metricsCounts.bucketIdx >= len(s.Debug.metricsCounts.counts) {
+						s.Debug.metricsCounts.bucketIdx = 0
 					}
 
 					s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx] = 0

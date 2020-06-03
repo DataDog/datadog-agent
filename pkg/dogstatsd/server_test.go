@@ -398,13 +398,13 @@ func TestDebugStatsSpike(t *testing.T) {
 	}
 
 	send(10)
-	time.Sleep(900 * time.Millisecond)
+	time.Sleep(1050 * time.Millisecond)
 	send(10)
-	time.Sleep(900 * time.Millisecond)
+	time.Sleep(1050 * time.Millisecond)
 	send(10)
-	time.Sleep(900 * time.Millisecond)
+	time.Sleep(1050 * time.Millisecond)
 	send(10)
-	time.Sleep(900 * time.Millisecond)
+	time.Sleep(1050 * time.Millisecond)
 	send(500)
 
 	// stop the debug loop to avoid data race
@@ -412,7 +412,7 @@ func TestDebugStatsSpike(t *testing.T) {
 	assert.True(s.hasSpike())
 
 	s.EnableMetricsStats()
-	time.Sleep(900 * time.Millisecond)
+	time.Sleep(1050 * time.Millisecond)
 	send(500)
 
 	// stop the debug loop to avoid data race
