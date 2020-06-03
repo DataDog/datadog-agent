@@ -387,6 +387,8 @@ func TestDebugStats(t *testing.T) {
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
+	s.EnableMetricsStats()
+
 	keygen := ckey.NewKeyGenerator()
 
 	// data
