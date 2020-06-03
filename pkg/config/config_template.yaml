@@ -466,11 +466,12 @@ api_key:
     #
     # port: 161
 
-    ## @param version - integer - optional - default: 2
-    ## If you are using SNMP v1 set version to 1.
-    ## If you are using SNMP v3 set version to 3.
+    ## @param version - integer - optional - default: <BEST_GUESS>
+    ## Set the version of the SNMP protocol. Value can be `1`, `2` or `3`.
+    ## If unset, the Agent tries to guess the correct version based on other configuration
+    ## parameters. i.e if `user` is set, the Agent will use SNMP v3.
     #
-    # version: 2
+    # version: <VERSION>
 
     ## @param timeout - integer - optional - default: 5
     ## Number of seconds before timing out.
@@ -490,6 +491,7 @@ api_key:
 
     ## @param user - string - optional
     ## The username to connect to your SNMP devices.
+    ## SNMPv3 only.
     #
     # user: <USERNAME>
 
@@ -520,12 +522,6 @@ api_key:
     ## SNMPv3 only.
     #
     # privacy_protocol: <PRIVACY_TYPE>
-
-    ## @param context_engine_id - string - optional
-    ## ID of your context engine; typically unneeded.
-    ## (optional SNMP v3-only parameter)
-    #
-    # context_engine_id: <CONTEXT_ENGINE_ID>
 
     ## @param context_name - string - optional
     ## Name of your context (optional SNMP v3-only parameter).
