@@ -513,29 +513,20 @@ func (s *Server) EnableMetricsStats() {
 		for {
 			select {
 			case <-ticker.C:
-				mc := s.Debug.metricsCounts
 				sec := time.Now().Truncate(time.Second)
-				if sec.After(mc.currentSec) {
-					mc.currentSec = sec
-					mc.bucketIdx++
-					if mc.bucketIdx >= len(mc.counts) {
-						mc.bucketIdx = 0
-					}
-					// compare this one to the sum of all others
-					// if the difference is higher than all others sum, consider this
-					// as an anomaly.
-					var sum int64
-					for _, v := range mc.counts {
-						sum += v
-					}
-					sum -= mc.counts[mc.bucketIdx]
-					if mc.counts[mc.bucketIdx] > sum {
-						log.Warnf("A spike, a large increase or a large decrease of metrics has been observed by DogStatSd: here is the last 5 seconds count of metrics: %v", mc.counts)
+				if sec.After(s.Debug.metricsCounts.currentSec) {
+					s.Debug.metricsCounts.currentSec = sec
+					s.Debug.metricsCounts.bucketIdx++
+					if s.Debug.metricsCounts.bucketIdx >= len(s.Debug.metricsCounts.counts) {
+						s.Debug.metricsCounts.bucketIdx = 0
 					}
 
-					mc.counts[mc.bucketIdx] = 0
+					if s.hasSpike() {
+						log.Warnf("A spike, a large increase or a large decrease of metrics has been observed by DogStatSd: here is the last 5 seconds count of metrics: %v", s.Debug.metricsCounts.counts)
+					}
+
+					s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx] = 0
 				}
-				s.Debug.metricsCounts = mc
 			case <-s.Debug.metricsCounts.metricChan:
 				s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx]++
 			case <-s.Debug.metricsCounts.closeChan:
@@ -550,6 +541,21 @@ func (s *Server) EnableMetricsStats() {
 		log.Debug("Stopping the DogStatsD debug loop.")
 		ticker.Stop()
 	}()
+}
+
+func (s *Server) hasSpike() bool {
+	// compare this one to the sum of all others
+	// if the difference is higher than all others sum, consider this
+	// as an anomaly.
+	var sum int64
+	for _, v := range s.Debug.metricsCounts.counts {
+		sum += v
+	}
+	sum -= s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx]
+	if s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx] > sum {
+		return true
+	}
+	return false
 }
 
 // DisableMetricsStats disables the debug mode of the DogStatsD server and
