@@ -416,28 +416,28 @@ api_key:
 # secret_backend_timeout: 5
 
 ## @param snmp_listener - custom object - optional
-## Creates and schedules an snmp listener to automatically discover your SNMP devices.
-## Discovered devices can then be monitored with the snmp integration by using
+## Creates and schedules a listener to automatically discover your SNMP devices.
+## Discovered devices can then be monitored with the SNMP integration by using
 ## the auto_conf.yaml file provided by default.
 #
 # snmp_listener:
 
   ## @param workers - integer - optional - default: 2
-  ## Number of concurrent tasks used to discover SNMP devices. Increasing this value
-  ## will help to discover devices faster but at the cost of increased resource consumption.
+  ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
+  ## discovers devices faster but at the cost of increased resource consumption.
   #
   # workers: 2
 
   ## @param discovery_interval - integer - optional - default: 3600
   ## How often to discover new SNMP devices, in seconds. Decreasing this value
-  ## will help to discover devices faster but at the cost of increased resource consumption.
+  ## discovers devices faster but at the cost of increased resource consumption.
   #
   # discovery_interval: 3600
 
   ## @param allowed_failures - integer - optional - default: 3
-  ## Number of failed requests to a given SNMP device before removing it from the list of monitored
+  ## The number of failed requests to a given SNMP device before removing it from the list of monitored
   ## devices.
-  ## If a device shuts down, the Agent will stop monitoring it after `discovery_interval * allowed_failures` seconds.
+  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * allowed_failures` seconds.
   #
   # allowed_failures: 3
 
@@ -447,7 +447,7 @@ api_key:
   # configs: 
     ## @param network - string - required
     ## The subnet in CIDR format to scan for SNMP devices.
-    ## All IP addresses in the CIDR range that are not ignored will be scanned.
+    ## All unignored IP addresses in the CIDR range are scanned.
     ## For optimal discovery time, be sure to use the smallest network mask
     ## possible as is appropriate for your network topology.
     ## Ex: 10.0.0.0/24
@@ -474,12 +474,12 @@ api_key:
     # version: <VERSION>
 
     ## @param timeout - integer - optional - default: 5
-    ## Number of seconds before timing out.
+    ## The number of seconds before timing out.
     #
     # timeout: 5
 
     ## @param retries - integer - optional - default: 3
-    ## Amount of retries before failure.
+    ## The number of retries before failure.
     #
     # retries: 3
 
@@ -503,35 +503,35 @@ api_key:
 
     ## @param authentication_protocol - string - optional
     ## Authentication protocol to use when connecting to your SNMP devices.
-    ## It can be one of: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
-    ## Default to MD5 when `authentication_key` is specified.
+    ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
+    ## Defaults to MD5 when `authentication_key` is specified.
     ## SNMPv3 only.
     #
     # authentication_protocol: <AUTHENTICATION_PROTOCOL>
 
     ## @param privacy_key - string - optional
-    ## The passphrase to use with your Privacy protocol.
+    ## The passphrase to use with your privacy protocol.
     ## SNMPv3 only.
     #
     # privacy_key: <PRIVACY_KEY>
 
     ## @param privacy_protocol - string - optional
-    ## Privacy protocol to use when connecting to your SNMP devices.
-    ## It can be one of: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
+    ## The privacy protocol to use when connecting to your SNMP devices.
+    ## Available options are: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
     ## Default to DES when `privacy_key` is specified.
     ## SNMPv3 only.
     #
     # privacy_protocol: <PRIVACY_TYPE>
 
     ## @param context_name - string - optional
-    ## Name of your context (optional SNMP v3-only parameter).
+    ## The name of your context (optional SNMP v3-only parameter).
     #
     # context_name: <CONTEXT_NAME>
 
     ## @param ad_identifier - string - optional - default: snmp
     ## A unique identifier to attach to devices from that subnetwork.
-    ## When configuring the snmp integration from the snmp.d/auto_conf.yaml file,
-    ## you can specify the corresponding ad_identifier at the top of the file.
+    ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
+    ## specify the corresponding ad_identifier at the top of the file.
     #
     # ad_identifier: snmp
 
