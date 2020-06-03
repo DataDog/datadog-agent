@@ -2,6 +2,7 @@ package eval
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"reflect"
 	"strings"
 	"syscall"
@@ -10,10 +11,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
-func parse(t *testing.T, expr string, model Model, opts Opts) (*RuleEvaluator, *ast.Rule, error) {
+func generateMacroEvaluators(t *testing.T, field string, model Model, opts *Opts, macros map[string]*ast.Macro) {
+	macroEvaluators := make(map[string]*MacroEvaluator)
+	for name, macro := range macros {
+		eval, err := MacroToEvaluator(macro, model, opts, field)
+		if err != nil {
+			t.Fatal(err)
+		}
+		macroEvaluators[name] = eval
+	}
+	opts.SetMacroEvaluators(field, macroEvaluators)
+}
+
+func parse(t *testing.T, expr string, model Model, opts *Opts, macros map[string]*ast.Macro) (*RuleEvaluator, *ast.Rule, error) {
 	rule, err := ast.ParseRule(expr)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+	}
+
+	if macros != nil {
+		generateMacroEvaluators(t, "", model, opts, macros)
 	}
 
 	evaluator, err := RuleToEvaluator(rule, model, opts)
@@ -24,18 +41,39 @@ func parse(t *testing.T, expr string, model Model, opts Opts) (*RuleEvaluator, *
 	return evaluator, rule, err
 }
 
+func generatePartials(t *testing.T, field string, model Model, opts *Opts, evaluator *RuleEvaluator, rule *ast.Rule) {
+	state := newStateWithMacros(model, field, opts.GetMacroEvaluators(field))
+	pEval, _, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
+	if err != nil {
+		t.Fatal(errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, rule.Expr))
+	}
+	pEvalBool, ok := pEval.(*BoolEvaluator)
+	if !ok {
+		t.Fatal("the generated evaluator is not of type BoolEvaluator")
+	}
+	if pEvalBool.EvalFnc == nil {
+		pEvalBool.EvalFnc = func(ctx *Context) bool {
+			return pEvalBool.Value
+		}
+	}
+	// Insert partial evaluators in the rule
+	evaluator.SetPartial(field, pEvalBool.EvalFnc)
+}
+
 func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
 	model := &testModel{event: event}
 
 	ctx := &Context{}
 
-	evaluator, rule, err := parse(t, expr, model, Opts{Constants: testConstants})
+	opts := NewOptsWithParams(false, testConstants)
+	evaluator, rule, err := parse(t, expr, model, &opts, nil)
 	if err != nil {
 		return false, rule, err
 	}
 	r1 := evaluator.Eval(ctx)
 
-	evaluator, _, err = parse(t, expr, model, Opts{Debug: true, Constants: testConstants})
+	opts = NewOptsWithParams(true, testConstants)
+	evaluator, _, err = parse(t, expr, model, &opts, nil)
 	if err != nil {
 		return false, rule, err
 	}
@@ -361,7 +399,7 @@ func TestComplex(t *testing.T) {
 
 func TestTags(t *testing.T) {
 	expr := `process.name != "/usr/bin/vipw" && open.filename == "/etc/passwd"`
-	evaluator, _, err := parse(t, expr, &testModel{}, Opts{})
+	evaluator, _, err := parse(t, expr, &testModel{}, &Opts{}, nil)
 	if err != nil {
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -427,10 +465,13 @@ func TestPartial(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		evaluator, _, err := parse(t, test.Expr, &testModel{event: &event}, Opts{Constants: testConstants})
+		model := &testModel{event: &event}
+		opts := &Opts{Constants: testConstants}
+		evaluator, rule, err := parse(t, test.Expr, model, opts, nil)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
+		generatePartials(t, test.Field, model, opts, evaluator, rule)
 
 		result, err := evaluator.PartialEval(&Context{}, test.Field)
 		if err != nil {
@@ -456,7 +497,7 @@ func TestMacroList(t *testing.T) {
 	}
 
 	expr = `"/etc/shadow" in list`
-	evaluator, _, err := parse(t, expr, &testModel{event: &testEvent{}}, Opts{Macros: macros})
+	evaluator, _, err := parse(t, expr, &testModel{event: &testEvent{}}, &Opts{}, macros)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -488,7 +529,7 @@ func TestMacroExpression(t *testing.T) {
 	}
 
 	expr = `process.name == "httpd" && is_passwd`
-	evaluator, _, err := parse(t, expr, &testModel{event: &event}, Opts{Macros: macros})
+	evaluator, _, err := parse(t, expr, &testModel{event: &event}, &Opts{}, macros)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -517,12 +558,20 @@ func TestMacroPartial(t *testing.T) {
 	}
 
 	expr = `is_passwd`
-	evaluator, _, err := parse(t, expr, &testModel{event: &event}, Opts{Macros: macros})
+	model := &testModel{event: &event}
+	opts := &Opts{}
+	field := "open.filename"
+
+	evaluator, rule, err := parse(t, expr, model, opts, macros)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
+	// generate macro partials
+	generateMacroEvaluators(t, field, model, opts, macros)
+	// generate rule partials
+	generatePartials(t, field, model, opts, evaluator, rule)
 
-	result, err := evaluator.PartialEval(&Context{}, "open.filename")
+	result, err := evaluator.PartialEval(&Context{}, field)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -556,7 +605,7 @@ func BenchmarkComplex(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, &testModel{event: &event}, Opts{})
+	evaluator, err := RuleToEvaluator(rule, &testModel{event: &event}, &Opts{})
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
@@ -592,7 +641,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	evaluator, err := RuleToEvaluator(rule, &testModel{event: &event}, Opts{})
+	evaluator, err := RuleToEvaluator(rule, &testModel{event: &event}, &Opts{})
 	if err != nil {
 		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}

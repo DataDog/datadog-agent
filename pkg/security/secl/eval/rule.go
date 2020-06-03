@@ -11,3 +11,7 @@ type Rule struct {
 func (r *Rule) GetEventTypes() []string {
 	return r.evaluator.EventTypes
 }
+
+func (r *Rule) SetPartial(field string, partialEval func(ctx *Context) bool) {
+	r.evaluator.SetPartial(field, partialEval)
+}
