@@ -430,7 +430,8 @@ api_key:
 
   ## @param discovery_interval - integer - optional - default: 3600
   ## How often to discover new SNMP devices, in seconds. Decreasing this value
-  ## discovers devices faster but at the cost of increased resource consumption.
+  ## discovers devices faster (within the limit of the time taken to scan subnets)
+  ## but at the cost of increased resource consumption.
   #
   # discovery_interval: 3600
 
