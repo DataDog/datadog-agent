@@ -509,11 +509,11 @@ func (s *Server) EnableMetricsStats() {
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 100)
 		var closed bool
-		log.Info("Starting the DogStatsD debug loop.") // TODO(remy): move this to Debug
+		log.Debug("Starting the DogStatsD debug loop.")
 		for {
-			mc := s.Debug.metricsCounts
 			select {
 			case <-ticker.C:
+				mc := s.Debug.metricsCounts
 				sec := time.Now().Truncate(time.Second)
 				if sec.After(mc.currentSec) {
 					mc.currentSec = sec
@@ -535,19 +535,19 @@ func (s *Server) EnableMetricsStats() {
 
 					mc.counts[mc.bucketIdx] = 0
 				}
-			case <-mc.metricChan:
-				mc.counts[mc.bucketIdx]++
-			case <-mc.closeChan:
+				s.Debug.metricsCounts = mc
+			case <-s.Debug.metricsCounts.metricChan:
+				s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx]++
+			case <-s.Debug.metricsCounts.closeChan:
 				closed = true
 				break
 			}
 
-			s.Debug.metricsCounts = mc
 			if closed {
 				break
 			}
 		}
-		log.Info("Stopping the DogStatsD debug loop.") // TODO(remy): move this to Debug
+		log.Debug("Stopping the DogStatsD debug loop.")
 		ticker.Stop()
 	}()
 }
@@ -559,8 +559,8 @@ func (s *Server) DisableMetricsStats() {
 	defer s.Debug.Unlock()
 
 	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
-		s.Debug.metricsCounts.closeChan <- struct{}{}
 		atomic.StoreUint64(&s.Debug.Enabled, 0)
+		s.Debug.metricsCounts.closeChan <- struct{}{}
 	}
 
 	log.Info("Disabling DogStatsD debug metrics stats.")
