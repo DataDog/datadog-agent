@@ -488,7 +488,7 @@ api_key:
     ## Required for SNMP v1 & v2.
     ## Ex: 'public'
     #
-    # community: <COMMUNITY_STRING>
+    # community: <COMMUNITY>
 
     ## @param user - string - optional
     ## The username to connect to your SNMP devices.
