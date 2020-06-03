@@ -1,6 +1,12 @@
 package eval
 
-import "fmt"
+import (
+	"fmt"
+	
+	"github.com/pkg/errors"
+)
+
+var RuleWithoutEventErr = errors.New("rule without event")
 
 type CapabilityNotFound struct {
 	Field string

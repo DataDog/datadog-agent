@@ -5,6 +5,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
@@ -51,7 +52,20 @@ func addRuleExpr(t *testing.T, rs *RuleSet, expr string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rs.AddRule("", astRule); err != nil {
+	ruleDef := &policy.RuleDefinition{
+		ID:         "rule_test",
+		Expression: expr,
+		Tags:       make(map[string]string),
+		Ast:        astRule,
+	}
+	if _, err := rs.AddRule(ruleDef); err != nil {
+		t.Fatal(err)
+	}
+	macros := map[string]*policy.MacroDefinition{}
+	rules := map[string]*policy.RuleDefinition{
+		ruleDef.ID: ruleDef,
+	}
+	if err := rs.GeneratePartials(macros, rules); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -67,6 +81,13 @@ func TestRuleBuckets(t *testing.T) {
 	if bucket, ok := rs.eventRuleBuckets["mkdir"]; !ok || len(bucket.rules) != 1 {
 		t.Fatal("unable to find `mkdir` rules or incorrect number of rules")
 	}
+	for _, bucket := range rs.eventRuleBuckets {
+		for _, rule := range bucket.rules {
+			if rule.evaluator != nil && rule.evaluator.partialEvals == nil {
+				t.Fatalf("failed to initialize partials %v", rule.evaluator.partialEvals)
+			}
+		}
+	}
 }
 
 func TestRuleSetDiscarders(t *testing.T) {
@@ -76,7 +97,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 		model:   model,
 		filters: make(map[string]testFieldValues),
 	}
-	rs := NewRuleSet(model, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(model, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 	rs.AddListener(handler)
 
 	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.uid != 0`)

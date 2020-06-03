@@ -1,10 +1,9 @@
 package module
 
 import (
-	"os"
-
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/module"
 	aconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -12,13 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var RuleWithoutEventErr = errors.New("rule without event")
 
 type Module struct {
 	probe   *sprobe.Probe
@@ -92,69 +88,41 @@ func loadMacros(config *config.Config) (map[string]*ast.Macro, error) {
 }
 
 func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, error) {
-	macros, err := loadMacros(config)
-	if err != nil {
-		log.Error(err)
-		return nil, err
-	}
-
-	opts := eval.Opts{
-		Debug:     config.Debug,
-		Macros:    macros,
-		Constants: sprobe.SECLConstants,
-	}
-
-	ruleSet := probe.NewRuleSet(opts)
-
+	var policySet policy.PolicySet
+	// Load and parse policies
 	for _, policyDef := range config.Policies {
 		for _, policyPath := range policyDef.Files {
-			log.Infof("loading security policies from `%s`", policyPath)
+			// Open policy path
 			f, err := os.Open(policyPath)
 			if err != nil {
-				log.Errorf("failed to load policy: %s", policyPath)
-				return nil, err
+				return nil, errors.Wrapf(err, "failed to load policy `%s`", policyPath)
 			}
-
+			// Parse policy file
 			policy, err := policy.LoadPolicy(f)
 			if err != nil {
-				log.Errorf("failed to load policy `%s`: %s", policyPath, err)
-				return nil, err
+				return nil, errors.Wrapf(err, "failed to load policy `%s`", policyPath)
 			}
-
-			for _, ruleDef := range policy.Rules {
-				var tags []string
-				for k, v := range ruleDef.Tags {
-					tags = append(tags, k+":"+v)
-				}
-
-				astRule, err := ast.ParseRule(ruleDef.Expression)
-				if err != nil {
-					if err, ok := err.(*eval.AstToEvalError); ok {
-						log.Errorf("rule syntax error: %s\n%s", err, secl.SprintExprAt(ruleDef.Expression, err.Pos))
-					} else {
-						log.Errorf("rule parsing error: %s\n%s", err, ruleDef.Expression)
-					}
-					return nil, err
-				}
-
-				rule, err := ruleSet.AddRule(ruleDef.ID, astRule, tags...)
-				if err != nil {
-					if err, ok := err.(*eval.AstToEvalError); ok {
-						log.Errorf("rule syntax error: %s\n%s", err, secl.SprintExprAt(ruleDef.Expression, err.Pos))
-					} else {
-						log.Errorf("rule compilation error: %s\n%s", err, ruleDef.Expression)
-					}
-					return nil, err
-				}
-
-				if len(rule.GetEventTypes()) == 0 {
-					log.Errorf("rule without event specified: %s", ruleDef.Expression)
-					return nil, RuleWithoutEventErr
-				}
-			}
+			// Merge in the policy set
+			policySet.AddPolicy(policy)
 		}
 	}
-
+	// Create new ruleset with empty rules and macros
+	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
+	// Generate macro evaluators. The input "field" is therefore empty, we are not generating partials yet.
+	if err := ruleSet.GenerateMacroEvaluators("", policySet.Macros); err != nil {
+		return nil, err
+	}
+	// Generate rules evaluators
+	for _, ruleDef := range policySet.Rules {
+		_, err := ruleSet.AddRule(ruleDef)
+		if err != nil {
+			return nil, errors.Wrapf(err, "couldn't add rule %s to the ruleset", ruleDef.ID)
+		}
+	}
+	// Generate partials
+	if err := ruleSet.GeneratePartials(policySet.Macros, policySet.Rules); err != nil {
+		return nil, errors.Wrap(err, "couldn't generate partials")
+	}
 	return ruleSet, nil
 }
 
