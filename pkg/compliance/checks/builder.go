@@ -25,6 +25,7 @@ var ErrRuleScopeNotSupported = errors.New("rule scope not supported")
 
 // Builder defines an interface to build checks from rules
 type Builder interface {
+	ChecksFromFile(file string, onCheck compliance.CheckVisitor) error
 	ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) ([]check.Check, error)
 	Close() error
 }
@@ -97,6 +98,28 @@ func WithAuditClient(cli AuditClient) BuilderOption {
 	}
 }
 
+// SuiteMatcher checks if a compliance suite is included
+type SuiteMatcher func(*compliance.SuiteMeta) bool
+
+// WithMatchSuite configures builder to use a suite matcher
+func WithMatchSuite(matcher SuiteMatcher) BuilderOption {
+	return func(b *builder) error {
+		b.suiteMatcher = matcher
+		return nil
+	}
+}
+
+// RuleMatcher checks if a compliance rule is included
+type RuleMatcher func(*compliance.Rule) bool
+
+// WithMatchRule configures builder to use a suite matcher
+func WithMatchRule(matcher RuleMatcher) BuilderOption {
+	return func(b *builder) error {
+		b.ruleMatcher = matcher
+		return nil
+	}
+}
+
 // MayFail configures a builder option to succeed on failures and logs an error
 func MayFail(o BuilderOption) BuilderOption {
 	return func(b *builder) error {
@@ -104,6 +127,20 @@ func MayFail(o BuilderOption) BuilderOption {
 			log.Warnf("Ignoring builder initialization failure: %v", err)
 		}
 		return nil
+	}
+}
+
+// IsFramework matches a compliance suite by the name of the framework
+func IsFramework(framework string) SuiteMatcher {
+	return func(s *compliance.SuiteMeta) bool {
+		return s.Framework == framework
+	}
+}
+
+// IsRuleID matches a compliance rule by ID
+func IsRuleID(ruleID string) RuleMatcher {
+	return func(r *compliance.Rule) bool {
+		return r.ID == ruleID
 	}
 }
 
@@ -134,6 +171,9 @@ type builder struct {
 	pathMapper   pathMapper
 
 	etcGroupPath string
+
+	suiteMatcher SuiteMatcher
+	ruleMatcher  RuleMatcher
 }
 
 const (
@@ -154,6 +194,42 @@ func (b *builder) Close() error {
 	if b.auditClient != nil {
 		if err := b.auditClient.Close(); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) error {
+	suite, err := compliance.ParseSuite(file)
+	if err != nil {
+		return err
+	}
+
+	if b.suiteMatcher != nil && !b.suiteMatcher(&suite.Meta) {
+		log.Tracef("%s/%s: skipped suite from %s", suite.Meta.Name, suite.Meta.Version, file)
+		return nil
+	}
+
+	log.Infof("%s/%s: loading suite from %s", suite.Meta.Name, suite.Meta.Version, file)
+	for _, r := range suite.Rules {
+
+		if b.ruleMatcher != nil && !b.ruleMatcher(&r) {
+			log.Tracef("%s/%s: skipped rule %s from %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
+			continue
+		}
+
+		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
+		checks, err := b.ChecksFromRule(&suite.Meta, &r)
+		if err != nil {
+			return err
+		}
+		for _, check := range checks {
+			log.Debugf("%s/%s: init check %s", suite.Meta.Name, suite.Meta.Version, check.ID())
+			err = onCheck(check)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

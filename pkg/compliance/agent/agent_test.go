@@ -22,9 +22,18 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestRun(t *testing.T) {
-	assert := assert.New(t)
+type tempEnv struct {
+	dir  string
+	prev string
+}
 
+func (e *tempEnv) leave() {
+	defer os.Chdir(e.prev)
+}
+
+func enterTempEnv(t *testing.T) *tempEnv {
+	t.Helper()
+	assert := assert.New(t)
 	tempDir, err := ioutil.TempDir("", "compliance-agent-")
 	assert.NoError(err)
 
@@ -39,7 +48,17 @@ func TestRun(t *testing.T) {
 
 	prev, _ := os.Getwd()
 	_ = os.Chdir(tempDir)
-	defer os.Chdir(prev)
+	return &tempEnv{
+		dir:  tempDir,
+		prev: prev,
+	}
+}
+
+func TestRun(t *testing.T) {
+	assert := assert.New(t)
+
+	e := enterTempEnv(t)
+	defer e.leave()
 
 	reporter := &mocks.Reporter{}
 
@@ -79,10 +98,71 @@ func TestRun(t *testing.T) {
 		check.Run()
 	})
 
-	agent, err := New(reporter, scheduler, tempDir, checks.WithHostname("the-host"))
+	agent, err := New(reporter, scheduler, e.dir, checks.WithHostname("the-host"))
 	assert.NoError(err)
 
 	err = agent.Run()
 	assert.NoError(err)
 	agent.Stop()
+}
+
+func TestRunChecks(t *testing.T) {
+	assert := assert.New(t)
+
+	e := enterTempEnv(t)
+	defer e.leave()
+
+	reporter := &mocks.Reporter{}
+
+	reporter.On("Report", &compliance.RuleEvent{
+		RuleID:       "cis-docker-1",
+		Framework:    "cis-docker",
+		Version:      "1.2.0",
+		ResourceID:   "the-host",
+		ResourceType: "docker",
+		Tags:         []string{"check_kind:file"},
+		Data: compliance.KVMap{
+			"permissions": "644",
+		},
+	})
+
+	defer reporter.AssertExpectations(t)
+
+	err := RunChecks(
+		reporter,
+		e.dir,
+		checks.WithMatchSuite(checks.IsFramework("cis-docker")),
+		checks.WithMatchRule(checks.IsRuleID("cis-docker-1")),
+		checks.WithHostname("the-host"),
+	)
+	assert.NoError(err)
+}
+
+func TestRunChecksFromFile(t *testing.T) {
+	assert := assert.New(t)
+	e := enterTempEnv(t)
+	defer e.leave()
+
+	reporter := &mocks.Reporter{}
+
+	reporter.On("Report", &compliance.RuleEvent{
+		RuleID:       "cis-kubernetes-1",
+		Framework:    "cis-kubernetes",
+		Version:      "1.5.0",
+		ResourceID:   "the-host",
+		ResourceType: "worker",
+		Tags:         []string{"check_kind:file"},
+		Data: compliance.KVMap{
+			"permissions": "644",
+		},
+	})
+
+	defer reporter.AssertExpectations(t)
+
+	err := RunChecksFromFile(
+		reporter,
+		filepath.Join(e.dir, "cis-kubernetes.yaml"),
+		checks.WithHostname("the-host"),
+	)
+	assert.NoError(err)
 }

@@ -49,41 +49,64 @@ func New(reporter compliance.Reporter, scheduler Scheduler, configDir string, op
 	}, nil
 }
 
-// Run starts the Compliance Agent
-func (a *Agent) Run() error {
-	a.scheduler.Run()
-
-	log.Infof("Loading compliance rules from %s", a.configDir)
-	pattern := path.Join(a.configDir, "*.yaml")
-	matches, err := filepath.Glob(pattern)
+// RunChecks runs checks right away without scheduling
+func RunChecks(reporter compliance.Reporter, configDir string, options ...checks.BuilderOption) error {
+	builder, err := checks.NewBuilder(
+		reporter,
+		options...,
+	)
 	if err != nil {
 		return err
 	}
 
-	for _, config := range matches {
-		suite, err := compliance.ParseSuite(config)
-		if err != nil {
-			return err
-		}
-
-		log.Infof("%s/%s: loading suite from %s", suite.Meta.Name, suite.Meta.Version, config)
-		for _, r := range suite.Rules {
-			log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
-			checks, err := a.builder.ChecksFromRule(&suite.Meta, &r)
-			if err != nil {
-				return err
-			}
-			for _, check := range checks {
-				log.Debugf("%s/%s: scheduling check %s", suite.Meta.Name, suite.Meta.Version, check.ID())
-				err = a.scheduler.Enter(check)
-				if err != nil {
-					return err
-				}
-			}
-		}
+	agent := &Agent{
+		builder:   builder,
+		configDir: configDir,
 	}
 
-	return nil
+	return agent.RunChecks()
+}
+
+// RunChecksFromFile runs checks from the specified file with no scheduling
+func RunChecksFromFile(reporter compliance.Reporter, file string, options ...checks.BuilderOption) error {
+	builder, err := checks.NewBuilder(
+		reporter,
+		options...,
+	)
+	if err != nil {
+		return err
+	}
+
+	agent := &Agent{
+		builder: builder,
+	}
+
+	return agent.RunChecksFromFile(file)
+}
+
+// Run starts the Compliance Agent
+func (a *Agent) Run() error {
+	a.scheduler.Run()
+	onCheck := func(check check.Check) error {
+		return a.scheduler.Enter(check)
+	}
+	return a.buildChecks(onCheck)
+}
+
+func runCheck(check check.Check) error {
+	log.Infof("%s: Running check %s [%s]", check.ID(), check.String(), check.Version())
+	return check.Run()
+}
+
+// RunChecks runs checks with no scheduling
+func (a *Agent) RunChecks() error {
+	return a.buildChecks(runCheck)
+
+}
+
+// RunChecksFromFile runs checks from the specified file with no scheduling
+func (a *Agent) RunChecksFromFile(file string) error {
+	return a.builder.ChecksFromFile(file, runCheck)
 }
 
 // Stop stops the Compliance Agent
@@ -95,4 +118,22 @@ func (a *Agent) Stop() {
 	if err := a.builder.Close(); err != nil {
 		log.Errorf("Builder failed to close: %v", err)
 	}
+}
+
+func (a *Agent) buildChecks(onCheck compliance.CheckVisitor) error {
+	log.Infof("Loading compliance rules from %s", a.configDir)
+	pattern := path.Join(a.configDir, "*.yaml")
+	files, err := filepath.Glob(pattern)
+
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		err := a.builder.ChecksFromFile(file, onCheck)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

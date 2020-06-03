@@ -21,47 +21,46 @@ import (
 )
 
 var (
-	jsonStatus      bool
-	prettyPrintJSON bool
-	statusFilePath  string
+	statusCmd = &cobra.Command{
+		Use:   "status",
+		Short: "Print the current status",
+		Long:  ``,
+		RunE:  runStatus,
+	}
+
+	statusArgs = struct {
+		json            bool
+		prettyPrintJSON bool
+		file            string
+	}{}
 )
 
 func init() {
 	SecurityAgentCmd.AddCommand(statusCmd)
-	statusCmd.Flags().BoolVarP(&jsonStatus, "json", "j", false, "print out raw json")
-	statusCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	statusCmd.Flags().StringVarP(&statusFilePath, "file", "o", "", "Output the status command to a file")
+	statusCmd.Flags().BoolVarP(&statusArgs.json, "json", "j", false, "print out raw json")
+	statusCmd.Flags().BoolVarP(&statusArgs.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	statusCmd.Flags().StringVarP(&statusArgs.file, "file", "o", "", "Output the status command to a file")
 }
 
-var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Print the current status",
-	Long:  ``,
-	RunE: func(cmd *cobra.Command, args []string) error {
+func runStatus(cmd *cobra.Command, args []string) error {
+	if flagNoColor {
+		color.NoColor = true
+	}
 
-		if flagNoColor {
-			color.NoColor = true
-		}
+	// we'll search for a config file named `datadog.yaml`
+	config.Datadog.SetConfigName("datadog")
+	err := common.SetupConfig(confPath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global security agent configuration: %v", err)
+	}
 
-		// we'll search for a config file named `datadog-cluster.yaml`
-		config.Datadog.SetConfigName("datadog-cluster")
-		err := common.SetupConfig(confPath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
-		}
+	err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	if err != nil {
+		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		return err
+	}
 
-		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-		if err != nil {
-			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-			return err
-		}
-
-		err = requestStatus()
-		if err != nil {
-			return err
-		}
-		return nil
-	},
+	return requestStatus()
 }
 
 func requestStatus() error {
@@ -94,11 +93,11 @@ func requestStatus() error {
 	}
 
 	// The rendering is done in the client so that the agent has less work to do
-	if prettyPrintJSON {
+	if statusArgs.prettyPrintJSON {
 		var prettyJSON bytes.Buffer
 		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
-	} else if jsonStatus {
+	} else if statusArgs.json {
 		s = string(r)
 	} else {
 		formattedStatus, err := status.FormatSecurityAgentStatus(r)
@@ -108,8 +107,8 @@ func requestStatus() error {
 		s = formattedStatus
 	}
 
-	if statusFilePath != "" {
-		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
+	if statusArgs.file != "" {
+		ioutil.WriteFile(statusArgs.file, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}
