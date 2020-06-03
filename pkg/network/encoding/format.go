@@ -51,11 +51,12 @@ func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTeleme
 	}
 
 	return &model.ConnectionsTelemetry{
-		KprobesTriggered:    tel.KprobesTriggered,
-		KprobesMissed:       tel.KprobesMissed,
-		ConntrackTotal:      tel.ConntrackTotal,
-		DnsPacketsProcessed: tel.DnsPacketsProcessed,
-		ConnsOpened:         tel.ConnsOpened,
+		KprobesTriggered:          tel.KprobesTriggered,
+		KprobesMissed:             tel.KprobesMissed,
+		ConntrackRegisters:        tel.ConntrackRegisters,
+		ConntrackRegistersDropped: tel.ConntrackRegistersDropped,
+		DnsPacketsProcessed:       tel.DnsPacketsProcessed,
+		ConnsOpened:               tel.ConnsOpened,
 	}
 }
 

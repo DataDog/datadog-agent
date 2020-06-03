@@ -37,11 +37,12 @@ type ConnectionsCheck struct {
 }
 
 type telemetry struct {
-	KprobesTriggered    int64
-	KprobesMissed       int64
-	ConntrackTotal      int64
-	DnsPacketsProcessed int64
-	ConnsOpened         int64
+	KprobesTriggered          int64
+	KprobesMissed             int64
+	ConntrackRegisters        int64
+	ConntrackRegistersDropped int64
+	DnsPacketsProcessed       int64
+	ConnsOpened               int64
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -129,16 +130,18 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 	}
 
 	cct := &model.CollectorConnectionsTelemetry{
-		KprobesTriggered:    tel.KprobesTriggered - c.lastTelemetry.KprobesTriggered,
-		KprobesMissed:       tel.KprobesMissed - c.lastTelemetry.KprobesMissed,
-		ConntrackTotal:      tel.ConntrackTotal - c.lastTelemetry.ConntrackTotal,
-		DnsPacketsProcessed: tel.DnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
-		ConnsOpened:         tel.ConnsOpened - c.lastTelemetry.ConnsOpened,
+		KprobesTriggered:          tel.KprobesTriggered - c.lastTelemetry.KprobesTriggered,
+		KprobesMissed:             tel.KprobesMissed - c.lastTelemetry.KprobesMissed,
+		ConntrackRegisters:        tel.ConntrackRegisters - c.lastTelemetry.ConntrackRegisters,
+		ConntrackRegistersDropped: tel.ConntrackRegistersDropped - c.lastTelemetry.ConntrackRegistersDropped,
+		DnsPacketsProcessed:       tel.DnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
+		ConnsOpened:               tel.ConnsOpened - c.lastTelemetry.ConnsOpened,
 	}
 
 	c.lastTelemetry.KprobesTriggered = tel.KprobesTriggered
 	c.lastTelemetry.KprobesMissed = tel.KprobesMissed
-	c.lastTelemetry.ConntrackTotal = tel.ConntrackTotal
+	c.lastTelemetry.ConntrackRegisters = tel.ConntrackRegisters
+	c.lastTelemetry.ConntrackRegistersDropped = tel.ConntrackRegistersDropped
 	c.lastTelemetry.DnsPacketsProcessed = tel.DnsPacketsProcessed
 	c.lastTelemetry.ConnsOpened = tel.ConnsOpened
 	return cct

@@ -368,20 +368,40 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
 	names := t.reverseDNS.Resolve(conns)
+	tm := t.getConnTelemetry()
 
-	kprobeStats := GetProbeTotals()
-	conntrackStats := t.conntracker.GetStats()
-	dnsStats := t.reverseDNS.GetStats()
-	stateTelemetry, _ := t.state.GetStats()["telemetry"].(map[string]int64)
-
-	tm := &network.ConnectionsTelemetry{
-		KprobesTriggered:    kprobeStats.hits,
-		KprobesMissed:       kprobeStats.miss,
-		ConntrackTotal:      conntrackStats["registers_total"] + conntrackStats["registers_dropped"],
-		DnsPacketsProcessed: dnsStats["packets_processed"],
-		ConnsOpened:         stateTelemetry["conns_opened"],
-	}
 	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
+}
+
+func (t *Tracer) getConnTelemetry() *network.ConnectionsTelemetry {
+	kprobeStats := GetProbeTotals()
+	tm := &network.ConnectionsTelemetry{
+		KprobesTriggered: kprobeStats.hits,
+		KprobesMissed:    kprobeStats.miss,
+	}
+
+	stateStats := t.state.GetStats()
+	if stateTelemetry, ok := stateStats["telemetry"]; ok {
+		if stateTelemetryMap, castOk := stateTelemetry.(map[string]int64); castOk {
+			if opened, hasVal := stateTelemetryMap["conns_opened"]; hasVal {
+				tm.ConnsOpened = opened
+			}
+		}
+	}
+
+	conntrackStats := t.conntracker.GetStats()
+	if rt, ok := conntrackStats["registers_total"]; ok {
+		tm.ConntrackRegisters = rt
+	}
+	if rtd, ok := conntrackStats["registers_dropped"]; ok {
+		tm.ConntrackRegistersDropped = rtd
+	}
+
+	dnsStats := t.reverseDNS.GetStats()
+	if pp, ok := dnsStats["packets_processed"]; ok {
+		tm.DnsPacketsProcessed = pp
+	}
+	return tm
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes

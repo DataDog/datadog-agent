@@ -78,11 +78,12 @@ type Connections struct {
 }
 
 type ConnectionsTelemetry struct {
-	KprobesTriggered    int64
-	KprobesMissed       int64
-	ConntrackTotal      int64
-	DnsPacketsProcessed int64
-	ConnsOpened         int64
+	KprobesTriggered          int64
+	KprobesMissed             int64
+	ConntrackRegisters        int64
+	ConntrackRegistersDropped int64
+	DnsPacketsProcessed       int64
+	ConnsOpened               int64
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
