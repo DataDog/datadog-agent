@@ -6,7 +6,6 @@
 package traps
 
 import (
-	"fmt"
 	"math/rand"
 	"net"
 	"strconv"
@@ -15,37 +14,15 @@ import (
 	"testing"
 	"time"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/soniah/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// getAvailableUDPPort requests a random port number and makes sure it is available
-func getAvailableUDPPort() (uint16, error) {
-	conn, err := net.ListenPacket("udp", ":0")
-	if err != nil {
-		return 0, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	defer conn.Close()
-
-	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
-	if err != nil {
-		return 0, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		return 0, fmt.Errorf("can't convert udp port: %s", err)
-	}
-
-	return uint16(port), nil
-}
-
-func configure(t *testing.T, yaml string) {
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(yaml))
-	require.NoError(t, err)
-}
+/* Test traps sending/reception helpers */
 
 // http://www.circitor.fr/Mibs/Html/N/NET-SNMP-EXAMPLES-MIB.php#netSnmpExampleHeartbeatNotification
 var netSnmpExampleHeartbeatNotification = []gosnmp.SnmpPDU{
@@ -89,6 +66,8 @@ func receivePacket(t *testing.T, s *TrapServer) *SnmpPacket {
 		return nil
 	}
 }
+
+/* Assertion helpers */
 
 func assertV2c(t *testing.T, p *SnmpPacket, config TrapListenerConfig) {
 	require.Equal(t, gosnmp.Version2c, p.Content.Version)
@@ -138,35 +117,84 @@ func assertVariables(t *testing.T, p *SnmpPacket) {
 	assert.Equal(t, "test", string(heartBeatName.Value.([]byte)))
 }
 
-func TestServerEmpty(t *testing.T) {
+func assertNoPacketReceived(t *testing.T, s *TrapServer) {
+	select {
+	case <-s.Output():
+		t.Errorf("Unexpectedly received an unauthorized packet")
+	case <-time.After(100 * time.Millisecond):
+		break
+	}
+}
+
+/* Test helpers */
+
+// Builder is a testing utility for managing listener integration test setups.
+type Builder struct {
+	t       *testing.T
+	configs []TrapListenerConfig
+}
+
+// NewBuilder return a new builder instance.
+func NewBuilder(t *testing.T) *Builder {
+	return &Builder{t: t}
+}
+
+// GetPort requests a random UDP port number and makes sure it is available
+func (b *Builder) GetPort() uint16 {
+	conn, err := net.ListenPacket("udp", ":0")
+	require.NoError(b.t, err)
+	defer conn.Close()
+
+	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
+	require.NoError(b.t, err)
+
+	port, err := strconv.Atoi(portString)
+	require.NoError(b.t, err)
+
+	return uint16(port)
+}
+
+func (b *Builder) Add(config TrapListenerConfig) TrapListenerConfig {
+	if config.Port == 0 {
+		config.Port = b.GetPort()
+	}
+	b.configs = append(b.configs, config)
+	return config
+}
+
+func (b *Builder) Configure() {
+	out, err := yaml.Marshal(map[string]interface{}{"snmp_traps_listeners": b.configs})
+	require.NoError(b.t, err)
+	config.Datadog.SetConfigType("yaml")
+	err = config.Datadog.ReadConfig(strings.NewReader(string(out)))
+	require.NoError(b.t, err)
+}
+
+// StartServer starts a trap server and makes sure it is running and has the expected number of running listeners.
+func (b *Builder) StartServer() *TrapServer {
 	s, err := NewTrapServer()
-	require.NoError(t, err)
-	assert.NotNil(t, s)
-	defer s.Stop()
-	assert.True(t, s.Started)
+	require.NoError(b.t, err)
+	require.NotNil(b.t, s)
+	require.True(b.t, s.Started)
+	require.Equal(b.t, s.NumListeners(), len(b.configs))
+	return s
+}
+
+/* Tests */
+
+func TestServerEmpty(t *testing.T) {
+	b := NewBuilder(t)
+	s := b.StartServer()
+	s.Stop()
 }
 
 func TestServerV2(t *testing.T) {
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
+	b := NewBuilder(t)
+	config := b.Add(TrapListenerConfig{Community: "public"})
+	b.Configure()
 
-	config := TrapListenerConfig{
-		Port:      port,
-		Community: "public",
-	}
-
-	configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    community: %s
-`, config.Port, config.Community))
-
-	s, err := NewTrapServer()
-	require.NoError(t, err)
-	require.NotNil(t, s)
+	s := b.StartServer()
 	defer s.Stop()
-	require.True(t, s.Started)
-	require.Equal(t, s.NumListeners(), 1)
 
 	sendTestTrap(t, config)
 	p := receivePacket(t, s)
@@ -176,27 +204,13 @@ snmp_traps_listeners:
 }
 
 func TestServerV3(t *testing.T) {
-	t.Run("no-auth-no-priv", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
+	t.Run("no-auth", func(t *testing.T) {
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{User: "doggo"})
+		b.Configure()
 
-		config := TrapListenerConfig{
-			Port: port,
-			User: "doggo",
-		}
-
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    user: %s
-`, config.Port, config.User))
-
-		s, err := NewTrapServer()
-		require.NoError(t, err)
-		require.NotNil(t, s)
+		s := b.StartServer()
 		defer s.Stop()
-		require.True(t, s.Started)
-		require.Equal(t, s.NumListeners(), 1)
 
 		sendTestTrap(t, config)
 		p := receivePacket(t, s)
@@ -206,30 +220,12 @@ snmp_traps_listeners:
 	})
 
 	t.Run("auth-no-priv", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{User: "doggo", AuthProtocol: "MD5", AuthKey: "doggopass"})
+		b.Configure()
 
-		config := TrapListenerConfig{
-			Port:         port,
-			User:         "doggo",
-			AuthProtocol: "MD5",
-			AuthKey:      "doggopass",
-		}
-
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    user: %s
-    authentication_protocol: %s
-    authentication_key: %s
-`, config.Port, config.User, config.AuthProtocol, config.AuthKey))
-
-		s, err := NewTrapServer()
-		require.NoError(t, err)
-		require.NotNil(t, s)
+		s := b.StartServer()
 		defer s.Stop()
-		require.True(t, s.Started)
-		require.Equal(t, s.NumListeners(), 1)
 
 		sendTestTrap(t, config)
 		p := receivePacket(t, s)
@@ -239,34 +235,12 @@ snmp_traps_listeners:
 	})
 
 	t.Run("auth-priv", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{User: "doggo", AuthProtocol: "SHA", AuthKey: "doggopass", PrivProtocol: "DES", PrivKey: "doggokey"})
+		b.Configure()
 
-		config := TrapListenerConfig{
-			Port:         port,
-			User:         "doggo",
-			AuthProtocol: "MD5",
-			AuthKey:      "doggopass",
-			PrivProtocol: "DES",
-			PrivKey:      "doggokey",
-		}
-
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    user: %s
-    authentication_protocol: %s
-    authentication_key: %s
-    privacy_protocol: %s
-    privacy_key: %s
-`, config.Port, config.User, config.AuthProtocol, config.AuthKey, config.PrivProtocol, config.PrivKey))
-
-		s, err := NewTrapServer()
-		require.NoError(t, err)
-		require.NotNil(t, s)
+		s := b.StartServer()
 		defer s.Stop()
-		require.True(t, s.Started)
-		require.Equal(t, s.NumListeners(), 1)
 
 		sendTestTrap(t, config)
 		p := receivePacket(t, s)
@@ -277,51 +251,18 @@ snmp_traps_listeners:
 }
 
 func TestConcurrency(t *testing.T) {
-	port0, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	port1, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	port2, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	port3, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	port4, err := getAvailableUDPPort()
-	require.NoError(t, err)
-
+	b := NewBuilder(t)
 	configs := []TrapListenerConfig{
-		{Port: port0, Community: "public0"},
-		{Port: port1, Community: "public1"},
-		{Port: port2, User: "doggo"},
-		{Port: port3, User: "bits", AuthProtocol: "MD5", AuthKey: "bitspass"},
-		{Port: port4, User: "buddy", AuthProtocol: "SHA", AuthKey: "buddypass", PrivProtocol: "AES", PrivKey: "buddykey"},
+		b.Add(TrapListenerConfig{Community: "public0"}),
+		b.Add(TrapListenerConfig{Community: "public1"}),
+		b.Add(TrapListenerConfig{User: "doggo"}),
+		b.Add(TrapListenerConfig{User: "bits", AuthProtocol: "SHA", AuthKey: "bitspass"}),
+		b.Add(TrapListenerConfig{User: "buddy", AuthProtocol: "SHA", AuthKey: "buddypass", PrivProtocol: "AES", PrivKey: "buddykey"}),
 	}
+	b.Configure()
 
-	configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    community: %s
-  - port: %d
-    community: %s
-  - port: %d
-    user: %s
-  - port: %d
-    user: %s
-    authentication_protocol: %s
-    authentication_key: %s
-  - port: %d
-    user: %s
-    authentication_protocol: %s
-    authentication_key: %s
-    privacy_protocol: %s
-    privacy_key: %s
-`, configs[0].Port, configs[0].Community, configs[1].Port, configs[1].Community, configs[2].Port, configs[2].User, configs[3].Port, configs[3].User, configs[3].AuthProtocol, configs[3].AuthKey, configs[4].Port, configs[4].User, configs[4].AuthProtocol, configs[4].AuthKey, configs[4].PrivProtocol, configs[4].PrivKey))
-
-	s, err := NewTrapServer()
-	require.NoError(t, err)
-	require.NotNil(t, s)
+	s := b.StartServer()
 	defer s.Stop()
-	require.True(t, s.Started)
-	require.Equal(t, s.NumListeners(), 5)
 
 	numMessagesPerListener := 100
 	totalMessages := numMessagesPerListener * len(configs)
@@ -352,51 +293,27 @@ snmp_traps_listeners:
 	wg.Wait()
 }
 
-func assertNoPacketReceived(t *testing.T, s *TrapServer) {
-	select {
-	case <-s.Output():
-		t.Errorf("Unexpectedly received an unauthorized packet")
-	case <-time.After(100 * time.Millisecond):
-		break
-	}
+func TestPortConflict(t *testing.T) {
+	b := NewBuilder(t)
+	port := b.GetPort()
+
+	// Triggers an "address already in use" error for one of the listeners.
+	b.Add(TrapListenerConfig{Port: port, Community: "public0"})
+	b.Add(TrapListenerConfig{Port: port, Community: "public1"})
+	b.Configure()
+
+	s, err := NewTrapServer()
+	require.Error(t, err)
+	assert.Nil(t, s)
 }
 
-func TestServerErrors(t *testing.T) {
-	t.Run("listener-error", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
-
-		// Use the same port to trigger an "address already in use" error for one of the listeners.
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    community: public0
-  - port: %d
-    community: public1
-`, port, port))
-
-		s, err := NewTrapServer()
-		require.Error(t, err)
-		assert.Nil(t, s)
-	})
-
+func TestBadCredentials(t *testing.T) {
 	t.Run("v2-wrong-community", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{Community: "public"})
+		b.Configure()
 
-		config := TrapListenerConfig{
-			Port:      port,
-			Community: "public",
-		}
-
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    community: %s
-`, config.Port, config.Community))
-
-		s, err := NewTrapServer()
-		require.NoError(t, err)
+		s := b.StartServer()
 		defer s.Stop()
 
 		clientConfig := config
@@ -407,22 +324,11 @@ snmp_traps_listeners:
 	})
 
 	t.Run("v3-wrong-user", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{User: "doggo"})
+		b.Configure()
 
-		config := TrapListenerConfig{
-			Port: port,
-			User: "doggo",
-		}
-
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    user: %s
-`, config.Port, config.User))
-
-		s, err := NewTrapServer()
-		require.NoError(t, err)
+		s := b.StartServer()
 		defer s.Stop()
 
 		clientConfig := config
@@ -433,26 +339,11 @@ snmp_traps_listeners:
 	})
 
 	t.Run("v3-wrong-auth-key", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{User: "doggo", AuthProtocol: "SHA", AuthKey: "doggopass"})
+		b.Configure()
 
-		config := TrapListenerConfig{
-			Port:         port,
-			User:         "doggo",
-			AuthProtocol: "MD5",
-			AuthKey:      "doggopass",
-		}
-
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    user: %s
-    authentication_protocol: %s
-    authentication_key: %s
-`, config.Port, config.User, config.AuthProtocol, config.AuthKey))
-
-		s, err := NewTrapServer()
-		require.NoError(t, err)
+		s := b.StartServer()
 		defer s.Stop()
 
 		clientConfig := config
@@ -463,30 +354,11 @@ snmp_traps_listeners:
 	})
 
 	t.Run("v3-wrong-privacy-key", func(t *testing.T) {
-		port, err := getAvailableUDPPort()
-		require.NoError(t, err)
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{User: "doggo", AuthProtocol: "SHA", AuthKey: "doggopass", PrivProtocol: "AES", PrivKey: "doggokey"})
+		b.Configure()
 
-		config := TrapListenerConfig{
-			Port:         port,
-			User:         "doggo",
-			AuthProtocol: "MD5",
-			AuthKey:      "doggopass",
-			PrivProtocol: "AES",
-			PrivKey:      "doggokey",
-		}
-
-		configure(t, fmt.Sprintf(`
-snmp_traps_listeners:
-  - port: %d
-    user: %s
-    authentication_protocol: %s
-    authentication_key: %s
-    privacy_protocol: %s
-    privacy_key: %s
-`, config.Port, config.User, config.AuthProtocol, config.AuthKey, config.PrivProtocol, config.PrivKey))
-
-		s, err := NewTrapServer()
-		require.NoError(t, err)
+		s := b.StartServer()
 		defer s.Stop()
 
 		clientConfig := config

@@ -14,15 +14,16 @@ import (
 )
 
 // TrapListenerConfig contains configuration for an SNMP trap listener.
+// YAML field tags provided for test marshalling purposes.
 type TrapListenerConfig struct {
-	Port         uint16 `mapstructure:"port"`
-	Version      string `mapstructure:"version"`
-	Community    string `mapstructure:"community"`
-	User         string `mapstructure:"user"`
-	AuthKey      string `mapstructure:"authentication_key"`
-	AuthProtocol string `mapstructure:"authentication_protocol"`
-	PrivKey      string `mapstructure:"privacy_key"`
-	PrivProtocol string `mapstructure:"privacy_protocol"`
+	Port         uint16 `mapstructure:"port" yaml:"port"`
+	Version      string `mapstructure:"version" yaml:"version"`
+	Community    string `mapstructure:"community" yaml:"community"`
+	User         string `mapstructure:"user" yaml:"user"`
+	AuthKey      string `mapstructure:"authentication_key" yaml:"authentication_key"`
+	AuthProtocol string `mapstructure:"authentication_protocol" yaml:"authentication_protocol"`
+	PrivKey      string `mapstructure:"privacy_key" yaml:"privacy_key"`
+	PrivProtocol string `mapstructure:"privacy_protocol" yaml:"privacy_protocol"`
 }
 
 // trapLogger is a GoSNMP logger interface implementation.
