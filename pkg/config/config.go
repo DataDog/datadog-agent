@@ -589,7 +589,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 	// Admission controller
-	// config.BindEnvAndSetDefault("admission_controller.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
 	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
@@ -710,6 +710,7 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.receiver_timeout")
 	config.SetKnown("apm_config.watchdog_check_delay")
+	config.SetKnown("apm_config.max_payload_size")
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)

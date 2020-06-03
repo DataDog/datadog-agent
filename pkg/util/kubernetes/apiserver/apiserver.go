@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -76,6 +77,7 @@ type APIClient struct {
 	// used to setup the APIClient
 	initRetry      retry.Retrier
 	Cl             kubernetes.Interface
+	DynamicCl      dynamic.Interface
 	timeoutSeconds int64
 }
 
@@ -100,6 +102,7 @@ func GetAPIClient() (*APIClient, error) {
 	}
 	return globalAPIClient, nil
 }
+
 func getClientConfig() (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
@@ -132,6 +135,15 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	}
 	clientConfig.Timeout = timeout
 	return kubernetes.NewForConfig(clientConfig)
+}
+
+func getDynamicKubeClient(timeout time.Duration) (dynamic.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
+	return dynamic.NewForConfig(clientConfig)
 }
 
 func getWPAClient(timeout time.Duration) (wpa_client.Interface, error) {
@@ -181,6 +193,7 @@ func (c *APIClient) connect() error {
 		log.Infof("Could not get apiserver client: %v", err)
 		return err
 	}
+
 	// informer factory uses its own clientset with a larger timeout
 	c.InformerFactory, err = getInformerFactory()
 	if err != nil {
@@ -211,6 +224,12 @@ func (c *APIClient) connect() error {
 		c.WebhookConfigInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(optionsForWebhook),
 		)
+
+		c.DynamicCl, err = getDynamicKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
+		if err != nil {
+			log.Infof("Could not get apiserver dynamic client: %v", err)
+			return err
+		}
 	}
 
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
