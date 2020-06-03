@@ -176,6 +176,7 @@ typedef struct _tcpFlowData {
     uint32_t        lastSeqReceived;
     uint32_t        lastAck;        // last ack we sent
 
+    uint64_t        retransmitCount;
 } TCP_FLOW_DATA;
 typedef struct _perFlowData {
     uint64_t          flowHandle;
