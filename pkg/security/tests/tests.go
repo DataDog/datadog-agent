@@ -254,6 +254,10 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
+	if err := probe.Start(); err != nil {
+		return nil, err
+	}
+
 	ruleSet, err := module.LoadPolicies(config, probe)
 	if err != nil {
 		return nil, err

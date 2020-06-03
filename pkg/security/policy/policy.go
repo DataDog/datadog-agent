@@ -13,13 +13,17 @@ type Section struct {
 	Type string
 }
 
+type MacroID = string
+
 type MacroDefinition struct {
-	ID         string
+	ID         MacroID
 	Expression string
 }
 
+type RuleID = string
+
 type RuleDefinition struct {
-	ID         string
+	ID         RuleID
 	Expression string
 	Tags       map[string]string
 }
@@ -38,44 +42,6 @@ func (rd *RuleDefinition) GetTags() []string {
 type Policy struct {
 	Rules  []*RuleDefinition
 	Macros []*MacroDefinition
-}
-
-// PolicySet - Regroups the macros and the rules of multiple policies in a usable format by the ruleset
-type PolicySet struct {
-	// Rules holds the list of merged rule definitions, indexed by their IDs
-	Rules map[string]*RuleDefinition
-	// Macros holds the list of merged macro asts, indexed by their ID
-	Macros map[string]*MacroDefinition
-}
-
-// AddPolicy - Includes a policy in a policy set
-func (ps *PolicySet) AddPolicy(policy *Policy) error {
-	// Merge macros
-	if ps.Macros == nil {
-		ps.Macros = make(map[string]*MacroDefinition)
-	}
-
-	// Make sure that there is only one definition of the macro
-	for _, newMacro := range policy.Macros {
-		if _, exists := ps.Macros[newMacro.ID]; exists {
-			return fmt.Errorf("found multiple definition of the macro %s", newMacro.ID)
-		}
-		ps.Macros[newMacro.ID] = newMacro
-	}
-
-	// Merge rules
-	if ps.Rules == nil {
-		ps.Rules = make(map[string]*RuleDefinition)
-	}
-
-	// Make sure that the new rules do not have conflicting IDs
-	for _, newRule := range policy.Rules {
-		if _, exists := ps.Rules[newRule.ID]; exists {
-			return fmt.Errorf("found multiple definition of the rule %s", newRule.ID)
-		}
-		ps.Rules[newRule.ID] = newRule
-	}
-	return nil
 }
 
 func LoadPolicy(r io.Reader) (*Policy, error) {

@@ -8,8 +8,13 @@ import (
 )
 
 func SprintExprAt(expr string, pos lexer.Position) string {
+	column := pos.Column
+	if column > 0 {
+		column--
+	}
+
 	str := fmt.Sprintf("%s\n", expr)
-	str += strings.Repeat(" ", pos.Column-1)
+	str += strings.Repeat(" ", column)
 	str += "^"
 	return str
 }

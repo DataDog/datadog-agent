@@ -30,8 +30,6 @@ func TestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("%s", buffer.String())
-
 	aconfig.Datadog.SetConfigType("yaml")
 	if err := aconfig.Datadog.ReadConfig(buffer); err != nil {
 		t.Fatal(err)

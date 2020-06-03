@@ -9,19 +9,19 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
-func generateMacroEvaluators(t *testing.T, field string, model Model, opts *Opts, macros map[string]*ast.Macro) {
-	macroEvaluators := make(map[string]*MacroEvaluator)
+func generateMacroEvaluators(t *testing.T, model Model, opts *Opts, macros map[policy.MacroID]*ast.Macro) {
+	opts.Macros = make(map[policy.MacroID]*MacroEvaluator)
 	for name, macro := range macros {
-		eval, err := MacroToEvaluator(macro, model, opts, field)
+		eval, err := MacroToEvaluator(macro, model, opts, "")
 		if err != nil {
 			t.Fatal(err)
 		}
-		macroEvaluators[name] = eval
+		opts.Macros[name] = eval
 	}
-	opts.SetMacroEvaluators(field, macroEvaluators)
 }
 
 func parse(t *testing.T, expr string, model Model, opts *Opts, macros map[string]*ast.Macro) (*RuleEvaluator, *ast.Rule, error) {
@@ -30,9 +30,7 @@ func parse(t *testing.T, expr string, model Model, opts *Opts, macros map[string
 		t.Fatal(fmt.Sprintf("%s\n%s", err, expr))
 	}
 
-	if macros != nil {
-		generateMacroEvaluators(t, "", model, opts, macros)
-	}
+	generateMacroEvaluators(t, model, opts, macros)
 
 	evaluator, err := RuleToEvaluator(rule, model, opts)
 	if err != nil {
@@ -42,8 +40,18 @@ func parse(t *testing.T, expr string, model Model, opts *Opts, macros map[string
 	return evaluator, rule, err
 }
 
-func generatePartials(t *testing.T, field string, model Model, opts *Opts, evaluator *RuleEvaluator, rule *ast.Rule) {
-	state := newState(model, field, opts.GetMacroEvaluators(field))
+func generatePartials(t *testing.T, field Field, model Model, opts *Opts, evaluator *RuleEvaluator, rule *ast.Rule, macros map[policy.MacroID]*ast.Macro) {
+	macroPartials := make(map[policy.MacroID]*MacroEvaluator)
+
+	for id, macro := range macros {
+		eval, err := MacroToEvaluator(macro, model, opts, field)
+		if err != nil {
+			t.Fatal(err)
+		}
+		macroPartials[id] = eval
+	}
+
+	state := newState(model, field, macroPartials)
 	pEval, _, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
 	if err != nil {
 		t.Fatal(errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, rule.Expr))
@@ -475,7 +483,7 @@ func TestPartial(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
 		}
-		generatePartials(t, test.Field, model, opts, evaluator, rule)
+		generatePartials(t, test.Field, model, opts, evaluator, rule, nil)
 
 		result, err := evaluator.PartialEval(&Context{}, test.Field)
 		if err != nil {
@@ -572,10 +580,9 @@ func TestMacroPartial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
-	// generate macro partials
-	generateMacroEvaluators(t, field, model, &opts, macros)
+
 	// generate rule partials
-	generatePartials(t, field, model, &opts, evaluator, rule)
+	generatePartials(t, field, model, &opts, evaluator, rule, macros)
 
 	result, err := evaluator.PartialEval(&Context{}, field)
 	if err != nil {
@@ -585,6 +592,60 @@ func TestMacroPartial(t *testing.T) {
 	if result {
 		t.Fatal("should be a discriminator")
 	}
+
+	model.event.open.filename = "/etc/passwd"
+	if !evaluator.Eval(&Context{}) {
+		t.Fatalf("should return true")
+	}
+}
+
+func TestNestedMacros(t *testing.T) {
+	macro1Expr := `[ "/etc/shadow", "/etc/passwd" ]`
+	macro2Expr := `open.filename in sensitive_files`
+
+	macro1, err := ast.ParseMacro(macro1Expr)
+	if err != nil {
+		t.Fatalf("%s\n%s", err, macro1Expr)
+	}
+
+	macro2, err := ast.ParseMacro(macro2Expr)
+	if err != nil {
+		t.Fatalf("%s\n%s", err, macro2Expr)
+	}
+
+	macros := map[string]*ast.Macro{
+		"sensitive_files": macro1,
+		"is_passwd":       macro2,
+	}
+
+	event := testEvent{
+		open: testOpen{
+			filename: "/etc/hosts",
+		},
+	}
+
+	ruleExpr := `is_passwd`
+	model := &testModel{event: &event}
+	opts := NewOptsWithParams(false, make(map[string]interface{}))
+	field := "open.filename"
+
+	evaluator, rule, err := parse(t, ruleExpr, model, &opts, macros)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", ruleExpr, err)
+	}
+
+	// generate rule partials
+	generatePartials(t, field, model, &opts, evaluator, rule, macros)
+
+	result, err := evaluator.PartialEval(&Context{}, field)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result {
+		t.Error("should be a discriminator")
+	}
+
 }
 
 func BenchmarkComplex(b *testing.B) {

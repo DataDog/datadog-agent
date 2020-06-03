@@ -333,8 +333,8 @@ var (
 	ErrWrongValueType = errors.New("wrong value type")
 )
 
-func (m *Model) GetEvaluator(key string) (interface{}, error) {
-	switch key {
+func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
+	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{$Return := $Field.Name | printf "m.event.%s"}}
 	{{if ne $Field.Handler ""}}
@@ -355,16 +355,16 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc: func(ctx *eval.Context) bool { return {{$Return}} },
 			DebugEvalFnc: func(ctx *eval.Context) bool { return {{$Return}} },
 	{{end}}
-			Field: key,
+			Field: field,
 		}, nil
 	{{end}}
 	}
 
-	return nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) GetFieldValue(key string) (interface{}, error) {
-	switch key {
+func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
+	switch field {
 		{{range $Name, $Field := .Fields}}
 		{{$Return := $Field.Name | printf "e.%s"}}
 		{{if ne $Field.Handler ""}}
@@ -382,33 +382,33 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 		{{end}}
 		}
 
-		return nil, errors.Wrap(ErrFieldNotFound, key)
+		return nil, errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) GetFieldTags(key string) ([]string, error) {
-	switch key {
+func (e *Event) GetFieldTags(field eval.Field) ([]string, error) {
+	switch field {
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
 		return []string{ {{$Field.Tags}} }, nil
 	{{end}}
 	}
 
-	return nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) GetFieldEventType(key string) (string, error) {
-	switch key {
+func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
+	switch field {
 	{{range $Name, $Field := .Fields}}
 	case "{{$Name}}":
 		return "{{$Field.Event}}", nil
 	{{end}}
 	}
 
-	return "", errors.Wrap(ErrFieldNotFound, key)
+	return "", errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) GetFieldType(key string) (reflect.Kind, error) {
-	switch key {
+func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
+	switch field {
 		{{range $Name, $Field := .Fields}}
 
 		case "{{$Name}}":
@@ -422,12 +422,12 @@ func (e *Event) GetFieldType(key string) (reflect.Kind, error) {
 		{{end}}
 		}
 
-		return reflect.Invalid, errors.Wrap(ErrFieldNotFound, key)
+		return reflect.Invalid, errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) SetFieldValue(key string, value interface{}) error {
+func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	var ok bool
-	switch key {
+	switch field {
 		{{range $Name, $Field := .Fields}}
 		{{$FieldName := $Field.Name | printf "e.%s"}}
 		case "{{$Name}}":
@@ -452,7 +452,7 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 		{{end}}
 		}
 
-		return errors.Wrap(ErrFieldNotFound, key)
+		return errors.Wrap(ErrFieldNotFound, field)
 }
 
 `))

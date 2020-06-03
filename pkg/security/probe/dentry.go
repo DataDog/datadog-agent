@@ -15,6 +15,7 @@ import (
 )
 
 type DentryResolver struct {
+	probe     *eprobe.Probe
 	pathnames eprobe.Table
 	lru       *simplelru.LRU
 }
@@ -134,19 +135,24 @@ func (dr *DentryResolver) Resolve(dev uint32, inode uint64) string {
 	return path
 }
 
-func NewDentryResolver(probe *eprobe.Probe) (*DentryResolver, error) {
-	pathnames := probe.Table("pathnames")
+func (dr *DentryResolver) Start() error {
+	pathnames := dr.probe.Table("pathnames")
 	if pathnames == nil {
-		return nil, fmt.Errorf("pathnames BPF_HASH table doesn't exist")
+		return fmt.Errorf("pathnames BPF_HASH table doesn't exist")
 	}
+	dr.pathnames = pathnames
 
+	return nil
+}
+
+func NewDentryResolver(probe *eprobe.Probe) (*DentryResolver, error) {
 	lru, err := simplelru.NewLRU(1024, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DentryResolver{
-		pathnames: pathnames,
-		lru:       lru,
+		lru:   lru,
+		probe: probe,
 	}, nil
 }

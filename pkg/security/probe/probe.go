@@ -335,34 +335,13 @@ func (p *Probe) getPerfMaps() []*types.PerfMap {
 	}
 }
 
-func NewProbe(config *config.Config) (*Probe, error) {
-	asset := "probe"
-	openSyscall := getSyscallFnName("open")
-	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
-		asset += "-syscall-wrapper"
+func (p *Probe) Start() error {
+	if err := p.Load(); err != nil {
+		return err
 	}
 
-	bytecode, err := Asset(asset + ".o") // ioutil.ReadFile("pkg/security/ebpf/probe.o")
-	if err != nil {
-		return nil, err
-	}
-
-	module, err := gobpf.NewModuleFromReader(bytes.NewReader(bytecode))
-	if err != nil {
-		return nil, err
-	}
-	log.Infof("Loaded security agent eBPF module: %+v", module)
-
-	p := &Probe{
-		onDiscardersFncs: make(map[string][]onDiscarderFnc),
-		enableFilters:    config.EnableKernelFilters,
-		tables:           make(map[string]eprobe.Table),
-	}
-
-	ebpfProbe := &eprobe.Probe{
-		Module:   module,
-		Tables:   p.getTableNames(),
-		PerfMaps: p.getPerfMaps(),
+	if err := p.resolvers.Start(); err != nil {
+		return err
 	}
 
 	for _, kprobe := range AllKProbes {
@@ -379,21 +358,7 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		}
 	}
 
-	if err := ebpfProbe.Load(); err != nil {
-		return nil, err
-	}
-	p.Probe = ebpfProbe
-
-	dentryResolver, err := NewDentryResolver(ebpfProbe)
-	if err != nil {
-		return nil, err
-	}
-
-	p.resolvers = &Resolvers{
-		DentryResolver: dentryResolver,
-	}
-
-	return p, nil
+	return p.Probe.Start()
 }
 
 func (p *Probe) SetEventHandler(handler EventHandler) {
@@ -604,6 +569,47 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 	}
 
 	return nil
+}
+
+func NewProbe(config *config.Config) (*Probe, error) {
+	p := &Probe{
+		onDiscardersFncs: make(map[string][]onDiscarderFnc),
+		enableFilters:    config.EnableKernelFilters,
+		tables:           make(map[string]eprobe.Table),
+	}
+
+	asset := "pkg/security/ebpf/probe"
+	openSyscall := getSyscallFnName("open")
+	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
+		asset += "-syscall-wrapper"
+	}
+
+	bytecode, err := Asset(asset + ".o") // ioutil.ReadFile("pkg/security/ebpf/probe.o")
+	if err != nil {
+		return nil, err
+	}
+
+	module, err := gobpf.NewModuleFromReader(bytes.NewReader(bytecode))
+	if err != nil {
+		return nil, err
+	}
+
+	p.Probe = &eprobe.Probe{
+		Module:   module,
+		Tables:   p.getTableNames(),
+		PerfMaps: p.getPerfMaps(),
+	}
+
+	dentryResolver, err := NewDentryResolver(p.Probe)
+	if err != nil {
+		return nil, err
+	}
+
+	p.resolvers = &Resolvers{
+		DentryResolver: dentryResolver,
+	}
+
+	return p, nil
 }
 
 func init() {

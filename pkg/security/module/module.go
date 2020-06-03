@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -81,7 +82,11 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 }
 
 func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, error) {
-	var policySet policy.PolicySet
+	var result *multierror.Error
+
+	// Create new ruleset with empty rules and macros
+	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
+
 	// Load and parse policies
 	for _, policyDef := range config.Policies {
 		for _, policyPath := range policyDef.Files {
@@ -90,29 +95,26 @@ func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, er
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to load policy `%s`", policyPath)
 			}
+
 			// Parse policy file
 			policy, err := policy.LoadPolicy(f)
 			if err != nil {
 				return nil, errors.Wrapf(err, "failed to load policy `%s`", policyPath)
 			}
-			// Merge in the policy set
-			policySet.AddPolicy(policy)
+
+			// Add the macros to the ruleset and generate macros evaluators
+			if err := ruleSet.AddMacros(policy.Macros); err != nil {
+				result = multierror.Append(result, err)
+			}
+
+			// Add rules to the ruleset and generate rules evaluators
+			if err := ruleSet.AddRules(policy.Rules); err != nil {
+				result = multierror.Append(result, err)
+			}
 		}
 	}
 
-	// Create new ruleset with empty rules and macros
-	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
-
-	// Add the macros to the ruleset and generate macros evaluators
-	if err := ruleSet.AddMacros(policySet.Macros); err != nil {
-		return nil, errors.Wrap(err, "couldn't add macros to the ruleset")
-	}
-
-	// Add rules to the ruleset and generate rules evaluators
-	if err := ruleSet.AddRules(policySet.Rules); err != nil {
-		return nil, errors.Wrap(err, "couldn't add rules to the ruleset")
-	}
-	return ruleSet, nil
+	return ruleSet, result.ErrorOrNil()
 }
 
 func (m *Module) GetStats() map[string]interface{} {
@@ -126,7 +128,7 @@ func (m *Module) GetRuleSet() *eval.RuleSet {
 func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {
 	config, err := config.NewConfig()
 	if err != nil {
-		log.Errorf("invalid security agent configuration: %s", err)
+		log.Errorf("invalid security module configuration: %s", err)
 		return nil, err
 	}
 

@@ -4,12 +4,12 @@ import "reflect"
 
 type Event interface {
 	GetID() string
-	GetType() string
-	GetFieldTags(key string) ([]string, error)
-	GetFieldEventType(key string) (string, error)
-	SetFieldValue(key string, value interface{}) error
-	GetFieldValue(key string) (interface{}, error)
-	GetFieldType(key string) (reflect.Kind, error)
+	GetType() EventType
+	GetFieldTags(field string) ([]string, error)
+	GetFieldEventType(field Field) (EventType, error)
+	SetFieldValue(field Field, value interface{}) error
+	GetFieldValue(field Field) (interface{}, error)
+	GetFieldType(field Field) (reflect.Kind, error)
 }
 
 // RuleEvent - Rule event wrapper used to send an event to the backend
