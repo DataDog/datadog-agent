@@ -52,13 +52,15 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 	switch lastToken {
 	case FilteredBracketedIdentifier:
 		if token != ']' {
-			// we haven't found the closing bracket yet, keep going
-			if token != ID {
-				// the token between the brackets *must* be an identifier,
+			switch token {
+			case ID, '.':
+				// we haven't found the closing bracket yet, keep going
+				return FilteredBracketedIdentifier, nil, nil
+			default:
+				// the token between the brackets *must* be a whitelisted identifier,
 				// otherwise the query is invalid.
 				return LexError, nil, fmt.Errorf("expected identifier in bracketed filter, got %d", token)
 			}
-			return FilteredBracketedIdentifier, nil, nil
 		}
 		fallthrough
 	case As:
@@ -103,6 +105,10 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 		}
 	}
 	switch token {
+	case BindParameterAt:
+		return token, []byte("@?"), nil
+	case BindParameterColon:
+		return token, []byte(":?"), nil
 	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
 		return FilteredGroupable, []byte("?"), nil
 	default:
@@ -281,7 +287,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		if buff != nil {
 			if out.Len() != 0 {
 				switch token {
-				case ',':
+				case ',', '.':
 				case '=':
 					if lastToken == ':' {
 						// do not add a space before an equals if a colon was
@@ -290,7 +296,11 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 					}
 					fallthrough
 				default:
-					out.WriteRune(' ')
+					switch lastToken {
+					case '.', '@':
+					default:
+						out.WriteRune(' ')
+					}
 				}
 			}
 			out.Write(buff)
