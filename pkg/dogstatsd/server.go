@@ -103,7 +103,20 @@ type dsdServerDebug struct {
 	// Enabled is an atomic int used as a boolean
 	Enabled uint64                         `json:"enabled"`
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
-	keyGen  *ckey.KeyGenerator
+	// counting number of metrics processed last X seconds
+	metricsCounts metricsCountBuckets
+	// keyGen is used to generate hashes of the metrics received by dogstatsd
+	keyGen *ckey.KeyGenerator
+}
+
+// metricsCountBuckets is counting the amount of metrics received for the last 5 seconds.
+// It is used to detect spikes.
+type metricsCountBuckets struct {
+	counts     [5]int64
+	bucketIdx  int
+	currentSec time.Time
+	metricChan chan struct{}
+	closeChan  chan struct{}
 }
 
 // NewServer returns a running Dogstatsd server
@@ -192,9 +205,13 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
 		Debug: dsdServerDebug{
-			Enabled: metricsStatsEnabled,
-			Stats:   make(map[ckey.ContextKey]metricStat),
-			keyGen:  ckey.NewKeyGenerator(),
+			Stats: make(map[ckey.ContextKey]metricStat),
+			metricsCounts: metricsCountBuckets{
+				counts:     [5]int64{0, 0, 0, 0, 0},
+				metricChan: make(chan struct{}),
+				closeChan:  make(chan struct{}),
+			},
+			keyGen: ckey.NewKeyGenerator(),
 		},
 	}
 
@@ -218,6 +235,13 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	// ----------------------
 
 	s.handleMessages()
+
+	// start the debug loop
+	// ----------------------
+
+	if metricsStatsEnabled == 1 {
+		s.EnableMetricsStats()
+	}
 
 	// map some metric name
 	// ----------------------
@@ -466,6 +490,80 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	ms.Name = sample.Name
 	ms.Tags = strings.Join(sample.Tags, " ") // we don't want/need to share the underlying array
 	s.Debug.Stats[key] = ms
+
+	s.Debug.metricsCounts.metricChan <- struct{}{}
+}
+
+// EnableMetricsStats enables the debug mode of the DogStatsD server and start
+// the debug mainloop collecting the amount of metrics received.
+func (s *Server) EnableMetricsStats() {
+	s.Debug.Lock()
+	defer s.Debug.Unlock()
+
+	// already enabled?
+	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+		return
+	}
+
+	atomic.StoreUint64(&s.Debug.Enabled, 1)
+	go func() {
+		ticker := time.NewTicker(time.Millisecond * 100)
+		var closed bool
+		log.Info("Starting the DogStatsD debug loop.") // TODO(remy): move this to Debug
+		for {
+			mc := s.Debug.metricsCounts
+			select {
+			case <-ticker.C:
+				sec := time.Now().Truncate(time.Second)
+				if sec.After(mc.currentSec) {
+					mc.currentSec = sec
+					mc.bucketIdx++
+					if mc.bucketIdx >= len(mc.counts) {
+						mc.bucketIdx = 0
+					}
+					// compare this one to the sum of all others
+					// if the difference is higher than all others sum, consider this
+					// as an anomaly.
+					var sum int64
+					for _, v := range mc.counts {
+						sum += v
+					}
+					sum -= mc.counts[mc.bucketIdx]
+					if mc.counts[mc.bucketIdx] > sum {
+						log.Warnf("A spike, a large increase or a large decrease of metrics has been observed by DogStatSd: here is the last 5 seconds count of metrics: %v", mc.counts)
+					}
+
+					mc.counts[mc.bucketIdx] = 0
+				}
+			case <-mc.metricChan:
+				mc.counts[mc.bucketIdx]++
+			case <-mc.closeChan:
+				closed = true
+				break
+			}
+
+			s.Debug.metricsCounts = mc
+			if closed {
+				break
+			}
+		}
+		log.Info("Stopping the DogStatsD debug loop.") // TODO(remy): move this to Debug
+		ticker.Stop()
+	}()
+}
+
+// DisableMetricsStats disables the debug mode of the DogStatsD server and
+// stops the debug mainloop.
+func (s *Server) DisableMetricsStats() {
+	s.Debug.Lock()
+	defer s.Debug.Unlock()
+
+	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+		s.Debug.metricsCounts.closeChan <- struct{}{}
+		atomic.StoreUint64(&s.Debug.Enabled, 0)
+	}
+
+	log.Info("Disabling DogStatsD debug metrics stats.")
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.
