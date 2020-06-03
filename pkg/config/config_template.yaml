@@ -445,7 +445,7 @@ api_key:
   ## @param configs - list - required
   ## The actual configurations used to discover SNMP devices in various subnets.
   #
-  # configs: 
+  # configs:
     ## @param network - string - required
     ## The subnet in CIDR format to scan for SNMP devices.
     ## All unignored IP addresses in the CIDR range are scanned.
