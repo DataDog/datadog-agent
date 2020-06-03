@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type sqlTestCase struct {
@@ -148,7 +149,8 @@ func TestSQLUTF8(t *testing.T) {
 		},
 	} {
 		oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.in)
-		assert.NoError(err)
+		require.NoError(t, err)
+		require.NotNil(t, oq)
 		assert.Equal(tt.out, oq.Query)
 	}
 }
@@ -251,11 +253,11 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			"SELECT `host`.`address` FROM `host` WHERE org_id=42",
-			"SELECT host . address FROM host WHERE org_id = ?",
+			"SELECT host.address FROM host WHERE org_id = ?",
 		},
 		{
 			`SELECT "host"."address" FROM "host" WHERE org_id=42`,
-			`SELECT host . address FROM host WHERE org_id = ?`,
+			`SELECT host.address FROM host WHERE org_id = ?`,
 		},
 		{
 			`SELECT * FROM host WHERE id IN (42, 43) /*
@@ -322,11 +324,11 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			"SELECT articles.* FROM articles WHERE ( title = :title )",
-			"SELECT articles.* FROM articles WHERE ( title = :title )",
+			"SELECT articles.* FROM articles WHERE ( title = :? )",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE ( title = @title )",
-			"SELECT articles.* FROM articles WHERE ( title = @title )",
+			"SELECT articles.* FROM articles WHERE ( title = @? )",
 		},
 		{
 			"SELECT date(created_at) as ordered_date, sum(price) as total_price FROM orders GROUP BY date(created_at) HAVING sum(price) > 100",
@@ -366,7 +368,7 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			`SELECT "webcore_page"."id" FROM "webcore_page" WHERE "webcore_page"."slug" = %s ORDER BY "webcore_page"."path" ASC LIMIT 1`,
-			"SELECT webcore_page . id FROM webcore_page WHERE webcore_page . slug = ? ORDER BY webcore_page . path ASC LIMIT ?",
+			"SELECT webcore_page.id FROM webcore_page WHERE webcore_page.slug = ? ORDER BY webcore_page.path ASC LIMIT ?",
 		},
 		{
 			"SELECT server_table.host AS host_id FROM table#.host_tags as server_table WHERE server_table.host_id = 50",
@@ -398,7 +400,7 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			"INSERT INTO `qual-aa`.issues (alert0 , alert1) VALUES (NULL, NULL)",
-			"INSERT INTO qual-aa . issues ( alert0, alert1 ) VALUES ( ? )",
+			"INSERT INTO qual-aa.issues ( alert0, alert1 ) VALUES ( ? )",
 		},
 		{
 			"INSERT INTO user (id, email, name) VALUES (null, ?, ?)",
@@ -433,13 +435,13 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			"SET @g = 'POLYGON((0 0,10 0,10 10,0 10,0 0),(5 5,7 5,7 7,5 7, 5 5))';",
-			"SET @g = ?",
+			"SET @? = ?",
 		},
 		{
 			`SELECT daily_values.*,
                     LEAST((5040000 - @runtot), value) AS value,
                     ` + "(@runtot := @runtot + daily_values.value) AS total FROM (SELECT @runtot:=0) AS n, `daily_values`  WHERE `daily_values`.`subject_id` = 12345 AND `daily_values`.`subject_type` = 'Skippity' AND (daily_values.date BETWEEN '2018-05-09' AND '2018-06-19') HAVING value >= 0 ORDER BY date",
-			`SELECT daily_values.*, LEAST ( ( ? - @runtot ), value ), ( @runtot := @runtot + daily_values.value ) FROM ( SELECT @runtot := ? ), daily_values WHERE daily_values . subject_id = ? AND daily_values . subject_type = ? AND ( daily_values.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date`,
+			`SELECT daily_values.*, LEAST ( ( ? - @? ), value ), ( @? := @? + daily_values.value ) FROM ( SELECT @? := ? ), daily_values WHERE daily_values.subject_id = ? AND daily_values.subject_type = ? AND ( daily_values.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date`,
 		},
 		{
 			`    SELECT
@@ -478,7 +480,7 @@ func TestSQLQuantizer(t *testing.T) {
 			`SELECT [b].[BlogId], [b].[Name]
 FROM [Blogs] AS [b]
 ORDER BY [b].[Name]`,
-			`SELECT [ b ] . [ BlogId ], [ b ] . [ Name ] FROM [ Blogs ] ORDER BY [ b ] . [ Name ]`,
+			`SELECT [ b ].[ BlogId ], [ b ].[ Name ] FROM [ Blogs ] ORDER BY [ b ].[ Name ]`,
 		},
 		{
 			`SELECT * FROM users WHERE firstname=''`,
@@ -1073,4 +1075,112 @@ func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(nil)
 	o.ObfuscateSQLString(hangStr)
+}
+
+func TestMySQLDialect(t *testing.T) {
+	// These queries specifically test that obfuscation produces the same result on the raw query and MySQL digest query
+	rawQuery := "SELECT `avg_us`, `ro` as `percentile` FROM" +
+		"(SELECT `avg_us`, @rownum := @rownum + 1 as `ro` FROM" +
+		"    (SELECT ROUND(avg_timer_wait / 1000000) as `avg_us`" +
+		"        FROM performance_schema.events_statements_summary_by_digest" +
+		"        ORDER BY `avg_us` ASC) p," +
+		"    (SELECT @rownum := 0) r) q" +
+		"    WHERE q.`ro` > ROUND(.95*@rownum)" +
+		"    ORDER BY `percentile` ASC" +
+		"    LIMIT 1"
+	digestQuery := "SELECT `avg_us` , `ro` AS `percentile` FROM ( SELECT `avg_us` , @? := @? + ? AS `ro` FROM ( SELECT `ROUND` ( `avg_timer_wait` / ? ) AS `avg_us` FROM `performance_schema` . `events_statements_summary_by_digest` ORDER BY `avg_us` ASC ) `p` , ( SELECT @? := ? ) `r` ) `q` WHERE `q` . `ro` > `ROUND` ( ? * @? ) ORDER BY `percentile` ASC LIMIT ?"
+	expectedObf := "SELECT avg_us, ro FROM ( SELECT avg_us, @? := @? + ? FROM ( SELECT ROUND ( avg_timer_wait / ? ) FROM performance_schema.events_statements_summary_by_digest ORDER BY avg_us ASC ) p, ( SELECT @? := ? ) r ) q WHERE q.ro > ROUND ( ? * @? ) ORDER BY percentile ASC LIMIT ?"
+
+	cases := []sqlTestCase{
+		{
+			rawQuery,
+			expectedObf,
+		},
+		{
+			digestQuery,
+			expectedObf,
+		},
+		{
+			"select count(1) where t.`column` > 1",
+			"select count ( ? ) where t.column > ?",
+		},
+		{
+			"EXPLAIN FORMAT=json SELECT schema_name, ROUND((SUM(sum_timer_wait) / SUM(count_star)) / 1000000) AS avg_us FROM performance_schema.events_statements_summary_by_digest GROUP BY schema_name",
+			"EXPLAIN FORMAT = json SELECT schema_name, ROUND ( ( SUM ( sum_timer_wait ) / SUM ( count_star ) ) / ? ) FROM performance_schema.events_statements_summary_by_digest GROUP BY schema_name",
+		},
+		{
+			"select @@hostname",
+			"select @@ hostname",
+		},
+		{
+			"SET @@SESSION.max_join_size = @@GLOBAL.max_join_size",
+			"SET @@ SESSION.max_join_size = @@ GLOBAL.max_join_size",
+		},
+		{
+			"PREPARE stmt1 FROM 'SELECT SQRT(POW(?,2) + POW(?,2)) AS hypotenuse'",
+			"PREPARE stmt1 FROM ?",
+		},
+		{
+			"EXECUTE stmt1 USING @a, @b;",
+			"EXECUTE stmt1 USING @?, @?",
+		},
+		{
+			"SET @total_tax = (SELECT SUM(tax) FROM taxable_transactions);",
+			"SET @? = ( SELECT SUM ( tax ) FROM taxable_transactions )",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run("", func(t *testing.T) {
+			s := SQLSpan(c.query)
+			NewObfuscator(nil).Obfuscate(s)
+			assert.Equal(t, c.expected, s.Resource)
+		})
+	}
+}
+
+func TestPostgreSQLDialect(t *testing.T) {
+	cases := []sqlTestCase{
+		{
+			"select (ARRAY[1464816152000]::bigint[] <@ ARRAY[1464816152000,1466906028002]::bigint[])::boolean;",
+			"select ( ARRAY [ ? ] ::bigint [ ] <@ ARRAY [ ? ] ::bigint [ ] ) ::boolean",
+		},
+		{
+			"select (ARRAY[1464816152000]::bigint[] @> ARRAY[1464816152000,1466906028002]::bigint[])::boolean;",
+			"select ( ARRAY [ ? ] ::bigint [ ] @> ARRAY [ ? ] ::bigint [ ] ) ::boolean",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run("", func(t *testing.T) {
+			s := SQLSpan(c.query)
+			NewObfuscator(nil).Obfuscate(s)
+			assert.Equal(t, c.expected, s.Resource)
+		})
+	}
+}
+
+func TestOracleDialect(t *testing.T) {
+	cases := []sqlTestCase{
+		{
+			"@EMPRPT.SQL",
+			"@?",
+		},
+		{
+			"@@ WKRPT.SQL",
+			"@@ WKRPT.SQL",
+		},
+		{
+			"@@WKRPT.SQL",
+			"@@ WKRPT.SQL",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run("", func(t *testing.T) {
+			s := SQLSpan(c.query)
+			NewObfuscator(nil).Obfuscate(s)
+			assert.Equal(t, c.expected, s.Resource)
+		})
+	}
 }
