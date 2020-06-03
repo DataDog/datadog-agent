@@ -37,9 +37,9 @@ func (s dsdStatsRuntimeSetting) Set(v interface{}) error {
 	}
 
 	if newValue {
-		atomic.StoreUint64(&common.DSD.Debug.Enabled, 1)
+		common.DSD.EnableMetricsStats()
 	} else {
-		atomic.StoreUint64(&common.DSD.Debug.Enabled, 0)
+		common.DSD.DisableMetricsStats()
 	}
 
 	config.Datadog.Set("dogstatsd_metrics_stats_enable", newValue)
