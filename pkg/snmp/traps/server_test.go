@@ -248,6 +248,28 @@ func TestServerV3(t *testing.T) {
 		assertV3(t, p, config)
 		assertVariables(t, p)
 	})
+
+	/*
+	* Clients can send packets w/o privacy even if the trap listener has privacy configured.
+	* This is not intuitive, so this test is here to make that behavior clear.
+	 */
+	t.Run("auth-client-no-priv", func(t *testing.T) {
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{User: "doggo", AuthProtocol: "SHA", AuthKey: "doggopass", PrivProtocol: "DES", PrivKey: "doggokey"})
+		b.Configure()
+
+		s := b.StartServer()
+		defer s.Stop()
+
+		clientConfig := config
+		clientConfig.PrivProtocol = ""
+		clientConfig.PrivKey = ""
+		sendTestTrap(t, clientConfig)
+		p := receivePacket(t, s)
+		require.NotNil(t, p)
+		assertV3(t, p, config)
+		assertVariables(t, p)
+	})
 }
 
 func TestConcurrency(t *testing.T) {
@@ -338,6 +360,21 @@ func TestBadCredentials(t *testing.T) {
 		assertNoPacketReceived(t, s)
 	})
 
+	t.Run("v3-wrong-auth-protocol", func(t *testing.T) {
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{User: "doggo", AuthProtocol: "SHA", AuthKey: "doggopass"})
+		b.Configure()
+
+		s := b.StartServer()
+		defer s.Stop()
+
+		clientConfig := config
+		clientConfig.AuthKey = "MD5"
+
+		sendTestTrap(t, clientConfig)
+		assertNoPacketReceived(t, s)
+	})
+
 	t.Run("v3-wrong-auth-key", func(t *testing.T) {
 		b := NewBuilder(t)
 		config := b.Add(TrapListenerConfig{User: "doggo", AuthProtocol: "SHA", AuthKey: "doggopass"})
@@ -351,6 +388,22 @@ func TestBadCredentials(t *testing.T) {
 
 		sendTestTrap(t, clientConfig)
 		assertNoPacketReceived(t, s)
+	})
+
+	t.Run("v3-wrong-privacy-protocol", func(t *testing.T) {
+		b := NewBuilder(t)
+		config := b.Add(TrapListenerConfig{User: "doggo", AuthProtocol: "SHA", AuthKey: "doggopass", PrivProtocol: "AES", PrivKey: "doggokey"})
+		b.Configure()
+
+		s := b.StartServer()
+		defer s.Stop()
+
+		clientConfig := config
+		clientConfig.PrivKey = "DES"
+
+		// FIXME: currently panics due to a bug in GoSNMP's decryptPacket() implementation.
+		// sendTestTrap(t, clientConfig)
+		// assertNoPacketReceived(t, s)
 	})
 
 	t.Run("v3-wrong-privacy-key", func(t *testing.T) {
