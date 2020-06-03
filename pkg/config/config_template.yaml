@@ -447,9 +447,10 @@ api_key:
   ## Example:
   ## configs:
   ##  - network: 10.0.0.0/24
-  ##    version: 2
+  ##    version: 1
   ##    community: public
   ##  - network: 10.0.1.0/28
+  ##    community: public
   ##    ignored_ip_addresses:
   ##      - 10.0.1.0
   ##      - 10.0.1.1
