@@ -1,11 +1,13 @@
 package eval
 
 import (
-	"math/rand"
+	"fmt"
 	"reflect"
-	"sort"
+	"strings"
 
+	"github.com/alecthomas/participle/lexer"
 	"github.com/cihub/seelog"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
@@ -13,13 +15,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type FilterValue struct {
-	Field string
-	Value interface{}
-	Type  FieldValueType
-	Not   bool
+type RuleParseError struct {
+	pos  lexer.Position
+	expr string
+}
 
-	ignore bool
+func (e *RuleParseError) Error() string {
+	column := e.pos.Column
+	if column > 0 {
+		column--
+	}
+
+	str := fmt.Sprintf("%s\n", e.expr)
+	str += strings.Repeat(" ", column)
+	str += "^"
+	return str
 }
 
 type RuleSetListener interface {
@@ -27,41 +37,11 @@ type RuleSetListener interface {
 	EventDiscarderFound(event Event, field string)
 }
 
-type RuleBucket struct {
-	rules  []*Rule
-	fields []string
-}
-
-func (rl *RuleBucket) AddRule(rule *Rule) error {
-	for _, r := range rl.rules {
-		if r.ID == rule.ID {
-			return DuplicateRuleID{ID: r.ID}
-		}
-	}
-
-	for _, field := range rule.evaluator.GetFields() {
-		index := sort.SearchStrings(rl.fields, field)
-		if index < len(rl.fields) && rl.fields[index] == field {
-			continue
-		}
-		rl.fields = append(rl.fields, "")
-		copy(rl.fields[index+1:], rl.fields[index:])
-		rl.fields[index] = field
-	}
-
-	rl.rules = append(rl.rules, rule)
-
-	return nil
-}
-
-func (rl *RuleBucket) GetRules() []*Rule {
-	return rl.rules
-}
-
 type RuleSet struct {
 	opts             Opts
-	eventRuleBuckets map[string]*RuleBucket
-	macros           map[string]*Macro
+	eventRuleBuckets map[EventType]*RuleBucket
+	macros           map[policy.MacroID]*Macro
+	rules            map[policy.RuleID]*Rule
 	model            Model
 	eventCtor        func() Event
 	listeners        []RuleSetListener
@@ -69,82 +49,93 @@ type RuleSet struct {
 	fields []string
 }
 
-// generateMacroEvaluators - Generates the macros evaluators for the list of macros of the ruleset. If a field is provided,
-// the function will compute the macro partials.
-func (rs *RuleSet) generateMacroEvaluators(field string) error {
-	macroEvaluators := make(map[string]*MacroEvaluator)
-	for name, macro := range rs.macros {
-		eval, err := MacroToEvaluator(macro.ast, rs.model, &rs.opts, field)
-		if err != nil {
-			if err, ok := err.(*AstToEvalError); ok {
-				log.Errorf("macro syntax error: %s\n%s", err, secl.SprintExprAt(macro.Expression, err.Pos))
-			} else {
-				log.Errorf("macro parsing error: %s\n%s", err, macro.Expression)
-			}
-			return err
+// AddMacros - Parse the macros AST and add them to the list of macros of the ruleset
+func (rs *RuleSet) AddMacros(macros []*policy.MacroDefinition) error {
+	var result *multierror.Error
+
+	// Build the list of macros for the ruleset
+	for _, macroDef := range macros {
+		if _, err := rs.AddMacro(macroDef); err != nil {
+			result = multierror.Append(result, err)
 		}
-		macroEvaluators[name] = eval
 	}
-	rs.opts.SetMacroEvaluators(field, macroEvaluators)
-	return nil
+
+	return result
 }
 
-// AddMacros - Parse the macros AST and add them to the list of macros of the ruleset
-func (rs *RuleSet) AddMacros(macros map[string]*policy.MacroDefinition) error {
-	// Build the list of macros for the ruleset
-	for id, m := range macros {
-		macro := &Macro{
-			ID:         m.ID,
-			Expression: m.Expression,
-		}
-		// Generate Macro AST
-		if err := macro.LoadAST(); err != nil {
-			return errors.Wrapf(err, "couldn't generate a macro AST of the macro %s", id)
-		}
-		rs.macros[id] = macro
+func (rs *RuleSet) AddMacro(macroDef *policy.MacroDefinition) (*Macro, error) {
+	if _, exists := rs.macros[macroDef.ID]; exists {
+		return nil, fmt.Errorf("found multiple definition of the macro '%s'", macroDef.ID)
 	}
 
-	// Generate macro evaluators. The input "field" is therefore empty, we are not generating partials yet.
-	if err := rs.generateMacroEvaluators(""); err != nil {
-		return errors.Wrap(err, "couldn't generate macros evaluators")
+	macro := &Macro{
+		ID:         macroDef.ID,
+		Expression: macroDef.Expression,
 	}
-	return nil
+
+	// Generate Macro AST
+	if err := macro.Parse(); err != nil {
+		return nil, errors.Wrapf(err, "couldn't generate a macro AST of the macro %s", macroDef.ID)
+	}
+
+	evaluator, err := MacroToEvaluator(macro.ast, rs.model, &rs.opts, "")
+	if err != nil {
+		if err, ok := err.(*AstToEvalError); ok {
+			log.Errorf("macro syntax error: %s\n%s", err, secl.SprintExprAt(macro.Expression, err.Pos))
+		} else {
+			log.Errorf("macro parsing error: %s\n%s", err, macro.Expression)
+		}
+		return nil, err
+	}
+
+	// macro.evaluator = evaluator
+	rs.macros[macro.ID] = macro
+	rs.opts.Macros[macro.ID] = evaluator
+
+	return macro, nil
 }
 
 // AddRules - Adds rules to the ruleset and generate their partials
-func (rs *RuleSet) AddRules(rules map[string]*policy.RuleDefinition) error {
+func (rs *RuleSet) AddRules(rules []*policy.RuleDefinition) error {
+	var result *multierror.Error
+
 	for _, ruleDef := range rules {
 		if _, err := rs.AddRule(ruleDef); err != nil {
-			return errors.Wrapf(err, "couldn't add rule %s to the ruleset", ruleDef.ID)
+			result = multierror.Append(result, errors.Wrapf(err, "couldn't add rule %s to the ruleset", ruleDef.ID))
 		}
 	}
 
 	if err := rs.generatePartials(); err != nil {
-		return errors.Wrap(err, "couldn't generate partials")
+		result = multierror.Append(result, errors.Wrap(err, "couldn't generate partials"))
 	}
-	return nil
+
+	return result
 }
 
 // AddRule - Creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*Rule, error) {
+	if _, exists := rs.rules[ruleDef.ID]; exists {
+		return nil, fmt.Errorf("found multiple definition of the rule '%s'", ruleDef.ID)
+	}
+
 	rule := &Rule{
 		ID:         ruleDef.ID,
 		Expression: ruleDef.Expression,
 		Tags:       ruleDef.GetTags(),
 	}
+
 	// Generate ast
-	if err := rule.LoadAST(); err != nil {
+	if err := rule.Parse(); err != nil {
 		return nil, err
 	}
+
 	// Generate rule evaluator
 	evaluator, err := RuleToEvaluator(rule.ast, rs.model, &rs.opts)
 	if err != nil {
 		if err, ok := err.(*AstToEvalError); ok {
-			log.Errorf("rule syntax error: %s\n%s", err, secl.SprintExprAt(ruleDef.Expression, err.Pos))
-		} else {
-			log.Errorf("rule compilation error: %s\n%s", err, ruleDef.Expression)
+			return nil, errors.Wrap(&RuleParseError{pos: err.Pos, expr: rule.Expression}, "rule syntax error")
 		}
-		return nil, err
+		return nil, errors.Wrap(err, "rule compilation error")
 	}
 	rule.evaluator = evaluator
 
@@ -196,108 +187,6 @@ func (rs *RuleSet) HasRulesForEventType(eventType string) bool {
 	return len(bucket.rules) > 0
 }
 
-// FilterValues - list of FilterValue
-type FilterValues []FilterValue
-
-// Approvers associates field names with their Filter values
-type Approvers map[string]FilterValues
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-func randStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(b)
-}
-
-func notOfValue(value interface{}) (interface{}, error) {
-	switch v := value.(type) {
-	case int:
-		return ^v, nil
-	case string:
-		return randStringRunes(256), nil
-	case bool:
-		return !v, nil
-	}
-
-	return nil, errors.New("value type unknown")
-}
-
-// FieldCombinations - array all the combinations of field
-type FieldCombinations [][]string
-
-func (a FieldCombinations) Len() int           { return len(a) }
-func (a FieldCombinations) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a FieldCombinations) Less(i, j int) bool { return len(a[i]) < len(a[j]) }
-
-func fieldCombinations(fields []string) FieldCombinations {
-	var result FieldCombinations
-
-	for i := 1; i < (1 << len(fields)); i++ {
-		var subResult []string
-		for j, field := range fields {
-			if (i & (1 << j)) > 0 {
-				subResult = append(subResult, field)
-			}
-		}
-		result = append(result, subResult)
-	}
-
-	// order the list with the single field first
-	sort.Sort(result)
-
-	return result
-}
-
-// Merge merges to FilterValues ensuring there is no duplicate value
-func (fv FilterValues) Merge(n FilterValues) FilterValues {
-LOOP:
-	for _, v1 := range n {
-		for _, v2 := range fv {
-			if v1.Value == v2.Value {
-				continue LOOP
-			}
-		}
-		fv = append(fv, v1)
-	}
-
-	return fv
-}
-
-type FieldCapabilities []FieldCapability
-
-type FieldCapability struct {
-	Field string
-	Types FieldValueType
-}
-
-func (fcs FieldCapabilities) GetFields() []string {
-	var fields []string
-	for _, fc := range fcs {
-		fields = append(fields, fc.Field)
-	}
-	return fields
-}
-
-func (fcs FieldCapabilities) Validate(approvers map[string]FilterValues) bool {
-	for _, fc := range fcs {
-		values, exists := approvers[fc.Field]
-		if !exists {
-			continue
-		}
-
-		for _, value := range values {
-			if value.Type&fc.Types == 0 {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
 // GetApprovers returns Approvers for the given event type and the fields
 func (rs *RuleSet) GetApprovers(eventType string, fieldCaps FieldCapabilities) (Approvers, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
@@ -305,173 +194,7 @@ func (rs *RuleSet) GetApprovers(eventType string, fieldCaps FieldCapabilities) (
 		return nil, NoEventTypeBucket{EventType: eventType}
 	}
 
-	fcs := fieldCombinations(fieldCaps.GetFields())
-
-	approvers := make(Approvers)
-	for _, rule := range bucket.rules {
-		truthTable, err := rs.genTruthTable(rule)
-		if err != nil {
-			return nil, err
-		}
-
-		var ruleApprovers map[string]FilterValues
-		for _, fields := range fcs {
-			ruleApprovers = truthTable.getApprovers(fields...)
-			if ruleApprovers != nil && len(ruleApprovers) > 0 && fieldCaps.Validate(ruleApprovers) {
-				break
-			}
-		}
-
-		if ruleApprovers == nil || len(ruleApprovers) == 0 || !fieldCaps.Validate(ruleApprovers) {
-			return nil, &NoApprover{Fields: fieldCaps.GetFields()}
-		}
-		for field, values := range ruleApprovers {
-			approvers[field] = approvers[field].Merge(values)
-		}
-	}
-
-	return approvers, nil
-}
-
-type truthEntry struct {
-	Values FilterValues
-	Result bool
-}
-
-type truthTable struct {
-	Entries []truthEntry
-}
-
-func (tt *truthTable) getApprovers(fields ...string) map[string]FilterValues {
-	filterValues := make(map[string]FilterValues)
-
-	for _, entry := range tt.Entries {
-		if !entry.Result {
-			continue
-		}
-
-		// in order to have approvers we need to ensure that for a "true" result
-		// we always have all the given field set to true. If we find a "true" result
-		// with a field set to false we can exclude the given fields as approvers.
-		allFalse := true
-		for _, field := range fields {
-			for _, value := range entry.Values {
-				if value.Field == field && !value.Not {
-					allFalse = false
-					break
-				}
-			}
-		}
-
-		if allFalse {
-			return nil
-		}
-
-		for _, field := range fields {
-		LOOP:
-			for _, value := range entry.Values {
-				if !value.ignore && field == value.Field {
-					fvs := filterValues[value.Field]
-					for _, fv := range fvs {
-						// do not append twice the same value
-						if fv.Value == value.Value {
-							continue LOOP
-						}
-					}
-					fvs = append(fvs, value)
-					filterValues[value.Field] = fvs
-				}
-			}
-		}
-	}
-
-	return filterValues
-}
-
-func (rs *RuleSet) genTruthTable(rule *Rule) (*truthTable, error) {
-	var ctx Context
-
-	event := rs.eventCtor()
-	rs.model.SetEvent(event)
-
-	var filterValues []*FilterValue
-	for field, fValues := range rule.evaluator.FieldValues {
-		// case where there is no static value, ex: process.gid == process.uid
-		// so generate fake value in order to be able to get the truth table
-		if len(fValues) == 0 {
-			var value interface{}
-
-			kind, err := event.GetFieldType(field)
-			if err != nil {
-				return nil, err
-			}
-			switch kind {
-			case reflect.String:
-				value = ""
-			case reflect.Int:
-				value = 0
-			case reflect.Bool:
-				value = false
-			default:
-				return nil, &FieldTypeUnknown{Field: field}
-			}
-
-			filterValues = append(filterValues, &FilterValue{
-				Field:  field,
-				Value:  value,
-				Type:   ScalarValueType,
-				ignore: true,
-			})
-
-			continue
-		}
-
-		for _, fValue := range fValues {
-			filterValues = append(filterValues, &FilterValue{
-				Field: field,
-				Value: fValue.Value,
-				Type:  fValue.Type,
-			})
-		}
-	}
-
-	if len(filterValues) == 0 {
-		return nil, nil
-	}
-
-	if len(filterValues) >= 64 {
-		return nil, errors.New("limit of field values reached")
-	}
-
-	var truthTable truthTable
-	for i := 0; i < (1 << len(filterValues)); i++ {
-		var entry truthEntry
-
-		for j, value := range filterValues {
-			value.Not = (i & (1 << j)) > 0
-			if value.Not {
-				notValue, err := notOfValue(value.Value)
-				if err != nil {
-					return nil, &ValueTypeUnknown{Field: value.Field}
-				}
-				event.SetFieldValue(value.Field, notValue)
-			} else {
-				event.SetFieldValue(value.Field, value.Value)
-			}
-
-			entry.Values = append(entry.Values, FilterValue{
-				Field: value.Field,
-				Value: value.Value,
-				Type:  value.Type,
-				Not:   value.Not,
-			})
-		}
-		entry.Result = rule.evaluator.Eval(&ctx)
-
-		truthTable.Entries = append(truthTable.Entries, entry)
-	}
-
-	return &truthTable, nil
+	return bucket.GetApprovers(rs.model, rs.eventCtor(), fieldCaps)
 }
 
 func (rs *RuleSet) Evaluate(event Event) bool {
@@ -553,9 +276,23 @@ NewFields:
 // we should create an in-kernel filter for that field.
 func (rs *RuleSet) generatePartials() error {
 	// Compute the macros partials for each fields of the ruleset first.
+	macroEvaluators := make(map[Field]map[policy.MacroID]*MacroEvaluator)
+
 	for _, field := range rs.fields {
-		if err := rs.generateMacroEvaluators(field); err != nil {
-			return err
+		for name, macro := range rs.macros {
+			eval, err := MacroToEvaluator(macro.ast, rs.model, &rs.opts, field)
+			if err != nil {
+				if err, ok := err.(*AstToEvalError); ok {
+					log.Errorf("macro syntax error: %s\n%s", err, secl.SprintExprAt(macro.Expression, err.Pos))
+				} else {
+					log.Errorf("macro parsing error: %s\n%s", err, macro.Expression)
+				}
+				return err
+			}
+			if _, exists := macroEvaluators[field]; !exists {
+				macroEvaluators[field] = make(map[policy.MacroID]*MacroEvaluator)
+			}
+			macroEvaluators[field][name] = eval
 		}
 	}
 
@@ -570,8 +307,7 @@ func (rs *RuleSet) generatePartials() error {
 
 			// Only generate partials for the fields of the rule
 			for _, field := range rule.evaluator.GetFields() {
-
-				state := newState(rs.model, field, rs.opts.GetMacroEvaluators(field))
+				state := newState(rs.model, field, macroEvaluators[field])
 				pEval, _, _, err := nodeToEvaluator(rule.ast.BooleanExpression, &rs.opts, state)
 				if err != nil {
 					return errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, rule.ID)

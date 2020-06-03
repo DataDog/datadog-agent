@@ -19,7 +19,7 @@ func (r *Rule) SetPartial(field string, partialEval func(ctx *Context) bool) {
 	r.evaluator.SetPartial(field, partialEval)
 }
 
-func (r *Rule) LoadAST() error {
+func (r *Rule) Parse() error {
 	astRule, err := ast.ParseRule(r.Expression)
 	if err != nil {
 		return err

@@ -15,8 +15,8 @@ var (
 	ErrWrongValueType = errors.New("wrong value type")
 )
 
-func (m *Model) GetEvaluator(key string) (interface{}, error) {
-	switch key {
+func (m *Model) GetEvaluator(field eval.Field) (interface{}, error) {
+	switch field {
 
 	case "chmod.filename":
 
@@ -24,7 +24,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Chmod.ResolveInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Chmod.ResolveInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "chmod.inode":
@@ -33,7 +33,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chmod.Inode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chmod.Inode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "chmod.mode":
@@ -42,7 +42,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chmod.Mode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chmod.Mode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "chown.filename":
@@ -51,7 +51,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Chown.ResolveInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Chown.ResolveInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "chown.gid":
@@ -60,7 +60,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chown.GID) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chown.GID) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "chown.inode":
@@ -69,7 +69,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chown.Inode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chown.Inode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "chown.uid":
@@ -78,7 +78,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chown.UID) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chown.UID) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "container.id":
@@ -87,7 +87,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Container.ID },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Container.ID },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "event.retval":
@@ -96,7 +96,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Event.Retval) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Event.Retval) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "event.type":
@@ -105,7 +105,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Event.ResolveType(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Event.ResolveType(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "mkdir.filename":
@@ -114,7 +114,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Mkdir.ResolveInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Mkdir.ResolveInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "mkdir.inode":
@@ -123,7 +123,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Mkdir.Inode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Mkdir.Inode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "mkdir.mode":
@@ -132,7 +132,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Mkdir.Mode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Mkdir.Mode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "open.basename":
@@ -141,7 +141,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Open.ResolveBasename(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Open.ResolveBasename(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "open.filename":
@@ -150,7 +150,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Open.ResolveInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Open.ResolveInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "open.flags":
@@ -159,7 +159,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Open.Flags) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Open.Flags) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "open.inode":
@@ -168,7 +168,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Open.Inode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Open.Inode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "open.mode":
@@ -177,7 +177,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Open.Mode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Open.Mode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.filename":
@@ -186,7 +186,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.ResolveInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.ResolveInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.gid":
@@ -195,7 +195,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Process.GID) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Process.GID) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.group":
@@ -204,7 +204,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.ResolveGroup(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.ResolveGroup(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.name":
@@ -213,7 +213,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.ResolveComm(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.ResolveComm(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.pid":
@@ -222,7 +222,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Process.Pid) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Process.Pid) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.pidns":
@@ -231,7 +231,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Process.Pidns) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Process.Pidns) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.tid":
@@ -240,7 +240,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Process.Tid) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Process.Tid) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.tty_name":
@@ -249,7 +249,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.ResolveTTY(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.ResolveTTY(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.uid":
@@ -258,7 +258,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Process.UID) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Process.UID) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "process.user":
@@ -267,7 +267,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.ResolveUser(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.ResolveUser(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "rename.new_filename":
@@ -276,7 +276,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Rename.ResolveTargetInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Rename.ResolveTargetInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "rename.new_inode":
@@ -285,7 +285,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Rename.TargetInode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Rename.TargetInode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "rename.old_filename":
@@ -294,7 +294,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Rename.ResolveSrcInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Rename.ResolveSrcInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "rename.old_inode":
@@ -303,7 +303,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Rename.SrcInode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Rename.SrcInode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "rmdir.filename":
@@ -312,7 +312,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Rmdir.ResolveInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Rmdir.ResolveInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "rmdir.inode":
@@ -321,7 +321,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Rmdir.Inode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Rmdir.Inode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "unlink.filename":
@@ -330,7 +330,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Unlink.ResolveInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Unlink.ResolveInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "unlink.inode":
@@ -339,7 +339,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Unlink.Inode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Unlink.Inode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "utimes.filename":
@@ -348,7 +348,7 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) string { return m.event.Utimes.ResolveInode(m.event.resolvers) },
 			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Utimes.ResolveInode(m.event.resolvers) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	case "utimes.inode":
@@ -357,16 +357,16 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Utimes.Inode) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Utimes.Inode) },
 
-			Field: key,
+			Field: field,
 		}, nil
 
 	}
 
-	return nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) GetFieldValue(key string) (interface{}, error) {
-	switch key {
+func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
+	switch field {
 
 	case "chmod.filename":
 
@@ -522,11 +522,11 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 
 	}
 
-	return nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) GetFieldTags(key string) ([]string, error) {
-	switch key {
+func (e *Event) GetFieldTags(field eval.Field) ([]string, error) {
+	switch field {
 
 	case "chmod.filename":
 		return []string{}, nil
@@ -644,11 +644,11 @@ func (e *Event) GetFieldTags(key string) ([]string, error) {
 
 	}
 
-	return nil, errors.Wrap(ErrFieldNotFound, key)
+	return nil, errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) GetFieldEventType(key string) (string, error) {
-	switch key {
+func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
+	switch field {
 
 	case "chmod.filename":
 		return "chmod", nil
@@ -766,11 +766,11 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 
 	}
 
-	return "", errors.Wrap(ErrFieldNotFound, key)
+	return "", errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) GetFieldType(key string) (reflect.Kind, error) {
-	switch key {
+func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
+	switch field {
 
 	case "chmod.filename":
 
@@ -926,12 +926,12 @@ func (e *Event) GetFieldType(key string) (reflect.Kind, error) {
 
 	}
 
-	return reflect.Invalid, errors.Wrap(ErrFieldNotFound, key)
+	return reflect.Invalid, errors.Wrap(ErrFieldNotFound, field)
 }
 
-func (e *Event) SetFieldValue(key string, value interface{}) error {
+func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	var ok bool
-	switch key {
+	switch field {
 
 	case "chmod.filename":
 
@@ -1245,5 +1245,5 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 
 	}
 
-	return errors.Wrap(ErrFieldNotFound, key)
+	return errors.Wrap(ErrFieldNotFound, field)
 }

@@ -11,13 +11,17 @@ import (
 	"github.com/alecthomas/participle/lexer"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type EventType = string
+type Field = string
+
 type Model interface {
-	GetEvaluator(key string) (interface{}, error)
-	ValidateField(key string, value FieldValue) error
+	GetEvaluator(key Field) (interface{}, error)
+	ValidateField(key Field, value FieldValue) error
 	SetEvent(event interface{})
 	GetEvent() Event
 }
@@ -37,11 +41,11 @@ var (
 
 type RuleEvaluator struct {
 	Eval        func(ctx *Context) bool
-	EventTypes  []string
+	EventTypes  []EventType
 	Tags        []string
-	FieldValues map[string][]FieldValue
+	FieldValues map[Field][]FieldValue
 
-	partialEvals map[string]func(ctx *Context) bool
+	partialEvals map[Field]func(ctx *Context) bool
 }
 
 type IdentEvaluator struct {
@@ -50,11 +54,11 @@ type IdentEvaluator struct {
 
 type state struct {
 	model       Model
-	field       string
-	events      map[string]bool
+	field       Field
+	events      map[EventType]bool
 	tags        map[string]bool
-	fieldValues map[string][]FieldValue
-	macros      map[string]*MacroEvaluator
+	fieldValues map[Field][]FieldValue
+	macros      map[policy.MacroID]*MacroEvaluator
 }
 
 type FieldValueType int
@@ -72,27 +76,16 @@ type FieldValue struct {
 type Opts struct {
 	Debug     bool
 	Constants map[string]interface{}
-	// fieldMacroEvaluators - holds the list of macro evaluator for each field (first index) and each macro ID (second index).
-	fieldMacroEvaluators map[string]map[string]*MacroEvaluator
+	Macros    map[policy.MacroID]*MacroEvaluator
 }
 
 // NewOptsWithParams - Initializes a new Opts instance with Debug and Constants parameters
 func NewOptsWithParams(debug bool, constants map[string]interface{}) Opts {
 	return Opts{
-		Debug:                debug,
-		Constants:            constants,
-		fieldMacroEvaluators: make(map[string]map[string]*MacroEvaluator),
+		Debug:     debug,
+		Constants: constants,
+		Macros:    make(map[policy.MacroID]*MacroEvaluator),
 	}
-}
-
-// SetMacroEvaluators - Registers the macro evaluators for the provided field
-func (o *Opts) SetMacroEvaluators(field string, evaluators map[string]*MacroEvaluator) {
-	o.fieldMacroEvaluators[field] = evaluators
-}
-
-// GetMacroEvaluators - Returns the macro evaluators for the provided field
-func (o *Opts) GetMacroEvaluators(field string) map[string]*MacroEvaluator {
-	return o.fieldMacroEvaluators[field]
 }
 
 type MacroEvaluator struct {
@@ -169,13 +162,13 @@ func (s *state) UpdateTags(tags []string) {
 	}
 }
 
-func (s *state) UpdateFields(field string) {
+func (s *state) UpdateFields(field Field) {
 	if _, ok := s.fieldValues[field]; !ok {
 		s.fieldValues[field] = []FieldValue{}
 	}
 }
 
-func (s *state) UpdateFieldValues(field string, value FieldValue) error {
+func (s *state) UpdateFieldValues(field Field, value FieldValue) error {
 	values, ok := s.fieldValues[field]
 	if !ok {
 		values = []FieldValue{}
@@ -196,8 +189,8 @@ func (s *state) Tags() []string {
 	return tags
 }
 
-func (s *state) Events() []string {
-	var events []string
+func (s *state) Events() []EventType {
+	var events []EventType
 
 	for event := range s.events {
 		events = append(events, event)
@@ -207,17 +200,17 @@ func (s *state) Events() []string {
 	return events
 }
 
-func newState(model Model, field string, macros map[string]*MacroEvaluator) *state {
+func newState(model Model, field Field, macros map[policy.MacroID]*MacroEvaluator) *state {
 	if macros == nil {
-		macros = make(map[string]*MacroEvaluator)
+		macros = make(map[policy.MacroID]*MacroEvaluator)
 	}
 	return &state{
 		field:       field,
 		macros:      macros,
 		model:       model,
-		events:      make(map[string]bool),
+		events:      make(map[EventType]bool),
 		tags:        make(map[string]bool),
-		fieldValues: make(map[string][]FieldValue),
+		fieldValues: make(map[Field][]FieldValue),
 	}
 }
 
@@ -553,7 +546,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 	return nil, nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))
 }
 
-func (r *RuleEvaluator) PartialEval(ctx *Context, field string) (bool, error) {
+func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 	eval, ok := r.partialEvals[field]
 	if !ok {
 		return false, errors.New("field not found")
@@ -580,7 +573,7 @@ func (r *RuleEvaluator) GetFields() []string {
 }
 
 func eventFromFields(model Model, state *state) ([]string, error) {
-	events := make(map[string]bool)
+	events := make(map[EventType]bool)
 	for field := range state.fieldValues {
 		eventType, err := model.GetEvent().GetFieldEventType(field)
 		if err != nil {
@@ -599,10 +592,10 @@ func eventFromFields(model Model, state *state) ([]string, error) {
 	return uniq, nil
 }
 
-func MacroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field string) (*MacroEvaluator, error) {
+func MacroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*MacroEvaluator, error) {
 	var eval interface{}
 	var err error
-	state := newState(model, field, nil)
+	state := newState(model, field, opts.Macros)
 
 	switch {
 	case macro.Expression != nil:
@@ -624,7 +617,7 @@ func MacroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field string) (
 
 // RuleToEvaluator - Generate a rule evaluator for the provided ast
 func RuleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
-	state := newState(model, "", opts.GetMacroEvaluators(""))
+	state := newState(model, "", opts.Macros)
 
 	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
 	if err != nil {
