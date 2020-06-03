@@ -53,6 +53,7 @@ func TestTracerExpvar(t *testing.T) {
 			"ClosedConnDropped",
 			"StatsResets",
 			"TimeSyncCollisions",
+			"ConnsOpened",
 		},
 		"tracer": {
 			"ClosedConnPollingLost",
