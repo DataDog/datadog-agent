@@ -11,10 +11,12 @@ import (
 	"github.com/pkg/errors"
 
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
+	"github.com/hashicorp/golang-lru/simplelru"
 )
 
 type DentryResolver struct {
 	pathnames eprobe.Table
+	lru       *simplelru.LRU
 }
 
 type PathKey struct {
@@ -89,15 +91,21 @@ func (dr *DentryResolver) resolve(dev uint32, inode uint64) (filename string, er
 
 	// Fetch path recursively
 	for !done {
-		if pathRaw, err = dr.pathnames.Get(keyBuffer); err != nil {
-			filename = "*ERROR*" + filename
-			break
-		}
+		if value, found := dr.lru.Get(string(keyBuffer)); !found {
+			if pathRaw, err = dr.pathnames.Get(keyBuffer); err != nil {
+				filename = "*ERROR*" + filename
+				break
+			}
 
-		path.parent.Read(pathRaw)
-		if err = binary.Read(bytes.NewBuffer(pathRaw[16:]), byteOrder, &path.name); err != nil {
-			err = errors.Wrap(err, "failed to decode received data (pathLeaf)")
-			break
+			path.parent.Read(pathRaw)
+			if err = binary.Read(bytes.NewBuffer(pathRaw[16:]), byteOrder, &path.name); err != nil {
+				err = errors.Wrap(err, "failed to decode received data (pathLeaf)")
+				break
+			}
+
+			dr.lru.Add(string(keyBuffer), path)
+		} else {
+			path = value.(PathValue)
 		}
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
@@ -132,7 +140,13 @@ func NewDentryResolver(probe *eprobe.Probe) (*DentryResolver, error) {
 		return nil, fmt.Errorf("pathnames BPF_HASH table doesn't exist")
 	}
 
+	lru, err := simplelru.NewLRU(1024, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	return &DentryResolver{
 		pathnames: pathnames,
+		lru:       lru,
 	}, nil
 }
