@@ -26,7 +26,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
 /cmd/system-probe/                      @DataDog/networks
-/cmd/security-agent                     @DataDog/container-integrations
+/cmd/security-agent/                    @DataDog/container-integrations
 
 /Dockerfiles/                           @DataDog/container-integrations
 
