@@ -82,6 +82,7 @@ func (m *OOMKillCheck) Configure(config, initConfig integration.Data, source str
 	return m.instance.Parse(config)
 }
 
+// Run executes the check
 func (m *OOMKillCheck) Run() error {
 	if !m.instance.CollectOOMKill {
 		return nil
