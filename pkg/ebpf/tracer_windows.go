@@ -68,11 +68,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		reverseDNS:      network.NewNullReverseDNS(),
 	}
 
-	//log.Infof("Starting flow polling")
-	//err = tr.initFlowPolling(tr.stopChan)
-	//if err != nil {
-	//	return nil, fmt.Errorf("issue polling packets from driver: %v", err)
-	//}
 	go tr.expvarStats(tr.stopChan)
 	return tr, nil
 }
@@ -108,28 +103,7 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 	}
 }
 
-func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
-	log.Debugf("Started flow polling")
-	go func() {
-		t.inTicker = time.NewTicker(time.Second * time.Duration(t.timerInterval))
-		defer t.inTicker.Stop()
-		for {
-			select {
-			case <-t.stopInTickerRoutine:
-				return
-			case <-t.inTicker.C:
-				connStatsActive, connStatsClosed, err := t.driverInterface.GetConnectionStats()
-				if err != nil {
-					return
-				}
-				printStats(connStatsActive)
-				printStats(connStatsClosed)
-			}
-		}
-	}()
-	return nil
-}
-
+// printStts can be used to debug the stats we pull from the driver
 func printStats(stats []network.ConnectionStats) {
 	for _, stat := range stats {
 		log.Infof("%v", stat)

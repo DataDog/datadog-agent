@@ -36,7 +36,6 @@ func connType(protocol C.uint16_t) ConnectionType {
 	return UDP
 }
 
-// TODO: Ensure this is functioning properly
 func connDirection(flags C.uint32_t) ConnectionDirection {
 	direction := (flags & C.FLOW_DIRECTION_MASK) >> C.FLOW_DIRECTION_BITS
 	if (direction & C.FLOW_DIRECTION_INBOUND) == C.FLOW_DIRECTION_INBOUND {
@@ -92,7 +91,6 @@ func FlowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 		DPort:                uint16(flow.remotePort),
 		Type:                 connectionType,
 		Family:               family,
-		// TODO: Driver needs to be updated to send Direction
 		Direction: connDirection(flow.flags),
 	}
 }
