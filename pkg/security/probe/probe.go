@@ -2,6 +2,7 @@ package probe
 
 import (
 	"bytes"
+	"sync/atomic"
 
 	"github.com/iovisor/gobpf/elf"
 
@@ -17,11 +18,19 @@ type EventHandler interface {
 	HandleEvent(event *Event)
 }
 
+type Stats struct {
+	Events struct {
+		Lost     uint64
+		Received uint64
+	}
+}
+
 type Probe struct {
 	*eprobe.Probe
 	handler       EventHandler
 	kernelFilters *KernelFilters
 	resolvers     *Resolvers
+	stats         Stats
 }
 
 type KProbe struct {
@@ -182,8 +191,9 @@ func (p *Probe) getTables() []*types.Table {
 func (p *Probe) getPerfMaps() []*types.PerfMap {
 	return []*types.PerfMap{
 		{
-			Name:    "events",
-			Handler: p.handleEvent,
+			Name:        "events",
+			Handler:     p.handleEvent,
+			LostHandler: p.handleLostEvents,
 		},
 	}
 }
@@ -246,8 +256,22 @@ func (p *Probe) DispatchEvent(event *Event) {
 	}
 }
 
+func (p *Probe) GetStats() Stats {
+	return p.stats
+}
+
+func (p *Probe) ResetStats() {
+	p.stats = Stats{}
+}
+
+func (p *Probe) handleLostEvents(count uint64) {
+	log.Warnf("Lost %d events\n", count)
+	atomic.AddUint64(&p.stats.Events.Lost, count)
+}
+
 func (p *Probe) handleEvent(data []byte) {
 	log.Debugf("Handling dentry event (len %d)", len(data))
+	atomic.AddUint64(&p.stats.Events.Received, 1)
 
 	offset := 0
 	event := NewEvent(p.resolvers)
