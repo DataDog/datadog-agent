@@ -17,6 +17,7 @@ type PerfMap struct {
 	*bpflib.PerfMap
 
 	handler       func([]byte)
+	lostHandler   func(uint64)
 	eventChannel  chan []byte
 	lostChannel   chan uint64
 	receivedCount int64
@@ -42,6 +43,10 @@ func (p *PerfMap) Start() error {
 					return
 				}
 				atomic.AddInt64(&p.lostCount, int64(lostCount))
+
+				if p.lostHandler != nil {
+					p.lostHandler(lostCount)
+				}
 			}
 		}
 	}()

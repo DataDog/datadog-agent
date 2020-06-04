@@ -16,4 +16,5 @@ type PerfMap struct {
 	Name         string
 	BufferLength int
 	Handler      func([]byte)
+	LostHandler  func(uint64)
 }
