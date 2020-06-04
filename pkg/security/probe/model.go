@@ -280,7 +280,7 @@ func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
 type ProcessEvent struct {
 	Pidns   uint64 `field:"pidns" event:"*"`
 	Comm    string `field:"name" handler:"ResolveComm,string" event:"*"`
-	TTYName string `field:"tty_name" handler:ResolveTTY",string" event:"*"`
+	TTYName string `field:"tty_name" handler:"ResolveTTY,string" event:"*"`
 	Pid     uint32 `field:"pid" event:"*"`
 	Tid     uint32 `field:"tid" event:"*"`
 	UID     uint32 `field:"uid" event:"*"`
