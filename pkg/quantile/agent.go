@@ -66,11 +66,11 @@ func (a *Agent) Insert(v float64, sampleRate float64) {
 		}
 	} else {
 		// use truncated 1 / sampleRate as count to match histograms
-		n := uint(1 / sampleRate)
+		n := 1 / sampleRate
 		a.Sketch.Basic.InsertN(v, n)
 		kc := KeyCount{
 			k: k,
-			n: n,
+			n: uint(n),
 		}
 		a.CountBuf = append(a.CountBuf, kc)
 	}
@@ -108,7 +108,7 @@ func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) {
 			if kn > whatsLeft {
 				kn = whatsLeft
 			}
-			a.Sketch.Basic.InsertN(lowerB, uint(kn))
+			a.Sketch.Basic.InsertN(lowerB, float64(kn))
 			a.CountBuf = append(a.CountBuf, KeyCount{k: keys[kStartIdx], n: uint(kn)})
 			whatsLeft -= kn
 			kStartIdx = kEndIdx
@@ -117,7 +117,7 @@ func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) {
 		kEndIdx++
 	}
 	if whatsLeft > 0 {
-		a.Sketch.Basic.InsertN(agentConfig.binLow(keys[kStartIdx]), uint(whatsLeft))
+		a.Sketch.Basic.InsertN(agentConfig.binLow(keys[kStartIdx]), float64(whatsLeft))
 		a.CountBuf = append(a.CountBuf, KeyCount{k: keys[kStartIdx], n: uint(whatsLeft)})
 	}
 	a.flush()
