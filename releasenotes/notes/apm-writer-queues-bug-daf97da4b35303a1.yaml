@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-issues:
+fixes:
   - |
     APM: Fixes a problem where writer queues would be inexistent if memory
     and CPU limitations are disabled.

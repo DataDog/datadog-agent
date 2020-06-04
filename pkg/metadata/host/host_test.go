@@ -26,6 +26,7 @@ import (
 func TestGetPayload(t *testing.T) {
 	p := GetPayload(util.HostnameData{Hostname: "myhostname", Provider: ""})
 	assert.NotEmpty(t, p.Os)
+	assert.NotEmpty(t, p.AgentFlavor)
 	assert.NotEmpty(t, p.PythonVersion)
 	assert.NotNil(t, p.SystemStats)
 	assert.NotNil(t, p.Meta)

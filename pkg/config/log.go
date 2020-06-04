@@ -315,7 +315,8 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return slices[len(slices)-1]
 }
 
-func changeLogLevel(level string) error {
+// ChangeLogLevel immediately changes the log level to the given one.
+func ChangeLogLevel(level string) error {
 	seelogLogLevel, err := validateLogLevel(level)
 	if err != nil {
 		return err

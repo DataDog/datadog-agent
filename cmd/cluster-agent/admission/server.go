@@ -25,12 +25,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
 const jsonContentType = "application/json"
 
-type admissionFunc func(*admiv1beta1.AdmissionRequest) (*admiv1beta1.AdmissionResponse, error)
+type admissionFunc func(*admiv1beta1.AdmissionRequest, dynamic.Interface) (*admiv1beta1.AdmissionResponse, error)
 
 type Server struct {
 	mux *http.ServeMux
@@ -45,9 +46,9 @@ func NewServer() *Server {
 
 // Register adds an admission webhook handler.
 // Register must be called to register the desired webhook handlers before calling Run.
-func (s *Server) Register(uri string, f admissionFunc) {
+func (s *Server) Register(uri string, f admissionFunc, dc dynamic.Interface) {
 	s.mux.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
-		mutateHandler(w, r, f)
+		mutateHandler(w, r, f, dc)
 	})
 }
 
@@ -79,7 +80,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 	return server.Shutdown(shutdownCtx)
 }
 
-func mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc) {
+func mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		log.Warnf("Invalid method %s, only POST requests are allowed", r.Method)
@@ -113,7 +114,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionF
 	}
 
 	var admissionReviewResp admiv1beta1.AdmissionReview
-	resp, err := mutateFunc(admissionReviewReq.Request)
+	resp, err := mutateFunc(admissionReviewReq.Request, dc)
 	if err != nil {
 		log.Warnf("Failed to mutate: %v", err)
 		admissionReviewResp = admiv1beta1.AdmissionReview{
@@ -121,7 +122,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionF
 				Result: &metav1.Status{
 					Message: err.Error(),
 				},
-				Allowed: false,
+				Allowed: true, // do not block resources creation in case of mutation failure
 			},
 		}
 	} else {

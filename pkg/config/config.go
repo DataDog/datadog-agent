@@ -132,8 +132,6 @@ func init() {
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	initConfig(Datadog)
-	// Configuration settings that can be changed at runtime
-	initRuntimeSettings()
 }
 
 // initConfig initializes the config defaults on a config
@@ -438,7 +436,7 @@ func initConfig(config Config) {
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
 	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys"})
-	config.BindEnvAndSetDefault("gce_metadata_timeout", 1*time.Second)
+	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
@@ -586,7 +584,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
 	// Admission controller
-	// config.BindEnvAndSetDefault("admission_controller.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
 	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
@@ -662,6 +660,8 @@ func initConfig(config Config) {
 	config.SetKnown("system_probe_config.source_excludes")
 	config.SetKnown("system_probe_config.dest_excludes")
 	config.SetKnown("system_probe_config.closed_channel_size")
+	config.SetKnown("system_probe_config.dns_timeout_in_s")
+	config.SetKnown("system_probe_config.collect_dns_stats")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -705,6 +705,7 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.receiver_timeout")
 	config.SetKnown("apm_config.watchdog_check_delay")
+	config.SetKnown("apm_config.max_payload_size")
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)

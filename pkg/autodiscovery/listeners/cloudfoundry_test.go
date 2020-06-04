@@ -26,6 +26,7 @@ type bbsCacheFake struct {
 	ActualLRPs              map[string][]*cloudfoundry.ActualLRP
 	ActualLRPByInstanceGUID map[string]*cloudfoundry.ActualLRP
 	DesiredLRPs             map[string]*cloudfoundry.DesiredLRP
+	tagsByCellID            map[string]map[string][]string
 }
 
 func (b *bbsCacheFake) LastUpdated() time.Time {
@@ -61,7 +62,9 @@ func (b *bbsCacheFake) GetAllLRPs() (map[string][]*cloudfoundry.ActualLRP, map[s
 }
 
 func (b *bbsCacheFake) GetTagsForNode(nodename string) (map[string][]string, error) {
-	panic("implement me")
+	b.RLock()
+	defer b.RUnlock()
+	return b.tagsByCellID[nodename], nil
 }
 
 var testBBSCache = &bbsCacheFake{}
@@ -80,10 +83,11 @@ func TestCloudFoundryListener(t *testing.T) {
 	defer cfl.Stop()
 
 	for _, tc := range []struct {
-		aLRP   map[string][]*cloudfoundry.ActualLRP
-		dLRP   map[string]*cloudfoundry.DesiredLRP
-		expNew map[string]Service
-		expDel map[string]Service
+		aLRP         map[string][]*cloudfoundry.ActualLRP
+		dLRP         map[string]*cloudfoundry.DesiredLRP
+		tagsByCellID map[string]map[string][]string
+		expNew       map[string]Service
+		expDel       map[string]Service
 	}{
 		{
 			// inputs with no AD_DATADOGHQ_COM set up => no services
@@ -120,12 +124,13 @@ func TestCloudFoundryListener(t *testing.T) {
 			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"processguid1": {
 					{
-						ProcessGUID: "processguid1",
-						CellID:      "cellX",
-						ContainerIP: "1.2.3.4",
-						Index:       0,
-						Ports:       []uint32{11, 22},
-						State:       cloudfoundry.ActualLrpStateRunning,
+						ProcessGUID:  "processguid1",
+						CellID:       "cellX",
+						InstanceGUID: "instance1",
+						ContainerIP:  "1.2.3.4",
+						Index:        0,
+						Ports:        []uint32{11, 22},
+						State:        cloudfoundry.ActualLrpStateRunning,
 					},
 				},
 				"differentprocessguid1": {
@@ -150,11 +155,13 @@ func TestCloudFoundryListener(t *testing.T) {
 					}},
 				},
 			},
+			tagsByCellID: map[string]map[string][]string{"cellX": {"instance1": {"tag:x"}}, "cellY": {"differentinstance1": {"tag:y"}}},
 			expNew: map[string]Service{
 				"processguid1/flask-app/0": &CloudFoundryService{
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
 					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
 					creationTime:   integration.After,
+					tags:           []string{"tag:x"},
 				},
 			},
 			expDel: map[string]Service{},
@@ -169,17 +176,19 @@ func TestCloudFoundryListener(t *testing.T) {
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
 					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
 					creationTime:   integration.After,
+					tags:           []string{"tag:x"},
 				},
 			},
 		},
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for non-containers, no container exists for the app
 			aLRP: map[string][]*cloudfoundry.ActualLRP{
-				"differentprocessguid1": {{ProcessGUID: "differentprocessguid1", CellID: "cellX", Index: 1}},
+				"differentprocessguid1": {{ProcessGUID: "differentprocessguid1", CellID: "cellX", Index: 1, InstanceGUID: "differentinstance1"}},
 			},
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"myprocessguid1": {
 					AppGUID:     "myappguid1",
+					AppName:     "myappname1",
 					ProcessGUID: "myprocessguid1",
 					EnvAD: cloudfoundry.ADConfig{"my-postgres": map[string]json.RawMessage{
 						"check_names":  json.RawMessage(`["postgres"]`),
@@ -190,11 +199,13 @@ func TestCloudFoundryListener(t *testing.T) {
 					EnvVcapServices: map[string][]byte{"my-postgres": []byte(`{"credentials":{"host":"a.b.c","Username":"me","Password":"secret","database_name":"mydb"}}`)},
 				},
 			},
+			tagsByCellID: map[string]map[string][]string{"cellX": {"differentinstance1": {"tag:x"}}},
 			expNew: map[string]Service{
 				"myappguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
 					creationTime:   integration.After,
+					tags:           []string{"app_name:myappname1", "app_guid:myappguid1"},
 				},
 			},
 			expDel: map[string]Service{},
@@ -205,70 +216,78 @@ func TestCloudFoundryListener(t *testing.T) {
 			aLRP: map[string][]*cloudfoundry.ActualLRP{
 				"processguid1": {
 					{
-						ProcessGUID: "processguid1",
-						CellID:      "cellX",
-						ContainerIP: "1.2.3.4",
-						Index:       0,
-						Ports:       []uint32{11, 22},
-						State:       cloudfoundry.ActualLrpStateRunning,
+						ProcessGUID:  "processguid1",
+						InstanceGUID: "instance11",
+						CellID:       "cellX",
+						ContainerIP:  "1.2.3.4",
+						Index:        0,
+						Ports:        []uint32{11, 22},
+						State:        cloudfoundry.ActualLrpStateRunning,
 					},
 					{
-						ProcessGUID: "processguid1",
-						CellID:      "cellY",
-						ContainerIP: "1.2.3.5",
-						Index:       1,
-						Ports:       []uint32{33, 44},
-						State:       cloudfoundry.ActualLrpStateRunning,
+						ProcessGUID:  "processguid1",
+						InstanceGUID: "instance12",
+						CellID:       "cellY",
+						ContainerIP:  "1.2.3.5",
+						Index:        1,
+						Ports:        []uint32{33, 44},
+						State:        cloudfoundry.ActualLrpStateRunning,
 					},
 					{
-						ProcessGUID: "processguid1",
-						CellID:      "cellZ",
-						ContainerIP: "1.2.3.6",
-						Index:       2,
-						Ports:       []uint32{55, 66},
-						State:       "NOTRUNNING",
+						ProcessGUID:  "processguid1",
+						InstanceGUID: "instance13",
+						CellID:       "cellZ",
+						ContainerIP:  "1.2.3.6",
+						Index:        2,
+						Ports:        []uint32{55, 66},
+						State:        "NOTRUNNING",
 					},
 				},
 				"processguid2": {
 					{
-						ProcessGUID: "processguid2",
-						CellID:      "cellY",
-						ContainerIP: "1.2.3.7",
-						Index:       0,
-						Ports:       []uint32{77, 88},
-						State:       cloudfoundry.ActualLrpStateRunning,
+						ProcessGUID:  "processguid2",
+						InstanceGUID: "instance21",
+						CellID:       "cellY",
+						ContainerIP:  "1.2.3.7",
+						Index:        0,
+						Ports:        []uint32{77, 88},
+						State:        cloudfoundry.ActualLrpStateRunning,
 					},
 					{
-						ProcessGUID: "processguid2",
-						CellID:      "cellZ",
-						ContainerIP: "1.2.3.8",
-						Index:       1,
-						Ports:       []uint32{99, 111},
-						State:       cloudfoundry.ActualLrpStateRunning,
+						ProcessGUID:  "processguid2",
+						InstanceGUID: "instance22",
+						CellID:       "cellZ",
+						ContainerIP:  "1.2.3.8",
+						Index:        1,
+						Ports:        []uint32{99, 111},
+						State:        cloudfoundry.ActualLrpStateRunning,
 					},
 				},
 				"processguid3": {
 					{
-						ProcessGUID: "processguid3",
-						CellID:      "cellZ",
-						ContainerIP: "1.2.3.9",
-						Index:       0,
-						Ports:       []uint32{222, 333},
-						State:       cloudfoundry.ActualLrpStateRunning,
+						ProcessGUID:  "processguid3",
+						InstanceGUID: "instance31",
+						CellID:       "cellZ",
+						ContainerIP:  "1.2.3.9",
+						Index:        0,
+						Ports:        []uint32{222, 333},
+						State:        cloudfoundry.ActualLrpStateRunning,
 					},
 					{
-						ProcessGUID: "processguid3",
-						CellID:      "cellZ",
-						ContainerIP: "1.2.3.10",
-						Index:       1,
-						Ports:       []uint32{444, 555},
-						State:       cloudfoundry.ActualLrpStateRunning,
+						ProcessGUID:  "processguid3",
+						InstanceGUID: "instance32",
+						CellID:       "cellZ",
+						ContainerIP:  "1.2.3.10",
+						Index:        1,
+						Ports:        []uint32{444, 555},
+						State:        cloudfoundry.ActualLrpStateRunning,
 					},
 				},
 			},
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"processguid1": {
 					AppGUID:     "appguid1",
+					AppName:     "appname1",
 					ProcessGUID: "processguid1",
 					EnvAD: cloudfoundry.ADConfig{
 						"my-postgres": map[string]json.RawMessage{
@@ -287,6 +306,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"processguid2": {
 					AppGUID:     "appguid2",
+					AppName:     "appname2",
 					ProcessGUID: "processguid2",
 					EnvAD: cloudfoundry.ADConfig{
 						"my-postgres": map[string]json.RawMessage{
@@ -308,11 +328,27 @@ func TestCloudFoundryListener(t *testing.T) {
 					ProcessGUID: "processguid3",
 				},
 			},
+			tagsByCellID: map[string]map[string][]string{
+				"cellX": {
+					"instance11": {"tag:11"},
+				},
+				"cellY": {
+					"instance12": {"tag:12"},
+					"instance21": {"tag:21"},
+				},
+				"cellZ": {
+					"instance13": {"tag:13"},
+					"instance22": {"tag:22"},
+					"instance31": {"tag:31"},
+					"instance32": {"tag:32"},
+				},
+			},
 			expDel: map[string]Service{
 				"myappguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
 					creationTime:   integration.After,
+					tags:           []string{"app_name:myappname1", "app_guid:myappguid1"},
 				},
 			},
 			expNew: map[string]Service{
@@ -329,6 +365,7 @@ func TestCloudFoundryListener(t *testing.T) {
 						},
 					},
 					creationTime: integration.After,
+					tags:         []string{"tag:11"},
 				},
 				"processguid1/flask-app/1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.5"},
@@ -343,11 +380,13 @@ func TestCloudFoundryListener(t *testing.T) {
 						},
 					},
 					creationTime: integration.After,
+					tags:         []string{"tag:12"},
 				},
 				"appguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
 					creationTime:   integration.After,
+					tags:           []string{"app_name:appname1", "app_guid:appguid1"},
 				},
 				"processguid2/flask-app/0": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.7"},
@@ -362,6 +401,7 @@ func TestCloudFoundryListener(t *testing.T) {
 						},
 					},
 					creationTime: integration.After,
+					tags:         []string{"tag:21"},
 				},
 				"processguid2/flask-app/1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.8"},
@@ -376,11 +416,13 @@ func TestCloudFoundryListener(t *testing.T) {
 						},
 					},
 					creationTime: integration.After,
+					tags:         []string{"tag:22"},
 				},
 				"appguid2/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
 					containerPorts: []ContainerPort{},
 					creationTime:   integration.After,
+					tags:           []string{"app_name:appname2", "app_guid:appguid2"},
 				},
 			},
 		},
@@ -390,6 +432,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		testBBSCache.Lock()
 		testBBSCache.ActualLRPs = tc.aLRP
 		testBBSCache.DesiredLRPs = tc.dLRP
+		testBBSCache.tagsByCellID = tc.tagsByCellID
 		testBBSCache.Unlock()
 
 		// make sure at least one refresh loop of the listener has passed *since we updated the cache*

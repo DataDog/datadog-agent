@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -76,7 +77,7 @@ type Server struct {
 	histToDist                bool
 	histToDistPrefix          string
 	extraTags                 []string
-	debugMetricsStats         bool
+	DebugMetricsStats         uint64
 	metricsStats              map[string]metricStat
 	statsLock                 sync.Mutex
 	mapper                    *mapper.MetricMapper
@@ -109,10 +110,10 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 	}
 
-	var metricsStats bool
+	var metricsStats uint64 // we're using an uint64 for its atomic capacity
 	if config.Datadog.GetBool("dogstatsd_metrics_stats_enable") == true {
 		log.Info("Dogstatsd: metrics statistics will be stored.")
-		metricsStats = true
+		metricsStats = 1
 	}
 
 	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
@@ -178,7 +179,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
 		extraTags:                 extraTags,
-		debugMetricsStats:         metricsStats,
+		DebugMetricsStats:         metricsStats,
 		metricsStats:              make(map[string]metricStat),
 		telemetryEnabled:          telemetry.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
@@ -350,7 +351,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 					}
 					continue
 				}
-				if s.debugMetricsStats {
+				if atomic.LoadUint64(&s.DebugMetricsStats) == 1 {
 					s.storeMetricStats(sample.Name)
 				}
 				batcher.appendSample(sample)
