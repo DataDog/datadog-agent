@@ -41,7 +41,12 @@ func (m *mockReaderNoSleep) Close() error {
 }
 
 type mockReaderSleep struct {
-	ctx context.Context
+	ctx     context.Context
+	timeout time.Duration
+}
+
+func newMockReaderSleep(ctx context.Context) *mockReaderSleep {
+	return &mockReaderSleep{ctx: ctx, timeout: 2 * testReadTimeout}
 }
 
 // Read mocks the Docker CLI read function
@@ -51,7 +56,7 @@ func (m *mockReaderSleep) Read(p []byte) (int, error) {
 	var err error
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	time.AfterFunc(2*testReadTimeout, func() {
+	time.AfterFunc(m.timeout, func() {
 		select {
 		case <-m.ctx.Done():
 			err = m.ctx.Err()
@@ -119,7 +124,11 @@ func TestRead(t *testing.T) {
 
 func TestReadTimeout(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	tailer := NewTestTailer(&mockReaderSleep{ctx: ctx}, nil, cancelFunc)
+	reader := newMockReaderSleep(ctx)
+	// The reader should timout after testReadTimeout (10ms).
+	reader.timeout = 2 * time.Second
+
+	tailer := NewTestTailer(reader, nil, cancelFunc)
 	inBuf := make([]byte, 4096)
 
 	n, err := tailer.read(inBuf, testReadTimeout)
@@ -130,7 +139,7 @@ func TestReadTimeout(t *testing.T) {
 
 func TestTailerCanStopWithNilReader(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	tailer := NewTestTailer(&mockReaderSleep{ctx: ctx}, nil, cancelFunc)
+	tailer := NewTestTailer(newMockReaderSleep(ctx), nil, cancelFunc)
 
 	// Simulate error in tailer.setupReader()
 	tailer.reader = newSafeReader()
