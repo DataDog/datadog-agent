@@ -111,7 +111,7 @@ func printStats(stats []network.ConnectionStats) {
 }
 
 // GetActiveConnections returns all active connections
-func (t *Tracer) GetActiveConnections(clientId string) (*network.Connections, error) {
+func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	connStatsActive, connStatsClosed, err := t.driverInterface.GetConnectionStats()
 	if err != nil {
 		log.Errorf("failed to get connnections")
@@ -124,7 +124,7 @@ func (t *Tracer) GetActiveConnections(clientId string) (*network.Connections, er
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
-	conns := t.state.Connections(clientId, uint64(time.Now().Nanosecond()), connStatsActive, t.reverseDNS.GetDNSStats())
+	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), connStatsActive, t.reverseDNS.GetDNSStats())
 	return &network.Connections{Conns: conns}, nil
 }
 
