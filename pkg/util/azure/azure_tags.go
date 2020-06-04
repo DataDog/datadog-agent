@@ -8,6 +8,8 @@ package azure
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 type azureInstanceMetadata struct {
@@ -17,20 +19,24 @@ type azureInstanceMetadata struct {
 	ResourceGroup string `json:"resourceGroupName"`
 }
 
-// GetTags gets the tags from the GCE api
+// GetTags gets the tags from the Azure api
 func GetTags() ([]string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	}
+
 	tags := []string{}
 
 	metadataResponse, err := getResponse(metadataURL + "/metadata/instance/compute?api-version=2017-08-01")
 	if err != nil {
-		return tags, fmt.Errorf("unable to query metadata endpoint: %s", err)
+		return nil, fmt.Errorf("unable to query metadata endpoint: %s", err)
 	}
 
 	metadata := azureInstanceMetadata{}
 
 	err = json.Unmarshal([]byte(metadataResponse), &metadata)
 	if err != nil {
-		return tags, err
+		return nil, err
 	}
 
 	if metadata.VMID != "" {
