@@ -97,10 +97,6 @@ core,"github.com/bhmj/jsonslice",MIT
 core,"github.com/blang/semver",MIT
 core,"github.com/cenkalti/backoff",MIT
 core,"github.com/cihub/seelog",NewBSD
-core,"github.com/cihub/seelog/archive",NewBSD
-core,"github.com/cihub/seelog/archive/gzip",NewBSD
-core,"github.com/cihub/seelog/archive/tar",NewBSD
-core,"github.com/cihub/seelog/archive/zip",NewBSD
 core,"github.com/clbanning/mxj",MIT
 core,"github.com/containerd/cgroups/stats/v1",Apache-2.0
 core,"github.com/containerd/containerd",Apache-2.0
@@ -456,6 +452,8 @@ core,"golang.org/x/tools/go/types/objectpath",NewBSD
 core,"golang.org/x/tools/go/types/typeutil",NewBSD
 core,"golang.org/x/tools/internal/gocommand",NewBSD
 core,"golang.org/x/tools/internal/packagesinternal",NewBSD
+core,"gomodules.xyz/jsonpatch/v3",Apache-2.0
+core,"gomodules.xyz/orderedmap",MIT
 core,"google.golang.org/appengine/internal",Apache-2.0
 core,"google.golang.org/appengine/internal/base",Apache-2.0
 core,"google.golang.org/appengine/internal/datastore",Apache-2.0
