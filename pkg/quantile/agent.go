@@ -53,7 +53,7 @@ func (a *Agent) Reset() {
 func (a *Agent) Insert(v float64, sampleRate float64) {
 	k := agentConfig.key(v)
 	// bounds enforcement
-	if sampleRate < 0 || sampleRate > 1 {
+	if sampleRate <= 0 || sampleRate > 1 {
 		sampleRate = 1
 	}
 
