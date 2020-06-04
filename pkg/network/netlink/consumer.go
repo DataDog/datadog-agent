@@ -127,7 +127,7 @@ func (c *Consumer) Events() <-chan Event {
 	c.do(false, func() {
 		defer close(output)
 		c.streaming = true
-		c.conn.JoinGroup(netlinkCtNew)
+		_ = c.conn.JoinGroup(netlinkCtNew)
 		c.receive(output)
 	})
 
@@ -187,7 +187,7 @@ func (c *Consumer) Stop() {
 // This go-routine is responsible for all socket system calls.
 func (c *Consumer) initWorker(procRoot string) {
 	go func() {
-		util.WithRootNS(procRoot, func() {
+		_ = util.WithRootNS(procRoot, func() {
 			for {
 				fn, ok := <-c.workQueue
 				if !ok {
@@ -347,9 +347,7 @@ func (c *Consumer) throttle(numMessages int) error {
 	// Reset circuit breaker
 	c.breaker.Reset()
 	// Re-subscribe netlinkCtNew messages
-	c.conn.JoinGroup(netlinkCtNew)
-
-	return nil
+	return c.conn.JoinGroup(netlinkCtNew)
 }
 
 func newBufferPool() *sync.Pool {

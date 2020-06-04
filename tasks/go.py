@@ -177,6 +177,12 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         targets = targets.split(',')
 
     tags = build_tags or get_default_build_tags()
+
+    # we need linux_bpf tag for linting to pass, but do not want to run unit tests on ebpf
+    if sys.platform.startswith("linux"):
+        # we want a new list with linux_bpf, not to modify the original
+        tags = tags + ["linux_bpf"]
+
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:

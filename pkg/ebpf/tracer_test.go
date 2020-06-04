@@ -618,14 +618,14 @@ func TestTCPOverIPv6(t *testing.T) {
 	// Create TCP Server which sends back serverMessageSize bytes
 	go func() {
 		for {
-			if c, err := ln.Accept(); err != nil {
+			c, err := ln.Accept()
+			if err != nil {
 				return
-			} else {
-				r := bufio.NewReader(c)
-				r.ReadBytes(byte('\n'))
-				c.Write(genPayload(serverMessageSize))
-				c.Close()
 			}
+			r := bufio.NewReader(c)
+			r.ReadBytes(byte('\n'))
+			c.Write(genPayload(serverMessageSize))
+			c.Close()
 		}
 	}()
 
@@ -1165,9 +1165,9 @@ func searchConnections(c *network.Connections, predicate func(network.Connection
 }
 
 func addrMatches(addr net.Addr, host string, port uint16) bool {
-	addrUrl := url.URL{Scheme: addr.Network(), Host: addr.String()}
+	addrURL := url.URL{Scheme: addr.Network(), Host: addr.String()}
 
-	return addrUrl.Hostname() == host && addrUrl.Port() == strconv.Itoa(int(port))
+	return addrURL.Hostname() == host && addrURL.Port() == strconv.Itoa(int(port))
 }
 
 func runBenchtests(b *testing.B, payloads []int, prefix string, f func(p int) func(*testing.B)) {
@@ -1357,11 +1357,11 @@ func (s *TCPServer) Run(done chan struct{}) {
 
 	go func() {
 		for {
-			if conn, err := ln.Accept(); err != nil {
+			conn, err := ln.Accept()
+			if err != nil {
 				return
-			} else {
-				s.onMessage(conn)
 			}
+			s.onMessage(conn)
 		}
 	}()
 }
@@ -1393,10 +1393,11 @@ func (s *UDPServer) Run(done chan struct{}, payloadSize int) {
 
 	go func() {
 		buf := make([]byte, payloadSize)
-		for {
+		running := true
+		for running {
 			select {
 			case <-done:
-				break
+				running = false
 			default:
 				ln.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
 				n, addr, err := ln.ReadFrom(buf)
