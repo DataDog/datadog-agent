@@ -15,8 +15,9 @@ type Rule struct {
 
 // Scope defines when a rule can be run based on observed properties of the environment
 type Scope struct {
-	Docker     bool               `yaml:"docker"`
-	Kubernetes []KubeNodeSelector `yaml:"kubernetes,omitempty"`
+	Docker            bool               `yaml:"docker"`
+	Kubernetes        []KubeNodeSelector `yaml:"kubernetes,omitempty"`
+	KubernetesCluster bool               `yaml:"kubernetesCluster"`
 }
 
 // KubeNodeSelector defines selector for a Kubernetes node

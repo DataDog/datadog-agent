@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"k8s.io/client-go/dynamic"
 )
 
 // ErrResourceNotSupported is returned when resource type is not supported by CheckBuilder
@@ -98,6 +100,14 @@ func WithAuditClient(cli AuditClient) BuilderOption {
 	}
 }
 
+// WithKubernetesClient allows specific Kubernetes client
+func WithKubernetesClient(cl dynamic.Interface) BuilderOption {
+	return func(b *builder) error {
+		b.kubeClient = cl
+		return nil
+	}
+}
+
 // SuiteMatcher checks if a compliance suite is included
 type SuiteMatcher func(*compliance.SuiteMeta) bool
 
@@ -164,25 +174,28 @@ func NewBuilder(reporter compliance.Reporter, options ...BuilderOption) (Builder
 type builder struct {
 	checkInterval time.Duration
 
-	reporter     compliance.Reporter
-	dockerClient DockerClient
-	auditClient  AuditClient
+	reporter compliance.Reporter
+
 	hostname     string
 	pathMapper   pathMapper
-
 	etcGroupPath string
 
 	suiteMatcher SuiteMatcher
 	ruleMatcher  RuleMatcher
+
+	dockerClient DockerClient
+	auditClient  AuditClient
+	kubeClient   dynamic.Interface
 }
 
 const (
-	checkKindFile    = checkKind("file")
-	checkKindProcess = checkKind("process")
-	checkKindCommand = checkKind("command")
-	checkKindDocker  = checkKind("docker")
-	checkKindAudit   = checkKind("audit")
-	checkKindGroup   = checkKind("group")
+	checkKindFile          = checkKind("file")
+	checkKindProcess       = checkKind("process")
+	checkKindCommand       = checkKind("command")
+	checkKindDocker        = checkKind("docker")
+	checkKindAudit         = checkKind("audit")
+	checkKindGroup         = checkKind("group")
+	checkKindKubeApiserver = checkKind("kubeapiserver")
 )
 
 func (b *builder) Close() error {
@@ -213,7 +226,6 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 	log.Infof("%s/%s: loading suite from %s", suite.Meta.Name, suite.Meta.Version, file)
 	for _, r := range suite.Rules {
-
 		if b.ruleMatcher != nil && !b.ruleMatcher(&r) {
 			log.Tracef("%s/%s: skipped rule %s from %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
 			continue
@@ -251,6 +263,8 @@ func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Ru
 
 		if check, err := b.checkFromRule(meta, rule.ID, ruleScope, resource); err == nil {
 			checks = append(checks, check)
+		} else {
+			return nil, fmt.Errorf("Unable to create check for rule: %s/%s, err: %v", meta.Framework, rule.ID, err)
 		}
 	}
 	return checks, nil
@@ -265,29 +279,39 @@ func (b *builder) getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule
 		// TODO: resource actual scope for Kubernetes role here
 		return "worker", nil
 	}
+
+	if rule.Scope.KubernetesCluster {
+		return "kubernetesCluster", nil
+	}
+
 	return "", ErrRuleScopeNotSupported
 }
 
 func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, ruleScope string, resource compliance.Resource) (check.Check, error) {
 	switch {
-	case resource.File != nil:
-		return newFileCheck(b.baseCheck(ruleID, checkKindFile, ruleScope, meta), b.pathMapper, resource.File)
 	case resource.Docker != nil:
 		if b.dockerClient == nil {
 			return nil, log.Errorf("%s: skipped - docker client not initialized", ruleID)
 		}
 		return newDockerCheck(b.baseCheck(ruleID, checkKindFile, ruleScope, meta), b.dockerClient, resource.Docker)
-	case resource.Process != nil:
-		return newProcessCheck(b.baseCheck(ruleID, checkKindProcess, ruleScope, meta), resource.Process)
-	case resource.Command != nil:
-		return newCommandCheck(b.baseCheck(ruleID, checkKindCommand, ruleScope, meta), resource.Command)
 	case resource.Audit != nil:
 		if b.auditClient == nil {
 			return nil, log.Errorf("%s: skipped - audit client not initialized", ruleID)
 		}
 		return newAuditCheck(b.baseCheck(ruleID, checkKindAudit, ruleScope, meta), b.auditClient, resource.Audit)
+	case resource.KubeApiserver != nil:
+		if b.kubeClient == nil {
+			return nil, log.Errorf("%s: skipped - kube client not initialized", ruleID)
+		}
+		return newKubeapiserverCheck(b.baseCheck(ruleID, checkKindKubeApiserver, ruleScope, meta), resource.KubeApiserver, b.kubeClient)
+	case resource.File != nil:
+		return newFileCheck(b.baseCheck(ruleID, checkKindFile, ruleScope, meta), b.pathMapper, resource.File)
 	case resource.Group != nil:
 		return newGroupCheck(b.baseCheck(ruleID, checkKindGroup, ruleScope, meta), b.etcGroupPath, resource.Group)
+	case resource.Process != nil:
+		return newProcessCheck(b.baseCheck(ruleID, checkKindProcess, ruleScope, meta), resource.Process)
+	case resource.Command != nil:
+		return newCommandCheck(b.baseCheck(ruleID, checkKindCommand, ruleScope, meta), resource.Command)
 	default:
 		log.Errorf("%s: resource not supported", ruleID)
 		return nil, ErrResourceNotSupported

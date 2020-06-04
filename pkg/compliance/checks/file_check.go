@@ -6,16 +6,15 @@
 package checks
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	jsonutil "github.com/DataDog/datadog-agent/pkg/util/json"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/bhmj/jsonslice"
 )
 
 var (
@@ -78,7 +77,7 @@ func (c *fileCheck) reportFile(filePath string) error {
 		switch field.Kind {
 		case compliance.PropertyKindAttribute:
 			v, err = c.getAttribute(filePath, fi, field.Property)
-		case compliance.PropertyKindJSONPath:
+		case compliance.PropertyKindJSONQuery:
 			v, err = c.getJSONPathValue(filePath, field.Property)
 		default:
 			return ErrPropertyKindNotSupported
@@ -113,7 +112,7 @@ func (c *fileCheck) getAttribute(filePath string, fi os.FileInfo, property strin
 	return "", ErrPropertyNotSupported
 }
 
-func (c *fileCheck) getJSONPathValue(filePath string, jsonPath string) (string, error) {
+func (c *fileCheck) getJSONPathValue(filePath string, jsonquery string) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -125,13 +124,16 @@ func (c *fileCheck) getJSONPathValue(filePath string, jsonPath string) (string, 
 		return "", err
 	}
 
-	data, err = jsonslice.Get(data, jsonPath)
+	var jsonContent interface{}
+	err = json.Unmarshal(data, &jsonContent)
 	if err != nil {
 		return "", err
 	}
-	s := string(data)
-	if len(s) != 0 && s[0] == '"' {
-		return strconv.Unquote(string(data))
+
+	value, _, err := jsonutil.RunSingleOutput(jsonquery, jsonContent)
+	if err != nil {
+		return "", err
 	}
-	return s, nil
+
+	return value, nil
 }

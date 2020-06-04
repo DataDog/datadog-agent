@@ -9,12 +9,13 @@ import "fmt"
 
 // Resource describes supported resource types observed by a Rule
 type Resource struct {
-	File    *File           `yaml:"file,omitempty"`
-	Process *Process        `yaml:"process,omitempty"`
-	Group   *Group          `yaml:"group,omitempty"`
-	Command *Command        `yaml:"command,omitempty"`
-	Audit   *Audit          `yaml:"audit,omitempty"`
-	Docker  *DockerResource `yaml:"docker,omitempty"`
+	File          *File               `yaml:"file,omitempty"`
+	Process       *Process            `yaml:"process,omitempty"`
+	Group         *Group              `yaml:"group,omitempty"`
+	Command       *Command            `yaml:"command,omitempty"`
+	Audit         *Audit              `yaml:"audit,omitempty"`
+	Docker        *DockerResource     `yaml:"docker,omitempty"`
+	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
 }
 
 // File describes a file resource
@@ -35,6 +36,26 @@ type Process struct {
 	Filter []Filter `yaml:"filter,omitempty"`
 
 	Report Report `yaml:"report,omitempty"`
+}
+
+// KubernetesResource describes any object in Kubernetes (incl. CRDs)
+type KubernetesResource struct {
+	Kind      string `yaml:"kind"`
+	Version   string `yaml:"version"`
+	Group     string `yaml:"group"`
+	Namespace string `yaml:"namespace"`
+
+	APIRequest KubernetesAPIRequest `yaml:"apiRequest"`
+
+	Filter []Filter `yaml:"filter,omitempty"`
+
+	Report Report `yaml:"report,omitempty"`
+}
+
+// KubernetesAPIRequest defines it check applies to a single object or a list
+type KubernetesAPIRequest struct {
+	Verb         string `yaml:"verb"`
+	ResourceName string `yaml:"resourceName"`
 }
 
 // Group describes a group membership resource
@@ -129,8 +150,8 @@ const (
 	// PropertyKindAttribute describes an attribute
 	PropertyKindAttribute = "attribute"
 
-	// PropertyKindJSONPath describes a JSONPath query
-	PropertyKindJSONPath = "jsonpath"
+	// PropertyKindJSONQuery describes a JSON query (jq syntax)
+	PropertyKindJSONQuery = "jsonquery"
 
 	// PropertyKindFlag describes a process flag
 	PropertyKindFlag = "flag"
@@ -158,7 +179,7 @@ type CommandCondition struct {
 	ExitCode int `yaml:"exitCode"`
 }
 
-// Filter specifies filtering options to include or exclude a Docker resource from reporting
+// Filter specifies filtering options to include or exclude a resource
 type Filter struct {
 	Include *Condition `yaml:"include,omitempty"`
 	Exclude *Condition `yaml:"exclude,omitempty"`
@@ -169,6 +190,15 @@ const (
 	OpExists = "exists"
 	// OpEqual defines an operation that checks for property equality
 	OpEqual = "equal"
+)
+
+const (
+	// ConditionKindKubernetesLabelSelector applies a labelSelector filter to Kube resources
+	ConditionKindKubernetesLabelSelector = "labelSelector"
+	// ConditionKindKubernetesFieldSelector applies a fieldSelector filter to Kube resources
+	ConditionKindKubernetesFieldSelector = "fieldSelector"
+	// ConditionKindJSONQuery applies a jsonQuery filter to a resource
+	ConditionKindJSONQuery = "jsonquery"
 )
 
 // Condition defines a filter condition
