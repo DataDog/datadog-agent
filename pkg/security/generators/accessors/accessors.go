@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -441,7 +442,7 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 		panic(err)
 	}
 
-	tmpfile, err := ioutil.TempFile("", "accessors")
+	tmpfile, err := ioutil.TempFile(path.Dir(filename), "accessors")
 	if err != nil {
 		log.Fatal(err)
 	}
