@@ -65,7 +65,7 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": os.path.join(BIN_PATH, bin_name("trace-agent", android=False)),
         "gcflags": gcflags,
