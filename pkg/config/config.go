@@ -735,6 +735,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.max_kernel_filters", 128)
 	config.BindEnvAndSetDefault("runtime_security_config.policies", []interface{}{})
 	config.BindEnvAndSetDefault("runtime_security_config.system_probe_addr", "localhost:8787")
+	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
 	config.BindEnvAndSetDefault("compliance_config.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
