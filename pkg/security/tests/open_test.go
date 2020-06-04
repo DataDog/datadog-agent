@@ -75,7 +75,16 @@ func benchmarkOpenSameFile(b *testing.B, rules ...*policy.RuleDefinition) {
 	}
 }
 
-func BenchmarkOpen(b *testing.B) {
+func BenchmarkOpenNoApprover(b *testing.B) {
+	rule := &policy.RuleDefinition{
+		ID:         "test-rule",
+		Expression: `open.filename =~ "{{.Root}}/donotmatch"`,
+	}
+
+	benchmarkOpenSameFile(b, rule)
+}
+
+func BenchmarkOpenWithApprover(b *testing.B) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
