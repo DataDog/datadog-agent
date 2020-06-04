@@ -2,6 +2,8 @@
 
 package net
 
+import "fmt"
+
 const (
 	statusURL      = "http://localhost:3333/status"
 	connectionsURL = "http://localhost:3333/connections"
@@ -9,9 +11,10 @@ const (
 	netType        = "tcp"
 )
 
-// CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
-// From the main agent and want to ensure the probe listener exists
-// TODO: Reimpliment CheckPath if we need to do path checking for windows
+// CheckPath is used to make sure the globalSocketPath has been set before attempting to connect
 func CheckPath() error {
+	if globalSocketPath == "" {
+		return fmt.Errorf("remote tracer has no path defined")
+	}
 	return nil
 }
