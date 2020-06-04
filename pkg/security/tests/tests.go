@@ -31,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var eventChanLength = 100
+
 const grpcAddr = "127.0.0.1:18787"
 
 const testConfig = `---
@@ -248,7 +250,7 @@ func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefiniti
 		return nil, err
 	}
 
-	events := make(chan *sprobe.Event, 100)
+	events := make(chan *sprobe.Event, eventChanLength)
 
 	handler := &testEventHandler{events: events}
 	probe.SetEventHandler(handler)

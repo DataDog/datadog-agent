@@ -2,6 +2,7 @@ package tests
 
 import (
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -11,18 +12,24 @@ import (
 	"github.com/pkg/errors"
 )
 
-func openTestFile(t *testing.T, test *testProbe, filename string) (int, string) {
+func openTestFile(test *testProbe, filename string) (int, string, error) {
 	testFile, testFilePtr, err := test.Path(filename)
 	if err != nil {
-		t.Fatal(err)
+		return 0, "", err
+	}
+
+	if dir := filepath.Dir(testFile); dir != test.Root() {
+		if err := os.MkdirAll(dir, 0777); err != nil {
+			return 0, "", errors.Wrap(err, "failed to create directory")
+		}
 	}
 
 	fd, _, errno := syscall.Syscall(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT)
 	if errno != 0 {
-		t.Fatal(err)
+		return 0, "", error(errno)
 	}
 
-	return int(fd), testFile
+	return int(fd), testFile, nil
 }
 
 func waitForOpenEvent(test *testProbe, filename string) (*probe.Event, error) {
@@ -50,7 +57,10 @@ func TestOpenSimpleFilter(t *testing.T) {
 	}
 	defer test.Close()
 
-	fd1, testFile1 := openTestFile(t, test, "test-1")
+	fd1, testFile1, err := openTestFile(test, "test-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer syscall.Close(fd1)
 	defer os.Remove(testFile1)
 
@@ -58,7 +68,10 @@ func TestOpenSimpleFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fd2, testFile2 := openTestFile(t, test, "test-2")
+	fd2, testFile2, err := openTestFile(test, "test-2")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer syscall.Close(fd2)
 	defer os.Remove(testFile2)
 
