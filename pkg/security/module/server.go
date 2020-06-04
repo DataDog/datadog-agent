@@ -59,6 +59,6 @@ func (e *EventServer) SendEvent(rule *eval.Rule, event eval.Event) {
 
 func NewEventServer() *EventServer {
 	return &EventServer{
-		msgs: make(chan *api.SecurityEventMessage, 1000),
+		msgs: make(chan *api.SecurityEventMessage, 5),
 	}
 }
