@@ -79,7 +79,14 @@ var OpenKProbes = []*KProbe{
 				for _, filter := range filters {
 					handleBasenameFilter(probe, filter.Value.(string), filter.Not)
 				}
+
 			case "open.filename":
+				for _, filter := range filters {
+					if filter.Not {
+						return errors.New("open.filename not filter unsupported")
+					}
+				}
+
 				for _, filter := range filters {
 					basename := path.Base(filter.Value.(string))
 					handleBasenameFilter(probe, basename, filter.Not)
