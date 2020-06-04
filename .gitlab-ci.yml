@@ -2484,7 +2484,7 @@ docker_build_agent7_jmx:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_amd64
   needs:
-    - job: agent_deb-x64-a7
+    - job: agent_with-bcc_deb-x64-a7
       artifacts: false
   <<: *skip_when_unwanted_on_7
   variables:
