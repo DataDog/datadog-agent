@@ -518,7 +518,7 @@ func (s *Server) EnableMetricsStats() {
 					s.Debug.metricsCounts.currentSec = sec
 
 					if s.hasSpike() {
-						log.Warnf("A spike, a large increase or a large decrease of metrics has been observed by DogStatSd: here is the last 5 seconds count of metrics: %v", s.Debug.metricsCounts.counts)
+						log.Warnf("A burst of metrics has been detected by DogStatSd: here is the last 5 seconds count of metrics: %v", s.Debug.metricsCounts.counts)
 					}
 
 					s.Debug.metricsCounts.bucketIdx++
