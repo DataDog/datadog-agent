@@ -139,6 +139,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
 	}
 
+	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
+		a.EnabledChecks = append(a.EnabledChecks, "OOM Kill")
+	}
+
 	return nil
 }
 

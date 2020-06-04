@@ -298,7 +298,7 @@ def build_object_files(ctx, install=True):
         # Now update the assets stored in the go code
         commands.append("go get -u github.com/jteeuwen/go-bindata/...")
 
-        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}'"
+        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}'"
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
         commands.append(assets_cmd.format(
             c_dir=c_dir,
@@ -307,6 +307,8 @@ def build_object_files(ctx, install=True):
             debug_obj_file=debug_obj_file,
             tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
             tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
+            oom_kill_kern_c_file=os.path.join(c_dir, "oom-kill-kern.c"),
+            oom_kill_kern_user_h_file=os.path.join(c_dir, "oom-kill-kern-user.h"),
         ))
 
         commands.append("gofmt -w -s {go_file}".format(go_file=go_file))

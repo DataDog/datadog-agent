@@ -1,0 +1,21 @@
+init_config:
+
+instances:
+
+    -
+
+    ## @param collect_oom_kill - boolean - optional - default: true
+    ## Specify if the check should collect OOM kill metrics
+    ## This requires system-probe.
+    ## And this requires the enable_oom_kill parameter of system-probe.yaml to be set to true.
+    #
+    # collect_oom_kill: true
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
