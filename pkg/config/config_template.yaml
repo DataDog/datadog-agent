@@ -726,9 +726,9 @@ api_key:
 {{ end -}}
 {{- if .Dogstatsd }}
 
-############################
+#############################
 ## DogStatsD Configuration ##
-############################
+#############################
 
 ## @param use_dogstatsd - boolean - optional - default: true
 ## Set this option to false to disable the Agent DogStatsD server.
