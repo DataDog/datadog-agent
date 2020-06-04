@@ -163,8 +163,8 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	case "process.tty_name":
 
 		return &eval.StringEvaluator{
-			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.TTYName },
-			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.TTYName },
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.ResolveTTY(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.ResolveTTY(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -282,6 +282,10 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 
 		return int(e.Mkdir.Mode), nil
 
+	case "open.basename":
+
+		return e.Open.ResolveBasename(e.resolvers), nil
+
 	case "open.filename":
 
 		return e.Open.ResolveInode(e.resolvers), nil
@@ -320,25 +324,25 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 
 	case "process.tty_name":
 
-		return e.Process.TTYName, nil
+		return e.Process.ResolveTTY(e.resolvers), nil
 
 	case "process.uid":
 
 		return int(e.Process.UID), nil
 
-	case "rename.newfilename":
+	case "rename.new_filename":
 
 		return e.Rename.ResolveTargetInode(e.resolvers), nil
 
-	case "rename.newinode":
+	case "rename.new_inode":
 
 		return int(e.Rename.TargetInode), nil
 
-	case "rename.oldfilename":
+	case "rename.old_filename":
 
 		return e.Rename.ResolveSrcInode(e.resolvers), nil
 
-	case "rename.oldinode":
+	case "rename.old_inode":
 
 		return int(e.Rename.SrcInode), nil
 
@@ -501,7 +505,7 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 		return "*", nil
 
 	case "process.tty_name":
-		return "", nil
+		return "*", nil
 
 	case "process.uid":
 		return "*", nil
@@ -591,7 +595,7 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 
 	case "open.basename":
 
-		if m.event.Open.BasenameStr, ok = value.(string); !ok {
+		if e.Open.BasenameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
@@ -689,14 +693,14 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 		e.Process.UID = uint32(v)
 		return nil
 
-	case "rename.newfilename":
+	case "rename.new_filename":
 
 		if e.Rename.TargetPathnameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
 
-	case "rename.newinode":
+	case "rename.new_inode":
 
 		v, ok := value.(int)
 		if !ok {
@@ -705,14 +709,14 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 		e.Rename.TargetInode = uint64(v)
 		return nil
 
-	case "rename.oldfilename":
+	case "rename.old_filename":
 
 		if e.Rename.SrcPathnameStr, ok = value.(string); !ok {
 			return ErrWrongValueType
 		}
 		return nil
 
-	case "rename.oldinode":
+	case "rename.old_inode":
 
 		v, ok := value.(int)
 		if !ok {
