@@ -9,8 +9,10 @@ package mutate
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -39,11 +41,15 @@ func InjectConfig(req *admiv1beta1.AdmissionRequest, dc dynamic.Interface) (*adm
 // injectConfig injects DD_AGENT_HOST into a pod template if needed
 func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	if pod == nil {
+		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(false))
+		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod")
 		return errors.New("cannot inject config into nil pod")
 	}
+	injected := false
 	if shouldInjectConf(pod) {
-		injectEnv(pod, agentHostEnvVar)
+		injected = injectEnv(pod, agentHostEnvVar)
 	}
+	metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injected))
 	return nil
 }
 
