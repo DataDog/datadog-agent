@@ -56,6 +56,7 @@ func (m *Module) RegisterPerfMap(perfMap *types.PerfMap) (probe.PerfMap, error) 
 	return &PerfMap{
 		PerfMap:      pm,
 		handler:      perfMap.Handler,
+		lostHandler:  perfMap.LostHandler,
 		eventChannel: eventChannel,
 		lostChannel:  lostChannel,
 	}, nil
