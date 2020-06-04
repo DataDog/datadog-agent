@@ -91,6 +91,6 @@ func FlowToConnStat(flow *C.struct__perFlowData) ConnectionStats {
 		DPort:                uint16(flow.remotePort),
 		Type:                 connectionType,
 		Family:               family,
-		Direction: connDirection(flow.flags),
+		Direction:            connDirection(flow.flags),
 	}
 }
