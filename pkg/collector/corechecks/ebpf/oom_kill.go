@@ -115,7 +115,7 @@ func (m *OOMKillCheck) Run() error {
 		}
 		if line.MemCgOOM == 1 {
 			triggerType = "cgroup"
-			triggerTypeText = fmt.Sprintf("This OOM kill was invoked by a cgroup, containerID: %s.", triggerType, line.ContainerID)
+			triggerTypeText = fmt.Sprintf("This OOM kill was invoked by a cgroup, containerID: %s.", line.ContainerID)
 		} else {
 			triggerType = "system"
 			triggerTypeText = fmt.Sprintf("This OOM kill was invoked by the system.")
