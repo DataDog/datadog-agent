@@ -29,9 +29,10 @@ type Stats struct {
 type Probe struct {
 	*eprobe.Probe
 	handler       EventHandler
-	kernelFilters *KernelFilters
 	resolvers     *Resolvers
 	stats         Stats
+	eventFilterCb map[string][]filterCb
+	enableFilters bool
 }
 
 type KProbe struct {
@@ -223,7 +224,10 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	}
 	log.Infof("Loaded security agent eBPF module: %+v", module)
 
-	p := &Probe{}
+	p := &Probe{
+		eventFilterCb: make(map[string][]filterCb),
+		enableFilters: config.EnableKernelFilters,
+	}
 
 	ebpfProbe := &eprobe.Probe{
 		Module:   module,
@@ -239,13 +243,6 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		return nil, err
 	}
 	p.Probe = ebpfProbe
-
-	p.kernelFilters, err = NewKernelFilters(config.MaxKernelFilters, []string{
-		"process_discriminators",
-	}, ebpfProbe)
-	if err != nil {
-		return nil, err
-	}
 
 	dentryResolver, err := NewDentryResolver(ebpfProbe)
 	if err != nil {
@@ -358,6 +355,16 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 						return err
 					}
 					already[kprobe] = true
+				}
+
+				if !p.enableFilters {
+					if kprobe.SetFilterPolicy != nil {
+						log.Infof("Forcing in-kernel filter policy to `pass` for `%s`", eventType)
+						if err := kprobe.SetFilterPolicy(p, POLICY_MODE_ACCEPT); err != nil {
+							return err
+						}
+					}
+					continue
 				}
 
 				eventFilters, err := rs.GetEventFilters(eventType, capabilities...)
