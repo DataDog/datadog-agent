@@ -310,7 +310,6 @@ def fetch_python_version(timeout = 15)
   return nil
 end
 
-
 shared_examples_for 'Agent install' do
   it_behaves_like 'an installed Agent'
 end
@@ -328,7 +327,6 @@ end
 shared_examples_for 'Agent uninstall' do
   it_behaves_like 'an Agent that is removed'
 end
-
 
 shared_examples_for "an installed Agent" do
   wait_until_started
@@ -356,7 +354,6 @@ shared_examples_for "an installed Agent" do
     end
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
   }
-
 
   it 'is properly signed' do
     puts "swsc is #{skip_windows_signing_check}"
@@ -723,7 +720,6 @@ shared_examples_for 'an Agent that is removed' do
       expect(File).not_to exist('/usr/bin/datadog-agent')
     end
   end
-
 end
 
 shared_examples_for 'an Agent with APM enabled' do
