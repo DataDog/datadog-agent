@@ -1,9 +1,5 @@
 package quantile
 
-import (
-	"math"
-)
-
 const (
 	agentBufCap = 512
 )
@@ -56,6 +52,11 @@ func (a *Agent) Reset() {
 // Insert v into the sketch.
 func (a *Agent) Insert(v float64, sampleRate float64) {
 	k := agentConfig.key(v)
+	// bounds enforcement
+	if sampleRate < 0 || sampleRate > 1 {
+		sampleRate = 1
+	}
+
 	if sampleRate == 1 {
 		a.Sketch.Basic.Insert(v)
 		a.Buf = append(a.Buf, k)
@@ -64,7 +65,8 @@ func (a *Agent) Insert(v float64, sampleRate float64) {
 			return
 		}
 	} else {
-		n := uint(math.Ceil(1 / sampleRate))
+		// use truncated 1 / sampleRate as count to match histograms
+		n := uint(1 / sampleRate)
 		a.Sketch.Basic.InsertN(v, n)
 		kc := KeyCount{
 			k: k,
