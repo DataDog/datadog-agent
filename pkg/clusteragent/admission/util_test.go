@@ -128,19 +128,9 @@ func Test_generateWebhooks(t *testing.T) {
 				webhook.ObjectSelector = &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
-							Key:      "tags.datadoghq.com/env",
-							Operator: metav1.LabelSelectorOpExists,
-							Values:   []string{},
-						},
-						{
-							Key:      "tags.datadoghq.com/service",
-							Operator: metav1.LabelSelectorOpExists,
-							Values:   []string{},
-						},
-						{
-							Key:      "tags.datadoghq.com/version",
-							Operator: metav1.LabelSelectorOpExists,
-							Values:   []string{},
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
 						},
 					},
 				}
@@ -164,19 +154,9 @@ func Test_generateWebhooks(t *testing.T) {
 				webhookTags.ObjectSelector = &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
-							Key:      "tags.datadoghq.com/env",
-							Operator: metav1.LabelSelectorOpExists,
-							Values:   []string{},
-						},
-						{
-							Key:      "tags.datadoghq.com/service",
-							Operator: metav1.LabelSelectorOpExists,
-							Values:   []string{},
-						},
-						{
-							Key:      "tags.datadoghq.com/version",
-							Operator: metav1.LabelSelectorOpExists,
-							Values:   []string{},
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
 						},
 					},
 				}

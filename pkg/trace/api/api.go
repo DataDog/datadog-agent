@@ -44,11 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	maxRequestBodyLength = 10 * 1024 * 1024
-	tagTraceHandler      = "handler:traces"
-)
-
 // Version is a dumb way to version our collector handlers
 type Version string
 
@@ -82,9 +77,8 @@ type HTTPReceiver struct {
 	dynConf *sampler.DynamicConfig
 	server  *http.Server
 
-	maxRequestBodyLength int64
-	debug                bool
-	rateLimiterResponse  int // HTTP status code when refusing
+	debug               bool
+	rateLimiterResponse int // HTTP status code when refusing
 
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
@@ -104,9 +98,8 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		conf:    conf,
 		dynConf: dynConf,
 
-		maxRequestBodyLength: maxRequestBodyLength,
-		debug:                strings.ToLower(conf.LogLevel) == "debug",
-		rateLimiterResponse:  rateLimiterResponse,
+		debug:               strings.ToLower(conf.LogLevel) == "debug",
+		rateLimiterResponse: rateLimiterResponse,
 
 		exit: make(chan struct{}),
 	}
@@ -272,7 +265,7 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			return
 		}
 
-		req.Body = NewLimitedReader(req.Body, r.maxRequestBodyLength)
+		req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
 		f(v, w, req)
 	}
@@ -376,7 +369,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 
 	traces, err := r.decodeTraces(v, req)
 	if err != nil {
-		httpDecodingError(err, []string{tagTraceHandler, fmt.Sprintf("v:%s", v)}, w)
+		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		if err == ErrLimitedReaderLimitReached {
 			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, traceCount)
 		} else {

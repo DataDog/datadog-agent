@@ -150,14 +150,6 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 		authProtocol = gosnmp.MD5
 	} else if lowerAuthProtocol == "sha" {
 		authProtocol = gosnmp.SHA
-	} else if lowerAuthProtocol == "sha224" {
-		authProtocol = gosnmp.SHA224
-	} else if lowerAuthProtocol == "sha256" {
-		authProtocol = gosnmp.SHA256
-	} else if lowerAuthProtocol == "sha384" {
-		authProtocol = gosnmp.SHA384
-	} else if lowerAuthProtocol == "sha512" {
-		authProtocol = gosnmp.SHA512
 	} else {
 		return nil, fmt.Errorf("Unsupported authentication protocol: %s", c.AuthProtocol)
 	}
