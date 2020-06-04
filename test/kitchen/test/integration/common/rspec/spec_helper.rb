@@ -3,6 +3,7 @@ require 'open-uri'
 require 'rspec'
 require 'rbconfig'
 require 'yaml'
+require 'find'
 
 os_cache = nil
 
@@ -669,6 +670,44 @@ shared_examples_for 'an Agent that is removed' do
   it 'should not be running the agent after removal' do
     sleep 5
     expect(agent_processes_running?).to be_falsey
+  end
+
+  if os == :windows
+    it 'should not make changes to system files' do
+      exclude = [
+            'C:/Windows/Temp/',
+            'C:/Windows/Prefetch/',
+            'C:/Windows/Installer/',
+            'C:/Windows/WinSxS/',
+            'C:/Windows/Logs/',
+            'C:/Windows/servicing/',
+            'c:/windows/System32/config/',
+            'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
+            'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
+            'C:/Windows/SoftwareDistribution/DataStore/Logs/',
+            'C:/Windows/System32/wbem/Performance/',
+            'c:/windows/System32/LogFiles/'
+      ].each { |e| e.downcase! }
+
+      # We don't really need to create this file since we consume it right afterwards, but it's useful for debugging
+      File.open("c:/after-files.txt", "w") do |out|
+        Find.find('c:/windows/').each { |f| out.puts(f) }
+      end
+
+      before_files = File.readlines('c:/before-files.txt').reject { |f| f.downcase.start_with?(*exclude) }
+      after_files = File.readlines('c:/after-files.txt').reject { |f| f.downcase.start_with?(*exclude) }
+
+      missing_files = before_files - after_files
+      new_files = after_files - before_files
+
+      puts "New files:"
+      new_files.each { |f| puts(f) }
+
+      puts "Missing files:"
+      missing_files.each { |f| puts(f) }
+
+      expect(missing_files).to be_empty
+    end
   end
 
   it 'should remove the installation directory' do
