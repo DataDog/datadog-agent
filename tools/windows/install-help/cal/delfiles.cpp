@@ -139,21 +139,21 @@ BOOL DeleteFilesInDirectory(const wchar_t* dirname, const wchar_t* ext, bool dir
 
 
 /**
- * This function recursively deletes all files in a given tree that match a given
- * extension.  It will only accept an absolute path.
+ * This function recursively deletes all  directories in the profile
+ * directory belonging to the given user.  It will only delete directories
+ * that the given user has been granted explicit access to, to prevent
+ * deleting incorrect directories
  *
- * @param dirname  The root path to start the deletion
+ * @param user  The username for which directories are being deleted
  *
- * @param ext   the filename and/or extension to delete.  Can be a fixed name or wildcard
+ * @param userSID  The SID for the aforementioned user
  *
- * @param dirs  If true, will delete directories which match the ext parameter, if the
- *              directory is empty. If false (the default), will delete files
  */
-BOOL DeleteHomeDirectory(std::wstring &user, PSID userSID)
+BOOL DeleteHomeDirectory(const std::wstring &user, PSID userSID)
 {
     // first, find the path to the home directories
     bool ret = false;
-    wchar_t * homeDir = NULL;
+    std::vector<wchar_t> homeDir;
     DWORD homeDirSize = _MAX_PATH;
     bool needsLarger = false;
     HANDLE hFind = INVALID_HANDLE_VALUE;
@@ -162,11 +162,8 @@ BOOL DeleteHomeDirectory(std::wstring &user, PSID userSID)
     std::wstring search;
     do
     {
-        if (homeDir) {
-            delete[] homeDir;
-        }
-        homeDir = new wchar_t[homeDirSize];
-        if (!GetProfilesDirectory(homeDir, &homeDirSize))
+        homeDir.resize(homeDirSize);
+        if (!GetProfilesDirectory(homeDir.data(), &homeDirSize))
         {
             err = GetLastError();
             if (ERROR_INSUFFICIENT_BUFFER == err)
@@ -185,7 +182,7 @@ BOOL DeleteHomeDirectory(std::wstring &user, PSID userSID)
     // enumerate all of the directories in the profile directory that might match
     // this one.  Need the wildcards because the OS will add suffixes if we have a
     // collision.
-    search = homeDir; 
+    search = homeDir.data(); 
     search += L"\\*" + user + L"*";
 
     hFind = FindFirstFile(search.c_str(), &findFileData);
@@ -207,7 +204,7 @@ BOOL DeleteHomeDirectory(std::wstring &user, PSID userSID)
                 // we're only looking for directories at this point
                 continue;
             }
-            std::wstring fullpath = homeDir;
+            std::wstring fullpath = homeDir.data();
             fullpath += L"\\";
             fullpath += findFileData.cFileName;
 
@@ -272,9 +269,6 @@ BOOL DeleteHomeDirectory(std::wstring &user, PSID userSID)
 doneDelete:
     if (INVALID_HANDLE_VALUE != hFind) {
         FindClose(hFind);
-    }
-    if (homeDir) {
-        delete[] homeDir;
     }
     return ret;
 
