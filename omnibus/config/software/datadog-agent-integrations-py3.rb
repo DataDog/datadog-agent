@@ -93,15 +93,11 @@ if arm?
   blacklist_packages.push(/^pymqi==/)
 end
 
-if arm? || !_64_bit?
+# _64_bit checks the kernel arch.  On windows, the builder is 64 bit
+# even when doing a 32 bit build.  Do a specific check for the 32 bit
+# build
+if arm? || !_64_bit? || (windows? && windows_arch_i386?)
   blacklist_packages.push(/^orjson==/)
-  puts "blacklisted orjson due to arm or not _64_bit"
-end
-
-if !_64_bit?
-  puts "not 64 bit"
-else
-  puts "not not 64 bit"
 end
 
 final_constraints_file = 'final_constraints-py3.txt'
@@ -122,11 +118,6 @@ build do
   if windows?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
-
-    if windows_arch_i386?
-      puts "blacklisting due to windows_arch_i386"
-      blacklist_packages.push(/^orjson==/)
-    end
   else
     pip = "#{install_dir}/embedded/bin/pip3"
     python = "#{install_dir}/embedded/bin/python3"
