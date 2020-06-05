@@ -61,6 +61,12 @@ sudo 'installuser' do
   users 'installuser'
 end
 
+directory wrk_dir do
+  owner 'installuser'
+  group 'installuser'
+  mode '0755'
+end
+
 execute 'run agent install script' do
   user 'installuser'
   cwd wrk_dir
