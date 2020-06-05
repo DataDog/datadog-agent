@@ -18,7 +18,7 @@ var Pod = &PodCheck{}
 
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
-	sysInfo                 *model.SystemInfo
+	sysInfo *model.SystemInfo
 }
 
 // Init initializes a PodCheck instance.
