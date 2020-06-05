@@ -217,6 +217,10 @@ typedef struct _perFlowData {
 #define IS_FLOW_DIRECTION_INBOUND(f)     ( (((f)->flags & FLOW_DIRECTION_MASK) >> FLOW_DIRECTION_BITS) == FLOW_DIRECTION_INBOUND)
 #define IS_FLOW_DIRECTION_OUTBOUND(f)    ( (((f)->flags & FLOW_DIRECTION_MASK) >> FLOW_DIRECTION_BITS) == FLOW_DIRECTION_OUTBOUND)
 
+#define FLOW_CLOSED_MASK 0x10
+
+#define IS_FLOW_CLOSED(f) ( ((f)->flags & FLOW_CLOSED_MASK) == FLOW_CLOSED_MASK )
+
 /*!
  * PACKET_HEADER structure
  *

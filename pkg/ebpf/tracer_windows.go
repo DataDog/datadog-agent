@@ -103,7 +103,7 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 	}
 }
 
-// printStts can be used to debug the stats we pull from the driver
+// printStats can be used to debug the stats we pull from the driver
 func printStats(stats []network.ConnectionStats) {
 	for _, stat := range stats {
 		log.Infof("%v", stat)
