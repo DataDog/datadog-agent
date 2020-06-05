@@ -206,7 +206,13 @@ func (p *Probe) getPerfMaps() []*types.PerfMap {
 }
 
 func NewProbe(config *config.Config) (*Probe, error) {
-	bytecode, err := Asset("probe.o") // ioutil.ReadFile("pkg/security/ebpf/probe.o")
+	asset := "probe"
+	openSyscall := getSyscallFnName("open")
+	if !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_") {
+		asset += "-syscall-wrapper"
+	}
+
+	bytecode, err := Asset(asset + ".o") // ioutil.ReadFile("pkg/security/ebpf/probe.o")
 	if err != nil {
 		return nil, err
 	}
