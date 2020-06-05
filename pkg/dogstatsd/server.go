@@ -112,7 +112,7 @@ type dsdServerDebug struct {
 // metricsCountBuckets is counting the amount of metrics received for the last 5 seconds.
 // It is used to detect spikes.
 type metricsCountBuckets struct {
-	counts     [5]int64
+	counts     [5]uint64
 	bucketIdx  int
 	currentSec time.Time
 	metricChan chan struct{}
@@ -207,7 +207,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		Debug: dsdServerDebug{
 			Stats: make(map[ckey.ContextKey]metricStat),
 			metricsCounts: metricsCountBuckets{
-				counts:     [5]int64{0, 0, 0, 0, 0},
+				counts:     [5]uint64{0, 0, 0, 0, 0},
 				metricChan: make(chan struct{}),
 				closeChan:  make(chan struct{}),
 			},
@@ -548,7 +548,7 @@ func (s *Server) hasSpike() bool {
 	// compare this one to the sum of all others
 	// if the difference is higher than all others sum, consider this
 	// as an anomaly.
-	var sum int64
+	var sum uint64
 	for _, v := range s.Debug.metricsCounts.counts {
 		sum += v
 	}
