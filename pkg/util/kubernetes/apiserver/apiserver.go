@@ -170,15 +170,6 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(clientConfig)
 }
 
-func getDynamicKubeClient(timeout time.Duration) (dynamic.Interface, error) {
-	clientConfig, err := getClientConfig()
-	if err != nil {
-		return nil, err
-	}
-	clientConfig.Timeout = timeout
-	return dynamic.NewForConfig(clientConfig)
-}
-
 func getWPAClient(timeout time.Duration) (wpa_client.Interface, error) {
 	clientConfig, err := getClientConfig()
 	if err != nil {

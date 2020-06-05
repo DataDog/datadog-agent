@@ -14,6 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"k8s.io/client-go/dynamic"
@@ -254,6 +256,15 @@ func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Ru
 		return nil, err
 	}
 
+	eligible, err := b.hostMatcher(ruleScope, rule)
+	if err != nil {
+		return nil, err
+	}
+	if !eligible {
+		log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
+		return nil, nil
+	}
+
 	var checks []check.Check
 	for _, resource := range rule.Resources {
 		// TODO: there will be some logic introduced here to allow for composite checks,
@@ -264,27 +275,78 @@ func (b *builder) ChecksFromRule(meta *compliance.SuiteMeta, rule *compliance.Ru
 		if check, err := b.checkFromRule(meta, rule.ID, ruleScope, resource); err == nil {
 			checks = append(checks, check)
 		} else {
-			return nil, fmt.Errorf("Unable to create check for rule: %s/%s, err: %v", meta.Framework, rule.ID, err)
+			return nil, fmt.Errorf("unable to create check for rule: %s/%s, err: %v", meta.Framework, rule.ID, err)
 		}
 	}
 	return checks, nil
 }
 
 func (b *builder) getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (string, error) {
-	if rule.Scope.Docker {
-		return "docker", nil
+	switch {
+	case rule.Scope.Docker:
+		return compliance.DockerScope, nil
+	case rule.Scope.KubernetesNode:
+		return compliance.KubernetesNodeScope, nil
+	case rule.Scope.KubernetesCluster:
+		return compliance.KubernetesClusterScope, nil
+	default:
+		return "", ErrRuleScopeNotSupported
+	}
+}
+
+func (b *builder) hostMatcher(scope string, rule *compliance.Rule) (bool, error) {
+	if scope == compliance.KubernetesNodeScope {
+		if config.IsKubernetes() {
+			labels, err := hostinfo.GetNodeLabels()
+			if err != nil {
+				return false, err
+			}
+
+			return b.isKubernetesNodeEligible(rule.HostSelector, labels), nil
+		}
+
+		log.Infof("rule %s discarded as we're not running on a Kube node", rule.ID)
+		return false, nil
 	}
 
-	if len(rule.Scope.Kubernetes) > 0 {
-		// TODO: resource actual scope for Kubernetes role here
-		return "worker", nil
+	return true, nil
+}
+
+func (b *builder) isKubernetesNodeEligible(hostSelector *compliance.HostSelector, nodeLabels map[string]string) bool {
+	if hostSelector == nil {
+		return true
 	}
 
-	if rule.Scope.KubernetesCluster {
-		return "kubernetesCluster", nil
+	// No filtering, no need to fetch node labels
+	if len(hostSelector.KubernetesNodeLabels) == 0 && len(hostSelector.KubernetesNodeRole) == 0 {
+		return true
 	}
 
-	return "", ErrRuleScopeNotSupported
+	// Check selector
+	for _, selector := range hostSelector.KubernetesNodeLabels {
+		value, found := nodeLabels[selector.Label]
+		if !found {
+			return false
+		}
+
+		if value != selector.Value {
+			return false
+		}
+	}
+
+	if len(hostSelector.KubernetesNodeRole) > 0 {
+		// Specific node role matching as multiple syntax exists
+		for key, value := range nodeLabels {
+			key, value = hostinfo.LabelPreprocessor(key, value)
+			if key == hostinfo.NormalizedRoleLabel && value == hostSelector.KubernetesNodeRole {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	return true
 }
 
 func (b *builder) checkFromRule(meta *compliance.SuiteMeta, ruleID string, ruleScope string, resource compliance.Resource) (check.Check, error) {
