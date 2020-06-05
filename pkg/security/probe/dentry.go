@@ -109,7 +109,7 @@ func (dr *DentryResolver) resolve(dev uint32, inode uint64) (filename string, er
 		}
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if path.name[0] != '/' {
+		if path.name[0] != '\x00' && path.name[0] != '/' {
 			filename = "/" + C.GoString((*C.char)(unsafe.Pointer(&path.name))) + filename
 		}
 
