@@ -1,8 +1,5 @@
 version: 2.1 # Use version 2.1 to enable Orb usage.
 
-orbs:
-  win: circleci/windows@2.2.0 # The Windows orb give you everything you need to start using the Windows executor.
-
 # This file uses YAML anchors to deduplicate steps
 # see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 # and https://learnxinyminutes.com/docs/yaml/
@@ -205,7 +202,10 @@ jobs:
           command: inv -e rtloader.generate-doc
 
   windows_docker_tests:
-    executor: win/default
+    machine:
+      image: 'windows-server-2019-vs2019:stable'
+      resource_class: windows.2xlarge
+      shell: powershell.exe -ExecutionPolicy Bypass
     working_directory: C:\gopath\src\github.com\DataDog\datadog-agent
     steps:
       - checkout
