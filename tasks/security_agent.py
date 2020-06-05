@@ -69,3 +69,15 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+@task()
+def gen_mocks(ctx):
+    """
+    Generate mocks.
+    """
+
+    if not os.path.exists(os.path.join(get_gopath(ctx), "bin/mockery")):
+        ctx.run("go get github.com/vektra/mockery/.../")
+
+    with ctx.cd("./pkg/compliance"):
+        ctx.run("./gen_mocks.sh")

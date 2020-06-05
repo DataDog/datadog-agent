@@ -126,6 +126,7 @@ require (
 	github.com/twmb/murmur3 v1.1.3
 	github.com/ulikunitz/xz v0.5.7 // indirect
 	github.com/urfave/negroni v1.0.0
+	github.com/vektra/mockery v1.1.2 // indirect
 	github.com/vishvananda/netns v0.0.0-20171111001504-be1fbeda1936
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
