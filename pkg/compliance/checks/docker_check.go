@@ -10,6 +10,7 @@ import (
 	"errors"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/Masterminds/sprig"
 	"github.com/docker/docker/api/types"
@@ -108,8 +109,8 @@ func (c *dockerCheck) iterate(ctx context.Context, fn iterFn) error {
 
 func (c *dockerCheck) Run() error {
 	log.Debugf("%s: running docker check", c.id)
-	// TODO: timeout for checks here
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(defaultTimeoutSeconds)*time.Second)
+	defer cancel()
 	return c.iterate(ctx, c.inspect)
 }
 
