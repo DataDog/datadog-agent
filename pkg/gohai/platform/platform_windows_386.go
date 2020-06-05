@@ -51,7 +51,7 @@ func platGetVersion(outdata *byte) (maj uint64, min uint64, err error) {
 	return
 }
 
-func platGetServerInfo(outdata []byte) (si101 SERVER_INFO_101) {
+func platGetServerInfo(data *byte) (si101 SERVER_INFO_101) {
 	var outdata []byte
 	outdata = (*[24]byte)(unsafe.Pointer(data))[:]
 	si101.sv101_platform_id = binary.LittleEndian.Uint32(outdata)
