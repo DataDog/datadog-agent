@@ -80,7 +80,8 @@ typedef struct {
     tcp_conn_t c2;
     tcp_conn_t c3;
     tcp_conn_t c4;
-    __u8 pos;
+    __u16 pos;
+    __u16 cpu;
 } batch_t;
 
 static const __u8 TRACER_STATE_UNINITIALIZED = 0;
