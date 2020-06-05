@@ -4,7 +4,7 @@
 #include <linux/dcache.h>
 #include <linux/types.h>
 
-#define DENTRY_MAX_DEPTH 16
+#define DENTRY_MAX_DEPTH 6
 
 struct path_key_t {
     unsigned long ino;
