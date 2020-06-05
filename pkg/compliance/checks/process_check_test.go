@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+
 	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
 )

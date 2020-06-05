@@ -10,7 +10,6 @@ package agent
 
 import (
 	"encoding/json"
-	"expvar"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -35,7 +34,12 @@ func SetupHandlers(r *mux.Router) {
 func stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
-	j, _ := json.Marshal("")
+	j, err := json.Marshal("")
+	if err != nil {
+		log.Warnf("Failed to serialize json: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Write(j)
 }
 
@@ -46,15 +50,18 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 		log.Warnf("Error getting hostname: %s\n", err) // or something like this
 		hname = ""
 	}
-	j, _ := json.Marshal(hname)
+	j, err := json.Marshal(hname)
+	if err != nil {
+		log.Warnf("Failed to serialize json: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Write(j)
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
-	_ = expvar.Get("test")
-	log.Info("Got a request for the status. Making status.")
-	s, err := status.GetStatus()
 	w.Header().Set("Content-Type", "application/json")
+	s, err := status.GetStatus()
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})

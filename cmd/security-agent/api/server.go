@@ -27,32 +27,32 @@ import (
 	"github.com/gorilla/mux"
 )
 
-var (
+// Server implements security agent API server
+type Server struct {
 	listener net.Listener
-)
+}
 
-// StartServer creates the router and starts the HTTP server
-func StartServer() error {
+// NewServer creates a new Server instance
+func NewServer() (*Server, error) {
+	listener, err := newListener()
+	if err != nil {
+		return nil, err
+	}
+	return &Server{listener: listener}, nil
+}
+
+// Start creates the router and starts the HTTP server
+func (s *Server) Start() error {
 	// create the root HTTP router
 	r := mux.NewRouter()
 
 	// IPC REST API server
 	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
-	// check.SetupHandlers(r.PathPrefix("/check").Subrouter())
 
 	// Validate token for every request
 	r.Use(validateToken)
 
-	// get the transport we're going to use under HTTP
-	var err error
-	listener, err = getListener()
-	if err != nil {
-		// we use the listener to handle commands for the Agent, there's
-		// no way we can recover from this error
-		return fmt.Errorf("Unable to create the api server: %v", err)
-	}
-
-	err = util.CreateAndSetAuthToken()
+	err := util.CreateAndSetAuthToken()
 	if err != nil {
 		return err
 	}
@@ -86,23 +86,23 @@ func StartServer() error {
 		TLSConfig:    &tlsConfig,
 		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 	}
-	tlsListener := tls.NewListener(listener, &tlsConfig)
+	tlsListener := tls.NewListener(s.listener, &tlsConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
 }
 
-// StopServer closes the connection and the server
+// Stop closes the connection and the server
 // stops listening to new commands.
-func StopServer() {
-	if listener != nil {
-		listener.Close()
+func (s *Server) Stop() {
+	if s.listener != nil {
+		s.listener.Close()
 	}
 }
 
-// ServerAddress retruns the server address.
-func ServerAddress() *net.TCPAddr {
-	return listener.Addr().(*net.TCPAddr)
+// Address retruns the server address.
+func (s *Server) Address() *net.TCPAddr {
+	return s.listener.Addr().(*net.TCPAddr)
 }
 
 func validateToken(next http.Handler) http.Handler {

@@ -102,6 +102,8 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
+	defer log.Flush()
+
 	// we'll search for a config file named `datadog.yaml`
 	coreconfig.Datadog.SetConfigName("datadog")
 	err := common.SetupConfig(confPath)
@@ -177,9 +179,15 @@ func start(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err = api.StartServer(); err != nil {
+	srv, err := api.NewServer()
+	if err != nil {
+		return log.Errorf("Error while creating api server, exiting: %v", err)
+	}
+
+	if err = srv.Start(); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
+	defer srv.Stop()
 
 	log.Infof("Datadog Security Agent is now running.")
 
@@ -198,7 +206,6 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	log.Info("See ya!")
-	log.Flush()
 	return nil
 }
 

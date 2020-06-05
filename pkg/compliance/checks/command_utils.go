@@ -59,7 +59,8 @@ func runCommand(ctx context.Context, name string, args []string, captureStdout b
 
 	// We expect ExitError as commands may have an exitCode != 0
 	// It's not a failure for a compliance command
-	if _, ok := err.(*exec.ExitError); ok {
+	var e *exec.ExitError
+	if errors.As(err, &e) {
 		err = nil
 	}
 

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -56,8 +57,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
-		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-		return err
+		return log.Errorf("Cannot setup logger, exiting: %v", err)
 	}
 
 	return requestStatus()

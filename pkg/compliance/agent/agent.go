@@ -132,7 +132,8 @@ func (a *Agent) buildChecks(onCheck compliance.CheckVisitor) error {
 	for _, file := range files {
 		err := a.builder.ChecksFromFile(file, onCheck)
 		if err != nil {
-			return err
+			log.Errorf("Failed to load rules from %s: %v", file, err)
+			continue
 		}
 	}
 	return nil

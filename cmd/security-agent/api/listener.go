@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// getListener returns a listening connection
-func getListener() (net.Listener, error) {
+// newListener creates a listening connection
+func newListener() (net.Listener, error) {
 	address, err := config.GetIPCAddress()
 	if err != nil {
 		return nil, err
