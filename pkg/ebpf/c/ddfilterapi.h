@@ -219,7 +219,7 @@ typedef struct _perFlowData {
 
 #define FLOW_CLOSED_MASK 0x10
 
-#define IS_FLOW_CLOSED(f) ( ((f)->flags & FLOW_CLOSED_MASK) == FLOW_CLOSED_MASK )
+#define IS_FLOW_CLOSED(f) ( (((f)->flags) & FLOW_CLOSED_MASK) == FLOW_CLOSED_MASK )
 
 /*!
  * PACKET_HEADER structure
