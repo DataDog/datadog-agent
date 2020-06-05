@@ -376,30 +376,30 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 func (t *Tracer) getConnTelemetry() *network.ConnectionsTelemetry {
 	kprobeStats := GetProbeTotals()
 	tm := &network.ConnectionsTelemetry{
-		KprobesTriggered: kprobeStats.hits,
-		KprobesMissed:    kprobeStats.miss,
+		MonotonicKprobesTriggered: kprobeStats.hits,
+		MonotonicKprobesMissed:    kprobeStats.miss,
 	}
 
 	stateStats := t.state.GetStats()
 	if stateTelemetry, ok := stateStats["telemetry"]; ok {
 		if stateTelemetryMap, castOk := stateTelemetry.(map[string]int64); castOk {
 			if opened, hasVal := stateTelemetryMap["conns_opened"]; hasVal {
-				tm.ConnsOpened = opened
+				tm.MonotonicConnsOpened = opened
 			}
 		}
 	}
 
 	conntrackStats := t.conntracker.GetStats()
 	if rt, ok := conntrackStats["registers_total"]; ok {
-		tm.ConntrackRegisters = rt
+		tm.MonotonicConntrackRegisters = rt
 	}
 	if rtd, ok := conntrackStats["registers_dropped"]; ok {
-		tm.ConntrackRegistersDropped = rtd
+		tm.MonotonicConntrackRegistersDropped = rtd
 	}
 
 	dnsStats := t.reverseDNS.GetStats()
 	if pp, ok := dnsStats["packets_processed"]; ok {
-		tm.DnsPacketsProcessed = pp
+		tm.MonotonicDnsPacketsProcessed = pp
 	}
 	return tm
 }

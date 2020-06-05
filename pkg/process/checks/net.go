@@ -130,20 +130,20 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 	}
 
 	cct := &model.CollectorConnectionsTelemetry{
-		KprobesTriggered:          tel.KprobesTriggered - c.lastTelemetry.KprobesTriggered,
-		KprobesMissed:             tel.KprobesMissed - c.lastTelemetry.KprobesMissed,
-		ConntrackRegisters:        tel.ConntrackRegisters - c.lastTelemetry.ConntrackRegisters,
-		ConntrackRegistersDropped: tel.ConntrackRegistersDropped - c.lastTelemetry.ConntrackRegistersDropped,
-		DnsPacketsProcessed:       tel.DnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
-		ConnsOpened:               tel.ConnsOpened - c.lastTelemetry.ConnsOpened,
+		KprobesTriggered:          tel.MonotonicKprobesTriggered - c.lastTelemetry.KprobesTriggered,
+		KprobesMissed:             tel.MonotonicKprobesMissed - c.lastTelemetry.KprobesMissed,
+		ConntrackRegisters:        tel.MonotonicConntrackRegisters - c.lastTelemetry.ConntrackRegisters,
+		ConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped - c.lastTelemetry.ConntrackRegistersDropped,
+		DnsPacketsProcessed:       tel.MonotonicDnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
+		ConnsOpened:               tel.MonotonicConnsOpened - c.lastTelemetry.ConnsOpened,
 	}
 
-	c.lastTelemetry.KprobesTriggered = tel.KprobesTriggered
-	c.lastTelemetry.KprobesMissed = tel.KprobesMissed
-	c.lastTelemetry.ConntrackRegisters = tel.ConntrackRegisters
-	c.lastTelemetry.ConntrackRegistersDropped = tel.ConntrackRegistersDropped
-	c.lastTelemetry.DnsPacketsProcessed = tel.DnsPacketsProcessed
-	c.lastTelemetry.ConnsOpened = tel.ConnsOpened
+	c.lastTelemetry.KprobesTriggered = tel.MonotonicKprobesTriggered
+	c.lastTelemetry.KprobesMissed = tel.MonotonicKprobesMissed
+	c.lastTelemetry.ConntrackRegisters = tel.MonotonicConntrackRegisters
+	c.lastTelemetry.ConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
+	c.lastTelemetry.DnsPacketsProcessed = tel.MonotonicDnsPacketsProcessed
+	c.lastTelemetry.ConnsOpened = tel.MonotonicConnsOpened
 	return cct
 }
 
