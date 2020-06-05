@@ -126,7 +126,6 @@ require (
 	github.com/twmb/murmur3 v1.1.3
 	github.com/ulikunitz/xz v0.5.7 // indirect
 	github.com/urfave/negroni v1.0.0
-	github.com/vektra/mockery v1.1.2 // indirect
 	github.com/vishvananda/netns v0.0.0-20171111001504-be1fbeda1936
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
@@ -138,6 +137,7 @@ require (
 	golang.org/x/sys v0.0.0-20200413165638-669c56c373c4
 	golang.org/x/text v0.3.2
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
+	golang.org/x/tools v0.0.0-20200323144430-8dcfad9e016e // indirect
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/grpc v1.27.1
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
