@@ -257,6 +257,7 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
+{{- if .Python }}
 {{- if .BothPythonPresent -}}
 ## @param python_version - integer - optional - default: 2
 ## The major version of Python used to run integrations and custom checks.
@@ -265,6 +266,7 @@ api_key:
 #
 # python_version: 2
 
+{{ end -}}
 {{ end }}
 
 ############################
@@ -346,7 +348,7 @@ api_key:
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
 # procfs_path: <PROCFS_PATH>
-
+{{ if .Python }}
 ## @param disable_py3_validation - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
 #
@@ -387,7 +389,7 @@ api_key:
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
-
+{{ end }}
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
@@ -724,9 +726,9 @@ api_key:
 {{ end -}}
 {{- if .Dogstatsd }}
 
-############################
+#############################
 ## DogStatsD Configuration ##
-############################
+#############################
 
 ## @param use_dogstatsd - boolean - optional - default: true
 ## Set this option to false to disable the Agent DogStatsD server.
