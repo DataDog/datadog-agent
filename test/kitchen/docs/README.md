@@ -4,7 +4,7 @@
 
 ### Configuration (.gitlab-ci.yml)
 
-The gitlab pipelines which require kitchen testing have 3 independent stages for provisioning kitchen testing, running kitchen testing, and cleaning up (removing the artifacts).  The `testkitchen_deploy` stage copies the build artifacts to an S3 bucket.  The `testkitchen_testing` stage executes the kitchen tests.  The `testkitchen_cleanup` stage cleans up the s3 buckets and the azure virtual machines.
+The gitlab pipelines which require kitchen testing have 3 independent stages for provisioning kitchen testing, running kitchen testing, and cleaning up (removing the artifacts).  The `testkitchen_deploy` stage copies the build artifacts to an S3 bucket. The `testkitchen_testing` stage executes the kitchen tests. The `testkitchen_cleanup` stage cleans up the s3 buckets and the azure virtual machines.
 
 #### testkitchen_deploy
 
