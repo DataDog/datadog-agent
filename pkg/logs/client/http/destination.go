@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // ContentType options,
@@ -38,7 +37,7 @@ type Destination struct {
 	url                 string
 	contentType         string
 	contentEncoding     ContentEncoding
-	client              *http.Client
+	client              *Client
 	destinationsContext *client.DestinationsContext
 	once                sync.Once
 	payloadChan         chan []byte
@@ -52,14 +51,10 @@ func NewDestination(endpoint config.Endpoint, contentType string, destinationsCo
 
 func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration) *Destination {
 	return &Destination{
-		url:             buildURL(endpoint),
-		contentType:     contentType,
-		contentEncoding: buildContentEncoding(endpoint),
-		client: &http.Client{
-			Timeout: timeout,
-			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(),
-		},
+		url:                 buildURL(endpoint),
+		contentType:         contentType,
+		contentEncoding:     buildContentEncoding(endpoint),
+		client:              NewClient(timeout, endpoint.ConnectionResetInterval),
 		destinationsContext: destinationsContext,
 	}
 }

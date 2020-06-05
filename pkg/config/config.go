@@ -535,6 +535,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_compression", true)
 	config.BindEnvAndSetDefault("logs_config.compression_level", 6) // Default level for the gzip/deflate algorithm
 	config.BindEnvAndSetDefault("logs_config.batch_wait", DefaultBatchWait)
+	config.BindEnvAndSetDefault("logs_config.connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
