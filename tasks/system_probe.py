@@ -372,9 +372,16 @@ def build_object_files(ctx, install=True):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf")
     security_agent_obj_file = os.path.join(security_agent_c_dir, "probe.o")
     commands.append(cmd.format(
-        flags=" ".join(flags),
+        flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
         c_file=os.path.join(security_agent_c_dir, "probe.c"),
         file=security_agent_obj_file
+    ))
+
+    security_agent_syscall_wrapper_obj_file = os.path.join(security_agent_c_dir, "probe-syscall-wrapper.o")
+    commands.append(cmd.format(
+        flags=" ".join(flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+        c_file=os.path.join(security_agent_c_dir, "probe.c"),
+        file=security_agent_syscall_wrapper_obj_file
     ))
 
     if install:
@@ -400,7 +407,10 @@ def build_object_files(ctx, install=True):
                 pkg="probe",
                 prefix=security_agent_c_dir,
                 go_file=os.path.normpath(os.path.join(security_agent_c_dir, "..", "probe", "ebpf.go")),
-                files=[security_agent_obj_file]
+                files=[
+                    security_agent_obj_file,
+                    security_agent_syscall_wrapper_obj_file
+                ]
             )
         )
 
