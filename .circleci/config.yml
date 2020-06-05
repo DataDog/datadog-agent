@@ -204,30 +204,22 @@ jobs:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
 
-  windows_docker_tests1:
+  windows_docker_tests:
     executor: win/default
     working_directory: C:\gopath\src\github.com\DataDog\datadog-agent
     steps:
       - checkout
       - run: systeminfo
       - run: Get-ChildItem -Path .
-      - run: docker pull datadog/agent-buildimages-windows_1809_x64:latest
-
-  windows_docker_tests2:
-    docker:
-      - image: datadog/agent-buildimages-windows_1809_x64:latest
-    working_directory: C:\dev\gopath\src\github.com\DataDog\datadog-agent
-    steps:
-      - checkout
-      - run: ls
+      - run: docker pull datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda
+      - run: docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e PY_RUNTIMES="3" -e NEW_BUILDER="true" datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda c:\mnt\tasks\winbuildscripts\unittests.bat
 
 workflows:
   version: 2.1
   test_and_build:
     jobs:
       - checkout_code
-      - windows_docker_tests1
-      - windows_docker_tests2
+      - windows_docker_tests
       - dependencies:
           requires:
             - checkout_code
