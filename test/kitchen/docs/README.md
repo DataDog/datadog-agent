@@ -28,7 +28,7 @@ This stage contains jobs which execute the kitchen tests on our Azure account.
 
 Each job executes one specific test suite, for one OS, for one Agent flavor and one major Agent version.
 
-The `.gitlab-ci.yml` file has been structured in a way to avoid config duplication:
+The `.gitlab-ci.yml` file has been structured to avoid config duplication with the following jobs:
 
 - a common `kitchen_common` job from which all kitchen testing jobs inherit
 - `kitchen_agent_aX` jobs that specify the Agent version tested
@@ -40,7 +40,7 @@ The `.gitlab-ci.yml` file has been structured in a way to avoid config duplicati
 **Note:** We spread our kitchen tests on multiple regions mainly because we have a limited number of resources available on each region on Azure.
 
 From these base blocks, we define:
-- test types: `kitchen_test_<test_suite>_<flavor>` which is a combination of a chosen test suite, Agent flavor and Azure location
+- test types: `kitchen_test_<test_suite>_<flavor>` which is a combination of a chosen test suite, Agent flavor and Azure location.
 - scenarios: `kitchen_scenario_<OS>_aX` which is a combination of a chosen OS and major Agent version.
 
 **Note:** To avoid having too many different test types, we bind each test suite with a specific Azure location. Eg. all install script tests are run in the same Azure location.
@@ -58,7 +58,7 @@ The `testkitchen_cleanup_azure-aX` jobs clean up the Azure VMs that were used du
 The `testkitchen_cleanup_s3-aX` jobs clean up the S3 buckets of the testing repos.
 
 **Important note:** These jobs are always run, even when a kitchen test fails. This is done on purpose (to avoid having remaining resources once a job fails).
-The downside of this approach is that when you want to retry a failing ktichen test job, you'll have to re-run the corresponding deploy job first (to put the Agent packages back in the testing repository).
+The downside of this approach is that when you want to retry a failing kitchen test job, you'll have to re-run the corresponding deploy job first (to put the Agent packages back in the testing repository).
 
 #### Test suites
 
@@ -69,7 +69,7 @@ kitchen tests are defined in a file named `kitchen.yml` which defines:
 - the list of platforms (`platforms:` key) used in the tests.
 - the list of test suites (`suites:` key) to run.
 
-To reduce duplication, the `kitchen.yml` file is generated at test time by the `run-test-kitchen.sh` script ([see below](#test-execution-tasks/run-test-kitchen.sh)) by concatenating 2 template files:
+To reduce duplication, the `kitchen.yml` file is generated at test time by the `run-test-kitchen.sh` script ([see below](#test-execution-tasksrun-test-kitchensh)) by concatenating 2 template files:
 
 - the `kitchen-azure-common.yml` file, which defines the provisioner, driver, and platforms that will be used. It also defines a number of useful variables that can be used by the test suite templates (such as: which major Agent version is used, what are the testing repository URLs, etc.).
 - a `kitchen-azure-<test_suite>-test.yml` file, which contains the test suite definition for a particular test. That definition consists in the list of recipes to run, with their attributes, and optionally a list of platforms to not run the test on (eg. if you know that a particular test x platform combination cannot work).
@@ -112,7 +112,7 @@ It concatenates the `kitchen-azure-common.yml` file with the file specific to th
 
 #### Directory structure
 
-Test kitchen imposes a very specific directory structure. For more information, see the test kitchen documentation. However, a brief overview:
+Test kitchen imposes a very specific directory structure. For more information, see the [test kitchen documentation](https://kitchen.ci/docs). However, a brief overview:
 
 ##### Cookbooks
 
@@ -189,14 +189,14 @@ Each test suite runs one or more chef recipes (usually to install the agent in v
 - Don't forget to add your cookbook to the `Berksfile`, otherwise Chef won't know that it's there.
 - Think of the different attributes that your cookbook needs (usually, it needs a way to know which Agent version it installs, as well as a location where it can fetch the Agent package built by the pipeline), add them to the `attributes/default.rb` file.
 
-2. Create the new test suite file (`kitchen-azure-<suite_name>-test.yml`)
+2. Create the new test suite file (`kitchen-azure-<suite_name>-test.yml`).
 
 - The most important parts are the run list, the attributes to set for each cookbook used, and optionally a list of platforms to exclude.
 - Add the suite to the list of accepted suites in `tasks/run-test-kitchen.sh`.
 
 **Note (HACK):** On some test suites, we define attributes for a cookbook named `dd-agent-rspec`. This is not a real cookbook; we're using this as a workaround to pass variables to the rspec tests (in the rspec tests, we only have access to a `dna.json` file that has the contents of `kitchen.yml`).
 
-4. Create the rspec test directory matching your new test suite
+4. Create the rspec test directory matching your new test suite.
 
 - Do not forget to create the symlinks to the `rspec_helper` files from the `common` directory if you need them.
 - Remember that your main test file must be in `test/integration/<suite_name>/<suite_name>_spec.rb`.
