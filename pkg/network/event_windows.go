@@ -47,6 +47,14 @@ func connDirection(flags C.uint32_t) ConnectionDirection {
 	return NONE
 }
 
+func isFlowClosed(flags C.uint32_t) bool {
+	// Connection is closed
+	if (flags & C.FLOW_CLOSED_MASK) == C.FLOW_CLOSED_MASK {
+		return true
+	}
+	return false
+}
+
 func convertV4Addr(addr [16]C.uint8_t) util.Address {
 	// We only read the first 4 bytes for v4 address
 	return util.V4AddressFromBytes(C.GoBytes(unsafe.Pointer(&addr), net.IPv4len))
