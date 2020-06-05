@@ -78,9 +78,11 @@ These files are `.erb` template files, the rendered contents (eg. the list of pl
 
 #### Test execution (tasks/run-test-kitchen.sh)
 
-Each individual test environment is controlled from the `.gitlab-ci.yml` jobs. The tests are set up using environment variables:
+Each individual test environment is controlled from the `.gitlab-ci.yml` jobs. The tests are set up using environment variables.
 
-`TEST_PLATFORMS`: a list of test platforms which are turned into test kitchen platforms. In `.gitlab-ci.yml`, the platform list has the following syntax:
+##### `TEST_PLATFORMS`
+
+`TEST_PLATFORMS` is a list of test platforms which are turned into test kitchen platforms. In `.gitlab-ci.yml`, the platform list has the following syntax:
         `short_name1,type1,azure_fully_qualified_name1|short_name2,type2,azure_fully_qualified_name2`
 
 There are two types of platforms:
@@ -91,11 +93,15 @@ We mainly use private images for platforms we still want to test, but have been 
 
 **Note:** this variable is set by the `kitchen_os_X` jobs.
 
-`AZURE_LOCATION`: a string that indicates on which Azure region the test VMs are spun up.
+##### `AZURE_LOCATION`
+
+`AZURE_LOCATION` is a string that indicates on which Azure region the test VMs are spun up.
 
 **Note:** this variable is set by the `kitchen_azure_location_X` jobs.
 
-`AGENT_FLAVOR`: a string that indicates which flavor the Agent is installed (eg. datadog-agent, datadog-iot-agent). In particular, it helps knowing which package has to be installed, and which tests should be applied (eg. doing Python tests on the IoT Agent doesn't make sense).
+##### `AGENT_FLAVOR`
+
+`AGENT_FLAVOR` is a string that indicates which flavor the Agent is installed (eg. datadog-agent, datadog-iot-agent). In particular, it helps knowing which package has to be installed, and which tests should be applied (eg. doing Python tests on the IoT Agent doesn't make sense).
 
 **Note:** this variable is set by the `kitchen_datadog_X_flavor` jobs.
 
@@ -183,7 +189,7 @@ Each test suite runs one or more chef recipes (usually to install the agent in v
 
 ### How to add a new test suite to the pipeline
 
-1. If needed, create (a) new cookbook(s) that performs the install type you want to test.
+1. If needed, create (a) new cookbook(s) that perform(s) the install type you want to test.
 
 - To scaffold your cookbook, you can use the same cookbook structure as existing cookbooks in the directory
 - Don't forget to add your cookbook to the `Berksfile`, otherwise Chef won't know that it's there.
@@ -196,9 +202,9 @@ Each test suite runs one or more chef recipes (usually to install the agent in v
 
 **Note (HACK):** On some test suites, we define attributes for a cookbook named `dd-agent-rspec`. This is not a real cookbook; we're using this as a workaround to pass variables to the rspec tests (in the rspec tests, we only have access to a `dna.json` file that has the contents of `kitchen.yml`).
 
-4. Create the rspec test directory matching your new test suite.
+3. Create the rspec test directory matching your new test suite.
 
 - Do not forget to create the symlinks to the `rspec_helper` files from the `common` directory if you need them.
 - Remember that your main test file must be in `test/integration/<suite_name>/<suite_name>_spec.rb`.
 
-5. Create the necessary Gitlab jobs to run your test suite on all platforms, Agent flavors and versions you want, following the existing naming conventions.
+4. Create the necessary Gitlab jobs to run your test suite on all platforms, Agent flavors and versions you want, following the existing naming conventions.
