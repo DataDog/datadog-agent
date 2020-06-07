@@ -12,6 +12,43 @@ experimental:
       only:
         - master
 
+commands:
+  save_dlc:
+    description: "Export the Windows image from Docker and save in CircleCI cache"
+    parameters:
+      image:
+        type: string
+    steps:
+      - run:
+          name: Save Docker layer cache
+          no_output_timeout: 60m
+          command: |
+            mkdir -p /home/circleci/docker-caches
+            if ( ! (Test-Path "/home/circleci/docker-caches/datadog-windows-builder.tar.gz")) {
+                docker save << parameters.image >> | 7z a -tgzip /home/circleci/docker-caches/datadog-windows-builder.tar.gz -sidatadog-windows-builder.tar
+            }
+      - save_cache:
+          key: docker-layers-<< parameters.image >>
+          paths:
+            - /home/circleci/docker-caches
+  restore_dlc:
+    description: "Restore Windows image saved in cache"
+    parameters:
+      image:
+        type: string
+    steps:
+      - restore_cache:
+          keys:
+            - docker-layers-<< parameters.image >>
+      - run:
+          name: Load Docker layer cache
+          no_output_timeout: 60m
+          command: |
+            if (Test-Path "/home/circleci/docker-caches/datadog-windows-builder.tar.gz") {
+              7z x /home/circleci/docker-caches/datadog-windows-builder.tar.gz | docker load;
+              docker images;
+            }
+
 templates:
   job_template: &job_template
     docker:
@@ -211,7 +248,11 @@ jobs:
       - checkout
       - run: systeminfo
       - run: Get-ChildItem -Path .
+      - restore_dlc:
+          image: datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda
       - run: docker pull datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda
+      - save_dlc:
+          image: datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda
       - run: docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e PY_RUNTIMES="3" -e NEW_BUILDER="true" datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda c:\mnt\tasks\winbuildscripts\unittests.bat
 
 workflows:
