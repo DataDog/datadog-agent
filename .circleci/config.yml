@@ -26,12 +26,12 @@ commands:
             if ( ! (Test-Path "/home/circleci/docker-caches")) {
                 mkdir -p /home/circleci/docker-caches
             }
-            if ( ! (Test-Path "/home/circleci/docker-caches/datadog-nano.tar.gz")) {
-                docker save << parameters.image >> -o datadog-nano.tar
-                7z a /home/circleci/docker-caches/datadog-nano.tar.gz datadog-nano.tar
+            if ( ! (Test-Path "/home/circleci/docker-caches/datadog-windows-builder.tar.gz")) {
+                docker save << parameters.image >> -o datadog-windows-builder.tar
+                7z a /home/circleci/docker-caches/datadog-windows-builder.tar.gz datadog-windows-builder.tar
             }
       - save_cache:
-          key: docker-layers-<< parameters.image >>-3
+          key: docker-layers-<< parameters.image >>-1
           paths:
             - /home/circleci/docker-caches
   restore_dlc:
@@ -42,13 +42,13 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - docker-layers-<< parameters.image >>-3
+            - docker-layers-<< parameters.image >>-1
       - run:
           name: Load Docker layer cache
           no_output_timeout: 60m
           command: |
-            if (Test-Path "/home/circleci/docker-caches/datadog-nano.tar.gz") {
-              docker load -i /home/circleci/docker-caches/datadog-nano.tar.gz
+            if (Test-Path "/home/circleci/docker-caches/datadog-windows-builder.tar.gz") {
+              docker load -i /home/circleci/docker-caches/datadog-windows-builder.tar.gz
               docker images
             }
 
@@ -250,16 +250,16 @@ jobs:
     steps:
       - checkout
       - restore_dlc:
-          image: mcr.microsoft.com/windows/nanoserver:1809
+          image: datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda
       - run:
           name: Check restored data
           command: |
             if (Test-Path "/home/circleci/docker-caches") {
               Get-ChildItem -Path "/home/circleci/docker-caches"
             }
-      - run: docker pull mcr.microsoft.com/windows/nanoserver:1809
+      - run: docker pull datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda
       - save_dlc:
-          image: mcr.microsoft.com/windows/nanoserver:1809
+          image: datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda
       #- run: docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e PY_RUNTIMES="3" -e NEW_BUILDER="true" datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda c:\mnt\tasks\winbuildscripts\unittests.bat
 
 workflows:
