@@ -260,7 +260,7 @@ jobs:
       - run: docker pull datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda
       - save_dlc:
           image: datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda
-      #- run: docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e PY_RUNTIMES="3" -e NEW_BUILDER="true" datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda c:\mnt\tasks\winbuildscripts\unittests.bat
+      - run: docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e PY_RUNTIMES="3" -e NEW_BUILDER="true" datadog/agent-buildimages-windows_1809_x64:v2581728-ba39fda c:\mnt\tasks\winbuildscripts\unittests.bat
 
 workflows:
   version: 2.1
