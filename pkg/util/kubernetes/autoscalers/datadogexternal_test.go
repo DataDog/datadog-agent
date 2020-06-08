@@ -9,6 +9,7 @@ package autoscalers
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -50,6 +51,56 @@ func TestDatadogExternalQuery(t *testing.T) {
 			[]string{"mymetric{foo:bar}"},
 			nil,
 			fmt.Errorf("Error while executing metric query avg:mymetric{foo:bar}.rollup(30): Rate limit of 300 requests in 3600 seconds"),
+		},
+		{
+			"ignore metricNames with quotes",
+			func(from, to int64, query string) ([]datadog.Series, error) {
+				matched, err := regexp.MatchString("('\")", query)
+				if err != nil || matched {
+					return nil, fmt.Errorf("Unexpected quotes in metricName")
+				}
+				return []datadog.Series{
+					{
+						// Note that points are ordered when we get them from Datadog.
+						Points: []datadog.DataPoint{
+							makePoints(100000, 40),
+							makePartialPoints(11000),
+							makePoints(200000, 23),
+							makePoints(300000, 42),
+							makePoints(400000, 911),
+						},
+						Scope:  makePtr("foo:bar,baz:ar"),
+						Metric: makePtr("mymetric"),
+					},
+					{
+						Points: []datadog.DataPoint{
+							makePartialPoints(10000),
+							makePoints(110000, 70),
+							makePartialPoints(20000),
+							makePoints(300000, 42),
+							makePartialPoints(40000),
+						},
+						Scope:  makePtr("foo:baz"),
+						Metric: makePtr("mymetric2"),
+					},
+				}, nil
+			},
+			[]string{"mymetric{foo:bar,baz:ar}", "mymetric2{foo:baz}", "my.aws.metric{ba:\"bar\"}"},
+			map[string]Point{
+				"mymetric{foo:bar,baz:ar}": {
+					value:     42.0,
+					valid:     true,
+					timestamp: 300,
+				},
+				"mymetric2{foo:baz}": {
+					value:     70.0,
+					valid:     true,
+					timestamp: 110,
+				},
+				"my.aws.metric{ba:\"bar\"}" : {
+				},
+			},
+			nil,
 		},
 		{
 			"metrics with different granularities Datadog",
