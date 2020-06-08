@@ -109,7 +109,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	s := dsdStatsRuntimeSetting("dogstatsd_stats")
 
-	// setter + getter
+	// runtime settings set/get underlying implementation
 
 	// true string
 

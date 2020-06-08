@@ -381,11 +381,53 @@ func TestExtraTags(t *testing.T) {
 	}
 }
 
+func TestDebugStatsSpike(t *testing.T) {
+	assert := assert.New(t)
+	agg := mockAggregator()
+	s, err := NewServer(agg)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	s.EnableMetricsStats()
+	sample := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
+
+	send := func(count int) {
+		for i := 0; i < count; i++ {
+			s.storeMetricStats(sample)
+		}
+	}
+
+	send(10)
+	time.Sleep(1050 * time.Millisecond)
+	send(10)
+	time.Sleep(1050 * time.Millisecond)
+	send(10)
+	time.Sleep(1050 * time.Millisecond)
+	send(10)
+	time.Sleep(1050 * time.Millisecond)
+	send(500)
+
+	// stop the debug loop to avoid data race
+	s.DisableMetricsStats()
+	assert.True(s.hasSpike())
+
+	s.EnableMetricsStats()
+	time.Sleep(1050 * time.Millisecond)
+	send(500)
+
+	// stop the debug loop to avoid data race
+	s.DisableMetricsStats()
+	// it is no more considered a spike because we had another second with 500 metrics
+	assert.False(s.hasSpike())
+}
+
 func TestDebugStats(t *testing.T) {
 	agg := mockAggregator()
 	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
+
+	s.EnableMetricsStats()
 
 	keygen := ckey.NewKeyGenerator()
 
