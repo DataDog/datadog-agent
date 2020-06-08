@@ -386,7 +386,7 @@ func TestTCPRemoveEntries(t *testing.T) {
 	// This should return false and an error
 	hasNext, err := tr.m.LookupNextElement(tcpMp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
 	assert.False(t, hasNext)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
 	require.True(t, ok)
