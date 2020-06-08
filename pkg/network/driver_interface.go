@@ -205,7 +205,7 @@ func (di *DriverInterface) GetConnectionStats() ([]ConnectionStats, []Connection
 		for ; bytesused < int(count); bytesused += C.sizeof_struct__perFlowData {
 			buf = readbuffer[bytesused:]
 			pfd := (*C.struct__perFlowData)(unsafe.Pointer(&(buf[0])))
-			if (isFlowClosed(pfd.flags)) {
+			if isFlowClosed(pfd.flags) {
 				// Closed Connection
 				connStatsClosed = append(connStatsClosed, FlowToConnStat(pfd))
 			} else {
