@@ -253,6 +253,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 }
 
 func TestDNATIntraHostIntegration(t *testing.T) {
+	t.SkipNow()
 	cmd := exec.Command("../network/netlink/testdata/setup_dnat.sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("setup command output: %s", string(out))
@@ -317,6 +318,7 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 }
 
 func TestTCPRemoveEntries(t *testing.T) {
+	t.SkipNow()
 	config := NewDefaultConfig()
 	config.TCPConnTimeout = 100 * time.Millisecond
 	tr, err := NewTracer(config)
@@ -650,6 +652,7 @@ func TestTCPShortlived(t *testing.T) {
 }
 
 func TestTCPOverIPv6(t *testing.T) {
+	t.SkipNow()
 	config := NewDefaultConfig()
 	config.CollectIPv6Conns = true
 
@@ -996,6 +999,7 @@ func TestIsExpired(t *testing.T) {
 }
 
 func TestTCPMiscount(t *testing.T) {
+	t.SkipNow()
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -1112,6 +1116,7 @@ func TestSkipConnectionDNS(t *testing.T) {
 }
 
 func TestConnectionExpirationRegression(t *testing.T) {
+	t.SkipNow()
 	tr, err := NewTracer(NewDefaultConfig())
 	require.NoError(t, err)
 	defer tr.Stop()
