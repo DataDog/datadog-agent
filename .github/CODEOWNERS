@@ -64,6 +64,7 @@
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-core
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/apm-agent

@@ -13,6 +13,7 @@
 package ebpf
 
 import (
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -74,7 +75,13 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 //Configure parses the check configuration and init the check
 func (t *TCPQueueLengthCheck) Configure(config, initConfig integration.Data, source string) error {
 	// TODO: Remove that hard-code and put it somewhere else
-	process_net.SetSystemProbePath(dd_config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	sysprobeSocket := dd_config.Datadog.GetString("system_probe_config.sysprobe_socket")
+	if sysprobeSocket == "" {
+		sysprobeSocket = os.Getenv("SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET")
+	}
+	if sysprobeSocket != "" {
+		process_net.SetSystemProbePath(sysprobeSocket)
+	}
 
 	err := t.CommonConfigure(config, source)
 	if err != nil {
