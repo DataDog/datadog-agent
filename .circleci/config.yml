@@ -201,11 +201,21 @@ jobs:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
 
+  macos_tests:
+    macos:
+      xcode: 10.1.0
+    steps:
+      - checkout
+      - run: echo "Hello world"
+      - run: /usr/bin/xcodebuild -version
+
 workflows:
   version: 2
   test_and_build:
     jobs:
       - checkout_code
+      - macos_tests
+
       - dependencies:
           requires:
             - checkout_code
