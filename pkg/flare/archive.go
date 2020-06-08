@@ -287,8 +287,21 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 	return err
 }
 
+func addParentPerms(dirPath string, permsInfos permissionsInfos) {
+	parent := filepath.Dir(dirPath)
+	for parent != "." {
+		permsInfos.add(parent)
+		parent = filepath.Dir(parent)
+	}
+}
+
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
+
+	if permsInfos != nil {
+		addParentPerms(logFileDir, permsInfos)
+	}
+
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
@@ -623,6 +636,11 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	for prefix, filePath := range confSearchPaths {
+
+		if permsInfos != nil {
+			addParentPerms(filePath, permsInfos)
+		}
+
 		err := filepath.Walk(filePath, func(src string, f os.FileInfo, err error) error {
 			if f == nil {
 				return nil
