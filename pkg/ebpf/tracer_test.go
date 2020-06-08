@@ -279,6 +279,7 @@ func TestDNATIntraHostIntegration(t *testing.T) {
 	}
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	conn, err := net.Dial("tcp", "2.2.2.2:5432")
 	require.NoError(t, err, "error connecting to client")
@@ -331,6 +332,7 @@ func TestTCPRemoveEntries(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 2*time.Second)
@@ -391,8 +393,6 @@ func TestTCPRemoveEntries(t *testing.T) {
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-
-	doneChan <- struct{}{}
 }
 
 func TestTCPRetransmit(t *testing.T) {
@@ -412,6 +412,7 @@ func TestTCPRetransmit(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
@@ -444,8 +445,6 @@ func TestTCPRetransmit(t *testing.T) {
 	assert.True(t, int(conn.MonotonicRetransmits) > 0)
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
-
-	doneChan <- struct{}{}
 }
 
 func TestTCPRetransmitSharedSocket(t *testing.T) {
@@ -461,6 +460,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
@@ -507,8 +507,6 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 
 	// Test if telemetry measuring PID collisions is correct
 	assert.Equal(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
-
-	doneChan <- struct{}{}
 }
 
 func TestTCPRTT(t *testing.T) {
@@ -524,7 +522,7 @@ func TestTCPRTT(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
-	defer func() { doneChan <- struct{}{} }()
+	defer close(doneChan)
 
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
 	require.NoError(t, err)
@@ -731,6 +729,7 @@ func TestTCPCollectionDisabled(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
@@ -750,8 +749,6 @@ func TestTCPCollectionDisabled(t *testing.T) {
 	// Confirm that we could not find connection created above
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.False(t, ok)
-
-	doneChan <- struct{}{}
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
@@ -812,6 +809,7 @@ func TestUDPDisabled(t *testing.T) {
 
 	doneChan := make(chan struct{})
 	server.Run(doneChan, clientMessageSize)
+	defer close(doneChan)
 
 	// Connect to server
 	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
@@ -832,8 +830,6 @@ func TestUDPDisabled(t *testing.T) {
 
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.False(t, ok)
-
-	doneChan <- struct{}{}
 }
 
 func TestLocalDNSCollectionDisabled(t *testing.T) {
@@ -949,6 +945,7 @@ func TestTooSmallBPFMap(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	// Connect to server two times
 	// Write clientMessageSize to server
@@ -968,7 +965,6 @@ func TestTooSmallBPFMap(t *testing.T) {
 	connections := getConnections(t, tr)
 	// we should only have one connection returned
 	assert.Len(t, connections.Conns, 1)
-	doneChan <- struct{}{}
 }
 
 func TestIsExpired(t *testing.T) {
@@ -1016,6 +1012,7 @@ func TestTCPMiscount(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 	if err != nil {
@@ -1128,7 +1125,7 @@ func TestConnectionExpirationRegression(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
-	defer func() { doneChan <- struct{}{} }()
+	defer close(doneChan)
 
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
 	require.NoError(t, err)
@@ -1257,6 +1254,7 @@ func benchEchoUDP(size int) func(b *testing.B) {
 		end := make(chan struct{})
 		server := NewUDPServer(echoOnMessage)
 		server.Run(end, size)
+		defer close(end)
 
 		c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
 		if err != nil {
@@ -1276,8 +1274,6 @@ func benchEchoUDP(size int) func(b *testing.B) {
 			}
 		}
 		b.StopTimer()
-
-		end <- struct{}{}
 	}
 }
 
@@ -1325,6 +1321,7 @@ func benchEchoTCP(size int) func(b *testing.B) {
 		end := make(chan struct{})
 		server := NewTCPServer(echoOnMessage)
 		server.Run(end)
+		defer close(end)
 
 		c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 		if err != nil {
@@ -1343,8 +1340,6 @@ func benchEchoTCP(size int) func(b *testing.B) {
 			}
 		}
 		b.StopTimer()
-
-		end <- struct{}{}
 	}
 }
 
@@ -1365,6 +1360,7 @@ func benchSendTCP(size int) func(b *testing.B) {
 		end := make(chan struct{})
 		server := NewTCPServer(dropOnMessage)
 		server.Run(end)
+		defer close(end)
 
 		c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 		if err != nil {
@@ -1380,8 +1376,6 @@ func benchSendTCP(size int) func(b *testing.B) {
 			}
 		}
 		b.StopTimer()
-
-		end <- struct{}{}
 	}
 }
 
@@ -1624,6 +1618,7 @@ func TestConntrackExpiration(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan, clientMessageSize)
+	defer close(doneChan)
 
 	c, err := net.Dial("udp", fmt.Sprintf("2.2.2.2:%d", port))
 	require.NoError(t, err)
@@ -1644,5 +1639,4 @@ func TestConntrackExpiration(t *testing.T) {
 	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
-	doneChan <- struct{}{}
 }
