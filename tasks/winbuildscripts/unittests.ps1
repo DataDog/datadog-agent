@@ -68,3 +68,15 @@ if($err -ne 0){
     Write-Host -ForegroundColor Red "test failed $err"
     [Environment]::Exit($err)
 }
+
+if ($Env:CODECOV -eq "true") {
+    & pip install codecov
+    & codecov -f profile.cov -F windows
+    $err = $LASTEXITCODE
+    Write-Host Codecov result is $err
+    if($err -ne 0){
+        Write-Host -ForegroundColor Red "codecov failed $err"
+        [Environment]::Exit($err)
+    }
+
+}
