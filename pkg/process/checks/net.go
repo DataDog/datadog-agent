@@ -42,7 +42,7 @@ type telemetry struct {
 	ConntrackRegisters        int64
 	ConntrackRegistersDropped int64
 	DnsPacketsProcessed       int64
-	ConnsOpened               int64
+	ConnsClosed               int64
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -135,7 +135,8 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		ConntrackRegisters:        tel.MonotonicConntrackRegisters - c.lastTelemetry.ConntrackRegisters,
 		ConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped - c.lastTelemetry.ConntrackRegistersDropped,
 		DnsPacketsProcessed:       tel.MonotonicDnsPacketsProcessed - c.lastTelemetry.DnsPacketsProcessed,
-		ConnsOpened:               tel.MonotonicConnsOpened - c.lastTelemetry.ConnsOpened,
+		ConnsClosed:               tel.MonotonicConnsClosed - c.lastTelemetry.ConnsClosed,
+		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
 	}
 
 	c.lastTelemetry.KprobesTriggered = tel.MonotonicKprobesTriggered
@@ -143,7 +144,7 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 	c.lastTelemetry.ConntrackRegisters = tel.MonotonicConntrackRegisters
 	c.lastTelemetry.ConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
 	c.lastTelemetry.DnsPacketsProcessed = tel.MonotonicDnsPacketsProcessed
-	c.lastTelemetry.ConnsOpened = tel.MonotonicConnsOpened
+	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
 	return cct
 }
 

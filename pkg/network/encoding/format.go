@@ -56,7 +56,8 @@ func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTeleme
 		MonotonicConntrackRegisters:        tel.MonotonicConntrackRegisters,
 		MonotonicConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped,
 		MonotonicDnsPacketsProcessed:       tel.MonotonicDnsPacketsProcessed,
-		MonotonicConnsOpened:               tel.MonotonicConnsOpened,
+		MonotonicConnsClosed:               tel.MonotonicConnsClosed,
+		ConnsBpfMapSize:                    tel.ConnsBpfMapSize,
 	}
 }
 

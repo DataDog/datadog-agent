@@ -58,7 +58,6 @@ type telemetry struct {
 	timeSyncCollisions int64
 	dnsStatsDropped    int64
 	dnsPidCollisions   int64
-	connsOpened        int64
 }
 
 type stats struct {
@@ -253,11 +252,9 @@ func (ns *networkState) StoreClosedConnection(conn ConnectionStats) {
 			prev.LastUpdateEpoch = conn.LastUpdateEpoch
 			client.closedConnections[string(key)] = prev
 		} else if len(client.closedConnections) >= ns.maxClosedConns {
-			ns.telemetry.connsOpened++
 			ns.telemetry.closedConnDropped++
 			continue
 		} else {
-			ns.telemetry.connsOpened++
 			client.closedConnections[string(key)] = conn
 		}
 	}
@@ -422,7 +419,6 @@ func (ns *networkState) handleStatsUnderflow(key string, st *stats, c *Connectio
 // createStatsForKey will create a new stats object for a key if it doesn't already exist.
 func (ns *networkState) createStatsForKey(client *client, key string) {
 	if _, ok := client.stats[key]; !ok {
-		ns.telemetry.connsOpened++
 		if len(client.stats) >= ns.maxClientStats {
 			ns.telemetry.connDropped++
 			return
@@ -506,7 +502,6 @@ func (ns *networkState) GetStats() map[string]interface{} {
 			"time_sync_collisions": ns.telemetry.timeSyncCollisions,
 			"dns_stats_dropped":    ns.telemetry.dnsStatsDropped,
 			"dns_pid_collisions":   ns.telemetry.dnsPidCollisions,
-			"conns_opened":         ns.telemetry.connsOpened,
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,
