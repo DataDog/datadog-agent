@@ -433,8 +433,6 @@ core,"golang.org/x/crypto/poly1305",NewBSD
 core,"golang.org/x/crypto/salsa20/salsa",NewBSD
 core,"golang.org/x/crypto/scrypt",NewBSD
 core,"golang.org/x/crypto/ssh/terminal",NewBSD
-core,"golang.org/x/lint",NewBSD
-core,"golang.org/x/lint/golint",NewBSD
 core,"golang.org/x/net/bpf",NewBSD
 core,"golang.org/x/net/context",NewBSD
 core,"golang.org/x/net/context/ctxhttp",NewBSD
