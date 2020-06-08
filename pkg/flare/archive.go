@@ -289,10 +289,12 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 
 func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 	parent := filepath.Dir(dirPath)
-	for parent != "." {
+	for parent != "/" {
 		permsInfos.add(parent)
 		parent = filepath.Dir(parent)
 	}
+
+	permsInfos.add("/")
 }
 
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
