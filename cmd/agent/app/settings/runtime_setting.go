@@ -41,6 +41,8 @@ func InitRuntimeSettings() error {
 	if err := registerRuntimeSetting(logLevelRuntimeSetting("profiling")); err != nil {
 		return err
 	}
+
+	return nil
 }
 
 // RegisterRuntimeSettings keeps track of configurable settings
