@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -551,6 +552,11 @@ func TestTCPRTT(t *testing.T) {
 	assert.Equal(t, tcpInfo.Rttvar, conn.RTTVar)
 }
 
+type AddrPair struct {
+	local  net.Addr
+	remote net.Addr
+}
+
 func TestTCPShortlived(t *testing.T) {
 	// Enable BPF-based system probe
 	tr, err := NewTracer(NewDefaultConfig())
@@ -571,30 +577,64 @@ func TestTCPShortlived(t *testing.T) {
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
+	defer close(doneChan)
 
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
+	// determine the total number of messages that will guarantee a perf batch flush
+	numConns := runtime.NumCPU() * 5
+	addrs := make([]AddrPair, 0, numConns)
+	addrChan := make(chan AddrPair)
+	wg := sync.WaitGroup{}
+	wg.Add(numConns)
+	// create x number of connections and record their addresses
+	for i := 0; i < numConns; i++ {
+		go func() {
+			defer wg.Done()
+			// Connect to server
+			c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Write clientMessageSize to server, and read response
+			if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+				t.Fatal(err)
+			}
+			r := bufio.NewReader(c)
+			r.ReadBytes(byte('\n'))
+
+			// Explicitly close this TCP connection
+			c.Close()
+
+			addrChan <- AddrPair{local: c.LocalAddr(), remote: c.RemoteAddr()}
+		}()
 	}
 
-	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
-	r := bufio.NewReader(c)
-	r.ReadBytes(byte('\n'))
+	go func() {
+		for a := range addrChan {
+			addrs = append(addrs, a)
+		}
+	}()
 
-	// Explicitly close this TCP connection
-	c.Close()
+	wg.Wait()
+	close(addrChan)
 
 	// Wait for the message to be sent from the perf buffer
 	time.Sleep(10 * time.Millisecond)
 
 	connections := getConnections(t, tr)
 
-	// Confirm that we can retrieve the shortlived connection
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	var conn *network.ConnectionStats
+	var ok bool
+	var pair AddrPair
+	// find one of the address pairs
+	for _, a := range addrs {
+		// Confirm that we can retrieve the shortlived connection
+		conn, ok = findConnection(a.local, a.remote, connections)
+		if ok {
+			pair = a
+			break
+		}
+	}
 	require.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
 	assert.Equal(t, serverMessageSize, int(conn.MonotonicRecvBytes))
@@ -607,10 +647,8 @@ func TestTCPShortlived(t *testing.T) {
 	// Confirm that the connection has been cleaned up since the last get
 	connections = getConnections(t, tr)
 
-	conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	conn, ok = findConnection(pair.local, pair.remote, connections)
 	assert.False(t, ok)
-
-	doneChan <- struct{}{}
 }
 
 func TestTCPOverIPv6(t *testing.T) {
