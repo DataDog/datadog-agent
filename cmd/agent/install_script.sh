@@ -362,6 +362,7 @@ $sudo_cmd sh -c "echo '$install_info_content' > $ETCDIR/install_info"
 # However, sudo /sbin/service datadog-agent does work.
 # Use which (from root user) to find the absolute path to service
 
+service_cmd="service"
 if [ "$SUSE11" == "yes" ]; then
   service_cmd=`$sudo_cmd which service`
 fi
