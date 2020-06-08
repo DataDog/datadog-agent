@@ -17,8 +17,6 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -84,9 +82,9 @@ func init() {
 
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
-	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
+	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket"))
+	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
 }
 
 func start(cmd *cobra.Command, args []string) error {
@@ -176,8 +174,8 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(keysPerDomain)
-	f.Start()
+	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
+	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f)
 
 	hname, err := util.GetHostname()
@@ -205,21 +203,23 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 		tagger.Init()
 	}
 
-	metricSamplePool := metrics.NewMetricSamplePool(32)
-	aggregatorInstance := aggregator.InitAggregator(s, metricSamplePool, hname, "agent")
-	sampleC, eventC, serviceCheckC := aggregatorInstance.GetBufferedChannels()
-	statsd, err = dogstatsd.NewServer(metricSamplePool, sampleC, eventC, serviceCheckC)
+	aggregatorInstance := aggregator.InitAggregator(s, hname, aggregator.DogStatsDStandAloneName)
+
+	statsd, err = dogstatsd.NewServer(aggregatorInstance)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
 	}
+
+	// send a starting metric and event
+	aggregatorInstance.AddAgentStartupTelemetry(version.AgentVersion)
 	return
 }
 
 func stopAgent(ctx context.Context, cancel context.CancelFunc) {
 	// retrieve the agent health before stopping the components
-	// GetStatusNonBlocking has a 100ms timeout to avoid blocking
-	health, err := health.GetStatusNonBlocking()
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
 	if err != nil {
 		log.Warnf("Dogstatsd health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
@@ -229,8 +229,15 @@ func stopAgent(ctx context.Context, cancel context.CancelFunc) {
 	// gracefully shut down any component
 	cancel()
 
-	metaScheduler.Stop()
-	statsd.Stop()
+	// stop metaScheduler and statsd if they are instantiated
+	if metaScheduler != nil {
+		metaScheduler.Stop()
+	}
+
+	if statsd != nil {
+		statsd.Stop()
+	}
+
 	log.Info("See ya!")
 	log.Flush()
 	return

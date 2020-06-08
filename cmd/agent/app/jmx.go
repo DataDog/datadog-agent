@@ -10,17 +10,12 @@ package app
 import (
 	"fmt"
 	"runtime"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/app/standalone"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -64,6 +59,13 @@ var (
 		RunE:  doJmxListWithMetrics,
 	}
 
+	jmxListWithRateMetricsCmd = &cobra.Command{
+		Use:   "with-rate-metrics",
+		Short: "List attributes and metrics data that match at least one of your instances configuration, including rates and counters.",
+		Long:  ``,
+		RunE:  doJmxListWithRateMetrics,
+	}
+
 	jmxListLimitedCmd = &cobra.Command{
 		Use:   "limited",
 		Short: "List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.",
@@ -85,8 +87,8 @@ var (
 		RunE:  doJmxListNotCollected,
 	}
 
-	checks      = []string{}
-	jmxLogLevel string
+	cliSelectedChecks = []string{}
+	jmxLogLevel       string
 )
 
 func init() {
@@ -97,140 +99,63 @@ func init() {
 	jmxCmd.AddCommand(jmxCollectCmd)
 
 	//attach list commands to list root
-	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd, jmxListWithMetricsCmd)
+	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd, jmxListWithMetricsCmd, jmxListWithRateMetricsCmd)
 
-	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
-	jmxCollectCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
+	jmxListCmd.PersistentFlags().StringSliceVar(&cliSelectedChecks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
+	jmxCollectCmd.PersistentFlags().StringSliceVar(&cliSelectedChecks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
 
 	// attach the command to the root
 	AgentCmd.AddCommand(jmxCmd)
 }
 
 func doJmxCollect(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("collect", jmxfetch.ReporterConsole, nil)
+	return runJmxCommandConsole("collect")
 }
 
 func doJmxListEverything(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_everything", jmxfetch.ReporterConsole, nil)
+	return runJmxCommandConsole("list_everything")
 }
 
 func doJmxListMatching(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_matching_attributes", jmxfetch.ReporterConsole, nil)
+	return runJmxCommandConsole("list_matching_attributes")
 }
 
 func doJmxListWithMetrics(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterConsole, nil)
+	return runJmxCommandConsole("list_with_metrics")
+}
+
+func doJmxListWithRateMetrics(cmd *cobra.Command, args []string) error {
+	return runJmxCommandConsole("list_with_rate_metrics")
 }
 
 func doJmxListLimited(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_limited_attributes", jmxfetch.ReporterConsole, nil)
+	return runJmxCommandConsole("list_limited_attributes")
 }
 
 func doJmxListCollected(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_collected_attributes", jmxfetch.ReporterConsole, nil)
+	return runJmxCommandConsole("list_collected_attributes")
 }
 
 func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
-	return RunJmxCommand("list_not_matching_attributes", jmxfetch.ReporterConsole, nil)
+	return runJmxCommandConsole("list_not_matching_attributes")
 }
 
-func RunJmxCommand(command string, reporter jmxfetch.JMXReporter, output func(...interface{})) error {
-
-	if jmxLogLevel != "" {
-		// Honour the deprecated --log-level argument
-		overrides := make(map[string]interface{})
-		overrides["log_level"] = jmxLogLevel
-		config.AddOverrides(overrides)
-	} else {
-		jmxLogLevel = config.GetEnv("DD_LOG_LEVEL", "debug")
-	}
-
-	overrides := make(map[string]interface{})
-	overrides["cmd_port"] = 0 // let the os assign an available port
-	config.AddOverrides(overrides)
-
-	err := common.SetupConfig(confFilePath)
+// runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
+// with the Console reporter
+func runJmxCommandConsole(command string) error {
+	logLevel, err := standalone.SetupCLI(loggerName, confFilePath, jmxLogLevel, "debug")
 	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
-
-	err = config.SetupLogger(loggerName, jmxLogLevel, "", "", false, true, false)
-	if err != nil {
-		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		fmt.Printf("Cannot initialize command: %v\n", err)
 		return err
 	}
 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
-	// start the cmd HTTP server
-	if err := api.StartServer(); err != nil {
-		return fmt.Errorf("Error while starting api server, exiting: %v", err)
-	}
+	err = standalone.ExecJMXCommandConsole(command, cliSelectedChecks, logLevel)
 
-	runner := &jmxfetch.JMXFetch{}
-
-	runner.Reporter = reporter
-	runner.Command = command
-	runner.IPCPort = api.ServerAddress().Port
-	runner.Output = log.Info
-	runner.LogLevel = jmxLogLevel
-	if output != nil {
-		runner.Output = output
-	}
-
-	loadConfigs(runner)
-
-	err = runner.Start(false)
-	if err != nil {
-		return err
-	}
-
-	err = runner.Wait()
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("JMXFetch exited successfully. If nothing was displayed please check your configuration, flags and the JMXFetch log file.")
 	if runtime.GOOS == "windows" {
-		printWindowsUserWarning("jmx")
+		standalone.PrintWindowsUserWarning("jmx")
 	}
-	return nil
-}
 
-// RunJmxListWithMetrics runs the JMX command with "with-metrics", reporting
-// the data as a JSON on the console. It is used by the `check jmx` cli command
-// of the Agent.
-func RunJmxListWithMetrics() error {
-	// don't pollute the JSON with the log pattern.
-	out := func(a ...interface{}) {
-		fmt.Println(a...)
-	}
-	return RunJmxCommand("list_with_metrics", jmxfetch.ReporterJSON, out)
-}
-
-func loadConfigs(runner *jmxfetch.JMXFetch) {
-	fmt.Println("Loading configs :")
-
-	configs := common.AC.GetAllConfigs()
-	includeEverything := len(checks) == 0
-
-	for _, c := range configs {
-		if check.IsJMXConfig(c.Name, c.InitConfig) && (includeEverything || configIncluded(c)) {
-			fmt.Println("Config ", c.Name, " was loaded.")
-			jmx.AddScheduledConfig(c)
-			runner.ConfigureFromInitConfig(c.InitConfig)
-			for _, instance := range c.Instances {
-				runner.ConfigureFromInstance(instance)
-			}
-		}
-	}
-}
-
-func configIncluded(config integration.Config) bool {
-	for _, c := range checks {
-		if strings.EqualFold(config.Name, c) {
-			return true
-		}
-	}
-	return false
+	return err
 }

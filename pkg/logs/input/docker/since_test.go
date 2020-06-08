@@ -19,7 +19,7 @@ import (
 )
 
 func TestSince(t *testing.T) {
-	now := time.Now()
+	now := time.Now().UTC().Add(-5 * time.Second)
 	registry := mock.NewRegistry()
 
 	var since time.Time

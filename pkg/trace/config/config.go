@@ -76,6 +76,7 @@ type AgentConfig struct {
 	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
 	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
+	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
 
 	// Writers
 	StatsWriter *WriterConfig
@@ -134,6 +135,7 @@ func New() *AgentConfig {
 		ReceiverHost:    "localhost",
 		ReceiverPort:    8126,
 		ConnectionLimit: 2000,
+		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
 
 		StatsWriter: new(WriterConfig),
 		TraceWriter: new(WriterConfig),
@@ -155,6 +157,14 @@ func New() *AgentConfig {
 
 		DDAgentBin: defaultDDAgentBin,
 	}
+}
+
+// APIKey returns the first (main) endpoint's API key.
+func (c *AgentConfig) APIKey() string {
+	if len(c.Endpoints) == 0 {
+		return ""
+	}
+	return c.Endpoints[0].APIKey
 }
 
 // Validate validates if the current configuration is good for the agent to start with.

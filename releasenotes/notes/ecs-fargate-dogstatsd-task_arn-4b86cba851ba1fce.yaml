@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    Enrich dogstatsd metrics with task_arn tag if
+    DD_DOGSTATSD_TAG_CARDINALITY=orchestrator.

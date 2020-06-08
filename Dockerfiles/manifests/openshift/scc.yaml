@@ -14,6 +14,8 @@ priority: 10
 allowHostPorts: true
 # Allow host PID for dogstatsd origin detection
 allowHostPID: true
+# Allow host network for the CRIO check to reach Prometheus through localhost
+allowHostNetwork: true
 # Allow hostPath for docker / process metrics
 volumes:
 - configMap
@@ -22,7 +24,7 @@ volumes:
 - hostPath
 - secret
 # Use the `spc_t` selinux type to access the
-# docker socket + proc and cgroup stats
+# docker/cri socket + proc and cgroup stats
 seLinuxContext:
   type: MustRunAs
   seLinuxOptions:
@@ -30,8 +32,17 @@ seLinuxContext:
     role: "system_r"
     type: "spc_t"
     level: "s0"
+# system-probe requires some specific seccomp and capabilities
+seccompProfiles:
+- '*'
+allowedCapabilities:
+- SYS_ADMIN
+- SYS_RESOURCE
+- SYS_PTRACE
+- NET_ADMIN
+- IPC_LOCK
 #
-# The rest is copied from 3.7.0 restricted SCC
+# The rest is copied from restricted SCC
 #
 allowHostDirVolumePlugin: true
 allowHostIPC: false
@@ -53,6 +64,4 @@ supplementalGroups:
 #   ranges:
 #   - min: <min-group-ID>
 #   - max: <max-group-ID>
-seccompProfiles: []
 requiredDropCapabilities: []
-allowedCapabilities: []

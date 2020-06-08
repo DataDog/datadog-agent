@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -312,6 +314,12 @@ func (s *sender) do(req *http.Request) error {
 		// should thus be retried.
 		return &retriableError{err}
 	}
+	// From https://golang.org/pkg/net/http/#Response:
+	// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive"
+	// TCP connections if the Body is not read to completion and closed.
+	io.Copy(ioutil.Discard, resp.Body)
+	resp.Body.Close()
+
 	if resp.StatusCode/100 == 5 {
 		// 5xx errors can be retried
 		return &retriableError{
@@ -351,6 +359,16 @@ func newPayload(headers map[string]string) *payload {
 	return p
 }
 
+func (p *payload) clone() *payload {
+	headers := make(map[string]string, len(p.headers))
+	for k, v := range p.headers {
+		headers[k] = v
+	}
+	clone := newPayload(headers)
+	clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes()))
+	return clone
+}
+
 // httpRequest returns an HTTP request based on the payload, targeting the given URL.
 func (p *payload) httpRequest(url *url.URL) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodPost, url.String(), bytes.NewReader(p.body.Bytes()))
@@ -376,6 +394,30 @@ func stopSenders(senders []*sender) {
 		}(s)
 	}
 	wg.Wait()
+}
+
+// sendPayloads sends the payload p to all senders.
+func sendPayloads(senders []*sender, p *payload) {
+	if len(senders) == 1 {
+		// fast path
+		senders[0].Push(p)
+		return
+	}
+	// Create a clone for each payload because each sender places payloads
+	// back onto the pool after they are sent.
+	payloads := make([]*payload, 0, len(senders))
+	// Perform all the clones before any sends are to ensure the original
+	// payload body is completely unread.
+	for i := range senders {
+		if i == 0 {
+			payloads = append(payloads, p)
+		} else {
+			payloads = append(payloads, p.clone())
+		}
+	}
+	for i, sender := range senders {
+		sender.Push(payloads[i])
+	}
 }
 
 const (

@@ -66,6 +66,16 @@ func TestParseMetadata(t *testing.T) {
 
 	expectedUpdates := []*TagInfo{
 		{
+			Source:      "ecs_fargate",
+			Entity:      OrchestratorScopeEntityID,
+			LowCardTags: []string{},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
+			HighCardTags: []string{},
+			DeleteEntity: false,
+		},
+		{
 			Source: "ecs_fargate",
 			Entity: "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 			LowCardTags: []string{
@@ -74,6 +84,7 @@ func TestParseMetadata(t *testing.T) {
 				"short_image:agent-dev",
 				"image_tag:xvello-process-kubelet",
 				"cluster_name:xvello-fargate",
+				"ecs_cluster_name:xvello-fargate",
 				"task_family:redis-datadog",
 				"task_version:3",
 				"ecs_container_name:datadog-agent",
@@ -97,11 +108,15 @@ func TestParseMetadata(t *testing.T) {
 				"short_image:redis",
 				"image_tag:latest",
 				"cluster_name:xvello-fargate",
+				"ecs_cluster_name:xvello-fargate",
 				"task_family:redis-datadog",
 				"task_version:3",
 				"ecs_container_name:redis",
 				"lowtag:myvalue",
 				"region:eu-central-1",
+				"service:redis",
+				"env:prod",
+				"version:1.0",
 			},
 			OrchestratorCardTags: []string{
 				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
@@ -125,6 +140,7 @@ func TestParseMetadata(t *testing.T) {
 				"short_image:fg-proxy",
 				"image_tag:tinyproxy",
 				"cluster_name:xvello-fargate",
+				"ecs_cluster_name:xvello-fargate",
 				"task_family:redis-datadog",
 				"task_version:3",
 				"ecs_container_name:~internal~ecs~pause",
@@ -150,6 +166,7 @@ func TestParseMetadata(t *testing.T) {
 				"short_image:agent-dev",
 				"image_tag:xvello-process-kubelet",
 				"cluster_name:xvello-fargate",
+				"ecs_cluster_name:xvello-fargate",
 				"task_family:redis-datadog",
 				"task_version:3",
 				"ecs_container_name:datadog-agent",
@@ -175,6 +192,7 @@ func TestParseMetadata(t *testing.T) {
 				"short_image:redis",
 				"image_tag:latest",
 				"cluster_name:xvello-fargate",
+				"ecs_cluster_name:xvello-fargate",
 				"task_family:redis-datadog",
 				"task_version:3",
 				"ecs_container_name:redis",
@@ -182,6 +200,9 @@ func TestParseMetadata(t *testing.T) {
 				"region:eu-central-1",
 				"tag1:value1",
 				"tag3:value:2:value:3",
+				"service:redis",
+				"env:prod",
+				"version:1.0",
 			},
 			OrchestratorCardTags: []string{
 				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
@@ -236,6 +257,16 @@ func TestParseMetadataV10(t *testing.T) {
 
 	expectedUpdates := []*TagInfo{
 		{
+			Source:      "ecs_fargate",
+			Entity:      OrchestratorScopeEntityID,
+			LowCardTags: []string{},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
+			},
+			HighCardTags: []string{},
+			DeleteEntity: false,
+		},
+		{
 			Source: "ecs_fargate",
 			Entity: "container_id://e8d4a9a20a0d931f8f632ec166b3f71a6ff00450aa7e99607f650e586df7d068",
 			LowCardTags: []string{
@@ -244,6 +275,7 @@ func TestParseMetadataV10(t *testing.T) {
 				"short_image:docker-dd-agent",
 				"image_tag:latest",
 				"cluster_name:pierrem-test-fargate",
+				"ecs_cluster_name:pierrem-test-fargate",
 				"task_family:redis-datadog",
 				"task_version:1",
 				"ecs_container_name:dd-agent",
@@ -266,9 +298,13 @@ func TestParseMetadataV10(t *testing.T) {
 				"short_image:redis",
 				"image_tag:latest",
 				"cluster_name:pierrem-test-fargate",
+				"ecs_cluster_name:pierrem-test-fargate",
 				"task_family:redis-datadog",
 				"task_version:1",
 				"ecs_container_name:redis",
+				"service:redis",
+				"env:prod",
+				"version:1.0",
 			},
 			OrchestratorCardTags: []string{
 				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
@@ -288,6 +324,7 @@ func TestParseMetadataV10(t *testing.T) {
 				"short_image:amazon-ecs-pause",
 				"image_tag:0.1.0",
 				"cluster_name:pierrem-test-fargate",
+				"ecs_cluster_name:pierrem-test-fargate",
 				"task_family:redis-datadog",
 				"task_version:1",
 				"ecs_container_name:~internal~ecs~pause",

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -28,6 +30,9 @@ var (
 	errServer = errors.New("server error")
 )
 
+// emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
+var emptyPayload []byte
+
 // Destination sends a payload over HTTP.
 type Destination struct {
 	url                 string
@@ -42,12 +47,16 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext) *Destination {
+	return newDestination(endpoint, contentType, destinationsContext, time.Second*10)
+}
+
+func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration) *Destination {
 	return &Destination{
 		url:             buildURL(endpoint),
 		contentType:     contentType,
 		contentEncoding: buildContentEncoding(endpoint),
 		client: &http.Client{
-			Timeout: time.Second * 10,
+			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
 			Transport: httputils.CreateHTTPTransport(),
 		},
@@ -124,7 +133,7 @@ func (d *Destination) sendInBackground(payloadChan chan []byte) {
 		for {
 			select {
 			case payload := <-payloadChan:
-				d.Send(payload)
+				d.Send(payload) //nolint:errcheck
 			case <-ctx.Done():
 				return
 			}
@@ -154,4 +163,22 @@ func buildContentEncoding(endpoint config.Endpoint) ContentEncoding {
 		return NewGzipContentEncoding(endpoint.CompressionLevel)
 	}
 	return IdentityContentType
+}
+
+// CheckConnectivity check if sending logs through HTTP works
+func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
+	log.Info("Checking HTTP connectivity...")
+	ctx := client.NewDestinationsContext()
+	ctx.Start()
+	defer ctx.Stop()
+	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5)
+	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
+	err := destination.Send(emptyPayload)
+	if err != nil {
+		log.Warnf("HTTP connectivity failure: %v", err)
+	} else {
+		log.Info("HTTP connectivity successful")
+	}
+	return err == nil
 }

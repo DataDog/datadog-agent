@@ -33,7 +33,7 @@ const (
 // KubeletListener listen to kubelet pod creation
 type KubeletListener struct {
 	watcher    *kubelet.PodWatcher
-	filter     *containers.Filter
+	filters    *containerFilters
 	services   map[string]Service
 	newService chan<- Service
 	delService chan<- Service
@@ -45,13 +45,15 @@ type KubeletListener struct {
 
 // KubeContainerService implements and store results from the Service interface for the Kubelet listener
 type KubeContainerService struct {
-	entity        string
-	adIdentifiers []string
-	hosts         map[string]string
-	ports         []ContainerPort
-	creationTime  integration.CreationTime
-	ready         bool
-	checkNames    []string
+	entity          string
+	adIdentifiers   []string
+	hosts           map[string]string
+	ports           []ContainerPort
+	creationTime    integration.CreationTime
+	ready           bool
+	checkNames      []string
+	metricsExcluded bool
+	logsExcluded    bool
 }
 
 // Make sure KubeContainerService implements the Service interface
@@ -79,17 +81,17 @@ func NewKubeletListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, err
 	}
-	filter, err := containers.NewFilterFromConfigIncludePause()
+	filters, err := newContainerFilters()
 	if err != nil {
 		return nil, err
 	}
 	return &KubeletListener{
 		watcher:  watcher,
-		filter:   filter,
+		filters:  filters,
 		services: make(map[string]Service),
 		ticker:   time.NewTicker(config.Datadog.GetDuration("kubelet_listener_polling_interval") * time.Second),
 		stop:     make(chan bool),
-		health:   health.Register("ad-kubeletlistener"),
+		health:   health.RegisterLiveness("ad-kubeletlistener"),
 	}, nil
 }
 
@@ -108,7 +110,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
-				l.health.Deregister()
+				l.health.Deregister() //nolint:errcheck
 				return
 			case <-l.health.C:
 			case <-l.ticker.C:
@@ -217,10 +219,16 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	var containerName string
 	for _, container := range pod.Status.GetAllContainers() {
 		if container.ID == svc.entity {
-			if l.filter.IsExcluded(container.Name, container.Image) {
-				log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, container.Image)
+			// Detect AD exclusion
+			if l.filters.IsExcluded(containers.GlobalFilter, container.Name, container.Image, pod.Metadata.Namespace) {
+				log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image, pod.Metadata.Namespace)
 				return
 			}
+
+			// Detect metrics or logs exclusion
+			svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, container.Image, pod.Metadata.Namespace)
+			svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, container.Name, container.Image, pod.Metadata.Namespace)
+
 			containerName = container.Name
 
 			// Add container uid as ID
@@ -386,9 +394,26 @@ func (s *KubeContainerService) IsReady() bool {
 	return s.ready
 }
 
+// GetExtraConfig isn't supported
+func (s *KubeContainerService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
+}
+
 // GetCheckNames returns names of checks defined in pod annotations
 func (s *KubeContainerService) GetCheckNames() []string {
 	return s.checkNames
+}
+
+// HasFilter returns true if metrics or logs collection must be excluded for this service
+// no containers.GlobalFilter case here because we don't create services that are globally excluded in AD
+func (s *KubeContainerService) HasFilter(filter containers.FilterType) bool {
+	switch filter {
+	case containers.MetricsFilter:
+		return s.metricsExcluded
+	case containers.LogsFilter:
+		return s.logsExcluded
+	}
+	return false
 }
 
 // GetEntity returns the unique entity name linked to that service
@@ -449,4 +474,15 @@ func (s *KubePodService) IsReady() bool {
 // KubePodService doesn't implement this method
 func (s *KubePodService) GetCheckNames() []string {
 	return nil
+}
+
+// HasFilter always return false
+// KubePodService doesn't implement this method
+func (s *KubePodService) HasFilter(filter containers.FilterType) bool {
+	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *KubePodService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

@@ -2,6 +2,83 @@
 Release Notes
 =============
 
+.. _Release Notes_1.5.2:
+
+1.5.2
+=====
+
+.. _Release Notes_1.5.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-02-11
+
+Minor release on 1.5 branch
+
+Bug Fixed
+------------
+
+- Fix agent commands in DCA (always start listener) (#4870)
+
+.. _Release Notes_1.5.1:
+
+1.5.1
+=====
+
+.. _Release Notes_1.5.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-02-06
+
+Minor release on 1.5 branch
+
+Bug Fixed
+------------
+
+- [DCA] fix cluster-agent flare panic (#4838)
+- Remove setcap NET_BIND_SERVICE as we cannot make it work with user namespaces used in the CI (#4846)
+- Add service listener in endpoints to watch for newly annotated services (#4816)
+- Fix typo (#4831)
+
+.. _Release Notes_1.5.0:
+
+1.5.0
+=====
+
+.. _Release Notes_1.5.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2020-01-28
+
+This version contains the changes released with version 7.17.0 of the core agent.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7170>`_.
+
+New Features
+------------
+
+- Adding logic to show DCA status for clc (#4738)
+- Introduce Rate Limiting Stats in the /metrics of the Cluster Agent (#4669)
+- MetricServer generates k8s event on HPA
+
+Enhancement Notes
+-----------------
+
+- Add cluster-name tag in host tags (#4558)
+- Add read-secret command in cluster-agent to use as secrets backend (#4639)
+- Adding logic to show DCA status for clc (#4738)
+- Allow dots in cluster names (#4611)
+- Check if CheckMetadata exist before iterating over it in cluster agent status page (#4728)
+- Grant CAP_NET_BIND_SERVICE capability to the cluster_agent (#4439)
+- Ignore invalid cluster names instead of panicking (#4549)
+- Fix eventrecorder init (#4732)
+- Handle NewHandler failure better in setupClusterCheck (#4447)
+- Adding User-Agent to the DCA client
+- Filter non-cluster-checks (#4566)
 
 .. _Release Notes_1.4.0:
 

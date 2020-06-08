@@ -14,10 +14,10 @@ import (
 )
 
 func TestSortUniqInPlace(t *testing.T) {
-	elements := []string{"tag2:tagval", "tag1:tagval", "tag2:tagval"}
+	elements := []string{"tag3:tagggg", "tag2:tagval", "tag1:tagval", "tag2:tagval"}
 	elements = SortUniqInPlace(elements)
 
-	assert.ElementsMatch(t, elements, []string{"tag1:tagval", "tag2:tagval"})
+	assert.ElementsMatch(t, elements, []string{"tag1:tagval", "tag2:tagval", "tag3:tagggg"})
 }
 
 func benchmarkDeduplicateTags(b *testing.B, numberOfTags int) {

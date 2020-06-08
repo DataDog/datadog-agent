@@ -1,6 +1,7 @@
 import datetime
 import glob
 import os
+import getpass
 import contextlib
 import shutil
 import tempfile
@@ -18,17 +19,20 @@ EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
 EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
 
 BPF_TAG = "linux_bpf"
+BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7',
-          python_runtimes='3'):
+          python_runtimes='3', with_bcc=True, go_mod="vendor", windows=False):
     """
     Build the system_probe
     """
 
-    build_object_files(ctx, install=True)
+    # Only build ebpf files on unix
+    if not windows:
+        build_object_files(ctx, install=True)
 
     # TODO use pkg/version for this
     main = "main."
@@ -41,7 +45,6 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     }
 
     goenv = {}
-    # TODO: this is a temporary workaround. system probe had issues when built with go 1.11 and 1.12
     if go_version:
         lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:
@@ -59,13 +62,21 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
 
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags() + [BPF_TAG]
+
+    if not windows:
+        build_tags = get_default_build_tags() + [BPF_TAG]
+    else:
+        build_tags = get_default_build_tags()
+
+    if with_bcc:
+        build_tags.append(BCC_TAG)
 
     # TODO static option
-    cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),
@@ -119,19 +130,26 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
     if not skip_object_files:
         build_object_files(ctx, install=False)
 
-    pkg = os.path.join(REPO_PATH, "pkg", "ebpf", "...")
+    pkg = "./pkg/ebpf/... ./pkg/network/..."
 
     # Pass along the PATH env variable to retrieve the go binary path
     path = os.environ['PATH']
 
-    cmd = 'go test -v -tags "{bpf_tag}" {pkg}'
+    cmd = 'go test -mod={go_mod} -v -tags "{bpf_tag}" {pkg}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
     if only_check_bpf_bytes:
         cmd += " -run=TestEbpfBytesCorrect"
+    else:
+        if getpass.getuser()  != "root":
+            print("system-probe tests must be run as root")
+            raise Exit(code=1)
+        if os.getenv("GOPATH") is None:
+            print("GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve your environment")
+            raise Exit(code=1)
 
-    ctx.run(cmd.format(path=path, bpf_tag=BPF_TAG, pkg=pkg))
+    ctx.run(cmd.format(path=path, go_mod="vendor", bpf_tag=BPF_TAG, pkg=pkg))
 
 
 @task
@@ -141,13 +159,14 @@ def nettop(ctx, incremental_build=False):
     """
     build_object_files(ctx, install=True)
 
-    cmd = 'go build {build_type} -tags "linux_bpf" -o {bin_path} {path}'
+    cmd = 'go build -mod={go_mod} {build_type} -tags "linux_bpf" -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
     ctx.run(cmd.format(
         path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
         bin_path=bin_path,
-        build_type="-i" if incremental_build else "-a",
+        go_mod=go_mod,
+        build_type="" if incremental_build else "-a",
     ))
 
     # Run
@@ -204,6 +223,12 @@ def build_object_files(ctx, install=True):
     """build_object_files builds only the eBPF object
     set install to False to disable replacing the assets
     """
+
+    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently, and result in us not building a
+    # new .o file
+    print("checking for clang executable...")
+    ctx.run("which clang")
+    print("found clang")
 
     centos_headers_dir = "/usr/src/kernels"
     debian_headers_dir = "/usr/src"
@@ -279,13 +304,15 @@ def build_object_files(ctx, install=True):
         # Now update the assets stored in the go code
         commands.append("go get -u github.com/jteeuwen/go-bindata/...")
 
-        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg ebpf -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}'"
-        go_file = os.path.join(bpf_dir, "tracer-ebpf.go")
+        assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}'"
+        go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
         commands.append(assets_cmd.format(
             c_dir=c_dir,
             go_file=go_file,
             obj_file=obj_file,
             debug_obj_file=debug_obj_file,
+            tcp_queue_length_kern_c_file=os.path.join(c_dir, "tcp-queue-length-kern.c"),
+            tcp_queue_length_kern_user_h_file=os.path.join(c_dir, "tcp-queue-length-kern-user.h"),
         ))
 
         commands.append("gofmt -w -s {go_file}".format(go_file=go_file))

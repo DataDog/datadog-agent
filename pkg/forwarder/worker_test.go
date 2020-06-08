@@ -110,6 +110,49 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	assert.True(t, w.blockedList.isBlock("error_url"))
 }
 
+func TestWorkerResetConnections(t *testing.T) {
+	highPrio := make(chan Transaction)
+	lowPrio := make(chan Transaction)
+	requeue := make(chan Transaction, 1)
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
+
+	mock := newTestTransaction()
+	mock.On("Process", w.Client).Return(nil).Times(1)
+	mock.On("GetTarget").Return("").Times(1)
+
+	w.Start()
+
+	highPrio <- mock
+	<-mock.processed
+
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Process", 1)
+
+	httpClientBefore := w.Client
+	w.ScheduleConnectionReset()
+
+	// tricky to test here that "Process" is called with a new http client
+	mock2 := newTestTransactionWithoutClientAssert()
+	mock2.On("Process").Return(nil).Times(1)
+	mock2.On("GetTarget").Return("").Times(1)
+	highPrio <- mock2
+	<-mock2.processed
+	mock2.AssertExpectations(t)
+	mock2.AssertNumberOfCalls(t, "Process", 1)
+
+	assert.NotSame(t, httpClientBefore, w.Client)
+
+	mock3 := newTestTransaction()
+	mock3.On("Process", w.Client).Return(nil).Times(1)
+	mock3.On("GetTarget").Return("").Times(1)
+	highPrio <- mock3
+	<-mock3.processed
+	mock3.AssertExpectations(t)
+	mock3.AssertNumberOfCalls(t, "Process", 1)
+
+	w.Stop(false)
+}
+
 func TestWorkerPurgeOnStop(t *testing.T) {
 	highPrio := make(chan Transaction, 1)
 	lowPrio := make(chan Transaction, 1)

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Expose the new JMXFetch rate with metrics method to test JMX based checks.

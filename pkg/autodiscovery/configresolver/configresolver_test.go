@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -29,6 +30,7 @@ type dummyService struct {
 	Hostname      string
 	CreationTime  integration.CreationTime
 	CheckNames    []string
+	ExtraConfig   map[string]string
 }
 
 // GetEntity returns the service entity name
@@ -84,6 +86,16 @@ func (s *dummyService) IsReady() bool {
 // GetCheckNames returns slice of check names defined in docker labels
 func (s *dummyService) GetCheckNames() []string {
 	return s.CheckNames
+}
+
+// HasFilter returns false
+func (s *dummyService) HasFilter(filter containers.FilterType) bool {
+	return false
+}
+
+// GetExtraConfig returns extra configuration
+func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte(s.ExtraConfig[string(key)]), nil
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -525,6 +537,25 @@ func TestResolve(t *testing.T) {
 				Entity:        "a5901276aed1",
 				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
 				Provider:      "file",
+			},
+		},
+		{
+			testName: "SNMP testing",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"snmp"},
+				ExtraConfig:   map[string]string{"user": "admin", "auth_key": "secret"},
+			},
+			tpl: integration.Config{
+				Name:          "device",
+				ADIdentifiers: []string{"snmp"},
+				Instances:     []integration.Data{integration.Data("user: %%extra_user%%\nauthKey: %%extra_auth_key%%")},
+			},
+			out: integration.Config{
+				Name:          "device",
+				ADIdentifiers: []string{"snmp"},
+				Instances:     []integration.Data{integration.Data("user: admin\nauthKey: secret")},
+				Entity:        "a5901276aed1",
 			},
 		},
 	}

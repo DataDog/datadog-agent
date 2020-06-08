@@ -7,7 +7,6 @@ import yaml
 import os
 import shutil
 import sys
-import distro
 from distutils.dir_util import copy_tree
 
 import invoke
@@ -16,7 +15,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, load_release_versions, get_version
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS, REDHAT_DEBIAN_SUSE_ONLY_TAGS, REDHAT_DEBIAN_SUSE_DIST
+from .build_tags import get_default_build_tags
 from .go import deps, generate
 
 # constants
@@ -52,41 +51,29 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     # put the check confs in place
     assetconfigs(ctx)
 
-    build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
-
-    if not sys.platform.startswith('linux'):
-        for ex in LINUX_ONLY_TAGS:
-            if ex not in build_exclude:
-                build_exclude.append(ex)
 
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)
 
-    # remove all tags that are only available on debian distributions
-    distname = distro.id().lower()
-    if distname not in REDHAT_DEBIAN_SUSE_DIST:
-        for ex in REDHAT_DEBIAN_SUSE_ONLY_TAGS:
-            if ex not in build_exclude:
-                build_exclude.append(ex)
+    build_tags = get_default_build_tags(android=True)
 
-    build_tags = get_default_build_tags(puppy=True)
-
-    build_tags.add("android")
+    build_tags.append("android")
     cmd = "gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent/android"
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": os.path.join(BIN_PATH, bin_name("ddagent", android=True)),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
+    # gomobile is not supporting go modules
+    # https://go-review.googlesource.com/c/mobile/+/167659/
+    env["GO111MODULE"] = "off"
     ctx.run(cmd.format(**args), env=env)
 
     pwd = os.getcwd()

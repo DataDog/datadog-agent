@@ -16,8 +16,10 @@ api_key:
 # site: datadoghq.com
 
 ## @param dd_url - string - optional - default: https://app.datadoghq.com
-## The host of the Datadog intake server to send Agent data to, only set this option
-## if you need the Agent to send data to a custom URL, it overrides the site setting defined in "site".
+## The host of the Datadog intake server to send metrics to, only set this option
+## if you need the Agent to send metrics to a custom URL, it overrides the site
+## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
+## own "*_dd_url" settings.
 #
 # dd_url: https://app.datadoghq.com
 
@@ -185,6 +187,29 @@ api_key:
 #
 # forwarder_stop_timeout: 2
 
+## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
+## This option restricts which cloud provider endpoint will be used by the
+## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
+## and alibaba providers. Some cloud provider are not enabled by default to not
+## trigger security alert when querying unknown IP (for example, when enabling
+## Tencent on AWS).
+## Setting an empty list will disable querying any cloud metadata endpoints
+## (falling back on system metadata). Using this setting on a cloud provider
+## host may result in duplicated hosts in your account.
+##
+## Possible values are:
+## "aws"     AWS EC2, ECS/Fargate
+## "gcp"     Google Cloud Provider
+## "azure"   Azure
+## "alibaba" Alibaba
+## "tencent" Tencent
+#
+# cloud_provider_metadata:
+#   - "aws"
+#   - "gcp"
+#   - "azure"
+#   - "alibaba"
+
 ## @param collect_ec2_tags - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
 #
@@ -215,6 +240,11 @@ api_key:
 #   - "google-container-manifest"
 #   - "bosh_settings"
 
+## @param gce_metadata_timeout - integer - optional - default: 1000
+## Timeout in milliseconds on calls to the GCE metadata endpoints.
+#
+# gce_metadata_timeout: 1000
+
 ## @param flare_stripped_keys - list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
 ## including them in the flare.
@@ -227,6 +257,7 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
+{{- if .Python }}
 {{- if .BothPythonPresent -}}
 ## @param python_version - integer - optional - default: 2
 ## The major version of Python used to run integrations and custom checks.
@@ -235,6 +266,7 @@ api_key:
 #
 # python_version: 2
 
+{{ end -}}
 {{ end }}
 
 ############################
@@ -316,7 +348,7 @@ api_key:
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
 # procfs_path: <PROCFS_PATH>
-
+{{ if .Python }}
 ## @param disable_py3_validation - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
 #
@@ -357,7 +389,7 @@ api_key:
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
-
+{{ end }}
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
@@ -436,6 +468,12 @@ api_key:
   #
   # use_http: true
 
+  ## @param use_tcp - boolean - optional - default: false
+  ## By default, logs are sent through HTTP if possible, use this parameter
+  ## to send logs in TCP
+  #
+  # use_tcp: true
+
   ## @param use_compression - boolean - optional - default: false
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
   ## compresses logs before sending them.
@@ -479,6 +517,12 @@ api_key:
   ## The port that the trace receiver should listen on.
   #
   # receiver_port: 8126
+
+  ## @param receiver_socket - string - optional
+  ## Accept traces through Unix Domain Sockets.
+  ## It is off by default. When set, it must point to a valid socket file.
+  #
+  # receiver_socket: <UNIX_SOCKET_PATH>
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
@@ -682,9 +726,9 @@ api_key:
 {{ end -}}
 {{- if .Dogstatsd }}
 
-############################
+#############################
 ## DogStatsD Configuration ##
-############################
+#############################
 
 ## @param use_dogstatsd - boolean - optional - default: true
 ## Set this option to false to disable the Agent DogStatsD server.
@@ -731,6 +775,13 @@ api_key:
 ## Publish DogStatsD's internal stats as Go expvars.
 #
 # dogstatsd_stats_enable: false
+
+## @param dogstatsd_queue_size - integer - optional - default: 1024
+## Configure the internal queue size of the Dogstatsd server.
+## Reducing the size of this queue will reduce the maximum memory usage of the
+## Dogstatsd server but as a trade-off, it could increase the number of packet drops.
+#
+# dogstatsd_queue_size: 1024
 
 ## @param dogstatsd_stats_buffer - integer - optional - default: 10
 ## Set how many items should be in the DogStatsD's stats circular buffer.
@@ -1127,6 +1178,21 @@ api_key:
 #
 # ad_config_poll_interval: 10
 
+## @param cloud_foundry_garden - custom object - optional
+## Settings for Cloudfoundry application container autodiscovery.
+#
+# cloud_foundry_garden:
+
+  ## @param listen_network - string - optional - default: unix
+  ## The network on which the garden API is listening. Possible values are `unix` or `tcp`
+  #
+  # listen_network: unix
+
+  ## @param listen_address - string - optional - default: /var/vcap/data/garden/garden.sock
+  ## The address on which the garden API is listening.
+  #
+  # listen_address: /var/vcap/data/garden/garden.sock
+
 {{ end -}}
 {{- if .ClusterChecks }}
 
@@ -1466,7 +1532,7 @@ api_key:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
 
-## @param clustername - string - optional
+## @param cluster_name - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:
 ## * Lowercase letters, numbers, and hyphens only.
@@ -1477,5 +1543,50 @@ api_key:
 ## https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 #
 # cluster_name: <CLUSTER_IDENTIFIER>
+
+## @param disable_cluster_name_tag_key - boolean - optional - default: false
+## Disable using the 'cluster_name' tag key to submit orchestrator cluster name tag.
+## The Agent will continue sending the cluster name tag with 'kube|ecs_cluster_name' key
+## regardless of the value of this parameter.
+#
+# disable_cluster_name_tag_key: false
+
+{{ end -}}
+{{- if .CloudFoundryBBS }}
+#######################################################
+## Cloud Foundry BBS Configuration for Autodiscovery ##
+#######################################################
+
+## @param cloud_foundry_bbs - custom object - optional
+## This section configures how the Cluster Agent accesses BBS API to gather information
+## necessary for autodiscovery on BBS-based Cloud Foundry deployments.
+#
+# cloud_foundry_bbs:
+
+  ## @param url - string - optional - default: https://bbs.service.cf.internal:8889
+  ## URL of the BBS API.
+  #
+  # url: https://bbs.service.cf.internal:8889
+
+  ## @param poll_interval - integer - optional - default: 15
+  ## Refresh rate of BBS API, in seconds. Values lower than 10 might influence
+  ## performance of other operations in the cluster.
+  #
+  # poll_interval: 15
+
+  ## @param ca_file - string - optional - default: ""
+  ## PEM-encoded CA certificate used when connecting to the BBS API.
+  #
+  # ca_file: ""
+
+  ## @param cert_file - string - optional - default: ""
+  ## PEM-encoded client certificate used when connecting to the BBS API.
+  #
+  # cert_file: ""
+
+  ## @param key_file - string - optional - default: ""
+  ## PEM-encoded client key used when connecting to the BBS API.
+  #
+  # key_file: ""
 
 {{ end -}}

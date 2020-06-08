@@ -18,11 +18,10 @@ GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False,
-          major_version='7', python_runtimes='3', arch="x64"):
+          major_version='7', python_runtimes='3', arch="x64", go_mod="vendor"):
     """
     Build the process agent
     """
-
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
@@ -59,8 +58,6 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     }
 
     goenv = {}
-    # TODO: this is a temporary workaround to avoid the garbage collection issues that the process-agent+go1.11 have had.
-    # Once we have upgraded the go version to 1.12, this can be removed
     if go_version:
         lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
         for line in lines:
@@ -76,7 +73,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(puppy=False, process=True)
+    build_tags = get_default_build_tags(iot=False, process=True, arch=arch)
 
     ## secrets is not supported on windows because the process agent still runs as
     ## root.  No matter what `get_default_build_tags()` returns, take secrets out.
@@ -84,10 +81,11 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
         build_tags.remove("secrets")
 
     # TODO static option
-    cmd = 'go build {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
 
     args = {
+        "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "" if incremental_build else "-a",
         "go_build_tags": " ".join(build_tags),

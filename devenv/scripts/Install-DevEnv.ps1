@@ -2,7 +2,7 @@
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog
 # (https://www.datadoghq.com/).
-# Copyright 2019 Datadog, Inc.
+# Copyright 2019-2020 Datadog, Inc.
 
 Write-Host
 '=======================================================
@@ -51,13 +51,13 @@ cinst -y cmake
     [System.EnvironmentVariableTarget]::Machine)
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Golang'
-cinst -y golang --version 1.12.9
+cinst -y golang --version 1.13.8
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Python 2'
 cinst -y python2
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Ruby'
-cinst -y ruby --version 2.4.3.1 
+cinst -y ruby --version 2.4.3.1
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing MSYS'
 cinst -y msys2 --params "/NoUpdate" # install msys2 without system update

@@ -54,19 +54,24 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	cfgs, err := fp.Collect()
 	assert.Nil(t, err)
+	assert.Len(t, cfgs, 5)
 
 	checks := []check.Check{}
+	numOtherInstances := 0
 
-	// should be three valid instances
-	assert.Len(t, cfgs, 4)
 	for _, cfg := range cfgs {
-		loadedChecks, err := jl.Load(cfg)
-		assert.Nil(t, err)
-
-		for _, c := range loadedChecks {
-			checks = append(checks, c)
+		for _, instance := range cfg.Instances {
+			if loadedCheck, err := jl.Load(cfg, instance); err == nil {
+				checks = append(checks, loadedCheck)
+			} else {
+				numOtherInstances++
+			}
 		}
 	}
+
+	// should be five valid JMX instances and one non-JMX instance
+	assert.Len(t, checks, 5)
+	assert.Equal(t, numOtherInstances, 2)
 
 	for _, cfg := range cfgs {
 		found := false

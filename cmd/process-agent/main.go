@@ -18,7 +18,7 @@ func main() {
 	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
 	flag.Parse()
 
-	exit := make(chan bool)
+	exit := make(chan struct{})
 
 	// Invoke the Agent
 	runAgent(exit)

@@ -7,6 +7,12 @@ package sampler
 
 import "github.com/DataDog/datadog-agent/pkg/trace/pb"
 
+const (
+	// errorSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
+	// If this is surpassed, the rate is set to 1.
+	errorSamplingRateThresholdTo1 = 0.1
+)
+
 // ScoreEngine is the main component of the sampling logic
 type ScoreEngine struct {
 	// Sampler is the underlying sampler used by this engine, sharing logic among various engines.
@@ -32,6 +38,7 @@ func NewErrorsEngine(extraRate float64, maxTPS float64) *ScoreEngine {
 		Sampler:    newSampler(extraRate, maxTPS),
 		engineType: ErrorsScoreEngineType,
 	}
+	s.Sampler.setRateThresholdTo1(errorSamplingRateThresholdTo1)
 
 	return s
 }

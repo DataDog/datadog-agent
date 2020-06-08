@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,6 +70,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["time"] = now.Format(timeFormat)
 
 	stats["JMXStatus"] = GetJMXStatus()
+	stats["JMXStartupError"] = GetJMXStartupError()
 
 	stats["logsStats"] = logs.GetStatus()
 
@@ -81,6 +83,10 @@ func GetStatus() (map[string]interface{}, error) {
 
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		stats["clusterAgentStatus"] = getDCAStatus()
+	}
+
+	if config.Datadog.GetBool("system_probe_config.enabled") {
+		stats["systemProbeStats"] = GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 	}
 
 	return stats, nil
@@ -171,8 +177,10 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
+		stats["admissionWebhook"] = map[string]string{"Error": err.Error()}
 	} else {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
+		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
 	}
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {
@@ -250,41 +258,41 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
-	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
+	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
 	stats["forwarderStats"] = forwarderStats
 
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats)
+	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
 	stats["runnerStats"] = runnerStats
 
 	autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
 	autoConfigStats := make(map[string]interface{})
-	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats)
+	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
 	stats["autoConfigStats"] = autoConfigStats
 
 	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
 	checkSchedulerStats := make(map[string]interface{})
-	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats)
+	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats) //nolint:errcheck
 	stats["checkSchedulerStats"] = checkSchedulerStats
 
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})
-	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
+	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
 	stats["aggregatorStats"] = aggregatorStats
 
 	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
 	dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
 	dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
 	dogstatsdStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats)
+	json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
 	dogstatsdUdsStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats)
+	json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
 	for name, value := range dogstatsdUdsStats {
 		dogstatsdStats["Uds"+name] = value
 	}
 	dogstatsdUDPStats := make(map[string]interface{})
-	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats)
+	json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
 	for name, value := range dogstatsdUDPStats {
 		dogstatsdStats["Udp"+name] = value
 	}
@@ -294,7 +302,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	if pyLoaderData != nil {
 		pyLoaderStatsJSON := []byte(pyLoaderData.String())
 		pyLoaderStats := make(map[string]interface{})
-		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats)
+		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats) //nolint:errcheck
 		stats["pyLoaderStats"] = pyLoaderStats
 	} else {
 		stats["pyLoaderStats"] = nil
@@ -304,7 +312,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	if pythonInitData != nil {
 		pythonInitJSON := []byte(pythonInitData.String())
 		pythonInit := make(map[string]interface{})
-		json.Unmarshal(pythonInitJSON, &pythonInit)
+		json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
 		stats["pythonInit"] = pythonInit
 	} else {
 		stats["pythonInit"] = nil
@@ -312,7 +320,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
-	json.Unmarshal(hostnameStatsJSON, &hostnameStats)
+	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
 	if expvar.Get("ntpOffset").String() != "" {
@@ -323,7 +331,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	var inventoriesStats map[string]interface{}
 	if inventories != nil {
 		inventoriesStatsJSON := []byte(inventories.String())
-		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats)
+		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats) //nolint:errcheck
 	}
 
 	checkMetadata := map[string]map[string]string{}
@@ -361,7 +369,11 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 // and puts it into a CLCChecks struct
 func GetExpvarRunnerStats() (CLCChecks, error) {
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
+	return convertExpvarRunnerStats(runnerStatsJSON)
+}
+
+func convertExpvarRunnerStats(inputJSON []byte) (CLCChecks, error) {
 	runnerStats := CLCChecks{}
-	err := json.Unmarshal(runnerStatsJSON, &runnerStats)
+	err := json.Unmarshal(inputJSON, &runnerStats)
 	return runnerStats, err
 }

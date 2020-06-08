@@ -75,7 +75,7 @@ func init() {
 	integrationCmd.PersistentFlags().StringVarP(&pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). defaults to the python_version setting in datadog.yaml")
 
 	// Power user flags - mark as hidden
-	integrationCmd.PersistentFlags().MarkHidden("use-sys-python")
+	integrationCmd.PersistentFlags().MarkHidden("use-sys-python") //nolint:errcheck
 
 	showCmd.Flags().BoolVarP(&versionOnly, "show-version-only", "q", false, "only display version information")
 	installCmd.Flags().BoolVarP(

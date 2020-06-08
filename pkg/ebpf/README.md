@@ -1,5 +1,5 @@
 ## Note
-This package is a fork of the [weaveworks tcptracer-bpf](https://github.com/weaveworks/tcptracer-bpf) package which focused on tracing TCP state events (connect, accept, close) without kernel specific runtime dependencies. 
+This package is a fork of the [weaveworks tcptracer-bpf](https://github.com/weaveworks/tcptracer-bpf) package which focused on tracing TCP state events (connect, accept, close) without kernel specific runtime dependencies.
 
 This fork adds support for UDP, as well as collection of metrics like bytes sent/received. It also opts for event collection via polling (using BPF maps) instead of being pushed event updates via perf buffers.
 
@@ -17,11 +17,5 @@ To adapt to the currently running kernel at run-time, tracer-bpf creates a serie
 
 ## Development
 
-The easiest way to build and test is inside a Vagrant VM.  You can provision
-the VM by running `./tools/dev_setup.sh` and SSHing into the VM with `vagrant
-ssh` (`vagrant` must be installed.)
-
-The VM will mount your local `$GOPATH`, so you can edit source code with your editor of choice.
-
 `make nettop` will run a small testing program which
-periodically prints statistics about TCP/UDP traffic inside the VM.
+periodically prints statistics about TCP/UDP traffic.

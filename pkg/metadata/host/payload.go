@@ -34,18 +34,33 @@ type NetworkMeta struct {
 	ID string `json:"network-id"`
 }
 
+// LogsMeta is metadata about the host's logs agent
+type LogsMeta struct {
+	Transport string `json:"transport"`
+}
+
 type tags struct {
 	System              []string `json:"system,omitempty"`
 	GoogleCloudPlatform []string `json:"google cloud platform,omitempty"`
 }
 
+// InstallMethod is metadata about the agent's installation
+type InstallMethod struct {
+	Tool             *string `json:"tool"`
+	ToolVersion      string  `json:"tool_version"`
+	InstallerVersion *string `json:"installer_version"`
+}
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Os            string            `json:"os"`
+	AgentFlavor   string            `json:"agent-flavor"`
 	PythonVersion string            `json:"python"`
 	SystemStats   *systemStats      `json:"systemStats"`
 	Meta          *Meta             `json:"meta"`
 	HostTags      *tags             `json:"host-tags"`
 	ContainerMeta map[string]string `json:"container-meta,omitempty"`
 	NetworkMeta   *NetworkMeta      `json:"network"`
+	LogsMeta      *LogsMeta         `json:"logs"`
+	InstallMethod *InstallMethod    `json:"install-method"`
 }
