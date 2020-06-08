@@ -47,6 +47,8 @@ var (
 const (
 	// AgentName is the default agent name
 	AgentName = "agent"
+	// DogStatsDStandAloneName stand-alone
+	DogStatsDStandAloneName = "dogstatsd"
 	// IotAgentName is the name for an IoT instance of the Agent
 	IotAgentName = "iot_agent"
 	// ClusterAgentName is the Cluster Agent name
