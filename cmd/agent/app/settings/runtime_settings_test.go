@@ -6,6 +6,7 @@
 package settings
 
 import (
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -37,6 +38,12 @@ func (t *runtimeTestSetting) Get() (interface{}, error) {
 func (t *runtimeTestSetting) Set(v interface{}) error {
 	t.value = v.(int)
 	return nil
+}
+
+func setupConf() config.Config {
+	conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	config.InitConfig(conf)
+	return conf
 }
 
 func cleanRuntimeSetting() {

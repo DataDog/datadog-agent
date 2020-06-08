@@ -141,14 +141,6 @@ func StartAgent() error {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
-	// Setup Profiling
-	if config.Datadog.GetBool("profiling.enabled") {
-		err := config.SetRuntimeSetting("profiling", true)
-		if err != nil {
-			log.Errorf("Error starting profiler: %v", err)
-		}
-	}
-
 	// Setup logger
 	if runtime.GOOS != "android" {
 		syslogURI := config.GetSyslogURI()
@@ -191,6 +183,14 @@ func StartAgent() error {
 	// init settings that can be changed at runtime
 	if err := settings.InitRuntimeSettings(); err != nil {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
+	}
+
+	// Setup Profiling
+	if config.Datadog.GetBool("profiling.enabled") {
+		err := settings.SetRuntimeSetting("profiling", true)
+		if err != nil {
+			log.Errorf("Error starting profiler: %v", err)
+		}
 	}
 
 	// Setup expvar server

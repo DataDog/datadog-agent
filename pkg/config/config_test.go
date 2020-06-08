@@ -18,7 +18,7 @@ import (
 
 func setupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	initConfig(conf)
+	InitConfig(conf)
 	return conf
 }
 

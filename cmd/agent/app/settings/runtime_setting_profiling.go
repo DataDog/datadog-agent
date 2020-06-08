@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package config
+package settings
 
 import (
 	"fmt"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -25,7 +26,7 @@ func (l profilingRuntimeSetting) Name() string {
 }
 
 func (l profilingRuntimeSetting) Get() (interface{}, error) {
-	return Datadog.GetBool("profiling.enabled"), nil
+	return config.Datadog.GetBool("profiling.enabled"), nil
 }
 
 func (l profilingRuntimeSetting) Set(v interface{}) error {
@@ -46,31 +47,31 @@ func (l profilingRuntimeSetting) Set(v interface{}) error {
 
 	if profile {
 		// populate site
-		s := DefaultSite
-		if Datadog.IsSet("site") {
-			s = Datadog.GetString("site")
+		s := config.DefaultSite
+		if config.Datadog.IsSet("site") {
+			s = config.Datadog.GetString("site")
 		}
 
 		// allow full url override for development use
 		site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
-		if Datadog.IsSet("profiling.profile_dd_url") {
-			site = Datadog.GetString("profiling.profile_dd_url")
+		if config.Datadog.IsSet("profiling.profile_dd_url") {
+			site = config.Datadog.GetString("profiling.profile_dd_url")
 		}
 
 		v, _ := version.Agent()
 		err := profiling.Start(
-			Datadog.GetString("api_key"),
+			config.Datadog.GetString("api_key"),
 			site,
-			Datadog.GetString("env"),
+			config.Datadog.GetString("env"),
 			profiling.ProfileCoreService,
 			fmt.Sprintf("version:%v", v),
 		)
 		if err == nil {
-			Datadog.Set("profiling.enabled", true)
+			config.Datadog.Set("profiling.enabled", true)
 		}
 	} else {
 		profiling.Stop()
-		Datadog.Set("profiling.enabled", false)
+		config.Datadog.Set("profiling.enabled", false)
 	}
 
 	return nil
