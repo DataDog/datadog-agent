@@ -33,16 +33,7 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
-	lastTelemetry          telemetry
-}
-
-type telemetry struct {
-	KprobesTriggered          int64
-	KprobesMissed             int64
-	ConntrackRegisters        int64
-	ConntrackRegistersDropped int64
-	DnsPacketsProcessed       int64
-	ConnsClosed               int64
+	lastTelemetry          model.CollectorConnectionsTelemetry
 }
 
 // Init initializes a ConnectionsCheck instance.
