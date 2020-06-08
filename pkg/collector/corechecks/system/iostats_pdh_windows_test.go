@@ -56,6 +56,7 @@ func addDriveDReturnValues() {
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(HarddiskVolume2)\\Current Disk Queue Length", 5.555)
 
 }
+
 func TestIoCheckWindows(t *testing.T) {
 
 	pfnGetDriveType = testGetDriveType
@@ -82,6 +83,45 @@ func TestIoCheckWindows(t *testing.T) {
 
 	mock.On("Gauge", "system.io.avg_q_sz", 5.222, "", []string{"device:C:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:HarddiskVolume1"}).Return().Times(1)
+
+	mock.On("Commit").Return().Times(1)
+	ioCheck.Run()
+
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Gauge", 10)
+	mock.AssertNumberOfCalls(t, "Commit", 1)
+
+}
+
+func TestIoCheckLowercaseDeviceTag(t *testing.T) {
+
+	pfnGetDriveType = testGetDriveType
+	pdhtest.SetupTesting("testfiles\\counter_indexes_en-us.txt", "testfiles\\allcounters_en-us.txt")
+
+	addDefaultQueryReturnValues()
+
+	ioCheck := new(IOCheck)
+	instanceYaml := `
+lowercase_device_tag: true
+`
+	ioCheck.Configure([]byte(instanceYaml), nil, "test")
+
+	mock := mocksender.NewMockSender(ioCheck.ID())
+
+	mock.On("Gauge", "system.io.wkb_s", 1.222/1024, "", []string{"device:c:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.wkb_s", 1.333/1024, "", []string{"device:harddiskvolume1"}).Return().Times(1)
+
+	mock.On("Gauge", "system.io.w_s", 2.222, "", []string{"device:c:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.w_s", 2.333, "", []string{"device:harddiskvolume1"}).Return().Times(1)
+
+	mock.On("Gauge", "system.io.rkb_s", 3.222/1024, "", []string{"device:c:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.rkb_s", 3.333/1024, "", []string{"device:harddiskvolume1"}).Return().Times(1)
+
+	mock.On("Gauge", "system.io.r_s", 4.222, "", []string{"device:c:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.r_s", 4.333, "", []string{"device:harddiskvolume1"}).Return().Times(1)
+
+	mock.On("Gauge", "system.io.avg_q_sz", 5.222, "", []string{"device:c:"}).Return().Times(1)
+	mock.On("Gauge", "system.io.avg_q_sz", 5.333, "", []string{"device:harddiskvolume1"}).Return().Times(1)
 
 	mock.On("Commit").Return().Times(1)
 	ioCheck.Run()
