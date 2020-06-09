@@ -33,7 +33,7 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
-	lastTelemetry          model.CollectorConnectionsTelemetry
+	lastTelemetry          *model.CollectorConnectionsTelemetry
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -119,6 +119,12 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 	if tel == nil {
 		return nil
 	}
+	// only save but do not report the first collected telemetry to prevent reporting full monotonic values.
+	if c.lastTelemetry == nil {
+		c.lastTelemetry = &model.CollectorConnectionsTelemetry{}
+		c.saveTelemetry(tel)
+		return nil
+	}
 
 	cct := &model.CollectorConnectionsTelemetry{
 		KprobesTriggered:          tel.MonotonicKprobesTriggered - c.lastTelemetry.KprobesTriggered,
@@ -129,6 +135,14 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		ConnsClosed:               tel.MonotonicConnsClosed - c.lastTelemetry.ConnsClosed,
 		ConnsBpfMapSize:           tel.ConnsBpfMapSize,
 	}
+	c.saveTelemetry(tel)
+	return cct
+}
+
+func (c *ConnectionsCheck) saveTelemetry(tel *model.ConnectionsTelemetry) {
+	if tel == nil || c.lastTelemetry == nil {
+		return
+	}
 
 	c.lastTelemetry.KprobesTriggered = tel.MonotonicKprobesTriggered
 	c.lastTelemetry.KprobesMissed = tel.MonotonicKprobesMissed
@@ -136,7 +150,6 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 	c.lastTelemetry.ConntrackRegistersDropped = tel.MonotonicConntrackRegistersDropped
 	c.lastTelemetry.DnsPacketsProcessed = tel.MonotonicDnsPacketsProcessed
 	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
-	return cct
 }
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
