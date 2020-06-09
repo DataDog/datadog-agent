@@ -103,7 +103,7 @@ func NewConsumer(procRoot string, targetRateLimit int) (*Consumer, error) {
 		pool:            newBufferPool(),
 		workQueue:       make(chan func()),
 		targetRateLimit: targetRateLimit,
-		breaker:         NewCircuitBreaker(targetRateLimit),
+		breaker:         NewCircuitBreaker(int64(targetRateLimit)),
 	}
 	c.initWorker(procRoot)
 
