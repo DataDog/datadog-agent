@@ -13,6 +13,7 @@
 #include <sddl.h>
 #include <shlwapi.h>
 #include <shlobj.h>
+#include <UserEnv.h>
 
 #include <stdlib.h>
 #include <strsafe.h>
@@ -27,6 +28,7 @@
 #include <map>
 #include <sstream>
 #include <filesystem>
+#include <vector>
 
 // WiX Header Files:
 #include <wcautil.h>
