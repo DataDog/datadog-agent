@@ -480,7 +480,7 @@ api_key:
     ## @param version - integer - optional - default: <BEST_GUESS>
     ## Set the version of the SNMP protocol. Value can be `1`, `2` or `3`.
     ## If unset, the Agent tries to guess the correct version based on other configuration
-    ## parameters. i.e if `user` is set, the Agent will use SNMP v3.
+    ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
     #
     # version: <VERSION>
 
