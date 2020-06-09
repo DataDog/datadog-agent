@@ -1,9 +1,7 @@
 require 'spec_helper'
+require 'iot_spec_helper'
 
-describe 'dd-agent-installation-script' do
-  include_examples 'Agent install'
-  include_examples 'Agent behavior'
-
+shared_examples_for 'Agent installed by the install script' do
   context 'when testing DD_SITE' do
     let(:config) do
       YAML.load_file('/etc/datadog-agent/datadog.yaml')
@@ -30,7 +28,20 @@ describe 'dd-agent-installation-script' do
         'installer_version' => /^install_script-\d+\.\d+\.\d+$/
       )
     end
+  end
+end
 
+describe 'dd-agent-installation-script' do
+  agent_flavor = get_agent_flavor
+  if agent_flavor == "datadog-agent"
+    include_examples 'Agent install'
+    include_examples 'Agent behavior'
+    include_examples 'Agent installed by the install script'
     include_examples 'Agent uninstall'
+  elsif agent_flavor == "datadog-iot-agent"
+    include_examples 'IoT Agent install'
+    include_examples 'IoT Agent behavior'
+    include_examples 'Agent installed by the install script'
+    include_examples 'IoT Agent uninstall'
   end
 end

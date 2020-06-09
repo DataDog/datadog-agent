@@ -62,7 +62,7 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
-		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value)
+		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value, metricSample.SampleRate)
 	default:
 		// If it's a new bucket, initialize it
 		bucketMetrics, ok := s.metricsByTimestamp[bucketStart]

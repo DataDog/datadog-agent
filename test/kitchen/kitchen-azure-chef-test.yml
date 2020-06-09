@@ -4,6 +4,7 @@ suites:
 - name: dd-agent
   run_list:
     - "recipe[dd-agent-sles-workaround]"
+    - "recipe[dd-agent-system-files-check::list-files-before-install]"
     - "recipe[dd-agent-install]"
   attributes:
     apt:

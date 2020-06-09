@@ -12,4 +12,10 @@ const (
 	ServiceTagLabelKey = "tags.datadoghq.com/service"
 	// VersionTagLabelKey is the label key of the version standard tag
 	VersionTagLabelKey = "tags.datadoghq.com/version"
+	// EnvTagEnvVar is the environment variable of the env standard tag
+	EnvTagEnvVar = "DD_ENV"
+	// ServiceTagEnvVar is the environment variable of the service standard tag
+	ServiceTagEnvVar = "DD_SERVICE"
+	// VersionTagEnvVar is the environment variable of the version standard tag
+	VersionTagEnvVar = "DD_VERSION"
 )

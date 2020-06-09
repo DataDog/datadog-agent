@@ -162,7 +162,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": os.path.join(BIN_PATH, bin_name("agent", android=False)),
         "gcflags": gcflags,
@@ -180,9 +180,15 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     # Render the Agent configuration file template
     cmd = "go run {go_file} {build_type} {template_file} {output_file}"
 
+    build_type = "agent-py3"
+    if iot:
+        build_type = "iot-agent"
+    elif has_both_python(python_runtimes):
+        build_type = "agent-py2py3"
+
     args = {
         "go_file": "./pkg/config/render_config.go",
-        "build_type": "agent-py2py3" if has_both_python(python_runtimes) else "agent-py3",
+        "build_type": build_type,
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": "./cmd/agent/dist/datadog.yaml",
     }

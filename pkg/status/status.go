@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -176,8 +177,10 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
+		stats["admissionWebhook"] = map[string]string{"Error": err.Error()}
 	} else {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
+		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
 	}
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {

@@ -131,6 +131,14 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 	out.WriteByte(' ')
 
 	switch strings.ToUpper(cmd) {
+	case "AUTH":
+		// Obfuscate everything after command
+		// • AUTH password
+		if len(args) > 0 {
+			args[0] = "?"
+			args = args[:1]
+		}
+
 	case "APPEND", "GETSET", "LPUSHX", "GEORADIUSBYMEMBER", "RPUSHX",
 		"SET", "SETNX", "SISMEMBER", "ZRANK", "ZREVRANK", "ZSCORE":
 		// Obfuscate 2nd argument:

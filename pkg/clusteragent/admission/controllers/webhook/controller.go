@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -193,11 +194,13 @@ func (c *Controller) processNextWorkItem() bool {
 	if err := c.reconcile(); err != nil {
 		c.requeue(key)
 		log.Infof("Couldn't reconcile Webhook %s: %v", c.config.GetName(), err)
+		metrics.ReconcileErrors.Inc(metrics.WebhooksControllerName)
 		return true
 	}
 
 	c.queue.Forget(key)
 	log.Debugf("Webhook %s reconciled successfully", c.config.GetName())
+	metrics.ReconcileSuccess.Inc(metrics.WebhooksControllerName)
 
 	return true
 }

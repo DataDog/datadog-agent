@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    When enabling `collect_ec2_tags` option, EC2 tags are now cached to avoid
+    missing tags when user exceed his AWS quotas.
