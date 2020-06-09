@@ -45,6 +45,7 @@ func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
 	return ipToNames
 }
 
+// FormatTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
 	if tel == nil {
 		return nil
@@ -55,7 +56,7 @@ func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTeleme
 		MonotonicKprobesMissed:             tel.MonotonicKprobesMissed,
 		MonotonicConntrackRegisters:        tel.MonotonicConntrackRegisters,
 		MonotonicConntrackRegistersDropped: tel.MonotonicConntrackRegistersDropped,
-		MonotonicDnsPacketsProcessed:       tel.MonotonicDnsPacketsProcessed,
+		MonotonicDnsPacketsProcessed:       tel.MonotonicDNSPacketsProcessed,
 		MonotonicConnsClosed:               tel.MonotonicConnsClosed,
 		ConnsBpfMapSize:                    tel.ConnsBpfMapSize,
 	}

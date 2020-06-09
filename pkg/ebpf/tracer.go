@@ -394,7 +394,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 
 	dnsStats := t.reverseDNS.GetStats()
 	if pp, ok := dnsStats["packets_processed"]; ok {
-		tm.MonotonicDnsPacketsProcessed = pp
+		tm.MonotonicDNSPacketsProcessed = pp
 	}
 	return tm
 }

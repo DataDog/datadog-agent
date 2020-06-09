@@ -77,12 +77,13 @@ type Connections struct {
 	Telemetry *ConnectionsTelemetry
 }
 
+// ConnectionsTelemetry stores telemetry from the system probe
 type ConnectionsTelemetry struct {
 	MonotonicKprobesTriggered          int64
 	MonotonicKprobesMissed             int64
 	MonotonicConntrackRegisters        int64
 	MonotonicConntrackRegistersDropped int64
-	MonotonicDnsPacketsProcessed       int64
+	MonotonicDNSPacketsProcessed       int64
 	MonotonicConnsClosed               int64
 	ConnsBpfMapSize                    int64
 }

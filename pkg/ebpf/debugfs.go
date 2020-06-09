@@ -36,6 +36,7 @@ func GetProbeStats() map[string]int64 {
 	return res
 }
 
+// GetProbeTotals returns the total number of kprobes triggered or missed by reading the kprobe_profile file
 func GetProbeTotals() kprobeStats {
 	stats := kprobeStats{}
 	m, err := readKprobeProfile(KprobeProfile)
