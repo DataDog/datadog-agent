@@ -12,6 +12,7 @@ EXPECTED_PRESENT = [
     "/etc/datadog-agent/datadog-kubernetes.yaml",
     "/etc/datadog-agent/datadog-k8s-docker.yaml",
     "/etc/datadog-agent/datadog-ecs.yaml",
+    "/etc/datadog-agent/install_info",
 ]
 
 EXPECTED_ABSENT = [
