@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	hostutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/gorilla/mux"
 )
 
@@ -42,7 +43,11 @@ type server struct {
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
-	return &pb.HostnameReply{Hostname: "random-hostname"}, nil
+	h, err := hostutil.GetHostname()
+	if err != nil {
+		return &pb.HostnameReply{}, err
+	}
+	return &pb.HostnameReply{Hostname: h}, nil
 }
 
 // StartServer creates the router and starts the HTTP server
