@@ -376,7 +376,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
-	kprobeStats := GetProbeTotals()
+	kprobeStats := getProbeTotals()
 	tm := &network.ConnectionsTelemetry{
 		MonotonicKprobesTriggered: kprobeStats.hits,
 		MonotonicKprobesMissed:    kprobeStats.miss,

@@ -36,8 +36,8 @@ func GetProbeStats() map[string]int64 {
 	return res
 }
 
-// GetProbeTotals returns the total number of kprobes triggered or missed by reading the kprobe_profile file
-func GetProbeTotals() kprobeStats {
+// getProbeTotals returns the total number of kprobes triggered or missed by reading the kprobe_profile file
+func getProbeTotals() kprobeStats {
 	stats := kprobeStats{}
 	m, err := readKprobeProfile(KprobeProfile)
 	if err != nil {
