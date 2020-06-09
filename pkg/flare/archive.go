@@ -656,10 +656,6 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 			firstSuffix := getFirstSuffix(f.Name())
 			ext := filepath.Ext(f.Name())
 
-			if permsInfos != nil {
-				addParentPerms(filePath, permsInfos)
-			}
-
 			if cnfFileExtRx.Match([]byte(firstSuffix)) || cnfFileExtRx.Match([]byte(ext)) {
 				baseName := strings.Replace(src, filePath, "", 1)
 				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
@@ -680,6 +676,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 				if permsInfos != nil {
 					permsInfos.add(src)
+					addParentPerms(filePath, permsInfos)
 				}
 			}
 
