@@ -302,6 +302,10 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
 
+	if permsInfos != nil {
+		addParentPerms(logFileDir, permsInfos)
+	}
+
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
@@ -315,7 +319,6 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 
 			if permsInfos != nil {
 				permsInfos.add(src)
-				addParentPerms(src, permsInfos)
 			}
 
 			return util.CopyFileAll(src, dst)
@@ -638,10 +641,6 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	for prefix, filePath := range confSearchPaths {
 
-		// if permsInfos != nil {
-		// 	addParentPerms(filePath, permsInfos)
-		// }
-
 		err := filepath.Walk(filePath, func(src string, f os.FileInfo, err error) error {
 			if f == nil {
 				return nil
@@ -656,6 +655,10 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 			firstSuffix := getFirstSuffix(f.Name())
 			ext := filepath.Ext(f.Name())
+
+			if permsInfos != nil {
+				addParentPerms(filePath, permsInfos)
+			}
 
 			if cnfFileExtRx.Match([]byte(firstSuffix)) || cnfFileExtRx.Match([]byte(ext)) {
 				baseName := strings.Replace(src, filePath, "", 1)
@@ -677,7 +680,6 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 				if permsInfos != nil {
 					permsInfos.add(src)
-					addParentPerms(src, permsInfos)
 				}
 			}
 
