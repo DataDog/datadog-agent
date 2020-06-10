@@ -440,7 +440,7 @@ def make_simple_gitlab_yml(ctx, jobs_to_run, yml_file_src='.gitlab-ci.yml', yml_
 
     jobs_to_run = set(jobs_to_run.split(','))
     jobs = set(['stages','variables','include','default'])
-    while len(jobs_to_run) > 0:
+    while jobs_to_run:
         job = jobs_to_run.pop()
         if job in data:
             jobs.add(job)
@@ -461,7 +461,7 @@ def make_simple_gitlab_yml(ctx, jobs_to_run, yml_file_src='.gitlab-ci.yml', yml_
         if not isinstance(v, dict):
             continue;
         stage = v.get('stage', None)
-        if stage is not None and not stage in stages:
+        if stage is not None and stage not in stages:
             stages.append(stage)
     out['stages'] = stages
 
