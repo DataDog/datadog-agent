@@ -99,6 +99,7 @@ typedef struct {
 
 typedef struct {
     __u64 state;
+    __u64 tcp_info_kprobe_status;
 
     /* checking */
     proc_t proc;

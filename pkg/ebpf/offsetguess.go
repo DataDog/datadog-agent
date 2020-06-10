@@ -80,7 +80,18 @@ var whatString = map[C.__u64]string{
 	guessSport:     "source port",
 	guessDport:     "destination port",
 	guessNetns:     "network namespace",
+	guessRTT:       "Return Transmission Time",
 	guessDaddrIPv6: "destination address IPv6",
+}
+
+const (
+	tcpInfoKProbeNotCalled C.__u64 = 0
+	tcpInfoKProbeCalled            = 1
+)
+
+var tcpKprobeCalledString = map[C.__u64]string{
+	tcpInfoKProbeNotCalled: "tcp_get_info kprobe not executed",
+	tcpInfoKProbeCalled:    "tcp_get_info kprobe executed",
 }
 
 const listenIP = "127.0.0.2"
@@ -233,9 +244,10 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 
 	if status.state != stateChecked {
 		if *maxRetries == 0 {
-			return fmt.Errorf("invalid guessing state while guessing %v, got %v expected %v",
-				whatString[status.what], stateString[status.state], stateString[stateChecked])
+			return fmt.Errorf("invalid guessing state while guessing %v, got %v expected %v. %v",
+				whatString[status.what], stateString[status.state], stateString[stateChecked], tcpKprobeCalledString[status.tcp_info_kprobe_status])
 		} else {
+			log.Info("Decrementing maxRetries")
 			*maxRetries--
 			time.Sleep(10 * time.Millisecond)
 			return nil
@@ -246,6 +258,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 	case guessSaddr:
 		if status.saddr == C.__u32(expected.saddr) {
 			status.what = guessDaddr
+			logSuccessfulGuess(guessSaddr, status.offset_saddr)
 			break
 		}
 		status.offset_saddr++
@@ -253,6 +266,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 	case guessDaddr:
 		if status.daddr == C.__u32(expected.daddr) {
 			status.what = guessFamily
+			logSuccessfulGuess(guessDaddr, status.offset_daddr)
 			break
 		}
 		status.offset_daddr++
@@ -263,24 +277,28 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 			// we know the sport ((struct inet_sock)->inet_sport) is
 			// after the family field, so we start from there
 			status.offset_sport = status.offset_family
+			logSuccessfulGuess(guessFamily, status.offset_family)
 			break
 		}
 		status.offset_family++
 	case guessSport:
 		if status.sport == C.__u16(htons(expected.sport)) {
 			status.what = guessDport
+			logSuccessfulGuess(guessSport, status.offset_sport)
 			break
 		}
 		status.offset_sport++
 	case guessDport:
 		if status.dport == C.__u16(htons(expected.dport)) {
 			status.what = guessNetns
+			logSuccessfulGuess(guessDport, status.offset_dport)
 			break
 		}
 		status.offset_dport++
 	case guessNetns:
 		if status.netns == C.__u32(expected.netns) {
 			status.what = guessRTT
+			logSuccessfulGuess(guessNetns, status.offset_netns)
 			break
 		}
 		status.offset_ino++
@@ -294,6 +312,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
 		if status.rtt>>3 == C.__u32(expected.rtt) && status.rtt_var>>2 == C.__u32(expected.rttVar) {
 			status.what = guessDaddrIPv6
+			logSuccessfulGuess(guessRTT, status.offset_rtt)
 			break
 		}
 		// We know that these two fields are always next to each other, 4 bytes apart:
@@ -313,6 +332,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		}
 	case guessDaddrIPv6:
 		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
+			logSuccessfulGuess(guessDaddrIPv6, status.offset_daddr_ipv6)
 			// at this point, we've guessed all the offsets we need,
 			// set the status to "stateReady"
 			return setReadyState(module, mp, status)
@@ -413,6 +433,7 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 	}
 
 	for status.state != stateReady {
+		//2020-04-16 09:invalid guessing state while guessing source address, got checking expected checked
 		if err := eventGenerator.Generate(status, expected); err != nil {
 			return err
 		}
@@ -539,4 +560,12 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 	}
 
 	return &tcpInfo, nil
+}
+
+func logSuccessfulGuess(guess C.__u64, offset C.__u64) {
+	if guess == guessDaddrIPv6 {
+		log.Infof("Successfully guessed %v with offset of %d bytes from the previous field. Guessing complete.", whatString[guess], offset)
+	} else {
+		log.Infof("Successfully guessed %v with offset of %d bytes from the previous field. Now guessing %v", whatString[guess], offset, whatString[guess+1])
+	}
 }
