@@ -1,5 +1,5 @@
 ---
 install_method:
-  tool: windows_msi
+  tool: windows_msi_gui
   tool_version: windows_msi_gui
-  installer_version: msi_package
+  installer_version: windows_msi_gui
