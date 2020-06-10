@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/coreos/etcd/client"
+	"go.etcd.io/etcd/client"
 	"golang.org/x/net/context"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"

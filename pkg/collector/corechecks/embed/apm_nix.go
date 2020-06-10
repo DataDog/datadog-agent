@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
-const apm_binary_name = "trace-agent"
+const apm_binary_name = "trace-agent" //nolint:golint
 
 func getAPMAgentDefaultBinPath() (string, error) {
 	here, _ := executable.Folder()

@@ -101,9 +101,7 @@ func init() {
 	proto.RegisterType((*HostnameReply)(nil), "pb.HostnameReply")
 }
 
-func init() {
-	proto.RegisterFile("api.proto", fileDescriptor_00212fb1f9d3bf1c)
-}
+func init() { proto.RegisterFile("api.proto", fileDescriptor_00212fb1f9d3bf1c) }
 
 var fileDescriptor_00212fb1f9d3bf1c = []byte{
 	// 169 bytes of a gzipped FileDescriptorProto
@@ -122,11 +120,11 @@ var fileDescriptor_00212fb1f9d3bf1c = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConnInterface
+var _ grpc.ClientConn
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion6
+const _ = grpc.SupportPackageIsVersion4
 
 // AgentClient is the client API for Agent service.
 //
@@ -137,10 +135,10 @@ type AgentClient interface {
 }
 
 type agentClient struct {
-	cc grpc.ClientConnInterface
+	cc *grpc.ClientConn
 }
 
-func NewAgentClient(cc grpc.ClientConnInterface) AgentClient {
+func NewAgentClient(cc *grpc.ClientConn) AgentClient {
 	return &agentClient{cc}
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/gopsutil/process"
 )
 
+//nolint:unused
 func makeContainer(id string) *containers.Container {
 	return &containers.Container{
 		ID: id,
@@ -30,6 +31,7 @@ func makeContainer(id string) *containers.Container {
 	}
 }
 
+//nolint:deadcode,unused
 func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*process.FilledProcess, []*containers.Container) {
 	procs := make([]*process.FilledProcess, 0, pCount)
 	for i := 0; i < pCount; i++ {
@@ -55,6 +57,7 @@ func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*process.
 	return procs, ctrs
 }
 
+//nolint:deadcode,unused
 func procsToHash(procs []*process.FilledProcess) (procsByPid map[int32]*process.FilledProcess) {
 	procsByPid = make(map[int32]*process.FilledProcess)
 	for _, p := range procs {
@@ -72,6 +75,7 @@ func makeProcess(pid int32, cmdline string) *process.FilledProcess {
 	}
 }
 
+//nolint:deadcode,unused
 // procMsgsVerification takes raw containers and processes and make sure the chunked messages have all data, and each chunk has the correct grouping
 func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*process.FilledProcess, maxSize int, cfg *config.AgentConfig) {
 	actualProcs := 0
