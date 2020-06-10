@@ -502,36 +502,25 @@ build_iot_agent-deb_x64:
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
 # build iot agent for ARM, to make sure the build is not broken because of build targets
-build_iot_agent-deb_arm64:
+build_iot_agent-arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["run_tests_deb-x64-py3"]
-  variables:
-    ARCH: arm64
+  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
   before_script:
     - source /root/.bashrc
-    # Hack to work around the cloning issue with arm runners
-    - mkdir -p $GOPATH/src/github.com/DataDog
-    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
-    - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
     - inv -e agent.build --iot --major-version 7
 
-build_iot_agent-deb_armhf:
+build_iot_agent-armhf:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
+  # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
-  variables:
-    ARCH: armhf
   before_script:
     - source /root/.bashrc
-    # Hack to work around the cloning issue with arm runners
-    - mkdir -p $GOPATH/src/github.com/DataDog
-    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
-    - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only --no-checks
   script:
     - inv -e agent.build --iot --major-version 7
@@ -829,7 +818,7 @@ iot_agent_deb-arm64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["build_iot_agent-deb_arm64"]
+  needs: ["build_iot_agent-arm64"]
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
@@ -860,7 +849,7 @@ iot_agent_deb-armhf:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "fail_on_non_triggered_tag", "build_iot_agent-deb_armhf"]
+  needs: [ "fail_on_non_triggered_tag", "build_iot_agent-armhf"]
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
@@ -1031,7 +1020,7 @@ iot_agent_rpm-arm64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["build_iot_agent-deb_arm64"]
+  needs: ["build_iot_agent-arm64"]
   before_script:
     - source /root/.bashrc
     # Hack to work around the cloning issue with arm runners
@@ -1071,7 +1060,7 @@ iot_agent_rpm-armhf:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "fail_on_non_triggered_tag", "build_iot_agent-deb_armhf"]
+  needs: [ "fail_on_non_triggered_tag", "build_iot_agent-armhf"]
   before_script:
     - source /root/.bashrc
     # Hack to work around the cloning issue with arm runners
