@@ -794,7 +794,7 @@ iot_agent_deb-arm64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["build_iot_agent-arm64"]
+  needs: [ "fail_on_non_triggered_tag"]
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
@@ -824,8 +824,9 @@ iot_agent_deb-arm64:
 iot_agent_deb-armhf:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
+  # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "fail_on_non_triggered_tag", "build_iot_agent-armhf"]
+  needs: [ "fail_on_non_triggered_tag"]
   before_script:
     - source /root/.bashrc
     - inv -e deps --verbose --dep-vendor-only
