@@ -659,19 +659,19 @@ func TestSanitizeAPIKey(t *testing.T) {
 	config := setupConf()
 
 	config.Set("api_key", "foo")
-	sanitizeAPIKey(config)
+	SanitizeAPIKey(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKey(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKey(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", " \n  foo   \n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKey(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
 

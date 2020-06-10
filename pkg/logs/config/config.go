@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -120,6 +121,7 @@ func hasAdditionalEndpoints() bool {
 func buildTCPEndpoints() (*Endpoints, error) {
 	useProto := coreConfig.Datadog.GetBool("logs_config.dev_mode_use_proto")
 	proxyAddress := coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")
+	coreConfig.SanitizeAPIKey(coreConfig.Datadog, "logs_config.api_key")
 	main := Endpoint{
 		APIKey:       getLogsAPIKey(coreConfig.Datadog),
 		ProxyAddress: proxyAddress,
@@ -156,6 +158,7 @@ func buildTCPEndpoints() (*Endpoints, error) {
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
+		additionals[i].APIKey = strings.TrimSpace(additionals[i].APIKey)
 	}
 	return NewEndpoints(main, additionals, useProto, false, 0), nil
 }
@@ -185,6 +188,7 @@ func BuildHTTPEndpoints() (*Endpoints, error) {
 	additionals := getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
+		additionals[i].APIKey = strings.TrimSpace(additionals[i].APIKey)
 	}
 
 	batchWait := batchWait(coreConfig.Datadog)
@@ -217,6 +221,7 @@ func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
 // getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func getLogsAPIKey(config coreConfig.Config) string {
 	if isSetAndNotEmpty(config, "logs_config.api_key") {
+		coreConfig.SanitizeAPIKey(config, "logs_config.api_key")
 		return config.GetString("logs_config.api_key")
 	}
 	return config.GetString("api_key")
