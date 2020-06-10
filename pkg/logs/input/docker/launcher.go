@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/input"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -24,6 +25,9 @@ const (
 	backoffInitialDuration = 1 * time.Second
 	backoffMaxDuration     = 60 * time.Second
 )
+
+// serviceFunc is separated from overrideSource for testing purpose
+var serviceFunc = input.ServiceFromTags
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
@@ -162,7 +166,11 @@ func (l *Launcher) run() {
 
 // overrideSource create a new source with the image short name if the source is ContainerCollectAll
 func (l *Launcher) overrideSource(container *Container, source *config.LogSource) *config.LogSource {
+	standardService := serviceFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(container.container.ID))
 	if source.Name != config.ContainerCollectAll {
+		if source.Config.Service == "" && standardService != "" {
+			source.Config.Service = standardService
+		}
 		return source
 	}
 
@@ -177,12 +185,24 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		return source
 	}
 
+	return newOverridenSource(standardService, shortName, source.Status)
+}
+
+// newOverridenSource is separated from overrideSource for testing purpose
+func newOverridenSource(standardService, shortName string, status *config.LogStatus) *config.LogSource {
+	var serviceName string
+	if standardService != "" {
+		serviceName = standardService
+	} else {
+		serviceName = shortName
+	}
+
 	overridenSource := config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{
 		Type:    config.DockerType,
-		Service: shortName,
+		Service: serviceName,
 		Source:  shortName,
 	})
-	overridenSource.Status = source.Status
+	overridenSource.Status = status
 	return overridenSource
 }
 

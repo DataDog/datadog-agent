@@ -57,6 +57,12 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	return defaultTagger.Tag(entity, cardinality)
 }
 
+// StandardTags queries the defaultTagger to get entity
+// standard tags (env, version, service) from cache or sources.
+func StandardTags(entity string) ([]string, error) {
+	return defaultTagger.Standard(entity)
+}
+
 // OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
 func OrchestratorScopeTag() ([]string, error) {
 	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)

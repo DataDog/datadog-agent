@@ -73,6 +73,7 @@ func TestParseMetadata(t *testing.T) {
 				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
 			},
 			HighCardTags: []string{},
+			StandardTags: []string{},
 			DeleteEntity: false,
 		},
 		{
@@ -97,6 +98,7 @@ func TestParseMetadata(t *testing.T) {
 				"container_id:1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 				"container_name:ecs-redis-datadog-3-datadog-agent-c2a8fffa8ee8d1f6a801",
 			},
+			StandardTags: []string{},
 			DeleteEntity: false,
 		},
 		{
@@ -125,6 +127,11 @@ func TestParseMetadata(t *testing.T) {
 				"container_name:ecs-redis-datadog-3-redis-f6eedfd8b18a8fbe1d00",
 				"hightag:value2",
 				"container_id:0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+			},
+			StandardTags: []string{
+				"service:redis",
+				"env:prod",
+				"version:1.0",
 			},
 			DeleteEntity: false,
 		},
@@ -155,6 +162,7 @@ func TestParseMetadata(t *testing.T) {
 				"container_id:3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
 				"container_name:ecs-redis-datadog-3-internalecspause-da86ad89d2bee7ba8501",
 			},
+			StandardTags: []string{},
 			DeleteEntity: false,
 		},
 		{
@@ -181,6 +189,7 @@ func TestParseMetadata(t *testing.T) {
 				"container_id:1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
 				"container_name:ecs-redis-datadog-3-datadog-agent-c2a8fffa8ee8d1f6a801",
 			},
+			StandardTags: []string{},
 			DeleteEntity: false,
 		},
 		{
@@ -211,6 +220,11 @@ func TestParseMetadata(t *testing.T) {
 				"container_name:ecs-redis-datadog-3-redis-f6eedfd8b18a8fbe1d00",
 				"hightag:value2",
 				"container_id:0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
+			},
+			StandardTags: []string{
+				"service:redis",
+				"env:prod",
+				"version:1.0",
 			},
 			DeleteEntity: false,
 		},
@@ -264,6 +278,7 @@ func TestParseMetadataV10(t *testing.T) {
 				"task_arn:arn:aws:ecs:eu-west-1:172597598159:task/648ca535-cbe0-4de7-b102-28e50b81e888",
 			},
 			HighCardTags: []string{},
+			StandardTags: []string{},
 			DeleteEntity: false,
 		},
 		{
@@ -287,6 +302,7 @@ func TestParseMetadataV10(t *testing.T) {
 				"container_id:e8d4a9a20a0d931f8f632ec166b3f71a6ff00450aa7e99607f650e586df7d068",
 				"container_name:ecs-redis-datadog-1-dd-agent-8085fa82d1d3ada5a601",
 			},
+			StandardTags: []string{},
 			DeleteEntity: false,
 		},
 		{
@@ -313,6 +329,11 @@ func TestParseMetadataV10(t *testing.T) {
 				"container_id:c912d0f0f204360ee90ce67c0d083c3514975f149b854f38a48deac611e82e48",
 				"container_name:ecs-redis-datadog-1-redis-ce99d29f8ce998ed4a00",
 			},
+			StandardTags: []string{
+				"service:redis",
+				"env:prod",
+				"version:1.0",
+			},
 			DeleteEntity: false,
 		},
 		{
@@ -336,6 +357,7 @@ func TestParseMetadataV10(t *testing.T) {
 				"container_id:39e13ccc425e7777187a603fe33f466a18515030707c4063de1dc1b63d14d411",
 				"container_name:ecs-redis-datadog-1-internalecspause-a2df9cefc2938ec19e01",
 			},
+			StandardTags: []string{},
 			DeleteEntity: false,
 		},
 	}
