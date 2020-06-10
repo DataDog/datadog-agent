@@ -19,6 +19,7 @@ from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .trace_agent import integration_tests as trace_integration_tests
 from .cluster_agent import integration_tests as dca_integration_tests
+import copy
 
 # We use `basestring` in the code for compat with python2 unicode strings.
 # This makes the same code work in python3 as well.
@@ -422,6 +423,50 @@ class TestProfiler:
             for pkg, time in sorted_times:
                 print("{}s\t{}".format(time, pkg))
 
+
+@task
+def make_simple_gitlab_yml(ctx, jobs_to_run, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False):
+    """
+    Replaces .gitlab-ci.yml with one containing only the steps needed to run the given jobs.
+
+    Keyword arguments:
+        jobs_to_run -- a comma separated list of jobs to execute, for example "iot_agent_rpm-arm64,iot_agent_rpm-armhf"
+        yml_file_src -- the source YAML file
+        yml_file_dest -- the destination YAML file
+        dont_include_deps -- this flag controls whether or not dependent jobs will be included in the final job list. Specify it if you only want to run the jobs listed in 'jobs_to_run'
+    """
+    with open(yml_file_src) as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+
+    jobs_to_run = set(jobs_to_run.split(','))
+    jobs = set(['stages','variables','include','default'])
+    while len(jobs_to_run) > 0:
+        job = jobs_to_run.pop()
+        if job in data:
+            jobs.add(job)
+            if dont_include_deps:
+                del data[job]['needs']
+            else:
+                needs = data[job].get('needs')
+                if needs is not None:
+                    for dep_k in needs:
+                        jobs_to_run.add(dep_k)
+
+    out = copy.deepcopy(data)
+    stages = []
+    for k,v in data.items():
+        if not k in jobs and not str.startswith(k, '.'):
+            del out[k]
+            continue
+        if not isinstance(v, dict):
+            continue;
+        stage = v.get('stage', None)
+        if stage is not None and not stage in stages:
+            stages.append(stage)
+    out['stages'] = stages
+
+    with open(yml_file_dest, 'w') as f:
+        documents = yaml.dump(out, f)
 
 @task
 def make_kitchen_gitlab_yml(ctx):
