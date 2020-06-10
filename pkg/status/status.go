@@ -40,6 +40,7 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	stats["version"] = version.AgentVersion
+	stats["flavor"] = config.AgentFlavor
 	hostnameData, err := util.GetHostnameData()
 
 	var metadata *host.Payload
