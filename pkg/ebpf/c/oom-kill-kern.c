@@ -45,7 +45,7 @@ int kprobe__oom_kill_process(struct pt_regs *ctx, struct oom_control *oc, const 
     }
 
     struct task_struct *p = oc->chosen;
-    unsigned long totalpages; // i don't get what this is for https://github.com/iovisor/bcc/blob/master/tools/oomkill.py#L40 interesting PR https://github.com/iovisor/bcc/pull/1945/files
+    unsigned long totalpages;
 
     s->pid = pid;
     s->tpid = p->pid;
