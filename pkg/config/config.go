@@ -92,6 +92,7 @@ func initConfig(config Config) {
 	config.SetDefault("proxy", nil)
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("hostname", "")
+	config.BindEnvAndSetDefault("skip_hostname_validation", false)
 	config.BindEnvAndSetDefault("tags", []string{})
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")

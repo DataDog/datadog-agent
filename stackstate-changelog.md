@@ -1,5 +1,11 @@
 # StackState Agent v2 releases
 
+## 2.5.1 (2020-05-10)
+
+**Improvements**
+
+- Added configuration flag to skip hostname validation [(STAC-7652)](https://stackstate.atlassian.net/browse/STAC-7652).
+
 ## 2.5.0 (2020-04-30)
 
 **Features**

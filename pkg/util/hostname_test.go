@@ -6,6 +6,8 @@
 package util
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"os"
 	"strings"
 	"testing"
 
@@ -30,4 +32,27 @@ func TestValidHostname(t *testing.T) {
 	assert.NotNil(t, err)
 	err = ValidHostname("data🐕hq.com")
 	assert.NotNil(t, err)
+
+	// switch of hostname validation
+	os.Setenv("DD_SKIP_HOSTNAME_VALIDATION", "true")
+	err = ValidHostname("")
+	assert.Nil(t, err)
+	err = ValidHostname("localhost")
+	assert.Nil(t, err)
+	err = ValidHostname(strings.Repeat("a", 256))
+	assert.Nil(t, err)
+	err = ValidHostname("data🐕hq.com")
+	assert.Nil(t, err)
+
+	// switch of hostname validation
+	os.Setenv("DD_SKIP_HOSTNAME_VALIDATION", "false")
+	config.Datadog.Set("skip_hostname_validation", "true")
+	err = ValidHostname("")
+	assert.Nil(t, err)
+	err = ValidHostname("localhost")
+	assert.Nil(t, err)
+	err = ValidHostname(strings.Repeat("a", 256))
+	assert.Nil(t, err)
+	err = ValidHostname("data🐕hq.com")
+	assert.Nil(t, err)
 }

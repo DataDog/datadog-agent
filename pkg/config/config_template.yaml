@@ -30,6 +30,9 @@ api_key:
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
+# Setting this option to "true" will tell the agent to skip validation of the Hostname.
+# skip_hostname_validation: false
+
 # Make the agent use "hostname -f" on unix-based systems as a last resort
 # way of determining the hostname instead of Golang "os.Hostname()"
 # This will be enabled by default in version 6.6

@@ -47,6 +47,13 @@ func init() {
 // ValidHostname determines whether the passed string is a valid hostname.
 // In case it's not, the returned error contains the details of the failure.
 func ValidHostname(hostname string) error {
+	// If hostname validation is disabled just return nil
+	skipHostnameValidation := config.Datadog.GetBool("skip_hostname_validation")
+	if skipHostnameValidation {
+		log.Debugf("Hostname validation is disabled, accepting %s as a valid hostname", hostname)
+		return nil
+	}
+
 	if hostname == "" {
 		return fmt.Errorf("hostname is empty")
 	} else if isLocal(hostname) {
