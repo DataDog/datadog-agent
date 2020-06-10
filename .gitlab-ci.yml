@@ -501,30 +501,6 @@ build_iot_agent-deb_x64:
     - inv -e agent.build --iot --major-version 7
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
-# build iot agent for ARM, to make sure the build is not broken because of build targets
-build_iot_agent-arm64:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
-  before_script:
-    - source /root/.bashrc
-    - inv -e deps --verbose --dep-vendor-only --no-checks
-  script:
-    - inv -e agent.build --iot --major-version 7
-
-build_iot_agent-armhf:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
-  # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
-  tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["fail_on_non_triggered_tag", "run_tests_deb-x64-py3"]
-  before_script:
-    - source /root/.bashrc
-    - inv -e deps --verbose --dep-vendor-only --no-checks
-  script:
-    - inv -e agent.build --iot --major-version 7
-
 .cluster_agent-build_common: &cluster_agent-build_common
   stage: binary_build
   needs: ["run_go_tidy_check"]
@@ -1020,17 +996,16 @@ iot_agent_rpm-arm64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["build_iot_agent-arm64"]
+  needs: [ "fail_on_non_triggered_tag"]
   before_script:
-    - source /root/.bashrc
-    # Hack to work around the cloning issue with arm runners
-    # - mkdir -p $GOPATH/src/github.com/DataDog
-    # - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
-    # - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
   <<: *skip_when_unwanted_on_7
   script:
     - echo "About to build iot agent for $RELEASE_VERSION"
+
+    - echo "Detected host architecture $(uname -m)"
+    - echo "Target architecture $TARGET_ARCH"
+
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -1059,20 +1034,19 @@ iot_agent_rpm-arm64:
 iot_agent_rpm-armhf:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
+  # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: [ "fail_on_non_triggered_tag", "build_iot_agent-armhf"]
+  needs: [ "fail_on_non_triggered_tag"]
   before_script:
-    - source /root/.bashrc
-    # Hack to work around the cloning issue with arm runners
-    # - mkdir -p $GOPATH/src/github.com/DataDog
-    # - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
-    # - cd $SRC_PATH
     - inv -e deps --verbose --dep-vendor-only
   <<: *skip_when_unwanted_on_7
   script:
     - echo "About to build iot agent for $RELEASE_VERSION"
 
-    - echo "Detected architecture $(uname -m)"
+    - echo "Detected host architecture $(uname -m)"
+    - echo "Target architecture $TARGET_ARCH"
+
+    # Patch yum variables to fake a 32bit kernel
     - echo "armhfp" > /etc/yum/vars/basearch
     - echo "armv7hl" > /etc/yum/vars/arch
     - echo "armv7hl-redhat-linux-gnu" > /etc/rpm/platform
