@@ -564,8 +564,8 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 
 func logSuccessfulGuess(guess C.__u64, offset C.__u64) {
 	if guess == guessDaddrIPv6 {
-		log.Infof("Successfully guessed %v with offset of %d bytes from the previous field. Guessing complete.", whatString[guess], offset)
+		log.Debugf("Successfully guessed %v with offset of %d bytes from the previous field. Guessing complete.", whatString[guess], offset)
 	} else {
-		log.Infof("Successfully guessed %v with offset of %d bytes from the previous field. Now guessing %v", whatString[guess], offset, whatString[guess+1])
+		log.Debugf("Successfully guessed %v with offset of %d bytes from the previous field. Now guessing %v", whatString[guess], offset, whatString[guess+1])
 	}
 }
