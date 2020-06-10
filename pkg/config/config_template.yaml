@@ -478,7 +478,7 @@ api_key:
     # port: 161
 
     ## @param version - integer - optional - default: <BEST_GUESS>
-    ## Set the version of the SNMP protocol. Value can be `1`, `2` or `3`.
+    ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
     ## If unset, the Agent tries to guess the correct version based on other configuration
     ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
     #
