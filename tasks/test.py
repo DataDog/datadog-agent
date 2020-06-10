@@ -432,3 +432,13 @@ def check_gitlab_broken_dependencies(ctx):
                 for need in needed:
                     if is_unwanted(data[need], version):
                         print("{} needs on {} but it won't be built for A{}".format(k, need, version))
+
+
+@task
+def lint_python(ctx):
+    """
+    Lints Python files.
+    See 'setup.cfg' file for configuration
+    """
+
+    ctx.run("flake8 .")
