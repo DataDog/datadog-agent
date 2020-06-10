@@ -459,7 +459,7 @@ def make_simple_gitlab_yml(ctx, jobs_to_run, yml_file_src='.gitlab-ci.yml', yml_
             del out[k]
             continue
         if not isinstance(v, dict):
-            continue;
+            continue
         stage = v.get('stage', None)
         if stage is not None and stage not in stages:
             stages.append(stage)
