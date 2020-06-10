@@ -821,8 +821,6 @@ build_iot_agent-arm64:
   before_script:
   - uname -m
   - echo $PATH
-  - source /root/.bashrc
-  - echo $PATH
   - inv -e deps --verbose --dep-vendor-only --no-checks
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   script:
@@ -834,9 +832,6 @@ build_iot_agent-arm64:
 build_iot_agent-armhf:
   before_script:
   - uname -m
-  - echo $PATH
-  - source /root/.bashrc
-  - export PATH=/root/.gimme/versions/go`$GIMME_GO_VERSION`.linux.arm/bin:$PATH
   - echo $PATH
   - inv -e deps --verbose --dep-vendor-only --no-checks
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -873,7 +868,7 @@ variables:
   BCC_VERSION: v0.12.0
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
-  DATADOG_AGENT_ARMBUILDIMAGES: v2562837-6a38435
+  DATADOG_AGENT_ARMBUILDIMAGES: v2604038-b207c1d
   DATADOG_AGENT_BUILDERS: v2448672-5304c3c
   DATADOG_AGENT_BUILDIMAGES: v2424505-0439a40
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2424505-0439a40
