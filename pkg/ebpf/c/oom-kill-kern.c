@@ -1,8 +1,5 @@
-#include <linux/kconfig.h>
 #define KBUILD_MODNAME "foo"
-#include <linux/ptrace.h>
 #include <linux/bpf.h>
-#include <net/inet_sock.h>
 #include <linux/tcp.h>
 #include <linux/oom.h>
 
@@ -28,7 +25,6 @@ int kprobe__oom_kill_process(struct pt_regs *ctx, struct oom_control *oc, const 
     if (s == NULL) return 0;
 
     // get cgroup name
-    // TODO put this in a common (bpf_helpers.h)? file
     struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
     struct css_set *css_set;
     if (!bpf_probe_read(&css_set, sizeof(css_set), &cur_tsk->cgroups)) {

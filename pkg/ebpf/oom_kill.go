@@ -5,15 +5,12 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
-	// "encoding/binary"
 	"fmt"
-	// "net"
 	"regexp"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	bpflib "github.com/iovisor/gobpf/bcc"
 )
@@ -101,15 +98,10 @@ func (k *OOMKillProbe) Get() []oomkill.Stats {
 
 		results = append(results, convertStats(stat))
 	}
-	log.Infof("CELENE inside OOMKillProbe.Get() results is %v", results)
 	return results
 }
 
 func convertStats(in C.struct_oom_stats) (out oomkill.Stats) {
-	log.Infof("CELENE inside convertStats ContainerID is %s", C.GoString(&in.cgroup_name[0]))
-	log.Infof("CELENE inside convertStats Pid is %d", uint32(in.pid))
-	log.Infof("CELENE inside convertStats TPid is %d", uint32(in.tpid))
-
 	out.ContainerID = C.GoString(&in.cgroup_name[0])
 	out.Pid = uint32(in.pid)
 	out.TPid = uint32(in.tpid)

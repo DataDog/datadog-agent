@@ -119,7 +119,7 @@ func (m *OOMKillCheck) Run() error {
 			triggerTypeText = fmt.Sprintf("This OOM kill was invoked by a cgroup, containerID: %s.", line.ContainerID)
 		} else {
 			triggerType = "system"
-			triggerTypeText = fmt.Sprintf("This OOM kill was invoked by the system.")
+			triggerTypeText = "This OOM kill was invoked by the system."
 		}
 		tags = append(tags, "trigger_type:"+triggerType)
 
@@ -135,16 +135,16 @@ func (m *OOMKillCheck) Run() error {
 			SourceTypeName: oomKillCheckName,
 			EventType:      oomKillCheckName,
 			AggregationKey: line.ContainerID,
-			Title:          fmt.Sprintf("Process OOM Killed: oom_kill_process called on `%s` (pid: %d)", line.TComm, line.TPid),
+			Title:          fmt.Sprintf("Process OOM Killed: oom_kill_process called on %s (pid: %d)", line.TComm, line.TPid),
 			Tags:           tags,
 		}
 		if line.Pid == line.TPid {
-			mainText = fmt.Sprintf("Process `%s` (pid: %d) triggered an OOM kill on itself. ", line.FComm, line.Pid)
+			mainText = "%%% \n" + fmt.Sprintf("Process `%s` (pid: %d) triggered an OOM kill on itself.", line.FComm, line.Pid)
 		} else {
-			mainText = fmt.Sprintf("Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d). ", line.FComm, line.Pid, line.TComm, line.TPid)
+			mainText = "%%% \n" + fmt.Sprintf("Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d).", line.FComm, line.Pid, line.TComm, line.TPid)
 		}
 
-		event.Text = fmt.Sprintf(mainText+"The process had reached %d pages in size. \n"+triggerTypeText, line.Pages)
+		event.Text = mainText + fmt.Sprintf("\n The process had reached %d pages in size. \n\n", line.Pages) + triggerTypeText + "\n %%%"
 		sender.Event(event)
 	}
 
