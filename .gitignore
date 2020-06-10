@@ -97,10 +97,13 @@ cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
 cmd/dogstatsd/windows_resources/*.bin
 dogstatsd-msg.h
 
+# omnibus files
+omnibus/.tarball-version
+omnibus/files/sources
+omnibus/resources/agent/msi/cal/packages/
 
 #visual studio files
 *.aps
-omnibus/resources/agent/msi/cal/packages/
 tools/windows/install-help/cal/packages/
 [Dd]ebug/
 [Rr]elease/

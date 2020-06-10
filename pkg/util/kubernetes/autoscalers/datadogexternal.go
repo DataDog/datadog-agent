@@ -48,9 +48,9 @@ var (
 )
 
 type Point struct {
-	value     float64
-	timestamp int64
-	valid     bool
+	Value     float64
+	Timestamp int64
+	Valid     bool
 }
 
 const (
@@ -61,23 +61,14 @@ const (
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point, error) {
-	if metricNames == nil {
-		log.Tracef("No processed external metrics to query")
+func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (map[string]Point, error) {
+	ddQueriesLen := len(ddQueries)
+	if ddQueriesLen == 0 {
+		log.Tracef("No query in input - nothing to do")
 		return nil, nil
 	}
-	// TODO move viper parameters to the Processor struct
-	bucketSize := config.Datadog.GetInt64("external_metrics_provider.bucket_size")
 
-	aggregator := config.Datadog.GetString("external_metrics.aggregator")
-	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
-	var toQuery []string
-	for _, metric := range metricNames {
-		toQuery = append(toQuery, fmt.Sprintf("%s:%s.rollup(%d)", aggregator, metric, rollup))
-	}
-
-	query := strings.Join(toQuery, ",")
-
+	query := strings.Join(ddQueries, ",")
 	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
 	if err != nil {
 		ddRequests.Inc("error")
@@ -85,23 +76,33 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 	}
 	ddRequests.Inc("success")
 
-	processedMetrics := make(map[string]Point)
-	for _, name := range metricNames {
-		// If the returned Series is empty for one or more processedMetrics, add it as invalid now
-		// so it can be retried later.
-		processedMetrics[name] = Point{
-			timestamp: time.Now().Unix(),
-		}
-	}
-
-	// Go through processedMetrics output, extract last value and timestamp - If no series found return invalid metrics.
-	if len(seriesSlice) == 0 {
-		return processedMetrics, log.Errorf("Returned series slice empty")
-	}
-
+	processedMetrics := make(map[string]Point, ddQueriesLen)
 	for _, serie := range seriesSlice {
 		if serie.Metric == nil {
 			log.Infof("Could not collect values for all processedMetrics in the query %s", query)
+			continue
+		}
+
+		// Perform matching between query and reply, using query order and `QueryIndex` from API reply (QueryIndex is 0-based)
+		var queryIndex int = 0
+		if ddQueriesLen > 1 {
+			if serie.QueryIndex != nil && *serie.QueryIndex < ddQueriesLen {
+				queryIndex = *serie.QueryIndex
+			} else {
+				log.Errorf("Received Serie without QueryIndex or invalid QueryIndex while we sent multiple queries. Full query: %s / Serie expression: %v / QueryIndex: %v", query, serie.Expression, serie.QueryIndex)
+				continue
+			}
+		}
+
+		// Check if we already have a Serie result for this query. We expect query to result in a single Serie
+		// Otherwise we are not able to determine which value we should take for Autoscaling
+		if existingPoint, found := processedMetrics[ddQueries[queryIndex]]; found {
+			if existingPoint.Valid {
+				log.Warnf("Multiple Series found for query: %s. Please change your query to return a single Serie. Results will be flagged as invalid", ddQueries[queryIndex])
+				existingPoint.Valid = false
+				existingPoint.Timestamp = time.Now().Unix()
+				processedMetrics[ddQueries[queryIndex]] = existingPoint
+			}
 			continue
 		}
 
@@ -121,22 +122,37 @@ func (p *Processor) queryDatadogExternal(metricNames []string) (map[string]Point
 				skippedLastPoint = true
 				continue
 			}
-			point.value = *serie.Points[i][value]                       // store the original value
-			point.timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in s
-			point.valid = true
+			point.Value = *serie.Points[i][value]                       // store the original value
+			point.Timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in s
+			point.Valid = true
 
 			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
-			processedMetrics[m] = point
+			processedMetrics[ddQueries[queryIndex]] = point
 
 			// Prometheus submissions on the processed external metrics
-			metricsEval.Set(point.value, m)
-			precision := time.Now().Unix() - point.timestamp
+			metricsEval.Set(point.Value, m)
+			precision := time.Now().Unix() - point.Timestamp
 			metricsDelay.Set(float64(precision), m)
 
-			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", m, point.value, point.timestamp, i+1, len(serie.Points))
+			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", ddQueries[queryIndex], point.Value, point.Timestamp, i+1, len(serie.Points))
 			break
 		}
 	}
+
+	// If the returned Series is empty for one or more processedMetrics, add it as invalid
+	for _, ddQuery := range ddQueries {
+		if _, found := processedMetrics[ddQuery]; !found {
+			processedMetrics[ddQuery] = Point{
+				Timestamp: time.Now().Unix(),
+			}
+		}
+	}
+
+	// If we add no series at all, return an error on top of invalid metrics
+	if len(seriesSlice) == 0 {
+		return processedMetrics, log.Errorf("Returned series slice empty")
+	}
+
 	return processedMetrics, nil
 }
 

@@ -26,12 +26,12 @@ func (m sketchMap) Len() int {
 
 // insert v into a sketch for the given (ts, contextKey)
 // NOTE: ts is truncated to bucketSize
-func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64) bool {
+func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64, sampleRate float64) bool {
 	if math.IsInf(v, 0) || math.IsNaN(v) {
 		return false
 	}
 
-	m.getOrCreate(ts, ck).Insert(v)
+	m.getOrCreate(ts, ck).Insert(v, sampleRate)
 	return true
 }
 

@@ -57,6 +57,10 @@ func fakePodWithLabel(k, v string) *corev1.Pod {
 	}
 }
 
+func fakePodWithEnv(name, env string) *corev1.Pod {
+	return fakePodWithContainer(name, corev1.Container{Name: name + "-container", Env: []corev1.EnvVar{fakeEnv(env)}})
+}
+
 func fakePod(name string) *corev1.Pod {
 	return fakePodWithContainer(name, corev1.Container{Name: name + "-container"})
 }

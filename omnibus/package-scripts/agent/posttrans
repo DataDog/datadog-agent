@@ -96,33 +96,6 @@ if [ "$DISTRIBUTION_FAMILY" != "SUSE" ]; then
     fi
 fi
 
-
-# Set the installation information
-# This is done in the postinst script for .deb packages
-if command -v rpm >/dev/null 2>&1; then
-    tool=rpm
-    tool_version=rpm-$(rpm -q --qf "%{VERSION}" rpm || echo "unknown")
-else
-    tool=unknown
-    tool_version=unknown
-fi
-
-# Distinguish SUSE since it has a different package
-if [ "$DISTRIBUTION_FAMILY" == "SUSE" ]; then
-    installer_version="rpm_suse_package"
-else
-    installer_version="rpm_package"
-fi
-
-install_info_content="---
-install_method:
-  tool: $tool
-  tool_version: $tool_version
-  installer_version: $installer_version
-"
-echo "$install_info_content" > $CONFIG_DIR/install_info
-chown -R dd-agent:dd-agent ${CONFIG_DIR}
-
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
 # and avoid restarting when a check conf is invalid
 if [ -f "$CONFIG_DIR/datadog.yaml" ]; then

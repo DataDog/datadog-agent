@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
@@ -77,9 +78,7 @@ type Server struct {
 	histToDist                bool
 	histToDistPrefix          string
 	extraTags                 []string
-	DebugMetricsStats         uint64
-	metricsStats              map[string]metricStat
-	statsLock                 sync.Mutex
+	Debug                     dsdServerDebug
 	mapper                    *mapper.MetricMapper
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
@@ -93,8 +92,31 @@ type Server struct {
 // metricStat holds how many times a metric has been
 // processed and when was the last time.
 type metricStat struct {
+	Name     string    `json:"name"`
 	Count    uint64    `json:"count"`
 	LastSeen time.Time `json:"last_seen"`
+	Tags     string    `json:"tags"`
+}
+
+type dsdServerDebug struct {
+	sync.Mutex
+	// Enabled is an atomic int used as a boolean
+	Enabled uint64                         `json:"enabled"`
+	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
+	// counting number of metrics processed last X seconds
+	metricsCounts metricsCountBuckets
+	// keyGen is used to generate hashes of the metrics received by dogstatsd
+	keyGen *ckey.KeyGenerator
+}
+
+// metricsCountBuckets is counting the amount of metrics received for the last 5 seconds.
+// It is used to detect spikes.
+type metricsCountBuckets struct {
+	counts     [5]uint64
+	bucketIdx  int
+	currentSec time.Time
+	metricChan chan struct{}
+	closeChan  chan struct{}
 }
 
 // NewServer returns a running Dogstatsd server
@@ -110,10 +132,10 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 	}
 
-	var metricsStats uint64 // we're using an uint64 for its atomic capacity
+	var metricsStatsEnabled uint64 // we're using an uint64 for its atomic capacity
 	if config.Datadog.GetBool("dogstatsd_metrics_stats_enable") == true {
 		log.Info("Dogstatsd: metrics statistics will be stored.")
-		metricsStats = 1
+		metricsStatsEnabled = 1
 	}
 
 	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
@@ -179,11 +201,19 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
 		extraTags:                 extraTags,
-		DebugMetricsStats:         metricsStats,
-		metricsStats:              make(map[string]metricStat),
 		telemetryEnabled:          telemetry.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
+		Debug: dsdServerDebug{
+			Enabled: metricsStatsEnabled,
+			Stats:   make(map[ckey.ContextKey]metricStat),
+			metricsCounts: metricsCountBuckets{
+				counts:     [5]uint64{0, 0, 0, 0, 0},
+				metricChan: make(chan struct{}),
+				closeChan:  make(chan struct{}),
+			},
+			keyGen: ckey.NewKeyGenerator(),
+		},
 	}
 
 	// packets forwarding
@@ -206,6 +236,13 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	// ----------------------
 
 	s.handleMessages()
+
+	// start the debug loop
+	// ----------------------
+
+	if metricsStatsEnabled == 1 {
+		s.EnableMetricsStats()
+	}
 
 	// map some metric name
 	// ----------------------
@@ -351,8 +388,8 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 					}
 					continue
 				}
-				if atomic.LoadUint64(&s.DebugMetricsStats) == 1 {
-					s.storeMetricStats(sample.Name)
+				if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+					s.storeMetricStats(sample)
 				}
 				batcher.appendSample(sample)
 				if s.histToDist && sample.Mtype == metrics.HistogramType {
@@ -438,35 +475,124 @@ func (s *Server) Stop() {
 	s.Started = false
 }
 
-func (s *Server) storeMetricStats(name string) {
+func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	now := time.Now()
-	s.statsLock.Lock()
-	defer s.statsLock.Unlock()
-	ms := s.metricsStats[name]
+	s.Debug.Lock()
+	defer s.Debug.Unlock()
+
+	// key
+	util.SortUniqInPlace(sample.Tags)
+	key := s.Debug.keyGen.Generate(sample.Name, "", sample.Tags)
+
+	// store
+	ms := s.Debug.Stats[key]
 	ms.Count++
 	ms.LastSeen = now
-	s.metricsStats[name] = ms
+	ms.Name = sample.Name
+	ms.Tags = strings.Join(sample.Tags, " ") // we don't want/need to share the underlying array
+	s.Debug.Stats[key] = ms
+
+	s.Debug.metricsCounts.metricChan <- struct{}{}
+}
+
+// EnableMetricsStats enables the debug mode of the DogStatsD server and start
+// the debug mainloop collecting the amount of metrics received.
+func (s *Server) EnableMetricsStats() {
+	s.Debug.Lock()
+	defer s.Debug.Unlock()
+
+	// already enabled?
+	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+		return
+	}
+
+	atomic.StoreUint64(&s.Debug.Enabled, 1)
+	go func() {
+		ticker := time.NewTicker(time.Millisecond * 100)
+		var closed bool
+		log.Debug("Starting the DogStatsD debug loop.")
+		for {
+			select {
+			case <-ticker.C:
+				sec := time.Now().Truncate(time.Second)
+				if sec.After(s.Debug.metricsCounts.currentSec) {
+					s.Debug.metricsCounts.currentSec = sec
+
+					if s.hasSpike() {
+						log.Warnf("A burst of metrics has been detected by DogStatSd: here is the last 5 seconds count of metrics: %v", s.Debug.metricsCounts.counts)
+					}
+
+					s.Debug.metricsCounts.bucketIdx++
+					if s.Debug.metricsCounts.bucketIdx >= len(s.Debug.metricsCounts.counts) {
+						s.Debug.metricsCounts.bucketIdx = 0
+					}
+
+					s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx] = 0
+				}
+			case <-s.Debug.metricsCounts.metricChan:
+				s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx]++
+			case <-s.Debug.metricsCounts.closeChan:
+				closed = true
+				break
+			}
+
+			if closed {
+				break
+			}
+		}
+		log.Debug("Stopping the DogStatsD debug loop.")
+		ticker.Stop()
+	}()
+}
+
+func (s *Server) hasSpike() bool {
+	// compare this one to the sum of all others
+	// if the difference is higher than all others sum, consider this
+	// as an anomaly.
+	var sum uint64
+	for _, v := range s.Debug.metricsCounts.counts {
+		sum += v
+	}
+	sum -= s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx]
+	if s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx] > sum {
+		return true
+	}
+	return false
+}
+
+// DisableMetricsStats disables the debug mode of the DogStatsD server and
+// stops the debug mainloop.
+func (s *Server) DisableMetricsStats() {
+	s.Debug.Lock()
+	defer s.Debug.Unlock()
+
+	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+		atomic.StoreUint64(&s.Debug.Enabled, 0)
+		s.Debug.metricsCounts.closeChan <- struct{}{}
+	}
+
+	log.Info("Disabling DogStatsD debug metrics stats.")
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.
 func (s *Server) GetJSONDebugStats() ([]byte, error) {
-	s.statsLock.Lock()
-	defer s.statsLock.Unlock()
-	return json.Marshal(s.metricsStats)
+	s.Debug.Lock()
+	defer s.Debug.Unlock()
+	return json.Marshal(s.Debug.Stats)
 }
 
 // FormatDebugStats returns a printable version of debug stats.
 func FormatDebugStats(stats []byte) (string, error) {
-	var dogStats map[string]metricStat
+	var dogStats map[uint64]metricStat
 	if err := json.Unmarshal(stats, &dogStats); err != nil {
 		return "", err
 	}
 
-	// put tags in order: first is the more frequent
-	order := make([]string, len(dogStats))
+	// put metrics in order: first is the more frequent
+	order := make([]uint64, len(dogStats))
 	i := 0
-	for tag := range dogStats {
-		order[i] = tag
+	for metric := range dogStats {
+		order[i] = metric
 		i++
 	}
 
@@ -477,13 +603,13 @@ func FormatDebugStats(stats []byte) (string, error) {
 	// write the response
 	buf := bytes.NewBuffer(nil)
 
-	header := fmt.Sprintf("%-40s | %-10s | %-20s\n", "Metric", "Count", "Last Seen")
+	header := fmt.Sprintf("%-40s | %-20s | %-10s | %-20s\n", "Metric", "Tags", "Count", "Last Seen")
 	buf.Write([]byte(header))
 	buf.Write([]byte(strings.Repeat("-", len(header)) + "\n"))
 
-	for _, metric := range order {
-		stats := dogStats[metric]
-		buf.Write([]byte(fmt.Sprintf("%-40s | %-10d | %-20v\n", metric, stats.Count, stats.LastSeen)))
+	for _, key := range order {
+		stats := dogStats[key]
+		buf.Write([]byte(fmt.Sprintf("%-40s | %-20s | %-10d | %-20v\n", stats.Name, stats.Tags, stats.Count, stats.LastSeen)))
 	}
 
 	if len(dogStats) == 0 {

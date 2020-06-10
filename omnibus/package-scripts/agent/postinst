@@ -55,24 +55,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             ;;
         esac
         #DEBHELPER#
-
-        # Set the installation information
-        # This is done in posttrans for .rpm packages
-        if command -v dpkg >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1; then
-            tool=dpkg
-            tool_version=dpkg-$(dpkg-query --showformat='${Version}' --show dpkg  | cut -d "." -f 1-3 || echo "unknown")
-        else
-            tool=unknown
-            tool_version=unknown
-        fi
-
-        install_info_content="---
-install_method:
-  tool: $tool
-  tool_version: $tool_version
-  installer_version: deb_package
-"
-        echo "$install_info_content" > $CONFIG_DIR/install_info
     fi
 
     # Set proper rights to the dd-agent user
