@@ -4,8 +4,10 @@ Utilities to manage build tags
 import sys
 from invoke import task
 
-# ALL_TAGS lists any available build tag
+# ALL_TAGS lists any available build tags
+# Used to remove unknown tags from user-provided tag lists.
 ALL_TAGS = set([
+    "android",
     "apm",
     "clusterchecks",
     "consul",
@@ -19,6 +21,7 @@ ALL_TAGS = set([
     "jmx",
     "kubeapiserver",
     "kubelet",
+    "linux_bpf",
     "netcgo", # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "orchestrator",
     "process",
@@ -29,28 +32,108 @@ ALL_TAGS = set([
     "zlib",
 ])
 
+### Tag inclusion lists
+
+# AGENT_TAGS lists the tags needed when building the Agent.
+AGENT_TAGS = [
+    "apm",
+    "consul",
+    "containerd",
+    "cri",
+    "docker",
+    "ec2",
+    "etcd",
+    "gce",
+    "jmx",
+    "kubeapiserver",
+    "kubelet",
+    "netcgo",
+    "process",
+    "python",
+    "secrets",
+    "systemd",
+    "zk",
+    "zlib",
+]
+
+# ANDROID_TAGS lists the tags needed when building the Android Agent
+ANDROID_TAGS = [
+    "android",
+    "zlib",
+]
+
+# CLUSTER_AGENT_TAGS lists the tags needed when building the Cluster Agent
+CLUSTER_AGENT_TAGS = [
+    "kubeapiserver",
+    "clusterchecks",
+    "secrets",
+    "orchestrator",
+    "zlib",
+]
+
+# CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the Cloudfoundry Cluster Agent
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = [
+    "clusterchecks",
+    "secrets",
+]
+
+# DOGSTATSD_TAGS lists the tags needed when building Dogstatsd
+DOGSTATSD_TAGS = [
+    "zlib",
+    "docker",
+    "kubelet",
+    "secrets",
+]
+
 # IOT_AGENT_TAGS lists the tags needed when building the IOT Agent
 IOT_AGENT_TAGS = [
-    "zlib",
     "systemd",
-]
-
-ANDROID_TAGS = [
     "zlib",
-    "android",
 ]
 
-PROCESS_ONLY_TAGS = [
+# PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
+PROCESS_AGENT_TAGS = AGENT_TAGS + [
+    "clusterchecks",
     "fargateprocess",
     "orchestrator",
 ]
 
+# PROCESS_AGENT_TAGS lists the tags necessary to build system-probe
+SYSTEM_PROBE_TAGS = AGENT_TAGS + [
+    "clusterchecks",
+    "linux_bpf",
+]
+
+# TRACE_AGENT_TAGS lists the tags that have to be added when the Trace Agent
+TRACE_AGENT_TAGS = [
+    "netcgo",
+    "secrets",
+    "docker",
+    "kubeapiserver",
+    "kubelet",
+]
+
+# TEST_TAGS lists the tags that have to be added to run tests
+TEST_TAGS = AGENT_TAGS + [
+    "clusterchecks",
+]
+
+### Tag exclusion lists
+
+# List of tags to always remove if not building on Linux
 LINUX_ONLY_TAGS = [
     "containerd",
     "cri",
     "netcgo",
     "systemd",
 ]
+
+# List of tags to always remove if not building on Windows
+WINDOWS_EXCLUDE_TAGS = [
+    "linux_bpf"
+]
+
+# List of tags to always remove if not building on Windows 32-bits
 WINDOWS_32BIT_EXCLUDE_TAGS = [
     "orchestrator",
     "docker",
@@ -58,41 +141,64 @@ WINDOWS_32BIT_EXCLUDE_TAGS = [
     "kubelet",
 ]
 
-
-def get_default_build_tags(iot=False, process=False, arch="x64", android=False):
+def get_default_build_tags(build="agent", arch="x64"):
     """
-    Build the default list of tags based on the current platform.
+    Build the default list of tags based on the build type and current platform.
 
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    include = ["all"]
-    if iot:
-        include = IOT_AGENT_TAGS
-
-    # android has its own set of tags
-    if android:
+    include = []
+    # Build setups
+    if build == "agent":
+        include = AGENT_TAGS
+    if build == "android":
         include = ANDROID_TAGS
+    if build == "cluster-agent":
+        include = CLUSTER_AGENT_TAGS
+    if build == "cluster-agent-cloudfoundry":
+        include = CLUSTER_AGENT_CLOUDFOUNDRY_TAGS
+    if build == "dogstatsd":
+        include = DOGSTATSD_TAGS
+    if build == "iot":
+        include = IOT_AGENT_TAGS
+    if build == "process-agent":
+        include = PROCESS_AGENT_TAGS
+    if build == "system-probe":
+        include = SYSTEM_PROBE_TAGS
+    if build == "trace-agent":
+        include = TRACE_AGENT_TAGS
+    # Test setups
+    if build == "test":
+        include = TEST_TAGS
+    if build == "test-with-process-tags":
+        include = TEST_TAGS + PROCESS_AGENT_TAGS
 
-    exclude = [] if sys.platform.startswith("linux") else LINUX_ONLY_TAGS
-    # if not process agent, ignore process only tags
-    if not process:
-        exclude = exclude + PROCESS_ONLY_TAGS
+    return filter_incorrect_tags(include, arch=arch)
 
-    # Force exclusion of Windows 32bits tag
+def filter_incorrect_tags(include, arch="x64"):
+    """
+    Filter out tags incompatible with the platform.
+    """
+
+    exclude = []
+    if not sys.platform.startswith("linux"):
+        exclude += LINUX_ONLY_TAGS
+
+    if sys.platform == "win32":
+        exclude += WINDOWS_EXCLUDE_TAGS
+
     if sys.platform == "win32" and arch == "x86":
-        exclude = exclude + WINDOWS_32BIT_EXCLUDE_TAGS
+        exclude += WINDOWS_32BIT_EXCLUDE_TAGS
 
     return get_build_tags(include, exclude)
+
 
 def get_build_tags(include, exclude):
     """
     Build the list of tags based on inclusions and exclusions passed through
     the command line
     """
-    # special case, include == all
-    if "all" in include:
-        return list(ALL_TAGS - set(exclude))
 
     # filter out unrecognised tags
     include = ALL_TAGS.intersection(set(include))

@@ -16,7 +16,7 @@ from invoke.exceptions import Exit
 
 from .utils import get_build_flags, get_version
 from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
-from .build_tags import get_default_build_tags, get_build_tags
+from .build_tags import get_default_build_tags, get_build_tags, filter_incorrect_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .trace_agent import integration_tests as trace_integration_tests
@@ -65,7 +65,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     else:
         tool_targets = test_targets = targets
 
-    build_include = get_default_build_tags(process=True) if build_include is None else build_include.split(",")
+    build_include = get_default_build_tags(build="test-with-process-tags", arch=arch) if build_include is None else filter_incorrect_tags(build_include.split(","), arch=arch)
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -88,7 +88,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         # from the 'skip-dirs' list we need to keep using the old functions that
         # lint without build flags (linting some file is better than no linting).
         print("--- Vetting and linting (legacy):")
-        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
         fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)
@@ -97,7 +97,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
             print("--- golangci_lint:")
-            golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+            golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")

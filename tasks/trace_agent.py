@@ -5,20 +5,12 @@ import shutil
 import invoke
 from invoke import task
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags,  get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
+from .build_tags import get_build_tags, get_default_build_tags, filter_incorrect_tags
 from .go import deps
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
-
-DEFAULT_BUILD_TAGS = [
-    "netcgo",
-    "secrets",
-    "docker",
-    "kubeapiserver",
-    "kubelet",
-]
 
 @task
 def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=None,
@@ -49,13 +41,8 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
         ))
 
 
-    build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
+    build_include = get_default_build_tags(build="trace-agent") if build_include is None else filter_incorrect_tags(build_include.split(","), arch=arch)
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
-    if not sys.platform.startswith('linux'):
-        for ex in LINUX_ONLY_TAGS:
-            if ex not in build_exclude:
-                build_exclude.append(ex)
 
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -86,7 +73,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags()),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }

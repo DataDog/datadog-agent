@@ -7,14 +7,9 @@ import os
 from invoke import task
 
 from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
-
+from .build_tags import get_default_build_tags
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent-cloudfoundry")
-DEFAULT_BUILD_TAGS = [
-    "clusterchecks",
-    "secrets",
-]
-
 
 @task
 def build(ctx, rebuild=False, build_include=None, build_exclude=None,
@@ -25,7 +20,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None,
      Example invokation:
         inv cluster-agent-cloudfoundry.build
     """
-    build_common(ctx, "cluster-agent-cloudfoundry.build", BIN_PATH, DEFAULT_BUILD_TAGS, "-cloudfoundry",
+    build_common(ctx, "cluster-agent-cloudfoundry.build", BIN_PATH, get_default_build_tags(build="cluster-agent-cloudfoundry"), "-cloudfoundry",
                  rebuild, build_include, build_exclude, race, development, skip_assets)
 
 

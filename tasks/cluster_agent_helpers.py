@@ -6,19 +6,19 @@ import os
 import shutil
 from distutils.dir_util import copy_tree
 
-from .build_tags import get_build_tags
+from .build_tags import get_build_tags, filter_incorrect_tags
 from .utils import get_build_flags, bin_name, get_version
 from .utils import REPO_PATH
 from .go import generate
 
 
 def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_include,
-                 build_exclude, race, development, skip_assets, go_mod="vendor"):
+                 build_exclude, race, development, skip_assets, go_mod="vendor", arch = "x64"):
     """
     Build Cluster Agent
     """
 
-    build_include = build_tags if build_include is None else build_include.split(",")
+    build_include = build_tags if build_include is None else filter_incorrect_tags(build_include.split(","), arch=arch)
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 

@@ -118,7 +118,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets, rtloader_root=None, build_tags=None):
+def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     """
     Run go vet on targets.
 
@@ -132,7 +132,7 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None):
 
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
-    tags = build_tags or get_default_build_tags()
+    tags = build_tags or get_default_build_tags(build="test", arch="x64")
     tags.append("dovet")
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
@@ -164,7 +164,7 @@ def cyclo(ctx, targets, limit=15):
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
@@ -176,7 +176,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    tags = build_tags or get_default_build_tags()
+    tags = build_tags or get_default_build_tags(build="test", arch=arch)
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
