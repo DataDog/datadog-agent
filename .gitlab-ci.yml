@@ -818,23 +818,34 @@
   - runner:windows-docker
   - windowsversion:1809
 build_iot_agent-arm64:
-  tags: ["runner:docker-arm", "platform:arm64"]
-  image: arm64v8/docker:18.04
+  before_script:
+  - uname -m
+  - echo $PATH
+  - source /root/.bashrc
+  - echo $PATH
+  - inv -e deps --verbose --dep-vendor-only --no-checks
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   script:
-  - pip install awscli
-  - aws --version
-  - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
-  - docker run --rm 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES bash -c 'echo $PATH'
+  - inv -e agent.build --iot --major-version 7
   stage: binary_build
+  tags:
+  - runner:docker-arm
+  - platform:arm64
 build_iot_agent-armhf:
-  tags: ["runner:docker-arm", "platform:arm64"]
-  image: arm64v8/docker:18.04
+  before_script:
+  - uname -m
+  - echo $PATH
+  - source /root/.bashrc
+  - export PATH=/root/.gimme/versions/go`$GIMME_GO_VERSION`.linux.arm/bin:$PATH
+  - echo $PATH
+  - inv -e deps --verbose --dep-vendor-only --no-checks
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   script:
-  - pip install awscli
-  - aws --version
-  - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
-  - docker run --rm 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES bash -c 'echo $PATH'
+  - inv -e agent.build --iot --major-version 7
   stage: binary_build
+  tags:
+  - runner:docker-arm
+  - platform:arm64
 default:
   retry:
     max: 2
