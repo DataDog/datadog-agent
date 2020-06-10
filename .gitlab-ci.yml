@@ -812,7 +812,7 @@ agent_with-bcc_deb-x64-a7:
     - inv -e deps --no-checks --verbose --dep-vendor-only
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *skip_when_unwanted_on_7
-  <<: *agent_with-bcc_build_common_deb
+  <<: *agent_build_common_deb
 
 agent_deb-arm-a6:
   stage: package_build
