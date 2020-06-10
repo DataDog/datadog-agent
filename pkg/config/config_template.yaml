@@ -513,7 +513,7 @@ api_key:
     # authentication_key: <AUTHENTICATION_KEY>
 
     ## @param authentication_protocol - string - optional
-    ## Authentication protocol to use when connecting to your SNMP devices.
+    ## The authentication protocol to use when connecting to your SNMP devices.
     ## Available options are: MD5, SHA.
     ## Defaults to MD5 when `authentication_key` is specified.
     ## SNMPv3 only.
