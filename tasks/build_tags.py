@@ -120,7 +120,7 @@ TEST_TAGS = AGENT_TAGS + [
 
 ### Tag exclusion lists
 
-# List of tags to always remove if not building on Linux
+# List of tags to always remove when not building on Linux
 LINUX_ONLY_TAGS = [
     "containerd",
     "cri",
@@ -128,12 +128,12 @@ LINUX_ONLY_TAGS = [
     "systemd",
 ]
 
-# List of tags to always remove if not building on Windows
+# List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = [
     "linux_bpf"
 ]
 
-# List of tags to always remove if not building on Windows 32-bits
+# List of tags to always remove when building on Windows 32-bits
 WINDOWS_32BIT_EXCLUDE_TAGS = [
     "orchestrator",
     "docker",
