@@ -10,6 +10,7 @@ package containers
 import (
 	"fmt"
 	"math"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -34,6 +35,10 @@ const (
 	dockerCheckName = "docker"
 	DockerServiceUp = "docker.service_up"
 	DockerExit      = "docker.exit"
+)
+
+var (
+	numCPU float64 = float64(runtime.NumCPU())
 )
 
 type DockerConfig struct {
@@ -75,6 +80,7 @@ type DockerCheck struct {
 	dockerHostname              string
 	cappedSender                *cappedSender
 	collectContainerSizeCounter uint64
+	previousStats               map[string]*containers.Container
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *containers.Container) {
@@ -169,6 +175,7 @@ func (d *DockerCheck) Run() error {
 
 	imageTagsByImageID := make(map[string][]string)
 	images := map[string]*containerPerImage{}
+	newPreviousStats := make(map[string]*containers.Container, len(cList))
 	for _, c := range cList {
 		updateContainerRunningCount(images, c)
 		if c.State != containers.ContainerRunningState || c.Excluded {
@@ -193,17 +200,19 @@ func (d *DockerCheck) Run() error {
 		d.reportUptime(c.StartedAt, currentUnixTime, tags, sender)
 
 		if c.CPU != nil {
-			sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
-			sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
-			sender.Rate("docker.cpu.usage", c.CPU.UsageTotal, "", tags)
-			sender.Gauge("docker.cpu.shares", float64(c.CPU.Shares), "", tags)
-			sender.Rate("docker.cpu.throttled", float64(c.CPU.NrThrottled), "", tags)
-			if c.CPU.ThreadCount != 0 {
-				sender.Gauge("docker.thread.count", float64(c.CPU.ThreadCount), "", tags)
+			var previousCPU *cmetrics.ContainerCPUStats
+			var previousLimit *cmetrics.ContainerLimits
+
+			if prevContainer, found := d.previousStats[c.ID]; found {
+				previousCPU = prevContainer.CPU
+				previousLimit = &prevContainer.Limits
 			}
+
+			d.reportCPUMetrics(c.CPU, previousCPU, &c.Limits, previousLimit, tags, sender)
 		} else {
 			log.Debugf("Empty CPU metrics for container %s", c.ID[:12])
 		}
+
 		if c.Memory != nil {
 			sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
 			sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
@@ -214,10 +223,10 @@ func (d *DockerCheck) Run() error {
 			if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
 				sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
 				sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
-			} else if c.MemLimit > 0 && c.Memory.CommitBytes > 0 {
+			} else if c.Limits.MemLimit > 0 && c.Memory.CommitBytes > 0 {
 				// On Windows the mem limit is in container limits
-				sender.Gauge("docker.mem.limit", float64(c.MemLimit), "", tags)
-				sender.Gauge("docker.mem.in_use", float64(c.Memory.CommitBytes)/float64(c.MemLimit), "", tags)
+				sender.Gauge("docker.mem.limit", float64(c.Limits.MemLimit), "", tags)
+				sender.Gauge("docker.mem.in_use", float64(c.Memory.CommitBytes)/float64(c.Limits.MemLimit), "", tags)
 			}
 
 			sender.Gauge("docker.mem.failed_count", float64(c.Memory.MemFailCnt), "", tags)
@@ -253,8 +262,8 @@ func (d *DockerCheck) Run() error {
 			log.Debugf("Empty IO metrics for container %s", c.ID[:12])
 		}
 
-		if c.ThreadLimit != 0 {
-			sender.Gauge("docker.thread.limit", float64(c.ThreadLimit), "", tags)
+		if c.Limits.ThreadLimit != 0 {
+			sender.Gauge("docker.thread.limit", float64(c.Limits.ThreadLimit), "", tags)
 		}
 
 		if c.Network != nil {
@@ -282,7 +291,10 @@ func (d *DockerCheck) Run() error {
 				sender.Gauge("docker.container.size_rootfs", float64(*info.SizeRootFs), "", tags)
 			}
 		}
+
+		newPreviousStats[c.ID] = c
 	}
+	d.previousStats = newPreviousStats
 
 	if d.instance.CollectContainerSize {
 		// Update the container size counter, used to collect them less often as they are costly
@@ -372,6 +384,56 @@ func (d *DockerCheck) Run() error {
 func (d *DockerCheck) reportUptime(startTime int64, currentUnixTime int64, tags []string, sender aggregator.Sender) {
 	if startTime != 0 && currentUnixTime-startTime > 0 {
 		sender.Gauge("docker.uptime", float64(currentUnixTime-startTime), "", tags)
+	}
+}
+
+func (d *DockerCheck) reportCPUMetrics(cpu, prevCPU *cmetrics.ContainerCPUStats, limits, prevLimits *cmetrics.ContainerLimits, tags []string, sender aggregator.Sender) {
+	if cpu == nil {
+		return
+	}
+
+	sender.Rate("docker.cpu.system", float64(cpu.System), "", tags)
+	sender.Rate("docker.cpu.user", float64(cpu.User), "", tags)
+	sender.Rate("docker.cpu.usage", cpu.UsageTotal, "", tags)
+	sender.Gauge("docker.cpu.shares", float64(cpu.Shares), "", tags)
+	sender.Rate("docker.cpu.throttled", float64(cpu.NrThrottled), "", tags)
+	if cpu.ThreadCount != 0 {
+		sender.Gauge("docker.thread.count", float64(cpu.ThreadCount), "", tags)
+	}
+
+	// Compute relative CPU / container. If their was a change in cgroup quota, we can't compute a meaningful normalized pct
+	// TODO: With upcoming refactor, this should be done in metric providers, not here but currently it's not easy to implement
+	// n/n+1 in cgroup provider
+	if prevCPU != nil && prevLimits != nil && limits.CPUPeriodQuotaHz == prevLimits.CPUPeriodQuotaHz {
+		// No data, skip computation
+		if limits.CPUPeriodQuotaHz == 0 {
+			return
+		}
+
+		cpuPct := 0.0
+		if limits.CPUPeriodQuotaHz < 0 {
+			// No limits, need to compute it relative to the whole machine
+			elapsedHz := 100 * cpu.Timestsamp.Sub(prevCPU.Timestsamp).Seconds()
+
+			// Need to convert elapsed into Hz (1/100s)
+			cpuPct = 100 * (cpu.UsageTotal - prevCPU.UsageTotal) / (numCPU * elapsedHz)
+		} else {
+			// Some limit is defined, computing relative to container limits
+			diffCPUTimeHz := cpu.UsageTotal - prevCPU.UsageTotal
+			diffNrPeriod := cpu.NrPeriod - prevCPU.NrPeriod
+
+			if diffCPUTimeHz < 0 || diffNrPeriod < 0 {
+				return
+			}
+
+			if diffCPUTimeHz > 0 && diffNrPeriod > 0 {
+				cpuPct = 100 * diffCPUTimeHz / (limits.CPUPeriodQuotaHz * float64(diffNrPeriod))
+			}
+		}
+
+		if cpuPct >= 0 {
+			sender.Gauge("docker.cpu.normalized_pct", cpuPct, "", tags)
+		}
 	}
 }
 

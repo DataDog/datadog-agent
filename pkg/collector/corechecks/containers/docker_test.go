@@ -69,3 +69,82 @@ func TestReportUptime(t *testing.T) {
 	dockerCheck.reportUptime(startTime, currentTime, tags, mockSender)
 	mockSender.AssertMetric(t, "Gauge", "docker.uptime", 60.0, "", tags)
 }
+
+func TestReportNormalizedCPUNoLimit(t *testing.T) {
+	dockerCheck := &DockerCheck{
+		instance: &DockerConfig{},
+	}
+	mockSender := mocksender.NewMockSender(dockerCheck.ID())
+	mockSender.SetupAcceptAll()
+
+	tags := []string{"constant:tags", "container_name:dummy"}
+	testTime := time.Now()
+
+	prevCPU := cmetrics.ContainerCPUStats{
+		Timestsamp: testTime.Add(-10 * time.Second),
+		System:     0,
+		User:       0,
+		UsageTotal: 0.0,
+		NrPeriod:   0,
+	}
+
+	// Explicitly no limit, we also need to set the numCPU var
+	numCPU = 1
+	prevLimits := cmetrics.ContainerLimits{
+		CPUPeriodQuotaHz: -1,
+	}
+
+	cpu := cmetrics.ContainerCPUStats{
+		Timestsamp: testTime,
+		System:     10,
+		User:       10,
+		UsageTotal: 20.0,
+		NrPeriod:   10.0,
+	}
+
+	limits := cmetrics.ContainerLimits{
+		CPUPeriodQuotaHz: -1,
+	}
+
+	dockerCheck.reportCPUMetrics(&cpu, &prevCPU, &limits, &prevLimits, tags, mockSender)
+	mockSender.AssertMetric(t, "Gauge", "docker.cpu.normalized_pct", 2.0, "", tags)
+}
+
+func TestReportNormalizedCPULimit(t *testing.T) {
+	dockerCheck := &DockerCheck{
+		instance: &DockerConfig{},
+	}
+	mockSender := mocksender.NewMockSender(dockerCheck.ID())
+	mockSender.SetupAcceptAll()
+
+	tags := []string{"constant:tags", "container_name:dummy"}
+	testTime := time.Now()
+
+	prevCPU := cmetrics.ContainerCPUStats{
+		Timestsamp: testTime.Add(-10 * time.Second),
+		System:     0,
+		User:       0,
+		UsageTotal: 0.0,
+		NrPeriod:   0,
+	}
+
+	numCPU = 1
+	prevLimits := cmetrics.ContainerLimits{
+		CPUPeriodQuotaHz: 1000,
+	}
+
+	cpu := cmetrics.ContainerCPUStats{
+		Timestsamp: testTime,
+		System:     10,
+		User:       10,
+		UsageTotal: 20.0,
+		NrPeriod:   10.0,
+	}
+
+	limits := cmetrics.ContainerLimits{
+		CPUPeriodQuotaHz: 1000,
+	}
+
+	dockerCheck.reportCPUMetrics(&cpu, &prevCPU, &limits, &prevLimits, tags, mockSender)
+	mockSender.AssertMetric(t, "Gauge", "docker.cpu.normalized_pct", 0.2, "", tags)
+}

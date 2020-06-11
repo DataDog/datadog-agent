@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add `docker.cpu.normalized_pct` metric which reports CPU as a % of container limit (or machine cpu if no limit). Only support Linux.

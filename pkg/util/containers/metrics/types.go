@@ -5,6 +5,8 @@
 
 package metrics
 
+import "time"
+
 // InterfaceNetStats stores network statistics about a Docker network interface
 type InterfaceNetStats struct {
 	NetworkName string
@@ -86,6 +88,8 @@ type ContainerMemStats struct {
 // ContainerCPUStats stores CPU times for a cgroup.
 // Unit is userspace scheduling unit (USER_HZ, usually 1/100)
 type ContainerCPUStats struct {
+	Timestsamp time.Time
+
 	// docker.cpu.system
 	System uint64
 
@@ -102,6 +106,7 @@ type ContainerCPUStats struct {
 
 	// docker.cpu.throttled
 	NrThrottled uint64
+	NrPeriod    uint64
 
 	// docker.thread.count
 	ThreadCount uint64
@@ -110,7 +115,6 @@ type ContainerCPUStats struct {
 // ContainerIOStats store I/O statistics about a cgroup.
 // Sums are stored in ReadBytes and WriteBytes
 type ContainerIOStats struct {
-
 	// docker.io.read_bytes
 	ReadBytes uint64
 
@@ -136,9 +140,10 @@ type ContainerMetrics struct {
 
 // ContainerLimits represents the (normally static) resources limits set when a container is created
 type ContainerLimits struct {
-	CPULimit    float64
-	MemLimit    uint64
-	ThreadLimit uint64
+	CPUPeriodQuotaHz float64
+	CPULimit         float64
+	MemLimit         uint64
+	ThreadLimit      uint64
 }
 
 // ContainerMetricsProvider defines the API for any implementation that could provide container metrics
