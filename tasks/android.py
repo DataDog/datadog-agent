@@ -128,11 +128,7 @@ def clean(ctx):
 @task
 def assetconfigs(ctx):
     # move the core check config
-    try:
-        shutil.rmtree(CORECHECK_CONFS_DIR)
-    except:
-        ## it's ok if the dir is not there
-        pass
+    shutil.rmtree(CORECHECK_CONFS_DIR, ignore_errors=True)
 
     files = {}
     files_list = []

@@ -352,7 +352,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
             try:
                 additional_config = extract_agent_config(config)
                 agentConfig.update(additional_config)
-            except:
+            except Exception:
                 log.error('Failed to load the agent configuration related to '
                           'service discovery. It will not be used.')
 
@@ -403,7 +403,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
             'dogstatsd_port': 8125,
             'dogstatsd_target': 'http://' + agentConfig['bind_host'] + ':17123',
         }
-        for key, value in dogstatsd_defaults.iteritems():
+        for key, value in dogstatsd_defaults.items():
             if config.has_option('Main', key):
                 agentConfig[key] = config.get('Main', key)
             else:
@@ -612,7 +612,7 @@ def get_proxy(agentConfig):
 
 def main():
     res = {}
-    for k, v in get_config().iteritems():
+    for k, v in get_config().items():
         res[k] = str(v)
     return json.dumps(res, sort_keys=True)
 
