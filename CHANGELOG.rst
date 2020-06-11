@@ -108,6 +108,7 @@ Enhancement Notes
   stdlib sort.
 
 - Expose distinct endpoints for liveness and readiness probes.
+
   * The liveness probe (``/live``) fails in case of unrecoverable error that deserve
     an agent restart. (Ex.: goroutine deadlock or premature exit)
   * The readiness probe (``/ready``) fails in case of recoverable errors or errors
