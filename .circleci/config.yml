@@ -246,6 +246,10 @@ jobs:
             sudo mkdir -p /opt/datadog-agent /var/cache/omnibus && sudo chown $USER /opt/datadog-agent /var/cache/omnibus
             inv -e agent.omnibus-build --skip-sign --python-runtimes 3 --major-version 7 --release-version nightly-a7
 
+      - run: mkdir -p ~/artifacts && cp omnibus/pkg/*.dmg ~/artifacts
+      - store_artifacts:
+          path: ~/artifacts
+
 workflows:
   version: 2
   test_and_build:
