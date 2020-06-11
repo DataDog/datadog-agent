@@ -876,6 +876,8 @@ iot_agent_rpm-armhf:
     paths:
     - $OMNIBUS_PACKAGE_DIR
   before_script:
+  # Yup, we're doing this...
+  - echo "echo \"armv7l\"" > /bin/uname
   - inv -e deps --verbose --dep-vendor-only
   except: *id008
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
