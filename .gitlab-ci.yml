@@ -893,7 +893,7 @@ iot_agent_rpm-armhf:
     /bin/uname.orig $1
     ;;
     esac
-EOF
+  EOF
   - chmod +x /bin/uname
   - inv -e deps --verbose --dep-vendor-only
   except: *id008
