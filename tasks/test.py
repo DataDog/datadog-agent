@@ -183,7 +183,7 @@ def lint_teamassignment(ctx):
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         issue = res.json()
         if any([re.match('team/', l['name']) for l in issue.get('labels', {})]):
-            print("Team Assignment: %s" % l['name'])
+            print("Team Assignment: %s" % l['name'])  # noqa: F821
             return
 
         print("PR %s requires team assignment" % pr_url)
@@ -408,7 +408,7 @@ def make_kitchen_gitlab_yml(ctx):
             v['needs'] = new_needed
 
     with open('.gitlab-ci.yml', 'w') as f:
-        documents = yaml.dump(data, f, default_style='"')
+       yaml.dump(data, f, default_style='"')
 
 @task
 def check_gitlab_broken_dependencies(ctx):

@@ -44,7 +44,7 @@ def update_changelog(ctx, new_version):
     # let's avoid losing uncommitted change with 'git reset --hard'
     try:
         ctx.run("git diff --exit-code HEAD", hide="both")
-    except Failure as e:
+    except Failure:
         print("Error: You have uncommitted change, please commit or stash before using update_changelog")
         return
 
@@ -54,7 +54,7 @@ def update_changelog(ctx, new_version):
     # let's check that the tag for the new version is present (needed by reno)
     try:
         ctx.run("git tag --list | grep {}".format(new_version))
-    except Failure as e:
+    except Failure:
         print("Missing '{}' git tag: mandatory to use 'reno'".format(new_version))
         raise
 
@@ -112,7 +112,7 @@ def _find_v6_tag(ctx, v7_tag):
     commit = ctx.run("git rev-list --max-count=1 {}".format(v7_tag), hide='out').stdout.strip()
     try:
         v6_tags = ctx.run("git tag --points-at {} | grep -E '^6\\.'".format(commit), hide='out').stdout.strip().split("\n")
-    except Failure as e:
+    except Failure:
         print("Found no v6 tag pointing at same commit as '{}'.".format(v7_tag))
     else:
         v6_tag = v6_tags[0]

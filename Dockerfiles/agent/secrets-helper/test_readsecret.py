@@ -4,8 +4,9 @@ import argparse
 import shutil
 import tempfile
 import unittest
+import os
 
-from readsecret import *
+from readsecret import list_secret_names, read_file, is_valid_folder
 
 
 class TestListSecretNames(unittest.TestCase):

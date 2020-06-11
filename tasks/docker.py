@@ -9,7 +9,6 @@ import os
 import re
 import time
 import yaml
-import tempfile
 
 from invoke import task
 from invoke.exceptions import Exit

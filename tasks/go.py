@@ -6,6 +6,7 @@ import datetime
 import os
 import shutil
 import sys
+import csv
 
 from invoke import task
 from invoke.exceptions import Exit

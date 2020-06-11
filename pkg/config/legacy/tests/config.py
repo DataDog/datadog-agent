@@ -15,6 +15,7 @@ from socket import gaierror, gethostbyname
 import string
 import sys
 from urlparse import urlparse
+from urllib.request import getproxies
 
 # 3p
 import json
@@ -493,11 +494,11 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
         if config.has_option("Main", "gce_updated_hostname"):
             agentConfig["gce_updated_hostname"] = _is_affirmative(config.get("Main", "gce_updated_hostname"))
 
-    except ConfigParser.NoSectionError as e:
+    except ConfigParser.NoSectionError:
         sys.stderr.write('Config file not found or incorrectly formatted.\n')
         sys.exit(2)
 
-    except ConfigParser.ParsingError as e:
+    except ConfigParser.ParsingError:
         sys.stderr.write('Config file not found or incorrectly formatted.\n')
         sys.exit(2)
 
