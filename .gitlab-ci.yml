@@ -878,22 +878,23 @@ iot_agent_rpm-armhf:
   before_script:
   # Yup, we're doing this...
   - mv /bin/uname /bin/uname.orig
-  - cat > /bin/uname << EOF
-    if (( $# != 1 )); then
-      /bin/uname.orig
-    fi
-    case "$1" in
-    -a|--all)
-    /bin/uname.orig -a | sed -e "s/aarch64/armv7l/g"
-    ;;
-    -m|--machine|-p|--processor|-i|--hardware-platform)
-    echo "armv7l"
-    ;;
-    *)
-    /bin/uname.orig $1
-    ;;
-    esac
-  EOF
+  - |
+    cat > /bin/uname << EOF
+      if (( $# != 1 )); then
+        /bin/uname.orig
+      fi
+      case "$1" in
+      -a|--all)
+      /bin/uname.orig -a | sed -e "s/aarch64/armv7l/g"
+      ;;
+      -m|--machine|-p|--processor|-i|--hardware-platform)
+      echo "armv7l"
+      ;;
+      *)
+      /bin/uname.orig $1
+      ;;
+      esac
+    EOF
   - chmod +x /bin/uname
   - inv -e deps --verbose --dep-vendor-only
   except: *id008
