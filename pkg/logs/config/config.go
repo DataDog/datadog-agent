@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -158,7 +157,7 @@ func buildTCPEndpoints() (*Endpoints, error) {
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
-		additionals[i].APIKey = strings.TrimSpace(additionals[i].APIKey)
+		additionals[i].APIKey = coreConfig.Sanitize(additionals[i].APIKey)
 	}
 	return NewEndpoints(main, additionals, useProto, false, 0), nil
 }
@@ -188,7 +187,7 @@ func BuildHTTPEndpoints() (*Endpoints, error) {
 	additionals := getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
-		additionals[i].APIKey = strings.TrimSpace(additionals[i].APIKey)
+		additionals[i].APIKey = coreConfig.Sanitize(additionals[i].APIKey)
 	}
 
 	batchWait := batchWait(coreConfig.Datadog)

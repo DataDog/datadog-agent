@@ -916,7 +916,12 @@ func ResolveSecrets(config Config, origin string) error {
 
 // SanitizeAPIKey strips newlines and other control characters from a given key.
 func SanitizeAPIKey(config Config, key string) {
-	config.Set(key, strings.TrimSpace(config.GetString(key)))
+	config.Set(key, Sanitize(config.GetString(key)))
+}
+
+// Sanitize strips newlines and other control characters from a given string.
+func Sanitize(s string) string {
+	return strings.TrimSpace(strings.Split(s, ",")[0])
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
