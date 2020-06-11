@@ -797,7 +797,6 @@ iot_agent_deb-arm64:
     paths:
     - $OMNIBUS_PACKAGE_DIR
   before_script:
-  - source /root/.bashrc
   - inv -e deps --verbose --dep-vendor-only
   except: *id008
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -821,7 +820,6 @@ iot_agent_deb-armhf:
     paths:
     - $OMNIBUS_PACKAGE_DIR
   before_script:
-  - source /root/.bashrc
   - inv -e deps --verbose --dep-vendor-only
   except: *id008
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -876,13 +874,6 @@ iot_agent_rpm-armhf:
     paths:
     - $OMNIBUS_PACKAGE_DIR
   before_script:
-  - git clone https://github.com/robotpy/fakearmv7l
-  - cd fakearmv7l
-  - make
-  - make install
-  - cd ..
-  - rm -rf ./fakearmv7l
-  - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
   - inv -e deps --verbose --dep-vendor-only
   except: *id008
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -929,7 +920,7 @@ variables:
   BCC_VERSION: v0.12.0
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
-  DATADOG_AGENT_ARMBUILDIMAGES: v2604819-e58f0ef
+  DATADOG_AGENT_ARMBUILDIMAGES: v2609722-8e2b5ef
   DATADOG_AGENT_BUILDERS: v2448672-5304c3c
   DATADOG_AGENT_BUILDIMAGES: v2424505-0439a40
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2424505-0439a40
