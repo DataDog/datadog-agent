@@ -488,19 +488,6 @@ build_dogstatsd-deb_arm64:
     - inv -e dogstatsd.build --major-version 7
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
 
-# build iot agent for deb-x64, to make sure the build is not broken because of build flags
-build_iot_agent-deb_x64:
-  stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
-  needs: ["run_tests_deb-x64-py3"]
-  before_script:
-    - source /root/.bashrc && conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only --no-checks
-  script:
-    - inv -e agent.build --iot --major-version 7
-    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
-
 .cluster_agent-build_common: &cluster_agent-build_common
   stage: binary_build
   needs: ["run_go_tidy_check"]
@@ -761,7 +748,7 @@ iot_agent_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["build_iot_agent-deb_x64"]
+  needs: [ "fail_on_non_triggered_tag"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     PACKAGE_ARCH: amd64
@@ -961,7 +948,7 @@ iot_agent_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:2xlarge" ]
-  needs: ["build_iot_agent-deb_x64"]
+  needs: [ "fail_on_non_triggered_tag"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
