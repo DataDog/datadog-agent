@@ -897,7 +897,7 @@ iot_agent_rpm-armhf:
     ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query
     "Parameter.Value" --out text)
   - set -x
-  - linux32 inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7"
+  - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7"
     --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
   - ls $OMNIBUS_BASE_DIR/pkg/
   - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json}
