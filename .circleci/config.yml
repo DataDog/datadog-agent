@@ -94,6 +94,7 @@ jobs:
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
+            - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 
   unit_tests:
