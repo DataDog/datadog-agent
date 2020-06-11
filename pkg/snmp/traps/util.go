@@ -23,8 +23,6 @@ func VersionAsString(value gosnmp.SnmpVersion) string {
 		return "1"
 	case gosnmp.Version2c:
 		return "2c"
-	case gosnmp.Version3:
-		return "3"
 	default:
 		return ""
 	}
@@ -34,20 +32,6 @@ func validateCredentials(p *gosnmp.SnmpPacket, params *gosnmp.GoSNMP) bool {
 	if p.Version == gosnmp.Version1 || p.Version == gosnmp.Version2c {
 		// Enforce that community strings match.
 		return params.Community != "" && p.Community == params.Community
-	}
-
-	if p.Version == gosnmp.Version3 {
-		// Auth and privacy validation is already performed by GoSNMP, but we also
-		// want to enforce that usernames match.
-		sp, ok := params.SecurityParameters.(*gosnmp.UsmSecurityParameters)
-		if !ok || sp == nil {
-			return false
-		}
-		spPacket, ok := p.SecurityParameters.(*gosnmp.UsmSecurityParameters)
-		if !ok || spPacket == nil {
-			return false
-		}
-		return sp.UserName != "" && sp.UserName == spPacket.UserName
 	}
 
 	return false

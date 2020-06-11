@@ -1622,47 +1622,17 @@ api_key:
     #
     # bind_host: <BIND_HOST>
 
-    ## @param  version - string - optional
+    ## @param version - string - optional
     ## The SNMP version to use.
-    ## One of: "1" (SNMPv1), "2c" (SNMPv2c), "3" (SNMPv3).
-    ## Automatically detected for SNMPv2c and SNMPv3, required for SNMPv1.
+    ## One of: "1" (SNMPv1), "2c" (SNMPv2c).
+    ## Automatically detected for SNMPv2c, required for SNMPv1.
+    ## SNMPv3 is not supported yet.
     #
     # version: <VERSION>
 
-    ## @param community - string - optional
+    ## @param community - string - required
     ## The community string of the listener.
-    ## Required for SNMPv1 or SNMPv2c.
     #
     # community: <COMMUNITY>
-
-    ## @param user - string - optional
-    ## Username of the user that is authorized to send traps to this listener.
-    ## Required for SNMPv3.
-    #
-    # user: <USER>
-
-    ## @param authentication_protocol - string - optional
-    ## SNMPv3 authentication protocol to use.
-    ## One of: "MD5", "SHA".
-    ## Required if privacy is enabled.
-    #
-    # authentication_protocol: <AUTHENTICATION_PROTOCOL>
-
-    ## @param authentication_key - string - optional
-    ## SNMPv3 authentication key of the user.
-    ## Required if privacy is enabled.
-    #
-    # authentication_key: <AUTHENTICATION_KEY>
-
-    ## @param privacy_protocol - string - optional
-    ## SNMPv3 privacy protocol to use.
-    ## One of: "DES", "AES".
-    #
-    # privacy_protocol: <PRIVACY_PROTOCOL>
-
-    ## @param privacy_key - string - optional
-    ## SNMPv3 privacy key of the user.
-    #
-    # privacy_key: <PRIVACY_KEY>
 
 {{end -}}
