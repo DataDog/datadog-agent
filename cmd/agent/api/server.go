@@ -83,15 +83,17 @@ func StartServer() error {
 	}
 
 	// grpc server
-	lis, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		return err
-	}
-	s := grpc.NewServer()
-	pb.RegisterAgentServer(s, &server{})
-	if err := s.Serve(lis); err != nil {
-		return err
-	}
+	go func() {
+		lis, err := net.Listen("tcp", ":50051")
+		if err != nil {
+			panic(err)
+		}
+		s := grpc.NewServer()
+		pb.RegisterAgentServer(s, &server{})
+		if err := s.Serve(lis); err != nil {
+			panic(err)
+		}
+	}()
 
 	go func() {
 		// starting gateway
