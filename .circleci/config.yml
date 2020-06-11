@@ -63,6 +63,7 @@ jobs:
           command: |
             pip install wheel
             pip install -r requirements.txt
+            pip3 install flake8==3.8.3 flake8-bugbear==20.1.4
       - run:
           name: grab go deps
           command: |
@@ -155,6 +156,15 @@ jobs:
           name: run filename linting
           command: inv -e lint-filenames
 
+  python_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: lint python files
+          command: inv -e lint-python
+
   docker_tests:
     <<: *job_template
     steps:
@@ -225,6 +235,9 @@ workflows:
           requires:
             - dependencies
       - filename_linting:
+          requires:
+            - dependencies
+      - python_linting:
           requires:
             - dependencies
       - docker_tests:
