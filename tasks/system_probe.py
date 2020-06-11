@@ -166,7 +166,7 @@ def nettop(ctx, incremental_build=False):
         path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
         bin_path=bin_path,
         go_mod=go_mod,
-        build_type="-i" if incremental_build else "-a",
+        build_type="" if incremental_build else "-a",
     ))
 
     # Run

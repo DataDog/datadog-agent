@@ -23,7 +23,8 @@ func Test_injectTagsFromLabels(t *testing.T) {
 		labels      map[string]string
 		pod         *corev1.Pod
 		wantPodFunc func() corev1.Pod
-		want        bool
+		found       bool
+		injected    bool
 	}{
 		{
 			name:   "nominal case",
@@ -36,7 +37,8 @@ func Test_injectTagsFromLabels(t *testing.T) {
 				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_VERSION", "7"))
 				return *pod
 			},
-			want: true,
+			found:    true,
+			injected: true,
 		},
 		{
 			name:   "no labels",
@@ -46,7 +48,8 @@ func Test_injectTagsFromLabels(t *testing.T) {
 				pod := fakePod("foo-pod")
 				return *pod
 			},
-			want: false,
+			found:    false,
+			injected: false,
 		},
 		{
 			name:   "env only",
@@ -57,13 +60,26 @@ func Test_injectTagsFromLabels(t *testing.T) {
 				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_ENV", "dev"))
 				return *pod
 			},
-			want: true,
+			found:    true,
+			injected: true,
+		},
+		{
+			name:   "label found but not injected",
+			labels: map[string]string{"tags.datadoghq.com/env": "dev"},
+			pod:    fakePodWithEnv("foo-pod", "DD_ENV"),
+			wantPodFunc: func() corev1.Pod {
+				pod := fakePodWithEnv("foo-pod", "DD_ENV")
+				return *pod
+			},
+			found:    true,
+			injected: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			injected := injectTagsFromLabels(tt.labels, tt.pod)
-			assert.Equal(t, tt.want, injected)
+			found, injected := injectTagsFromLabels(tt.labels, tt.pod)
+			assert.Equal(t, tt.found, found)
+			assert.Equal(t, tt.injected, injected)
 			assert.Len(t, tt.pod.Spec.Containers, 1)
 			assert.Len(t, tt.wantPodFunc().Spec.Containers, 1)
 			assert.ElementsMatch(t, tt.wantPodFunc().Spec.Containers[0].Env, tt.pod.Spec.Containers[0].Env)

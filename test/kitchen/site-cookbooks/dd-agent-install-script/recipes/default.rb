@@ -63,7 +63,6 @@ end
 
 directory wrk_dir do
   owner 'installuser'
-  group 'installuser'
   mode '0755'
 end
 

@@ -65,7 +65,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     else:
         tool_targets = test_targets = targets
 
-    build_include = get_default_build_tags(process=True) if build_include is None else build_include.split(",")
+    build_include = get_default_build_tags(process=True, arch=arch) if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -88,7 +88,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
         # from the 'skip-dirs' list we need to keep using the old functions that
         # lint without build flags (linting some file is better than no linting).
         print("--- Vetting and linting (legacy):")
-        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
         fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)

@@ -208,6 +208,8 @@ func TestParseCgroupPaths(t *testing.T) {
 				"5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
 				// Legacy systems
 				"6:legacy:a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+				// Docker under systemd
+				"7:systemd:/system.slice/myservice.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
 			},
 			expectedContainer: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
 			expectedPaths: map[string]string{
@@ -217,6 +219,7 @@ func TestParseCgroupPaths(t *testing.T) {
 				"kube1.7":    "/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
 				"coreos_7xx": "/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
 				"legacy":     "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+				"systemd":    "/system.slice/myservice.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
 			},
 		},
 		{
@@ -270,6 +273,37 @@ func TestParseCgroupPaths(t *testing.T) {
 				"cpuacct":      "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
 				"cpu":          "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
 				"cpuset":       "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+			},
+		},
+		{
+			contents: []string{
+				"11:memory:/system.slice/ecs-agent.service",
+				"10:pids:/system.slice/ecs-agent.service",
+				"9:hugetlb:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"8:blkio:/system.slice/ecs-agent.service",
+				"7:net_cls,net_prio:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"6:devices:/system.slice/ecs-agent.service",
+				"5:perf_event:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"4:freezer:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"3:cpuset:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"2:cpu,cpuacct:/system.slice/ecs-agent.service",
+				"1:name=systemd:/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+			},
+			expectedContainer: "1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+			expectedPaths: map[string]string{
+				"memory":       "/system.slice/ecs-agent.service",
+				"pids":         "/system.slice/ecs-agent.service",
+				"hugetlb":      "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"blkio":        "/system.slice/ecs-agent.service",
+				"net_cls":      "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"net_prio":     "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"devices":      "/system.slice/ecs-agent.service",
+				"perf_event":   "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"freezer":      "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"cpuset":       "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
+				"cpu":          "/system.slice/ecs-agent.service",
+				"cpuacct":      "/system.slice/ecs-agent.service",
+				"name=systemd": "/system.slice/ecs-agent.service/1236529c30c0bf2faf2c5c63c0af2afd134118b91348f321c996734e15b7a8f9",
 			},
 		},
 	} {
