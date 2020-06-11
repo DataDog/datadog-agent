@@ -19,10 +19,12 @@ import (
 	stdLog "log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
@@ -50,14 +52,23 @@ func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.H
 	return &pb.HostnameReply{Hostname: h}, nil
 }
 
+// grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
+// connections or otherHandler otherwise. Copied from cockroachdb.
+func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// This is a partial recreation of gRPC's internal checks https://github.com/grpc/grpc-go/pull/514/files#diff-95e9a25b738459a2d3030e1e6fa2a718R61
+		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
+			grpcServer.ServeHTTP(w, r)
+		} else {
+			otherHandler.ServeHTTP(w, r)
+		}
+	})
+}
+
 // StartServer creates the router and starts the HTTP server
 func StartServer() error {
-	// create the root HTTP router
+	// create the REST HTTP router
 	r := mux.NewRouter()
-
-	// IPC REST API server
-	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
-	check.SetupHandlers(r.PathPrefix("/check").Subrouter())
 
 	// Validate token for every request
 	r.Use(validateToken)
@@ -82,38 +93,6 @@ func StartServer() error {
 		return fmt.Errorf("unable to start TLS server")
 	}
 
-	// grpc server
-	go func() {
-		lis, err := net.Listen("tcp", ":50051")
-		if err != nil {
-			panic(err)
-		}
-		s := grpc.NewServer()
-		pb.RegisterAgentServer(s, &server{})
-		if err := s.Serve(lis); err != nil {
-			panic(err)
-		}
-	}()
-
-	go func() {
-		// starting gateway
-		ctx := context.Background()
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		mux := runtime.NewServeMux()
-		opts := []grpc.DialOption{grpc.WithInsecure()}
-		// pb.RegisterAgentServer(s, &server{})
-		err := pb.RegisterAgentHandlerFromEndpoint(ctx, mux, "localhost:50051", opts)
-		if err != nil {
-			panic(err)
-		}
-
-		if err := http.ListenAndServe(":8081", mux); err != nil {
-			panic(err)
-		}
-	}()
-
 	// PEM encode the private key
 	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
 		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
@@ -129,14 +108,45 @@ func StartServer() error {
 		Certificates: []tls.Certificate{rootTLSCert},
 	}
 
+	// gRPC server
+
+	// TLS
+	dcreds := credentials.NewTLS(&tlsConfig)
+
+	s := grpc.NewServer(grpc.Creds(dcreds))
+	pb.RegisterAgentServer(s, &server{})
+
+	// starting gateway
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	gwmux := runtime.NewServeMux()
+	ccreds := credentials.NewTLS(&tls.Config{
+		InsecureSkipVerify: true,
+	})
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(ccreds)}
+	// opts := []grpc.DialOption{grpc.WithInsecure()}
+	err = pb.RegisterAgentHandlerFromEndpoint(
+		ctx, gwmux, listener.Addr().String(), opts)
+	if err != nil {
+		panic(err)
+	}
+
+	// Setup multiplexer
+	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
+	check.SetupHandlers(r.PathPrefix("/check").Subrouter())
+	r.Handle("/", gwmux)
+
 	srv := &http.Server{
-		Handler: r,
+		Handler: grpcHandlerFunc(s, r),
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
 		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 	}
+
 	tlsListener := tls.NewListener(listener, &tlsConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
