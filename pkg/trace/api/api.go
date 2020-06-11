@@ -317,12 +317,21 @@ const (
 )
 
 func (r *HTTPReceiver) tagStats(req *http.Request) *info.TagStats {
+	hostname := req.URL.Host
+	if hostname != "" && strings.Index(hostname, ":") >= 0 {
+		// presumably host:port
+		host, _, err := net.SplitHostPort(hostname)
+		if err == nil {
+			hostname = host
+		}
+	}
 	return r.Stats.GetTagStats(info.Tags{
 		Lang:          req.Header.Get(headerLang),
 		LangVersion:   req.Header.Get(headerLangVersion),
 		Interpreter:   req.Header.Get(headerLangInterpreter),
 		LangVendor:    req.Header.Get(headerLangInterpreterVendor),
 		TracerVersion: req.Header.Get(headerTracerVersion),
+		Hostname:      hostname,
 	})
 }
 

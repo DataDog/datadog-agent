@@ -6,10 +6,19 @@
 package info
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestTagsToArray(t *testing.T) {
+	if got, want := (&Tags{Lang: "go", Hostname: "localhost"}).toArray(),
+		[]string{"lang:go", "hostname:localhost"}; !reflect.DeepEqual(got, want) {
+		t.Fatal(want, "!=", got)
+	}
+
+}
 
 func TestTracesDropped(t *testing.T) {
 	s := TracesDropped{

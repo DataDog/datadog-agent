@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -799,4 +801,27 @@ func msgpTraces(t *testing.T, traces pb.Traces) []byte {
 		t.Fatal(err)
 	}
 	return body.Bytes()
+}
+
+func TestTagStats(t *testing.T) {
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
+	req, err := http.NewRequest("GET", "http://replaced/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, hostname := range []string{"", "host:123"} {
+		t.Run("", func(t *testing.T) {
+			want := hostname
+			if strings.Index(hostname, ":") >= 0 {
+				host, _, err := net.SplitHostPort(hostname)
+				if err == nil {
+					want = host
+				}
+			}
+			req.URL.Host = hostname
+			if ts := r.tagStats(req); ts.Hostname != want {
+				t.Fatal("not found")
+			}
+		})
+	}
 }

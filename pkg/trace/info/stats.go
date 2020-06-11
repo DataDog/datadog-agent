@@ -431,6 +431,7 @@ func (ts *TagStats) WarnString() string {
 // Tags holds the tags we parse when we handle the header of the payload.
 type Tags struct {
 	Lang, LangVersion, LangVendor, Interpreter, TracerVersion string
+	Hostname                                                  string
 }
 
 // toArray will transform the Tags struct into a slice of string.
@@ -438,20 +439,23 @@ type Tags struct {
 func (t *Tags) toArray() []string {
 	tags := make([]string, 0, 5)
 
-	if t.Lang != "" {
-		tags = append(tags, "lang:"+t.Lang)
+	if v := t.Lang; v != "" {
+		tags = append(tags, "lang:"+v)
 	}
-	if t.LangVersion != "" {
-		tags = append(tags, "lang_version:"+t.LangVersion)
+	if v := t.LangVersion; v != "" {
+		tags = append(tags, "lang_version:"+v)
 	}
-	if t.LangVendor != "" {
-		tags = append(tags, "lang_vendor:"+t.LangVendor)
+	if v := t.LangVendor; v != "" {
+		tags = append(tags, "lang_vendor:"+v)
 	}
-	if t.Interpreter != "" {
-		tags = append(tags, "interpreter:"+t.Interpreter)
+	if v := t.Interpreter; v != "" {
+		tags = append(tags, "interpreter:"+v)
 	}
-	if t.TracerVersion != "" {
-		tags = append(tags, "tracer_version:"+t.TracerVersion)
+	if v := t.TracerVersion; v != "" {
+		tags = append(tags, "tracer_version:"+v)
+	}
+	if v := t.Hostname; v != "" {
+		tags = append(tags, "hostname:"+v)
 	}
 
 	return tags
