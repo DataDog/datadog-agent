@@ -2,21 +2,6 @@
 Release Notes
 =============
 
-.. _Release Notes_7.20.1:
-
-7.20.1
-======
-
-.. _Release Notes_7.20.1_Prelude:
-
-Prelude
--------
-
-Release on: 2020-06-11
-
-- Please refer to the `7.20.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7201>`_ for the list of changes on the Core Checks
-
-
 .. _Release Notes_7.20.0:
 
 7.20.0 / 6.20.0
