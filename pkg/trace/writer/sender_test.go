@@ -18,9 +18,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const testAPIKey = "123"
@@ -37,8 +39,14 @@ func TestSender(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		client := httputils.NewClient(
+			0,
+			func() *http.Client {
+				return &http.Client{}
+			},
+		)
 		return &senderConfig{
-			client:    &http.Client{},
+			client:    client,
 			url:       url,
 			maxConns:  climit,
 			maxQueued: 40,
