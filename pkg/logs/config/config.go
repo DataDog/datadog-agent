@@ -89,6 +89,7 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 
 // BuildEndpoints returns the endpoints to send logs.
 func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
+	coreConfig.SanitizeAPIKey(coreConfig.Datadog, "logs_config.api_key")
 	if coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
@@ -120,7 +121,6 @@ func hasAdditionalEndpoints() bool {
 func buildTCPEndpoints() (*Endpoints, error) {
 	useProto := coreConfig.Datadog.GetBool("logs_config.dev_mode_use_proto")
 	proxyAddress := coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")
-	coreConfig.SanitizeAPIKey(coreConfig.Datadog, "logs_config.api_key")
 	main := Endpoint{
 		APIKey:       getLogsAPIKey(coreConfig.Datadog),
 		ProxyAddress: proxyAddress,
@@ -220,7 +220,6 @@ func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
 // getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func getLogsAPIKey(config coreConfig.Config) string {
 	if isSetAndNotEmpty(config, "logs_config.api_key") {
-		coreConfig.SanitizeAPIKey(config, "logs_config.api_key")
 		return config.GetString("logs_config.api_key")
 	}
 	return config.GetString("api_key")
