@@ -613,10 +613,7 @@ def get_proxy(agentConfig):
 def main():
     res = {}
     for k, v in get_config().iteritems():
-        if v == None:
-            res[k] = "None"
-        else:
-            res[k] = str(v)
+        res[k] = str(v)
     return json.dumps(res, sort_keys=True)
 
 

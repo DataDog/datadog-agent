@@ -16,12 +16,12 @@ DEFAULT_BUILDERS = [
 def build(ctx, os = "windows-10", provider = "virtualbox-iso"):
     """
     Build the Vagrant box
-    
+
     Example invokation:
         inv packer.build --os=windows-10
     """
 
-    if not provider in DEFAULT_BUILDERS:
+    if provider not in DEFAULT_BUILDERS:
         print("Error: unknown provider")
         return Exit(code=1)
 
