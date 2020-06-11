@@ -246,6 +246,14 @@ core,"github.com/go-openapi/jsonpointer",Apache-2.0
 core,"github.com/go-openapi/jsonreference",Apache-2.0
 core,"github.com/go-openapi/spec",Apache-2.0
 core,"github.com/go-openapi/swag",Apache-2.0
+core,"github.com/gobwas/glob",MIT
+core,"github.com/gobwas/glob/compiler",MIT
+core,"github.com/gobwas/glob/match",MIT
+core,"github.com/gobwas/glob/syntax",MIT
+core,"github.com/gobwas/glob/syntax/ast",MIT
+core,"github.com/gobwas/glob/syntax/lexer",MIT
+core,"github.com/gobwas/glob/util/runes",MIT
+core,"github.com/gobwas/glob/util/strings",MIT
 core,"github.com/godbus/dbus",FreeBSD
 core,"github.com/gogo/googleapis/google/rpc",Apache-2.0
 core,"github.com/gogo/protobuf/gogoproto",NewBSD

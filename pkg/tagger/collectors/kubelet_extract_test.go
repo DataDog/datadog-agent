@@ -160,6 +160,7 @@ func TestParsePods(t *testing.T) {
 	}
 
 	for nb, tc := range []struct {
+		skip              bool
 		desc              string
 		pod               *kubelet.Pod
 		labelsAsTags      map[string]string
@@ -764,10 +765,11 @@ func TestParsePods(t *testing.T) {
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
 					Labels: map[string]string{
-						"component":         "kube-proxy",
-						"tier":              "node",
-						"k8s-app":           "kubernetes-dashboard",
-						"pod-template-hash": "490794276",
+						"component":                    "kube-proxy",
+						"tier":                         "node",
+						"k8s-app":                      "kubernetes-dashboard",
+						"pod-template-hash":            "490794276",
+						"app.kubernetes.io/managed-by": "spinnaker",
 					},
 				},
 				Status: dockerContainerStatus,
@@ -787,6 +789,7 @@ func TestParsePods(t *testing.T) {
 					"foo_tier:node",
 					"foo_k8s-app:kubernetes-dashboard",
 					"foo_pod-template-hash:490794276",
+					"foo_app.kubernetes.io/managed-by:spinnaker",
 					"image_name:datadog/docker-dd-agent",
 					"image_tag:latest5",
 					"kube_container_name:dd-agent",
@@ -943,10 +946,11 @@ func TestParsePods(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
-			collector := &KubeletCollector{
-				labelsAsTags:      tc.labelsAsTags,
-				annotationsAsTags: tc.annotationsAsTags,
+			if tc.skip {
+				t.SkipNow()
 			}
+			collector := &KubeletCollector{}
+			collector.init(nil, nil, tc.labelsAsTags, tc.annotationsAsTags)
 			infos, err := collector.parsePods([]*kubelet.Pod{tc.pod})
 			assert.Nil(t, err)
 

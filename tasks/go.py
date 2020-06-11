@@ -132,7 +132,7 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
 
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
-    tags = build_tags or get_default_build_tags(build="test", arch="x64")
+    tags = build_tags or get_default_build_tags(build="test", arch=arch)
     tags.append("dovet")
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
