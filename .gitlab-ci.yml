@@ -876,26 +876,13 @@ iot_agent_rpm-armhf:
     paths:
     - $OMNIBUS_PACKAGE_DIR
   before_script:
-  # Yup, we're doing this...
-  - mv /bin/uname /bin/uname.orig
-  - |
-    cat > /bin/uname << EOF
-      if (( $# != 1 )); then
-        /bin/uname.orig
-      fi
-      case "$1" in
-      -a|--all)
-      /bin/uname.orig -a | sed -e "s/aarch64/armv7l/g"
-      ;;
-      -m|--machine|-p|--processor|-i|--hardware-platform)
-      echo "armv7l"
-      ;;
-      *)
-      /bin/uname.orig $1
-      ;;
-      esac
-    EOF
-  - chmod +x /bin/uname
+  - git clone https://github.com/robotpy/fakearmv7l
+  - cd fakearmv7l
+  - make
+  - make install
+  - cd ..
+  - rm -rf ./fakearmv7l
+  - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
   - inv -e deps --verbose --dep-vendor-only
   except: *id008
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
