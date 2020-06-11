@@ -122,6 +122,11 @@ func (c *IOCheck) Run() error {
 			}
 			tagbuff.WriteString(inst)
 			tags := []string{tagbuff.String()}
+
+			if matched, _ := regexp.MatchString(`^[A-z]:`, inst); !matched {
+				tags = append(tags, "device_name:"+inst)
+			}
+
 			if cname == "Disk Write Bytes/sec" || cname == "Disk Read Bytes/sec" {
 				val /= 1024
 			}
