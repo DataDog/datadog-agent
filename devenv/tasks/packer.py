@@ -2,9 +2,7 @@
 Packer namespaced tasks
 """
 from __future__ import print_function
-import os
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit
 

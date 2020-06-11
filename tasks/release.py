@@ -11,7 +11,7 @@ from collections import OrderedDict
 from datetime import date
 
 from invoke import task, Failure
-from invoke.exceptions import Exit, UnexpectedExit
+from invoke.exceptions import Exit
 
 
 @task

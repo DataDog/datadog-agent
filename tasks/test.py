@@ -4,17 +4,15 @@ High level testing tasks
 from __future__ import print_function
 
 import os
-import fnmatch
 import re
 import operator
 import sys
 import yaml
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_build_flags, get_version
+from .utils import get_build_flags
 from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
