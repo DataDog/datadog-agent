@@ -134,7 +134,7 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
     """
     if dst_tag == "auto":
         # Autogenerate tag
-        match = re.search('([^:\/\s]+):[v]?(.*)$', src_image)
+        match = re.search(r'([^:\/\s]+):[v]?(.*)$', src_image)
         if not match:
             print("Cannot guess destination tag for {}, please provide a --dst-tag option".format(src_image))
             raise Exit(code=1)

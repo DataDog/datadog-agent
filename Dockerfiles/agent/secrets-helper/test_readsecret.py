@@ -12,7 +12,7 @@ from readsecret import list_secret_names, read_file, is_valid_folder
 class TestListSecretNames(unittest.TestCase):
     def test_invalid_output(self):
         with self.assertRaisesRegex(
-            ValueError, "Expecting value: line 1 column 1 \(char 0\)"
+            ValueError, r"Expecting value: line 1 column 1 \(char 0\)"
         ):
             list_secret_names("")
 

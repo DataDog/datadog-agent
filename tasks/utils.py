@@ -135,7 +135,7 @@ def get_payload_version():
                 if len(comment_split) < 2:
                     raise Exception("Versioning of agent-payload in go.mod has changed, the version logic needs to be updated")
                 version = comment_split[1].strip()
-                if not re.search("^\d+(\.\d+){2}$", version):
+                if not re.search(r"^\d+(\.\d+){2}$", version):
                     raise Exception("Version of agent-payload in go.mod is invalid: '{}'".format(version))
                 return version
 
@@ -198,7 +198,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
         cmd += " --match \"{}-*\"".format(prefix)
     else:
         if major_version_hint:
-            cmd += " --match \"{}\.*\"".format(major_version_hint)
+            cmd += r' --match "{}\.*"'.format(major_version_hint)
         else:
             cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
