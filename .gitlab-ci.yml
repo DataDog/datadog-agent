@@ -310,12 +310,12 @@
   artifacts: &id012
     expire_in: 2 weeks
     paths:
-    - $IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR
+    - $OMNIBUS_PACKAGE_DIR
   script: &id013
   - echo "About to build iot agent for $RELEASE_VERSION_7"
   - echo "Detected host architecture $(uname -m)"
   - echo "Target architecture ${TARGET_ARCH:=amd64}"
-  - rm -rf $IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR/*
+  - rm -rf $OMNIBUS_PACKAGE_DIR/*
   - set +x
   - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3
     --with-decryption --query "Parameter.Value" --out text)
@@ -327,8 +327,8 @@
   - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7"
     --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
   - ls $OMNIBUS_BASE_DIR/pkg/
-  - mkdir -p $IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json}
-    $IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR
+  - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json}
+    $OMNIBUS_PACKAGE_DIR
 .kitchen_agent_a6:
   artifacts: &id001
     expire_in: 2 weeks
@@ -886,8 +886,6 @@ iot_agent_rpm-arm64:
   tags:
   - runner:docker-arm
   - platform:arm64
-  variables:
-    IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
 iot_agent_rpm-armhf:
   artifacts: *id012
   before_script:
@@ -900,8 +898,6 @@ iot_agent_rpm-armhf:
   tags:
   - runner:docker-arm
   - platform:arm64
-  variables:
-    IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
 iot_agent_rpm-x64:
   artifacts: *id012
   before_script:
@@ -913,23 +909,37 @@ iot_agent_rpm-x64:
   tags:
   - runner:main
   - size:2xlarge
-  variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
-    IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
 iot_agent_suse-x64:
-  artifacts: *id012
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $OMNIBUS_PACKAGE_DIR_SUSE
   before_script:
   - inv -e deps --verbose --dep-vendor-only --no-checks
   except: *id008
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
-  script: *id013
+  script:
+  - echo "About to build iot agent for $RELEASE_VERSION_7"
+  - echo "Detected host architecture $(uname -m)"
+  - echo "Target architecture ${TARGET_ARCH:=amd64}"
+  - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
+  - set +x
+  - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3
+    --with-decryption --query "Parameter.Value" --out text)
+  - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+  - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name
+    ci.datadog-agent.rpm_signing_key_passphrase_e09422b3 --with-decryption --query
+    "Parameter.Value" --out text)
+  - set -x
+  - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7"
+    --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
+  - ls $OMNIBUS_BASE_DIR/pkg/
+  - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json}
+    $OMNIBUS_PACKAGE_DIR_SUSE
   stage: package_build
   tags:
   - runner:main
   - size:2xlarge
-  variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
-    IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
 stages:
 - deps_build
 - source_test
