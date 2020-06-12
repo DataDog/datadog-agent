@@ -34,7 +34,7 @@ ALL_TAGS = set([
 
 ### Tag inclusion lists
 
-# AGENT_TAGS lists the tags needed when building the Agent.
+# AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = [
     "apm",
     "consul",
@@ -56,13 +56,13 @@ AGENT_TAGS = [
     "zlib",
 ]
 
-# ANDROID_TAGS lists the tags needed when building the Android Agent
+# ANDROID_TAGS lists the tags needed when building the android agent
 ANDROID_TAGS = [
     "android",
     "zlib",
 ]
 
-# CLUSTER_AGENT_TAGS lists the tags needed when building the Cluster Agent
+# CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = [
     "clusterchecks",
     "kubeapiserver",
@@ -71,13 +71,13 @@ CLUSTER_AGENT_TAGS = [
     "zlib",
 ]
 
-# CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the Cloudfoundry Cluster Agent
+# CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = [
     "clusterchecks",
     "secrets",
 ]
 
-# DOGSTATSD_TAGS lists the tags needed when building Dogstatsd
+# DOGSTATSD_TAGS lists the tags needed when building dogstatsd
 DOGSTATSD_TAGS = [
     "docker",
     "kubelet",
@@ -85,7 +85,7 @@ DOGSTATSD_TAGS = [
     "zlib",
 ]
 
-# IOT_AGENT_TAGS lists the tags needed when building the IOT Agent
+# IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = [
     "systemd",
     "zlib",
@@ -104,7 +104,7 @@ SYSTEM_PROBE_TAGS = AGENT_TAGS + [
     "linux_bpf",
 ]
 
-# TRACE_AGENT_TAGS lists the tags that have to be added when the Trace Agent
+# TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = [
     "docker",
     "kubeapiserver",

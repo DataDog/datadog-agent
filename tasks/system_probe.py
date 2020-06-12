@@ -63,7 +63,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
 
-    build_tags = get_default_build_tags(build="system-probe", arch="arch")
+    build_tags = get_default_build_tags(build="system-probe", arch=arch)
 
     if with_bcc:
         build_tags.append(BCC_TAG)
