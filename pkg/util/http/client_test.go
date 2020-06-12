@@ -17,7 +17,7 @@ var testHTTPClientFactory = func() *http.Client {
 	return &http.Client{}
 }
 
-func TestResetClient_ShouldReset(t *testing.T) {
+func TestResetClientCheckReset(t *testing.T) {
 	client := NewResetClient(
 		1*time.Nanosecond,
 		testHTTPClientFactory,
