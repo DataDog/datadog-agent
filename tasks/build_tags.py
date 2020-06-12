@@ -210,9 +210,17 @@ def get_build_tags(include, exclude):
     """
 
     # filter out unrecognised tags
-    include = ALL_TAGS.intersection(set(include))
-    exclude = ALL_TAGS.intersection(set(exclude))
-    return list(include - exclude)
+    known_include = ALL_TAGS.intersection(set(include))
+    unknown_include = set(include) - known_include
+    for tag in unknown_include:
+        print("Warning: unknown build tag '{}' was filtered out from included tags list.".format(tag))
+
+    known_exclude = ALL_TAGS.intersection(set(exclude))
+    unknown_exclude = set(exclude) - known_exclude
+    for tag in unknown_exclude:
+        print("Warning: unknown build tag '{}' was filtered out from excluded tags list.".format(tag))
+
+    return list(known_include - known_exclude)
 
 
 @task
