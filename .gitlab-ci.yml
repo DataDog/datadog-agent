@@ -3889,13 +3889,13 @@ latest_release_7:
 
 deploy_cloudfront_invalidate_on_success:
   rules:
-    - <<: *if_triggered_on_tag_7
+    - <<: *if_triggered
       when: on_success
   <<: *deploy_cloudfront_invalidate
 
 deploy_cloudfront_invalidate_on_failure:
   rules:
-    - <<: *if_triggered_on_tag_7
+    - <<: *if_triggered
       when: on_failure
   <<: *deploy_cloudfront_invalidate
 
