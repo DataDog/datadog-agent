@@ -4,8 +4,8 @@ Utilities to manage build tags
 import sys
 from invoke import task
 
-# ALL_TAGS lists any available build tags
-# Used to remove unknown tags from user-provided tag lists.
+# ALL_TAGS lists all available build tags.
+# Used to remove unknown tags from provided tag lists.
 ALL_TAGS = set([
     "android",
     "apm",
@@ -64,10 +64,10 @@ ANDROID_TAGS = [
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the Cluster Agent
 CLUSTER_AGENT_TAGS = [
-    "kubeapiserver",
     "clusterchecks",
-    "secrets",
+    "kubeapiserver",
     "orchestrator",
+    "secrets",
     "zlib",
 ]
 
@@ -79,10 +79,10 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = [
 
 # DOGSTATSD_TAGS lists the tags needed when building Dogstatsd
 DOGSTATSD_TAGS = [
-    "zlib",
     "docker",
     "kubelet",
     "secrets",
+    "zlib",
 ]
 
 # IOT_AGENT_TAGS lists the tags needed when building the IOT Agent
@@ -106,11 +106,11 @@ SYSTEM_PROBE_TAGS = AGENT_TAGS + [
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the Trace Agent
 TRACE_AGENT_TAGS = [
-    "netcgo",
-    "secrets",
     "docker",
     "kubeapiserver",
     "kubelet",
+    "netcgo",
+    "secrets",
 ]
 
 # TEST_TAGS lists the tags that have to be added to run tests
@@ -135,10 +135,10 @@ WINDOWS_EXCLUDE_TAGS = [
 
 # List of tags to always remove when building on Windows 32-bits
 WINDOWS_32BIT_EXCLUDE_TAGS = [
-    "orchestrator",
     "docker",
     "kubeapiserver",
     "kubelet",
+    "orchestrator",
 ]
 
 def get_default_build_tags(build="agent", arch="x64"):
