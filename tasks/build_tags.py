@@ -178,7 +178,7 @@ def get_default_build_tags(build="agent", arch="x64"):
     elif build == "test":
         include = TEST_TAGS
     elif build == "test-with-process-tags":
-        include = TEST_TAGS + PROCESS_AGENT_TAGS
+        include = TEST_TAGS.union(PROCESS_AGENT_TAGS)
     else:
         print("Warning: unrecognized build type, no build tags included.")
         include = set()
