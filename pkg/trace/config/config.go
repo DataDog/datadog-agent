@@ -81,7 +81,7 @@ type AgentConfig struct {
 	// Writers
 	StatsWriter             *WriterConfig
 	TraceWriter             *WriterConfig
-	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset, in seconds. 0 means no reset is performed
+	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
 	StatsdHost string
