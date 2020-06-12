@@ -139,7 +139,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 				continue
 			}
 			for _, key := range keys {
-				key = config.Sanitize(key)
+				key = config.SanitizeAPIKey(key)
 				c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
 			}
 		}

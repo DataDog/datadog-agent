@@ -871,7 +871,7 @@ func load(config Config, origin string, loadSecret bool) error {
 	}
 
 	loadProxyFromEnv(config)
-	SanitizeAPIKey(config, "api_key")
+	SanitizeAPIKeyConfig(config, "api_key")
 	applyOverrides(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	setTracemallocEnabled(config)
@@ -914,14 +914,14 @@ func ResolveSecrets(config Config, origin string) error {
 	return nil
 }
 
-// SanitizeAPIKey strips newlines and other control characters from a given key.
-func SanitizeAPIKey(config Config, key string) {
-	config.Set(key, Sanitize(config.GetString(key)))
+// SanitizeAPIKeyConfig strips newlines and other control characters from a given key.
+func SanitizeAPIKeyConfig(config Config, key string) {
+	config.Set(key, SanitizeAPIKey(config.GetString(key)))
 }
 
-// Sanitize strips newlines and other control characters from a given string.
-func Sanitize(s string) string {
-	return strings.TrimSpace(strings.Split(s, ",")[0])
+// SanitizeAPIKey strips newlines and other control characters from a given string.
+func SanitizeAPIKey(key string) string {
+	return strings.TrimSpace(key)
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
