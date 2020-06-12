@@ -92,6 +92,11 @@ process-agent-msg.h
 # process agent test artifacts
 pkg/process/config/logs
 
+# sysprobe artifacts
+cmd/system-probe/windows_resources/system-probe-msg.rc
+cmd/system-probe/windows_resources/*.bin
+system-probe-msg.h
+
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
 cmd/dogstatsd/windows_resources/*.bin

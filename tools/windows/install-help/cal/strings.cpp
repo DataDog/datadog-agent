@@ -14,6 +14,7 @@ std::wstring ddAgentUserDescription;                    // IDS_DATADOG_AGENT_USE
 std::wstring traceService;                              // IDS_TRACE_SERVICE_NAME
 std::wstring processService;                            // IDS_PROCESS_SERVICE_NAME
 std::wstring agentService;                              // IDS_AGENT_SERVICE_NAME
+std::wstring systemProbeService;                        // IDS_AGENT_SYSTEM_PROBE_SERVICE_NAME
 
 std::wstring propertyDDAgentUserName;                   // IDS_PROPERTY_DDAGENTUSER
 std::wstring propertyDDAgentUserPassword;               // IDS_PROPERTY_DDAGENTUSER_PASSWORD
@@ -49,6 +50,7 @@ std::wstring datadog_acl_key_datadog;
 std::wstring agent_exe;
 std::wstring trace_exe;
 std::wstring process_exe;
+std::wstring sysprobe_exe;
 
 std::wstring computername;
 std::wstring domainname; // if domain joined, workgroup name otherwise
@@ -77,7 +79,8 @@ std::wstring* loadStrings[] = {
     &logsdirsuffix,
     &datadogdir,
     &strRollbackKeyName,
-    &strUninstallKeyName
+    &strUninstallKeyName,
+    &systemProbeService
 };
 
 // strings for tracking install state
@@ -260,6 +263,7 @@ void getOsStrings()
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
     process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
     trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
+    sysprobe_exe = L"\"" + installdir + L"bin\\agent\\system-probe.exe\"";
     embedded2Dir = installdir + L"embedded2";
     embedded3Dir = installdir + L"embedded3";
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;

@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	_ "net/http/pprof"
 )
@@ -23,7 +24,10 @@ func main() {
 	flag.StringVar(&opts.checkClient, "client", "", "The client ID that the check will use to run")
 	flag.Parse()
 
-	runAgent()
+	// Handles signals, which tells us whether we should exit.
+	exit := make(chan struct{})
+	go util.HandleSignals(exit)
+	runAgent(exit)
 }
 
 // run check command if the flag is specified

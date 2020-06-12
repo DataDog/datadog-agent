@@ -29,6 +29,10 @@ class CustomActionData
         const std::wstring& Domain() const {
             return this->domain;
         }
+
+        bool installSysprobe() const {
+            return doInstallSysprobe;
+        }
     private:
         MSIHANDLE hInstall;
         bool domainUser;
@@ -36,6 +40,8 @@ class CustomActionData
         std::wstring username; // qualified
         std::wstring uqusername;// unqualified
         std::wstring domain;
+        bool doInstallSysprobe;
 
         bool parseUsernameData();
+        bool parseSysprobeData();
 };

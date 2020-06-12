@@ -122,7 +122,7 @@ typedef struct _filterAddress
     uint8_t                   v4_address[4];    // address in network byte order, so v4_address[0] = top network tuple
     uint8_t                   v4_padding[4];    // pad out to 64 bit boundary
     uint8_t                   v6_address[16];
-    uint64_t                  mask; // number of mask bits.
+    uint64_t                  mask; // number of mask bits.  
 } FILTER_ADDRESS;
 
 #define     DIRECTION_INBOUND    ((uint64_t)0)
@@ -161,21 +161,17 @@ typedef struct _filterDefinition
  * PACKET_HEADER structure
  *
  * provided by the driver during the upcall with implementation specific
- * information in the header.
+ * information in the header.  
  */
 
 typedef struct _udpFlowData {
     uint64_t        reserved;
 } UDP_FLOW_DATA;
 typedef struct _tcpFlowData {
-    uint32_t        startingSeq;
-    uint32_t        lastSeqSent;
-    uint32_t        lastSeqAcked;   // last ack we got back from other side
 
-    uint32_t        startingAck;
-    uint32_t        lastSeqReceived;
-    uint32_t        lastAck;        // last ack we sent
-
+    uint64_t        iRTT;           // initial RTT
+    uint64_t        sRTT;           // smoothed RTT
+    uint64_t        rttVariance;
     uint64_t        retransmitCount;
 } TCP_FLOW_DATA;
 typedef struct _perFlowData {
@@ -183,11 +179,14 @@ typedef struct _perFlowData {
     uint64_t          processId;
     uint16_t          addressFamily; // AF_INET or AF_INET6
     uint16_t          protocol;
+    // first byte indicates if flow has been closed
+    // second byte indicates flow direction
+    // flags is 0x00000DCC   (where D is direction and C is closed state)
     uint32_t          flags; // for now
     uint8_t           localAddress[16];  // only first 4 bytes valid for AF_INET, in network byte order
     uint8_t           remoteAddress[16]; // ditto
 
-    // stats common to all
+    // stats common to all 
 
     uint64_t packetsOut;
     uint64_t monotonicSentBytes;              // total bytes including ip header
