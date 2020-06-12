@@ -89,10 +89,9 @@ func runAgent() {
 		cleanupAndExit(1)
 	}
 
-	// Setting up the unix socket
 	conn, err := net.NewListener(cfg)
 	if err != nil {
-		log.Criticalf("Error creating unix socket: %s", err)
+		log.Criticalf("Error creating IPC socket: %s", err)
 		cleanupAndExit(1)
 	}
 
