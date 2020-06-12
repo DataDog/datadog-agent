@@ -296,7 +296,7 @@
   script: &id011
   - echo "About to build for $RELEASE_VERSION"
   - echo "Detected host architecture $(uname -m)"
-  - echo "Target architecture ${TARGET_ARCH:='amd64'}"
+  - echo "Target architecture ${TARGET_ARCH:=amd64}"
   - rm -rf $OMNIBUS_PACKAGE_DIR/*
   - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7"
     --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
@@ -314,7 +314,7 @@
   script: &id013
   - echo "About to build iot agent for $RELEASE_VERSION_7"
   - echo "Detected host architecture $(uname -m)"
-  - echo "Target architecture ${TARGET_ARCH:='amd64'}"
+  - echo "Target architecture ${TARGET_ARCH:=amd64}"
   - rm -rf $IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR/*
   - set +x
   - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3
@@ -326,7 +326,7 @@
   - set -x
   - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7"
     --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps
-  - ls $IOT_AGENT_BUILD_OMNIBUS_BASE_DIR/pkg/
+  - ls $OMNIBUS_BASE_DIR/pkg/
   - mkdir -p $IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json}
     $IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR
 .kitchen_agent_a6:
