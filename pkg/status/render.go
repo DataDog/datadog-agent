@@ -39,7 +39,7 @@ func FormatStatus(data []byte) (string, error) {
 	endpointsInfos := stats["endpointsInfos"]
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
-	title := fmt.Sprintf("Agent (v%s %s)", stats["version"], stats["flavor"])
+	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
 	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
