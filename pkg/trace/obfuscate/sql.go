@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/twmb/murmur3"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
