@@ -98,6 +98,11 @@ PROCESS_AGENT_TAGS = AGENT_TAGS + [
     "orchestrator",
 ]
 
+# SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
+SECURITY_AGENT_TAGS = AGENT_TAGS + [
+    "clusterchecks",
+]
+
 # PROCESS_AGENT_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = AGENT_TAGS + [
     "clusterchecks",
@@ -164,6 +169,8 @@ def get_default_build_tags(build="agent", arch="x64"):
         include = IOT_AGENT_TAGS
     if build == "process-agent":
         include = PROCESS_AGENT_TAGS
+    if build == "security-agent":
+        include = SECURITY_AGENT_TAGS
     if build == "system-probe":
         include = SYSTEM_PROBE_TAGS
     if build == "trace-agent":
