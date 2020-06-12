@@ -1,9 +1,9 @@
 .agent_build_common_deb:
-  artifacts: &id010
+  artifacts:
     expire_in: 2 weeks
     paths:
     - $OMNIBUS_PACKAGE_DIR
-  script: &id011
+  script:
   - echo "About to build for $RELEASE_VERSION"
   - rm -rf $OMNIBUS_PACKAGE_DIR/*
   - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe
@@ -289,11 +289,11 @@
     SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
 .iot_agent_build_common_deb:
-  artifacts:
+  artifacts: &id010
     expire_in: 2 weeks
     paths:
     - $OMNIBUS_PACKAGE_DIR
-  script:
+  script: &id011
   - echo "About to build for $RELEASE_VERSION"
   - echo "Detected host architecture $(uname -m)"
   - echo "Target architecture ${TARGET_ARCH:='amd64'}"
