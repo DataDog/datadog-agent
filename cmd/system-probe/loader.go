@@ -34,7 +34,7 @@ func (l *Loader) Register(cfg *config.AgentConfig, httpMux *http.ServeMux, facto
 		}
 
 		if err = module.Register(httpMux); err != nil {
-			return fmt.Errorf("error registering gRPC endpoints for module `%s` error", factory.Name)
+			return fmt.Errorf("error registering HTTP endpoints for module `%s` error", factory.Name)
 		}
 
 		l.modules[factory.Name] = module
