@@ -68,17 +68,18 @@ def build(
         maj_ver, min_ver, patch_ver = ver.split(".")
         resdir = os.path.join(".", "cmd", "system-probe", "windows_resources")
 
-        ctx.run(
-            "windmc --target {target_arch} -r {resdir} {resdir}/system-probe-msg.mc".format(
-                resdir=resdir, target_arch=windres_target
-            )
-        )
+        ctx.run("windmc --target {target_arch} -r {resdir} {resdir}/system-probe-msg.mc".format(
+            resdir=resdir,
+            target_arch=windres_target
+        ))
 
-        ctx.run(
-            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/system-probe/windows_resources/system-probe.rc --target {target_arch} -O coff -o cmd/process-agent/rsrc.syso".format(
-                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
-            )
-        )
+        ctx.run("windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/system-probe/windows_resources/system-probe.rc --target {target_arch} -O coff -o cmd/process-agent/rsrc.syso".format(
+            maj_ver=maj_ver,
+            min_ver=min_ver,
+            patch_ver=patch_ver,
+            target_arch=windres_target
+        ))
+
     # TODO use pkg/version for this
     main = "main."
     ld_vars = {

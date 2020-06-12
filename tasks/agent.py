@@ -233,7 +233,10 @@ def build(
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, iot=iot, windows_sysprobe=windows_sysprobe)
+<<<<<<< HEAD
 
+=======
+>>>>>>> Start adding sysprobe to windows build.
 
 @task
 def refresh_assets(ctx, build_tags, development=True, iot=False, windows_sysprobe=False):
@@ -261,7 +264,12 @@ def refresh_assets(ctx, build_tags, development=True, iot=False, windows_sysprob
 
     # System probe not supported on windows
     if sys.platform.startswith('linux') or windows_sysprobe:
+<<<<<<< HEAD
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
+=======
+      print('shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))')
+      shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
+>>>>>>> Start adding sysprobe to windows build.
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
     for check in AGENT_CORECHECKS if not iot else IOT_AGENT_CORECHECKS:
