@@ -35,7 +35,7 @@ ALL_TAGS = set([
 ### Tag inclusion lists
 
 # AGENT_TAGS lists the tags needed when building the agent.
-AGENT_TAGS = [
+AGENT_TAGS = set([
     "apm",
     "consul",
     "containerd",
@@ -54,97 +54,97 @@ AGENT_TAGS = [
     "systemd",
     "zk",
     "zlib",
-]
+])
 
 # ANDROID_TAGS lists the tags needed when building the android agent
-ANDROID_TAGS = [
+ANDROID_TAGS = set([
     "android",
     "zlib",
-]
+])
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = [
+CLUSTER_AGENT_TAGS = set([
     "clusterchecks",
     "kubeapiserver",
     "orchestrator",
     "secrets",
     "zlib",
-]
+])
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = [
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set([
     "clusterchecks",
     "secrets",
-]
+])
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = [
+DOGSTATSD_TAGS = set([
     "docker",
     "kubelet",
     "secrets",
     "zlib",
-]
+])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = [
+IOT_AGENT_TAGS = set([
     "systemd",
     "zlib",
-]
+])
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS + [
+PROCESS_AGENT_TAGS = AGENT_TAGS.union(set([
     "clusterchecks",
     "fargateprocess",
     "orchestrator",
-]
+]))
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = AGENT_TAGS + [
+SECURITY_AGENT_TAGS = AGENT_TAGS.union(set([
     "clusterchecks",
-]
+]))
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS + [
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union(set([
     "clusterchecks",
     "linux_bpf",
-]
+]))
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = [
+TRACE_AGENT_TAGS = set([
     "docker",
     "kubeapiserver",
     "kubelet",
     "netcgo",
     "secrets",
-]
+])
 
 # TEST_TAGS lists the tags that have to be added to run tests
-TEST_TAGS = AGENT_TAGS + [
+TEST_TAGS = AGENT_TAGS.union(set([
     "clusterchecks",
-]
+]))
 
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = [
+LINUX_ONLY_TAGS = set([
     "containerd",
     "cri",
     "netcgo",
     "systemd",
-]
+])
 
 # List of tags to always remove when building on Windows
-WINDOWS_EXCLUDE_TAGS = [
+WINDOWS_EXCLUDE_TAGS = set([
     "linux_bpf"
-]
+])
 
 # List of tags to always remove when building on Windows 32-bits
-WINDOWS_32BIT_EXCLUDE_TAGS = [
+WINDOWS_32BIT_EXCLUDE_TAGS = set([
     "docker",
     "kubeapiserver",
     "kubelet",
     "orchestrator",
-]
+])
 
 def get_default_build_tags(build="agent", arch="x64"):
     """
@@ -181,24 +181,25 @@ def get_default_build_tags(build="agent", arch="x64"):
         include = TEST_TAGS + PROCESS_AGENT_TAGS
     else:
         print("Warning: unrecognized build type, no build tags included.")
-        include = []
+        include = set()
 
     return filter_incompatible_tags(include, arch=arch)
 
 def filter_incompatible_tags(include, arch="x64"):
     """
     Filter out tags incompatible with the platform.
+    include can be a list or a set.
     """
 
-    exclude = []
+    exclude = set()
     if not sys.platform.startswith("linux"):
-        exclude += LINUX_ONLY_TAGS
+        exclude = exclude.union(LINUX_ONLY_TAGS)
 
     if sys.platform == "win32":
-        exclude += WINDOWS_EXCLUDE_TAGS
+        exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
 
     if sys.platform == "win32" and arch == "x86":
-        exclude += WINDOWS_32BIT_EXCLUDE_TAGS
+        exclude = exclude.union(WINDOWS_32BIT_EXCLUDE_TAGS)
 
     return get_build_tags(include, exclude)
 
@@ -207,16 +208,20 @@ def get_build_tags(include, exclude):
     """
     Build the list of tags based on inclusions and exclusions passed through
     the command line
+    include and exclude can be lists or sets.
     """
+    # Convert to set, include and exclude can be lists if they're user-provided
+    include = set(include)
+    exclude = set(exclude)
 
     # filter out unrecognised tags
-    known_include = ALL_TAGS.intersection(set(include))
-    unknown_include = set(include) - known_include
+    known_include = ALL_TAGS.intersection(include)
+    unknown_include = include - known_include
     for tag in unknown_include:
         print("Warning: unknown build tag '{}' was filtered out from included tags list.".format(tag))
 
-    known_exclude = ALL_TAGS.intersection(set(exclude))
-    unknown_exclude = set(exclude) - known_exclude
+    known_exclude = ALL_TAGS.intersection(exclude)
+    unknown_exclude = exclude - known_exclude
     for tag in unknown_exclude:
         print("Warning: unknown build tag '{}' was filtered out from excluded tags list.".format(tag))
 
