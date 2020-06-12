@@ -39,7 +39,7 @@ func TestSender(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		client := httputils.NewClient(
+		client := httputils.NewResetClient(
 			0,
 			func() *http.Client {
 				return &http.Client{}

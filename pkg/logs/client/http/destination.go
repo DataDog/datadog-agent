@@ -38,7 +38,7 @@ type Destination struct {
 	url                 string
 	contentType         string
 	contentEncoding     ContentEncoding
-	client              *httputils.Client
+	client              *httputils.ResetClient
 	destinationsContext *client.DestinationsContext
 	once                sync.Once
 	payloadChan         chan []byte
@@ -55,7 +55,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		url:                 buildURL(endpoint),
 		contentType:         contentType,
 		contentEncoding:     buildContentEncoding(endpoint),
-		client:              httputils.NewClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
 		destinationsContext: destinationsContext,
 	}
 }

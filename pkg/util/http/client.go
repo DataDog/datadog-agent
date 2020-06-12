@@ -27,68 +27,58 @@ func SanitizeURL(message string) string {
 	return apiKeyRegExp.ReplaceAllString(message, apiKeyReplacement)
 }
 
-// Client wraps (http.Client).Do and resets the underlying connections at the
+// ResetClient wraps (http.Client).Do and resets the underlying connections at the
 // configured interval
-type Client struct {
-	httpClient    *http.Client
-	newHTTPClient func() *http.Client
-	resetInterval time.Duration
+type ResetClient struct {
+	httpClientFactory func() *http.Client
+	resetInterval     time.Duration
 
-	lastReset time.Time
-	mutex     sync.RWMutex
+	mu         sync.RWMutex
+	httpClient *http.Client
+	lastReset  time.Time
 }
 
-// NewClient returns an initialized Client resetting connections at the passed resetInterval.
+// NewResetClient returns an initialized Client resetting connections at the passed resetInterval ("0"
+// means that no reset is performed).
 // The underlying http.Client used will be created using the passed http client factory.
-func NewClient(resetInterval time.Duration, newHTTPClient func() *http.Client) *Client {
-	return &Client{
-		resetInterval: resetInterval,
-		httpClient:    newHTTPClient(),
-		newHTTPClient: newHTTPClient,
+func NewResetClient(resetInterval time.Duration, httpClientFactory func() *http.Client) *ResetClient {
+	return &ResetClient{
+		httpClientFactory: httpClientFactory,
+		resetInterval:     resetInterval,
+		httpClient:        httpClientFactory(),
+		lastReset:         time.Now(),
 	}
 }
 
 // Do wraps (http.Client).Do. Thread safe.
-func (c *Client) Do(req *http.Request) (*http.Response, error) {
-	c.mutex.RLock()
+func (c *ResetClient) Do(req *http.Request) (*http.Response, error) {
+	c.checkReset()
+
+	c.mu.RLock()
 	httpClient := c.httpClient
-	c.mutex.RUnlock()
-	if c.shouldReset() {
-		log.Debug("Resetting HTTP client's connections")
-		c.resetHTTPClient()
-	}
+	c.mu.RUnlock()
 
 	return httpClient.Do(req)
 }
 
-// shouldReset returns whether the http.Client should be reset
-func (c *Client) shouldReset() bool {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
+// checkReset checks whether a client reset should be performed, and performs it
+// if so
+func (c *ResetClient) checkReset() {
 	if c.resetInterval == 0 {
-		return false
+		return
 	}
 
-	if c.lastReset.IsZero() {
-		c.lastReset = time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if time.Since(c.lastReset) < c.resetInterval {
+		return
 	}
 
-	if time.Since(c.lastReset) >= c.resetInterval {
-		c.lastReset = time.Now()
-		return true
-	}
-
-	return false
-}
-
-// resetHTTPClient resets the underlying *http.Client
-func (c *Client) resetHTTPClient() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	// close idle connections. Thread-safe.
+	log.Debug("Resetting HTTP client's connections")
+	c.lastReset = time.Now()
+	// Close idle connections on underlying client. Safe to do while other goroutines use the client.
 	// This is a best effort: if other goroutine(s) are currently using the client,
-	// the related open connection(s) will remain open until the client is GC'ed)
+	// the related open connection(s) will remain open until the client is GC'ed
 	c.httpClient.CloseIdleConnections()
-	c.httpClient = c.newHTTPClient()
+	c.httpClient = c.httpClientFactory()
 }

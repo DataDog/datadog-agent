@@ -8,17 +8,37 @@ package http
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestClientShouldReset(t *testing.T) {
-	client := NewClient(
-		0,
-		func() *http.Client {
-			return &http.Client{}
-		},
+var testHTTPClientFactory = func() *http.Client {
+	return &http.Client{}
+}
+
+func TestResetClient_ShouldReset(t *testing.T) {
+	client := NewResetClient(
+		1*time.Nanosecond,
+		testHTTPClientFactory,
 	)
 
-	assert.False(t, client.shouldReset())
+	initialHTTPClient := client.httpClient
+	time.Sleep(1 * time.Millisecond)
+	client.checkReset()
+
+	assert.NotSame(t, initialHTTPClient, client.httpClient)
+}
+
+func TestResetClient_ZeroIntervalShouldNotReset(t *testing.T) {
+	client := NewResetClient(
+		0,
+		testHTTPClientFactory,
+	)
+
+	initialHTTPClient := client.httpClient
+	time.Sleep(1 * time.Millisecond)
+	client.checkReset()
+
+	assert.Same(t, initialHTTPClient, client.httpClient)
 }
