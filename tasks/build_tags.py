@@ -153,33 +153,35 @@ def get_default_build_tags(build="agent", arch="x64"):
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    include = []
     # Build setups
     if build == "agent":
         include = AGENT_TAGS
-    if build == "android":
+    elif build == "android":
         include = ANDROID_TAGS
-    if build == "cluster-agent":
+    elif build == "cluster-agent":
         include = CLUSTER_AGENT_TAGS
-    if build == "cluster-agent-cloudfoundry":
+    elif build == "cluster-agent-cloudfoundry":
         include = CLUSTER_AGENT_CLOUDFOUNDRY_TAGS
-    if build == "dogstatsd":
+    elif build == "dogstatsd":
         include = DOGSTATSD_TAGS
-    if build == "iot":
+    elif build == "iot":
         include = IOT_AGENT_TAGS
-    if build == "process-agent":
+    elif build == "process-agent":
         include = PROCESS_AGENT_TAGS
-    if build == "security-agent":
+    elif build == "security-agent":
         include = SECURITY_AGENT_TAGS
-    if build == "system-probe":
+    elif build == "system-probe":
         include = SYSTEM_PROBE_TAGS
-    if build == "trace-agent":
+    elif build == "trace-agent":
         include = TRACE_AGENT_TAGS
     # Test setups
-    if build == "test":
+    elif build == "test":
         include = TEST_TAGS
-    if build == "test-with-process-tags":
+    elif build == "test-with-process-tags":
         include = TEST_TAGS + PROCESS_AGENT_TAGS
+    else:
+        print("Warning: unrecognized build type, no build tags included.")
+        include = []
 
     return filter_incompatible_tags(include, arch=arch)
 
