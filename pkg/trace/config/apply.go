@@ -261,6 +261,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			log.Errorf("Error reading writer config %q: %v", key, err)
 		}
 	}
+	if config.Datadog.IsSet("apm_config.connection_reset_interval") {
+		c.ConnectionResetInterval = getDuration(config.Datadog.GetInt("apm_config.connection_reset_interval"))
+	}
 
 	// undocumented deprecated
 	if config.Datadog.IsSet("apm_config.analyzed_rate_by_service") {

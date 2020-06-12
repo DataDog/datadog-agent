@@ -163,9 +163,10 @@ func buildTCPEndpoints() (*Endpoints, error) {
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpoints() (*Endpoints, error) {
 	main := Endpoint{
-		APIKey:           getLogsAPIKey(coreConfig.Datadog),
-		UseCompression:   coreConfig.Datadog.GetBool("logs_config.use_compression"),
-		CompressionLevel: coreConfig.Datadog.GetInt("logs_config.compression_level"),
+		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
+		UseCompression:          coreConfig.Datadog.GetBool("logs_config.use_compression"),
+		CompressionLevel:        coreConfig.Datadog.GetInt("logs_config.compression_level"),
+		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt("logs_config.connection_reset_interval")) * time.Second,
 	}
 
 	switch {

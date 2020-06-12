@@ -78,8 +78,9 @@ type AgentConfig struct {
 	ReceiverTimeout int
 
 	// Writers
-	StatsWriter *WriterConfig
-	TraceWriter *WriterConfig
+	StatsWriter             *WriterConfig
+	TraceWriter             *WriterConfig
+	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
 	StatsdHost string
@@ -135,8 +136,9 @@ func New() *AgentConfig {
 		ReceiverPort:    8126,
 		ConnectionLimit: 2000,
 
-		StatsWriter: new(WriterConfig),
-		TraceWriter: new(WriterConfig),
+		StatsWriter:             new(WriterConfig),
+		TraceWriter:             new(WriterConfig),
+		ConnectionResetInterval: 0, // disabled
 
 		StatsdHost: "localhost",
 		StatsdPort: 8125,
