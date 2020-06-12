@@ -86,7 +86,7 @@ variables:
   DATADOG_AGENT_BUILDERS: v2448672-5304c3c
   DATADOG_AGENT_WINBUILDIMAGES: v2468030-cbaf3fe
   DATADOG_AGENT_WINBUILDERS: v2348149-ba6640d
-  DATADOG_AGENT_ARMBUILDIMAGES: v2609722-8e2b5ef
+  DATADOG_AGENT_ARMBUILDIMAGES: v2615223-3743dc5
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v2424505-0439a40
   BCC_VERSION: v0.12.0
   SYSTEM_PROBE_GO_VERSION: 1.13.8
@@ -749,8 +749,8 @@ agent_deb-arm-a7:
     - echo "About to build for $RELEASE_VERSION_7"
 
     - echo "Detected host architecture $(uname -m)"
-    # $TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
-    - echo "Target architecture ${TARGET_ARCH:=amd64}"
+    # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
+    - echo "Target architecture ${DD_TARGET_ARCH:=amd64}"
 
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -925,8 +925,8 @@ agent_rpm-arm-a7:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
 
     - echo "Detected host architecture $(uname -m)"
-    # $TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
-    - echo "Target architecture ${TARGET_ARCH:=amd64}"
+    # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
+    - echo "Target architecture ${DD_TARGET_ARCH:=amd64}"
 
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -1070,8 +1070,8 @@ iot_agent_suse-x64:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
 
     - echo "Detected host architecture $(uname -m)"
-    # $TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
-    - echo "Target architecture ${TARGET_ARCH:=amd64}"
+    # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
+    - echo "Target architecture ${DD_TARGET_ARCH:=amd64}"
 
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
