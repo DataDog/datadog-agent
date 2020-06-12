@@ -7,7 +7,7 @@ from invoke import task
 
 from .utils import bin_name, get_build_flags,  get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, filter_incorrect_tags
+from .build_tags import get_build_tags, get_default_build_tags, filter_incompatible_tags
 from .go import deps
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
@@ -41,7 +41,7 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
         ))
 
 
-    build_include = get_default_build_tags(build="trace-agent") if build_include is None else filter_incorrect_tags(build_include.split(","), arch=arch)
+    build_include = get_default_build_tags(build="trace-agent") if build_include is None else filter_incompatible_tags(build_include.split(","), arch=arch)
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     build_tags = get_build_tags(build_include, build_exclude)

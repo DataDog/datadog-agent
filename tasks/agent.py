@@ -14,7 +14,7 @@ from invoke.exceptions import Exit, ParseError
 
 from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions, get_version, has_both_python, get_win_py_runtime_var
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, filter_incorrect_tags
+from .build_tags import get_build_tags, get_default_build_tags, filter_incompatible_tags
 from .go import deps, generate
 from .docker import pull_base_images
 from .ssm import get_signing_cert, get_pfx_pass
@@ -117,7 +117,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="iot", arch=arch)
     else:
-        build_include = get_default_build_tags(build="agent", arch=arch) if build_include is None else filter_incorrect_tags(build_include.split(","), arch=arch)
+        build_include = get_default_build_tags(build="agent", arch=arch) if build_include is None else filter_incompatible_tags(build_include.split(","), arch=arch)
         build_exclude = [] if build_exclude is None else build_exclude.split(",")
         build_tags = get_build_tags(build_include, build_exclude)
 

@@ -12,7 +12,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags, get_default_build_tags, filter_incorrect_tags
+from .build_tags import get_build_tags, get_default_build_tags, filter_incompatible_tags
 from .utils import get_build_flags, get_version_numeric_only, bin_name, get_root, load_release_versions, get_version
 from .utils import REPO_PATH
 
@@ -32,7 +32,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     """
     Build Dogstatsd
     """
-    build_include = get_default_build_tags(build="dogstatsd", arch=arch) if build_include is None else filter_incorrect_tags(build_include.split(","), arch=arch)
+    build_include = get_default_build_tags(build="dogstatsd", arch=arch) if build_include is None else filter_incompatible_tags(build_include.split(","), arch=arch)
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 

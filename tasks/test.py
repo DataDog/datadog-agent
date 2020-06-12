@@ -16,7 +16,7 @@ from invoke.exceptions import Exit
 
 from .utils import get_build_flags, get_version
 from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
-from .build_tags import get_default_build_tags, get_build_tags, filter_incorrect_tags
+from .build_tags import get_default_build_tags, get_build_tags, filter_incompatible_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .trace_agent import integration_tests as trace_integration_tests
@@ -65,7 +65,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     else:
         tool_targets = test_targets = targets
 
-    build_include = get_default_build_tags(build="test-with-process-tags", arch=arch) if build_include is None else filter_incorrect_tags(build_include.split(","), arch=arch)
+    build_include = get_default_build_tags(build="test-with-process-tags", arch=arch) if build_include is None else filter_incompatible_tags(build_include.split(","), arch=arch)
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 

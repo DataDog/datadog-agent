@@ -181,9 +181,9 @@ def get_default_build_tags(build="agent", arch="x64"):
     if build == "test-with-process-tags":
         include = TEST_TAGS + PROCESS_AGENT_TAGS
 
-    return filter_incorrect_tags(include, arch=arch)
+    return filter_incompatible_tags(include, arch=arch)
 
-def filter_incorrect_tags(include, arch="x64"):
+def filter_incompatible_tags(include, arch="x64"):
     """
     Filter out tags incompatible with the platform.
     """
