@@ -210,7 +210,7 @@ def get_build_tags(include, exclude):
     the command line
     include and exclude can be lists or sets.
     """
-    # Convert to set, include and exclude can be lists if they're user-provided
+    # Convert parameters to sets
     include = set(include)
     exclude = set(exclude)
 
