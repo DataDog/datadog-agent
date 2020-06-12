@@ -294,7 +294,7 @@
     paths:
     - $OMNIBUS_PACKAGE_DIR
   script: &id011
-  - echo "About to build for $RELEASE_VERSION"
+  - echo "About to build for $RELEASE_VERSION_7"
   - echo "Detected host architecture $(uname -m)"
   - echo "Target architecture ${TARGET_ARCH:=amd64}"
   - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -844,7 +844,6 @@ iot_agent_deb-arm64:
   - runner:docker-arm
   - platform:arm64
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     DESTINATION_DEB: datadog-iot-agent_7_arm64.deb
     PACKAGE_ARCH: arm64
 iot_agent_deb-armhf:
@@ -859,7 +858,6 @@ iot_agent_deb-armhf:
   - runner:docker-arm
   - platform:arm64
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     DESTINATION_DEB: datadog-iot-agent_7_armhf.deb
     PACKAGE_ARCH: armhf
 iot_agent_deb-x64:
@@ -889,7 +887,6 @@ iot_agent_rpm-arm64:
   - runner:docker-arm
   - platform:arm64
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
 iot_agent_rpm-armhf:
   artifacts: *id012
@@ -904,7 +901,6 @@ iot_agent_rpm-armhf:
   - runner:docker-arm
   - platform:arm64
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
 iot_agent_rpm-x64:
   artifacts: *id012
