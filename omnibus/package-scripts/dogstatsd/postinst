@@ -20,7 +20,7 @@ if [ -n "$DOCKER_DD_AGENT" ]; then
     exit 0
 fi
 
-if [ "$DISTRIBUTION" == "Darwin" ]; then
+if [ "$DISTRIBUTION" = "Darwin" ]; then
     echo "Dogstatsd is not supported on MacOS"
     exit 0
 fi
