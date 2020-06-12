@@ -315,9 +315,6 @@
   - echo "About to build iot agent for $RELEASE_VERSION_7"
   - echo "Detected host architecture $(uname -m)"
   - echo "Target architecture ${TARGET_ARCH:='amd64'}"
-  - cat /etc/yum/vars/basearch
-  - cat /etc/yum/vars/arch
-  - cat /etc/rpm/platform
   - rm -rf $IOT_AGENT_BUILD_OMNIBUS_PACKAGE_DIR/*
   - set +x
   - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key_e09422b3
