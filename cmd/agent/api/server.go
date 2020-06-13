@@ -13,8 +13,6 @@ package api
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	stdLog "log"
 	"net"
@@ -29,11 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
 	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/gorilla/mux"
+	gorilla "github.com/gorilla/mux"
 )
 
 var (
@@ -56,6 +53,7 @@ func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.H
 // connections or otherHandler otherwise. Copied from cockroachdb.
 func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		// This is a partial recreation of gRPC's internal checks https://github.com/grpc/grpc-go/pull/514/files#diff-95e9a25b738459a2d3030e1e6fa2a718R61
 		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 			grpcServer.ServeHTTP(w, r)
@@ -67,11 +65,8 @@ func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Ha
 
 // StartServer creates the router and starts the HTTP server
 func StartServer() error {
-	// create the REST HTTP router
-	r := mux.NewRouter()
 
-	// Validate token for every request
-	r.Use(validateToken)
+	initializeTLS()
 
 	// get the transport we're going to use under HTTP
 	var err error
@@ -87,67 +82,56 @@ func StartServer() error {
 		return err
 	}
 
-	hosts := []string{"127.0.0.1", "localhost"}
-	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
-	if err != nil {
-		return fmt.Errorf("unable to start TLS server")
-	}
-
-	// PEM encode the private key
-	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
-	})
-
-	// Create a TLS cert using the private key and certificate
-	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
-	if err != nil {
-		return fmt.Errorf("invalid key pair: %v", err)
-	}
-
-	tlsConfig := tls.Config{
-		Certificates: []tls.Certificate{rootTLSCert},
-	}
-
 	// gRPC server
+	mux := http.NewServeMux()
+	opts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, tlsAddr))}
 
-	// TLS
-	dcreds := credentials.NewTLS(&tlsConfig)
-
-	s := grpc.NewServer(grpc.Creds(dcreds))
+	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
 
-	// starting gateway
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	gwmux := runtime.NewServeMux()
-	ccreds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
+	dcreds := credentials.NewTLS(&tls.Config{
+		ServerName: tlsAddr,
+		RootCAs:    tlsCertPool,
 	})
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(ccreds)}
-	// opts := []grpc.DialOption{grpc.WithInsecure()}
+	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
+
+	// starting grpc gateway
+	ctx := context.Background()
+	gwmux := runtime.NewServeMux()
 	err = pb.RegisterAgentHandlerFromEndpoint(
-		ctx, gwmux, listener.Addr().String(), opts)
+		ctx, gwmux, tlsAddr, dopts)
 	if err != nil {
 		panic(err)
 	}
 
 	// Setup multiplexer
-	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
-	check.SetupHandlers(r.PathPrefix("/check").Subrouter())
-	r.Handle("/", gwmux)
+	// create the REST HTTP router
+	agentMux := gorilla.NewRouter()
+	checkMux := gorilla.NewRouter()
+	// Validate token for every request
+	agentMux.Use(validateToken)
+	checkMux.Use(validateToken)
+
+	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux)))
+	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
+	mux.Handle("/", gwmux)
 
 	srv := &http.Server{
-		Handler: grpcHandlerFunc(s, r),
+		Addr:    tlsAddr,
+		Handler: grpcHandlerFunc(s, mux),
+		// Handler: grpcHandlerFunc(s, r),
+		TLSConfig: &tls.Config{
+			Certificates: []tls.Certificate{*tlsKeyPair},
+			NextProtos:   []string{"h2"},
+		},
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
-		TLSConfig:    &tlsConfig,
 		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
 	}
 
-	tlsListener := tls.NewListener(listener, &tlsConfig)
+	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
@@ -168,6 +152,7 @@ func ServerAddress() *net.TCPAddr {
 
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		stdLog.Printf("VALIDATING!")
 		if err := util.Validate(w, r); err != nil {
 			return
 		}

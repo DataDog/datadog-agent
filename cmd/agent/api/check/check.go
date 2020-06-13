@@ -15,10 +15,12 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /check endpoints
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/", listChecks).Methods("GET")
 	r.HandleFunc("/{name}", listCheck).Methods("GET", "DELETE")
 	r.HandleFunc("/{name}/reload", reloadCheck).Methods("POST")
+
+	return r
 }
 
 func reloadCheck(w http.ResponseWriter, r *http.Request) {
