@@ -207,13 +207,15 @@ func (tm *testModule) EventDiscarderFound(event eval.Event, field string) {
 }
 
 func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
+	timeout := time.After(3 * time.Second)
+
 	select {
 	case event := <-tm.events:
 		if e, ok := event.event.(*sprobe.Event); ok {
 			return e, event.rule, nil
 		}
 		return nil, nil, errors.New("invalid event")
-	case <-time.After(3 * time.Second):
+	case <-timeout:
 		return nil, nil, errors.New("timeout")
 	}
 }
@@ -330,7 +332,7 @@ func newSimpleTest(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 		if err != nil {
 			return nil, err
 		}
-		log.SetupDatadogLogger(logger, "DEBUG")
+		log.SetupDatadogLogger(logger, "debug")
 	}
 
 	root, err := ioutil.TempDir("", "test-secagent-root")

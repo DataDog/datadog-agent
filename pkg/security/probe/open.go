@@ -32,6 +32,7 @@ var OpenTables = []*types.Table{
 var openEventTypes = map[string]Capabilities{
 	"open": Capabilities{
 		EvalCapabilities: []eval.FilteringCapability{
+			{Field: "open.basename", Types: eval.ScalarValueType},
 			{Field: "open.filename", Types: eval.ScalarValueType},
 			{Field: "open.flags", Types: eval.ScalarValueType},
 		},
@@ -73,7 +74,7 @@ var OpenKProbes = []*KProbe{
 			case "open.filename":
 				for _, filter := range filters {
 					if filter.Not {
-						return errors.New("open.filename not filter unsupported")
+						return errors.New("open.filename discarder not supported")
 					}
 				}
 
@@ -82,7 +83,7 @@ var OpenKProbes = []*KProbe{
 					handleBasenameFilter(probe, basename, filter.Not)
 				}
 			case "open.flags":
-				var kFilter, kNotFilter Uint32Filter
+				var kFilter, kNotFilter Uint32KFilter
 
 				for _, filter := range filters {
 					if filter.Not {
@@ -120,7 +121,7 @@ func handleBasenameFilter(probe *Probe, basename string, not bool) error {
 		return fmt.Errorf("unable to generate a key for `%s`: %s", basename, err)
 	}
 
-	var kFilter Uint8Filter
+	var kFilter Uint8KFilter
 
 	if not {
 		table := probe.Table("open_basename_discarders")

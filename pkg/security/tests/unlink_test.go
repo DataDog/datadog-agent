@@ -11,7 +11,7 @@ import (
 func TestUnlink(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `unlink.filename == "{{.Root}}/test-unlink" || unlink.filename == "{{.Root}}/testat"`,
+		Expression: `unlink.filename == "{{.Root}}/test-unlink" || unlink.filename == "{{.Root}}/testat-unlink"`,
 	}
 
 	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
