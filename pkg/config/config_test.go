@@ -655,23 +655,23 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_NO_PROXY")
 }
 
-func TestSanitizeAPIKey(t *testing.T) {
+func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := setupConf()
 
 	config.Set("api_key", "foo")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", "foo\n\n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
 	config.Set("api_key", " \n  foo   \n")
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
 

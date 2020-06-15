@@ -119,7 +119,7 @@ def lint(ctx, targets):
 
 
 @task
-def vet(ctx, targets, rtloader_root=None, build_tags=None):
+def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     """
     Run go vet on targets.
 
@@ -133,7 +133,7 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None):
 
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
-    tags = build_tags or get_default_build_tags()
+    tags = build_tags or get_default_build_tags(arch=arch)
     tags.append("dovet")
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
@@ -178,6 +178,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         targets = targets.split(',')
 
     tags = build_tags or get_default_build_tags()
+
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:

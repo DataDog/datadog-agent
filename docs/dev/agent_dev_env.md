@@ -183,3 +183,12 @@ To install it, run:
 pip install pre-commit
 pre-commit install
 ```
+
+The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`.
+To install it, run:
+
+```sh
+inv install-shellcheck --destination <path>
+```
+
+(by default, the shellcheck binary is installed in `/usr/local/bin`).

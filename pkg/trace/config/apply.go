@@ -139,6 +139,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 				continue
 			}
 			for _, key := range keys {
+				key = config.SanitizeAPIKey(key)
 				c.Endpoints = append(c.Endpoints, &Endpoint{Host: url, APIKey: key})
 			}
 		}
@@ -263,6 +264,9 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		if err := config.Datadog.UnmarshalKey(key, cfg); err != nil {
 			log.Errorf("Error reading writer config %q: %v", key, err)
 		}
+	}
+	if config.Datadog.IsSet("apm_config.connection_reset_interval") {
+		c.ConnectionResetInterval = getDuration(config.Datadog.GetInt("apm_config.connection_reset_interval"))
 	}
 
 	// undocumented deprecated

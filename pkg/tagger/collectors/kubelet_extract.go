@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -59,9 +58,15 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				tags.AddLow(tagKeyService, value)
 			}
 			for pattern, tmpl := range c.labelsAsTags {
-				if ok, _ := filepath.Match(pattern, strings.ToLower(name)); ok {
-					tags.AddAuto(resolveTag(tmpl, name), value)
+				n := strings.ToLower(name)
+				if g, ok := c.globMap[pattern]; ok {
+					if !g.Match(n) {
+						continue
+					}
+				} else if pattern != n {
+					continue
 				}
+				tags.AddAuto(resolveTag(tmpl, name), value)
 			}
 		}
 
