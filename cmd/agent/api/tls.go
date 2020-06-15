@@ -41,13 +41,13 @@ func initializeTLS() {
 	if cert == nil {
 		panic("unable to generate certificate")
 	}
-	pair, err := tls.X509KeyPair([]byte(cert), []byte(key))
+	pair, err := tls.X509KeyPair(cert, key)
 	if err != nil {
 		panic(err)
 	}
 	tlsKeyPair = &pair
 	tlsCertPool = x509.NewCertPool()
-	ok := tlsCertPool.AppendCertsFromPEM([]byte(cert))
+	ok := tlsCertPool.AppendCertsFromPEM(cert)
 	if !ok {
 		panic("bad certs")
 	}
