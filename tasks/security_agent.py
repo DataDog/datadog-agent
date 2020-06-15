@@ -27,7 +27,7 @@ DEFAULT_BUILD_TAGS = [
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False,
-          major_version='7',  python_runtimes='3', arch="x64", go_mod="vendor"):
+          major_version='7',  arch="x64", go_mod="vendor"):
     """
     Build the security agent
     """
