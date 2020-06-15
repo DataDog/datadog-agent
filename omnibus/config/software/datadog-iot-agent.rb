@@ -119,7 +119,7 @@ build do
     if windows?
       platform = windows_arch_i386? ? "x86" : "x64"
       # Build the security-agent with the correct go version for windows
-      command "invoke -e security-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform}", :env => env
+      command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 
       copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     end
