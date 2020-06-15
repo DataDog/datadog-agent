@@ -38,6 +38,7 @@ SDK_INTEGRATIONS_DIR = 'integrations'
 SD_PIPE_NAME = "dd-service_discovery"
 SD_PIPE_UNIX_PATH = '/opt/datadog-agent/run'
 SD_PIPE_WIN_PATH = "\\\\.\\pipe\\{pipename}"
+SD_TEMPLATE_DIR = "/datadog/check_configs"
 
 log = logging.getLogger(__name__)
 
