@@ -19,7 +19,7 @@ func SetupConfig(confFilePath string) error {
 }
 
 // SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
-func SetupConfigWithWarnings(confFilePath string) (*config.ConfigWarnings, error) {
+func SetupConfigWithWarnings(confFilePath string) (*config.Warnings, error) {
 	return setupConfig(confFilePath, "", false)
 }
 
@@ -29,7 +29,7 @@ func SetupConfigWithoutSecrets(confFilePath string, configName string) error {
 	return err
 }
 
-func setupConfig(confFilePath string, configName string, withoutSecrets bool) (*config.ConfigWarnings, error) {
+func setupConfig(confFilePath string, configName string, withoutSecrets bool) (*config.Warnings, error) {
 	if configName != "" {
 		config.Datadog.SetConfigName(configName)
 	}
@@ -46,7 +46,7 @@ func setupConfig(confFilePath string, configName string, withoutSecrets bool) (*
 	config.Datadog.AddConfigPath(DefaultConfPath)
 	// load the configuration
 	var err error
-	var warnings *config.ConfigWarnings
+	var warnings *config.Warnings
 
 	if withoutSecrets {
 		warnings, err = config.LoadWithoutSecret()

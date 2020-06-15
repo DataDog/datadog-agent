@@ -126,8 +126,8 @@ type MetricMapping struct {
 	Tags      map[string]string `mapstructure:"tags"`
 }
 
-// ConfigWarnings represent the warnings in the config
-type ConfigWarnings struct {
+// Warnings represent the warnings in the config
+type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
 }
 
@@ -816,12 +816,12 @@ func loadProxyFromEnv(config Config) {
 }
 
 // Load reads configs files and initializes the config module
-func Load() (*ConfigWarnings, error) {
+func Load() (*Warnings, error) {
 	return load(Datadog, "datadog.yaml", true)
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
-func LoadWithoutSecret() (*ConfigWarnings, error) {
+func LoadWithoutSecret() (*Warnings, error) {
 	return load(Datadog, "datadog.yaml", false)
 }
 
@@ -848,8 +848,8 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
-func load(config Config, origin string, loadSecret bool) (*ConfigWarnings, error) {
-	warnings := ConfigWarnings{}
+func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
+	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
 		log.Warnf("Error loading config: %v", err)
