@@ -23,7 +23,9 @@ func main() {
 	flag.StringVar(&opts.checkClient, "client", "", "The client ID that the check will use to run")
 	flag.Parse()
 
-	runAgent()
+	exit := make(chan struct{})
+
+	runAgent(exit)
 }
 
 // run check command if the flag is specified

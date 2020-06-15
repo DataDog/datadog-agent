@@ -40,7 +40,7 @@ var (
 
 const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
-func runAgent() {
+func runAgent(exit chan struct{}) {
 	// --version
 	if opts.version {
 		fmt.Println(versionString("\n"))
@@ -100,9 +100,8 @@ func runAgent() {
 	log.Infof("system probe successfully started")
 
 	// Handles signals, which tells us whether we should exit.
-	e := make(chan struct{})
-	go util.HandleSignals(e)
-	<-e
+	go util.HandleSignals(exit)
+	<-exit
 }
 
 func gracefulExit() {
