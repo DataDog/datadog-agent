@@ -134,7 +134,7 @@ func StartAgent() error {
 	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Global Agent configuration
-	err := common.SetupConfig(confFilePath)
+	_, err := common.SetupConfig(confFilePath)
 	if err != nil {
 		log.Errorf("Failed to setup config %v", err)
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
