@@ -333,13 +333,33 @@ func (p *ProcessEvent) GetComm() string {
 	return p.Comm
 }
 
+func (p *ProcessEvent) ResolveUser(resolvers *Resolvers) string {
+	u, err := user.LookupId(strconv.Itoa(int(p.UID)))
+	if err == nil {
+		p.User = u.Username
+	}
+	return p.User
+}
+
+func (p *ProcessEvent) ResolveGroup(resolvers *Resolvers) string {
+	g, err := user.LookupGroupId(strconv.Itoa(int(p.GID)))
+	if err == nil {
+		p.Group = g.Name
+	}
+	return p.Group
+}
+
 func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 104 {
 		return 0, NotEnoughData
 	}
 	p.Pidns = byteOrder.Uint64(data[0:8])
-	binary.Read(bytes.NewBuffer(data[8:24]), byteOrder, &p.Comm)
-	binary.Read(bytes.NewBuffer(data[24:88]), byteOrder, &p.TTYName)
+	if err := binary.Read(bytes.NewBuffer(data[8:24]), byteOrder, &p.CommRaw); err != nil {
+		return 8, err
+	}
+	if err := binary.Read(bytes.NewBuffer(data[24:88]), byteOrder, &p.TTYNameRaw); err != nil {
+		return 8 + len(p.CommRaw), err
+	}
 	p.Pid = byteOrder.Uint32(data[88:92])
 	p.Tid = byteOrder.Uint32(data[92:96])
 	p.UID = byteOrder.Uint32(data[96:100])
