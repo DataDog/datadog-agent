@@ -2,14 +2,10 @@ package tests
 
 import (
 	"bytes"
-	"context"
-	"encoding/json"
-	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"text/template"
@@ -17,17 +13,15 @@ import (
 	"unsafe"
 
 	"github.com/cihub/seelog"
-	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
-	"google.golang.org/grpc"
 
 	smodule "github.com/DataDog/datadog-agent/cmd/system-probe/module"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,12 +59,16 @@ const testPolicy = `---
 {{end}}
 `
 
+type testEvent struct {
+	event eval.Event
+	rule  *eval.Rule
+}
+
 type testModule struct {
-	client   *testClient
-	cancel   context.CancelFunc
 	st       *simpleTest
 	module   smodule.Module
 	listener net.Listener
+	events   chan testEvent
 }
 
 type testProbe struct {
@@ -152,61 +150,46 @@ func newTestModule(macros []*policy.MacroDefinition, rules []*policy.RuleDefinit
 	}
 	defer os.Remove(cfgFilename)
 
-	client, err := newTestClient()
+	mod, err := module.NewModule(nil)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	client.Run(ctx)
-
-	listener, err := net.Listen("tcp", grpcAddr)
-	if err != nil {
-		return nil, err
+	testMod := &testModule{
+		st:     st,
+		module: mod,
+		events: make(chan testEvent, eventChanLength),
 	}
 
-	module, err := module.NewModule(nil)
-	if err != nil {
-		return nil, err
-	}
+	rs := mod.(*module.Module).GetRuleSet()
+	rs.AddListener(testMod)
 
-	grpcServer := grpc.NewServer()
-	if err := module.Register(grpcServer); err != nil {
-		return nil, err
-	}
+	mod.Register(nil)
 
-	go grpcServer.Serve(listener)
-
-	return &testModule{
-		client:   client,
-		cancel:   cancel,
-		st:       st,
-		module:   module,
-		listener: listener,
-	}, nil
+	return testMod, nil
 }
 
 func (tm *testModule) Root() string {
 	return tm.st.root
 }
 
-func (tm *testModule) GetEvent() (*sprobe.Event, error) {
-	event, err := tm.client.GetEvent(3 * time.Second)
-	if err != nil {
-		return nil, err
-	}
+func (tm *testModule) RuleMatch(rule *eval.Rule, event eval.Event) {
+	tm.events <- testEvent{event: event, rule: rule}
+}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(event.GetData(), &data); err != nil {
-		return nil, err
-	}
+func (tm *testModule) EventDiscarderFound(event eval.Event, field string) {
+}
 
-	var probeEvent sprobe.Event
-	if err := mapstructure.WeakDecode(data, &probeEvent); err != nil {
-		return nil, err
+func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
+	select {
+	case event := <-tm.events:
+		if e, ok := event.event.(*sprobe.Event); ok {
+			return e, event.rule, nil
+		}
+		return nil, nil, errors.New("invalid event")
+	case <-time.After(3 * time.Second):
+		return nil, nil, errors.New("timeout")
 	}
-
-	return &probeEvent, nil
 }
 
 func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
@@ -216,7 +199,6 @@ func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
 func (tm *testModule) Close() {
 	tm.st.Close()
 	tm.module.Close()
-	tm.listener.Close()
 }
 
 func newTestProbe(macros []*policy.MacroDefinition, rules []*policy.RuleDefinition) (*testProbe, error) {
@@ -286,66 +268,6 @@ func (tp *testProbe) Path(filename string) (string, unsafe.Pointer, error) {
 func (tp *testProbe) Close() {
 	tp.st.Close()
 	tp.probe.Stop()
-}
-
-type testClient struct {
-	conn      *grpc.ClientConn
-	apiClient api.SecurityModuleClient
-	events    chan *api.SecurityEventMessage
-	running   atomic.Value
-}
-
-func newTestClient() (*testClient, error) {
-	conn, err := grpc.Dial(grpcAddr, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-
-	apiClient := api.NewSecurityModuleClient(conn)
-	events := make(chan *api.SecurityEventMessage, 10)
-
-	return &testClient{
-		conn:      conn,
-		apiClient: apiClient,
-		events:    events,
-	}, nil
-}
-
-func (tc *testClient) Run(ctx context.Context) {
-	go func() {
-		tc.running.Store(true)
-
-		for tc.running.Load() == true {
-			stream, err := tc.apiClient.GetEvents(ctx, &api.GetParams{})
-			if err != nil {
-				return
-			}
-
-			for {
-				in, err := stream.Recv()
-
-				if err == io.EOF || in == nil {
-					break
-				}
-
-				tc.events <- in
-			}
-		}
-	}()
-}
-
-func (tc *testClient) GetEvent(timeout time.Duration) (*api.SecurityEventMessage, error) {
-	select {
-	case event := <-tc.events:
-		return event, nil
-	case <-time.After(timeout):
-		return nil, errors.New("timeout")
-	}
-}
-
-func (tc *testClient) Close() {
-	tc.running.Store(false)
-	tc.conn.Close()
 }
 
 type simpleTest struct {

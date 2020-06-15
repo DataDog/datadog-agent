@@ -36,13 +36,13 @@ func TestUnlink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	event, err := test.GetEvent()
+	event, _, err := test.GetEvent()
 	if err != nil {
 		t.Error(err)
-	}
-
-	if event.GetType() != "unlink" {
-		t.Errorf("expected unlink event, got %s", event.GetType())
+	} else {
+		if event.GetType() != "unlink" {
+			t.Errorf("expected unlink event, got %s", event.GetType())
+		}
 	}
 
 	testatFile, testatFilePtr, err := test.Path("testat")
@@ -61,7 +61,7 @@ func TestUnlink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	event, err = test.GetEvent()
+	event, _, err = test.GetEvent()
 	if err != nil {
 		t.Error(err)
 	} else {

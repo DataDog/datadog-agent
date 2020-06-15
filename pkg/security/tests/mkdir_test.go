@@ -29,7 +29,7 @@ func TestMkdir(t *testing.T) {
 	}
 	defer syscall.Rmdir(testFile)
 
-	event, err := test.GetEvent()
+	event, _, err := test.GetEvent()
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -52,7 +52,7 @@ func TestMkdir(t *testing.T) {
 	}
 	defer syscall.Rmdir(testatFile)
 
-	event, err = test.GetEvent()
+	event, _, err = test.GetEvent()
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -69,7 +69,7 @@ func TestMkdir(t *testing.T) {
 		t.Fatal(error(errno))
 	}
 
-	event, err = test.GetEvent()
+	event, _, err = test.GetEvent()
 	if err != nil {
 		t.Error(err)
 	} else {

@@ -44,7 +44,7 @@ func TestRename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	event, err := test.GetEvent()
+	event, _, err := test.GetEvent()
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -62,7 +62,7 @@ func TestRename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	event, err = test.GetEvent()
+	event, _, err = test.GetEvent()
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -80,7 +80,7 @@ func TestRename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	event, err = test.GetEvent()
+	event, _, err = test.GetEvent()
 	if err != nil {
 		t.Error(err)
 	} else {
