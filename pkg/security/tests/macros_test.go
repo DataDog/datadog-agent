@@ -42,8 +42,12 @@ func TestMacros(t *testing.T) {
 	}
 	defer os.Remove(testFile)
 
-	event, err := test.GetEvent()
-	if event.GetType() != "mkdir" {
-		t.Errorf("expected mkdir event, got %s", event.GetType())
+	event, _, err := test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		if event.GetType() != "mkdir" {
+			t.Errorf("expected mkdir event, got %s", event.GetType())
+		}
 	}
 }

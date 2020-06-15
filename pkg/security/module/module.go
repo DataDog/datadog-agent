@@ -27,41 +27,43 @@ type Module struct {
 	server  *EventServer
 }
 
-func (a *Module) Register(server *grpc.Server) error {
-	a.probe.SetEventHandler(a)
-	api.RegisterSecurityModuleServer(server, a.server)
+func (m *Module) Register(server *grpc.Server) error {
+	if server != nil {
+		api.RegisterSecurityModuleServer(server, m.server)
+	}
 
-	a.ruleSet.AddListener(a)
+	m.probe.SetEventHandler(m)
+	m.ruleSet.AddListener(m)
 
-	if err := a.probe.Start(); err != nil {
+	if err := m.probe.Start(); err != nil {
 		return err
 	}
 
-	if err := a.probe.ApplyRuleSet(a.ruleSet); err != nil {
+	if err := m.probe.ApplyRuleSet(m.ruleSet); err != nil {
 		log.Warnf(err.Error())
 	}
 
 	return nil
 }
 
-func (a *Module) Close() {
-	a.probe.Stop()
+func (m *Module) Close() {
+	m.probe.Stop()
 }
 
-func (a *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
-	a.server.SendEvent(rule, event)
+func (m *Module) RuleMatch(rule *eval.Rule, event eval.Event) {
+	m.server.SendEvent(rule, event)
 }
 
-func (a *Module) EventDiscarderFound(event eval.Event, field string) {
-	a.probe.AddKernelFilter(event.(*sprobe.Event), field)
+func (m *Module) EventDiscarderFound(event eval.Event, field string) {
+	m.probe.AddKernelFilter(event.(*sprobe.Event), field)
 }
 
-func (a *Module) EventApproverFound(event eval.Event, field string) {
-	a.probe.AddKernelFilter(event.(*sprobe.Event), field)
+func (m *Module) EventApproverFound(event eval.Event, field string) {
+	m.probe.AddKernelFilter(event.(*sprobe.Event), field)
 }
 
-func (a *Module) HandleEvent(event *sprobe.Event) {
-	a.ruleSet.Evaluate(event)
+func (m *Module) HandleEvent(event *sprobe.Event) {
+	m.ruleSet.Evaluate(event)
 }
 
 func loadMacros(config *config.Config) (map[string]*ast.Macro, error) {
@@ -160,8 +162,12 @@ func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, er
 	return ruleSet, nil
 }
 
-func (a *Module) GetStats() map[string]interface{} {
+func (m *Module) GetStats() map[string]interface{} {
 	return nil
+}
+
+func (m *Module) GetRuleSet() *eval.RuleSet {
+	return m.ruleSet
 }
 
 func NewModule(cfg *aconfig.AgentConfig) (module.Module, error) {

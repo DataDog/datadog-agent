@@ -34,7 +34,7 @@ func TestRmdir(t *testing.T) {
 		t.Fatal(error(err))
 	}
 
-	event, err := test.GetEvent()
+	event, _, err := test.GetEvent()
 	if err != nil {
 		t.Error(err)
 	} else {
