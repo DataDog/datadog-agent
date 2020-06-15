@@ -146,6 +146,24 @@ WINDOWS_32BIT_EXCLUDE_TAGS = set([
     "orchestrator",
 ])
 
+# Build type: build tags map
+build_tags = {
+    # Build setups
+    "agent": AGENT_TAGS,
+    "android": ANDROID_TAGS,
+    "cluster-agent": CLUSTER_AGENT_TAGS,
+    "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
+    "dogstatsd": DOGSTATSD_TAGS,
+    "iot": IOT_AGENT_TAGS,
+    "process-agent": PROCESS_AGENT_TAGS,
+    "security-agent": SECURITY_AGENT_TAGS,
+    "system-probe": SYSTEM_PROBE_TAGS,
+    "trace-agent": TRACE_AGENT_TAGS,
+    # Test setups
+    "test": TEST_TAGS,
+    "test-with-process-tags": TEST_TAGS.union(PROCESS_AGENT_TAGS)
+}
+
 def get_default_build_tags(build="agent", arch="x64"):
     """
     Build the default list of tags based on the build type and current platform.
@@ -153,33 +171,8 @@ def get_default_build_tags(build="agent", arch="x64"):
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    # Build setups
-    if build == "agent":
-        include = AGENT_TAGS
-    elif build == "android":
-        include = ANDROID_TAGS
-    elif build == "cluster-agent":
-        include = CLUSTER_AGENT_TAGS
-    elif build == "cluster-agent-cloudfoundry":
-        include = CLUSTER_AGENT_CLOUDFOUNDRY_TAGS
-    elif build == "dogstatsd":
-        include = DOGSTATSD_TAGS
-    elif build == "iot":
-        include = IOT_AGENT_TAGS
-    elif build == "process-agent":
-        include = PROCESS_AGENT_TAGS
-    elif build == "security-agent":
-        include = SECURITY_AGENT_TAGS
-    elif build == "system-probe":
-        include = SYSTEM_PROBE_TAGS
-    elif build == "trace-agent":
-        include = TRACE_AGENT_TAGS
-    # Test setups
-    elif build == "test":
-        include = TEST_TAGS
-    elif build == "test-with-process-tags":
-        include = TEST_TAGS.union(PROCESS_AGENT_TAGS)
-    else:
+    include = build_tags.get(build)
+    if include is None:
         print("Warning: unrecognized build type, no build tags included.")
         include = set()
 
