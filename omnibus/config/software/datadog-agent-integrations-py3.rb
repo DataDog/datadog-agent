@@ -93,7 +93,10 @@ if arm?
   blacklist_packages.push(/^pymqi==/)
 end
 
-if arm? || !_64_bit?
+# _64_bit checks the kernel arch.  On windows, the builder is 64 bit
+# even when doing a 32 bit build.  Do a specific check for the 32 bit
+# build
+if arm? || !_64_bit? || (windows? && windows_arch_i386?)
   blacklist_packages.push(/^orjson==/)
 end
 

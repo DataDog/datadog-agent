@@ -246,12 +246,10 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		if *maxRetries == 0 {
 			return fmt.Errorf("invalid guessing state while guessing %v, got %v expected %v. %v",
 				whatString[status.what], stateString[status.state], stateString[stateChecked], tcpKprobeCalledString[status.tcp_info_kprobe_status])
-		} else {
-			log.Info("Decrementing maxRetries")
-			*maxRetries--
-			time.Sleep(10 * time.Millisecond)
-			return nil
 		}
+		*maxRetries--
+		time.Sleep(10 * time.Millisecond)
+		return nil
 	}
 
 	switch status.what {
@@ -521,7 +519,7 @@ func acceptHandler(l net.Listener) {
 			return
 		}
 
-		io.Copy(ioutil.Discard, conn)
+		_, _ = io.Copy(ioutil.Discard, conn)
 		conn.Close()
 	}
 }
@@ -547,7 +545,7 @@ func tcpGetInfo(conn net.Conn) (*syscall.TCPInfo, error) {
 	size := uint32(unsafe.Sizeof(tcpInfo))
 	_, _, errno := syscall.Syscall6(
 		syscall.SYS_GETSOCKOPT,
-		uintptr(file.Fd()),
+		file.Fd(),
 		uintptr(syscall.SOL_TCP),
 		uintptr(syscall.TCP_INFO),
 		uintptr(unsafe.Pointer(&tcpInfo)),

@@ -69,6 +69,8 @@ RUN find / -maxdepth 1 -type f -name 'datadog-agent*_arm64.deb' ! -name "$DD_AGE
 #   - copy default config files
 COPY datadog*.yaml etc/datadog-agent/
 
+# Installation information
+COPY install_info etc/datadog-agent/
 
 ######################################
 #  Actual docker image construction  #

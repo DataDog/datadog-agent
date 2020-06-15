@@ -408,18 +408,6 @@ run_go_tidy_check:
     - go mod tidy
     - git diff-files --exit-code go.mod || (echo "go.mod is out of sync with project imports. Please run 'inv deps' and commit the changes on go.mod/go.sum." && false)
 
-run_shell_script_lint:
-  stage: source_test
-  needs: ["fail_on_non_triggered_tag"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/mars_jenkins_scripts:$DATADOG_AGENT_BUILDERS
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - shellcheck --version
-    #Excludes:
-    #SC2028: echo may not expand escape sequences. Use printf.
-    #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
-    - shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
-
 #
 # binary_build
 #
@@ -1687,8 +1675,7 @@ deploy_windows_testing-a7:
 .kitchen_os_suse: &kitchen_os_suse
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export TEST_PLATFORMS="sles-11,urn,SUSE:SLES-BYOS:11-SP4:2019.12.05"
-    - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-12,urn,SUSE:SLES-BYOS:12-SP4:2019.11.13"
+    - export TEST_PLATFORMS="sles-12,urn,SUSE:SLES-BYOS:12-SP4:2019.11.13"
     - export TEST_PLATFORMS="$TEST_PLATFORMS|sles-15,urn,SUSE:SLES-BYOS:15:2019.11.15"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh

@@ -5,8 +5,10 @@
 
 # Datadog Agent install script for macOS.
 set -e
+install_script_version=1.0.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
+etc_dir=/opt/datadog-agent/etc
 
 upgrade=
 if [ -n "$DD_UPGRADE" ]; then
@@ -48,8 +50,8 @@ fi
 dmg_url="$dmg_base_url/$dmg_remote_file"
 
 if [ "$upgrade" ]; then
-    if [ ! -f /opt/datadog-agent/etc/datadog.conf ]; then
-        printf "\033[31mDD_UPGRADE set but no config was found at /opt/datadog-agent/etc/datadog.conf.\033[0m\n"
+    if [ ! -f $etc_dir/datadog.conf ]; then
+        printf "\033[31mDD_UPGRADE set but no config was found at $etc_dir/datadog.conf.\033[0m\n"
         exit 1;
     fi
 fi
@@ -113,17 +115,17 @@ function new_config() {
     # Check for vanilla OS X sed or GNU sed
     i_cmd="-i ''"
     if [ "$(sed --version 2>/dev/null | grep -c "GNU")" -ne 0 ]; then i_cmd="-i"; fi
-    $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"/opt/datadog-agent/etc/datadog.yaml\""
+    $sudo_cmd sh -c "sed $i_cmd 's/api_key:.*/api_key: $apikey/' \"$etc_dir/datadog.yaml\""
     if [ "$site" ]; then
-        $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"/opt/datadog-agent/etc/datadog.yaml\""
+        $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"$etc_dir/datadog.yaml\""
     fi
-    $sudo_cmd chown "$real_user":admin "/opt/datadog-agent/etc/datadog.yaml"
-    $sudo_cmd chmod 640 /opt/datadog-agent/etc/datadog.yaml
+    $sudo_cmd chown "$real_user":admin "$etc_dir/datadog.yaml"
+    $sudo_cmd chmod 640 $etc_dir/datadog.yaml
 }
 
 function import_config() {
     printf "\033[34m\n* Converting old datadog.conf file to new datadog.yaml format\n\033[0m\n"
-    $cmd_agent import /opt/datadog-agent/etc /opt/datadog-agent/etc -f
+    $cmd_agent import $etc_dir $etc_dir -f
 }
 
 # # Install the agent
@@ -139,8 +141,19 @@ cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name
 printf "\033[34m\n    - Unmounting the DMG installer ...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 
+# Creating or overriding the install information
+install_info_content="---
+install_method:
+  tool: install_script
+  tool_version: install_script_mac
+  installer_version: install_script_mac-$install_script_version
+"
+$sudo_cmd sh -c "echo '$install_info_content' > $etc_dir/install_info"
+$sudo_cmd chown "$real_user":admin "$etc_dir/install_info"
+$sudo_cmd chmod 640 $etc_dir/install_info
+
 # Set the configuration
-if grep -E 'api_key:( APIKEY)?$' "/opt/datadog-agent/etc/datadog.yaml" > /dev/null 2>&1; then
+if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
     if [ "$upgrade" ]; then
         import_config
     else

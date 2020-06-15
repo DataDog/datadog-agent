@@ -535,6 +535,7 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_compression", true)
 	config.BindEnvAndSetDefault("logs_config.compression_level", 6) // Default level for the gzip/deflate algorithm
 	config.BindEnvAndSetDefault("logs_config.batch_wait", DefaultBatchWait)
+	config.BindEnvAndSetDefault("logs_config.connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
@@ -700,6 +701,7 @@ func initConfig(config Config) {
 	config.SetKnown("apm_config.service_writer.queue_size")
 	config.SetKnown("apm_config.stats_writer.connection_limit")
 	config.SetKnown("apm_config.stats_writer.queue_size")
+	config.SetKnown("apm_config.connection_reset_interval") // in seconds
 	config.SetKnown("apm_config.analyzed_rate_by_service.*")
 	config.SetKnown("apm_config.analyzed_spans.*")
 	config.SetKnown("apm_config.log_throttling")
@@ -872,7 +874,7 @@ func load(config Config, origin string, loadSecret bool) error {
 	}
 
 	loadProxyFromEnv(config)
-	sanitizeAPIKey(config)
+	SanitizeAPIKeyConfig(config, "api_key")
 	applyOverrides(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	setTracemallocEnabled(config)
@@ -915,9 +917,14 @@ func ResolveSecrets(config Config, origin string) error {
 	return nil
 }
 
-// Avoid log ingestion breaking because of a newline in the API key
-func sanitizeAPIKey(config Config) {
-	config.Set("api_key", strings.TrimSpace(config.GetString("api_key")))
+// SanitizeAPIKeyConfig strips newlines and other control characters from a given key.
+func SanitizeAPIKeyConfig(config Config, key string) {
+	config.Set(key, SanitizeAPIKey(config.GetString(key)))
+}
+
+// SanitizeAPIKey strips newlines and other control characters from a given string.
+func SanitizeAPIKey(key string) string {
+	return strings.TrimSpace(key)
 }
 
 // GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`

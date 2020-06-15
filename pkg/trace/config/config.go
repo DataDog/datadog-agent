@@ -79,8 +79,9 @@ type AgentConfig struct {
 	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
 
 	// Writers
-	StatsWriter *WriterConfig
-	TraceWriter *WriterConfig
+	StatsWriter             *WriterConfig
+	TraceWriter             *WriterConfig
+	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
 
 	// internal telemetry
 	StatsdHost string
@@ -137,8 +138,9 @@ func New() *AgentConfig {
 		ConnectionLimit: 2000,
 		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
 
-		StatsWriter: new(WriterConfig),
-		TraceWriter: new(WriterConfig),
+		StatsWriter:             new(WriterConfig),
+		TraceWriter:             new(WriterConfig),
+		ConnectionResetInterval: 0, // disabled
 
 		StatsdHost: "localhost",
 		StatsdPort: 8125,

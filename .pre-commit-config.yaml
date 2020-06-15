@@ -1,0 +1,9 @@
+default_language_version:
+  python: 3.8.3
+
+repos:
+- repo: https://github.com/jumanjihouse/pre-commit-hooks
+  rev: 2.1.1
+  hooks:
+    - id: shellcheck
+      args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]

@@ -59,7 +59,7 @@ func TestSummary(t *testing.T) {
 			v := math.Floor(rand.Float64() * 10000)
 			nInsert := rand.Intn(1000) + 1
 
-			s.InsertN(v, uint(nInsert))
+			s.InsertN(v, float64(nInsert))
 
 			for j := 0; j < nInsert; j++ {
 				exp.Insert(v)
