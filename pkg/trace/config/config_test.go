@@ -178,6 +178,8 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey2"},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: noProxy},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
 	}, c.Endpoints)
 
 	assert.ElementsMatch([]*ReplaceRule{

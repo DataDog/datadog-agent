@@ -416,7 +416,7 @@ func loadEnvVariables() {
 
 	if apiKey != "" { // We don't want to overwrite the API KEY provided as an environment variable
 		log.Infof("overriding API key from env %s value", envKey)
-		config.Datadog.Set("api_key", strings.TrimSpace(strings.Split(apiKey, ",")[0]))
+		config.Datadog.Set("api_key", config.SanitizeAPIKey(strings.Split(apiKey, ",")[0]))
 	}
 
 	if v := os.Getenv("DD_CUSTOM_SENSITIVE_WORDS"); v != "" {
