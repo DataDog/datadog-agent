@@ -190,8 +190,6 @@ core,"github.com/grpc-ecosystem/grpc-gateway/codegenerator",NewBSD
 core,"github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/gengateway",NewBSD
 core,"github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/httprule",NewBSD
 core,"github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger",NewBSD
-core,"golang.org/x/mobile/asset",NewBSD
-core,"golang.org/x/mobile/internal/mobileinit",NewBSD
 core,"go.etcd.io/etcd/client",Apache-2.0
 core,"go.etcd.io/etcd/pkg/pathutil",Apache-2.0
 core,"go.etcd.io/etcd/pkg/srv",Apache-2.0
