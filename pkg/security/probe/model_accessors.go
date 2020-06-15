@@ -124,6 +124,15 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
+	case "process.group":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.ResolveGroup(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.ResolveGroup(m.event.resolvers) },
+
+			Field: key,
+		}, nil
+
 	case "process.name":
 
 		return &eval.StringEvaluator{
@@ -174,6 +183,15 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 		return &eval.IntEvaluator{
 			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Process.UID) },
 			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Process.UID) },
+
+			Field: key,
+		}, nil
+
+	case "process.user":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.ResolveUser(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.ResolveUser(m.event.resolvers) },
 
 			Field: key,
 		}, nil
@@ -306,6 +324,10 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 
 		return int(e.Process.GID), nil
 
+	case "process.group":
+
+		return e.Process.ResolveGroup(e.resolvers), nil
+
 	case "process.name":
 
 		return e.Process.ResolveComm(e.resolvers), nil
@@ -329,6 +351,10 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 	case "process.uid":
 
 		return int(e.Process.UID), nil
+
+	case "process.user":
+
+		return e.Process.ResolveUser(e.resolvers), nil
 
 	case "rename.new_filename":
 
@@ -406,6 +432,9 @@ func (e *Event) GetFieldTags(key string) ([]string, error) {
 	case "process.gid":
 		return []string{}, nil
 
+	case "process.group":
+		return []string{}, nil
+
 	case "process.name":
 		return []string{}, nil
 
@@ -422,6 +451,9 @@ func (e *Event) GetFieldTags(key string) ([]string, error) {
 		return []string{}, nil
 
 	case "process.uid":
+		return []string{}, nil
+
+	case "process.user":
 		return []string{}, nil
 
 	case "rename.new_filename":
@@ -492,6 +524,9 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 	case "process.gid":
 		return "*", nil
 
+	case "process.group":
+		return "*", nil
+
 	case "process.name":
 		return "*", nil
 
@@ -508,6 +543,9 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 		return "*", nil
 
 	case "process.uid":
+		return "*", nil
+
+	case "process.user":
 		return "*", nil
 
 	case "rename.new_filename":
@@ -643,6 +681,13 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 		e.Process.GID = uint32(v)
 		return nil
 
+	case "process.group":
+
+		if e.Process.Group, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
 	case "process.name":
 
 		if e.Process.Comm, ok = value.(string); !ok {
@@ -691,6 +736,13 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 			return ErrWrongValueType
 		}
 		e.Process.UID = uint32(v)
+		return nil
+
+	case "process.user":
+
+		if e.Process.User, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
 		return nil
 
 	case "rename.new_filename":
