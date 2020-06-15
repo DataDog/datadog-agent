@@ -115,7 +115,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 		// we'll search for a config file named `dogstastd.yaml`
 		config.Datadog.SetConfigName("dogstatsd")
 		config.Datadog.AddConfigPath(confPath)
-		confErr := config.Load()
+		_, confErr := config.Load()
 		if confErr != nil {
 			log.Error(confErr)
 		} else {

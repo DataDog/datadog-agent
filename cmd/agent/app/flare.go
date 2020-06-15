@@ -45,7 +45,7 @@ var flareCmd = &cobra.Command{
 			color.NoColor = true
 		}
 
-		_, err := common.SetupConfig(confFilePath)
+		err := common.SetupConfig(confFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}

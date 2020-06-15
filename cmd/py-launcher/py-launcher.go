@@ -46,7 +46,7 @@ func main() {
 
 	if *conf != "" {
 		config.Datadog.SetConfigFile(*conf)
-		confErr := config.Load()
+		_, confErr := config.Load()
 		if confErr != nil {
 			fmt.Printf("unable to parse Datadog config file, running with env variables: %s\n", confErr)
 		}

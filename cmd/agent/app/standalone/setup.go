@@ -33,7 +33,7 @@ func SetupCLI(loggerName config.LoggerName, confFilePath string, cliLogLevel str
 	overrides["cmd_port"] = 0 // let the OS assign an available port for the HTTP server
 	config.AddOverrides(overrides)
 
-	warnings, err := common.SetupConfig(confFilePath)
+	warnings, err := common.SetupConfigWithWarnings(confFilePath)
 	if err != nil {
 		return resolvedLogLevel, warnings, fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}

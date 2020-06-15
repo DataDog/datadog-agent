@@ -138,7 +138,7 @@ func loadPythonInfo() error {
 		rootDir = parentDir
 	}
 
-	if _, err := common.SetupConfig(confFilePath); err != nil {
+	if err := common.SetupConfig(confFilePath); err != nil {
 		fmt.Printf("Cannot setup config, exiting: %v\n", err)
 		return err
 	}
