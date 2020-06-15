@@ -33,6 +33,7 @@ enum event_type
     EVENT_VFS_CHMOD,
     EVENT_VFS_CHOWN,
     EVENT_VFS_UTIME,
+    EVENT_EXEC,
 };
 
 struct event_t {

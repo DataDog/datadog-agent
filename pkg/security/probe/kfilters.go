@@ -12,9 +12,13 @@ const (
 	POLICY_MODE_ACCEPT PolicyMode = 1
 	POLICY_MODE_DENY   PolicyMode = 2
 
-	BASENAME_FLAG PolicyFlag = 1
-	FLAGS_FLAG    PolicyFlag = 2
+	BASENAME_FLAG    PolicyFlag = 1
+	FLAGS_FLAG       PolicyFlag = 2
+	MODE_FLAG        PolicyFlag = 4
+	PARENT_NAME_FLAG PolicyFlag = 8
+	PROCESS_INODE    PolicyFlag = 16
 
+	// need to be aligned with the kernel size
 	BASENAME_FILTER_SIZE = 32
 )
 
@@ -49,6 +53,16 @@ func (k *Uint32KFilter) Bytes() []byte {
 	return b
 }
 
+type Uint64KFilter struct {
+	value uint64
+}
+
+func (k *Uint64KFilter) Bytes() []byte {
+	b := make([]byte, 8)
+	byteOrder.PutUint64(b, k.value)
+	return b
+}
+
 func StringToKey(str string, size int) ([]byte, error) {
 	n := size
 	if len(str) < size {
@@ -70,6 +84,16 @@ func Int32ToKey(i int32) ([]byte, error) {
 		return nil, err
 	}
 	rep := make([]byte, binary.MaxVarintLen32)
+	copy(rep, buffer.Bytes())
+	return rep, nil
+}
+
+func Int64ToKey(i int64) ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	if err := binary.Write(buffer, byteOrder, i); err != nil {
+		return nil, err
+	}
+	rep := make([]byte, binary.MaxVarintLen64)
 	copy(rep, buffer.Bytes())
 	return rep, nil
 }

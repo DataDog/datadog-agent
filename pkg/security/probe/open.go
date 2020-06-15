@@ -2,7 +2,9 @@ package probe
 
 import (
 	"fmt"
+	"os"
 	"path"
+	"syscall"
 
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -27,17 +29,12 @@ var OpenTables = []KTable{
 	{
 		Name: "open_flags_discarders",
 	},
-}
-
-// event type handled by open kProbes and their filter capabilities
-var openEventTypes = map[string]Capabilities{
-	"open": Capabilities{
-		EvalCapabilities: []eval.FilteringCapability{
-			{Field: "open.basename", Types: eval.ScalarValueType},
-			{Field: "open.filename", Types: eval.ScalarValueType},
-			{Field: "open.flags", Types: eval.ScalarValueType},
-		},
-		PolicyFlags: BASENAME_FLAG | FLAGS_FLAG,
+	{
+		Name: "open_process_inode_approvers",
+	},
+	{
+		Name:    "open_process_inode_discarders",
+		LRUSize: 256,
 	},
 }
 
@@ -49,7 +46,9 @@ var OpenKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("open"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("open"),
 		},
-		EventTypes: openEventTypes,
+		EventTypes: map[string]Capabilities{
+			"open": Capabilities{},
+		},
 	},
 	{
 		KProbe: &eprobe.KProbe{
@@ -57,17 +56,52 @@ var OpenKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("openat"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("openat"),
 		},
-		EventTypes: openEventTypes,
+		EventTypes: map[string]Capabilities{
+			"open": Capabilities{},
+		},
 	},
 	{
 		KProbe: &eprobe.KProbe{
 			Name:      "vfs_open",
 			EntryFunc: "kprobe/vfs_open",
 		},
-		EventTypes:  openEventTypes,
+		EventTypes: map[string]Capabilities{
+			"open": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{
+					{Field: "open.basename", Types: eval.ScalarValueType},
+					{Field: "open.filename", Types: eval.ScalarValueType},
+					{Field: "open.flags", Types: eval.ScalarValueType},
+					{Field: "process.filename", Types: eval.ScalarValueType},
+				},
+				PolicyFlags: BASENAME_FLAG | FLAGS_FLAG | PROCESS_INODE,
+			},
+		},
 		PolicyTable: "open_policy",
 		OnNewFilter: func(probe *Probe, field string, filters ...eval.Filter) error {
 			switch field {
+			case "process.filename":
+				for _, filter := range filters {
+					fileinfo, err := os.Stat(filter.Value.(string))
+					if err != nil {
+						return err
+					}
+					stat, _ := fileinfo.Sys().(*syscall.Stat_t)
+					key, err := Int64ToKey(int64(stat.Ino))
+					if err != nil {
+						return errors.New("unable to set policy")
+					}
+
+					var kFilter Uint8KFilter
+
+					if filter.Not {
+						table := probe.Table("open_process_inode_discarders")
+						table.Set(key, kFilter.Bytes())
+					} else {
+						table := probe.Table("open_process_inode_approvers")
+						table.Set(key, kFilter.Bytes())
+					}
+				}
+
 			case "open.basename":
 				for _, filter := range filters {
 					handleBasenameFilter(probe, filter.Value.(string), filter.Not)

@@ -178,6 +178,15 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
+	case "process.filename":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Process.PathnameStr },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Process.PathnameStr },
+
+			Field: key,
+		}, nil
+
 	case "process.gid":
 
 		return &eval.IntEvaluator{
@@ -429,6 +438,10 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 
 		return int(e.Open.Mode), nil
 
+	case "process.filename":
+
+		return e.Process.PathnameStr, nil
+
 	case "process.gid":
 
 		return int(e.Process.GID), nil
@@ -567,6 +580,9 @@ func (e *Event) GetFieldTags(key string) ([]string, error) {
 	case "open.mode":
 		return []string{}, nil
 
+	case "process.filename":
+		return []string{}, nil
+
 	case "process.gid":
 		return []string{}, nil
 
@@ -685,6 +701,9 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 
 	case "open.mode":
 		return "open", nil
+
+	case "process.filename":
+		return "*", nil
 
 	case "process.gid":
 		return "*", nil
@@ -900,6 +919,13 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 			return ErrWrongValueType
 		}
 		e.Open.Mode = uint32(v)
+		return nil
+
+	case "process.filename":
+
+		if e.Process.PathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
 		return nil
 
 	case "process.gid":
