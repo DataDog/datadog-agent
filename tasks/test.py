@@ -446,4 +446,5 @@ def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
 
     ctx.run("wget -qO- \"https://storage.googleapis.com/shellcheck/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp"
         .format(sc_version=version, platform=sys.platform))
-    ctx.run("cp \"/tmp/shellcheck-v{sc_version}/shellcheck\" /usr/local/bin/ && rm -rf \"/tmp/shellcheck-v{sc_version}\"".format(sc_version=version))
+    ctx.run("cp \"/tmp/shellcheck-v{sc_version}/shellcheck\" /usr/local/bin/ && rm -rf \"/tmp/shellcheck-v{sc_version}\""
+        .format(sc_version=version))
