@@ -1178,6 +1178,11 @@ api_key:
 #
 # syslog_tls_verify: true
 
+## @param log_format_rfc3339 - boolean - optional - default false
+## If enabled the Agent will log using the RFC3339 format for the log time.
+#
+# log_format_rfc3339: false
+
 {{ end -}}
 {{- if .Autoconfig }}
 

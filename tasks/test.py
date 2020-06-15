@@ -432,3 +432,25 @@ def check_gitlab_broken_dependencies(ctx):
                 for need in needed:
                     if is_unwanted(data[need], version):
                         print("{} needs on {} but it won't be built for A{}".format(k, need, version))
+
+@task
+def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
+    """
+    Installs the requested version of shellcheck in the specified folder (by default /usr/local/bin).
+    Required to run the shellcheck pre-commit hook.
+    """
+
+    if sys.platform == 'win32':
+        print("shellcheck is not supported on Windows")
+        raise Exit(code=1)
+    if sys.platform.startswith('darwin'):
+        platform = "darwin"
+    if sys.platform.startswith('linux'):
+        platform = "linux"
+
+    ctx.run("wget -qO- \"https://storage.googleapis.com/shellcheck/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp"
+        .format(sc_version=version, platform=platform))
+    ctx.run("cp \"/tmp/shellcheck-v{sc_version}/shellcheck\" {destination}"
+        .format(sc_version=version, destination=destination))
+    ctx.run("rm -rf \"/tmp/shellcheck-v{sc_version}\""
+        .format(sc_version=version))
