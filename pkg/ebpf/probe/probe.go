@@ -32,7 +32,6 @@ type Probe struct {
 	// Source   string
 	// Cflags   []string
 	// Bytecode []byte
-	Kprobes  []*types.KProbe
 	Tables   []*types.Table
 	PerfMaps []*types.PerfMap
 
@@ -48,17 +47,6 @@ func (p *Probe) Table(name string) Table {
 
 func (p *Probe) StartTime() time.Time {
 	return p.startTime
-}
-
-func (p *Probe) RegisterHooks() error {
-	for _, kProbe := range p.Kprobes {
-		if err := p.Module.RegisterKprobe(kProbe); err != nil {
-			return err
-		}
-		log.Debugf("Registered Kprobe %s", kProbe)
-	}
-
-	return nil
 }
 
 func (p *Probe) registerTables() error {

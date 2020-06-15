@@ -230,3 +230,38 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 		t.Fatalf("shouldn't get an event: %+v", event)
 	}
 }
+
+func TestOpenProcessInodeApproverFilter(t *testing.T) {
+	rule := &policy.RuleDefinition{
+		ID:         "test-rule",
+		Expression: `open.filename == "{{.Root}}/test-oba-1" && process.filename == "/bin/cat"`,
+	}
+
+	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fd1, testFile1, err := openTestFile(test, "test-oba-1", syscall.O_CREAT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd1)
+	defer os.Remove(testFile1)
+
+	if _, err := waitForOpenEvent(test, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	fd2, testFile2, err := openTestFile(test, "test-oba-2", syscall.O_CREAT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd2)
+	defer os.Remove(testFile2)
+
+	if event, err := waitForOpenEvent(test, testFile2); err == nil {
+		t.Fatalf("shouldn't get an event: %+v", event)
+	}
+}

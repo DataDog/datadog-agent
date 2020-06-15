@@ -2,6 +2,7 @@
 #define _SYSCALLS_H_
 
 #include "../../ebpf/c/bpf_helpers.h"
+#include "filters.h"
 
 struct ktimeval {
     long tv_sec;
@@ -9,6 +10,11 @@ struct ktimeval {
 };
 
 struct syscall_cache_t {
+    struct policy_t policy;
+
+    u16 type;
+    u64 pid;
+
     union {
         struct {
             int flags;
@@ -63,8 +69,8 @@ struct bpf_map_def SEC("maps/syscalls") syscalls = {
 };
 
 void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
-    u64 key = bpf_get_current_pid_tgid(); \
-    bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
+    syscall->pid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&syscalls, &syscall->pid, syscall, BPF_ANY);
 }
 
 struct syscall_cache_t * __attribute__((always_inline)) peek_syscall() {

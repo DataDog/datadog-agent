@@ -13,7 +13,8 @@ enum policy_flags
     BASENAME = 1,
     FLAGS = 2,
     MODE = 4,
-    PARENTNAME = 8
+    PARENT_NAME = 8,
+    PROCESS_INODE = 16
 };
 
 struct policy_t {

@@ -51,6 +51,24 @@ struct bpf_map_def SEC("maps/open_flags_discarders") open_flags_discarders = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/open_process_inode_approvers") open_process_inode_approvers = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(u64),
+    .value_size = sizeof(struct filter_t),
+    .max_entries = 256,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/open_process_inode_discarders") open_process_inode_discarders = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(u64),
+    .value_size = sizeof(struct filter_t),
+    .max_entries = 256,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct open_event_t {
     struct   event_t event;
     struct   process_data_t process;
@@ -63,11 +81,20 @@ struct open_event_t {
 
 int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     struct syscall_cache_t syscall = {
+        .type = EVENT_MAY_OPEN,
+        .policy = {.mode = ACCEPT},
         .open = {
             .flags = flags,
-            .mode = mode
+            .mode = mode,
         }
     };
+
+    u32 key = 0;
+    struct policy_t *policy = bpf_map_lookup_elem(&open_policy, &key);
+    if (policy) {
+        syscall.policy.mode = policy->mode;
+        syscall.policy.flags = policy->flags;
+    }
 
     cache_syscall(&syscall);
 
@@ -102,33 +129,20 @@ SYSCALL_KPROBE(openat) {
     return trace__sys_openat(flags, mode);
 }
 
-SEC("kprobe/vfs_open")
-int kprobe__vfs_open(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall();
-    if (!syscall)
-        return 0;
-
+int __attribute__((always_inline)) vfs_handle_open_event(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
     // NOTE(safchain) could be move only if pass_to_userspace == 1
     syscall->open.dentry = get_path_dentry((struct path *)PT_REGS_PARM1(ctx));
 
-    // array key index 0
-    u32 ak0 = 0;
-
-    struct policy_t zero = {.mode = ACCEPT};
-    struct policy_t *policy = bpf_map_lookup_elem(&open_policy, &ak0);
-    if (!policy) {
-        policy = &zero;
-    }
-
     struct open_basename_t basename = {};
-    if ((policy->flags & BASENAME) > 0) {
+    if ((syscall->policy.flags & BASENAME) > 0) {
         get_dentry_name(syscall->open.dentry, &basename, sizeof(basename));
     }
 
-    char pass_to_userspace = policy->mode == ACCEPT ? 1 : 0;
+    char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
+    u32 key = 0;
 
-    if (policy->mode == DENY) {
-        if ((policy->flags & BASENAME) > 0) {
+    if (syscall->policy.mode == DENY) {
+        if ((syscall->policy.flags & BASENAME) > 0) {
             struct filter_t *filter = bpf_map_lookup_elem(&open_basename_approvers, &basename);
             if (filter != NULL) {
                 pass_to_userspace = 1;
@@ -138,8 +152,8 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
             }
         }
 
-        if (!pass_to_userspace && (policy->flags & FLAGS) > 0) {
-            u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &ak0);
+        if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+            u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
             if (flags != NULL && (syscall->open.flags & *flags) > 0) {
                 pass_to_userspace = 1;
 #ifdef DEBUG
@@ -150,8 +164,8 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
     }
 
     // only check discarders if policy is ACCEPT
-    if (policy->mode == ACCEPT) {
-        if ((policy->flags & BASENAME) > 0) {
+    if (syscall->policy.mode == ACCEPT) {
+        if ((syscall->policy.flags & BASENAME) > 0) {
             struct filter_t *filter = bpf_map_lookup_elem(&open_basename_discarders, &basename);
             if (filter) {
                 pass_to_userspace = 0;
@@ -161,8 +175,19 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
             }
         }
 
-        if (pass_to_userspace) {
-            u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &ak0);
+        if (pass_to_userspace && ((syscall->policy.flags & PROCESS_INODE))) {
+            u64 inode = pid_inode(syscall->pid);
+            struct filter_t *filter = bpf_map_lookup_elem(&open_process_inode_discarders, &inode);
+            if (filter) {
+                pass_to_userspace = 0;
+#ifdef DEBUG
+                printk("kprobe/vfs_open %d discarded by pid inode\n", inode);
+#endif
+            }
+        }
+
+        if (pass_to_userspace && ((syscall->policy.flags & FLAGS))) {
+            u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &key);
             if (flags != NULL && (syscall->open.flags & *flags) > 0) {
                 pass_to_userspace = 0;
 #ifdef DEBUG
@@ -179,6 +204,22 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/vfs_open")
+int kprobe__vfs_open(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall();
+    if (!syscall)
+        return 0;
+
+    switch(syscall->type) {
+        case EVENT_MAY_OPEN:
+            return vfs_handle_open_event(ctx, syscall);
+        case EVENT_EXEC:
+            return vfs_handle_exec_event(ctx, syscall);
+    }
+
+    return 0;
+}
+
 int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = pop_syscall();
     if (!syscall)
@@ -189,7 +230,7 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
 
     struct open_event_t event = {
         .event.retval = PT_REGS_RC(ctx),
-        .event.type = EVENT_MAY_OPEN,
+        .event.type = syscall->type,
         .event.timestamp = bpf_ktime_get_ns(),
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

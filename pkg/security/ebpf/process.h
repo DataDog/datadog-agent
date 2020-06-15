@@ -2,6 +2,7 @@
 #define _PROCESS_H_
 
 #include <linux/tty.h>
+#include <linux/sched.h>
 
 static u64 fill_process_data(struct process_data_t *data) {
     // Process data

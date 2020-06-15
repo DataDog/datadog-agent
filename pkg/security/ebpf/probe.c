@@ -27,6 +27,7 @@
 #include "rmdir.h"
 #include "unlink.h"
 #include "rename.h"
+#include "exec.h"
 #include "open.h"
 #include "utimes.h"
 

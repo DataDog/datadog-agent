@@ -410,18 +410,27 @@ func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 type ProcessEvent struct {
-	Pidns   uint64 `field:"pidns"`
-	Comm    string `field:"name" handler:"ResolveComm,string"`
-	TTYName string `field:"tty_name" handler:"ResolveTTY,string"`
-	Pid     uint32 `field:"pid"`
-	Tid     uint32 `field:"tid"`
-	UID     uint32 `field:"uid"`
-	GID     uint32 `field:"gid"`
-	User    string `field:"user" handler:"ResolveUser,string"`
-	Group   string `field:"group" handler:"ResolveGroup,string"`
+	Pidns       uint64 `field:"pidns"`
+	Comm        string `field:"name" handler:"ResolveComm,string"`
+	TTYName     string `field:"tty_name" handler:"ResolveTTY,string"`
+	Pid         uint32 `field:"pid"`
+	Tid         uint32 `field:"tid"`
+	UID         uint32 `field:"uid"`
+	GID         uint32 `field:"gid"`
+	User        string `field:"user" handler:"ResolveUser,string"`
+	Group       string `field:"group" handler:"ResolveGroup,string"`
+	PathnameStr string `field:"filename" handler:"ResolveInode,string"`
 
 	CommRaw    [16]byte `field:"-"`
 	TTYNameRaw [64]byte `field:"-"`
+	Inode      uint64   `field:"-"`
+}
+
+func (p *ProcessEvent) ResolveInode(resolvers *Resolvers) string {
+	if len(p.PathnameStr) == 0 {
+		p.PathnameStr = resolvers.DentryResolver.Resolve(0xffffffff, p.Inode)
+	}
+	return p.PathnameStr
 }
 
 func (p *ProcessEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {

@@ -52,7 +52,7 @@ type Capabilities struct {
 }
 
 type KProbe struct {
-	*eprobe.KProbe
+	KProbe      *eprobe.KProbe
 	EventTypes  map[string]Capabilities
 	OnNewFilter filterCb
 	PolicyTable string
@@ -344,7 +344,9 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	}
 
 	for _, kprobe := range AllKProbes {
-		ebpfProbe.Kprobes = append(ebpfProbe.Kprobes, kprobe.KProbe)
+		if kprobe.EventTypes == nil {
+			continue
+		}
 
 		for eventType := range kprobe.EventTypes {
 			if kprobe.OnNewFilter != nil {
@@ -528,6 +530,10 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 	}
 
 	for _, kprobe := range AllKProbes {
+		if kprobe.EventTypes == nil {
+			continue
+		}
+
 		for eventType, capabilities := range kprobe.EventTypes {
 			if rs.HasRulesForEventType(eventType) {
 				if _, ok := already[kprobe]; !ok {
@@ -598,4 +604,5 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 
 func init() {
 	AllKProbes = append(AllKProbes, OpenKProbes...)
+	AllKProbes = append(AllKProbes, ExecKProbes...)
 }
