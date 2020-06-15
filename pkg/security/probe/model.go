@@ -7,6 +7,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"os/user"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
@@ -285,6 +287,8 @@ type ProcessEvent struct {
 	Tid     uint32 `field:"tid" event:"*"`
 	UID     uint32 `field:"uid" event:"*"`
 	GID     uint32 `field:"gid" event:"*"`
+	User    string `field:"user" handler:"ResolveUser,string" event:"*"`
+	Group   string `field:"group" handler:"ResolveGroup,string" event:"*"`
 
 	CommRaw    [16]byte `field:"-"`
 	TTYNameRaw [64]byte `field:"-"`
