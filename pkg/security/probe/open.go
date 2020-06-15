@@ -20,6 +20,23 @@ var OpenTables = []*types.Table{
 	{
 		Name: "open_basename_discarders",
 	},
+	{
+		Name: "open_flags_approvers",
+	},
+	{
+		Name: "open_flags_discarders",
+	},
+}
+
+// event type handled by open kProbes and their filter capabilities
+var openEventTypes = map[string]Capabilities{
+	"open": Capabilities{
+		EvalCapabilities: []eval.FilteringCapability{
+			{Field: "open.filename", Types: eval.ScalarValueType},
+			{Field: "open.flags", Types: eval.ScalarValueType},
+		},
+		PolicyFlags: BASENAME_FLAG | FLAGS_FLAG,
+	},
 }
 
 var OpenKProbes = []*KProbe{
@@ -29,11 +46,7 @@ var OpenKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("open"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("open"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"open": []eval.FilteringCapability{
-				{Field: "open.filename", Types: eval.ScalarValueType},
-			},
-		},
+		EventTypes: openEventTypes,
 	},
 	{
 		KProbe: &eprobe.KProbe{
@@ -41,38 +54,15 @@ var OpenKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("openat"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("openat"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"open": []eval.FilteringCapability{
-				{Field: "open.filename", Types: eval.ScalarValueType},
-			},
-		},
+		EventTypes: openEventTypes,
 	},
 	{
 		KProbe: &eprobe.KProbe{
 			Name:      "vfs_open",
 			EntryFunc: "kprobe/vfs_open",
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"open": []eval.FilteringCapability{
-				{Field: "open.filename", Types: eval.ScalarValueType},
-			},
-		},
-		SetFilterPolicy: func(probe *Probe, mode PolicyMode) error {
-			table := probe.Table("open_policy")
-			key, err := Int32ToKey(0)
-			if err != nil {
-				return errors.New("unable to set policy")
-			}
-
-			policy := FilterPolicy{
-				Mode:  mode,
-				Flags: BASENAME_FLAG,
-			}
-
-			table.Set(key, policy.Bytes())
-
-			return nil
-		},
+		EventTypes:  openEventTypes,
+		PolicyTable: "open_policy",
 		OnNewFilter: func(probe *Probe, field string, filters ...eval.Filter) error {
 			switch field {
 			case "open.basename":
@@ -91,6 +81,30 @@ var OpenKProbes = []*KProbe{
 					basename := path.Base(filter.Value.(string))
 					handleBasenameFilter(probe, basename, filter.Not)
 				}
+			case "open.flags":
+				var kFilter, kNotFilter Uint32Filter
+
+				for _, filter := range filters {
+					if filter.Not {
+						kNotFilter.value |= uint32(filter.Value.(int))
+					} else {
+						kFilter.value |= uint32(filter.Value.(int))
+					}
+				}
+
+				key, err := Int32ToKey(0)
+				if err != nil {
+					return errors.New("unable to set policy")
+				}
+
+				if kFilter.value != 0 {
+					table := probe.Table("open_flags_approvers")
+					table.Set(key, kFilter.Bytes())
+				}
+				if kNotFilter.value != 0 {
+					table := probe.Table("open_flags_discarders")
+					table.Set(key, kFilter.Bytes())
+				}
 			default:
 				return errors.New("field unknown")
 			}
@@ -106,7 +120,7 @@ func handleBasenameFilter(probe *Probe, basename string, not bool) error {
 		return fmt.Errorf("unable to generate a key for `%s`: %s", basename, err)
 	}
 
-	var kFilter Filter
+	var kFilter Uint8Filter
 
 	if not {
 		table := probe.Table("open_basename_discarders")

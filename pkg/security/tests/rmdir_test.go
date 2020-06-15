@@ -11,7 +11,7 @@ import (
 func TestRmdir(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `rmdir.filename == "{{.Root}}/test"`,
+		Expression: `rmdir.filename == "{{.Root}}/test-rmdir"`,
 	}
 
 	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
@@ -20,7 +20,7 @@ func TestRmdir(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test")
+	testFile, testFilePtr, err := test.Path("test-rmdir")
 	if err != nil {
 		t.Fatal(err)
 	}

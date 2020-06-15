@@ -13,9 +13,14 @@ const (
 	POLICY_MODE_DENY   PolicyMode = 2
 
 	BASENAME_FLAG PolicyFlag = 1
+	FLAGS_FLAG    PolicyFlag = 2
 
 	BASENAME_FILTER_SIZE = 32
 )
+
+type KFilter interface {
+	Bytes() []byte
+}
 
 type FilterPolicy struct {
 	Mode  PolicyMode
@@ -26,12 +31,22 @@ func (f *FilterPolicy) Bytes() []byte {
 	return []byte{uint8(f.Mode), uint8(f.Flags)}
 }
 
-type Filter struct {
+type Uint8Filter struct {
 	value uint8
 }
 
-func (k *Filter) Bytes() []byte {
+func (k *Uint8Filter) Bytes() []byte {
 	return []byte{k.value}
+}
+
+type Uint32Filter struct {
+	value uint32
+}
+
+func (k *Uint32Filter) Bytes() []byte {
+	b := make([]byte, 4)
+	byteOrder.PutUint32(b, k.value)
+	return b
 }
 
 func StringToKey(str string, size int) ([]byte, error) {
