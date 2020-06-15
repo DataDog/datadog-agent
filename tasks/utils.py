@@ -13,6 +13,7 @@ from subprocess import check_output
 # constants
 ORG_PATH = "github.com/DataDog"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
+GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
 def bin_name(name, android=False):
@@ -34,6 +35,20 @@ def get_gopath(ctx):
 
     return gopath
 
+def get_go_env(ctx, go_version):
+    goenv = {}
+    if go_version:
+        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
+        for line in lines:
+            for env_var in GIMME_ENV_VARS:
+                if env_var in line:
+                    goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
+
+    # extend PATH from gimme with the one from get_build_flags
+    if "PATH" in os.environ and "PATH" in goenv:
+        goenv["PATH"] += ":" + os.environ["PATH"]
+
+    return goenv
 
 def get_multi_python_location(embedded_path=None, rtloader_root=None):
     rtloader_lib = []

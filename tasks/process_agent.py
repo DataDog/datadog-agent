@@ -6,16 +6,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import (
-    bin_name,
-    get_build_flags,
-    REPO_PATH,
-    get_version,
-    get_git_branch_name,
-    get_go_version,
-    get_git_commit,
-    get_version_numeric_only,
-)
+from .utils import bin_name, get_gopath, get_go_env, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
 from .build_tags import get_default_build_tags
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
@@ -74,18 +65,10 @@ def build(
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-    goenv = {}
     if go_version:
-        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
-        for line in lines:
-            for env_var in GIMME_ENV_VARS:
-                if env_var in line:
-                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
-    # extend PATH from gimme with the one from get_build_flags
-    if "PATH" in os.environ and "PATH" in goenv:
-        goenv["PATH"] += ":" + os.environ["PATH"]
+    goenv = get_go_env(ctx, go_version)
     env.update(goenv)
 
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])

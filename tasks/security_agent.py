@@ -11,6 +11,7 @@ from .utils import (
     get_git_branch_name,
     get_go_version,
     get_git_commit,
+    get_go_env,
 )
 from .build_tags import get_default_build_tags
 from .go import generate
@@ -37,32 +38,21 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-    goenv = {}
     if go_version:
-        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
-        for line in lines:
-            for env_var in GIMME_ENV_VARS:
-                if env_var in line:
-                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
-    # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx)
+    goenv = get_go_env(ctx, go_version)
+    env.update(goenv)
 
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-<<<<<<< HEAD
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(
         build="security-agent"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
-=======
-    ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(iot=False, process=False, arch=arch)
->>>>>>> 516662899... Build fix for the security agent
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
@@ -83,3 +73,20 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
 
     cmd = "go run ./pkg/config/render_config.go security-agent ./pkg/config/config_template.yaml ./cmd/agent/dist/datadog-security.yaml"
     ctx.run(cmd, env=env)
+
+@task
+def functional_tests(ctx, race=False, verbose=False, go_version=None, arch="x64", major_version='7', pattern=''):
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+    goenv = get_go_env(ctx, go_version)
+    env.update(goenv)
+
+    cmd = 'sudo -E go test {verbose_opt} {run_opt} {REPO_PATH}/pkg/security/tests'
+
+    args = {
+        "verbose_opt": "-v" if verbose else "",
+        "race_opt": "-race" if race else "",
+        "run_opt": "-run "+pattern if pattern else "",
+        "REPO_PATH": REPO_PATH,
+    }
+
+    ctx.run(cmd.format(**args), env=env)
