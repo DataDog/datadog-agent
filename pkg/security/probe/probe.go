@@ -428,6 +428,10 @@ func (p *Probe) SetFilterPolicy(tableName string, mode PolicyMode, flags PolicyF
 func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 	already := make(map[*KProbe]bool)
 
+	if !p.enableFilters {
+		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+	}
+
 	for _, kprobe := range AllKProbes {
 		for eventType, capabilities := range kprobe.EventTypes {
 			if rs.HasRulesForEventType(eventType) {
@@ -445,7 +449,6 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 				flags := capabilities.PolicyFlags
 
 				if !p.enableFilters {
-					log.Infof("Forcing in-kernel filter policy to `pass` for `%s`: filtering not enabled", eventType)
 					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
 						return err
 					}
@@ -475,11 +478,11 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 					// relies only on discarders.
 					for _, filter := range filters {
 						if filter.Not {
-							log.Infof("Setting in-kernel filter policy to `accept` for `%s`: discarders present", eventType)
+							log.Infof("Setting in-kernel filter policy fallback to `accept` for `%s`: discarders present", eventType)
 							if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
 								return err
 							}
-							continue
+							break
 						}
 					}
 

@@ -34,29 +34,45 @@ func openTestFile(test *testProbe, filename string, flags int) (int, string, err
 }
 
 func waitForOpenEvent(test *testProbe, filename string) (*probe.Event, error) {
+	timeout := time.After(3 * time.Second)
+	exhaust := time.After(time.Second)
+
+	var event *probe.Event
 	for {
 		select {
-		case event := <-test.events:
-			if value, _ := event.GetFieldValue("open.filename"); value == filename {
-				return event, nil
+		case e := <-test.events:
+			if value, _ := e.GetFieldValue("open.filename"); value == filename {
+				event = e
 			}
 		case <-test.discarders:
-		case <-time.After(3 * time.Second):
+		case <-exhaust:
+			if event != nil {
+				return event, nil
+			}
+		case <-timeout:
 			return nil, errors.New("timeout")
 		}
 	}
 }
 
 func waitForOpenDiscarder(test *testProbe, filename string) (*probe.Event, error) {
+	timeout := time.After(3 * time.Second)
+	exhaust := time.After(time.Second)
+
+	var event *probe.Event
 	for {
 		select {
 		case <-test.events:
 		case discarder := <-test.discarders:
 			test.probe.OnNewDiscarder(discarder.event.(*sprobe.Event), discarder.field)
 			if value, _ := discarder.event.GetFieldValue("open.filename"); value == filename {
-				return discarder.event.(*sprobe.Event), nil
+				event = discarder.event.(*sprobe.Event)
 			}
-		case <-time.After(3 * time.Second):
+		case <-exhaust:
+			if event != nil {
+				return event, nil
+			}
+		case <-timeout:
 			return nil, errors.New("timeout")
 		}
 	}
@@ -97,10 +113,10 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	}
 }
 
-func TestOpenBasenameDiscarderFilter(t *testing.T) {
+func TestOpenBasenameLiveDiscarderFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `open.basename == "{{.Root}}/test-obd-1"`,
+		Expression: `open.basename == "test-obd-1"`,
 	}
 
 	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{})
@@ -120,9 +136,46 @@ func TestOpenBasenameDiscarderFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	fd2, testFile2, err := openTestFile(test, "test-obd-2", syscall.O_CREAT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd2)
+	defer os.Remove(testFile2)
+
+	if event, err := waitForOpenEvent(test, testFile2); err == nil {
+		t.Fatalf("shouldn't get an event: %+v", event)
+	}
+}
+
+func TestOpenBasenameRuleDiscarderFilter(t *testing.T) {
+	rule := &policy.RuleDefinition{
+		ID:         "test-rule",
+		Expression: `open.basename != "test-obd-3"`,
+	}
+
+	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fd1, testFile1, err := openTestFile(test, "test-obd-4", syscall.O_CREAT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd1)
+	defer os.Remove(testFile1)
+
+	if _, err := waitForOpenEvent(test, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(3 * time.Second)
+
+	fd2, testFile2, err := openTestFile(test, "test-obd-3", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
 	}

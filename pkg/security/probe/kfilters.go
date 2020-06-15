@@ -31,19 +31,19 @@ func (f *FilterPolicy) Bytes() []byte {
 	return []byte{uint8(f.Mode), uint8(f.Flags)}
 }
 
-type Uint8Filter struct {
+type Uint8KFilter struct {
 	value uint8
 }
 
-func (k *Uint8Filter) Bytes() []byte {
+func (k *Uint8KFilter) Bytes() []byte {
 	return []byte{k.value}
 }
 
-type Uint32Filter struct {
+type Uint32KFilter struct {
 	value uint32
 }
 
-func (k *Uint32Filter) Bytes() []byte {
+func (k *Uint32KFilter) Bytes() []byte {
 	b := make([]byte, 4)
 	byteOrder.PutUint32(b, k.value)
 	return b
