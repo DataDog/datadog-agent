@@ -9,6 +9,8 @@ package system
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
@@ -101,10 +103,11 @@ func TestIoCheckLowercaseDeviceTag(t *testing.T) {
 	addDefaultQueryReturnValues()
 
 	ioCheck := new(IOCheck)
-	instanceYaml := `
+	rawInitConfigYaml := []byte(`
 lowercase_device_tag: true
-`
-	ioCheck.Configure([]byte(instanceYaml), nil, "test")
+`)
+	err := ioCheck.Configure(nil, rawInitConfigYaml, "test")
+	require.NoError(t, err)
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
