@@ -28,6 +28,11 @@ type Stats struct {
 	}
 }
 
+type KTable struct {
+	Name    string
+	LRUSize int // set if table handled by userspace LRU
+}
+
 type filterCb func(probe *Probe, field string, filters ...eval.Filter) error
 
 type Probe struct {
@@ -37,6 +42,7 @@ type Probe struct {
 	stats         Stats
 	eventFilterCb map[string][]filterCb
 	enableFilters bool
+	tables        map[string]eprobe.Table
 }
 
 // Capabilities associates eval capabilities with kernel policy flags
@@ -218,14 +224,44 @@ func (p *Probe) NewRuleSet(opts eval.Opts) *eval.RuleSet {
 	return eval.NewRuleSet(&Model{}, eventCtor, opts)
 }
 
-func (p *Probe) getTables() []*types.Table {
+func (p *Probe) getTableNames() []*types.Table {
 	tables := []*types.Table{
 		{
 			Name: "pathnames",
 		},
 	}
 
-	return append(tables, OpenTables...)
+	kTables := OpenTables
+	for _, ktable := range kTables {
+		tables = append(tables, &types.Table{Name: ktable.Name})
+	}
+
+	return tables
+}
+
+func (p *Probe) initLRUTables() error {
+	kTables := OpenTables
+	for _, ktable := range kTables {
+		if ktable.LRUSize != 0 {
+			table := p.Probe.Table(ktable.Name)
+			lt, err := NewLRUKTable(table, ktable.LRUSize)
+			if err != nil {
+				return err
+			}
+			p.tables[ktable.Name] = lt
+		}
+	}
+
+	return nil
+}
+
+// Table returns either an eprobe Table or a LRU based eprobe Table
+func (p *Probe) Table(name string) eprobe.Table {
+	if table, exists := p.tables[name]; exists {
+		return table
+	}
+
+	return p.Probe.Table(name)
 }
 
 func (p *Probe) getPerfMaps() []*types.PerfMap {
@@ -259,11 +295,12 @@ func NewProbe(config *config.Config) (*Probe, error) {
 	p := &Probe{
 		eventFilterCb: make(map[string][]filterCb),
 		enableFilters: config.EnableKernelFilters,
+		tables:        make(map[string]eprobe.Table),
 	}
 
 	ebpfProbe := &eprobe.Probe{
 		Module:   module,
-		Tables:   p.getTables(),
+		Tables:   p.getTableNames(),
 		PerfMaps: p.getPerfMaps(),
 	}
 
@@ -283,6 +320,10 @@ func NewProbe(config *config.Config) (*Probe, error) {
 		return nil, err
 	}
 	p.Probe = ebpfProbe
+
+	if err := p.initLRUTables(); err != nil {
+		return nil, err
+	}
 
 	dentryResolver, err := NewDentryResolver(ebpfProbe)
 	if err != nil {

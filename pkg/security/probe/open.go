@@ -5,12 +5,12 @@ import (
 	"path"
 
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/probe/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/pkg/errors"
 )
 
-var OpenTables = []*types.Table{
+// OpenTables - eBPF tables used by open's kProbes
+var OpenTables = []KTable{
 	{
 		Name: "open_policy",
 	},
@@ -18,7 +18,8 @@ var OpenTables = []*types.Table{
 		Name: "open_basename_approvers",
 	},
 	{
-		Name: "open_basename_discarders",
+		Name:    "open_basename_discarders",
+		LRUSize: 256,
 	},
 	{
 		Name: "open_flags_approvers",
@@ -40,6 +41,7 @@ var openEventTypes = map[string]Capabilities{
 	},
 }
 
+// OpenKProbes - list of open's kProbes
 var OpenKProbes = []*KProbe{
 	{
 		KProbe: &eprobe.KProbe{
