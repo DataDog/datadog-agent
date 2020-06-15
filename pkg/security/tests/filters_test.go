@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func openTestFile(test *testProbe, filename string) (int, string, error) {
+func openTestFile(test *testProbe, filename string, flags int) (int, string, error) {
 	testFile, testFilePtr, err := test.Path(filename)
 	if err != nil {
 		return 0, "", err
@@ -25,7 +25,7 @@ func openTestFile(test *testProbe, filename string) (int, string, error) {
 		}
 	}
 
-	fd, _, errno := syscall.Syscall(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT)
+	fd, _, errno := syscall.Syscall(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), uintptr(flags))
 	if errno != 0 {
 		return 0, "", error(errno)
 	}
@@ -62,10 +62,10 @@ func waitForOpenDiscarder(test *testProbe, filename string) (*probe.Event, error
 	}
 }
 
-func TestOpenApproverFilter(t *testing.T) {
+func TestOpenBasenameApproverFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `open.filename == "{{.Root}}/test-1"`,
+		Expression: `open.filename == "{{.Root}}/test-oba-1"`,
 	}
 
 	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
@@ -74,7 +74,7 @@ func TestOpenApproverFilter(t *testing.T) {
 	}
 	defer test.Close()
 
-	fd1, testFile1, err := openTestFile(test, "test-1")
+	fd1, testFile1, err := openTestFile(test, "test-oba-1", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestOpenApproverFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fd2, testFile2, err := openTestFile(test, "test-2")
+	fd2, testFile2, err := openTestFile(test, "test-oba-2", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,10 +97,10 @@ func TestOpenApproverFilter(t *testing.T) {
 	}
 }
 
-func TestOpenDiscarderFilter(t *testing.T) {
+func TestOpenBasenameDiscarderFilter(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `open.basename == "{{.Root}}/test-9"`,
+		Expression: `open.basename == "{{.Root}}/test-obd-1"`,
 	}
 
 	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{})
@@ -109,7 +109,7 @@ func TestOpenDiscarderFilter(t *testing.T) {
 	}
 	defer test.Close()
 
-	fd1, testFile1, err := openTestFile(test, "test-10")
+	fd1, testFile1, err := openTestFile(test, "test-obd-2", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestOpenDiscarderFilter(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 
-	fd2, testFile2, err := openTestFile(test, "test-10")
+	fd2, testFile2, err := openTestFile(test, "test-obd-2", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,6 +130,50 @@ func TestOpenDiscarderFilter(t *testing.T) {
 	defer os.Remove(testFile2)
 
 	if event, err := waitForOpenEvent(test, testFile2); err == nil {
+		t.Fatalf("shouldn't get an event: %+v", event)
+	}
+}
+
+func TestOpenFlagsApproverFilter(t *testing.T) {
+	rule := &policy.RuleDefinition{
+		ID:         "test-rule",
+		Expression: `open.flags & (O_CREAT | O_TRUNC) > 0`,
+	}
+
+	test, err := newTestProbe(nil, []*policy.RuleDefinition{rule}, testOpts{enableFilters: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fd1, testFile1, err := openTestFile(test, "test-ofa-1", syscall.O_CREAT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd1)
+	defer os.Remove(testFile1)
+
+	if _, err := waitForOpenEvent(test, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	fd2, testFile2, err := openTestFile(test, "test-ofa-1", syscall.O_TRUNC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd2)
+
+	if _, err := waitForOpenEvent(test, testFile2); err != nil {
+		t.Fatal(err)
+	}
+
+	fd3, testFile3, err := openTestFile(test, "test-ofa-1", syscall.O_RDONLY)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Close(fd3)
+
+	if event, err := waitForOpenEvent(test, testFile3); err == nil {
 		t.Fatalf("shouldn't get an event: %+v", event)
 	}
 }

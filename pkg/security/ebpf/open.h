@@ -33,6 +33,24 @@ struct bpf_map_def SEC("maps/open_basename_discarders") open_basename_discarders
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/open_flags_discarders") open_flags_discarders = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
 struct open_event_t {
     struct   event_t event;
     struct   process_data_t process;
@@ -93,10 +111,11 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
     // NOTE(safchain) could be move only if pass_to_userspace == 1
     syscall->open.dentry = get_path_dentry((struct path *)PT_REGS_PARM1(ctx));
 
-    struct policy_t zero = {.mode = ACCEPT};
-    u32 policy_key = 0;
+    // array key index 0
+    u32 ak0 = 0;
 
-    struct policy_t *policy = bpf_map_lookup_elem(&open_policy, &policy_key);
+    struct policy_t zero = {.mode = ACCEPT};
+    struct policy_t *policy = bpf_map_lookup_elem(&open_policy, &ak0);
     if (!policy) {
         policy = &zero;
     }
@@ -116,22 +135,38 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
 #ifdef DEBUG
                 printk("kprobe/vfs_open %s approved\n", basename.value);
 #endif
-            } else {
+            }
+        }
+
+        if (!pass_to_userspace && (policy->flags & FLAGS) > 0) {
+            u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &ak0);
+            if (flags != NULL && (syscall->open.flags & *flags) > 0) {
+                pass_to_userspace = 1;
 #ifdef DEBUG
-                printk("kprobe/vfs_open %s not found\n", basename.value);
+                printk("kprobe/vfs_open %s approved by flags\n", basename.value);
 #endif
             }
         }
     }
 
-    if (!pass_to_userspace || policy->mode == ACCEPT) {
+    // only check discarders if policy is ACCEPT
+    if (policy->mode == ACCEPT) {
         if ((policy->flags & BASENAME) > 0) {
             struct filter_t *filter = bpf_map_lookup_elem(&open_basename_discarders, &basename);
             if (filter) {
                 pass_to_userspace = 0;
-
 #ifdef DEBUG
                 printk("kprobe/vfs_open %s discarded\n", basename.value);
+#endif
+            }
+        }
+
+        if (pass_to_userspace) {
+            u32 *flags = bpf_map_lookup_elem(&open_flags_discarders, &ak0);
+            if (flags != NULL && (syscall->open.flags & *flags) > 0) {
+                pass_to_userspace = 0;
+#ifdef DEBUG
+                printk("kprobe/vfs_open %s discarded by flags\n", basename.value);
 #endif
             }
         }

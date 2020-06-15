@@ -2,10 +2,12 @@ package probe
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"sync/atomic"
 
 	"github.com/iovisor/gobpf/elf"
+	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/gobpf"
 	eprobe "github.com/DataDog/datadog-agent/pkg/ebpf/probe"
@@ -37,13 +39,20 @@ type Probe struct {
 	enableFilters bool
 }
 
-type KProbe struct {
-	*eprobe.KProbe
-	EventTypes      map[string][]eval.FilteringCapability
-	OnNewFilter     filterCb
-	SetFilterPolicy func(probe *Probe, mode PolicyMode) error
+// Capabilities associates eval capabilities with kernel policy flags
+type Capabilities struct {
+	EvalCapabilities []eval.FilteringCapability
+	PolicyFlags      PolicyFlag
 }
 
+type KProbe struct {
+	*eprobe.KProbe
+	EventTypes  map[string]Capabilities
+	OnNewFilter filterCb
+	PolicyTable string
+}
+
+// cache of the syscall prefix depending on kernel version
 var syscallPrefix string
 
 func getSyscallFnName(name string) string {
@@ -65,8 +74,10 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("mkdir"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("mkdir"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"mkdir": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"mkdir": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -75,8 +86,10 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("mkdirat"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("mkdirat"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"mkdir": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"mkdir": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -84,8 +97,10 @@ var AllKProbes = []*KProbe{
 			Name:      "vfs_mkdir",
 			EntryFunc: "kprobe/vfs_mkdir",
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"mkdir": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"mkdir": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -94,8 +109,10 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("rmdir"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("rmdir"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"rmdir": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"rmdir": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -103,8 +120,10 @@ var AllKProbes = []*KProbe{
 			Name:      "vfs_rmdir",
 			EntryFunc: "kprobe/vfs_rmdir",
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"rmdir": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"rmdir": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -113,8 +132,10 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("unlink"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("unlink"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"unlink": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"unlink": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -123,8 +144,10 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("unlinkat"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("unlinkat"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"unlink": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"unlink": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -132,8 +155,10 @@ var AllKProbes = []*KProbe{
 			Name:      "vfs_unlink",
 			EntryFunc: "kprobe/vfs_unlink",
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"unlink": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"unlink": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -142,8 +167,10 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("rename"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("rename"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"rename": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"rename": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -152,8 +179,10 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("renameat"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("renameat"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"rename": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"rename": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -162,8 +191,10 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/" + getSyscallFnName("renameat2"),
 			ExitFunc:  "kretprobe/" + getSyscallFnName("renameat2"),
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"rename": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"rename": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 	{
@@ -171,8 +202,10 @@ var AllKProbes = []*KProbe{
 			Name:      "vfs_rename",
 			EntryFunc: "kprobe/vfs_rename",
 		},
-		EventTypes: map[string][]eval.FilteringCapability{
-			"rename": []eval.FilteringCapability{},
+		EventTypes: map[string]Capabilities{
+			"rename": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
 		},
 	},
 }
@@ -342,6 +375,8 @@ func (p *Probe) handleEvent(data []byte) {
 }
 
 func (p *Probe) OnNewDiscarder(event *Event, field string) error {
+	log.Debugf("New discarder event %+v for field %s\n", event, field)
+
 	eventType, err := event.GetFieldEventType(field)
 	if err != nil {
 		return err
@@ -370,6 +405,26 @@ func (p *Probe) OnNewDiscarder(event *Event, field string) error {
 	return nil
 }
 
+func (p *Probe) SetFilterPolicy(tableName string, mode PolicyMode, flags PolicyFlag) error {
+	table := p.Table(tableName)
+	if table == nil {
+		return fmt.Errorf("unable to find policy table `%s`", tableName)
+	}
+
+	key, err := Int32ToKey(0)
+	if err != nil {
+		return errors.New("unable to set policy")
+	}
+
+	policy := FilterPolicy{
+		Mode:  mode,
+		Flags: flags,
+	}
+	table.Set(key, policy.Bytes())
+
+	return nil
+}
+
 func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 	already := make(map[*KProbe]bool)
 
@@ -383,43 +438,56 @@ func (p *Probe) ApplyRuleSet(rs *eval.RuleSet) error {
 					already[kprobe] = true
 				}
 
+				if kprobe.PolicyTable == "" {
+					continue
+				}
+
+				flags := capabilities.PolicyFlags
+
 				if !p.enableFilters {
-					if kprobe.SetFilterPolicy != nil {
-						log.Infof("Forcing in-kernel filter policy to `pass` for `%s`", eventType)
-						if err := kprobe.SetFilterPolicy(p, POLICY_MODE_ACCEPT); err != nil {
-							return err
-						}
-					}
-					continue
-				}
-
-				eventFilters, err := rs.GetEventFilters(eventType, capabilities...)
-				if err != nil || len(eventFilters) == 0 {
-					if kprobe.SetFilterPolicy != nil {
-						log.Infof("Setting in-kernel filter policy to `pass` for `%s`", eventType)
-						if err := kprobe.SetFilterPolicy(p, POLICY_MODE_ACCEPT); err != nil {
-							return err
-						}
-					}
-					continue
-				}
-
-				if kprobe.SetFilterPolicy != nil {
-					log.Infof("Setting in-kernel filter policy to `deny` for `%s`", eventType)
-					if err := kprobe.SetFilterPolicy(p, POLICY_MODE_DENY); err != nil {
+					log.Infof("Forcing in-kernel filter policy to `pass` for `%s`: filtering not enabled", eventType)
+					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
 						return err
 					}
+					continue
+				}
+
+				eventFilters, err := rs.GetEventFilters(eventType, capabilities.EvalCapabilities...)
+				if err != nil || len(eventFilters) == 0 {
+					log.Infof("Setting in-kernel filter policy to `pass` for `%s`: no filters", eventType)
+					if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
+						return err
+					}
+					continue
+				}
+
+				log.Infof("Setting in-kernel filter policy to `deny` for `%s`", eventType)
+				if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_DENY, flags); err != nil {
+					return err
 				}
 
 				for field, filters := range eventFilters {
 					if kprobe.OnNewFilter == nil {
 						continue
 					}
+
+					// if there is one not filter set the policy to ACCEPT, further filtering will
+					// relies only on discarders.
+					for _, filter := range filters {
+						if filter.Not {
+							log.Infof("Setting in-kernel filter policy to `accept` for `%s`: discarders present", eventType)
+							if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
+								return err
+							}
+							continue
+						}
+					}
+
 					if err := kprobe.OnNewFilter(p, field, filters...); err != nil {
-						if err := kprobe.SetFilterPolicy(p, POLICY_MODE_ACCEPT); err != nil {
+						if err := p.SetFilterPolicy(kprobe.PolicyTable, POLICY_MODE_ACCEPT, flags); err != nil {
 							return err
 						}
-						// error during approver initialization, exit anyway
+
 						return err
 					}
 				}

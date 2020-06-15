@@ -11,7 +11,7 @@ import (
 func TestRename(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `rename.old_filename == "{{.Root}}/test" && rename.new_filename == "{{.Root}}/test2"`,
+		Expression: `rename.old_filename == "{{.Root}}/test-rename" && rename.new_filename == "{{.Root}}/test2-rename"`,
 	}
 
 	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
@@ -20,7 +20,7 @@ func TestRename(t *testing.T) {
 	}
 	defer test.Close()
 
-	testOldFile, testOldFilePtr, err := test.Path("test")
+	testOldFile, testOldFilePtr, err := test.Path("test-rename")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestRename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testNewFile, testNewFilePtr, err := test.Path("test2")
+	testNewFile, testNewFilePtr, err := test.Path("test2-rename")
 	if err != nil {
 		t.Fatal(err)
 	}

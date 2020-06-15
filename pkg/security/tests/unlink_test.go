@@ -11,7 +11,7 @@ import (
 func TestUnlink(t *testing.T) {
 	rule := &policy.RuleDefinition{
 		ID:         "test-rule",
-		Expression: `unlink.filename == "{{.Root}}/test" || unlink.filename == "{{.Root}}/testat"`,
+		Expression: `unlink.filename == "{{.Root}}/test-unlink" || unlink.filename == "{{.Root}}/testat"`,
 	}
 
 	test, err := newTestModule(nil, []*policy.RuleDefinition{rule}, testOpts{})
@@ -20,7 +20,7 @@ func TestUnlink(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("test")
+	testFile, testFilePtr, err := test.Path("test-unlink")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestUnlink(t *testing.T) {
 		}
 	}
 
-	testatFile, testatFilePtr, err := test.Path("testat")
+	testatFile, testatFilePtr, err := test.Path("testat-unlink")
 	if err != nil {
 		t.Fatal(err)
 	}
