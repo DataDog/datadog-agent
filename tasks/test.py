@@ -442,7 +442,7 @@ def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
 
     if sys.platform == 'win32':
         print("shellcheck is not supported on Windows")
-        return 1
+        raise Exit(code=1)
     if sys.platform.startswith('darwin'):
         platform = "darwin"
     if sys.platform.startswith('linux'):
