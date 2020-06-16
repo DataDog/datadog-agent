@@ -1,15 +1,9 @@
 import datetime
 import os
-import re
-import shutil
 import sys
-import shutil
-import tempfile
 from invoke import task
-from invoke.exceptions import Exit
-from subprocess import check_output
 
-from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
+from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
 from .build_tags import get_build_tags, LINUX_ONLY_TAGS
 from .go import generate
 

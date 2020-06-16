@@ -4,17 +4,15 @@ High level testing tasks
 from __future__ import print_function
 
 import os
-import fnmatch
 import re
 import operator
 import sys
 import yaml
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_build_flags, get_version
+from .utils import get_build_flags
 from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
@@ -186,7 +184,7 @@ def lint_teamassignment(ctx):
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         issue = res.json()
         if any([re.match('team/', l['name']) for l in issue.get('labels', {})]):
-            print("Team Assignment: %s" % l['name'])
+            print("Team Assignment: %s" % l['name'])  # noqa: F821
             return
 
         print("PR %s requires team assignment" % pr_url)
@@ -349,7 +347,7 @@ def e2e_tests(ctx, target="gitlab", image=""):
 
 class TestProfiler:
     times = []
-    parser = re.compile("^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
+    parser = re.compile(r"^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
 
     def write(self, txt):
         # Output to stdout
@@ -411,7 +409,7 @@ def make_kitchen_gitlab_yml(ctx):
             v['needs'] = new_needed
 
     with open('.gitlab-ci.yml', 'w') as f:
-        documents = yaml.dump(data, f, default_style='"')
+       yaml.dump(data, f, default_style='"')
 
 @task
 def check_gitlab_broken_dependencies(ctx):
@@ -434,6 +432,17 @@ def check_gitlab_broken_dependencies(ctx):
                     if is_unwanted(data[need], version):
                         print("{} needs on {} but it won't be built for A{}".format(k, need, version))
 
+
+@task
+def lint_python(ctx):
+    """
+    Lints Python files.
+    See 'setup.cfg' file for configuration
+    """
+
+    ctx.run("flake8 .")
+
+    
 @task
 def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
     """

@@ -63,6 +63,7 @@ jobs:
           command: |
             pip install wheel
             pip install -r requirements.txt
+            pip3 install flake8==3.8.3 flake8-bugbear==20.1.4
       - run:
           name: grab go deps
           command: |
@@ -93,6 +94,7 @@ jobs:
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
+            - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 
   unit_tests:
@@ -172,6 +174,15 @@ jobs:
           #SC2028: echo may not expand escape sequences. Use printf.
           #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
           command: shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
+
+  python_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: lint python files
+          command: inv -e lint-python
 
   docker_tests:
     <<: *job_template
@@ -296,6 +307,9 @@ workflows:
           requires:
             - dependencies
       - shell_linting:
+          requires:
+            - dependencies
+      - python_linting:
           requires:
             - dependencies
       - docker_tests:
