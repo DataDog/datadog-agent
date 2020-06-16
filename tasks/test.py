@@ -425,7 +425,7 @@ class TestProfiler:
 
 
 @task
-def make_simple_gitlab_yml(ctx, jobs_to_run, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False):
+def make_simple_gitlab_yml(ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False):
     """
     Replaces .gitlab-ci.yml with one containing only the steps needed to run the given jobs.
 
@@ -438,32 +438,34 @@ def make_simple_gitlab_yml(ctx, jobs_to_run, yml_file_src='.gitlab-ci.yml', yml_
     with open(yml_file_src) as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
-    jobs_to_run = set(jobs_to_run.split(','))
-    jobs = set(['stages','variables','include','default'])
-    while jobs_to_run:
-        job = jobs_to_run.pop()
-        if job in data:
-            jobs.add(job)
-            jobs_to_run.update(data[job].get('extends', []))
-            if dont_include_deps:
-                del data[job]['needs']
-            else:
-                jobs_to_run.update(data[job].get('needs', []))
+    jobs_processed = set(['stages','variables','include','default'])
+    jobs_to_process = set(jobs_to_process.split(','))
+    while jobs_to_process:
+        job_name = jobs_to_process.pop()
+        if job_name in data:
+            job = data[job_name]
+            jobs_processed.add(job_name)
+            needs = job.get("needs", None)
+            if needs is not None:
+                jobs_to_process.update(needs)
+            extends = job.get("extends", None)
+            if extends is not None:
+                if isinstance(extends, str):
+                    extends = [extends]
+                jobs_to_process.update(extends)
 
     out = copy.deepcopy(data)
-    stages = []
+    #stages = []
     for k,v in data.items():
-        # Always include anchors - they don't add additional time to run in the pipeline
-        # and it simplifies things.
-        if k not in jobs and not str.startswith(k, '.'):
+        if k not in jobs_processed:
             del out[k]
             continue
         if not isinstance(v, dict):
             continue
         stage = v.get('stage', None)
-        if stage is not None and stage not in stages:
-            stages.append(stage)
-    out['stages'] = stages
+        #if stage is not None and stage not in stages:
+        #    stages.append(stage)
+    #out['stages'] = stages
 
     with open(yml_file_dest, 'w') as f:
         documents = yaml.dump(out, f)
