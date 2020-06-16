@@ -12,9 +12,8 @@ func main() {
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
-	exit := make(chan struct{})
 
-	runAgent(exit)
+	runAgent(make(chan struct{}))
 }
 
 func runCheck(cfg *config.AgentConfig) {
