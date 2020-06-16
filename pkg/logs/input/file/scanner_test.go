@@ -122,12 +122,12 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content))
 
-	tailer = s.tailers[source.Config.Path]
+	tailer = s.tailers[fmt.Sprintf("%s/%s", suite.testPath, source.Config.Identifier)]
 	os.Rename(suite.testPath, suite.testRotatedPath)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	s.scan()
-	newTailer = s.tailers[source.Config.Path]
+	newTailer = s.tailers[fmt.Sprintf("%s/%s", suite.testPath, source.Config.Identifier)]
 	suite.True(tailer != newTailer)
 
 	_, err = f.WriteString("hello again\n")
@@ -145,7 +145,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	var err error
 	var msg *message.Message
 
-	tailer = s.tailers[source.Config.Path]
+	tailer = s.tailers[fmt.Sprintf("%s/%s", suite.testPath, source.Config.Identifier)]
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
@@ -158,7 +158,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	suite.Nil(err)
 
 	s.scan()
-	newTailer = s.tailers[source.Config.Path]
+	newTailer = s.tailers[fmt.Sprintf("%s/%s", suite.testPath, source.Config.Identifier)]
 	suite.True(tailer != newTailer)
 
 	msg = <-suite.outputChan
@@ -233,7 +233,7 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 	// test scan from beginning
 	scanner.scan()
 	assert.Equal(t, 1, len(scanner.tailers))
-	tailer = scanner.tailers[path]
+	tailer = scanner.tailers[fmt.Sprintf("%s/%s", path, source.Config.Identifier)]
 	msg = <-tailer.outputChan
 	assert.Equal(t, "hello", string(msg.Content))
 	msg = <-tailer.outputChan
@@ -281,7 +281,7 @@ func TestScannerTailFromTheBeginning(t *testing.T) {
 	_, err = file.WriteString("Time\n")
 	assert.Nil(t, err)
 
-	tailer = scanner.tailers[path]
+	tailer = scanner.tailers[fmt.Sprintf("%s/%s", path, source.Config.Identifier)]
 	msg = <-tailer.outputChan
 	assert.Equal(t, "Once", string(msg.Content))
 	msg = <-tailer.outputChan

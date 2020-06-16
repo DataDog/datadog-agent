@@ -102,6 +102,19 @@ func (t *Tailer) Identifier() string {
 	return fmt.Sprintf("file:%s", t.path)
 }
 
+// getPath returns the file path
+func (t *Tailer) getPath() string {
+	return t.path
+}
+
+// getSourceIdentifier returns the source config identifier
+func (t *Tailer) getSourceIdentifier() string {
+	if t.source != nil && t.source.Config != nil {
+		return t.source.Config.Identifier
+	}
+	return ""
+}
+
 // Start let's the tailer open a file and tail from whence
 func (t *Tailer) Start(offset int64, whence int) error {
 	err := t.setup(offset, whence)
