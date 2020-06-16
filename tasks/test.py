@@ -76,13 +76,14 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     print("--- go generating:")
     generate(ctx)
 
+    print("--- Linting licenses:")
+    lint_licenses(ctx)
+
     if skip_linters:
         print("--- [skipping linters]")
     else:
         print("--- Linting filenames:")
         lint_filenames(ctx)
-        print("--- Linting licenses:")
-        lint_licenses(ctx)
 
         # Until all packages whitelisted in .golangci.yml are fixed and removed
         # from the 'skip-dirs' list we need to keep using the old functions that
