@@ -497,7 +497,8 @@ func TestMacroList(t *testing.T) {
 	}
 
 	expr = `"/etc/shadow" in list`
-	evaluator, _, err := parse(t, expr, &testModel{event: &testEvent{}}, &Opts{}, macros)
+	opts := NewOptsWithParams(false, make(map[string]interface{}))
+	evaluator, _, err := parse(t, expr, &testModel{event: &testEvent{}}, &opts, macros)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -529,7 +530,8 @@ func TestMacroExpression(t *testing.T) {
 	}
 
 	expr = `process.name == "httpd" && is_passwd`
-	evaluator, _, err := parse(t, expr, &testModel{event: &event}, &Opts{}, macros)
+	opts := NewOptsWithParams(false, make(map[string]interface{}))
+	evaluator, _, err := parse(t, expr, &testModel{event: &event}, &opts, macros)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
@@ -559,17 +561,17 @@ func TestMacroPartial(t *testing.T) {
 
 	expr = `is_passwd`
 	model := &testModel{event: &event}
-	opts := &Opts{}
+	opts := NewOptsWithParams(false, make(map[string]interface{}))
 	field := "open.filename"
 
-	evaluator, rule, err := parse(t, expr, model, opts, macros)
+	evaluator, rule, err := parse(t, expr, model, &opts, macros)
 	if err != nil {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 	// generate macro partials
-	generateMacroEvaluators(t, field, model, opts, macros)
+	generateMacroEvaluators(t, field, model, &opts, macros)
 	// generate rule partials
-	generatePartials(t, field, model, opts, evaluator, rule)
+	generatePartials(t, field, model, &opts, evaluator, rule)
 
 	result, err := evaluator.PartialEval(&Context{}, field)
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
 type testFieldValues map[string][]interface{}
@@ -48,30 +47,21 @@ func (f *testHandler) EventDiscarderFound(event Event, field string) {
 }
 
 func addRuleExpr(t *testing.T, rs *RuleSet, expr string) {
-	astRule, err := ast.ParseRule(expr)
-	if err != nil {
-		t.Fatal(err)
-	}
 	ruleDef := &policy.RuleDefinition{
 		ID:         "rule_test",
 		Expression: expr,
 		Tags:       make(map[string]string),
-		Ast:        astRule,
 	}
 	if _, err := rs.AddRule(ruleDef); err != nil {
 		t.Fatal(err)
 	}
-	macros := map[string]*policy.MacroDefinition{}
-	rules := map[string]*policy.RuleDefinition{
-		ruleDef.ID: ruleDef,
-	}
-	if err := rs.GeneratePartials(macros, rules); err != nil {
+	if err := rs.GeneratePartials(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRuleBuckets(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 	addRuleExpr(t, rs, `(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`)
 	addRuleExpr(t, rs, `(mkdir.filename =~ "/sbin/*" || mkdir.filename =~ "/usr/sbin/*") && process.uid != 0`)
 
@@ -153,7 +143,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 }
 
 func TestRuleSetScalarFilters(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, `(open.filename == "/etc/passwd" || open.filename == "/etc/shadow") && process.uid != 0`)
 	addRuleExpr(t, rs, `open.flags & O_CREAT > 0 && process.uid != 0`)
@@ -187,7 +177,7 @@ func TestRuleSetScalarFilters(t *testing.T) {
 }
 
 func TestRuleSetFilteringCapabilities(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.uid != 0`)
 
@@ -220,7 +210,7 @@ func TestRuleSetFilteringCapabilities(t *testing.T) {
 }
 
 func TestRuleSetTwoFieldFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, `open.filename == "/etc/passwd" && process.uid == process.gid`)
 
@@ -250,7 +240,7 @@ func TestRuleSetTwoFieldFilter(t *testing.T) {
 }
 
 func TestRuleSetPatternFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, `open.filename =~ "/etc/*" && process.uid != 0`)
 
@@ -271,7 +261,7 @@ func TestRuleSetPatternFilter(t *testing.T) {
 }
 
 func TestRuleSetNotFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, `open.filename !~ "/etc/*" && process.uid != 0`)
 
@@ -301,7 +291,7 @@ func TestRuleSetNotFilter(t *testing.T) {
 }
 
 func TestRuleSetInFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, `open.filename in ["/etc/passwd", "/etc/shadow"]`)
 
@@ -327,7 +317,7 @@ func TestRuleSetInFilter(t *testing.T) {
 }
 
 func TestRuleSetNotInFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, `open.filename not in ["/etc/passwd", "/etc/shadow"]`)
 
@@ -357,7 +347,7 @@ func TestRuleSetNotInFilter(t *testing.T) {
 }
 
 func TestRuleSetBitOpFilter(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, `open.flags & O_CREAT > 0`)
 
@@ -383,7 +373,7 @@ func TestRuleSetBitOpFilter(t *testing.T) {
 }
 
 func TestRuleSetOppositeFilters(t *testing.T) {
-	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, Opts{Debug: true, Constants: testConstants})
+	rs := NewRuleSet(&testModel{}, func() Event { return &testEvent{} }, NewOptsWithParams(true, testConstants))
 
 	addRuleExpr(t, rs, `open.filename == "/etc/passwd"`)
 	addRuleExpr(t, rs, `open.filename != "/etc/passwd" && open.flags & O_CREAT > 0`)
