@@ -1,7 +1,6 @@
 package eval
 
 import (
-	"fmt"
 	"math/rand"
 	"reflect"
 	"sort"
@@ -52,6 +51,7 @@ func (rl *RuleBucket) GetRules() []*Rule {
 type RuleSet struct {
 	opts             Opts
 	eventRuleBuckets map[string]*RuleBucket
+	macros           map[string]*Macro
 	model            Model
 	eventCtor        func() Event
 	listeners        []RuleSetListener
@@ -59,12 +59,12 @@ type RuleSet struct {
 	fields []string
 }
 
-// GenerateMacroEvaluators - Generates the macros evaluators for the provided list of macro ASTs. If a field is provided,
-// the function will return the macro partials.
-func (rs *RuleSet) GenerateMacroEvaluators(field string, macros map[string]*policy.MacroDefinition) error {
+// GenerateMacroEvaluators - Generates the macros evaluators for the list of macros of the ruleset. If a field is provided,
+// the function will compute the macro partials.
+func (rs *RuleSet) GenerateMacroEvaluators(field string) error {
 	macroEvaluators := make(map[string]*MacroEvaluator)
-	for name, macro := range macros {
-		eval, err := MacroToEvaluator(macro.Ast, rs.model, &rs.opts, field)
+	for name, macro := range rs.macros {
+		eval, err := MacroToEvaluator(macro.ast, rs.model, &rs.opts, field)
 		if err != nil {
 			if err, ok := err.(*AstToEvalError); ok {
 				log.Errorf("macro syntax error: %s\n%s", err, secl.SprintExprAt(macro.Expression, err.Pos))
@@ -79,10 +79,54 @@ func (rs *RuleSet) GenerateMacroEvaluators(field string, macros map[string]*poli
 	return nil
 }
 
-// AddRule - Creates rule evaluator and adds it to the bucket of its events
+// AddMacro - Parse the macros AST and add them to the list of macros of the ruleset
+func (rs *RuleSet) AddMacros(macros map[string]*policy.MacroDefinition) error {
+	// Build the list of macros for the ruleset
+	for id, m := range macros {
+		macro := &Macro{
+			ID:         m.ID,
+			Expression: m.Expression,
+		}
+		// Generate Macro AST
+		if err := macro.LoadAST(); err != nil {
+			return errors.Wrapf(err, "couldn't generate a macro AST of the macro %s", id)
+		}
+		rs.macros[id] = macro
+	}
+	// Generate macro evaluators. The input "field" is therefore empty, we are not generating partials yet.
+	if err := rs.GenerateMacroEvaluators(""); err != nil {
+		return errors.Wrap(err, "couldn't generate macros evaluators")
+	}
+	return nil
+}
+
+// AddRules - Adds rules to the ruleset and generate their partials
+func (rs *RuleSet) AddRules(rules map[string]*policy.RuleDefinition) error {
+	for _, ruleDef := range rules {
+		_, err := rs.AddRule(ruleDef)
+		if err != nil {
+			return errors.Wrapf(err, "couldn't add rule %s to the ruleset", ruleDef.ID)
+		}
+	}
+	// Generate partials
+	if err := rs.GeneratePartials(); err != nil {
+		return errors.Wrap(err, "couldn't generate partials")
+	}
+	return nil
+}
+// AddRule - Creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*Rule, error) {
+	rule := &Rule{
+		ID:         ruleDef.ID,
+		Expression: ruleDef.Expression,
+		Tags:       ruleDef.GetTags(),
+	}
+	// Generate ast
+	if err := rule.LoadAST(); err != nil {
+		return nil, err
+	}
 	// Generate rule evaluator
-	evaluator, err := RuleToEvaluator(ruleDef.Ast, rs.model, &rs.opts)
+	evaluator, err := RuleToEvaluator(rule.ast, rs.model, &rs.opts)
 	if err != nil {
 		if err, ok := err.(*AstToEvalError); ok {
 			log.Errorf("rule syntax error: %s\n%s", err, secl.SprintExprAt(ruleDef.Expression, err.Pos))
@@ -91,13 +135,7 @@ func (rs *RuleSet) AddRule(ruleDef *policy.RuleDefinition) (*Rule, error) {
 		}
 		return nil, err
 	}
-
-	rule := &Rule{
-		ID:         ruleDef.ID,
-		Expression: ruleDef.Ast.Expr,
-		evaluator:  evaluator,
-		Tags:       ruleDef.GetTags(),
-	}
+	rule.evaluator = evaluator
 
 	for _, event := range evaluator.EventTypes {
 		bucket, exists := rs.eventRuleBuckets[event]
@@ -383,10 +421,10 @@ NewFields:
 // GeneratePartials - Generate the partials of the ruleset. A partial is a boolean evalution function that only depends
 // on one field. The goal of partial is to determine if a rule depends on a specific field, so that we can decide if
 // we should create an in-kernel filter for that field.
-func (rs *RuleSet) GeneratePartials(macros map[string]*policy.MacroDefinition, rules map[string]*policy.RuleDefinition) error {
+func (rs *RuleSet) GeneratePartials() error {
 	// Compute the macros partials for each fields of the ruleset first.
 	for _, field := range rs.fields {
-		if err := rs.GenerateMacroEvaluators(field, macros); err != nil {
+		if err := rs.GenerateMacroEvaluators(field); err != nil {
 			return err
 		}
 	}
@@ -400,19 +438,14 @@ func (rs *RuleSet) GeneratePartials(macros map[string]*policy.MacroDefinition, r
 			}
 			// Only generate partials for the fields of the rule
 			for _, field := range rule.evaluator.GetFields() {
-				state := newStateWithMacros(rs.model, field, rs.opts.GetMacroEvaluators(field))
-				// Get the ast of the rule
-				ruleDef, ok := rules[rule.ID]
-				if !ok {
-					return fmt.Errorf("couldn't find rule %s in the provided rules", rule.ID)
-				}
-				pEval, _, _, err := nodeToEvaluator(ruleDef.Ast.BooleanExpression, &rs.opts, state)
+				state := newState(rs.model, field, rs.opts.GetMacroEvaluators(field))
+				pEval, _, _, err := nodeToEvaluator(rule.ast.BooleanExpression, &rs.opts, state)
 				if err != nil {
 					return errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, rule.ID)
 				}
 				pEvalBool, ok := pEval.(*BoolEvaluator)
 				if !ok {
-					return NewTypeError(ruleDef.Ast.Pos, reflect.Bool)
+					return NewTypeError(rule.ast.Pos, reflect.Bool)
 				}
 				if pEvalBool.EvalFnc == nil {
 					pEvalBool.EvalFnc = func(ctx *Context) bool {
@@ -433,6 +466,7 @@ func NewRuleSet(model Model, eventCtor func() Event, opts Opts) *RuleSet {
 		eventCtor:        eventCtor,
 		opts:             opts,
 		eventRuleBuckets: make(map[string]*RuleBucket),
+		macros:           make(map[string]*Macro),
 		fields:           []string{},
 	}
 }
