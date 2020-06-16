@@ -16,7 +16,6 @@ import (
 	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -305,13 +304,14 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 // - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
 // - formats the bundle and submit the Datadog event
 func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event) error {
-	eventsByObject := make(map[types.UID]*kubernetesEventBundle)
+	eventsByObject := make(map[string]*kubernetesEventBundle)
 
 	for _, event := range events {
-		bundle, found := eventsByObject[event.InvolvedObject.UID]
+		id := bundleID(event)
+		bundle, found := eventsByObject[id]
 		if found == false {
-			bundle = newKubernetesEventBundler(event.InvolvedObject.UID, event.Source.Component)
-			eventsByObject[event.InvolvedObject.UID] = bundle
+			bundle = newKubernetesEventBundler(event)
+			eventsByObject[id] = bundle
 		}
 		err := bundle.addEvent(event)
 		if err != nil {
@@ -328,6 +328,12 @@ func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 		sender.Event(datadogEv)
 	}
 	return nil
+}
+
+// bundleID generates a unique ID to separate k8s events
+// based on their InvolvedObject UIDs and event Types
+func bundleID(e *v1.Event) string {
+	return fmt.Sprintf("%s/%s", e.InvolvedObject.UID, e.Type)
 }
 
 func init() {

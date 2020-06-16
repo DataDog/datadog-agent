@@ -9,8 +9,8 @@ set(PKGS
 	"../../test/uutil/..."
 	"../../test/common/..."
 	"../../test/tagger/..."
-    "../../test/kubeutil/..."
-    "../../test/containers/..."
+	"../../test/kubeutil/..."
+	"../../test/containers/..."
 )
 
 if (WIN32)

@@ -18,6 +18,7 @@ EXPOSE 8125/udp 8126/tcp
 COPY entrypoint.ps1 .
 ADD entrypoint-ps1 ./entrypoint-ps1
 COPY datadog*.yaml C:/ProgramData/Datadog/
+COPY install_info C:/ProgramData/Datadog/
 
 ENTRYPOINT ["pwsh", "./entrypoint.ps1"]
 CMD ["agent", "run"]

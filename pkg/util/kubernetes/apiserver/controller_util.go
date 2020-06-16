@@ -53,12 +53,7 @@ func NewAutoscalersController(client kubernetes.Interface, eventRecorder record.
 	}
 
 	// Setup the client to process the Ref and metrics
-	h.hpaProc, err = autoscalers.NewProcessor(dogCl)
-	if err != nil {
-		log.Errorf("Could not instantiate the Ref Processor: %v", err.Error())
-		return nil, err
-	}
-
+	h.hpaProc = autoscalers.NewProcessor(dogCl)
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
 	h.store, err = custommetrics.NewConfigMapStore(client, common.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {

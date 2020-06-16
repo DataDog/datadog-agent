@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -380,41 +381,104 @@ func TestExtraTags(t *testing.T) {
 	}
 }
 
+func TestDebugStatsSpike(t *testing.T) {
+	assert := assert.New(t)
+	agg := mockAggregator()
+	s, err := NewServer(agg)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	s.EnableMetricsStats()
+	sample := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
+
+	send := func(count int) {
+		for i := 0; i < count; i++ {
+			s.storeMetricStats(sample)
+		}
+	}
+
+	send(10)
+	time.Sleep(1050 * time.Millisecond)
+	send(10)
+	time.Sleep(1050 * time.Millisecond)
+	send(10)
+	time.Sleep(1050 * time.Millisecond)
+	send(10)
+	time.Sleep(1050 * time.Millisecond)
+	send(500)
+
+	// stop the debug loop to avoid data race
+	s.DisableMetricsStats()
+	assert.True(s.hasSpike())
+
+	s.EnableMetricsStats()
+	time.Sleep(1050 * time.Millisecond)
+	send(500)
+
+	// stop the debug loop to avoid data race
+	s.DisableMetricsStats()
+	// it is no more considered a spike because we had another second with 500 metrics
+	assert.False(s.hasSpike())
+}
+
 func TestDebugStats(t *testing.T) {
 	agg := mockAggregator()
 	s, err := NewServer(agg)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
-	s.storeMetricStats("some.metric1")
-	s.storeMetricStats("some.metric2")
+	s.EnableMetricsStats()
+
+	keygen := ckey.NewKeyGenerator()
+
+	// data
+	sample1 := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
+	sample2 := metrics.MetricSample{Name: "some.metric2", Tags: []string{"a"}}
+	sample3 := metrics.MetricSample{Name: "some.metric3", Tags: make([]string, 0)}
+	sample4 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"b", "c"}}
+	sample5 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"c", "b"}}
+	hash1 := keygen.Generate(sample1.Name, "", sample1.Tags)
+	hash2 := keygen.Generate(sample2.Name, "", sample2.Tags)
+	hash3 := keygen.Generate(sample3.Name, "", sample3.Tags)
+	hash4 := keygen.Generate(sample4.Name, "", sample4.Tags)
+	hash5 := keygen.Generate(sample5.Name, "", sample5.Tags)
+
+	// test ingestion and ingestion time
+	s.storeMetricStats(sample1)
+	s.storeMetricStats(sample2)
 	time.Sleep(10 * time.Millisecond)
-	s.storeMetricStats("some.metric1")
+	s.storeMetricStats(sample1)
 
 	data, err := s.GetJSONDebugStats()
 	require.NoError(t, err, "cannot get debug stats")
 	require.NotNil(t, data)
 	require.NotEmpty(t, data)
 
-	var stats map[string]metricStat
+	var stats map[ckey.ContextKey]metricStat
 	err = json.Unmarshal(data, &stats)
 	require.NoError(t, err, "data is not valid")
 	require.Len(t, stats, 2, "two metrics should have been captured")
 
-	require.True(t, stats["some.metric1"].LastSeen.After(stats["some.metric2"].LastSeen), "some.metric1 should have appeared again after sometag2")
+	require.True(t, stats[hash1].LastSeen.After(stats[hash2].LastSeen), "some.metric1 should have appeared again after some.metric2")
 
-	s.storeMetricStats("some.metric3")
+	s.storeMetricStats(sample3)
 	time.Sleep(10 * time.Millisecond)
-	s.storeMetricStats("some.metric1")
+	s.storeMetricStats(sample1)
 
+	s.storeMetricStats(sample4)
+	s.storeMetricStats(sample5)
 	data, _ = s.GetJSONDebugStats()
 	err = json.Unmarshal(data, &stats)
 	require.NoError(t, err, "data is not valid")
-	require.Len(t, stats, 3, "three metrics should have been captured")
+	require.Len(t, stats, 4, "4 metrics should have been captured")
 
-	metric1 := stats["some.metric1"]
-	metric2 := stats["some.metric2"]
-	metric3 := stats["some.metric3"]
+	// test stats array
+	metric1 := stats[hash1]
+	metric2 := stats[hash2]
+	metric3 := stats[hash3]
+	metric4 := stats[hash4]
+	metric5 := stats[hash5]
+
 	require.True(t, metric1.LastSeen.After(metric2.LastSeen), "some.metric1 should have appeared again after some.metric2")
 	require.True(t, metric1.LastSeen.After(metric3.LastSeen), "some.metric1 should have appeared again after some.metric3")
 	require.True(t, metric3.LastSeen.After(metric2.LastSeen), "some.metric3 should have appeared again after some.metric2")
@@ -422,6 +486,11 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric1.Count, uint64(3))
 	require.Equal(t, metric2.Count, uint64(1))
 	require.Equal(t, metric3.Count, uint64(1))
+
+	// test context correctness
+	require.Equal(t, metric4.Tags, "b c")
+	require.Equal(t, metric5.Tags, "b c")
+	require.Equal(t, hash4, hash5)
 }
 
 func TestNoMappingsConfig(t *testing.T) {

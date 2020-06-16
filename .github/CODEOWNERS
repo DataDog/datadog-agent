@@ -26,7 +26,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
 /cmd/system-probe/                      @DataDog/networks
-/cmd/security-agent                     @DataDog/container-integrations
+/cmd/security-agent/                    @DataDog/container-integrations
 
 /Dockerfiles/                           @DataDog/container-integrations
 
@@ -89,8 +89,8 @@
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
-/pkg/quantile                           @DataDog/metrics-aggregation
-/pkg/compliance                         @DataDog/container-integrations
+/pkg/quantile/                           @DataDog/metrics-aggregation
+/pkg/compliance/                         @DataDog/container-integrations
 
 /releasenotes/                          @DataDog/agent-all
 /releasenotes-dca/                      @DataDog/container-integrations
@@ -104,11 +104,11 @@
 /tasks/system-probe.py                  @DataDog/networks
 /tasks/trace.py                         @DataDog/apm-agent
 
-/test/benchmarks                        @DataDog/agent-core
-/test/e2e                               @DataDog/container-integrations
-/test/integration                       @DataDog/agent-all
-/test/kitchen                           @DataDog/agent-platform
-/test/system                            @DataDog/agent-core
-/test/util                              @DataDog/agent-all
+/test/benchmarks/                       @DataDog/agent-core
+/test/e2e/                              @DataDog/container-integrations
+/test/integration/                      @DataDog/agent-all
+/test/kitchen/                          @DataDog/agent-platform
+/test/system/                           @DataDog/agent-core
+/test/util/                             @DataDog/agent-all
 
 /tools/ebpf/                            @DataDog/networks

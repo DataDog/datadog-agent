@@ -257,6 +257,7 @@ api_key:
 
 {{ end }}
 {{- if .Agent }}
+{{- if .Python }}
 {{- if .BothPythonPresent -}}
 ## @param python_version - integer - optional - default: 2
 ## The major version of Python used to run integrations and custom checks.
@@ -265,6 +266,7 @@ api_key:
 #
 # python_version: 2
 
+{{ end -}}
 {{ end }}
 
 ############################
@@ -346,7 +348,7 @@ api_key:
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
 # procfs_path: <PROCFS_PATH>
-
+{{ if .Python }}
 ## @param disable_py3_validation - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
 #
@@ -387,7 +389,7 @@ api_key:
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
-
+{{ end }}
 ## @param secret_backend_command - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
@@ -412,6 +414,137 @@ api_key:
 ## The timeout to execute the command in second
 #
 # secret_backend_timeout: 5
+
+## @param snmp_listener - custom object - optional
+## Creates and schedules a listener to automatically discover your SNMP devices.
+## Discovered devices can then be monitored with the SNMP integration by using
+## the auto_conf.yaml file provided by default.
+#
+# snmp_listener:
+
+  ## @param workers - integer - optional - default: 2
+  ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
+  ## discovers devices faster but at the cost of increased resource consumption.
+  #
+  # workers: 2
+
+  ## @param discovery_interval - integer - optional - default: 3600
+  ## How often to discover new SNMP devices, in seconds. Decreasing this value
+  ## discovers devices faster (within the limit of the time taken to scan subnets)
+  ## but at the cost of increased resource consumption.
+  #
+  # discovery_interval: 3600
+
+  ## @param allowed_failures - integer - optional - default: 3
+  ## The number of failed requests to a given SNMP device before removing it from the list of monitored
+  ## devices.
+  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * allowed_failures` seconds.
+  #
+  # allowed_failures: 3
+
+  ## @param configs - list - required
+  ## The actual list of configurations used to discover SNMP devices in various subnets.
+  ## Example:
+  ## configs:
+  ##  - network: 10.0.0.0/24
+  ##    version: 1
+  ##    community: public
+  ##  - network: 10.0.1.0/28
+  ##    community: public
+  ##    ignored_ip_addresses:
+  ##      - 10.0.1.0
+  ##      - 10.0.1.1
+  #
+  # configs:
+    ## @param network - string - required
+    ## The subnet in CIDR format to scan for SNMP devices.
+    ## All unignored IP addresses in the CIDR range are scanned.
+    ## For optimal discovery time, be sure to use the smallest network mask
+    ## possible as is appropriate for your network topology.
+    ## Ex: 10.0.1.0/24
+    #
+    # - network: <NETWORK>
+
+    ## @param ignored_ip_addresses - list of strings - optional
+    ## A list of IP addresses to ignore when scanning the network.
+    #
+    # ignored_ip_addresses:
+    #   - <IP_ADDRESS_1>
+    #   - <IP_ADDRESS_2>
+
+    ## @param port - integer - optional - default: 161
+    ## The UDP port to use when connecting to SNMP devices.
+    #
+    # port: 161
+
+    ## @param version - integer - optional - default: <BEST_GUESS>
+    ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
+    ## If unset, the Agent tries to guess the correct version based on other configuration
+    ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
+    #
+    # version: <VERSION>
+
+    ## @param timeout - integer - optional - default: 5
+    ## The number of seconds before timing out.
+    #
+    # timeout: 5
+
+    ## @param retries - integer - optional - default: 3
+    ## The number of retries before failure.
+    #
+    # retries: 3
+
+    ## @param community - string - optional
+    ## Required for SNMP v1 & v2.
+    ## Ex: 'public'
+    #
+    # community: <COMMUNITY>
+
+    ## @param user - string - optional
+    ## The username to connect to your SNMP devices.
+    ## SNMPv3 only.
+    #
+    # user: <USERNAME>
+
+    ## @param authentication_key - string - optional
+    ## The passphrase to use with your Authentication type.
+    ## SNMPv3 only.
+    #
+    # authentication_key: <AUTHENTICATION_KEY>
+
+    ## @param authentication_protocol - string - optional
+    ## The authentication protocol to use when connecting to your SNMP devices.
+    ## Available options are: MD5, SHA.
+    ## Defaults to MD5 when `authentication_key` is specified.
+    ## SNMPv3 only.
+    #
+    # authentication_protocol: <AUTHENTICATION_PROTOCOL>
+
+    ## @param privacy_key - string - optional
+    ## The passphrase to use with your privacy protocol.
+    ## SNMPv3 only.
+    #
+    # privacy_key: <PRIVACY_KEY>
+
+    ## @param privacy_protocol - string - optional
+    ## The privacy protocol to use when connecting to your SNMP devices.
+    ## Available options are: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
+    ## Defaults to DES when `privacy_key` is specified.
+    ## SNMPv3 only.
+    #
+    # privacy_protocol: <PRIVACY_PROTOCOL>
+
+    ## @param context_name - string - optional
+    ## The name of your context (optional SNMP v3-only parameter).
+    #
+    # context_name: <CONTEXT_NAME>
+
+    ## @param ad_identifier - string - optional - default: snmp
+    ## A unique identifier to attach to devices from that subnetwork.
+    ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
+    ## specify the corresponding ad_identifier at the top of the file.
+    #
+    # ad_identifier: snmp
 
 {{ end -}}
 {{- if .LogsAgent }}
@@ -724,9 +857,9 @@ api_key:
 {{ end -}}
 {{- if .Dogstatsd }}
 
-############################
+#############################
 ## DogStatsD Configuration ##
-############################
+#############################
 
 ## @param use_dogstatsd - boolean - optional - default: true
 ## Set this option to false to disable the Agent DogStatsD server.
@@ -1044,6 +1177,11 @@ api_key:
 ## If TLS enabled, you may enforce TLS verification here.
 #
 # syslog_tls_verify: true
+
+## @param log_format_rfc3339 - boolean - optional - default false
+## If enabled the Agent will log using the RFC3339 format for the log time.
+#
+# log_format_rfc3339: false
 
 {{ end -}}
 {{- if .Autoconfig }}
