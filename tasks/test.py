@@ -447,15 +447,13 @@ def make_simple_gitlab_yml(ctx, jobs_to_run, yml_file_src='.gitlab-ci.yml', yml_
             if dont_include_deps:
                 del data[job]['needs']
             else:
-                needs = data[job].get('needs')
-                if needs is not None:
-                    for dep_k in needs:
-                        jobs_to_run.add(dep_k)
+                needs = data[job].get('needs', [])
+                jobs_to_run.update(needs)
 
     out = copy.deepcopy(data)
     stages = []
     for k,v in data.items():
-        if not k in jobs and not str.startswith(k, '.'):
+        if k not in jobs and not str.startswith(k, '.'):
             del out[k]
             continue
         if not isinstance(v, dict):
