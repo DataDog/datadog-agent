@@ -45,7 +45,7 @@ func staticFactory() Collector {
 }
 
 func init() {
-	// Only register collector if it is a Fargate instance
+	// Only register collector if it is an ECS Fargate or EKS Fargate instance
 	if fargate.IsFargateInstance() {
 		registerCollector(staticCollectorName, staticFactory, NodeOrchestrator)
 	}
