@@ -28,9 +28,10 @@ enum event_type
     EVENT_VFS_MKDIR,
     EVENT_VFS_LINK,
     EVENT_VFS_RENAME,
-    EVENT_VFS_SETATTR,
     EVENT_VFS_UNLINK,
     EVENT_VFS_RMDIR,
+    EVENT_VFS_CHMOD,
+    EVENT_VFS_CHOWN,
 };
 
 struct event_t {

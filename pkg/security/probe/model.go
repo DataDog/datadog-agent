@@ -29,13 +29,94 @@ func (m *Model) GetEvent() eval.Event {
 	return m.event
 }
 
-type OpenEvent struct {
-	Flags       uint32 `yaml:"flags" field:"flags" event:"open"`
-	Mode        uint32 `yaml:"mode" field:"mode" event:"open"`
-	Inode       uint64 `field:"inode" event:"open"`
+type ChmodEvent struct {
+	Mode        int32  `field:"mode"`
 	Dev         uint32 `field:"-"`
-	PathnameStr string `field:"filename" handler:"ResolveInode,string" event:"open"`
-	BasenameStr string `field:"basename" handler:"ResolveBasename,string" event:"open"`
+	Inode       uint64 `field:"inode"`
+	PathnameStr string `field:"filename" handler:"ResolveInode,string"`
+}
+
+func (e *ChmodEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	if e.Inode == 0 {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"mode":%d`, e.Mode)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, NotEnoughData
+	}
+	e.Mode = int32(byteOrder.Uint32(data[0:4]))
+	e.Dev = byteOrder.Uint32(data[4:8])
+	e.Inode = byteOrder.Uint64(data[8:16])
+	return 16, nil
+}
+
+func (e *ChmodEvent) ResolveInode(resolvers *Resolvers) string {
+	if len(e.PathnameStr) == 0 {
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Dev, e.Inode)
+	}
+	return e.PathnameStr
+}
+
+type ChownEvent struct {
+	UID         int32  `field:"uid"`
+	GID         int32  `field:"gid"`
+	Dev         uint32 `field:"-"`
+	Inode       uint64 `field:"inode"`
+	PathnameStr string `field:"filename" handler:"ResolveInode,string"`
+}
+
+func (e *ChownEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	if e.Inode == 0 {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d,`, e.Inode)
+	fmt.Fprintf(&buf, `"uid":%d,`, e.UID)
+	fmt.Fprintf(&buf, `"gid":%d`, e.GID)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 24 {
+		return 0, NotEnoughData
+	}
+	e.UID = int32(byteOrder.Uint32(data[0:4]))
+	e.GID = int32(byteOrder.Uint32(data[4:8]))
+	e.Dev = byteOrder.Uint32(data[12:16])
+	e.Inode = byteOrder.Uint64(data[16:24])
+	return 24, nil
+}
+
+func (e *ChownEvent) ResolveInode(resolvers *Resolvers) string {
+	if len(e.PathnameStr) == 0 {
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Dev, e.Inode)
+	}
+	return e.PathnameStr
+}
+
+type OpenEvent struct {
+	Flags       uint32 `yaml:"flags" field:"flags"`
+	Mode        uint32 `yaml:"mode" field:"mode"`
+	Inode       uint64 `field:"inode"`
+	Dev         uint32 `field:"-"`
+	PathnameStr string `field:"filename" handler:"ResolveInode,string"`
+	BasenameStr string `field:"basename" handler:"ResolveBasename,string"`
 }
 
 func (e *OpenEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -80,10 +161,10 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 type MkdirEvent struct {
-	Mode        int32  `field:"mode" event:"mkdir"`
+	Mode        int32  `field:"mode"`
 	Dev         uint32 `field:"-"`
-	Inode       uint64 `field:"inode" event:"mkdir"`
-	PathnameStr string `field:"filename" handler:"ResolveInode,string" event:"mkdir"`
+	Inode       uint64 `field:"inode"`
+	PathnameStr string `field:"filename" handler:"ResolveInode,string"`
 }
 
 func (e *MkdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -120,8 +201,8 @@ func (e *MkdirEvent) ResolveInode(resolvers *Resolvers) string {
 
 type RmdirEvent struct {
 	Dev         uint32 `field:"-"`
-	Inode       uint64 `field:"inode" event:"rmdir"`
-	PathnameStr string `field:"filename" handler:"ResolveInode,string" event:"rmdir"`
+	Inode       uint64 `field:"inode"`
+	PathnameStr string `field:"filename" handler:"ResolveInode,string"`
 }
 
 func (e *RmdirEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -155,9 +236,9 @@ func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 type UnlinkEvent struct {
-	Inode       uint64 `field:"inode" event:"unlink"`
+	Inode       uint64 `field:"inode"`
 	Dev         uint32 `field:"-"`
-	PathnameStr string `field:"filename" handler:"ResolveInode,string" event:"unlink"`
+	PathnameStr string `field:"filename" handler:"ResolveInode,string"`
 }
 
 func (e *UnlinkEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -192,10 +273,10 @@ func (e *UnlinkEvent) ResolveInode(resolvers *Resolvers) string {
 
 type RenameEvent struct {
 	Dev               uint32 `field:"-"`
-	SrcInode          uint64 `field:"old_inode" event:"rename"`
-	SrcPathnameStr    string `field:"old_filename" handler:"ResolveSrcInode,string" event:"rename"`
-	TargetInode       uint64 `field:"new_inode" event:"rename"`
-	TargetPathnameStr string `field:"new_filename" handler:"ResolveTargetInode,string" event:"rename"`
+	SrcInode          uint64 `field:"old_inode"`
+	SrcPathnameStr    string `field:"old_filename" handler:"ResolveSrcInode,string"`
+	TargetInode       uint64 `field:"new_inode"`
+	TargetPathnameStr string `field:"new_filename" handler:"ResolveTargetInode,string"`
 }
 
 func (e *RenameEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
@@ -280,15 +361,15 @@ func (k *KernelEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 type ProcessEvent struct {
-	Pidns   uint64 `field:"pidns" event:"*"`
-	Comm    string `field:"name" handler:"ResolveComm,string" event:"*"`
-	TTYName string `field:"tty_name" handler:"ResolveTTY,string" event:"*"`
-	Pid     uint32 `field:"pid" event:"*"`
-	Tid     uint32 `field:"tid" event:"*"`
-	UID     uint32 `field:"uid" event:"*"`
-	GID     uint32 `field:"gid" event:"*"`
-	User    string `field:"user" handler:"ResolveUser,string" event:"*"`
-	Group   string `field:"group" handler:"ResolveGroup,string" event:"*"`
+	Pidns   uint64 `field:"pidns"`
+	Comm    string `field:"name" handler:"ResolveComm,string"`
+	TTYName string `field:"tty_name" handler:"ResolveTTY,string"`
+	Pid     uint32 `field:"pid"`
+	Tid     uint32 `field:"tid"`
+	UID     uint32 `field:"uid"`
+	GID     uint32 `field:"gid"`
+	User    string `field:"user" handler:"ResolveUser,string"`
+	Group   string `field:"group" handler:"ResolveGroup,string"`
 
 	CommRaw    [16]byte `field:"-"`
 	TTYNameRaw [64]byte `field:"-"`
@@ -375,13 +456,15 @@ func (p *ProcessEvent) UnmarshalBinary(data []byte) (int, error) {
 type Event struct {
 	ID        string         `yaml:"id" field:"-"`
 	Event     KernelEvent    `yaml:"event" field:"event"`
-	Process   ProcessEvent   `yaml:"process" field:"process"`
-	Open      OpenEvent      `yaml:"open" field:"open"`
-	Mkdir     MkdirEvent     `yaml:"mkdir" field:"mkdir"`
-	Rmdir     RmdirEvent     `yaml:"rmdir" field:"rmdir"`
-	Unlink    UnlinkEvent    `yaml:"unlink" field:"unlink"`
-	Rename    RenameEvent    `yaml:"rename" field:"rename"`
+	Process   ProcessEvent   `yaml:"process" field:"process" event:"*"`
 	Container ContainerEvent `yaml:"container" field:"container"`
+	Chmod     ChmodEvent     `yaml:"chmod" field:"chmod" event:"chmod"`
+	Chown     ChownEvent     `yaml:"chown" field:"chown" event:"chown"`
+	Open      OpenEvent      `yaml:"open" field:"open" event:"open"`
+	Mkdir     MkdirEvent     `yaml:"mkdir" field:"mkdir" event:"mkdir"`
+	Rmdir     RmdirEvent     `yaml:"rmdir" field:"rmdir" event:"rmdir"`
+	Unlink    UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
+	Rename    RenameEvent    `yaml:"rename" field:"rename" event:"rename"`
 
 	resolvers *Resolvers `field:"-"`
 }
@@ -408,6 +491,14 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		{
 			field:      "process",
 			marshalFnc: e.Process.marshalJSON,
+		},
+		{
+			field:      "file",
+			marshalFnc: e.Chmod.marshalJSON,
+		},
+		{
+			field:      "file",
+			marshalFnc: e.Chown.marshalJSON,
 		},
 		{
 			field:      "file",

@@ -30,6 +30,13 @@ struct syscall_cache_t {
             struct dentry *src_dentry;
             struct path_key_t random_key;
         } rename;
+
+        struct {
+            struct dentry *dentry;
+            umode_t mode;
+            uid_t user;
+            gid_t group;
+        } setattr;
     };
 };
 
