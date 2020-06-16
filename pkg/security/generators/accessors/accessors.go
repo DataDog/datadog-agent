@@ -134,36 +134,39 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 		}
 
 		spec := astFile.Scope.Lookup(fieldType.Name)
-		handleSpec(astFile, spec.Decl, prefix, aliasPrefix)
+		handleSpec(astFile, spec.Decl, prefix, aliasPrefix, event)
 	}
 
 	return nil
 }
 
-func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string) {
-	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s\n", spec, prefix, aliasPrefix)
+func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string) {
+	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s\n", spec, prefix, aliasPrefix, event)
 
 	if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
 		FIELD:
 			for _, field := range structType.Fields.List {
+				var tag reflect.StructTag
+				if field.Tag != nil {
+					tag = reflect.StructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
+				}
+
+				tags, found := tag.Lookup("tags")
+				if found {
+					f := func(c rune) bool {
+						return !unicode.IsLetter(c) && !unicode.IsNumber(c)
+					}
+					tags = fmt.Sprintf(`"%s"`, strings.Join(strings.FieldsFunc(tags, f), `","`))
+				}
+
+				if e, ok := tag.Lookup("event"); ok {
+					event = e
+				}
+
 				if len(field.Names) > 0 {
 					fieldName := field.Names[0].Name
 					fieldAlias := fieldName
-					var tag reflect.StructTag
-					if field.Tag != nil {
-						tag = reflect.StructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
-					}
-
-					tags, found := tag.Lookup("tags")
-					if found {
-						f := func(c rune) bool {
-							return !unicode.IsLetter(c) && !unicode.IsNumber(c)
-						}
-						tags = fmt.Sprintf(`"%s"`, strings.Join(strings.FieldsFunc(tags, f), `","`))
-					}
-
-					event, _ := tag.Lookup("event")
 
 					if fieldTag, found := tag.Lookup("field"); found {
 						split := strings.Split(fieldTag, ",")
@@ -229,7 +232,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix string)
 					if ident != nil {
 						embedded := astFile.Scope.Lookup(ident.Name)
 						if embedded != nil {
-							handleSpec(astFile, embedded.Decl, prefix, aliasPrefix)
+							handleSpec(astFile, embedded.Decl, prefix, aliasPrefix, event)
 						}
 					}
 				}
@@ -300,7 +303,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 
 			for _, spec := range decl.Specs {
 				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-					handleSpec(astFile, typeSpec, "", "")
+					handleSpec(astFile, typeSpec, "", "", "")
 				}
 			}
 		}
