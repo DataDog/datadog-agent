@@ -63,6 +63,7 @@ jobs:
           command: |
             pip install wheel
             pip install -r requirements.txt
+            pip3 install flake8==3.8.3 flake8-bugbear==20.1.4
       - run:
           name: grab go deps
           command: |
@@ -93,6 +94,7 @@ jobs:
             - /go/pkg
             - /go/bin
             - /usr/local/lib/python2.7/dist-packages
+            - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
 
   unit_tests:
@@ -155,6 +157,33 @@ jobs:
           name: run filename linting
           command: inv -e lint-filenames
 
+  shell_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: Install shellcheck
+          command: inv -e install-shellcheck
+      - run:
+          name: Print shellcheck version
+          command: shellcheck --version
+      - run:
+          name: Run shellcheck
+          #Excludes:
+          #SC2028: echo may not expand escape sequences. Use printf.
+          #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
+          command: shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
+
+  python_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: lint python files
+          command: inv -e lint-python
+
   docker_tests:
     <<: *job_template
     steps:
@@ -201,11 +230,61 @@ jobs:
           name: generate doxygen documentation
           command: inv -e rtloader.generate-doc
 
+  macos_build:
+    macos:
+      xcode: 10.1.0
+    environment:
+      GO_VERSION: "1.13.8"
+      RUBY_VERSION: "2.4"
+      RELEASE_VERSION: "nightly-a7"
+      AGENT_MAJOR_VERSION: "7"
+      PYTHON_RUNTIMES: "3"
+    working_directory: ~/go/src/github.com/DataDog/datadog-agent
+    steps:
+      - checkout
+      - run: brew update
+      - run:
+          name: Setup builder
+          command: |
+            brew install ruby@$RUBY_VERSION -f
+            export PATH="/usr/local/opt/ruby@$RUBY_VERSION/bin:/usr/local/lib/ruby/gems/$RUBY_VERSION.0/bin:$PATH"
+            echo 'export PATH="/usr/local/opt/ruby@'$RUBY_VERSION'/bin:/usr/local/lib/ruby/gems/'$RUBY_VERSION'.0/bin:$PATH"' >> .build_setup
+            gem install bundle -f
+
+            brew uninstall python@2 # Remove python2, we don't need it
+            brew upgrade python # Upgrade python3 to latest avilable on brew
+            ln -s /usr/local/bin/pip3 /usr/local/bin/pip # Use pip3 by default
+
+            brew install pkg-config -f
+            brew install cmake -f
+
+            mkdir -p $HOME/go
+            export GOPATH=$HOME/go
+            echo 'export GOPATH=$HOME/go' >> .build_setup
+            export PATH="$GOPATH/bin:$PATH"
+            echo 'export PATH="$GOPATH/bin:$PATH"' >> .build_setup
+
+            brew install gimme
+            echo 'eval `gimme '$GO_VERSION'`' >> .build_setup
+      - run:
+          name: Run omnibus build
+          command: |
+            source .build_setup
+            pip install -r requirements.txt
+            sudo rm -rf /opt/datadog-agent ./vendor ./vendor-new /var/cache/omnibus/src/* ./omnibus/Gemfile.lock
+            sudo mkdir -p /opt/datadog-agent /var/cache/omnibus && sudo chown $USER /opt/datadog-agent /var/cache/omnibus
+            inv -e agent.omnibus-build --skip-sign --python-runtimes $PYTHON_RUNTIMES --major-version $AGENT_MAJOR_VERSION --release-version $RELEASE_VERSION
+
+      - run: mkdir -p ~/artifacts && cp omnibus/pkg/*.dmg ~/artifacts
+      - store_artifacts:
+          path: ~/artifacts
+
 workflows:
   version: 2
   test_and_build:
     jobs:
       - checkout_code
+      - macos_build
       - dependencies:
           requires:
             - checkout_code
@@ -225,6 +304,12 @@ workflows:
           requires:
             - dependencies
       - filename_linting:
+          requires:
+            - dependencies
+      - shell_linting:
+          requires:
+            - dependencies
+      - python_linting:
           requires:
             - dependencies
       - docker_tests:

@@ -43,13 +43,13 @@ type CircuitBreaker struct {
 
 // NewCircuitBreaker instantiates a new CircuitBreaker that only allows
 // a maxEventsPerSec to pass. The rate of events is calculated using an EWMA.
-func NewCircuitBreaker(maxEventsPerSec int) *CircuitBreaker {
+func NewCircuitBreaker(maxEventsPerSec int64) *CircuitBreaker {
 	// -1 will virtually disable the circuit breaker
 	if maxEventsPerSec == -1 {
 		maxEventsPerSec = math.MaxInt64
 	}
 
-	c := &CircuitBreaker{maxEventsPerSec: int64(maxEventsPerSec)}
+	c := &CircuitBreaker{maxEventsPerSec: maxEventsPerSec}
 	c.Reset()
 
 	go func() {

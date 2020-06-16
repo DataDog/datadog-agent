@@ -40,6 +40,7 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	stats["version"] = version.AgentVersion
+	stats["flavor"] = config.AgentFlavor
 	hostnameData, err := util.GetHostnameData()
 
 	var metadata *host.Payload
@@ -323,7 +324,8 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	if expvar.Get("ntpOffset").String() != "" {
+	ntpOffset := expvar.Get("ntpOffset")
+	if ntpOffset != nil && ntpOffset.String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
 

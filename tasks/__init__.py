@@ -27,7 +27,19 @@ from . import (agent,
 
 
 from .go import fmt, lint, vet, cyclo, golangci_lint, deps, lint_licenses, generate_licenses, reset, generate
-from .test import test, integration_tests, lint_teamassignment, lint_releasenote, lint_milestone, lint_filenames, e2e_tests, make_kitchen_gitlab_yml, check_gitlab_broken_dependencies
+from .test import (
+    test,
+    integration_tests,
+    lint_teamassignment,
+    lint_releasenote,
+    lint_milestone,
+    lint_filenames,
+    lint_python,
+    e2e_tests,
+    make_kitchen_gitlab_yml,
+    check_gitlab_broken_dependencies,
+    install_shellcheck, 
+)
 from .build_tags import audit_tag_impact
 
 # the root namespace
@@ -49,11 +61,13 @@ ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)
 ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
+ns.add_task(lint_python)
 ns.add_task(audit_tag_impact)
 ns.add_task(e2e_tests)
 ns.add_task(make_kitchen_gitlab_yml)
 ns.add_task(check_gitlab_broken_dependencies)
 ns.add_task(generate)
+ns.add_task(install_shellcheck)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

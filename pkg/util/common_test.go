@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,4 +50,38 @@ func TestJSONConverter(t *testing.T) {
 	//json encode
 	_, err := json.Marshal(GetJSONSerializableMap(j))
 	assert.Nil(t, err)
+}
+
+func TestCopyDir(t *testing.T) {
+	assert := assert.New(t)
+	src, err := ioutil.TempDir("", "copydir-test-src-")
+	assert.NoError(err)
+	defer os.RemoveAll(src)
+
+	dst, err := ioutil.TempDir("", "copydir-test-dst-")
+	assert.NoError(err)
+	defer os.RemoveAll(dst)
+
+	files := map[string]string{
+		"a/b/c/d.txt": "d.txt",
+		"e/f/g/h.txt": "h.txt",
+		"i/j/k.txt":   "k.txt",
+	}
+
+	for file, content := range files {
+		p := filepath.Join(src, file)
+		err = os.MkdirAll(filepath.Dir(p), os.ModePerm)
+		assert.NoError(err)
+		err = ioutil.WriteFile(p, []byte(content), os.ModePerm)
+		assert.NoError(err)
+	}
+	err = CopyDir(src, dst)
+	assert.NoError(err)
+
+	for file, content := range files {
+		p := filepath.Join(dst, file)
+		actual, err := ioutil.ReadFile(p)
+		assert.NoError(err)
+		assert.Equal(string(actual), content)
+	}
 }
