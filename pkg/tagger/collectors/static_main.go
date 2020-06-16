@@ -3,45 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build docker kubelet
-
 package collectors
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	staticCollectorName = "static"
-	staticExpireFreq    = 5 * time.Minute
 )
 
 // StaticCollector fetches "static" tags, e.g. those from an env var
-// It is not intended to run as a stand alone
+// It is not intended to run as a stand alone. This is currently only used
+// for Fargate instances where host tags are not collected
 type StaticCollector struct {
 	infoOut      chan<- []*TagInfo
-	expire       *utils.Expire
-	lastExpire   time.Time
-	expireFreq   time.Duration
 	ddTagsEnvVar []string
 }
 
 func (c *StaticCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	var err error
 	c.infoOut = out
-	c.expire, err = utils.NewExpire(staticExpireFreq)
-	c.lastExpire = time.Now()
-	c.expireFreq = staticExpireFreq
 	// Extract DD_TAGS environment variable
 	c.ddTagsEnvVar = config.Datadog.GetStringSlice("tags")
 
-	if err != nil {
-		return FetchOnlyCollection, fmt.Errorf("Failed to instantiate the expiration process")
-	}
 	return FetchOnlyCollection, nil
 }
 
@@ -59,5 +45,8 @@ func staticFactory() Collector {
 }
 
 func init() {
-	registerCollector(staticCollectorName, staticFactory, NodeOrchestrator)
+	// Only register collector if it is a Fargate instance
+	if fargate.IsFargateInstance() {
+		registerCollector(staticCollectorName, staticFactory, NodeOrchestrator)
+	}
 }
