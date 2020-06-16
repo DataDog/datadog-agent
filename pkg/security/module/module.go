@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/policy"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -58,35 +57,6 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 	m.ruleSet.Evaluate(event)
 }
 
-func loadMacros(config *config.Config) (map[string]*ast.Macro, error) {
-	macros := make(map[string]*ast.Macro)
-
-	for _, policyDef := range config.Policies {
-		for _, policyPath := range policyDef.Files {
-			f, err := os.Open(policyPath)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to load policy `%s`", policyPath)
-			}
-
-			policy, err := policy.LoadPolicy(f)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to load policy `%s`", policyPath)
-			}
-
-			for _, macroDef := range policy.Macros {
-				astMacro, err := ast.ParseMacro(macroDef.Expression)
-				if err != nil {
-					return nil, errors.Wrapf(err, "failed to load policy `%s`", policyPath)
-				}
-
-				macros[macroDef.ID] = astMacro
-			}
-		}
-	}
-
-	return macros, nil
-}
-
 func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, error) {
 	var policySet policy.PolicySet
 	// Load and parse policies
@@ -108,20 +78,13 @@ func LoadPolicies(config *config.Config, probe *sprobe.Probe) (*eval.RuleSet, er
 	}
 	// Create new ruleset with empty rules and macros
 	ruleSet := probe.NewRuleSet(eval.NewOptsWithParams(config.Debug, sprobe.SECLConstants))
-	// Generate macro evaluators. The input "field" is therefore empty, we are not generating partials yet.
-	if err := ruleSet.GenerateMacroEvaluators("", policySet.Macros); err != nil {
-		return nil, err
+	// Add the macros to the ruleset and generate macros evaluators
+	if err := ruleSet.AddMacros(policySet.Macros); err != nil {
+		return nil, errors.Wrap(err, "couldn't add macros to the ruleset")
 	}
-	// Generate rules evaluators
-	for _, ruleDef := range policySet.Rules {
-		_, err := ruleSet.AddRule(ruleDef)
-		if err != nil {
-			return nil, errors.Wrapf(err, "couldn't add rule %s to the ruleset", ruleDef.ID)
-		}
-	}
-	// Generate partials
-	if err := ruleSet.GeneratePartials(policySet.Macros, policySet.Rules); err != nil {
-		return nil, errors.Wrap(err, "couldn't generate partials")
+	// Add rules to the ruleset and generate rules evaluators
+	if err := ruleSet.AddRules(policySet.Rules); err != nil {
+		return nil, errors.Wrap(err, "couldn't add rules to the ruleset")
 	}
 	return ruleSet, nil
 }

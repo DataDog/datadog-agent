@@ -2,7 +2,6 @@ package policy
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"io"
 
 	"github.com/mitchellh/mapstructure"
@@ -17,24 +16,13 @@ type Section struct {
 type MacroDefinition struct {
 	ID         string
 	Expression string
-	Ast        *ast.Macro `mapstructure:",omitempty"`
-}
-
-// LoadAST - Loads the AST of the macro
-func (md *MacroDefinition) LoadAST() error {
-	astMacro, err := ast.ParseMacro(md.Expression)
-	if err != nil {
-		return err
-	}
-	md.Ast = astMacro
-	return nil
+	Ast int
 }
 
 type RuleDefinition struct {
 	ID         string
 	Expression string
 	Tags       map[string]string
-	Ast        *ast.Rule `mapstructure:",omitempty"`
 }
 
 // GetTags - Returns the tags of the rule
@@ -46,16 +34,6 @@ func (rd *RuleDefinition) GetTags() []string {
 			fmt.Sprintf("%s:%s", k, v))
 	}
 	return tags
-}
-
-// LoadAST - Loads the AST of the rule
-func (rd *RuleDefinition) LoadAST() error {
-	astRule, err := ast.ParseRule(rd.Expression)
-	if err != nil {
-		return err
-	}
-	rd.Ast = astRule
-	return nil
 }
 
 type Policy struct {
@@ -98,15 +76,6 @@ func (ps *PolicySet) AddPolicy(policy *Policy) error {
 	return nil
 }
 
-// GetMacroASTs - Returns the list of Macro ASTs of the merged policy set, indexed by their IDs.
-func (ps *PolicySet) GetMacroASTs() map[string]*ast.Macro {
-	macros := make(map[string]*ast.Macro)
-	for _, macro := range ps.Macros {
-		macros[macro.ID] = macro.Ast
-	}
-	return macros
-}
-
 func LoadPolicy(r io.Reader) (*Policy, error) {
 	var mapSlice []map[string]interface{}
 
@@ -139,10 +108,6 @@ func LoadPolicy(r io.Reader) (*Policy, error) {
 					return nil, errors.New("rule has no expression")
 				}
 
-				if err := ruleDef.LoadAST(); err != nil {
-					return nil, errors.Wrap(err, "couldn't load rule ast")
-				}
-
 				policy.Rules = append(policy.Rules, ruleDef)
 
 			case "macro":
@@ -158,10 +123,6 @@ func LoadPolicy(r io.Reader) (*Policy, error) {
 
 				if macroDef.Expression == "" {
 					return nil, errors.New("macro has no expression")
-				}
-
-				if err := macroDef.LoadAST(); err != nil {
-					return nil, errors.Wrap(err, "couldn't load macro ast")
 				}
 
 				policy.Macros = append(policy.Macros, macroDef)

@@ -93,23 +93,12 @@ func NewOptsWithParams(debug bool, constants map[string]interface{}) Opts {
 
 // SetMacroEvaluators - Registers the macro evaluators for the provided field
 func (o *Opts) SetMacroEvaluators(field string, evaluators map[string]*MacroEvaluator) {
-	if o.fieldMacroEvaluators == nil {
-		o.fieldMacroEvaluators = make(map[string]map[string]*MacroEvaluator)
-	}
 	o.fieldMacroEvaluators[field] = evaluators
 }
 
 // GetMacroEvaluators - Returns the macro evaluators for the provided field
 func (o *Opts) GetMacroEvaluators(field string) map[string]*MacroEvaluator {
-	if o.fieldMacroEvaluators == nil {
-		o.fieldMacroEvaluators = make(map[string]map[string]*MacroEvaluator)
-	}
-	evals, ok := o.fieldMacroEvaluators[field]
-	if !ok {
-		evals = make(map[string]*MacroEvaluator)
-		o.fieldMacroEvaluators[field] = evals
-	}
-	return evals
+	return o.fieldMacroEvaluators[field]
 }
 
 type MacroEvaluator struct {
@@ -230,18 +219,10 @@ func (s *state) Events() []string {
 	return events
 }
 
-func newState(model Model, field string) *state {
-	return &state{
-		field:       field,
-		model:       model,
-		events:      make(map[string]bool),
-		tags:        make(map[string]bool),
-		fieldValues: make(map[string][]FieldValue),
-		macros:      make(map[string]*MacroEvaluator),
+func newState(model Model, field string, macros map[string]*MacroEvaluator) *state {
+	if macros == nil {
+		macros = make(map[string]*MacroEvaluator)
 	}
-}
-
-func newStateWithMacros(model Model, field string, macros map[string]*MacroEvaluator) *state {
 	return &state{
 		field:       field,
 		macros:      macros,
@@ -581,7 +562,7 @@ func eventFromFields(model Model, state *state) ([]string, error) {
 func MacroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field string) (*MacroEvaluator, error) {
 	var eval interface{}
 	var err error
-	state := newState(model, field)
+	state := newState(model, field, nil)
 
 	switch {
 	case macro.Expression != nil:
@@ -603,7 +584,7 @@ func MacroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field string) (
 
 // RuleToEvaluator - Generate a rule evaluator for the provided ast
 func RuleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
-	state := newStateWithMacros(model, "", opts.GetMacroEvaluators(""))
+	state := newState(model, "", opts.GetMacroEvaluators(""))
 
 	eval, _, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
 	if err != nil {

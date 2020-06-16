@@ -1,2 +1,2 @@
-ebpf/probe.o
+ebpf/*.o
 probe/ebpf.go

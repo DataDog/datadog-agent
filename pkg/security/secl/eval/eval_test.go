@@ -42,7 +42,7 @@ func parse(t *testing.T, expr string, model Model, opts *Opts, macros map[string
 }
 
 func generatePartials(t *testing.T, field string, model Model, opts *Opts, evaluator *RuleEvaluator, rule *ast.Rule) {
-	state := newStateWithMacros(model, field, opts.GetMacroEvaluators(field))
+	state := newState(model, field, opts.GetMacroEvaluators(field))
 	pEval, _, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
 	if err != nil {
 		t.Fatal(errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, rule.Expr))
