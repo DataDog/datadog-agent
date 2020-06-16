@@ -1,9 +1,10 @@
 package module
 
 import (
+	"os"
+
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
-	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/module"
 	aconfig "github.com/DataDog/datadog-agent/pkg/process/config"
