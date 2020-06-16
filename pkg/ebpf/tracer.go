@@ -307,8 +307,8 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 					return
 				}
 				atomic.AddInt64(&t.perfLost, int64(lostCount))
-			case <-flushIdle.C:
-				idleConns := t.batchManager.GetIdleConns(time.Now())
+			case now := <-flushIdle.C:
+				idleConns := t.batchManager.GetIdleConns(now)
 				for _, c := range idleConns {
 					t.storeClosedConn(c)
 				}
