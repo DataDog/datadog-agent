@@ -156,6 +156,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["config"] = getDCAPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 	stats["version"] = version.AgentVersion
+	stats["flavor"] = config.AgentFlavor
 	stats["pid"] = os.Getpid()
 	hostnameData, err := util.GetHostnameData()
 	if err != nil {
@@ -164,6 +165,11 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	} else {
 		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
 	}
+
+	stats["go_version"] = runtime.Version()
+	stats["agent_start"] = startTime.Format(timeFormat)
+	stats["build_arch"] = runtime.GOARCH
+
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
