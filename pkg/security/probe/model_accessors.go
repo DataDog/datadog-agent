@@ -16,6 +16,69 @@ var (
 func (m *Model) GetEvaluator(key string) (interface{}, error) {
 	switch key {
 
+	case "chmod.filename":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Chmod.ResolveInode(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Chmod.ResolveInode(m.event.resolvers) },
+
+			Field: key,
+		}, nil
+
+	case "chmod.inode":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chmod.Inode) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chmod.Inode) },
+
+			Field: key,
+		}, nil
+
+	case "chmod.mode":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chmod.Mode) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chmod.Mode) },
+
+			Field: key,
+		}, nil
+
+	case "chown.filename":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Chown.ResolveInode(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Chown.ResolveInode(m.event.resolvers) },
+
+			Field: key,
+		}, nil
+
+	case "chown.gid":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chown.GID) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chown.GID) },
+
+			Field: key,
+		}, nil
+
+	case "chown.inode":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chown.Inode) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chown.Inode) },
+
+			Field: key,
+		}, nil
+
+	case "chown.uid":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Chown.UID) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Chown.UID) },
+
+			Field: key,
+		}, nil
+
 	case "container.id":
 
 		return &eval.StringEvaluator{
@@ -276,6 +339,34 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 func (e *Event) GetFieldValue(key string) (interface{}, error) {
 	switch key {
 
+	case "chmod.filename":
+
+		return e.Chmod.ResolveInode(e.resolvers), nil
+
+	case "chmod.inode":
+
+		return int(e.Chmod.Inode), nil
+
+	case "chmod.mode":
+
+		return int(e.Chmod.Mode), nil
+
+	case "chown.filename":
+
+		return e.Chown.ResolveInode(e.resolvers), nil
+
+	case "chown.gid":
+
+		return int(e.Chown.GID), nil
+
+	case "chown.inode":
+
+		return int(e.Chown.Inode), nil
+
+	case "chown.uid":
+
+		return int(e.Chown.UID), nil
+
 	case "container.id":
 
 		return e.Container.ID, nil
@@ -396,6 +487,27 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 func (e *Event) GetFieldTags(key string) ([]string, error) {
 	switch key {
 
+	case "chmod.filename":
+		return []string{}, nil
+
+	case "chmod.inode":
+		return []string{}, nil
+
+	case "chmod.mode":
+		return []string{}, nil
+
+	case "chown.filename":
+		return []string{}, nil
+
+	case "chown.gid":
+		return []string{}, nil
+
+	case "chown.inode":
+		return []string{}, nil
+
+	case "chown.uid":
+		return []string{}, nil
+
 	case "container.id":
 		return []string{}, nil
 
@@ -487,6 +599,27 @@ func (e *Event) GetFieldTags(key string) ([]string, error) {
 
 func (e *Event) GetFieldEventType(key string) (string, error) {
 	switch key {
+
+	case "chmod.filename":
+		return "chmod", nil
+
+	case "chmod.inode":
+		return "chmod", nil
+
+	case "chmod.mode":
+		return "chmod", nil
+
+	case "chown.filename":
+		return "chown", nil
+
+	case "chown.gid":
+		return "chown", nil
+
+	case "chown.inode":
+		return "chown", nil
+
+	case "chown.uid":
+		return "chown", nil
 
 	case "container.id":
 		return "container", nil
@@ -580,6 +713,65 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 func (e *Event) SetFieldValue(key string, value interface{}) error {
 	var ok bool
 	switch key {
+
+	case "chmod.filename":
+
+		if e.Chmod.PathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "chmod.inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Chmod.Inode = uint64(v)
+		return nil
+
+	case "chmod.mode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Chmod.Mode = int32(v)
+		return nil
+
+	case "chown.filename":
+
+		if e.Chown.PathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "chown.gid":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Chown.GID = int32(v)
+		return nil
+
+	case "chown.inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Chown.Inode = uint64(v)
+		return nil
+
+	case "chown.uid":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Chown.UID = int32(v)
+		return nil
 
 	case "container.id":
 

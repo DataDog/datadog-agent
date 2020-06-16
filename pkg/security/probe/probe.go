@@ -73,13 +73,95 @@ func getSyscallFnName(name string) string {
 	return syscallPrefix + name
 }
 
+func syscallKprobe(name string) *eprobe.KProbe {
+	return &eprobe.KProbe{
+		Name:      "sys_" + name,
+		EntryFunc: "kprobe/" + getSyscallFnName(name),
+		ExitFunc:  "kretprobe/" + getSyscallFnName(name),
+	}
+}
+
 var AllKProbes = []*KProbe{
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "sys_mkdir",
-			EntryFunc: "kprobe/" + getSyscallFnName("mkdir"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("mkdir"),
+			Name:      "security_inode_setattr",
+			EntryFunc: "kprobe/security_inode_setattr",
 		},
+		EventTypes: map[string]Capabilities{
+			"chmod": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+			"chown": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+		},
+	},
+	{
+		KProbe: syscallKprobe("chmod"),
+		EventTypes: map[string]Capabilities{
+			"chmod": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+		},
+	},
+	{
+		KProbe: syscallKprobe("fchmod"),
+		EventTypes: map[string]Capabilities{
+			"chmod": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+		},
+	},
+	{
+		KProbe: syscallKprobe("fchmodat"),
+		EventTypes: map[string]Capabilities{
+			"chmod": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+		},
+	},
+	{
+		KProbe: syscallKprobe("chown"),
+		EventTypes: map[string]Capabilities{
+			"chown": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+		},
+	},
+	{
+		KProbe: syscallKprobe("fchown"),
+		EventTypes: map[string]Capabilities{
+			"chown": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+		},
+	},
+	{
+		KProbe: syscallKprobe("fchownat"),
+		EventTypes: map[string]Capabilities{
+			"chown": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+		},
+	},
+	{
+		KProbe: syscallKprobe("lchown"),
+		EventTypes: map[string]Capabilities{
+			"chown": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+		},
+	},
+	{
+		KProbe: syscallKprobe("mkdir"),
+		EventTypes: map[string]Capabilities{
+			"mkdir": Capabilities{
+				EvalCapabilities: []eval.FilteringCapability{},
+			},
+		},
+	},
+	{
+		KProbe: syscallKprobe("mkdirat"),
 		EventTypes: map[string]Capabilities{
 			"mkdir": Capabilities{
 				EvalCapabilities: []eval.FilteringCapability{},
@@ -88,9 +170,8 @@ var AllKProbes = []*KProbe{
 	},
 	{
 		KProbe: &eprobe.KProbe{
-			Name:      "sys_mkdirat",
-			EntryFunc: "kprobe/" + getSyscallFnName("mkdirat"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("mkdirat"),
+			Name:      "vfs_mkdir",
+			EntryFunc: "kprobe/vfs_mkdir",
 		},
 		EventTypes: map[string]Capabilities{
 			"mkdir": Capabilities{
@@ -405,6 +486,16 @@ func (p *Probe) handleEvent(data []byte) {
 	case FileRenameEventType:
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileChmodEventType:
+		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileChownEventType:
+		if _, err := event.Chown.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	default:

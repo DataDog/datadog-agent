@@ -19,12 +19,14 @@ const (
 	FileHardLinkEventType
 	// FileRenameEventType - File or folder rename event
 	FileRenameEventType
-	// FileSetAttrEventType - Set Attr event
-	FileSetAttrEventType
 	// FileUnlinkEventType - Unlink event
 	FileUnlinkEventType
 	// FileRmdirEventType - Rmdir event
 	FileRmdirEventType
+	// FileChmodEventType - Chmod event
+	FileChmodEventType
+	// FileChownEventType - Chown event
+	FileChownEventType
 )
 
 func (t ProbeEventType) String() string {
@@ -36,11 +38,14 @@ func (t ProbeEventType) String() string {
 	case FileHardLinkEventType:
 	case FileRenameEventType:
 		return "rename"
-	case FileSetAttrEventType:
 	case FileUnlinkEventType:
 		return "unlink"
 	case FileRmdirEventType:
 		return "rmdir"
+	case FileChmodEventType:
+		return "chmod"
+	case FileChownEventType:
+		return "chown"
 	}
 	return "unknown"
 }
