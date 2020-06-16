@@ -444,15 +444,17 @@ def make_simple_gitlab_yml(ctx, jobs_to_run, yml_file_src='.gitlab-ci.yml', yml_
         job = jobs_to_run.pop()
         if job in data:
             jobs.add(job)
+            jobs_to_run.update(data[job].get('extends', []))
             if dont_include_deps:
                 del data[job]['needs']
             else:
-                needs = data[job].get('needs', [])
-                jobs_to_run.update(needs)
+                jobs_to_run.update(data[job].get('needs', []))
 
     out = copy.deepcopy(data)
     stages = []
     for k,v in data.items():
+        # Always include anchors - they don't add additional time to run in the pipeline
+        # and it simplifies things.
         if k not in jobs and not str.startswith(k, '.'):
             del out[k]
             continue
