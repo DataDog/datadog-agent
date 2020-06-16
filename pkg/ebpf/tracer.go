@@ -297,7 +297,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
 
-				batch := newBatch(batchData)
+				batch := toBatch(batchData)
 				conns := t.batchManager.Extract(batch, time.Now())
 				for _, c := range conns {
 					t.storeClosedConn(c)

@@ -86,7 +86,7 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) b
 	return latestTime > timeout+uint64(cs.timestamp)
 }
 
-func newBatch(data []byte) *batch {
+func toBatch(data []byte) *batch {
 	return (*batch)(unsafe.Pointer(&data[0]))
 }
 
@@ -98,7 +98,7 @@ func ExtractBatchInto(buffer []network.ConnectionStats, b *batch, start, end int
 	}
 
 	var (
-		connSize = unsafe.Sizeof(b.c0)
+		connSize = unsafe.Sizeof(C.tcp_conn_t{})
 		current  = uintptr(unsafe.Pointer(b)) + uintptr(start)*connSize
 	)
 
