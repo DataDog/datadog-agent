@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -23,8 +24,9 @@ func main() {
 	flag.StringVar(&opts.checkClient, "client", "", "The client ID that the check will use to run")
 	flag.Parse()
 
+	// Handles signals, which tells us whether we should exit.
 	exit := make(chan struct{})
-
+	go util.HandleSignals(exit)
 	runAgent(exit)
 }
 

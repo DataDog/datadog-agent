@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	_ "net/http/pprof"
@@ -40,7 +39,7 @@ var (
 
 const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
-func runAgent(exit chan struct{}) {
+func runAgent(exit <-chan struct{}) {
 	// --version
 	if opts.version {
 		fmt.Println(versionString("\n"))
@@ -99,8 +98,6 @@ func runAgent(exit chan struct{}) {
 	go sysprobe.Run()
 	log.Infof("system probe successfully started")
 
-	// Handles signals, which tells us whether we should exit.
-	go util.HandleSignals(exit)
 	<-exit
 }
 
