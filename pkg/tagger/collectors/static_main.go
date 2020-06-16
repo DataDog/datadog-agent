@@ -22,6 +22,7 @@ type StaticCollector struct {
 	ddTagsEnvVar []string
 }
 
+// Detect detects static tags
 func (c *StaticCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	c.infoOut = out
 	// Extract DD_TAGS environment variable
