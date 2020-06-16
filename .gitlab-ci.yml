@@ -890,7 +890,7 @@ agent_rpm-x64-a7:
 agent_rpm-arm-a6:
   stage: package_build
   needs: ["run_go_tidy_check", "build_system-probe-arm64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:v2424505-0439a40
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 6
@@ -907,7 +907,7 @@ agent_rpm-arm-a6:
 agent_rpm-arm-a7:
   stage: package_build
   needs: ["run_go_tidy_check", "build_system-probe-arm64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:v2424505-0439a40
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
