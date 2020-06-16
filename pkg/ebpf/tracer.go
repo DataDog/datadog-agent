@@ -154,7 +154,9 @@ func NewTracer(config *Config) (*Tracer, error) {
 			if isSysCall(probeName) {
 				fixedName := fixSyscallName(prefix, probeName)
 				log.Debugf("attaching section %s to %s", string(probeName), fixedName)
-				m.SetKprobeForSection(string(probeName), fixedName)
+				if err = m.SetKprobeForSection(string(probeName), fixedName); err != nil {
+					return nil, fmt.Errorf("could not update kprobe \"%s\" to \"%s\" : %s", k.Name, fixedName, err)
+				}
 			}
 
 			if err = m.EnableKprobe(string(probeName), maxActive); err != nil {
@@ -171,7 +173,9 @@ func NewTracer(config *Config) (*Tracer, error) {
 			if mp == nil {
 				return nil, fmt.Errorf("error retrieving the bpf %s map: %s", configMap, err)
 			}
-			m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&zero), 0)
+			if err := m.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(&zero), 0); err != nil {
+				return nil, fmt.Errorf("error updating element of bpf %s map: %s", configMap, err)
+			}
 		}
 
 		filter := m.SocketFilter("socket/dns_filter")
@@ -188,7 +192,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 		); err == nil {
 			reverseDNS = snooper
 		} else {
-			fmt.Errorf("error enabling DNS traffic inspection: %s", err)
+			return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 		}
 	}
 

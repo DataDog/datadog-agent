@@ -29,9 +29,6 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
             rm -rf $LOG_DIR
             rm -rf $CONFIG_DIR
         ;;
-        remove)
-            rm $CONFIG_DIR/install_info || true
-        ;;
         *)
         ;;
     esac
@@ -40,7 +37,6 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
         0)
             # We're uninstalling.
             # We don't delete the dd-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
-            rm $CONFIG_DIR/install_info || true
         ;;
         1)
             # We're upgrading.

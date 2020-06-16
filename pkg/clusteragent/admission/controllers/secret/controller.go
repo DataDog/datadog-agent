@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -135,11 +136,13 @@ func (c *Controller) processNextWorkItem() bool {
 	if err := c.reconcile(); err != nil {
 		c.requeue(key)
 		log.Errorf("Couldn't reconcile Secret %s/%s: %v", c.config.GetNs(), c.config.GetName(), err)
+		metrics.ReconcileErrors.Inc(metrics.SecretControllerName)
 		return true
 	}
 
 	c.queue.Forget(key)
 	log.Debugf("Secret %s/%s reconciled successfully", c.config.GetNs(), c.config.GetName())
+	metrics.ReconcileSuccess.Inc(metrics.SecretControllerName)
 
 	return true
 }
@@ -161,6 +164,8 @@ func (c *Controller) reconcile() error {
 	if err != nil {
 		return err
 	}
+
+	metrics.CertificateDuration.Set(durationBeforeExpiration.Hours())
 	if durationBeforeExpiration < c.config.GetCertExpiration() {
 		log.Debugf("The certificate is expiring soon (%v), refreshing it", durationBeforeExpiration)
 		return c.updateSecret(secret)

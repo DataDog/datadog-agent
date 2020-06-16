@@ -4,17 +4,15 @@ High level testing tasks
 from __future__ import print_function
 
 import os
-import fnmatch
 import re
 import operator
 import sys
 import yaml
 
-import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_build_flags, get_version
+from .utils import get_build_flags
 from .go import fmt, lint, vet, misspell, ineffassign, lint_licenses, golangci_lint, generate
 from .build_tags import get_default_build_tags, get_build_tags
 from .agent import integration_tests as agent_integration_tests
@@ -65,7 +63,7 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     else:
         tool_targets = test_targets = targets
 
-    build_include = get_default_build_tags(process=True) if build_include is None else build_include.split(",")
+    build_include = get_default_build_tags(process=True, arch=arch) if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
@@ -76,19 +74,20 @@ def test(ctx, targets=None, coverage=False, build_include=None, build_exclude=No
     print("--- go generating:")
     generate(ctx)
 
+    print("--- Linting licenses:")
+    lint_licenses(ctx)
+
     if skip_linters:
         print("--- [skipping linters]")
     else:
         print("--- Linting filenames:")
         lint_filenames(ctx)
-        print("--- Linting licenses:")
-        lint_licenses(ctx)
 
         # Until all packages whitelisted in .golangci.yml are fixed and removed
         # from the 'skip-dirs' list we need to keep using the old functions that
         # lint without build flags (linting some file is better than no linting).
         print("--- Vetting and linting (legacy):")
-        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags)
+        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
         fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
         lint(ctx, targets=tool_targets)
         misspell(ctx, targets=tool_targets)
@@ -185,7 +184,7 @@ def lint_teamassignment(ctx):
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         issue = res.json()
         if any([re.match('team/', l['name']) for l in issue.get('labels', {})]):
-            print("Team Assignment: %s" % l['name'])
+            print("Team Assignment: %s" % l['name'])  # noqa: F821
             return
 
         print("PR %s requires team assignment" % pr_url)
@@ -348,7 +347,7 @@ def e2e_tests(ctx, target="gitlab", image=""):
 
 class TestProfiler:
     times = []
-    parser = re.compile("^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
+    parser = re.compile(r"^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
 
     def write(self, txt):
         # Output to stdout
@@ -410,7 +409,7 @@ def make_kitchen_gitlab_yml(ctx):
             v['needs'] = new_needed
 
     with open('.gitlab-ci.yml', 'w') as f:
-        documents = yaml.dump(data, f, default_style='"')
+       yaml.dump(data, f, default_style='"')
 
 @task
 def check_gitlab_broken_dependencies(ctx):
@@ -432,3 +431,36 @@ def check_gitlab_broken_dependencies(ctx):
                 for need in needed:
                     if is_unwanted(data[need], version):
                         print("{} needs on {} but it won't be built for A{}".format(k, need, version))
+
+
+@task
+def lint_python(ctx):
+    """
+    Lints Python files.
+    See 'setup.cfg' file for configuration
+    """
+
+    ctx.run("flake8 .")
+
+    
+@task
+def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
+    """
+    Installs the requested version of shellcheck in the specified folder (by default /usr/local/bin).
+    Required to run the shellcheck pre-commit hook.
+    """
+
+    if sys.platform == 'win32':
+        print("shellcheck is not supported on Windows")
+        raise Exit(code=1)
+    if sys.platform.startswith('darwin'):
+        platform = "darwin"
+    if sys.platform.startswith('linux'):
+        platform = "linux"
+
+    ctx.run("wget -qO- \"https://storage.googleapis.com/shellcheck/shellcheck-v{sc_version}.{platform}.x86_64.tar.xz\" | tar -xJv -C /tmp"
+        .format(sc_version=version, platform=platform))
+    ctx.run("cp \"/tmp/shellcheck-v{sc_version}/shellcheck\" {destination}"
+        .format(sc_version=version, destination=destination))
+    ctx.run("rm -rf \"/tmp/shellcheck-v{sc_version}\""
+        .format(sc_version=version))

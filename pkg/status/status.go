@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +40,7 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	stats["version"] = version.AgentVersion
+	stats["flavor"] = config.AgentFlavor
 	hostnameData, err := util.GetHostnameData()
 
 	var metadata *host.Payload
@@ -176,8 +178,10 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
 		stats["custommetrics"] = map[string]string{"Error": err.Error()}
+		stats["admissionWebhook"] = map[string]string{"Error": err.Error()}
 	} else {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
+		stats["admissionWebhook"] = admission.GetStatus(apiCl.Cl)
 	}
 
 	if config.Datadog.GetBool("cluster_checks.enabled") {
@@ -320,7 +324,8 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	if expvar.Get("ntpOffset").String() != "" {
+	ntpOffset := expvar.Get("ntpOffset")
+	if ntpOffset != nil && ntpOffset.String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
 

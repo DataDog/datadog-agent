@@ -65,7 +65,8 @@ func contains(envs []corev1.EnvVar, name string) bool {
 }
 
 // injectEnv injects an env var into a pod template if it doesn't exist
-func injectEnv(pod *corev1.Pod, env corev1.EnvVar) {
+func injectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
+	injected := false
 	podStr := podString(pod)
 	log.Debugf("Injecting env var '%s' into pod %s", env.Name, podStr)
 	for i, ctr := range pod.Spec.Containers {
@@ -74,7 +75,9 @@ func injectEnv(pod *corev1.Pod, env corev1.EnvVar) {
 			continue
 		}
 		pod.Spec.Containers[i].Env = append(pod.Spec.Containers[i].Env, env)
+		injected = true
 	}
+	return injected
 }
 
 // podString returns a string that helps identify the pod

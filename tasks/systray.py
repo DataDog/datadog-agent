@@ -5,7 +5,6 @@ from __future__ import print_function
 import os
 import sys
 
-import invoke
 from invoke import task
 
 from .utils import bin_name, get_version_numeric_only
@@ -58,7 +57,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
+        "build_type": "-a" if rebuild else "",
         "agent_bin": os.path.join(BIN_PATH, bin_name("ddtray")),
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
