@@ -1,0 +1,3 @@
+features:
+  - |
+    The Datadog IoT agent is now available for 32 bit ARM architecture (armv7l/armhf).
