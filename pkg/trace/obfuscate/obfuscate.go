@@ -11,16 +11,20 @@ import (
 	"bytes"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
-	opts  *config.ObfuscationConfig
-	es    *jsonObfuscator // nil if disabled
-	mongo *jsonObfuscator // nil if disabled
+	opts                 *traceconfig.ObfuscationConfig
+	es                   *jsonObfuscator // nil if disabled
+	mongo                *jsonObfuscator // nil if disabled
+	sqlExecPlan          *jsonObfuscator // nil if disabled
+	sqlExecPlanNormalize *jsonObfuscator // nil if disabled
 	// sqlLiteralEscapes reports whether we should treat escape characters literally or as escape characters.
 	// A non-zero value means 'yes'. Different SQL engines behave in different ways and the tokenizer needs
 	// to be generic.
@@ -42,19 +46,43 @@ func (o *Obfuscator) SQLLiteralEscapes() bool {
 	return atomic.LoadInt32(&o.sqlLiteralEscapes) == 1
 }
 
-// NewObfuscator creates a new obfuscator from the provided config
-func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
+// NewObfuscator creates a new obfuscator
+func NewObfuscator(cfg *traceconfig.ObfuscationConfig) *Obfuscator {
 	if cfg == nil {
-		cfg = new(config.ObfuscationConfig)
+		cfg = new(traceconfig.ObfuscationConfig)
 	}
 	o := Obfuscator{opts: cfg}
 	if cfg.ES.Enabled {
-		o.es = newJSONObfuscator(&cfg.ES)
+		o.es = o.newJSONObfuscator(&cfg.ES)
 	}
 	if cfg.Mongo.Enabled {
-		o.mongo = newJSONObfuscator(&cfg.Mongo)
+		o.mongo = o.newJSONObfuscator(&cfg.Mongo)
+	}
+	if cfg.SQLExecPlan.Enabled {
+		o.sqlExecPlan = o.newJSONObfuscator(&cfg.SQLExecPlan)
+	}
+	if cfg.SQLExecPlanNormalize.Enabled {
+		o.sqlExecPlanNormalize = o.newJSONObfuscator(&cfg.SQLExecPlanNormalize)
 	}
 	return &o
+}
+
+// LoadSQLObfuscator initializes the obfsucator from the standard agent config, setting defaults for SQLExecPlan
+// and SQLExecPlanNormalize if they are not set. Since this relies on config.Datadog it must be called after
+// config.Datadog has been initialized in order for config.Datadog to be used
+func LoadSQLObfuscator() *Obfuscator {
+	var cfg traceconfig.ObfuscationConfig
+	if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
+		log.Errorf("failed to unmarshal apm_config.obfuscation: %s", err.Error())
+		cfg = traceconfig.ObfuscationConfig{}
+	}
+	if !cfg.SQLExecPlan.Enabled {
+		cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
+	}
+	if !cfg.SQLExecPlanNormalize.Enabled {
+		cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
+	}
+	return NewObfuscator(&cfg)
 }
 
 // Obfuscate may obfuscate span's properties based on its type and on the Obfuscator's
@@ -110,4 +138,73 @@ func compactWhitespaces(t string) string {
 	copy(r[nr:], t[nr+offset:n])
 	r = r[:n-offset]
 	return string(bytes.Trim(r, " "))
+}
+
+// defaultSQLPlanNormalizeSettings are the default JSON obfuscator settings for both obfuscating and normalizing SQL
+// execution plans
+var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
+	Enabled:         true,
+	TransformerType: "obfuscate_sql",
+	TransformValues: []string{
+		// mysql
+		"attached_condition",
+		// postgres
+		"Hash Cond",
+		"Join Filter",
+		"Merge Cond",
+		"Recheck Cond",
+	},
+	KeepValues: []string{
+		// mysql
+		"access_type",
+		"backward_index_scan",
+		"cacheable",
+		"delete",
+		"dependent",
+		"first_match",
+		"key",
+		"key_length",
+		"possible_keys",
+		"ref",
+		"select_id",
+		"table_name",
+		"update",
+		"used_columns",
+		"used_key_parts",
+		"using_MRR",
+		"using_filesort",
+		"using_index",
+		"using_join_buffer",
+		"using_temporary_table",
+		// postgres
+		"Alias",
+		"Index Name",
+		"Node Type",
+		"Parallel Aware",
+		"Parent Relationship",
+		"Relation Name",
+		"Scan Direction",
+		"Sort Key",
+	},
+}
+
+// defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
+// list
+var defaultSQLPlanObfuscateSettings = traceconfig.JSONObfuscationConfig{
+	Enabled:         true,
+	TransformerType: "obfuscate_sql",
+	KeepValues: append([]string{
+		// mysql
+		"cost_info",
+		"filtered",
+		"rows_examined_per_join",
+		"rows_examined_per_scan",
+		"rows_produced_per_join",
+		// postgres
+		"Plan Rows",
+		"Plan Width",
+		"Startup Cost",
+		"Total Cost",
+	}, defaultSQLPlanNormalizeSettings.KeepValues...),
+	TransformValues: defaultSQLPlanNormalizeSettings.TransformValues,
 }

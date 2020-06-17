@@ -538,6 +538,11 @@ void set_obfuscate_sql_cb(rtloader_t *rtloader, cb_obfuscate_sql_t cb)
     AS_TYPE(RtLoader, rtloader)->setObfuscateSqlCb(cb);
 }
 
+void set_obfuscate_sql_exec_plan_cb(rtloader_t *rtloader, cb_obfuscate_sql_exec_plan_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setObfuscateSqlExecPlanCb(cb);
+}
+
 /*
  * _util API
  */

@@ -486,5 +486,275 @@
 			<In>{"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:-1851516970739438017","_type":"trace"}} {"trace_id":-1851516970739438017,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":532865,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.08579267671651072,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:49.021115904Z","end":"2018-06-29T11:30:49.021648769Z","trace_id":-1851516970739438017,"span_id":3635861121986229119,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:49.021115904Z","end":"2018-06-29T11:30:49.021648769Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:-7171575148150503216","_type":"trace"}} {"trace_id":-7171575148150503216,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":541925,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.02845090898763012,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:49.870599936Z","end":"2018-06-29T11:30:49.871141861Z","trace_id":-7171575148150503216,"span_id":-4982373041719473893,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:49.870599936Z","end":"2018-06-29T11:30:49.871141861Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:3438931145341397782","_type":"trace"}} {"trace_id":3438931145341397782,"span":[{"service":"master-db","name":"postgres.query","resource":"begin","duration":1988172,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"begin","system.pid":"23463"},"metrics":{"_sample_rate":1,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":-1},"type":"sql","resource_hash":"fc747ae36f14c50d","start":"2018-06-29T11:30:48.886354944Z","end":"2018-06-29T11:30:48.888343116Z","trace_id":3438931145341397782,"span_id":8432748882772113994,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:48.886354944Z","end":"2018-06-29T11:30:48.888343116Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:-2942210836778233450","_type":"trace"}} {"trace_id":-2942210836778233450,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":538825,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.09493583930982655,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:48.995932928Z","end":"2018-06-29T11:30:48.996471753Z","trace_id":-2942210836778233450,"span_id":1801908560308090622,"parent_id":0,"is_root":true}],"org_id":2,"host_id":2832410,"start":"2018-06-29T11:30:48.995932928Z","end":"2018-06-29T11:30:48.996471753Z","env":"staging","host_groups":["availability-zone:us-east-1a","env:staging"]} {"index":{"_index":"traces.v2.2018.06.29.11","_routing":"2:1154462040005386081","_type":"trace"}} {"trace_id":1154462040005386081,"span":[{"service":"master-db","name":"postgres.query","resource":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","duration":16173124,"error":0,"meta":{"db.application":"brokerstate","db.name":"dogdatastaging","db.user":"None","out.host":"''","out.port":"6432","sql.query":"INSERT INTO kafka_broker_state ( broker_id, topic, partition, latest_offset, kafka_version ) VALUES ( ? )","system.pid":"23463"},"metrics":{"_sample_rate":0.03305929657743924,"_sampling_priority_v1":1,"_top_level":1,"db.rowcount":1},"type":"sql","resource_hash":"633ad3800be7ec31","start":"2018-06-29T11:30:49.730038784Z","end":"2018-...</In>
 			<Out>{"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?","trace_id":"?","span_id":"?","parent_id":"?","is_root":"?"}],"org_id":"?","host_id":"?","start":"?","end":"?","env":"?","host_groups":["?","?"]} {"index":{"_index":"?","_routing":"?","_type":"?"}} {"trace_id":"?","span":[{"service":"?","name":"?","resource":"?","duration":"?","error":"?","meta":{"db.application":"?","db.name":"?","db.user":"?","out.host":"?","out.port":"?","sql.query":"?","system.pid":"?"},"metrics":{"_sample_rate":"?","_sampling_priority_v1":"?","_top_level":"?","db.rowcount":"?"},"type":"?","resource_hash":"?","start":"?","end":"?"...</Out>
 		</Test>
+		<Test>
+			<Tag>obfuscate.sql.json.basic</Tag>
+			<TransformValues>
+				<key>query</key>
+			</TransformValues>
+			<TransformerType>obfuscate_sql</TransformerType>
+			<KeepValues>
+				<key>hello</key>
+			</KeepValues>
+			<In>{"query": "select * from table where id = 2", "hello": "world", "hi": "there"}</In>
+			<Out>{"query": "select * from table where id = ?", "hello": "world", "hi": "?"}</Out>
+		</Test>
+		<Test>
+			<Tag>obfuscate.sql.json.invalid_transformer_type</Tag>
+			<TransformValues>
+				<key>query</key>
+			</TransformValues>
+			<TransformerType>fake_transformer</TransformerType>
+			<KeepValues>
+				<key>hello</key>
+			</KeepValues>
+			<In>{"query": "select * from table where id = 2", "hello": "world", "hi": "there"}</In>
+			<Out>{"query": "?", "hello": "world", "hi": "?"}</Out>
+		</Test>
+		<Test>
+			<Tag>obfuscate.sql.json.tried_sql_obfuscate_an_object</Tag>
+			<TransformValues>
+				<key>object</key>
+			</TransformValues>
+			<TransformerType>obfuscate_sql</TransformerType>
+			<In>{"object": {"not a": "query"}}</In>
+			<Out>{"object": {"not a": "?"}}</Out>
+		</Test>
+		<Test>
+			<Tag>obfuscate.sql.json.tried_sql_obfuscate_an_array</Tag>
+			<TransformValues>
+				<key>object</key>
+			</TransformValues>
+			<TransformerType>obfuscate_sql</TransformerType>
+			<In>{"object": ["not", "a", "query"]}</In>
+			<Out>{"object": ["?", "?", "?"]}</Out>
+		</Test>
+		<Test>
+			<Tag>normalize.sql.plan.mysql</Tag>
+			<TransformValues>
+				<key>attached_condition</key>
+			</TransformValues>
+			<TransformerType>obfuscate_sql</TransformerType>
+			<KeepValues>
+				<key>select_id</key>
+				<key>using_filesort</key>
+				<key>table_name</key>
+				<key>access_type</key>
+				<key>possible_keys</key>
+				<key>key</key>
+				<key>key_length</key>
+				<key>used_key_parts</key>
+				<key>used_columns</key>
+				<key>ref</key>
+				<key>update</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+  "query_block": {
+	"select_id": 1,
+	"cost_info": {
+	  "query_cost": "120.31"
+	},
+	"ordering_operation": {
+	  "using_filesort": true,
+	  "cost_info": {
+		"sort_cost": "100.00"
+	  },
+	  "table": {
+		"table_name": "sbtest1",
+		"access_type": "range",
+		"possible_keys": [
+		  "PRIMARY"
+		],
+		"key": "PRIMARY",
+		"used_key_parts": [
+		  "id"
+		],
+		"key_length": "4",
+		"rows_examined_per_scan": 100,
+		"rows_produced_per_join": 100,
+		"filtered": "100.00",
+		"cost_info": {
+		  "read_cost": "10.31",
+		  "eval_cost": "10.00",
+		  "prefix_cost": "20.31",
+		  "data_read_per_join": "71K"
+		},
+		"used_columns": [
+		  "id",
+		  "c"
+		],
+		"attached_condition": "(`sbtest`.`sbtest1`.`id` between 5016 and 5115)"
+	  }
+	}
+  }
+}]]></In>
+			<Out><![CDATA[
+{
+  "query_block": {
+	"select_id": 1,
+	"cost_info": {
+	  "query_cost": "?"
+	},
+	"ordering_operation": {
+	  "using_filesort": true,
+	  "cost_info": {
+		"sort_cost": "?"
+	  },
+	  "table": {
+		"table_name": "sbtest1",
+		"access_type": "range",
+		"possible_keys": [
+		  "PRIMARY"
+		],
+		"key": "PRIMARY",
+		"used_key_parts": [
+		  "id"
+		],
+		"key_length": "4",
+		"rows_examined_per_scan": "?",
+		"rows_produced_per_join": "?",
+		"filtered": "?",
+		"cost_info": {
+		  "read_cost": "?",
+		  "eval_cost": "?",
+		  "prefix_cost": "?",
+		  "data_read_per_join": "?"
+		},
+		"used_columns": [
+		  "id",
+		  "c"
+		],
+		"attached_condition": "( sbtest . sbtest1 . id between ? and ? )"
+	  }
+	}
+  }
+}]]></Out>
+		</Test>
+		<Test>
+			<Tag>normalize.sql.plan.postgres</Tag>
+			<TransformValues>
+				<key>Index Cond</key>
+				<key>Recheck Cond</key>
+				<key>Merge Cond</key>
+				<key>Hash Cond</key>
+				<key>Join Filter</key>
+			</TransformValues>
+			<TransformerType>obfuscate_sql</TransformerType>
+			<KeepValues>
+				<key>Node Type</key>
+				<key>Parallel Aware</key>
+				<key>Scan Direction</key>
+				<key>Index Name</key>
+				<key>Relation Name</key>
+				<key>Alias</key>
+				<key>Parent Relationship</key>
+				<key>Sort Key</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+  "Plan": {
+	"Node Type": "Unique",
+	"Parallel Aware": false,
+	"Startup Cost": 223.09,
+	"Total Cost": 223.59,
+	"Plan Rows": 100,
+	"Plan Width": 121,
+	"Plans": [
+	  {
+		"Node Type": "Sort",
+		"Parent Relationship": "Outer",
+		"Parallel Aware": false,
+		"Startup Cost": 223.09,
+		"Total Cost": 223.34,
+		"Plan Rows": 100,
+		"Plan Width": 121,
+		"Sort Key": [
+		  "c"
+		],
+		"Plans": [
+		  {
+			"Node Type": "Bitmap Heap Scan",
+			"Parent Relationship": "Outer",
+			"Parallel Aware": false,
+			"Relation Name": "sbtest1",
+			"Alias": "sbtest1",
+			"Startup Cost": 5.31,
+			"Total Cost": 219.77,
+			"Plan Rows": 100,
+			"Plan Width": 121,
+			"Recheck Cond": "((id >= 4999) AND (id <= 5098))",
+			"Plans": [
+			  {
+				"Node Type": "Bitmap Index Scan",
+				"Parent Relationship": "Outer",
+				"Parallel Aware": false,
+				"Index Name": "sbtest1_pkey",
+				"Startup Cost": 0.00,
+				"Total Cost": 5.29,
+				"Plan Rows": 100,
+				"Plan Width": 0,
+				"Index Cond": "((id >= 4999) AND (id <= 5098))"
+			  }
+			]
+		  }
+		]
+	  }
+	]
+  }
+}]]></In>
+			<Out><![CDATA[
+{
+  "Plan": {
+	"Node Type": "Unique",
+	"Parallel Aware": false,
+	"Startup Cost": "?",
+	"Total Cost": "?",
+	"Plan Rows": "?",
+	"Plan Width": "?",
+	"Plans": [
+	  {
+		"Node Type": "Sort",
+		"Parent Relationship": "Outer",
+		"Parallel Aware": false,
+		"Startup Cost": "?",
+		"Total Cost": "?",
+		"Plan Rows": "?",
+		"Plan Width": "?",
+		"Sort Key": [
+		  "c"
+		],
+		"Plans": [
+		  {
+			"Node Type": "Bitmap Heap Scan",
+			"Parent Relationship": "Outer",
+			"Parallel Aware": false,
+			"Relation Name": "sbtest1",
+			"Alias": "sbtest1",
+			"Startup Cost": "?",
+			"Total Cost": "?",
+			"Plan Rows": "?",
+			"Plan Width": "?",
+			"Recheck Cond": "( ( id >= ? ) AND ( id <= ? ) )",
+			"Plans": [
+			  {
+				"Node Type": "Bitmap Index Scan",
+				"Parent Relationship": "Outer",
+				"Parallel Aware": false,
+				"Index Name": "sbtest1_pkey",
+				"Startup Cost": "?",
+				"Total Cost": "?",
+				"Plan Rows": "?",
+				"Plan Width": "?",
+				"Index Cond": "( ( id >= ? ) AND ( id <= ? ) )"
+			  }
+			]
+		  }
+		]
+	  }
+	]
+  }
+}]]></Out>
+		</Test>
+
 	</TestSuite>
 </ObfuscateTests>

@@ -31,6 +31,13 @@ type ObfuscationConfig struct {
 	// Mongo holds the obfuscation configuration for MongoDB queries.
 	Mongo JSONObfuscationConfig `mapstructure:"mongodb"`
 
+	// SQLExecPlan holds the obfuscation configuration for SQL Exec Plans. This is strictly for safety related obfuscation,
+	// not normalization. Normalization of exec plans is configured in SQLExecPlanNormalize.
+	SQLExecPlan JSONObfuscationConfig `mapstructure:"sql_exec_plan"`
+
+	// SQLExecPlanNormalize holds the normalization configuration for SQL Exec Plans.
+	SQLExecPlanNormalize JSONObfuscationConfig `mapstructure:"sql_exec_plan_normalize"`
+
 	// HTTP holds the obfuscation settings for HTTP URLs.
 	HTTP HTTPObfuscationConfig `mapstructure:"http"`
 
@@ -70,6 +77,13 @@ type JSONObfuscationConfig struct {
 	// KeepValues will specify a set of keys for which their values will
 	// not be obfuscated.
 	KeepValues []string `mapstructure:"keep_values"`
+
+	// TransformValues will specify a set of keys for which their values will
+	// not be obfuscated.
+	TransformValues []string `mapstructure:"transform_values"`
+
+	// TransformerType is the type of transformer used to transform the TransformValues.
+	TransformerType string `mapstructure:"transformer_type"`
 }
 
 // ReplaceRule specifies a replace rule.

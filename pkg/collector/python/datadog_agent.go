@@ -8,6 +8,7 @@
 package python
 
 import (
+	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
@@ -187,14 +188,33 @@ func ReadPersistentCache(key *C.char) *C.char {
 	return TrackedCString(data)
 }
 
-var obfuscator = obfuscate.NewObfuscator(nil)
+var (
+	// one obfuscator instance is shared across all python checks. It is not threadsafe but that is ok because
+	// the GIL is always locked when calling c code from python which means that the exported functions in this file
+	// will only ever be called by one goroutine at a time
+	obfuscator       *obfuscate.Obfuscator
+	obfuscatorLoader sync.Once
+)
+
+// lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
+// because the obfuscator depends on config.Datadog and it isn't guaranteed to be initialized during package init, but
+// will definitely be initialized by the time one of the python checks runs
+func lazyInitObfuscator() *obfuscate.Obfuscator {
+	if obfuscator != nil {
+		return obfuscator
+	}
+	obfuscatorLoader.Do(func() {
+		obfuscator = obfuscate.LoadSQLObfuscator()
+	})
+	return obfuscator
+}
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
 // fails
 //export ObfuscateSQL
 func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := obfuscator.ObfuscateSQLString(s)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLString(s)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
@@ -202,4 +222,21 @@ func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
 	}
 	// memory will be freed by caller
 	return TrackedCString(obfuscatedQuery.Query)
+}
+
+// ObfuscateSQLExecPlan obfuscates the provided json query execution plan, writing the error into errResult if the
+// operation fails
+//export ObfuscateSQLExecPlan
+func ObfuscateSQLExecPlan(jsonPlan *C.char, normalize C.bool, errResult **C.char) *C.char {
+	obfuscatedJSONPlan, err := lazyInitObfuscator().ObfuscateSQLExecPlan(
+		C.GoString(jsonPlan),
+		bool(normalize),
+	)
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedJSONPlan)
 }

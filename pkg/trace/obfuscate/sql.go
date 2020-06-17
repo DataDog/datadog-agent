@@ -344,3 +344,29 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	}
 	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
 }
+
+// ObfuscateSQLStringSafe obfuscates the sql string, returning either the successfully obfuscated string or a string
+// containing an error message explaining why the obfuscation failed
+func (o *Obfuscator) ObfuscateSQLStringSafe(sqlString string) string {
+	result, err := o.ObfuscateSQLString(sqlString)
+	if err != nil {
+		log.Debugf("failed to obfuscate sql string '%s': %s", sqlString, err.Error())
+		return "datadog-agent failed to obfuscate sql string. enable agent debug logs for more info."
+	}
+	return result.Query
+}
+
+// ObfuscateSQLExecPlan obfuscates query conditions in the provided JSON encoded execution plan. If normalize=True,
+// then cost and row estimates are also obfuscated away.
+func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (string, error) {
+	if normalize {
+		return o.sqlExecPlanNormalize.obfuscate([]byte(jsonPlan))
+	}
+	return o.sqlExecPlan.obfuscate([]byte(jsonPlan))
+}
+
+// HashObfuscatedSQL returns the hash of an already obfuscated query as 32 char hex string
+// the query must already have been obfuscated using ObfuscateSQLString
+func HashObfuscatedSQL(obfuscatedSQL string) string {
+	return strconv.FormatUint(murmur3.Sum64([]byte(obfuscatedSQL)), 16)
+}

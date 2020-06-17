@@ -21,6 +21,7 @@ static cb_set_external_tags_t cb_set_external_tags = NULL;
 static cb_write_persistent_cache_t cb_write_persistent_cache = NULL;
 static cb_read_persistent_cache_t cb_read_persistent_cache = NULL;
 static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
+static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -35,6 +36,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args);
 static PyObject *write_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *obfuscate_sql(PyObject *self, PyObject *args);
+static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -49,6 +51,7 @@ static PyMethodDef methods[] = {
     { "write_persistent_cache", write_persistent_cache, METH_VARARGS, "Store a value for a given key." },
     { "read_persistent_cache", read_persistent_cache, METH_VARARGS, "Retrieve the value associated with a key." },
     { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS, "Obfuscate & normalize a SQL string." },
+    { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL Execution Plan." },
     { NULL, NULL } // guards
 };
 
@@ -123,6 +126,12 @@ void _set_obfuscate_sql_cb(cb_obfuscate_sql_t cb)
 {
     cb_obfuscate_sql = cb;
 }
+
+void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t cb)
+{
+    cb_obfuscate_sql_exec_plan = cb;
+}
+
 
 /*! \fn PyObject *get_version(PyObject *self, PyObject *args)
     \brief This function implements the `datadog-agent.get_version` method, collecting
@@ -704,6 +713,43 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args)
 
     cgo_free(error_message);
     cgo_free(obfQuery);
+    PyGILState_Release(gstate);
+    return retval;
+}
+
+static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    // callback must be set
+    if (cb_obfuscate_sql_exec_plan == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *rawPlan = NULL;
+    PyObject *normalizeObj = NULL;
+    static char *kwlist[] = {"", "normalize", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|O", kwlist, &rawPlan, &normalizeObj)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+    bool normalize = (normalizeObj != NULL && PyBool_Check(normalizeObj) && normalizeObj == Py_True);
+
+    char *error_message = NULL;
+    char *obfPlan = cb_obfuscate_sql_exec_plan(rawPlan, normalize, &error_message);
+
+    PyObject *retval = NULL;
+    if (error_message != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, error_message);
+    } else if (obfPlan == NULL) {
+        // no error message and a null response. this should never happen so the go code is misbehaving
+        PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_obfuscate_sql_exec_plan response");
+    } else {
+        retval = PyStringFromCString(obfPlan);
+    }
+
+    cgo_free(error_message);
+    cgo_free(obfPlan);
     PyGILState_Release(gstate);
     return retval;
 }

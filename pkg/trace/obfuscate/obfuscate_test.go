@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 	// prepare JSON obfuscator tests
 	suite, err := loadTests()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to load JSON obfuscator tests: %s", err.Error())
 	}
 	if len(suite) == 0 {
 		log.Fatal("no tests in suite")
