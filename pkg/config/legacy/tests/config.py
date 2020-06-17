@@ -354,9 +354,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
                 additional_config = extract_agent_config(config)
                 agentConfig.update(additional_config)
             except Exception:
-                log.error(
-                    'Failed to load the agent configuration related to ' 'service discovery. It will not be used.'
-                )
+                log.error('Failed to load the agent configuration related to service discovery. It will not be used.')
 
         # Concerns only Windows
         if config.has_option('Main', 'use_web_info_page'):
@@ -533,16 +531,14 @@ def extract_agent_config(config):
         conf_backend = config.get('Main', 'sd_config_backend')
 
     if backend not in SD_BACKENDS:
-        log.error("The backend {0} is not supported. " "Service discovery won't be enabled.".format(backend))
+        log.error("The backend {0} is not supported. Service discovery won't be enabled.".format(backend))
         agentConfig['service_discovery'] = False
 
     if conf_backend is None:
-        log.warning(
-            'No configuration backend provided for service discovery. ' 'Only auto config templates will be used.'
-        )
+        log.warning('No configuration backend provided for service discovery. Only auto config templates will be used.')
     elif conf_backend not in SD_CONFIG_BACKENDS:
         log.error(
-            "The config backend {0} is not supported. " "Only auto config templates will be used.".format(conf_backend)
+            "The config backend {0} is not supported. Only auto config templates will be used.".format(conf_backend)
         )
         conf_backend = None
     agentConfig['sd_config_backend'] = conf_backend
@@ -609,7 +605,7 @@ def get_proxy(agentConfig):
             return proxy_settings
 
     except Exception as e:
-        log.debug("Error while trying to fetch proxy settings using urllib %s." "Proxy is probably not set", str(e))
+        log.debug("Error while trying to fetch proxy settings using urllib %s. Proxy is probably not set", str(e))
 
     return None
 
