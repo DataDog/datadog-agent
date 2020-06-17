@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	ctaUnspec = iota
+	_ = iota
 	ctaTupleOrig
 	ctaTupleReply
 )
@@ -20,7 +20,7 @@ const (
 const (
 	ctaTupleIP    = 1
 	ctaTupleProto = 2
-	ctaTupleZone  = 3
+	ctaTupleZone  = 3 //nolint:deadcode
 )
 
 const (
@@ -47,7 +47,10 @@ func DecodeAndReleaseEvent(e Event) []ct.Con {
 
 	for _, msg := range msgs {
 		c := &ct.Con{}
-		scanner.ResetTo(msg.Data)
+		if err := scanner.ResetTo(msg.Data); err != nil {
+			log.Debugf("error decoding netlink message: %s", err)
+			continue
+		}
 		err := unmarshalCon(scanner, c)
 		if err != nil {
 			log.Debugf("error decoding netlink message: %s", err)
@@ -129,7 +132,7 @@ func unmarshalProto(s *AttributeScanner, t *ct.IPTuple) error {
 		switch s.Type() {
 		case ctaProtoNum:
 			toDecode--
-			protoNum := uint8(s.Bytes()[0])
+			protoNum := s.Bytes()[0]
 			t.Proto.Number = &protoNum
 		case ctaProtoSrcPort:
 			toDecode--

@@ -21,7 +21,7 @@ import (
 )
 
 func TestGetSource(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -49,7 +49,7 @@ func TestGetSource(t *testing.T) {
 }
 
 func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -81,7 +81,7 @@ func TestGetSourceShouldBeOverridenByAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -108,7 +108,7 @@ func TestGetSourceShouldFailWithInvalidAutoDiscoveryAnnotation(t *testing.T) {
 }
 
 func TestGetSourceAddContainerdParser(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -131,8 +131,8 @@ func TestGetSourceAddContainerdParser(t *testing.T) {
 }
 
 func TestContainerCollectAll(t *testing.T) {
-	launcherCollectAll := &Launcher{collectAll: true}
-	launcherCollectAllDisabled := &Launcher{collectAll: false}
+	launcherCollectAll := getLauncher(true)
+	launcherCollectAllDisabled := getLauncher(false)
 	containerFoo := kubelet.ContainerStatus{
 		Name:  "fooName",
 		Image: "fooImage",
@@ -202,7 +202,7 @@ func TestContainerCollectAll(t *testing.T) {
 }
 
 func TestGetPath(t *testing.T) {
-	launcher := &Launcher{collectAll: true}
+	launcher := getLauncher(true)
 	container := kubelet.ContainerStatus{
 		Name:  "foo",
 		Image: "bar",
@@ -265,6 +265,13 @@ func contains(list []string, items ...string) bool {
 		}
 	}
 	return true
+}
+
+func getLauncher(collectAll bool) *Launcher {
+	return &Launcher{
+		collectAll:  collectAll,
+		serviceFunc: func(string, string) string { return "" },
+	}
 }
 
 func TestGetSourceServiceNameOrder(t *testing.T) {
@@ -360,8 +367,10 @@ func TestGetSourceServiceNameOrder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := &Launcher{collectAll: true}
-			serviceFunc = tt.sFunc
+			l := &Launcher{
+				collectAll:  true,
+				serviceFunc: tt.sFunc,
+			}
 			got, err := l.getSource(tt.pod, tt.container)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Launcher.getSource() error = %v, wantErr %v", err, tt.wantErr)

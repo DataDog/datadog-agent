@@ -26,9 +26,6 @@ const (
 	backoffMaxDuration     = 60 * time.Second
 )
 
-// serviceFunc is separated from overrideSource for testing purpose
-var serviceFunc = input.ServiceFromTags
-
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider   pipeline.Provider
@@ -44,7 +41,8 @@ type Launcher struct {
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
-	readTimeout        time.Duration // client read timeout to set on the created tailer
+	readTimeout        time.Duration               // client read timeout to set on the created tailer
+	serviceFunc        func(string, string) string // serviceFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
 // NewLauncher returns a new launcher
@@ -63,6 +61,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		erroredContainerID: make(chan string),
 		lock:               &sync.Mutex{},
 		readTimeout:        readTimeout,
+		serviceFunc:        input.ServiceFromTags,
 	}
 	// FIXME(achntrl): Find a better way of choosing the right launcher
 	// between Docker and Kubernetes
@@ -166,7 +165,7 @@ func (l *Launcher) run() {
 
 // overrideSource create a new source with the image short name if the source is ContainerCollectAll
 func (l *Launcher) overrideSource(container *Container, source *config.LogSource) *config.LogSource {
-	standardService := serviceFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(container.container.ID))
+	standardService := l.serviceFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(container.container.ID))
 	if source.Name != config.ContainerCollectAll {
 		if source.Config.Service == "" && standardService != "" {
 			source.Config.Service = standardService
