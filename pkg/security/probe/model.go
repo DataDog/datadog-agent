@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os/user"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/google/uuid"
@@ -320,6 +321,54 @@ func (e *RenameEvent) ResolveTargetInode(resolvers *Resolvers) string {
 	return e.TargetPathnameStr
 }
 
+type UtimesEvent struct {
+	Atime       time.Time
+	Mtime       time.Time
+	Inode       uint64 `field:"inode"`
+	Dev         uint32 `field:"-"`
+	PathnameStr string `field:"filename" handler:"ResolveInode,string"`
+}
+
+func (e *UtimesEvent) marshalJSON(resolvers *Resolvers) ([]byte, error) {
+	if e.Inode == 0 {
+		return nil, nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteRune('{')
+	fmt.Fprintf(&buf, `"filename":"%s",`, e.ResolveInode(resolvers))
+	fmt.Fprintf(&buf, `"inode":%d`, e.Inode)
+	buf.WriteRune('}')
+
+	return buf.Bytes(), nil
+}
+
+func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 48 {
+		return 0, NotEnoughData
+	}
+
+	timeSec := byteOrder.Uint64(data[0:8])
+	timeNsec := byteOrder.Uint64(data[8:16])
+	e.Atime = time.Unix(int64(timeSec), int64(timeNsec))
+
+	timeSec = byteOrder.Uint64(data[16:24])
+	timeNsec = byteOrder.Uint64(data[24:32])
+	e.Mtime = time.Unix(int64(timeSec), int64(timeNsec))
+
+	e.Dev = byteOrder.Uint32(data[36:40])
+	e.Inode = byteOrder.Uint64(data[40:48])
+
+	return 48, nil
+}
+
+func (e *UtimesEvent) ResolveInode(resolvers *Resolvers) string {
+	if len(e.PathnameStr) == 0 {
+		e.PathnameStr = resolvers.DentryResolver.Resolve(e.Dev, e.Inode)
+	}
+	return e.PathnameStr
+}
+
 type ContainerEvent struct {
 	ID     string   `yaml:"id" field:"id" event:"container"`
 	Labels []string `yaml:"labels" field:"labels" event:"container"`
@@ -463,8 +512,9 @@ type Event struct {
 	Open      OpenEvent      `yaml:"open" field:"open" event:"open"`
 	Mkdir     MkdirEvent     `yaml:"mkdir" field:"mkdir" event:"mkdir"`
 	Rmdir     RmdirEvent     `yaml:"rmdir" field:"rmdir" event:"rmdir"`
-	Unlink    UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
 	Rename    RenameEvent    `yaml:"rename" field:"rename" event:"rename"`
+	Unlink    UnlinkEvent    `yaml:"unlink" field:"unlink" event:"unlink"`
+	Utimes    UtimesEvent    `yaml:"utimes" field:"utimes" event:"utimes"`
 
 	resolvers *Resolvers `field:"-"`
 }
@@ -519,6 +569,10 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		{
 			field:      "file",
 			marshalFnc: e.Rename.marshalJSON,
+		},
+		{
+			field:      "utimes",
+			marshalFnc: e.Utimes.marshalJSON,
 		},
 	}
 

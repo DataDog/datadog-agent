@@ -3,6 +3,11 @@
 
 #include "../../ebpf/c/bpf_helpers.h"
 
+struct ktimeval {
+    long tv_sec;
+    long tv_nsec;
+};
+
 struct syscall_cache_t {
     union {
         struct {
@@ -33,9 +38,17 @@ struct syscall_cache_t {
 
         struct {
             struct dentry *dentry;
-            umode_t mode;
-            uid_t user;
-            gid_t group;
+            union {
+                umode_t mode;
+                struct {
+                    uid_t user;
+                    gid_t group;
+                };
+                struct {
+                    struct ktimeval atime;
+                    struct ktimeval mtime;
+                };
+            };
         } setattr;
     };
 };

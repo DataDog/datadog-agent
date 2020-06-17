@@ -32,6 +32,7 @@ enum event_type
     EVENT_VFS_RMDIR,
     EVENT_VFS_CHMOD,
     EVENT_VFS_CHOWN,
+    EVENT_VFS_UTIME,
 };
 
 struct event_t {
