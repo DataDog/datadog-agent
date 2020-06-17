@@ -59,7 +59,10 @@ OLD_STYLE_PARAMETERS = [
     ('WMI', "WMI"),
 ]
 
-NAGIOS_OLD_CONF_KEYS = ['nagios_log', 'nagios_perf_cfg']
+NAGIOS_OLD_CONF_KEYS = [
+    'nagios_log',
+    'nagios_perf_cfg',
+]
 
 LEGACY_DATADOG_URLS = [
     "app.datadoghq.com",
@@ -70,7 +73,10 @@ JMX_SD_CONF_TEMPLATE = '.jmx.{}.yaml'
 
 # These are unlikely to change, but manifests are versioned,
 # so keeping these as a list just in case we change add stuff.
-MANIFEST_VALIDATION = {'max': ['max_agent_version'], 'min': ['min_agent_version']}
+MANIFEST_VALIDATION = {
+    'max': ['max_agent_version'],
+    'min': ['min_agent_version'],
+}
 
 
 class PathNotFound(Exception):
@@ -97,7 +103,13 @@ def _windows_commondata_path():
     CSIDL_COMMON_APPDATA = 35
 
     _SHGetFolderPath = windll.shell32.SHGetFolderPathW
-    _SHGetFolderPath.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.HANDLE, wintypes.DWORD, wintypes.LPCWSTR]
+    _SHGetFolderPath.argtypes = [
+        wintypes.HWND,
+        ctypes.c_int,
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.LPCWSTR,
+    ]
 
     path_buf = wintypes.create_unicode_buffer(wintypes.MAX_PATH)
     _SHGetFolderPath(0, CSIDL_COMMON_APPDATA, 0, 0, path_buf)

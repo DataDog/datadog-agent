@@ -65,7 +65,10 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
 
     python_runtimes = python_runtimes.split(',')
 
-    settings = {"DISABLE_PYTHON2:BOOL": "OFF", "DISABLE_PYTHON3:BOOL": "OFF"}
+    settings = {
+        "DISABLE_PYTHON2:BOOL": "OFF",
+        "DISABLE_PYTHON3:BOOL": "OFF",
+    }
     if '2' not in python_runtimes:
         settings["DISABLE_PYTHON2:BOOL"] = "ON"
     if '3' not in python_runtimes:

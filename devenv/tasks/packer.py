@@ -6,7 +6,11 @@ from __future__ import print_function
 from invoke import task
 from invoke.exceptions import Exit
 
-DEFAULT_BUILDERS = ["parallels-iso", "vmware-iso", "virtualbox-iso"]
+DEFAULT_BUILDERS = [
+    "parallels-iso",
+    "vmware-iso",
+    "virtualbox-iso",
+]
 
 
 @task
