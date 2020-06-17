@@ -30,10 +30,6 @@ import "C"
 type tracerStatus C.tracer_status_t
 
 const (
-	// When reading kernel structs at different offsets, don't go over that
-	// limit. This is an arbitrary choice to avoid infinite loops.
-	threshold = 400
-
 	// The source port is much further away in the inet sock.
 	thresholdInetSock = 2000
 
@@ -97,6 +93,7 @@ var tcpKprobeCalledString = map[C.__u64]string{
 const listenIP = "127.0.0.2"
 
 var zero uint64
+var threshold uint64
 
 type fieldValues struct {
 	saddr     uint32
@@ -301,7 +298,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		}
 		status.offset_ino++
 		// go to the next offset_netns if we get an error
-		if status.err != 0 || status.offset_ino >= threshold {
+		if status.err != 0 || uint64(status.offset_ino) >= threshold {
 			status.offset_ino = 0
 			status.offset_netns++
 		}
@@ -378,6 +375,7 @@ func setReadyState(m *elf.Module, mp *elf.Map, status *tracerStatus) error {
 // guess the next field.
 func guessOffsets(m *elf.Module, cfg *Config) error {
 	mp := m.Map(string(tracerStatusMap))
+	threshold = cfg.OffsetGuessThreshold
 
 	// pid & tid must not change during the guessing work: the communication
 	// between ebpf and userspace relies on it
@@ -430,6 +428,7 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 		return errors.Wrap(err, "error retrieving expected value")
 	}
 
+	log.Debugf("Checking for offsets with threshold of %d", threshold)
 	for status.state != stateReady {
 		if err := eventGenerator.Generate(status, expected); err != nil {
 			return err
@@ -442,10 +441,10 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 		// Stop at a reasonable offset so we don't run forever.
 		// Reading too far away in kernel memory is not a big deal:
 		// probe_kernel_read() handles faults gracefully.
-		if status.offset_saddr >= threshold || status.offset_daddr >= threshold ||
-			status.offset_sport >= thresholdInetSock || status.offset_dport >= threshold ||
-			status.offset_netns >= threshold || status.offset_family >= threshold ||
-			status.offset_daddr_ipv6 >= threshold {
+		if uint64(status.offset_saddr) >= threshold || uint64(status.offset_daddr) >= threshold ||
+			status.offset_sport >= thresholdInetSock || uint64(status.offset_dport) >= threshold ||
+			uint64(status.offset_netns) >= threshold || uint64(status.offset_family) >= threshold ||
+			uint64(status.offset_daddr_ipv6) >= threshold {
 			return fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}

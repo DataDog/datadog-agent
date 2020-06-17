@@ -71,6 +71,10 @@ func SysProbeConfigFromConfig(cfg *AgentConfig) *ebpf.Config {
 		tracerConfig.ClosedChannelSize = ccs
 	}
 
+	if th := cfg.OffsetGuessThreshold; th > 0 {
+		tracerConfig.OffsetGuessThreshold = th
+	}
+
 	return tracerConfig
 }
 
