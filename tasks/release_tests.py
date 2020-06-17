@@ -1,6 +1,5 @@
 import unittest
 import release
-import sys
 import random
 
 class TestIsHigherMethod(unittest.TestCase):
@@ -25,7 +24,7 @@ class TestIsHigherMethod(unittest.TestCase):
     def test_major_higher(self):
         version = self._get_random_version()
         increment = random.randint(1, 99)
-        self.assertTrue(release._is_version_higher(self._get_version(version["major"] + 1, version["minor"], version["patch"], version["rc"]),
+        self.assertTrue(release._is_version_higher(self._get_version(version["major"] + increment, version["minor"], version["patch"], version["rc"]),
                                                    self._get_version(version["major"], version["minor"], version["patch"], version["rc"])))
 
     def test_minor_lower(self):

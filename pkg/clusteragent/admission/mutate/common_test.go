@@ -65,7 +65,7 @@ func Test_injectEnv(t *testing.T) {
 		name        string
 		args        args
 		wantPodFunc func() corev1.Pod
-		wantErr     bool
+		injected    bool
 	}{
 		{
 			name: "1 container, 1 inject env",
@@ -78,6 +78,7 @@ func Test_injectEnv(t *testing.T) {
 				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnv("inject-me"))
 				return *pod
 			},
+			injected: true,
 		},
 		{
 			name: "1 container, 0 inject env",
@@ -88,6 +89,7 @@ func Test_injectEnv(t *testing.T) {
 			wantPodFunc: func() corev1.Pod {
 				return *fakePodWithContainer("foo-pod", fakeContainer("foo-container"))
 			},
+			injected: false,
 		},
 		{
 			name: "2 container, 2 inject env",
@@ -101,6 +103,7 @@ func Test_injectEnv(t *testing.T) {
 				pod.Spec.Containers[1].Env = append(pod.Spec.Containers[1].Env, fakeEnv("inject-me"))
 				return *pod
 			},
+			injected: true,
 		},
 		{
 			name: "2 container, 1 inject env",
@@ -113,11 +116,15 @@ func Test_injectEnv(t *testing.T) {
 				pod.Spec.Containers[1].Env = append(pod.Spec.Containers[1].Env, fakeEnv("foo-container-env-foo"))
 				return *pod
 			},
+			injected: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			injectEnv(tt.args.pod, tt.args.env)
+			got := injectEnv(tt.args.pod, tt.args.env)
+			if got != tt.injected {
+				t.Errorf("injectEnv() = %v, want %v", got, tt.injected)
+			}
 			if tt.args.pod != nil && !reflect.DeepEqual(tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers) {
 				t.Errorf("injectEnv() = %v, want %v", tt.args.pod.Spec.Containers, tt.wantPodFunc().Spec.Containers)
 			}

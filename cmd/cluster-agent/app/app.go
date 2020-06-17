@@ -204,6 +204,8 @@ func start(cmd *cobra.Command, args []string) error {
 			InformerFactory:    apiCl.InformerFactory,
 			WPAClient:          apiCl.WPAClient,
 			WPAInformerFactory: apiCl.WPAInformerFactory,
+			DDClient:           apiCl.DDClient,
+			DDInformerFactory:  apiCl.DDInformerFactory,
 			Client:             apiCl.Cl,
 			IsLeaderFunc:       le.IsLeader,
 			EventRecorder:      eventRecorder,

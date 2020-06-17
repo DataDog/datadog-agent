@@ -309,6 +309,17 @@ func TestWPAController(t *testing.T) {
 			},
 		},
 	}
+	ddSeries = []datadog.Series{
+		{
+			Metric: &metricName,
+			Points: []datadog.DataPoint{
+				makePoints(1531492452000, 12.34),
+				makePoints(penTime, 1.01),
+				makePoints(0, 0.902),
+			},
+			Scope: makePtr("dcos_version:2.1.9"),
+		},
+	}
 	mockedWPA.Annotations = makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
 	_, err = c.WatermarkPodAutoscalers(mockedWPA.Namespace).Update(mockedWPA)
 	require.NoError(t, err)

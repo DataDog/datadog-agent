@@ -78,7 +78,7 @@ type Server struct {
 	histToDist                bool
 	histToDistPrefix          string
 	extraTags                 []string
-	Debug                     dsdServerDebug
+	Debug                     *dsdServerDebug
 	mapper                    *mapper.MetricMapper
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
@@ -103,7 +103,20 @@ type dsdServerDebug struct {
 	// Enabled is an atomic int used as a boolean
 	Enabled uint64                         `json:"enabled"`
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
-	keyGen  *ckey.KeyGenerator
+	// counting number of metrics processed last X seconds
+	metricsCounts metricsCountBuckets
+	// keyGen is used to generate hashes of the metrics received by dogstatsd
+	keyGen *ckey.KeyGenerator
+}
+
+// metricsCountBuckets is counting the amount of metrics received for the last 5 seconds.
+// It is used to detect spikes.
+type metricsCountBuckets struct {
+	counts     [5]uint64
+	bucketIdx  int
+	currentSec time.Time
+	metricChan chan struct{}
+	closeChan  chan struct{}
 }
 
 // NewServer returns a running Dogstatsd server
@@ -191,10 +204,15 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 		telemetryEnabled:          telemetry.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
-		Debug: dsdServerDebug{
+		Debug: &dsdServerDebug{
 			Enabled: metricsStatsEnabled,
 			Stats:   make(map[ckey.ContextKey]metricStat),
-			keyGen:  ckey.NewKeyGenerator(),
+			metricsCounts: metricsCountBuckets{
+				counts:     [5]uint64{0, 0, 0, 0, 0},
+				metricChan: make(chan struct{}),
+				closeChan:  make(chan struct{}),
+			},
+			keyGen: ckey.NewKeyGenerator(),
 		},
 	}
 
@@ -218,6 +236,13 @@ func NewServer(aggregator *aggregator.BufferedAggregator) (*Server, error) {
 	// ----------------------
 
 	s.handleMessages()
+
+	// start the debug loop
+	// ----------------------
+
+	if metricsStatsEnabled == 1 {
+		s.EnableMetricsStats()
+	}
 
 	// map some metric name
 	// ----------------------
@@ -466,6 +491,87 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	ms.Name = sample.Name
 	ms.Tags = strings.Join(sample.Tags, " ") // we don't want/need to share the underlying array
 	s.Debug.Stats[key] = ms
+
+	s.Debug.metricsCounts.metricChan <- struct{}{}
+}
+
+// EnableMetricsStats enables the debug mode of the DogStatsD server and start
+// the debug mainloop collecting the amount of metrics received.
+func (s *Server) EnableMetricsStats() {
+	s.Debug.Lock()
+	defer s.Debug.Unlock()
+
+	// already enabled?
+	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+		return
+	}
+
+	atomic.StoreUint64(&s.Debug.Enabled, 1)
+	go func() {
+		ticker := time.NewTicker(time.Millisecond * 100)
+		var closed bool
+		log.Debug("Starting the DogStatsD debug loop.")
+		for {
+			select {
+			case <-ticker.C:
+				sec := time.Now().Truncate(time.Second)
+				if sec.After(s.Debug.metricsCounts.currentSec) {
+					s.Debug.metricsCounts.currentSec = sec
+
+					if s.hasSpike() {
+						log.Warnf("A burst of metrics has been detected by DogStatSd: here is the last 5 seconds count of metrics: %v", s.Debug.metricsCounts.counts)
+					}
+
+					s.Debug.metricsCounts.bucketIdx++
+					if s.Debug.metricsCounts.bucketIdx >= len(s.Debug.metricsCounts.counts) {
+						s.Debug.metricsCounts.bucketIdx = 0
+					}
+
+					s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx] = 0
+				}
+			case <-s.Debug.metricsCounts.metricChan:
+				s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx]++
+			case <-s.Debug.metricsCounts.closeChan:
+				closed = true
+				break
+			}
+
+			if closed {
+				break
+			}
+		}
+		log.Debug("Stopping the DogStatsD debug loop.")
+		ticker.Stop()
+	}()
+}
+
+func (s *Server) hasSpike() bool {
+	// compare this one to the sum of all others
+	// if the difference is higher than all others sum, consider this
+	// as an anomaly.
+	var sum uint64
+	for _, v := range s.Debug.metricsCounts.counts {
+		sum += v
+	}
+	sum -= s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx]
+	if s.Debug.metricsCounts.counts[s.Debug.metricsCounts.bucketIdx] > sum {
+		return true
+	}
+	return false
+}
+
+// DisableMetricsStats disables the debug mode of the DogStatsD server and
+// stops the debug mainloop.
+func (s *Server) DisableMetricsStats() {
+	s.Debug.Lock()
+	defer s.Debug.Unlock()
+
+	if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+		atomic.StoreUint64(&s.Debug.Enabled, 0)
+		s.Debug.metricsCounts.closeChan <- struct{}{}
+	}
+
+	log.Info("Disabling DogStatsD debug metrics stats.")
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.

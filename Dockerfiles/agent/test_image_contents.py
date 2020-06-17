@@ -12,6 +12,7 @@ EXPECTED_PRESENT = [
     "/etc/datadog-agent/datadog-kubernetes.yaml",
     "/etc/datadog-agent/datadog-k8s-docker.yaml",
     "/etc/datadog-agent/datadog-ecs.yaml",
+    "/etc/datadog-agent/install_info",
 ]
 
 EXPECTED_ABSENT = [
@@ -48,7 +49,7 @@ class TestFiles(unittest.TestCase):
         def has_write_permissions(path):
             try:
                 return bool(os.stat(path).st_mode & stat.S_IWOTH)
-            except:
+            except Exception:
                 return False
 
         for root, dirs, files in os.walk("/etc"):
@@ -63,7 +64,7 @@ def correct_permissions(root):
     def correct_perm(path):
         try:
             mode = os.stat(path).st_mode
-        except:
+        except Exception:
             return
 
         if bool(mode & stat.S_IWOTH):
