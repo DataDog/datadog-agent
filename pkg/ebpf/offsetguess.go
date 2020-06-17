@@ -80,7 +80,7 @@ var whatString = map[C.__u64]string{
 	guessSport:     "source port",
 	guessDport:     "destination port",
 	guessNetns:     "network namespace",
-	guessRTT:       "Return Transmission Time",
+	guessRTT:       "Round Trip Time",
 	guessDaddrIPv6: "destination address IPv6",
 }
 
@@ -431,7 +431,6 @@ func guessOffsets(m *elf.Module, cfg *Config) error {
 	}
 
 	for status.state != stateReady {
-		//2020-04-16 09:invalid guessing state while guessing source address, got checking expected checked
 		if err := eventGenerator.Generate(status, expected); err != nil {
 			return err
 		}
