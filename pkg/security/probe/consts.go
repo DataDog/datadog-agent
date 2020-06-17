@@ -27,6 +27,8 @@ const (
 	FileChmodEventType
 	// FileChownEventType - Chown event
 	FileChownEventType
+	// FileUtimeEventType - Utime event
+	FileUtimeEventType
 )
 
 func (t ProbeEventType) String() string {
@@ -46,6 +48,8 @@ func (t ProbeEventType) String() string {
 		return "chmod"
 	case FileChownEventType:
 		return "chown"
+	case FileUtimeEventType:
+		return "utimes"
 	}
 	return "unknown"
 }

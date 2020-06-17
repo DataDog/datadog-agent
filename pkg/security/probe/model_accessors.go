@@ -331,6 +331,24 @@ func (m *Model) GetEvaluator(key string) (interface{}, error) {
 			Field: key,
 		}, nil
 
+	case "utimes.filename":
+
+		return &eval.StringEvaluator{
+			EvalFnc:      func(ctx *eval.Context) string { return m.event.Utimes.ResolveInode(m.event.resolvers) },
+			DebugEvalFnc: func(ctx *eval.Context) string { return m.event.Utimes.ResolveInode(m.event.resolvers) },
+
+			Field: key,
+		}, nil
+
+	case "utimes.inode":
+
+		return &eval.IntEvaluator{
+			EvalFnc:      func(ctx *eval.Context) int { return int(m.event.Utimes.Inode) },
+			DebugEvalFnc: func(ctx *eval.Context) int { return int(m.event.Utimes.Inode) },
+
+			Field: key,
+		}, nil
+
 	}
 
 	return nil, errors.Wrap(ErrFieldNotFound, key)
@@ -479,6 +497,14 @@ func (e *Event) GetFieldValue(key string) (interface{}, error) {
 
 		return int(e.Unlink.Inode), nil
 
+	case "utimes.filename":
+
+		return e.Utimes.ResolveInode(e.resolvers), nil
+
+	case "utimes.inode":
+
+		return int(e.Utimes.Inode), nil
+
 	}
 
 	return nil, errors.Wrap(ErrFieldNotFound, key)
@@ -590,6 +616,12 @@ func (e *Event) GetFieldTags(key string) ([]string, error) {
 		return []string{}, nil
 
 	case "unlink.inode":
+		return []string{}, nil
+
+	case "utimes.filename":
+		return []string{}, nil
+
+	case "utimes.inode":
 		return []string{}, nil
 
 	}
@@ -704,6 +736,12 @@ func (e *Event) GetFieldEventType(key string) (string, error) {
 
 	case "unlink.inode":
 		return "unlink", nil
+
+	case "utimes.filename":
+		return "utimes", nil
+
+	case "utimes.inode":
+		return "utimes", nil
 
 	}
 
@@ -999,6 +1037,22 @@ func (e *Event) SetFieldValue(key string, value interface{}) error {
 			return ErrWrongValueType
 		}
 		e.Unlink.Inode = uint64(v)
+		return nil
+
+	case "utimes.filename":
+
+		if e.Utimes.PathnameStr, ok = value.(string); !ok {
+			return ErrWrongValueType
+		}
+		return nil
+
+	case "utimes.inode":
+
+		v, ok := value.(int)
+		if !ok {
+			return ErrWrongValueType
+		}
+		e.Utimes.Inode = uint64(v)
 		return nil
 
 	}

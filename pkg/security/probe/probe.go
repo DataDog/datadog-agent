@@ -88,84 +88,88 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/security_inode_setattr",
 		},
 		EventTypes: map[string]Capabilities{
-			"chmod": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
-			"chown": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"chmod":  Capabilities{},
+			"chown":  Capabilities{},
+			"utimes": Capabilities{},
 		},
 	},
 	{
 		KProbe: syscallKprobe("chmod"),
 		EventTypes: map[string]Capabilities{
-			"chmod": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"chmod": Capabilities{},
 		},
 	},
 	{
 		KProbe: syscallKprobe("fchmod"),
 		EventTypes: map[string]Capabilities{
-			"chmod": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"chmod": Capabilities{},
 		},
 	},
 	{
 		KProbe: syscallKprobe("fchmodat"),
 		EventTypes: map[string]Capabilities{
-			"chmod": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"chmod": Capabilities{},
 		},
 	},
 	{
 		KProbe: syscallKprobe("chown"),
 		EventTypes: map[string]Capabilities{
-			"chown": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"chown": Capabilities{},
 		},
 	},
 	{
 		KProbe: syscallKprobe("fchown"),
 		EventTypes: map[string]Capabilities{
-			"chown": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"chown": Capabilities{},
 		},
 	},
 	{
 		KProbe: syscallKprobe("fchownat"),
 		EventTypes: map[string]Capabilities{
-			"chown": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"chown": Capabilities{},
 		},
 	},
 	{
 		KProbe: syscallKprobe("lchown"),
 		EventTypes: map[string]Capabilities{
-			"chown": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"chown": Capabilities{},
 		},
 	},
 	{
+		KProbe: syscallKprobe("utime"),
+		EventTypes: map[string]Capabilities{
+			"utimes": Capabilities{},
+		},
+	},
+	{
+		KProbe: syscallKprobe("utimes"),
+		EventTypes: map[string]Capabilities{
+			"utimes": Capabilities{},
+		},
+	},
+	{
+		KProbe: syscallKprobe("utimesat"),
+		EventTypes: map[string]Capabilities{
+			"utimes": Capabilities{},
+		},
+	},
+	{
+		KProbe: syscallKprobe("futimesat"),
+		EventTypes: map[string]Capabilities{
+			"utimes": Capabilities{},
+		},
+	},
+	// VFS
+	{
 		KProbe: syscallKprobe("mkdir"),
 		EventTypes: map[string]Capabilities{
-			"mkdir": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"mkdir": Capabilities{},
 		},
 	},
 	{
 		KProbe: syscallKprobe("mkdirat"),
 		EventTypes: map[string]Capabilities{
-			"mkdir": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"mkdir": Capabilities{},
 		},
 	},
 	{
@@ -174,9 +178,7 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/vfs_mkdir",
 		},
 		EventTypes: map[string]Capabilities{
-			"mkdir": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"mkdir": Capabilities{},
 		},
 	},
 	{
@@ -185,21 +187,13 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/vfs_mkdir",
 		},
 		EventTypes: map[string]Capabilities{
-			"mkdir": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"mkdir": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_rmdir",
-			EntryFunc: "kprobe/" + getSyscallFnName("rmdir"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("rmdir"),
-		},
+		KProbe: syscallKprobe("rmdir"),
 		EventTypes: map[string]Capabilities{
-			"rmdir": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"rmdir": Capabilities{},
 		},
 	},
 	{
@@ -208,33 +202,19 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/vfs_rmdir",
 		},
 		EventTypes: map[string]Capabilities{
-			"rmdir": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"rmdir": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_unlink",
-			EntryFunc: "kprobe/" + getSyscallFnName("unlink"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("unlink"),
-		},
+		KProbe: syscallKprobe("unlink"),
 		EventTypes: map[string]Capabilities{
-			"unlink": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"unlink": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_unlinkat",
-			EntryFunc: "kprobe/" + getSyscallFnName("unlinkat"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("unlinkat"),
-		},
+		KProbe: syscallKprobe("unlinkat"),
 		EventTypes: map[string]Capabilities{
-			"unlink": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"unlink": Capabilities{},
 		},
 	},
 	{
@@ -243,45 +223,25 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/vfs_unlink",
 		},
 		EventTypes: map[string]Capabilities{
-			"unlink": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"unlink": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_rename",
-			EntryFunc: "kprobe/" + getSyscallFnName("rename"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("rename"),
-		},
+		KProbe: syscallKprobe("rename"),
 		EventTypes: map[string]Capabilities{
-			"rename": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"rename": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_renameat",
-			EntryFunc: "kprobe/" + getSyscallFnName("renameat"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("renameat"),
-		},
+		KProbe: syscallKprobe("renameat"),
 		EventTypes: map[string]Capabilities{
-			"rename": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"rename": Capabilities{},
 		},
 	},
 	{
-		KProbe: &eprobe.KProbe{
-			Name:      "sys_renameat2",
-			EntryFunc: "kprobe/" + getSyscallFnName("renameat2"),
-			ExitFunc:  "kretprobe/" + getSyscallFnName("renameat2"),
-		},
+		KProbe: syscallKprobe("renameat2"),
 		EventTypes: map[string]Capabilities{
-			"rename": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"rename": Capabilities{},
 		},
 	},
 	{
@@ -290,9 +250,7 @@ var AllKProbes = []*KProbe{
 			EntryFunc: "kprobe/vfs_rename",
 		},
 		EventTypes: map[string]Capabilities{
-			"rename": Capabilities{
-				EvalCapabilities: []eval.FilteringCapability{},
-			},
+			"rename": Capabilities{},
 		},
 	},
 }
@@ -496,6 +454,11 @@ func (p *Probe) handleEvent(data []byte) {
 	case FileChownEventType:
 		if _, err := event.Chown.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case FileUtimeEventType:
+		if _, err := event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	default:
