@@ -437,10 +437,12 @@ def check_gitlab_broken_dependencies(ctx):
 def lint_python(ctx):
     """
     Lints Python files.
-    See 'setup.cfg' file for configuration
+    See 'setup.cfg' and 'pyproject.toml' file for configuration.
+    If running locally, you probably want to use the pre-commit instead.
     """
 
     ctx.run("flake8 .")
+    ctx.run("black --check --diff .")
 
     
 @task
