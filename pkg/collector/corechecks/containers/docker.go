@@ -10,7 +10,6 @@ package containers
 import (
 	"fmt"
 	"math"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -35,10 +34,6 @@ const (
 	dockerCheckName = "docker"
 	DockerServiceUp = "docker.service_up"
 	DockerExit      = "docker.exit"
-)
-
-var (
-	numCPU float64 = float64(runtime.NumCPU())
 )
 
 type DockerConfig struct {
@@ -80,7 +75,6 @@ type DockerCheck struct {
 	dockerHostname              string
 	cappedSender                *cappedSender
 	collectContainerSizeCounter uint64
-	previousStats               map[string]*containers.Container
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *containers.Container) {
@@ -175,7 +169,6 @@ func (d *DockerCheck) Run() error {
 
 	imageTagsByImageID := make(map[string][]string)
 	images := map[string]*containerPerImage{}
-	newPreviousStats := make(map[string]*containers.Container, len(cList))
 	for _, c := range cList {
 		updateContainerRunningCount(images, c)
 		if c.State != containers.ContainerRunningState || c.Excluded {
@@ -196,19 +189,8 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 
-		currentUnixTime := time.Now().Unix()
-		d.reportUptime(c.StartedAt, currentUnixTime, tags, sender)
-
 		if c.CPU != nil {
-			var previousCPU *cmetrics.ContainerCPUStats
-			var previousLimit *cmetrics.ContainerLimits
-
-			if prevContainer, found := d.previousStats[c.ID]; found {
-				previousCPU = prevContainer.CPU
-				previousLimit = &prevContainer.Limits
-			}
-
-			d.reportCPUMetrics(c.CPU, previousCPU, &c.Limits, previousLimit, tags, sender)
+			d.reportCPUMetrics(c.CPU, &c.Limits, c.StartedAt, tags, sender)
 		} else {
 			log.Debugf("Empty CPU metrics for container %s", c.ID[:12])
 		}
@@ -291,10 +273,7 @@ func (d *DockerCheck) Run() error {
 				sender.Gauge("docker.container.size_rootfs", float64(*info.SizeRootFs), "", tags)
 			}
 		}
-
-		newPreviousStats[c.ID] = c
 	}
-	d.previousStats = newPreviousStats
 
 	if d.instance.CollectContainerSize {
 		// Update the container size counter, used to collect them less often as they are costly
@@ -387,7 +366,7 @@ func (d *DockerCheck) reportUptime(startTime int64, currentUnixTime int64, tags 
 	}
 }
 
-func (d *DockerCheck) reportCPUMetrics(cpu, prevCPU *cmetrics.ContainerCPUStats, limits, prevLimits *cmetrics.ContainerLimits, tags []string, sender aggregator.Sender) {
+func (d *DockerCheck) reportCPUMetrics(cpu *cmetrics.ContainerCPUStats, limits *cmetrics.ContainerLimits, startTime int64, tags []string, sender aggregator.Sender) {
 	if cpu == nil {
 		return
 	}
@@ -401,39 +380,11 @@ func (d *DockerCheck) reportCPUMetrics(cpu, prevCPU *cmetrics.ContainerCPUStats,
 		sender.Gauge("docker.thread.count", float64(cpu.ThreadCount), "", tags)
 	}
 
-	// Compute relative CPU / container. If their was a change in cgroup quota, we can't compute a meaningful normalized pct
-	// TODO: With upcoming refactor, this should be done in metric providers, not here but currently it's not easy to implement
-	// n/n+1 in cgroup provider
-	if prevCPU != nil && prevLimits != nil && limits.CPUPeriodQuotaHz == prevLimits.CPUPeriodQuotaHz {
-		// No data, skip computation
-		if limits.CPUPeriodQuotaHz == 0 {
-			return
-		}
-
-		cpuPct := 0.0
-		if limits.CPUPeriodQuotaHz < 0 {
-			// No limits, need to compute it relative to the whole machine
-			elapsedHz := 100 * cpu.Timestsamp.Sub(prevCPU.Timestsamp).Seconds()
-
-			// Need to convert elapsed into Hz (1/100s)
-			cpuPct = 100 * (cpu.UsageTotal - prevCPU.UsageTotal) / (numCPU * elapsedHz)
-		} else {
-			// Some limit is defined, computing relative to container limits
-			diffCPUTimeHz := cpu.UsageTotal - prevCPU.UsageTotal
-			diffNrPeriod := cpu.NrPeriod - prevCPU.NrPeriod
-
-			if diffCPUTimeHz < 0 || diffNrPeriod < 0 {
-				return
-			}
-
-			if diffCPUTimeHz > 0 && diffNrPeriod > 0 {
-				cpuPct = 100 * diffCPUTimeHz / (limits.CPUPeriodQuotaHz * float64(diffNrPeriod))
-			}
-		}
-
-		if cpuPct >= 0 {
-			sender.Gauge("docker.cpu.normalized_pct", cpuPct, "", tags)
-		}
+	// limits.CPULimit is a percentage (i.e. 100.0%, not 1.0)
+	if limits.CPULimit > 0 {
+		timeDiff := float64(cpu.Timestsamp.Unix() - startTime)
+		availableCPUTimeHz := 100 * timeDiff // Converted to Hz to be consistent with UsageTotal
+		sender.Rate("docker.cpu.limit", limits.CPULimit/100*availableCPUTimeHz, "", tags)
 	}
 }
 

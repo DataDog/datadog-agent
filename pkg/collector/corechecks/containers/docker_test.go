@@ -79,20 +79,7 @@ func TestReportNormalizedCPUNoLimit(t *testing.T) {
 
 	tags := []string{"constant:tags", "container_name:dummy"}
 	testTime := time.Now()
-
-	prevCPU := cmetrics.ContainerCPUStats{
-		Timestsamp: testTime.Add(-10 * time.Second),
-		System:     0,
-		User:       0,
-		UsageTotal: 0.0,
-		NrPeriod:   0,
-	}
-
-	// Explicitly no limit, we also need to set the numCPU var
-	numCPU = 1
-	prevLimits := cmetrics.ContainerLimits{
-		CPUPeriodQuotaHz: -1,
-	}
+	startTime := testTime.Add(-10 * time.Second)
 
 	cpu := cmetrics.ContainerCPUStats{
 		Timestsamp: testTime,
@@ -102,12 +89,14 @@ func TestReportNormalizedCPUNoLimit(t *testing.T) {
 		NrPeriod:   10.0,
 	}
 
+	// 100% is 1 CPU, 200% is 2 CPUs, etc.
+	// So no limit is # of host CPU
 	limits := cmetrics.ContainerLimits{
-		CPUPeriodQuotaHz: -1,
+		CPULimit: 100.0,
 	}
 
-	dockerCheck.reportCPUMetrics(&cpu, &prevCPU, &limits, &prevLimits, tags, mockSender)
-	mockSender.AssertMetric(t, "Gauge", "docker.cpu.normalized_pct", 2.0, "", tags)
+	dockerCheck.reportCPUMetrics(&cpu, &limits, startTime.Unix(), tags, mockSender)
+	mockSender.AssertMetric(t, "Rate", "docker.cpu.limit", 1000, "", tags)
 }
 
 func TestReportNormalizedCPULimit(t *testing.T) {
@@ -119,19 +108,7 @@ func TestReportNormalizedCPULimit(t *testing.T) {
 
 	tags := []string{"constant:tags", "container_name:dummy"}
 	testTime := time.Now()
-
-	prevCPU := cmetrics.ContainerCPUStats{
-		Timestsamp: testTime.Add(-10 * time.Second),
-		System:     0,
-		User:       0,
-		UsageTotal: 0.0,
-		NrPeriod:   0,
-	}
-
-	numCPU = 1
-	prevLimits := cmetrics.ContainerLimits{
-		CPUPeriodQuotaHz: 1000,
-	}
+	startTime := testTime.Add(-10 * time.Second)
 
 	cpu := cmetrics.ContainerCPUStats{
 		Timestsamp: testTime,
@@ -142,9 +119,9 @@ func TestReportNormalizedCPULimit(t *testing.T) {
 	}
 
 	limits := cmetrics.ContainerLimits{
-		CPUPeriodQuotaHz: 1000,
+		CPULimit: 50,
 	}
 
-	dockerCheck.reportCPUMetrics(&cpu, &prevCPU, &limits, &prevLimits, tags, mockSender)
-	mockSender.AssertMetric(t, "Gauge", "docker.cpu.normalized_pct", 0.2, "", tags)
+	dockerCheck.reportCPUMetrics(&cpu, &limits, startTime.Unix(), tags, mockSender)
+	mockSender.AssertMetric(t, "Rate", "docker.cpu.limit", 500, "", tags)
 }

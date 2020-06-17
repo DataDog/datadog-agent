@@ -140,10 +140,9 @@ type ContainerMetrics struct {
 
 // ContainerLimits represents the (normally static) resources limits set when a container is created
 type ContainerLimits struct {
-	CPUPeriodQuotaHz float64
-	CPULimit         float64
-	MemLimit         uint64
-	ThreadLimit      uint64
+	CPULimit    float64
+	MemLimit    uint64
+	ThreadLimit uint64
 }
 
 // ContainerMetricsProvider defines the API for any implementation that could provide container metrics

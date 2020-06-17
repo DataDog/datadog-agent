@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -25,8 +26,9 @@ import (
 // TODO: get USER_HZ from gopsutil? Needs to patch it
 const NanoToUserHZDivisor float64 = 1e9 / 100
 
-// MicroToUserHZDivisor holds the divisor to convert microseconds (cpu.cfs_quota_us) to USER_HZ
-const MicroToUserHZDivisor float64 = 1e6 / 100
+var (
+	numCPU float64 = float64(runtime.NumCPU())
+)
 
 // Mem returns the memory statistics for a Cgroup. If the cgroup file is not
 // available then we return an empty stats file.
@@ -272,44 +274,73 @@ func (c ContainerCgroup) CPUPeriods() (periodNr uint64, throttledNr uint64, err 
 //
 //	docker run --cpus='0.5' ubuntu:latest
 //
-// we should return 50% for that container
+// we should return 50% for that container.
+//
+// However cfs_period_us is per CPU, which means that
+//
+// docker run --cpu='2' ubuntu:latest
+//
+// Will yield 200% (cfs_period_us = 100000, cfs_quota_us = 200000)
+//
 // If the limits files aren't available (on older version) then
-// we'll return the default value of 100.
-func (c ContainerCgroup) CPULimit() (limitPct, quotaHz float64, err error) {
+// we'll return the default value of numCPU * 100.
+func (c ContainerCgroup) CPULimit() (float64, error) {
+	limit := numCPU * 100.0
+
 	periodFile := c.cgroupFilePath("cpu", "cpu.cfs_period_us")
 	quotaFile := c.cgroupFilePath("cpu", "cpu.cfs_quota_us")
 	plines, err := readLines(periodFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", periodFile)
-		return 100, 0, nil
+		return limit, nil
 	} else if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	qlines, err := readLines(quotaFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", quotaFile)
-		return 100, 0, nil
+		return limit, nil
 	} else if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
+
 	period, err := strconv.ParseFloat(plines[0], 64)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	quota, err := strconv.ParseFloat(qlines[0], 64)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
+
+	// If we don't have limit check on current cgroup, check parent
+	// -1 means no limit
+	// We ignore failures as we already have current cgroup values
+	if quota == -1 {
+		periodFile = c.cgroupParentFilePath("cpu", "cpu.cfs_period_us")
+		quotaFile = c.cgroupParentFilePath("cpu", "cpu.cfs_quota_us")
+		plines, err = readLines(periodFile)
+		if err == nil {
+			parentPeriod, err := strconv.ParseFloat(plines[0], 64)
+			if err == nil {
+				period = parentPeriod
+			}
+		}
+
+		qlines, err := readLines(quotaFile)
+		if err == nil {
+			parentQuota, err := strconv.ParseFloat(qlines[0], 64)
+			if err == nil {
+				quota = parentQuota
+			}
+		}
+	}
+
 	// default cpu limit is 100%
-	limit := 100.0
 	if (period > 0) && (quota > 0) {
 		limit = quota / period * 100.0
 	}
-	// -1 means no limit
-	if quota > 0 {
-		quota = quota / MicroToUserHZDivisor
-	}
-	return limit, quota, nil
+	return limit, nil
 }
 
 // IO returns the disk read and write bytes stats for this cgroup.

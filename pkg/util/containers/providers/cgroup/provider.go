@@ -114,7 +114,7 @@ func (mp *provider) GetContainerLimits(containerID string) (*metrics.ContainerLi
 	}
 
 	var limits metrics.ContainerLimits
-	limits.CPULimit, limits.CPUPeriodQuotaHz, err = cg.CPULimit()
+	limits.CPULimit, err = cg.CPULimit()
 	if err != nil {
 		return nil, fmt.Errorf("cpu limit: %s", err)
 	}
