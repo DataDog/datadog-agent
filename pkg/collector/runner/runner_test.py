@@ -1,8 +1,8 @@
 # Python module for simulating a simple python check
 
 from checks import AgentCheck
-import time;
-from time import sleep;
+import time
+from time import sleep
 
 class TestCheck(AgentCheck):
     def check(self, instance):

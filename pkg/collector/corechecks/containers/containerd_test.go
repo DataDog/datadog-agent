@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	containersutil "github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -80,6 +81,7 @@ func TestComputeEvents(t *testing.T) {
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
 	var err error
+	defer containersutil.ResetSharedFilter()
 	containerdCheck.filters, err = containersutil.GetSharedFilter()
 	require.NoError(t, err)
 
@@ -369,6 +371,9 @@ func TestIsExcluded(t *testing.T) {
 	}
 	var err error
 	// GetShareFilter gives us the OOB exclusion of pause container images from most supported platforms
+	config.Datadog.Set("container_exclude", "kube_namespace:shouldexclude")
+	defer config.Datadog.SetDefault("container_exclude", "")
+	defer containersutil.ResetSharedFilter()
 	containerdCheck.filters, err = containersutil.GetSharedFilter()
 	require.NoError(t, err)
 	c := containers.Container{
@@ -384,4 +389,13 @@ func TestIsExcluded(t *testing.T) {
 	// kubernetes/pawz although not an available image (yet ?) is not ignored
 	isEc = isExcluded(c, containerdCheck.filters)
 	require.False(t, isEc)
+
+	// Namespace based filtering
+	c = containers.Container{
+		Image: "kubernetes/pawz",
+		Labels: map[string]string{
+			"io.kubernetes.pod.namespace": "shouldexclude",
+		},
+	}
+	require.True(t, isExcluded(c, containerdCheck.filters))
 }

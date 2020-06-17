@@ -62,6 +62,7 @@ var (
 const (
 	DefaultAgentFlavor = "agent"
 	IotAgentFlavor     = "iot_agent"
+	ClusterAgentFlavor = "cluster_agent"
 	DogstatsdFlavor    = "dogstatsd"
 )
 
@@ -241,6 +242,11 @@ func initConfig(config Config) {
 		if pathExists("/host/proc") {
 			config.SetDefault("procfs_path", "/host/proc")
 			config.SetDefault("container_proc_root", "/host/proc")
+
+			// Used by some librairies (like gopsutil)
+			if v := os.Getenv("HOST_PROC"); v == "" {
+				os.Setenv("HOST_PROC", "/host/proc")
+			}
 		} else {
 			config.SetDefault("procfs_path", "/proc")
 			config.SetDefault("container_proc_root", "/proc")
@@ -718,6 +724,8 @@ func initConfig(config Config) {
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
+	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
+	config.BindEnvAndSetDefault("compliance_config.cmd_port", 5010)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

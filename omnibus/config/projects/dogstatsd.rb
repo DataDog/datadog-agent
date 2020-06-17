@@ -133,6 +133,7 @@ if linux?
   extra_package_file '/etc/init/datadog-dogstatsd.conf'
   extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'
   extra_package_file '/etc/datadog-dogstatsd/'
+  extra_package_file '/var/log/datadog/'
 end
 
 exclude '\.git*'
