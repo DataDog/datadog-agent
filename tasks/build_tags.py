@@ -5,29 +5,31 @@ import sys
 from invoke import task
 
 # ALL_TAGS lists any available build tag
-ALL_TAGS = set([
-    "apm",
-    "clusterchecks",
-    "consul",
-    "containerd",
-    "cri",
-    "docker",
-    "ec2",
-    "etcd",
-    "fargateprocess",
-    "gce",
-    "jmx",
-    "kubeapiserver",
-    "kubelet",
-    "netcgo", # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
-    "orchestrator",
-    "process",
-    "python",
-    "secrets",
-    "systemd",
-    "zk",
-    "zlib",
-])
+ALL_TAGS = set(
+    [
+        "apm",
+        "clusterchecks",
+        "consul",
+        "containerd",
+        "cri",
+        "docker",
+        "ec2",
+        "etcd",
+        "fargateprocess",
+        "gce",
+        "jmx",
+        "kubeapiserver",
+        "kubelet",
+        "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
+        "orchestrator",
+        "process",
+        "python",
+        "secrets",
+        "systemd",
+        "zk",
+        "zlib",
+    ]
+)
 
 # IOT_AGENT_TAGS lists the tags needed when building the IOT Agent
 IOT_AGENT_TAGS = [
@@ -85,6 +87,7 @@ def get_default_build_tags(iot=False, process=False, arch="x64", android=False):
 
     return get_build_tags(include, exclude)
 
+
 def get_build_tags(include, exclude):
     """
     Build the list of tags based on inclusions and exclusions passed through
@@ -120,7 +123,7 @@ def audit_tag_impact(ctx, build_exclude=None, csv=False):
     for tag in tags_to_audit:
         exclude_string = ','.join(build_exclude + [tag])
         size = _compute_build_size(ctx, build_exclude=exclude_string)
-        delta = (max_size - size)
+        delta = max_size - size
         print("tag {} adds {} kB (excludes: {})".format(tag, delta / 1000, exclude_string))
         report[tag] = delta
         report["unaccounted"] -= delta
@@ -134,6 +137,7 @@ def audit_tag_impact(ctx, build_exclude=None, csv=False):
 def _compute_build_size(ctx, build_exclude=None, iot=False):
     import os
     from .agent import build as agent_build
+
     agent_build(ctx, build_exclude=build_exclude, skip_assets=True, iot=iot)
 
     statinfo = os.stat('bin/agent/agent')

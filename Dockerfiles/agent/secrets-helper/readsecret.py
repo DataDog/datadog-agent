@@ -50,13 +50,13 @@ if __name__ == '__main__':
         epilog='''
             See https://github.com/DataDog/datadog-agent/blob/6.4.x/docs/agent/secrets.md
             for more information on the secrets protocol.
-        '''
+        ''',
     )
     parser.add_argument(
         "root_folder",
         help="folder where secrets are mounted, eg. /run/secrets",
         default="/run/secrets",
-        type=is_valid_folder
+        type=is_valid_folder,
     )
 
     args = parser.parse_args()

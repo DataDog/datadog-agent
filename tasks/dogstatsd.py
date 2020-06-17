@@ -31,8 +31,17 @@ DEFAULT_BUILD_TAGS = [
 
 
 @task
-def build(ctx, rebuild=False, race=False, static=False, build_include=None,
-          build_exclude=None, major_version='7', arch="x64", go_mod="vendor"):
+def build(
+    ctx,
+    rebuild=False,
+    race=False,
+    static=False,
+    build_include=None,
+    build_exclude=None,
+    major_version='7',
+    arch="x64",
+    go_mod="vendor",
+):
     """
     Build Dogstatsd
     """
@@ -52,13 +61,16 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
         ver = get_version_numeric_only(ctx, env, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
 
-        ctx.run("windmc --target {target_arch}  -r cmd/dogstatsd/windows_resources cmd/dogstatsd/windows_resources/dogstatsd-msg.mc".format(target_arch=windres_target))
-        ctx.run("windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/dogstatsd/windows_resources/dogstatsd.rc --target {target_arch} -O coff -o cmd/dogstatsd/rsrc.syso".format(
-            maj_ver=maj_ver,
-            min_ver=min_ver,
-            patch_ver=patch_ver,
-            target_arch=windres_target
-        ))
+        ctx.run(
+            "windmc --target {target_arch}  -r cmd/dogstatsd/windows_resources cmd/dogstatsd/windows_resources/dogstatsd-msg.mc".format(
+                target_arch=windres_target
+            )
+        )
+        ctx.run(
+            "windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/dogstatsd/windows_resources/dogstatsd.rc --target {target_arch} -O coff -o cmd/dogstatsd/rsrc.syso".format(
+                maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
+            )
+        )
 
     if not sys.platform.startswith('linux'):
         for ex in LINUX_ONLY_TAGS:
@@ -124,16 +136,14 @@ def refresh_assets(ctx):
 
 
 @task
-def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-        skip_build=False):
+def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, skip_build=False):
     """
     Run Dogstatsd binary. Build the binary before executing, unless
     --skip-build was passed.
     """
     if not skip_build:
         print("Building dogstatsd...")
-        build(ctx, rebuild=rebuild, race=race, build_include=build_include,
-              build_exclude=build_exclude)
+        build(ctx, rebuild=rebuild, race=race, build_include=build_include, build_exclude=build_exclude)
 
     target = os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd"))
     ctx.run("{} start".format(target))
@@ -182,8 +192,16 @@ def size_test(ctx, skip_build=False):
 
 
 @task
-def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, release_version="nightly", major_version='7', omnibus_s3_cache=False):
+def omnibus_build(
+    ctx,
+    log_level="info",
+    base_dir=None,
+    gem_path=None,
+    skip_deps=False,
+    release_version="nightly",
+    major_version='7',
+    omnibus_s3_cache=False,
+):
     """
     Build the Dogstatsd packages with Omnibus Installer.
     """
@@ -210,15 +228,12 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
         ctx.run(cmd, env=env)
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build dogstatsd --log-level={log_level} {populate_s3_cache} {overrides}"
-        args = {
-            "omnibus": omnibus,
-            "log_level": log_level,
-            "overrides": overrides_cmd,
-            "populate_s3_cache": ""
-        }
+        args = {"omnibus": omnibus, "log_level": log_level, "overrides": overrides_cmd, "populate_s3_cache": ""}
         if omnibus_s3_cache:
             args['populate_s3_cache'] = " --populate-s3-cache "
-        env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, git_sha_length=7, major_version=major_version)
+        env['PACKAGE_VERSION'] = get_version(
+            ctx, include_git=True, url_safe=True, git_sha_length=7, major_version=major_version
+        )
         env['MAJOR_VERSION'] = major_version
         ctx.run(cmd.format(**args), env=env)
 
@@ -261,6 +276,7 @@ def image_build(ctx, arch='amd64', skip_build=False):
     Build the docker image
     """
     import docker
+
     client = docker.from_env()
 
     src = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))

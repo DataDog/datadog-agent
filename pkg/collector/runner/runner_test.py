@@ -4,6 +4,7 @@ from checks import AgentCheck
 import time
 from time import sleep
 
+
 class TestCheck(AgentCheck):
     def check(self, instance):
         test_inst = instance['test_instance']
@@ -13,5 +14,5 @@ class TestCheck(AgentCheck):
 
         else:
             current_time = time.time()
-            while (time.time() < current_time + test_inst['wait_length']):
+            while time.time() < current_time + test_inst['wait_length']:
                 pass

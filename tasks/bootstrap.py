@@ -24,6 +24,7 @@ def get_deps(key):
 
     return deps.get(key, {})
 
+
 def process_deps(ctx, target, version, kind, step, cmd=None, verbose=False):
     """
     Process a dependency target.
@@ -47,7 +48,7 @@ def process_deps(ctx, target, version, kind, step, cmd=None, verbose=False):
             # download tools
             path = os.path.join(get_gopath(ctx), 'src', target)
             if not os.path.exists(path):
-                ctx.run("go get{} -d -u {}".format(verbosity, target),  env={'GO111MODULE': 'off'})
+                ctx.run("go get{} -d -u {}".format(verbosity, target), env={'GO111MODULE': 'off'})
 
             with ctx.cd(path):
                 # checkout versions

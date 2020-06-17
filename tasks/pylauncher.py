@@ -10,8 +10,9 @@ from .build_tags import get_default_build_tags
 from .utils import REPO_PATH, bin_name, get_root
 
 
-#constants
+# constants
 PYLAUNCHER_BIN_PATH = os.path.join(get_root(), "bin", "pylauncher")
+
 
 @task
 def build(ctx, rebuild=False):
@@ -40,8 +41,6 @@ def system_tests(ctx, skip_build=False):
         print("Building pylauncher...")
         build(ctx)
 
-    env = {
-        "PYLAUNCHER_BIN": os.path.join(PYLAUNCHER_BIN_PATH, bin_name("pylauncher"))
-    }
+    env = {"PYLAUNCHER_BIN": os.path.join(PYLAUNCHER_BIN_PATH, bin_name("pylauncher"))}
     with ctx.cd("./test/system/python_binding"):
         ctx.run("./test.sh", env=env)
