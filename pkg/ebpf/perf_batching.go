@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	TCPCloseBatchSize = int(unsafe.Sizeof(batch{}) / unsafe.Sizeof(TCPConn{}))
-	maxNumberBatches  = 1024
+	maxNumberBatches = 1024
 
 	// maximum number of attempts we query a "blank" batch on eBPF
 	maxIgnoredCoreAttempts = 5

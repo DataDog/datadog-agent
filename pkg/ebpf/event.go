@@ -82,6 +82,8 @@ __u32 tcp_sent_miscounts;
 */
 type kernelTelemetry C.telemetry_t
 
+const TCPCloseBatchSize = int(C.TCP_CLOSED_BATCH_SIZE)
+
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) bool {
 	return latestTime > timeout+uint64(cs.timestamp)
 }

@@ -67,6 +67,8 @@ typedef struct {
     tcp_stats_t tcp_stats;
 } tcp_conn_t;
 
+
+// Must match the number of tcp_conn_t objects embedded in the batch_t struct
 #ifndef TCP_CLOSED_BATCH_SIZE
 #define TCP_CLOSED_BATCH_SIZE 5
 #endif
