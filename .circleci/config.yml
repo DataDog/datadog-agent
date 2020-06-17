@@ -61,8 +61,6 @@ jobs:
       - run:
           name: setup python deps
           command: |
-            apt-get remove -y python-dev
-            apt-get install -y python3-dev
             python3 -m pip install wheel
             python3 -m pip install -r requirements.txt
             python3 -m pip install flake8~=3.8.3 flake8-bugbear~=20.1.4 black~=19.10b0
