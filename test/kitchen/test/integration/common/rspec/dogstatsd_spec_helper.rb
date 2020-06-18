@@ -25,7 +25,7 @@ shared_examples_for "an installed Dogstatsd" do
   
   it 'has a datadog-agent binary in usr/bin' do
     if os != :windows
-      expect(File).to exist('/usr/bin/dogstatsd')
+      expect(File).to exist('/usr/bin/datadog-dogstatsd')
     end
   end
 end
@@ -72,7 +72,7 @@ shared_examples_for 'a Dogstatsd that stops' do
       if !is_flavor_running? "datadog-dogstatsd"
         start "datadog-dogstatsd"
       end
-      output = restart "datadog-daogstatsd"
+      output = restart "datadog-dogstatsd"
       if os != :windows
         expect(output).to be_truthy
       end
@@ -127,7 +127,7 @@ shared_examples_for 'a Dogstatsd that is removed' do
 
   if os != :windows
     it 'should remove the dogstatsd link from bin' do
-      expect(File).not_to exist('/usr/bin/dogstatsd')
+      expect(File).not_to exist('/usr/bin/datadog-dogstatsd')
     end
   end
 end
