@@ -21,15 +21,12 @@ import (
 )
 
 // CreateSecurityAgentArchive packages up the files
-func CreateSecurityAgentArchive(local bool, distPath, logFilePath string) (string, error) {
+func CreateSecurityAgentArchive(local bool, logFilePath string) (string, error) {
 	zipFilePath := getArchivePath()
-	confSearchPaths := SearchPaths{
-		"compliance.d": config.Datadog.GetString("compliance_config.dir"),
-	}
-	return createSecurityAgentArchive(zipFilePath, local, confSearchPaths, logFilePath)
+	return createSecurityAgentArchive(zipFilePath, local, logFilePath)
 }
 
-func createSecurityAgentArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
+func createSecurityAgentArchive(zipFilePath string, local bool, logFilePath string) (string, error) {
 	b := make([]byte, 10)
 	_, err := rand.Read(b)
 	if err != nil {
@@ -80,7 +77,12 @@ func createSecurityAgentArchive(zipFilePath string, local bool, confSearchPaths 
 		return "", err
 	}
 
-	err = zipConfigFiles(tempDir, hostname, confSearchPaths, permsInfos)
+	err = zipConfigFiles(tempDir, hostname, SearchPaths{}, permsInfos)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipComplianceFiles(tempDir, hostname, permsInfos)
 	if err != nil {
 		return "", err
 	}
@@ -132,5 +134,32 @@ func zipSecurityAgentStatusFile(tempDir, hostname string) error {
 	}
 
 	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+	return err
+}
+
+func zipComplianceFiles(tempDir, hostname string, permsInfos permissionsInfos) error {
+	compDir := config.Datadog.GetString("compliance_config.dir")
+
+	if permsInfos != nil {
+		addParentPerms(compDir, permsInfos)
+	}
+
+	err := filepath.Walk(compDir, func(src string, f os.FileInfo, err error) error {
+		if f == nil {
+			return nil
+		}
+		if f.IsDir() {
+			return nil
+		}
+
+		dst := filepath.Join(tempDir, hostname, "compliance.d", f.Name())
+
+		if permsInfos != nil {
+			permsInfos.add(src)
+		}
+
+		return util.CopyFileAll(src, dst)
+	})
+
 	return err
 }

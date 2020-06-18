@@ -108,7 +108,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	if logFile == "" {
 		logFile = common.DefaultLogFile
 	}
-	filePath, err := flare.CreateSecurityAgentArchive(false, common.GetDistPath(), logFile)
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
