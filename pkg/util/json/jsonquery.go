@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	cacheTTL      time.Duration = 6 * time.Hour
-	jqCachePrefix string        = "jq-"
+	cacheTTL      = 6 * time.Hour
+	jqCachePrefix = "jq-"
 )
 
 // Parse returns an (eventually cached) Code object to run json query

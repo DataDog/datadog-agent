@@ -150,6 +150,24 @@ func TestFileCheck(t *testing.T) {
 				}, kv)
 			},
 		},
+		{
+			name: "yamlquery pod",
+			setup: setupFile(&compliance.File{
+				Path: "./testdata/file/pod.yaml",
+				Report: compliance.Report{
+					{
+						Property: ".apiVersion",
+						Kind:     "yamlquery",
+						As:       "apiVersion",
+					},
+				},
+			}),
+			validate: func(t *testing.T, kv compliance.KVMap) {
+				assert.Equal(t, compliance.KVMap{
+					"apiVersion": "v1",
+				}, kv)
+			},
+		},
 	}
 
 	for _, test := range tests {
