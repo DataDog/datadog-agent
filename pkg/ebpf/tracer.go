@@ -237,7 +237,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	tcpCloseMap, _ := tr.getMap(tcpCloseBatchMap)
-	batchManager, err := NewPerfBatchManager(m, tcpCloseMap, 25*time.Second)
+	batchManager, err := NewPerfBatchManager(m, tcpCloseMap, config.TCPClosedTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +291,7 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 	go func() {
 		// Stats about how much connections have been closed / lost
 		ticker := time.NewTicker(5 * time.Minute)
-		flushIdle := time.NewTicker(20 * time.Second)
+		flushIdle := time.NewTicker(t.config.TCPClosedTimeout)
 
 		for {
 			select {
