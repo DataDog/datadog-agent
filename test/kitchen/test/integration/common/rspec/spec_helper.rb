@@ -502,7 +502,7 @@ shared_examples_for "a running Agent with APM manually disabled" do
     confYaml["apm_config"]["enabled"] = false
     File.write(conf_path, confYaml.to_yaml)
 
-    output = restart
+    output = restart "datadog-agent"
     if os != :windows
       expect(output).to be_truthy
       system 'command -v systemctl 2>&1 > /dev/null || sleep 5 || true'
