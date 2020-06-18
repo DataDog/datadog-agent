@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -232,7 +233,7 @@ func getCommonStatus() (map[string]interface{}, error) {
 	}
 
 	stats["version"] = version.AgentVersion
-	stats["flavor"] = config.AgentFlavor
+	stats["flavor"] = flavor.AgentFlavor
 	hostnameData, err := util.GetHostnameData()
 
 	if err != nil {

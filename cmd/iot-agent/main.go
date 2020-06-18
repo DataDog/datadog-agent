@@ -8,7 +8,6 @@
 package main
 
 import (
-	"context"
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
@@ -17,16 +16,11 @@ import (
 )
 
 func main() {
-	// The app context
-	ctx := context.Background()
-	ctx = context.WithValue(
-		ctx,
-		flavor.FlavorKey,
-		flavor.IotAgentFlavor,
-	)
+	// Set the flavor
+	flavor.AgentFlavor = flavor.IotAgentFlavor
 
 	// Invoke the Agent
-	if err := app.AgentCmd.ExecuteContext(ctx); err != nil {
+	if err := app.AgentCmd.Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}

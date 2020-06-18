@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
@@ -62,6 +63,8 @@ const ServiceName = "dogstatsd"
 // EnableLoggingToFile -- set up logging to file
 
 func main() {
+	// set the Agent flavor
+	flavor.AgentFlavor = flavor.DogstatsdFlavor
 	config.Datadog.AddConfigPath(DefaultConfPath)
 
 	// go_expvar server

@@ -102,7 +102,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	var err error
 
 	serializer := serializer.NewSerializer(common.Forwarder)
-	agg := aggregator.InitAggregator(serializer, "", "agent")
+	agg := aggregator.InitAggregator(serializer, "")
 	common.DSD, err = dogstatsd.NewServer(agg)
 	require.Nil(t, err)
 

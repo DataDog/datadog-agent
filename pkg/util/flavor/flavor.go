@@ -5,14 +5,8 @@
 
 package flavor
 
-// ContextKey is the type of context keys
-type ContextKey string
-
-// FlavorKey is the context key for the running Agent flavor
-const FlavorKey ContextKey = "flavor"
-
 const (
-	// DefaultAgentFlavor is the default agent flavor
+	// DefaultAgentFlavor is the default Agent flavor
 	DefaultAgentFlavor = "agent"
 	// IotAgentFlavor is the IoT Agent flavor
 	IotAgentFlavor = "iot_agent"
@@ -23,3 +17,6 @@ const (
 	// SecurityAgentFlavor is the Security Agent flavor
 	SecurityAgentFlavor = "security_agent"
 )
+
+// AgentFlavor is the running Agent flavor
+var AgentFlavor string = DefaultAgentFlavor

@@ -15,12 +15,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
 )
 
 func main() {
+	// set the Agent flavor
+	flavor.AgentFlavor = flavor.SecurityAgentFlavor
+
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", telemetry.Handler())
 	go http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.Datadog.GetInt("metrics_port")), nil) //nolint:errcheck
