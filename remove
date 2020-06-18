@@ -1,0 +1,17 @@
+kubeapiserver
+containerd
+kubelet
+netcgo - unsure?
+docker
+cri
+zk
+secrets
+linux_bpf
+bcc
+
+Will be removed regardless:
+
+- containerd
+- cri
+- systemd
+- netcgo
