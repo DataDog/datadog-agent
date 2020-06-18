@@ -1430,9 +1430,6 @@ deploy_deb_testing-a6:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
-
     - set +x # make sure we don't output the creds to the build log
 
     - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
@@ -1458,9 +1455,6 @@ deploy_deb_testing-a7:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
-
     - set +x # make sure we don't output the creds to the build log
 
     - APT_SIGNING_KEY_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.apt_signing_key_id --with-decryption --query "Parameter.Value" --out text)
@@ -3058,8 +3052,8 @@ check_already_deployed_version_6:
     - agent_deb-x64-a6
     - agent_deb-arm-a6
   script:
-    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_amd64.deb
-    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_arm64.deb
+    - cd $OMNIBUS_PACKAGE_DIR && ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_amd64.deb
+    - cd $OMNIBUS_PACKAGE_DIR && ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_arm64.deb
 
 check_already_deployed_version_7:
   <<: *run_only_when_triggered
@@ -3073,8 +3067,8 @@ check_already_deployed_version_7:
     - agent_deb-x64-a7
     - agent_deb-arm-a7
   script:
-    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_amd64.deb
-    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_arm64.deb
+    - cd $OMNIBUS_PACKAGE_DIR && ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_amd64.deb
+    - cd $OMNIBUS_PACKAGE_DIR && ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_arm64.deb
 
 # If we trigger a build only pipeline we stop here.
 check_if_build_only:
@@ -3108,10 +3102,8 @@ deploy_staging_deb-6:
     # (same as the check_already_deployed_version). We do this twice to mitigate
     # races and issues with retries while failing early if there is an issue.
     - pushd $OMNIBUS_PACKAGE_DIR
-    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh *_6.*amd64.deb
+    - ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh *_6.*amd64.deb
     - popd
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
 
     - set +x # make sure we don't output the creds to the build log
 
@@ -3148,10 +3140,8 @@ deploy_staging_deb-7:
     # (same as the check_already_deployed_version). We do this twice to mitigate
     # races and issues with retries while failing early if there is an issue.
     - pushd $OMNIBUS_PACKAGE_DIR
-    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh *_7.*amd64.deb
+    - ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh *_7.*amd64.deb
     - popd
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
 
     - set +x # make sure we don't output the creds to the build log
 
@@ -3316,8 +3306,6 @@ deploy_staging_rpm-6:
     - agent_rpm-x64-a6
     - agent_rpm-arm-a6
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/x86_64/" $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/aarch64/" $OMNIBUS_PACKAGE_DIR/*-6.*aarch64.rpm
 
@@ -3337,8 +3325,6 @@ deploy_staging_rpm-7:
     - iot_agent_rpm-arm64
     - dogstatsd_rpm-x64
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/x86_64/" $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/aarch64/" $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm
 
@@ -3688,7 +3674,7 @@ latest_release_7:
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
-    - cd /deploy_scripts/cloudfront-invalidation
+    - cd ~/deploy_scripts/cloudfront-invalidation
     - "REPO=apt PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
     - "REPO=yum PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
 
