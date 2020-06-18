@@ -68,7 +68,7 @@ func createSecurityAgentArchive(zipFilePath string, local bool, confSearchPaths 
 		// Only zip it up if the agent is running
 		err = zipSecurityAgentStatusFile(tempDir, hostname)
 		if err != nil {
-			log.Infof("Error getting the status of the DCA, %q", err)
+			log.Infof("Error getting the status of the Security Agent, %q", err)
 			return "", err
 		}
 	}
@@ -124,7 +124,7 @@ func zipSecurityAgentStatusFile(tempDir, hostname string) error {
 		return err
 	}
 
-	f := filepath.Join(tempDir, hostname, "cluster-agent-status.log")
+	f := filepath.Join(tempDir, hostname, "security-agent-status.log")
 	log.Infof("Flare status made at %s", tempDir)
 	err = ensureParentDirsExist(f)
 	if err != nil {
