@@ -45,7 +45,7 @@ shared_examples_for 'Dogstatsd installed by the install script' do
 
   context 'when testing the install infos' do
     let(:install_info_path) do
-      '/etc/datadog-agent/install_info'
+      '/etc/datadog-dogstatsd/install_info'
     end
 
     let(:install_info) do
