@@ -45,7 +45,8 @@ type Tracer struct {
 
 	reverseDNS network.ReverseDNS
 
-	perfMap *bpflib.PerfMap
+	perfMap      *bpflib.PerfMap
+	batchManager *PerfBatchManager
 
 	// Telemetry
 	perfReceived  int64
@@ -236,10 +237,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 		destExcludes:   network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
-	err = tr.initTCPCloseBatchMap()
+	tcpCloseMap, _ := tr.getMap(tcpCloseBatchMap)
+	batchManager, err := NewPerfBatchManager(m, tcpCloseMap, config.TCPClosedTimeout)
 	if err != nil {
 		return nil, err
 	}
+	tr.batchManager = batchManager
 
 	tr.perfMap, err = tr.initPerfPolling()
 	if err != nil {
@@ -289,16 +292,18 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 	go func() {
 		// Stats about how much connections have been closed / lost
 		ticker := time.NewTicker(5 * time.Minute)
+		flushIdle := time.NewTicker(t.config.TCPClosedTimeout)
 
 		for {
 			select {
-			case rawConns, ok := <-closedChannel:
+			case batchData, ok := <-closedChannel:
 				if !ok {
-					log.Infof("Exiting closed connections polling")
 					return
 				}
 				atomic.AddInt64(&t.perfReceived, 1)
-				conns := decodeRawTCPConns(rawConns)
+
+				batch := toBatch(batchData)
+				conns := t.batchManager.Extract(batch, time.Now())
 				for _, c := range conns {
 					t.storeClosedConn(c)
 				}
@@ -307,6 +312,11 @@ func (t *Tracer) initPerfPolling() (*bpflib.PerfMap, error) {
 					return
 				}
 				atomic.AddInt64(&t.perfLost, int64(lostCount))
+			case now := <-flushIdle.C:
+				idleConns := t.batchManager.GetIdleConns(now)
+				for _, c := range idleConns {
+					t.storeClosedConn(c)
+				}
 			case <-ticker.C:
 				recv := atomic.SwapInt64(&t.perfReceived, 0)
 				lost := atomic.SwapInt64(&t.perfLost, 0)
@@ -728,24 +738,6 @@ func (t *Tracer) determineConnectionDirection(conn *network.ConnectionStats) net
 	}
 
 	return network.OUTGOING
-}
-
-// initTCPCloseBatchMap initializes the tcp_close_batch map in eBPF By initializing it
-// in user-space we can save some precious bytes in the eBPF stack and increase the batch size.
-func (t *Tracer) initTCPCloseBatchMap() error {
-	batchMap, err := t.getMap(tcpCloseBatchMap)
-	if err != nil {
-		return fmt.Errorf("error retrieving the bpf %s map: %s", tcpCloseBatchMap, err)
-	}
-
-	for i := 0; i < 1024; i++ {
-		b := new(batch)
-		if err = t.m.UpdateElement(batchMap, unsafe.Pointer(&i), unsafe.Pointer(b), 0); err != nil {
-			return fmt.Errorf("error updating element of bpf %s map: %s", tcpCloseBatchMap, err)
-		}
-	}
-
-	return nil
 }
 
 // SectionsFromConfig returns a map of string -> gobpf.SectionParams used to configure the way we load the BPF program (bpf map sizes)
