@@ -20,7 +20,7 @@ func TestJsonQueryParse(t *testing.T) {
 	code, err = Parse(".spec.foo")
 	assert.NotNil(t, code)
 	assert.NoError(t, err)
-	value, found := cache.Cache.Get(jqCachePrefix + ".spec.foo")
+	value, found := cache.Cache.Get("jq-" + ".spec.foo")
 	assert.True(t, found)
 	assert.Equal(t, code, value)
 
@@ -29,7 +29,7 @@ func TestJsonQueryParse(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestJsonQueryRun(t *testing.T) {
+func TestQueryRun(t *testing.T) {
 	object := map[string]interface{}{
 		"foo": "bar",
 		"baz": []interface{}{"toto", "titi"},

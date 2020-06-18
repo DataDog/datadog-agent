@@ -153,6 +153,9 @@ const (
 	// PropertyKindJSONQuery describes a JSON query (jq syntax)
 	PropertyKindJSONQuery = "jsonquery"
 
+	// PropertyKindYAMLQuery describes a YAML query (jq syntax)
+	PropertyKindYAMLQuery = "yamlquery"
+
 	// PropertyKindFlag describes a process flag
 	PropertyKindFlag = "flag"
 
