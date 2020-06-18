@@ -105,7 +105,7 @@ def get_series_from_query(q: dict):
     # group by
     # TODO
     last_open_brace, last_close_brace = query.rindex("{"), query.rindex("}")
-    group_by = query[last_open_brace + 1:last_close_brace].split(",")
+    group_by = query[last_open_brace + 1:last_close_brace].split(",")  # noqa: F841
 
     match_conditions = [
         {"metric": metric_name},

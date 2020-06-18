@@ -1,14 +1,7 @@
 import base64
 import json
 import os
-import sys
-import platform
 import tempfile
-
-import invoke
-from invoke import task
-from invoke.exceptions import Exit
-
 
 
 ssm_command = "aws.exe ssm get-parameter --name {} --with-decryption --region us-east-1"
