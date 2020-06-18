@@ -3974,6 +3974,7 @@ pupernetes-tags-7:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   <<: *pupernetes_template
   script:
   - VERSION=$(inv -e agent.version --major-version 7)
