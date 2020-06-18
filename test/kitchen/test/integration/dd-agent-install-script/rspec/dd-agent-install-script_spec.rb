@@ -1,5 +1,6 @@
 require 'spec_helper'
 require 'iot_spec_helper'
+require 'dogstatsd_spec_helper'
 
 shared_examples_for 'Agent installed by the install script' do
   context 'when testing DD_SITE' do

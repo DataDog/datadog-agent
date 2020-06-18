@@ -165,9 +165,9 @@ shared_examples_for 'Dogstatsd install' do
 end
 
 shared_examples_for 'Dogstatsd behavior' do
-    it_behaves_like 'a running Dogstatsd with no errors'
-    it_behaves_like 'an Dogstatsd that stops'
-    it_behaves_like 'an Dogstatsd that restarts'
+    it_behaves_like 'a running Dogstatsd'
+    it_behaves_like 'a Dogstatsd that stops'
+    it_behaves_like 'a Dogstatsd that restarts'
 end
 
 shared_examples_for 'Dogstatsd uninstall' do
