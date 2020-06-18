@@ -19,7 +19,7 @@ shared_examples_for "an installed Dogstatsd" do
 
   it 'has an example config file' do
     if os != :windows
-      expect(File).to exist('/etc/datadog-agent/dogstatsd.yaml.example')
+      expect(File).to exist('/etc/datadog-dogstatsd/dogstatsd.yaml.example')
     end
   end
   
@@ -39,7 +39,7 @@ shared_examples_for "a running Dogstatsd" do
     if os == :windows
       conf_path = "#{ENV['ProgramData']}\\Datadog\\dogstatsd.yaml"
     else
-      conf_path = '/etc/datadog-agent/dogstatsd.yaml'
+      conf_path = '/etc/datadog-dogstatsd/dogstatsd.yaml'
     end
     expect(File).to exist(conf_path)
   end
@@ -47,7 +47,7 @@ end
 
 shared_examples_for 'a Dogstatsd that stops' do
   it 'stops' do
-    output = stop
+    output = stop "datadog-dogstatsd"
     if os != :windows
       expect(output).to be_truthy
     end
@@ -59,7 +59,7 @@ shared_examples_for 'a Dogstatsd that stops' do
   end
 
   it 'starts after being stopped' do
-    output = start
+    output = start "datadog-dogstatsd"
     if os != :windows
       expect(output).to be_truthy
     end
@@ -69,7 +69,7 @@ shared_examples_for 'a Dogstatsd that stops' do
   
   shared_examples_for 'a Dogstatsd that restarts' do
     it 'restarts when dogstatsd is running' do
-      if !is_running?
+      if !is_flavor_running? "datadog-dogstatsd"
         start "datadog-dogstatsd"
       end
       output = restart "datadog-daogstatsd"
@@ -80,7 +80,7 @@ shared_examples_for 'a Dogstatsd that stops' do
     end
   
     it 'restarts when dogstatsd is not running' do
-      if is_running?
+      if is_flavor_running? "datadog-dogstatsd"
         stop "datadog-dogstatsd"
       end
       output = restart "datadog-dogstatsd"

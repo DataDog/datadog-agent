@@ -221,7 +221,7 @@ def json_info
   JSON.parse(info_output)
 end
 
-def status(flavor)
+def flavor_service_status(flavor)
   service = get_service_name(flavor)
   if os == :windows
     status_out = `sc interrogate #{service} 2>&1`
@@ -427,7 +427,7 @@ shared_examples_for "a running Agent with no errors" do
   end
 
   it 'is running' do
-    expect(status).to be_truthy
+    expect(flavor_service_status "datadog-agent").to be_truthy
   end
 
   it 'has a config file' do
@@ -544,7 +544,7 @@ shared_examples_for 'an Agent that stops' do
     if os != :windows
       expect(output).to be_truthy
     end
-    expect(status).to be_truthy
+    expect(flavor_service_status "datadog-agent").to be_truthy
   end
 end
 
