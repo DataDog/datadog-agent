@@ -1,11 +1,9 @@
 import os
 import sys
-import shutil
 
-import invoke
 from invoke import task
 
-from .utils import bin_name, get_build_flags,  get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, get_version_numeric_only
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, filter_incompatible_tags
 from .go import deps

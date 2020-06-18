@@ -7,6 +7,7 @@ import shutil
 import tempfile
 
 from invoke import task
+from invoke.exceptions import Exit
 from subprocess import check_output, CalledProcessError
 
 from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
@@ -150,7 +151,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
 
 
 @task
-def nettop(ctx, incremental_build=False):
+def nettop(ctx, incremental_build=False, go_mod="vendor"):
     """
     Build and run the `nettop` utility for testing
     """

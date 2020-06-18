@@ -5,7 +5,6 @@ from __future__ import print_function
 import os
 import sys
 
-import invoke
 from invoke import task
 
 from .build_tags import get_default_build_tags

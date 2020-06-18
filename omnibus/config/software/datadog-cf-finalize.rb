@@ -33,7 +33,7 @@ build do
             copy "#{cf_source_root}/agent/uninstall-cmd.exe", "#{cf_bin_root_bin}/agent"
             copy "#{cf_source_root}/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
             copy "#{cf_source_root}/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"
-
+            copy "#{cf_source_root}/agent/security-agent.exe", "#{cf_bin_root_bin}/agent"
         end
     end
 end

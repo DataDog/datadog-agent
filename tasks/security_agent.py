@@ -1,16 +1,10 @@
 import datetime
 import os
-import re
-import shutil
-import sys
-import shutil
-import tempfile
 from invoke import task
-from invoke.exceptions import Exit
-from subprocess import check_output
 
-from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit, get_version_numeric_only
+from .utils import bin_name, get_gopath, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
 from .build_tags import get_default_build_tags
+from .go import generate
 
 BIN_DIR = os.path.join(".", "bin", "security-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("security-agent", android=False))
@@ -22,7 +16,7 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes='3')
 
 
     # TODO use pkg/version for this
@@ -44,6 +38,8 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
                     goenv[env_var] = line[line.find(env_var)+len(env_var)+1:-1].strip('\'\"')
         ld_vars["GoVersion"] = go_version
 
+    # Generating go source from templates by running go generate on ./pkg/status
+    generate(ctx)
 
     # extend PATH from gimme with the one from get_build_flags
     if "PATH" in os.environ and "PATH" in goenv:
@@ -69,3 +65,17 @@ def build(ctx, race=False, go_version=None, incremental_build=False,
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+@task()
+def gen_mocks(ctx):
+    """
+    Generate mocks.
+    """
+
+    gopath = get_gopath(ctx)
+    if not os.path.exists(os.path.join(gopath, "bin/mockery")):
+        with ctx.cd(gopath):
+            ctx.run("go get -u github.com/vektra/mockery/cmd/mockery", env={'GO111MODULE': 'on'})
+
+    with ctx.cd("./pkg/compliance"):
+        ctx.run("./gen_mocks.sh")

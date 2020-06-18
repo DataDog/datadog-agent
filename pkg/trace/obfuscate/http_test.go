@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,9 @@ func TestObfuscateHTTP(t *testing.T) {
 	}, nil))
 
 	t.Run("query", func(t *testing.T) {
-		conf := &Config{RemoveQueryString: true}
+		conf := &config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+			RemoveQueryString: true,
+		}}
 		for ti, tt := range []inOutTest{
 			{
 				in:  "http://foo.com/",
@@ -58,7 +61,9 @@ func TestObfuscateHTTP(t *testing.T) {
 	})
 
 	t.Run("digits", func(t *testing.T) {
-		conf := &Config{RemovePathDigits: true}
+		conf := &config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+			RemovePathDigits: true,
+		}}
 		for ti, tt := range []inOutTest{
 			{
 				in:  "http://foo.com/",
@@ -102,7 +107,10 @@ func TestObfuscateHTTP(t *testing.T) {
 	})
 
 	t.Run("both", func(t *testing.T) {
-		conf := &Config{RemoveQueryString: true, RemovePathDigits: true}
+		conf := &config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+			RemoveQueryString: true,
+			RemovePathDigits:  true,
+		}}
 		for ti, tt := range []inOutTest{
 			{
 				in:  "http://foo.com/",
@@ -140,18 +148,20 @@ func TestObfuscateHTTP(t *testing.T) {
 	t.Run("wrong-type", func(t *testing.T) {
 		assert := assert.New(t)
 		span := pb.Span{Type: "web_server", Meta: map[string]string{"http.url": testURL}}
-		NewObfuscator(&Config{
-			RemoveQueryString: true,
-			RemovePathDigits:  true,
+		NewObfuscator(&config.ObfuscationConfig{
+			HTTP: config.HTTPObfuscationConfig{
+				RemoveQueryString: true,
+				RemovePathDigits:  true,
+			},
 		}).Obfuscate(&span)
 		assert.Equal(testURL, span.Meta["http.url"])
 	})
 }
 
 // testHTTPObfuscation tests that the given input results in the given output using the passed configuration.
-func testHTTPObfuscation(tt *inOutTest, conf *Config) func(t *testing.T) {
+func testHTTPObfuscation(tt *inOutTest, conf *config.ObfuscationConfig) func(t *testing.T) {
 	return func(t *testing.T) {
-		var cfg Config
+		var cfg config.ObfuscationConfig
 		if conf != nil {
 			cfg = *conf
 		}

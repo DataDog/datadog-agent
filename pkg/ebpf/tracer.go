@@ -65,6 +65,7 @@ type Tracer struct {
 	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 	// to determine whether a connection is truly closed or not
 	expiredTCPConns int64
+	closedConns     int64
 
 	buffer     []network.ConnectionStats
 	bufferLock sync.Mutex
@@ -340,6 +341,7 @@ func (t *Tracer) storeClosedConn(cs network.ConnectionStats) {
 		return
 	}
 
+	atomic.AddInt64(&t.closedConns, 1)
 	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
 	t.state.StoreClosedConnection(cs)
 	if cs.IPTranslation != nil {
@@ -372,8 +374,33 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats())
 	names := t.reverseDNS.Resolve(conns)
+	tm := t.getConnTelemetry(len(latestConns))
 
-	return &network.Connections{Conns: conns, DNS: names}, nil
+	return &network.Connections{Conns: conns, DNS: names, Telemetry: tm}, nil
+}
+
+func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
+	kprobeStats := getProbeTotals()
+	tm := &network.ConnectionsTelemetry{
+		MonotonicKprobesTriggered: kprobeStats.hits,
+		MonotonicKprobesMissed:    kprobeStats.miss,
+		ConnsBpfMapSize:           int64(mapSize),
+		MonotonicConnsClosed:      atomic.LoadInt64(&t.closedConns),
+	}
+
+	conntrackStats := t.conntracker.GetStats()
+	if rt, ok := conntrackStats["registers_total"]; ok {
+		tm.MonotonicConntrackRegisters = rt
+	}
+	if rtd, ok := conntrackStats["registers_dropped"]; ok {
+		tm.MonotonicConntrackRegistersDropped = rtd
+	}
+
+	dnsStats := t.reverseDNS.GetStats()
+	if pp, ok := dnsStats["packets_processed"]; ok {
+		tm.MonotonicDNSPacketsProcessed = pp
+	}
+	return tm
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes
@@ -431,6 +458,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 			if nextKey.isTCP() {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
 			}
+			atomic.AddInt64(&t.closedConns, 1)
 		} else {
 			conn := connStats(nextKey, stats, t.getTCPStats(tcpMp, nextKey, seen))
 			conn.Direction = t.determineConnectionDirection(&conn)
