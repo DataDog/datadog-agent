@@ -124,11 +124,11 @@ def is_service_running?(svcname)
         if has_systemctl
             system("sudo systemctl status --no-pager #{svcname}.service")
         elsif has_upstart
-        status = `sudo initctl status #{svcname}`
-        status.include?('start/running')
+            status = `sudo initctl status #{svcname}`
+            status.include?('start/running')
         else
-        status = `sudo /sbin/service #{svcname} status`
-        status.include?('running')
+            status = `sudo /sbin/service #{svcname} status`
+            status.include?('running')
         end
     end
 end
