@@ -432,26 +432,32 @@ func (rs *RuleSet) GeneratePartials() error {
 	// Compute the partials of each rule
 	for _, bucket := range rs.eventRuleBuckets {
 		for _, rule := range bucket.GetRules() {
+
 			// Only generate partials if they have not been generated yet
 			if rule.evaluator != nil && rule.evaluator.partialEvals != nil {
 				continue
 			}
+
 			// Only generate partials for the fields of the rule
 			for _, field := range rule.evaluator.GetFields() {
+
 				state := newState(rs.model, field, rs.opts.GetMacroEvaluators(field))
 				pEval, _, _, err := nodeToEvaluator(rule.ast.BooleanExpression, &rs.opts, state)
 				if err != nil {
 					return errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, rule.ID)
 				}
+
 				pEvalBool, ok := pEval.(*BoolEvaluator)
 				if !ok {
 					return NewTypeError(rule.ast.Pos, reflect.Bool)
 				}
+
 				if pEvalBool.EvalFnc == nil {
 					pEvalBool.EvalFnc = func(ctx *Context) bool {
 						return pEvalBool.Value
 					}
 				}
+
 				// Insert partial evaluators in the rule
 				rule.SetPartial(field, pEvalBool.EvalFnc)
 			}

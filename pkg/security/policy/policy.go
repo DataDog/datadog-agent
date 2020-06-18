@@ -16,7 +16,6 @@ type Section struct {
 type MacroDefinition struct {
 	ID         string
 	Expression string
-	Ast int
 }
 
 type RuleDefinition struct {
@@ -55,6 +54,7 @@ func (ps *PolicySet) AddPolicy(policy *Policy) error {
 	if ps.Macros == nil {
 		ps.Macros = make(map[string]*MacroDefinition)
 	}
+
 	// Make sure that there is only one definition of the macro
 	for _, newMacro := range policy.Macros {
 		if _, exists := ps.Macros[newMacro.ID]; exists {
@@ -62,10 +62,12 @@ func (ps *PolicySet) AddPolicy(policy *Policy) error {
 		}
 		ps.Macros[newMacro.ID] = newMacro
 	}
+
 	// Merge rules
 	if ps.Rules == nil {
 		ps.Rules = make(map[string]*RuleDefinition)
 	}
+
 	// Make sure that the new rules do not have conflicting IDs
 	for _, newRule := range policy.Rules {
 		if _, exists := ps.Rules[newRule.ID]; exists {
