@@ -167,10 +167,10 @@ variables:
   if: $RELEASE_VERSION_6 == ""
 
 .if_version_7: &if_version_7
-  if: $RELEASE_VERSION_6 != ""
+  if: $RELEASE_VERSION_7 != ""
 
 .if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_6 == ""
+  if: $RELEASE_VERSION_7 == ""
 
 # Fail if we're running a pipeline on a non-triggered tag build
 fail_on_non_triggered_tag:
@@ -1273,6 +1273,7 @@ windows_choco_offline_7_x64:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   stage: image_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["windows_msi_x64-a7"]
@@ -1293,6 +1294,7 @@ publish_choco_7_x64:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   stage: image_deploy
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["windows_choco_online_7_x64"]
@@ -2774,7 +2776,6 @@ docker_build_dogstatsd_amd64:
 twistlock_scan-6:
   rules:
     - <<: *if_version_6
-      when: on_success
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
@@ -2798,7 +2799,6 @@ twistlock_scan-6:
 twistlock_scan-7:
   rules:
     - <<: *if_version_7
-      when: on_success
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
@@ -2889,6 +2889,7 @@ dev_branch_docker_hub-a6:
   rules:
     - <<: *if_version_6
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
   - docker_build_agent6
@@ -2904,6 +2905,7 @@ dev_branch_docker_hub-a6:
 dev_branch_docker_hub-dogstatsd:
   rules:
     - when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_dogstatsd_amd64
@@ -2914,6 +2916,7 @@ dev_branch_docker_hub-a7:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_agent7
@@ -2926,6 +2929,7 @@ dev_branch_docker_hub-a7-windows:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   extends: .docker_tag_windows_job_definition
   variables:
     VARIANT: 1909
@@ -2952,6 +2956,7 @@ dev_branch_multiarch_docker_hub-a6:
   rules:
     - <<: *if_version_6
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_agent6
@@ -2977,6 +2982,7 @@ dev_branch_multiarch_docker_hub-a7:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_agent7
@@ -2995,6 +3001,7 @@ dev_branch_multiarch_docker_hub-dogstatsd:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_dogstatsd_amd64
@@ -3074,6 +3081,7 @@ dca_dev_branch_docker_hub:
   rules:
     - <<: *if_not_master_branch
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - build_cluster_agent_amd64
@@ -3084,6 +3092,7 @@ dca_dev_branch_multiarch_docker_hub:
   rules:
     - <<: *if_not_master_branch
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - build_cluster_agent_amd64
@@ -3609,6 +3618,7 @@ deploy_staging_datadog_agent_windows_binaries_zip:
 deploy_staging_process_and_sysprobe:
   rules:
     - when: manual
+      allow_failure: true
   stage: internal_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -3636,6 +3646,7 @@ tag_release_6:
   rules:
     - <<: *if_triggered_on_tag_6
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: deploy6
   dependencies:
@@ -3656,6 +3667,7 @@ latest_release_6:
   rules:
     - <<: *if_triggered_on_tag_6
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: deploy6
   dependencies:
@@ -3674,6 +3686,7 @@ tag_release_7_linux:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: deploy7
   dependencies:
@@ -3692,6 +3705,7 @@ tag_release_7_windows:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   stage: deploy7
   extends: .docker_tag_windows_job_definition
   variables:
@@ -3716,6 +3730,7 @@ tag_release_7_manifests:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: deploy7-manifests
   # HACK: a job should not depend on manual jobs, otherwise it blocks
@@ -3745,6 +3760,7 @@ latest_release_7:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: deploy7
   dependencies:
@@ -3795,6 +3811,7 @@ latest_release_7:
 .latest_revert_to_previous_release_6:
   rules:
     - when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: source_test
   variables:
@@ -3808,6 +3825,7 @@ latest_release_7:
 .latest_revert_to_previous_release_7:
   rules:
     - when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: source_test
   variables:
@@ -3829,6 +3847,7 @@ latest_release_7:
 .delete_docker_tag:
   rules:
     - when: manual
+      allow_failure: true
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
   before_script:
@@ -3930,6 +3949,7 @@ pupernetes-dev:
     - <<: *if_tagged_commit
       when: never
     - when: manual
+      allow_failure: true
   <<: *pupernetes_template
 
 pupernetes-master:
@@ -3944,6 +3964,7 @@ pupernetes-tags-6:
   rules:
     - <<: *if_triggered_on_tag_6
       when: manual
+      allow_failure: true
   <<: *pupernetes_template
   script:
   - VERSION=$(inv -e agent.version --major-version 6)
