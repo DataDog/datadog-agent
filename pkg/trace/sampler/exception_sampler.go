@@ -34,14 +34,15 @@ const (
 // The resulting sampled traces will likely be incomplete and will be flagged with
 // a exceptioKey metric set at 1.
 type ExceptionSampler struct {
+	// Variables access through the 'atomic' package must be 64bits aligned.
+	hits    int64
+	misses  int64
+	shrinks int64
 	mu      sync.RWMutex
-	limiter *rate.Limiter
-	seen    map[Signature]*seenSpans
 
 	tickStats *time.Ticker
-	hits      int64
-	misses    int64
-	shrinks   int64
+	limiter   *rate.Limiter
+	seen      map[Signature]*seenSpans
 }
 
 // NewExceptionSampler returns a NewExceptionSampler that ensures that we sample combinations

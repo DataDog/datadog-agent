@@ -11,7 +11,7 @@ from collections import OrderedDict
 from datetime import date
 
 from invoke import task, Failure
-from invoke.exceptions import Exit, UnexpectedExit
+from invoke.exceptions import Exit
 
 
 @task
@@ -44,7 +44,7 @@ def update_changelog(ctx, new_version):
     # let's avoid losing uncommitted change with 'git reset --hard'
     try:
         ctx.run("git diff --exit-code HEAD", hide="both")
-    except Failure as e:
+    except Failure:
         print("Error: You have uncommitted change, please commit or stash before using update_changelog")
         return
 
@@ -54,7 +54,7 @@ def update_changelog(ctx, new_version):
     # let's check that the tag for the new version is present (needed by reno)
     try:
         ctx.run("git tag --list | grep {}".format(new_version))
-    except Failure as e:
+    except Failure:
         print("Missing '{}' git tag: mandatory to use 'reno'".format(new_version))
         raise
 
@@ -112,7 +112,7 @@ def _find_v6_tag(ctx, v7_tag):
     commit = ctx.run("git rev-list --max-count=1 {}".format(v7_tag), hide='out').stdout.strip()
     try:
         v6_tags = ctx.run("git tag --points-at {} | grep -E '^6\\.'".format(commit), hide='out').stdout.strip().split("\n")
-    except Failure as e:
+    except Failure:
         print("Found no v6 tag pointing at same commit as '{}'.".format(v7_tag))
     else:
         v6_tag = v6_tags[0]
@@ -132,13 +132,9 @@ def _is_version_higher(version_1, version_2):
         if version_1[part] != version_2[part]:
             return version_1[part] > version_2[part]
 
-    if version_1["rc"] == None:
+    if version_1["rc"] is None or version_2["rc"] is None:
         # Everything else being equal, version_1 can only be higher than version_2 if version_2 is not a released version
-        return version_2["rc"] != None
-
-    if version_2["rc"] == None:
-        # Everything else being equal, version_1 cannot be higher than version_2 if it's a released version - at most it can be equal
-        return False
+        return version_2["rc"] is not None
 
     return version_1["rc"] > version_2["rc"]
 
@@ -159,7 +155,7 @@ def _stringify_version(version_dict):
         .format(version_dict["major"],
                 version_dict["minor"],
                 version_dict["patch"])
-    if version_dict["rc"] != None and version_dict["rc"] != 0:
+    if version_dict["rc"] is not None and version_dict["rc"] != 0:
         version = "{}-rc.{}".format(version, version_dict["rc"])
     return version
 
@@ -307,7 +303,7 @@ def finish(
         if integration_version is None:
             print("ERROR: No version found for integrations-core - did you create the tag?")
             return Exit(code=1)
-        if integration_version["rc"] != None:
+        if integration_version["rc"] is not None:
             print("ERROR: integrations-core tag is still an RC tag. That's probably NOT what you want in the final artifact.")
             if ignore_rc_tag:
                 print("Continuing with RC tag on integrations-core.")
@@ -322,7 +318,7 @@ def finish(
         if omnibus_software_version is None:
             print("ERROR: No version found for omnibus-software - did you create the tag?")
             return Exit(code=1)
-        if omnibus_software_version["rc"] != None:
+        if omnibus_software_version["rc"] is not None:
             print("ERROR: omnibus-software tag is still an RC tag. That's probably NOT what you want in the final artifact.")
             if ignore_rc_tag:
                 print("Continuing with RC tag on omnibus-software.")
@@ -342,7 +338,7 @@ def finish(
         if omnibus_ruby_version is None:
             print("ERROR: No version found for omnibus-ruby - did you create the tag?")
             return Exit(code=1)
-        if omnibus_ruby_version["rc"] != None:
+        if omnibus_ruby_version["rc"] is not None:
             print("ERROR: omnibus-ruby tag is still an RC tag. That's probably NOT what you want in the final artifact.")
             if ignore_rc_tag:
                 print("Continuing with RC tag on omnibus-ruby.")

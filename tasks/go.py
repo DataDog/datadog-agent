@@ -6,6 +6,7 @@ import datetime
 import os
 import shutil
 import sys
+import csv
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -177,6 +178,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None):
         targets = targets.split(',')
 
     tags = build_tags or get_default_build_tags()
+
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
     # we split targets to avoid going over the memory limit from circleCI
     for target in targets:
