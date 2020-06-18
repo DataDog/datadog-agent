@@ -106,7 +106,6 @@ func testURLs(urls []string, timeout time.Duration) string {
 		}
 		var resp v1.Commands
 		if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
-			fmt.Printf("decode err: %s\n", err)
 			continue
 		}
 		if len(resp.AvailableCommands) > 0 {
