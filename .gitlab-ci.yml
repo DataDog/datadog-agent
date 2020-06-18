@@ -3334,8 +3334,6 @@ deploy_staging_suse_rpm-6:
   dependencies:
     - agent_suse-x64-a6
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$DEB_RPM_BUCKET_BRANCH/6/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/*-6.*x86_64.rpm
 
 deploy_staging_suse_rpm-7:
@@ -3352,8 +3350,6 @@ deploy_staging_suse_rpm-7:
     - dogstatsd_suse-x64
     - iot_agent_suse-x64
   script:
-    - source /usr/local/rvm/scripts/rvm
-    - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "suse/$DEB_RPM_BUCKET_BRANCH/7/x86_64/" $OMNIBUS_PACKAGE_DIR_SUSE/*-7.*x86_64.rpm
 
 # deploy dsd binary to staging bucket
