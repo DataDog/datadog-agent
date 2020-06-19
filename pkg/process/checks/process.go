@@ -223,6 +223,7 @@ func fmtProcesses(
 
 		proc := &model.Process{
 			Pid:                    fp.Pid,
+			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
 			User:                   formatUser(fp),
 			Memory:                 formatMemory(fp),
