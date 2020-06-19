@@ -179,7 +179,7 @@ if [ "$OS" = "RedHat" ]; then
         ARCHI="x86_64"
     fi
 
-    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
+    gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public"
 
     $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=0\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
 
