@@ -56,6 +56,18 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				tags.AddLow(tagKeyVersion, value)
 			case kubernetes.ServiceTagLabelKey:
 				tags.AddLow(tagKeyService, value)
+			case kubernetes.KubeAppNameLabelKey:
+				tags.AddLow(tagKeyKubeAppName, value)
+			case kubernetes.KubeAppInstanceLabelKey:
+				tags.AddLow(tagKeyKubeAppInstance, value)
+			case kubernetes.KubeAppVersionLabelKey:
+				tags.AddLow(tagKeyKubeAppVersion, value)
+			case kubernetes.KubeAppComponentLabelKey:
+				tags.AddLow(tagKeyKubeAppComponent, value)
+			case kubernetes.KubeAppPartOfLabelKey:
+				tags.AddLow(tagKeyKubeAppPartOf, value)
+			case kubernetes.KubeAppManagedByLabelKey:
+				tags.AddLow(tagKeyKubeAppManagedBy, value)
 			}
 			for pattern, tmpl := range c.labelsAsTags {
 				n := strings.ToLower(name)
