@@ -1699,7 +1699,7 @@ deploy_windows_testing-a7:
   script:
     - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
-# Kitchen: Agent flavor locations
+# Kitchen: Agent flavor
 # -------------------------------
 
 .kitchen_datadog_agent_flavor:
@@ -1772,6 +1772,12 @@ deploy_windows_testing-a7:
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+
+.kitchen_test_upgrade_iot_agent:
+  extends:
+    - .kitchen_test_upgrade7
+    - .kitchen_datadog_iot_agent_flavor
     - .kitchen_azure_location_north_central_us
 
 .kitchen_test_windows_installer_agent:
@@ -1979,6 +1985,12 @@ kitchen_centos_upgrade7_agent-a7:
     - .kitchen_scenario_centos_a7
     - .kitchen_test_upgrade7_agent
 
+kitchen_centos_upgrade_iot_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_centos_a7
+    - .kitchen_test_upgrade_iot_agent
+
 # run dd-agent-testing on ubuntu
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_ubuntu_chef_agent-a6:
@@ -2053,6 +2065,12 @@ kitchen_ubuntu_upgrade7_agent-a7:
     - .kitchen_scenario_ubuntu_a7
     - .kitchen_test_upgrade7_agent
 
+kitchen_ubuntu_upgrade_iot_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_ubuntu_a7
+    - .kitchen_test_upgrade_iot_agent
+
 # run dd-agent-testing on suse
 kitchen_suse_chef_agent-a6:
   allow_failure: false
@@ -2126,6 +2144,12 @@ kitchen_suse_upgrade7_agent-a7:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_upgrade7_agent
 
+kitchen_suse_upgrade_iot_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_suse_a7
+    - .kitchen_test_upgrade_iot_agent
+
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
 kitchen_debian_chef_agent-a6:
@@ -2194,11 +2218,17 @@ kitchen_debian_upgrade6_agent-a7:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_upgrade6_agent
 
-kitchen_debian_upgrade7_agent_agent-a7:
+kitchen_debian_upgrade7_agent-a7:
   allow_failure: false
   extends:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_upgrade7_agent
+
+kitchen_debian_upgrade_iot_agent-a7:
+  allow_failure: false
+  extends:
+    - .kitchen_scenario_debian_a7
+    - .kitchen_test_upgrade_iot_agent
 
 .kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
   stage: testkitchen_cleanup
