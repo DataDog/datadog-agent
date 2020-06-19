@@ -248,9 +248,36 @@ jobs:
 
             mkdir -p $HOME/go
 
+            brew install cmake -f
             brew install gimme
+            brew install clang-format
 
             pip install -r requirements.txt
+      - run:
+          name: Compile rtloader
+          command: |
+            eval `gimme $GO_VERSION`
+            export GOPATH="$HOME/go"
+            export PATH="$GOPATH/bin:$PATH"
+
+            inv rtloader.make --install-prefix=$GOPATH/src/github.com/DataDog/datadog-agent/dev
+            inv rtloader.install
+      - run:
+          name: Lint rtloader
+          command: |
+            eval `gimme $GO_VERSION`
+            export GOPATH="$HOME/go"
+            export PATH="$GOPATH/bin:$PATH"
+
+            inv rtloader.format --raise-if-changed
+      - run:
+          name: Test rtloader
+          command: |
+            eval `gimme $GO_VERSION`
+            export GOPATH="$HOME/go"
+            export PATH="$GOPATH/bin:$PATH"
+
+            inv rtloader.test
       - run:
           name: Run tests
           command: |
