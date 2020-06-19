@@ -1072,5 +1072,5 @@ func TestCassQuantizer(t *testing.T) {
 func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(nil)
-	o.obfuscateSQLString(hangStr)
+	o.ObfuscateSQLString(hangStr)
 }
