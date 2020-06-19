@@ -7,6 +7,7 @@ import shutil
 import tempfile
 
 from invoke import task
+from invoke.exceptions import Exit
 from subprocess import check_output, CalledProcessError
 
 from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
@@ -25,12 +26,14 @@ GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 @task
 def build(ctx, race=False, go_version=None, incremental_build=False, major_version='7',
-          python_runtimes='3', with_bcc=True, go_mod="vendor"):
+          python_runtimes='3', with_bcc=True, go_mod="vendor", windows=False):
     """
     Build the system_probe
     """
 
-    build_object_files(ctx, install=True)
+    # Only build ebpf files on unix
+    if not windows:
+        build_object_files(ctx, install=True)
 
     # TODO use pkg/version for this
     main = "main."
@@ -60,7 +63,11 @@ def build(ctx, race=False, go_version=None, incremental_build=False, major_versi
 
     # Add custom ld flags
     ldflags += ' '.join(["-X '{name}={value}'".format(name=main+key, value=value) for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags() + [BPF_TAG]
+
+    if not windows:
+        build_tags = get_default_build_tags() + [BPF_TAG]
+    else:
+        build_tags = get_default_build_tags()
 
     if with_bcc:
         build_tags.append(BCC_TAG)
@@ -147,7 +154,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
 
 
 @task
-def nettop(ctx, incremental_build=False):
+def nettop(ctx, incremental_build=False, go_mod="vendor"):
     """
     Build and run the `nettop` utility for testing
     """
@@ -160,7 +167,7 @@ def nettop(ctx, incremental_build=False):
         path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
         bin_path=bin_path,
         go_mod=go_mod,
-        build_type="-i" if incremental_build else "-a",
+        build_type="" if incremental_build else "-a",
     ))
 
     # Run

@@ -19,7 +19,6 @@ import (
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/tools/cache"
@@ -115,7 +114,6 @@ func (k *KSMCheck) Run() error {
 }
 
 func processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam) {
-	log.Infof("Metrics to be processsed: %v", metrics)
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			for _, m := range metricFamily.ListMetrics {

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,9 +31,16 @@ var syslogTLSConfig *tls.Config
 
 var seelogConfig *seelogCfg.Config
 
+func getLogDateFormat() string {
+	if Datadog.GetBool("log_format_rfc3339") {
+		return time.RFC3339
+	}
+	return logDateFormat
+}
+
 // buildCommonFormat returns the log common format seelog string
 func buildCommonFormat(loggerName LoggerName) string {
-	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", logDateFormat, loggerName)
+	return fmt.Sprintf("%%Date(%s) | %s | %%LEVEL | (%%ShortFilePath:%%Line in %%FuncShort) | %%Msg%%n", getLogDateFormat(), loggerName)
 }
 
 func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
@@ -44,7 +52,7 @@ func createQuoteMsgFormatter(params string) seelog.FormatterFunc {
 // buildJSONFormat returns the log JSON format seelog string
 func buildJSONFormat(loggerName LoggerName) string {
 	seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter) //nolint:errcheck
-	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg}%%n`, strings.ToLower(string(loggerName)), logDateFormat)
+	return fmt.Sprintf(`{"agent":"%s","time":"%%Date(%s)","level":"%%LEVEL","file":"%%ShortFilePath","line":"%%Line","func":"%%FuncShort","msg":%%QuoteMsg}%%n`, strings.ToLower(string(loggerName)), getLogDateFormat())
 }
 
 func getSyslogTLSKeyPair() (*tls.Certificate, error) {
@@ -315,7 +323,8 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return slices[len(slices)-1]
 }
 
-func changeLogLevel(level string) error {
+// ChangeLogLevel immediately changes the log level to the given one.
+func ChangeLogLevel(level string) error {
 	seelogLogLevel, err := validateLogLevel(level)
 	if err != nil {
 		return err

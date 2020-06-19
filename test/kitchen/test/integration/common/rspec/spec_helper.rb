@@ -3,6 +3,7 @@ require 'open-uri'
 require 'rspec'
 require 'rbconfig'
 require 'yaml'
+require 'find'
 
 os_cache = nil
 
@@ -56,7 +57,7 @@ def wait_until_stopped(timeout = 60)
   sleep 2
 end
 
-def wait_until_started(timeout = 60)
+def wait_until_started(timeout = 30)
   # Check if the agent has started every second
   # Timeout after the given number of seconds
   for _ in 1..timeout do
@@ -75,7 +76,7 @@ def wait_until_started(timeout = 60)
   # - after: works correctly
   # Until we understand and fix the problem, we're adding this sleep
   # so that we don't get flakes in the kitchen tests.
-  sleep 2
+  sleep 5
 end
 
 def stop
@@ -309,7 +310,6 @@ def fetch_python_version(timeout = 15)
   return nil
 end
 
-
 shared_examples_for 'Agent install' do
   it_behaves_like 'an installed Agent'
 end
@@ -328,8 +328,9 @@ shared_examples_for 'Agent uninstall' do
   it_behaves_like 'an Agent that is removed'
 end
 
-
 shared_examples_for "an installed Agent" do
+  wait_until_started
+
   it 'has an example config file' do
     if os != :windows
       expect(File).to exist('/etc/datadog-agent/datadog.yaml.example')
@@ -353,7 +354,6 @@ shared_examples_for "an installed Agent" do
     end
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
   }
-
 
   it 'is properly signed' do
     puts "swsc is #{skip_windows_signing_check}"
@@ -669,6 +669,44 @@ shared_examples_for 'an Agent that is removed' do
     expect(agent_processes_running?).to be_falsey
   end
 
+  if os == :windows
+    it 'should not make changes to system files' do
+      exclude = [
+            'C:/Windows/Temp/',
+            'C:/Windows/Prefetch/',
+            'C:/Windows/Installer/',
+            'C:/Windows/WinSxS/',
+            'C:/Windows/Logs/',
+            'C:/Windows/servicing/',
+            'c:/windows/System32/config/',
+            'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
+            'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',
+            'C:/Windows/SoftwareDistribution/DataStore/Logs/',
+            'C:/Windows/System32/wbem/Performance/',
+            'c:/windows/System32/LogFiles/'
+      ].each { |e| e.downcase! }
+
+      # We don't really need to create this file since we consume it right afterwards, but it's useful for debugging
+      File.open("c:/after-files.txt", "w") do |out|
+        Find.find('c:/windows/').each { |f| out.puts(f) }
+      end
+
+      before_files = File.readlines('c:/before-files.txt').reject { |f| f.downcase.start_with?(*exclude) }
+      after_files = File.readlines('c:/after-files.txt').reject { |f| f.downcase.start_with?(*exclude) }
+
+      missing_files = before_files - after_files
+      new_files = after_files - before_files
+
+      puts "New files:"
+      new_files.each { |f| puts(f) }
+
+      puts "Missing files:"
+      missing_files.each { |f| puts(f) }
+
+      expect(missing_files).to be_empty
+    end
+  end
+
   it 'should remove the installation directory' do
     if os == :windows
       expect(File).not_to exist("C:\\Program Files\\Datadog\\Datadog Agent\\")
@@ -682,7 +720,6 @@ shared_examples_for 'an Agent that is removed' do
       expect(File).not_to exist('/usr/bin/datadog-agent')
     end
   end
-
 end
 
 shared_examples_for 'an Agent with APM enabled' do

@@ -117,11 +117,11 @@ func GetAdaptersAddresses() (table map[uint32]IpAdapterAddressesLh, err error) {
 			if unicast.address.lpSockaddr.family == syscall.AF_INET {
 				// ipv4 address
 				var uni IPAdapterUnicastAddress
-				uni.Address = (*[1 << 30]byte)(unsafe.Pointer(unicast.address.lpSockaddr))[4:8:8]
+				uni.Address = (*[1 << 29]byte)(unsafe.Pointer(unicast.address.lpSockaddr))[4:8:8]
 				entry.UnicastAddresses = append(entry.UnicastAddresses, uni)
 			} else if unicast.address.lpSockaddr.family == syscall.AF_INET6 {
 				var uni IPAdapterUnicastAddress
-				uni.Address = (*[1 << 30]byte)(unsafe.Pointer(&(unicast.address.lpSockaddr.addressBase)))[:16:16]
+				uni.Address = (*[1 << 29]byte)(unsafe.Pointer(&(unicast.address.lpSockaddr.addressBase)))[:16:16]
 				entry.UnicastAddresses = append(entry.UnicastAddresses, uni)
 			}
 			unicast = unicast.next

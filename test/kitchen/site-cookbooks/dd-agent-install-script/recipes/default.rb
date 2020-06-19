@@ -29,6 +29,7 @@ kitchen_environment_variables = {
   'REPO_URL' => node['dd-agent-install-script']['repo_url'],
   'DD_URL' => node['dd-agent-install-script']['dd_url'],
   'DD_SITE' => node['dd-agent-install-script']['dd_site'],
+  'DD_AGENT_FLAVOR' => node['dd-agent-install-script']['agent_flavor'],
 
   'TESTING_APT_URL' => node['dd-agent-install-script']['repo_domain_apt'],
   'TESTING_YUM_URL' => node['dd-agent-install-script']['repo_domain_yum'],
@@ -58,6 +59,11 @@ end
 sudo 'installuser' do
   nopasswd true
   users 'installuser'
+end
+
+directory wrk_dir do
+  owner 'installuser'
+  mode '0755'
 end
 
 execute 'run agent install script' do

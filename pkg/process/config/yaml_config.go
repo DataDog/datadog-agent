@@ -47,7 +47,9 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	a.CollectLocalDNS = config.Datadog.GetBool(key(spNS, "collect_local_dns"))
 	a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
-	a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
+	if config.Datadog.IsSet(key(spNS, "dns_timeout_in_s")) {
+		a.DNSTimeout = config.Datadog.GetDuration(key(spNS, "dns_timeout_in_s")) * time.Second
+	}
 
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnabledChecks = append(a.EnabledChecks, "connections")
@@ -65,7 +67,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	// The full path to the location of the unix socket where connections will be accessed
 	if socketPath := config.Datadog.GetString(key(spNS, "sysprobe_socket")); socketPath != "" {
-		a.SystemProbeSocketPath = socketPath
+		a.SystemProbeAddress = socketPath
 	}
 
 	if config.Datadog.IsSet(key(spNS, "enable_conntrack")) {

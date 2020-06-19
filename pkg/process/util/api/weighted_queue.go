@@ -151,6 +151,7 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 		for iter := q.iterator(); iter.hasNext(); iter.next() {
 			if v := iter.value(); v.Type() == item.Type() {
 				iter.remove()
+				q.currentWeight -= v.Weight()
 				removed = true
 				break
 			}
@@ -158,7 +159,10 @@ func (q *WeightedQueue) Add(item WeightedItem) {
 
 		// No similar items, remove the oldest element from the queue
 		if !removed {
-			q.queue.Remove(q.queue.Front())
+			e := q.queue.Front()
+			v := e.Value.(WeightedItem)
+			q.currentWeight -= v.Weight()
+			q.queue.Remove(e)
 		}
 	}
 

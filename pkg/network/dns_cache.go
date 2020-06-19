@@ -147,11 +147,11 @@ func (c *reverseDNSCache) Len() int {
 
 func (c *reverseDNSCache) Stats() map[string]int64 {
 	var (
-		lookups   = atomic.SwapInt64(&c.lookups, 0)
-		resolved  = atomic.SwapInt64(&c.resolved, 0)
-		added     = atomic.SwapInt64(&c.added, 0)
-		expired   = atomic.SwapInt64(&c.expired, 0)
-		oversized = atomic.SwapInt64(&c.oversized, 0)
+		lookups   = atomic.LoadInt64(&c.lookups)
+		resolved  = atomic.LoadInt64(&c.resolved)
+		added     = atomic.LoadInt64(&c.added)
+		expired   = atomic.LoadInt64(&c.expired)
+		oversized = atomic.LoadInt64(&c.oversized)
 		ips       = int64(c.Len())
 	)
 

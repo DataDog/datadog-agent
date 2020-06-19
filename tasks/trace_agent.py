@@ -1,11 +1,9 @@
 import os
 import sys
-import shutil
 
-import invoke
 from invoke import task
 
-from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, get_version_numeric_only
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
 from .go import deps
@@ -65,7 +63,7 @@ def build(ctx, rebuild=False, race=False, precompile_only=False, build_include=N
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": os.path.join(BIN_PATH, bin_name("trace-agent", android=False)),
         "gcflags": gcflags,

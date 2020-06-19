@@ -1,0 +1,15 @@
+name: CIS Kubernetes Generic
+framework: cis-kubernetes
+version: 1.5.0
+rules:
+- id: cis-kubernetes-1
+  scope:
+    kubernetes:
+    - annotation: kubernetes.io/role
+      value: master
+  resources:
+  - file:
+      path: ./files/kube-apiserver.yaml
+      report:
+      - property: permissions
+        kind: attribute
