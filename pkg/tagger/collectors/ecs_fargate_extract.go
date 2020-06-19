@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -86,12 +87,31 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 
 			for labelName, labelValue := range ctr.Labels {
 				switch labelName {
+
+				// Standard tags
 				case dockerLabelEnv:
 					tags.AddLow(tagKeyEnv, labelValue)
 				case dockerLabelVersion:
 					tags.AddLow(tagKeyVersion, labelValue)
 				case dockerLabelService:
 					tags.AddLow(tagKeyService, labelValue)
+
+				// Custom labels as tags
+				case "com.datadoghq.ad.tags":
+					tagNames := []string{}
+					err := json.Unmarshal([]byte(labelValue), &tagNames)
+					if err != nil {
+						log.Debugf("Cannot unmarshal AD tags: %s", err)
+					}
+					for _, tag := range tagNames {
+						tagParts := strings.Split(tag, ":")
+						// skip if tag is not in expected k:v format
+						if len(tagParts) != 2 {
+							log.Debugf("Tag '%s' is not in k:v format", tag)
+							continue
+						}
+						tags.AddHigh(tagParts[0], tagParts[1])
+					}
 				}
 
 				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
