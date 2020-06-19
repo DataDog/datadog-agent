@@ -112,7 +112,7 @@ func runAgent() (mainCtx context.Context, mainCtxCancel context.CancelFunc, err 
 
 	// a path to the folder containing the config file was passed
 	if len(confPath) != 0 {
-		// we'll search for a config file named `dogstastd.yaml`
+		// we'll search for a config file named `dogstatsd.yaml`
 		config.Datadog.SetConfigName("dogstatsd")
 		config.Datadog.AddConfigPath(confPath)
 		confErr := config.Load()
