@@ -248,13 +248,13 @@ elif [ "$OS" = "SUSE" ]; then
   echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
   if [ "$SUSE11" == "yes" ]; then
     # SUSE 11 special case
-    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public "https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
-    $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public
+    $sudo_cmd curl -o /tmp/DATADOG_RPM_KEY.public "https://${yum_url}/DATADOG_RPM_KEY.public"
+    $sudo_cmd rpm --import /tmp/DATADOG_RPM_KEY.public
   else
-    $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
+    $sudo_cmd rpm --import "https://${yum_url}/DATADOG_RPM_KEY.public"
   fi
 
-  gpgkeys="https://${yum_url}/DATADOG_RPM_KEY_E09422B3.public"
+  gpgkeys="https://${yum_url}/DATADOG_RPM_KEY.public"
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
   $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=${gpgkeys}' > /etc/zypp/repos.d/datadog.repo"
