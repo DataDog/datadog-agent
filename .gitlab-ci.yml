@@ -83,7 +83,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2424505-0439a40
-  DATADOG_AGENT_BUILDERS: v2640070-8fc8d24
+  DATADOG_AGENT_BUILDERS: v2641042-f6404c1
   DATADOG_AGENT_WINBUILDIMAGES: v2468030-cbaf3fe
   DATADOG_AGENT_WINBUILDERS: v2348149-ba6640d
   DATADOG_AGENT_ARMBUILDIMAGES: v2424505-0439a40
@@ -3663,8 +3663,8 @@ latest_release_7:
   dependencies: []
   script:
     - cd ~/deploy_scripts/cloudfront-invalidation
-    - "REPO=apt PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
-    - "REPO=yum PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=apt REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=yum REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
 
 deploy_cloudfront_invalidate_on_success:
   <<: *deploy_cloudfront_invalidate
