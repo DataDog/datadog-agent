@@ -3209,6 +3209,27 @@ deploy_staging_deb-6:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*arm64.deb
 
+promote_install_script:
+  rules:
+    - <<: *if_test_kitchen_triggered
+      when: manual
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  tags: [ "runner:main", "size:large" ]
+  dependencies:
+    - kitchen_centos_install_script_agent-a6
+    - kitchen_centos_install_script_agent-a7
+    - kitchen_centos_install_script_iot_agent-a7
+    - kitchen_debian_install_script_agent-a6
+    - kitchen_debian_install_script_agent-a7
+    - kitchen_debian_install_script_iot_agent-a7
+    - kitchen_suse_install_script_agent-a6
+    - kitchen_suse_install_script_agent-a7
+    - kitchen_suse_install_script_iot_agent-a7
+  script:
+    - aws s3 cp --region us-east-1 ./cmd/agent/install_script.sh s3://dd-agent/scripts/install_script.sh --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 cp --region us-east-1 ./cmd/agent/install_mac_os.sh s3://dd-agent/scripts/install_mac_os.sh --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
 deploy_staging_deb-7:
   rules:
     - <<: *if_not_version_7
