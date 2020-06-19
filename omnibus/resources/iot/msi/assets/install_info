@@ -1,0 +1,5 @@
+---
+install_method:
+  tool: windows_msi_gui
+  tool_version: windows_msi_gui
+  installer_version: windows_msi_gui

@@ -23,7 +23,7 @@ def build_common(ctx, command, bin_path, build_tags, bin_suffix, rebuild, build_
     build_tags = get_build_tags(build_include, build_exclude)
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
-    ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca')
+    ldflags, gcflags, env = get_build_flags(ctx, static=False, prefix='dca', agent_flavor="cluster_agent")
 
     # Generating go source from templates by running go generate on ./pkg/status
     generate(ctx)

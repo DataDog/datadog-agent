@@ -33,42 +33,21 @@ var timeFormat = "2006-01-02 15:04:05.000000 MST"
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
+	stats, err := getCommonStatus()
 	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
+		return nil, err
 	}
 
-	stats["version"] = version.AgentVersion
-	stats["flavor"] = config.AgentFlavor
-	hostnameData, err := util.GetHostnameData()
-
-	var metadata *host.Payload
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		metadata = host.GetPayloadFromCache(hostnameData)
-	}
-	stats["metadata"] = metadata
-
+	stats["config"] = getPartialConfig()
+	metadata := stats["metadata"].(*host.Payload)
 	hostTags := make([]string, 0, len(metadata.HostTags.System)+len(metadata.HostTags.GoogleCloudPlatform))
 	hostTags = append(hostTags, metadata.HostTags.System...)
 	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
 	stats["hostTags"] = hostTags
 
-	stats["config"] = getPartialConfig()
-	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-
-	stats["pid"] = os.Getpid()
-	stats["go_version"] = runtime.Version()
 	pythonVersion := host.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
-	stats["agent_start"] = startTime.Format(timeFormat)
 	stats["hostinfo"] = host.GetStatusInformation()
-	stats["build_arch"] = runtime.GOARCH
-	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
 
 	stats["JMXStatus"] = GetJMXStatus()
 	stats["JMXStartupError"] = GetJMXStartupError()
@@ -148,24 +127,12 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 
 // GetDCAStatus grabs the status from expvar and puts it into a map
 func GetDCAStatus() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
+	stats, err := getCommonStatus()
 	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
+		return nil, err
 	}
+
 	stats["config"] = getDCAPartialConfig()
-	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-	stats["version"] = version.AgentVersion
-	stats["pid"] = os.Getpid()
-	hostnameData, err := util.GetHostnameData()
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
-	}
-	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
 	stats["leaderelection"] = getLeaderElectionDetails()
 
 	endpointsInfos, err := getEndpointsInfos()
@@ -253,6 +220,37 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 	}
 
 	return endpointsInfos, nil
+}
+
+// getCommonStatus grabs the status from expvar and puts it into a map.
+// It gets the status elements common to all Agent flavors.
+func getCommonStatus() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+	stats, err := expvarStats(stats)
+	if err != nil {
+		log.Errorf("Error Getting ExpVar Stats: %v", err)
+	}
+
+	stats["version"] = version.AgentVersion
+	stats["flavor"] = config.AgentFlavor
+	hostnameData, err := util.GetHostnameData()
+
+	if err != nil {
+		log.Errorf("Error grabbing hostname for status: %v", err)
+		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+	} else {
+		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
+	}
+
+	stats["conf_file"] = config.Datadog.ConfigFileUsed()
+	stats["pid"] = os.Getpid()
+	stats["go_version"] = runtime.Version()
+	stats["agent_start"] = startTime.Format(timeFormat)
+	stats["build_arch"] = runtime.GOARCH
+	now := time.Now()
+	stats["time"] = now.Format(timeFormat)
+
+	return stats, nil
 }
 
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {

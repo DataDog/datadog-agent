@@ -84,8 +84,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/DATA-DOG/go-sqlmock v1.4.1/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
-github.com/DataDog/agent-payload v0.0.0-20200428185529-63c9964e037d h1:CB+SRWgYH1FotBv7UgXvzjHAaPGyLGb7xXgqVXLFEw4=
-github.com/DataDog/agent-payload v0.0.0-20200428185529-63c9964e037d/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/agent-payload v0.0.0-20200609205539-dbf3189e6318 h1:jsmwagcv95KpdlBll+MaoBzIpMowhGjMN53yZb4I3q0=
+github.com/DataDog/agent-payload v0.0.0-20200609205539-dbf3189e6318/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go v3.5.0+incompatible h1:AShr9cqkF+taHjyQgcBcQUt/ZNK+iPq4ROaZwSX5c/U=
 github.com/DataDog/datadog-go v3.5.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
@@ -93,8 +93,6 @@ github.com/DataDog/datadog-operator v0.2.1-0.20200527110245-7850164045c8 h1:InMr
 github.com/DataDog/datadog-operator v0.2.1-0.20200527110245-7850164045c8/go.mod h1:+rVKF4Ma28OAGnMwtV8gdX8mtq1eYovX7yLNJHzHCHs=
 github.com/DataDog/gobpf v0.0.0-20200131184214-6763fd92fd3f h1:vPk11ERhqpKweLLyXanBlUwKFdkpqDTEDWanr/fLZok=
 github.com/DataDog/gobpf v0.0.0-20200131184214-6763fd92fd3f/go.mod h1:rNvi5cSHdpxN6495MOYAWN3yukac8lORoluL+9Osrsw=
-github.com/DataDog/gohai v0.0.0-20200416230846-f32fac1c10c3 h1:6qyIovX2jzgLIjveGKyK0UMCTkcqYgznydfgVnh2CUg=
-github.com/DataDog/gohai v0.0.0-20200416230846-f32fac1c10c3/go.mod h1:cJ+uBTR3AWclJPX7R9nRwDQB5R2HXWTrb6L4Ts4wwcw=
 github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a h1:BkU6uq4Ib7Kp1zP7MT33IdHZQazC+kxbuTyEmgePyyA=
 github.com/DataDog/gohai v0.0.0-20200605003749-e17d616e422a/go.mod h1:cJ+uBTR3AWclJPX7R9nRwDQB5R2HXWTrb6L4Ts4wwcw=
 github.com/DataDog/gopsutil v0.0.0-20191127151039-7e1a4eadb59e h1:LuTXxCfAI9ntSpWg+5QnBJJ+ysWR7ED+/2ggNdxmKp8=

@@ -255,8 +255,8 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 }
 
 func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
-	// The container name is not available in Containerd, we only rely on image name based exclusion
-	return fil.IsExcluded("", ctn.Image, "")
+	// The container name is not available in Containerd, we only rely on image name and kube namespace based exclusion
+	return fil.IsExcluded("", ctn.Image, ctn.Labels["io.kubernetes.pod.namespace"])
 }
 
 func convertTasktoMetrics(metricTask *containerdTypes.Metric) (*v1.Metrics, error) {
