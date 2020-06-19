@@ -125,7 +125,7 @@ func TestParseMetadata(t *testing.T) {
 				"hightag:value2",
 				"container_id:0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
 				"env:staging",
-				"service:backend"
+				"service:backend",
 			},
 			DeleteEntity: false,
 		},
