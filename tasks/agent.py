@@ -158,7 +158,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
+    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
@@ -168,6 +168,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
+        "flavor": "iot-agent" if iot else "agent"
     }
     ctx.run(cmd.format(**args), env=env)
 
