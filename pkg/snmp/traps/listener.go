@@ -32,7 +32,7 @@ func NewTrapListener(bindHost string, c TrapListenerConfig, output OutputChannel
 	impl := gosnmp.NewTrapListener()
 	impl.Params = params
 	impl.OnNewTrap = func(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-		if !validateCredentials(p, params) {
+		if !validateCredentials(p, c) {
 			log.Warnf("snmp-traps: invalid credentials from %s on listener %s, dropping packet", u.String(), addr)
 			return
 		}
@@ -46,6 +46,20 @@ func NewTrapListener(bindHost string, c TrapListenerConfig, output OutputChannel
 	}
 
 	return ln, nil
+}
+
+func validateCredentials(p *gosnmp.SnmpPacket, config TrapListenerConfig) bool {
+	if p.Version == gosnmp.Version2c {
+		// Enforce that one of the known community strings match.
+		for _, community := range config.Community {
+			if community == p.Community {
+				return true
+			}
+		}
+		return false
+	}
+	// Other versions are unsupported for now.
+	return false
 }
 
 // Listen runs the packet reception and processing loop.

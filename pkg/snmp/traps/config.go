@@ -16,9 +16,9 @@ import (
 // TrapListenerConfig contains configuration for an SNMP trap listener.
 // YAML field tags provided for test marshalling purposes.
 type TrapListenerConfig struct {
-	Port      uint16 `mapstructure:"port" yaml:"port"`
-	Version   string `mapstructure:"version" yaml:"version"`
-	Community string `mapstructure:"community" yaml:"community"`
+	Port      uint16   `mapstructure:"port" yaml:"port"`
+	Version   string   `mapstructure:"version" yaml:"version"`
+	Community []string `mapstructure:"community" yaml:"community"`
 }
 
 // trapLogger is a GoSNMP logger interface implementation.
@@ -34,15 +34,13 @@ func (x *trapLogger) Printf(format string, v ...interface{}) {
 	log.Debugf(format, v...)
 }
 
-// BuildVersion returns a GoSNMP version value from a string value.
+// BuildVersion returns a GoSNMP version value from a string value, rejecting unsupported SNMP versions.
 func BuildVersion(value string) (gosnmp.SnmpVersion, error) {
 	switch value {
-	case "1":
-		return gosnmp.Version1, nil
 	case "2", "2c":
 		return gosnmp.Version2c, nil
 	default:
-		return 0, fmt.Errorf("Unsupported version: '%s' (possible values are '1' and '2c')", value)
+		return 0, fmt.Errorf("Unsupported version: '%s' (possible values are '2' (or the '2c' alias))", value)
 	}
 }
 
@@ -53,14 +51,16 @@ func (c *TrapListenerConfig) BuildParams() (*gosnmp.GoSNMP, error) {
 	}
 
 	if c.Version == "" {
-		c.Version = "2c"
+		c.Version = "2"
 	}
 	version, err := BuildVersion(c.Version)
 	if err != nil {
 		return nil, err
 	}
 
-	if c.Community == "" {
+	requiresCommunity := version == gosnmp.Version2c
+	communitySet := c.Community != nil && len(c.Community) > 0
+	if requiresCommunity && !communitySet {
 		return nil, errors.New("`community` is required")
 	}
 
@@ -68,7 +68,6 @@ func (c *TrapListenerConfig) BuildParams() (*gosnmp.GoSNMP, error) {
 		Port:      c.Port,
 		Transport: "udp",
 		Version:   version,
-		Community: c.Community,
 		Logger:    &trapLogger{},
 	}
 

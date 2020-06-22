@@ -21,19 +21,10 @@ const (
 
 // FormatPacketJSON converts an SNMP trap packet to a binary JSON log message content.
 func FormatPacketJSON(p *traps.SnmpPacket) ([]byte, error) {
-	// A trap PDU is composed of a list of variables with the following contents:
-	// [sysUpTime.0, snmpTrapOID.0, additionalVariables...]
-	// See: https://tools.ietf.org/html/rfc3416#section-4.2.6
-
-	if len(p.Content.Variables) < 2 {
-		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(p.Content.Variables))
-	}
-
-	trap, err := parseTrap(p)
+	trap, err := parseV2Trap(p)
 	if err != nil {
 		return nil, err
 	}
-
 	return json.Marshal(trap)
 }
 
@@ -54,7 +45,17 @@ func normalizeOID(value string) string {
 	return strings.TrimLeft(value, ".")
 }
 
-func parseTrap(p *traps.SnmpPacket) (map[string]interface{}, error) {
+func parseV2Trap(p *traps.SnmpPacket) (map[string]interface{}, error) {
+	// An SNMPv2 trap PDU is composed of a list of variables with the following contents:
+	// [sysUpTime.0, snmpTrapOID.0, additionalVariables...]
+	// See: https://tools.ietf.org/html/rfc3416#section-4.2.6
+	// Note that the SNMPv1 format is slightly different, but we don't support SNMPv1 yet.
+	// See: http://www.tcpipguide.com/free/t_SNMPVersion1SNMPv1MessageFormat-3.htm
+
+	if len(p.Content.Variables) < 2 {
+		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(p.Content.Variables))
+	}
+
 	data := make(map[string]interface{})
 
 	uptime, err := parseSysUpTime(p.Content)

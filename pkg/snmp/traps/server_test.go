@@ -34,9 +34,10 @@ var netSnmpExampleHeartbeatNotification = []gosnmp.SnmpPDU{
 	{Name: "1.3.6.1.4.1.8072.2.3.2.2", Type: gosnmp.OctetString, Value: "test"},
 }
 
-func sendTestTrap(t *testing.T, c TrapListenerConfig) {
+func sendTestV2Trap(t *testing.T, c TrapListenerConfig, community string) {
 	params, err := c.BuildParams()
 	require.NoError(t, err)
+	params.Community = community
 	params.Timeout = 1 * time.Second // Must be non-zero
 	params.Retries = 1               // Must be non-zero
 
@@ -52,7 +53,8 @@ func sendTestTrap(t *testing.T, c TrapListenerConfig) {
 	require.NoError(t, err)
 	defer params.Conn.Close()
 
-	_, err = params.SendTrap(gosnmp.SnmpTrap{Variables: netSnmpExampleHeartbeatNotification})
+	trap := gosnmp.SnmpTrap{Variables: netSnmpExampleHeartbeatNotification}
+	_, err = params.SendTrap(trap)
 	require.NoError(t, err)
 }
 
@@ -71,10 +73,16 @@ func receivePacket(t *testing.T, s *TrapServer) *SnmpPacket {
 
 func assertV2c(t *testing.T, p *SnmpPacket, config TrapListenerConfig) {
 	require.Equal(t, gosnmp.Version2c, p.Content.Version)
-	require.Equal(t, config.Community, p.Content.Community)
+	communityValid := false
+	for _, community := range config.Community {
+		if p.Content.Community == community {
+			communityValid = true
+		}
+	}
+	require.True(t, communityValid)
 }
 
-func assertVariables(t *testing.T, p *SnmpPacket) {
+func assertV2Variables(t *testing.T, p *SnmpPacket) {
 	vars := p.Content.Variables
 	assert.Equal(t, 4, len(vars))
 
@@ -171,25 +179,25 @@ func TestServerEmpty(t *testing.T) {
 
 func TestServerV2(t *testing.T) {
 	b := NewBuilder(t)
-	config := b.Add(TrapListenerConfig{Community: "public"})
+	config := b.Add(TrapListenerConfig{Community: []string{"public"}})
 	b.Configure()
 
 	s := b.StartServer()
 	defer s.Stop()
 
-	sendTestTrap(t, config)
+	sendTestV2Trap(t, config, "public")
 	p := receivePacket(t, s)
 	require.NotNil(t, p)
 	assertV2c(t, p, config)
-	assertVariables(t, p)
+	assertV2Variables(t, p)
 }
 
 func TestConcurrency(t *testing.T) {
 	b := NewBuilder(t)
 	configs := []TrapListenerConfig{
-		b.Add(TrapListenerConfig{Community: "public0"}),
-		b.Add(TrapListenerConfig{Community: "public1"}),
-		b.Add(TrapListenerConfig{Community: "public2"}),
+		b.Add(TrapListenerConfig{Community: []string{"public0"}}),
+		b.Add(TrapListenerConfig{Community: []string{"public1"}}),
+		b.Add(TrapListenerConfig{Community: []string{"public2"}}),
 	}
 	b.Configure()
 
@@ -208,7 +216,7 @@ func TestConcurrency(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < numMessagesPerListener; i++ {
 				time.Sleep(time.Duration(rand.Float64()) * time.Microsecond) // Prevent serial execution.
-				sendTestTrap(t, c)
+				sendTestV2Trap(t, c, c.Community[0])
 			}
 		}()
 	}
@@ -218,7 +226,7 @@ func TestConcurrency(t *testing.T) {
 		for i := 0; i < totalMessages; i++ {
 			p := receivePacket(t, s)
 			require.NotNil(t, p)
-			assertVariables(t, p)
+			assertV2Variables(t, p)
 		}
 	}()
 
@@ -230,8 +238,8 @@ func TestPortConflict(t *testing.T) {
 	port := b.GetPort()
 
 	// Triggers an "address already in use" error for one of the listeners.
-	b.Add(TrapListenerConfig{Port: port, Community: "public0"})
-	b.Add(TrapListenerConfig{Port: port, Community: "public1"})
+	b.Add(TrapListenerConfig{Port: port, Community: []string{"public0"}})
+	b.Add(TrapListenerConfig{Port: port, Community: []string{"public1"}})
 	b.Configure()
 
 	s, err := NewTrapServer()
@@ -242,16 +250,13 @@ func TestPortConflict(t *testing.T) {
 func TestBadCredentials(t *testing.T) {
 	t.Run("v2-wrong-community", func(t *testing.T) {
 		b := NewBuilder(t)
-		config := b.Add(TrapListenerConfig{Community: "public"})
+		config := b.Add(TrapListenerConfig{Community: []string{"public"}})
 		b.Configure()
 
 		s := b.StartServer()
 		defer s.Stop()
 
-		clientConfig := config
-		clientConfig.Community = "wrong"
-
-		sendTestTrap(t, clientConfig)
+		sendTestV2Trap(t, config, "wrong")
 		assertNoPacketReceived(t, s)
 	})
 }

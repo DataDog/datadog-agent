@@ -15,7 +15,7 @@ import (
 func TestConfigCommon(t *testing.T) {
 	config := TrapListenerConfig{
 		Port:      162,
-		Community: "public",
+		Community: []string{"public"},
 	}
 	params, err := config.BuildParams()
 	assert.NoError(t, err)
@@ -26,9 +26,7 @@ func TestConfigCommon(t *testing.T) {
 
 func TestConfigPort(t *testing.T) {
 	t.Run("err-required", func(t *testing.T) {
-		config := TrapListenerConfig{
-			Community: "public",
-		}
+		config := TrapListenerConfig{}
 		_, err := config.BuildParams()
 		assert.Error(t, err)
 	})
@@ -36,7 +34,7 @@ func TestConfigPort(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		config := TrapListenerConfig{
 			Port:      162,
-			Community: "public",
+			Community: []string{"public"},
 		}
 		params, err := config.BuildParams()
 		assert.NoError(t, err)
@@ -45,40 +43,42 @@ func TestConfigPort(t *testing.T) {
 }
 
 func TestConfigVersion(t *testing.T) {
-	t.Run("default-is-v2", func(t *testing.T) {
+	t.Run("default-v2", func(t *testing.T) {
 		config := TrapListenerConfig{
 			Port:      162,
-			Community: "public",
+			Community: []string{"public"},
 		}
 		params, err := config.BuildParams()
 		assert.NoError(t, err)
-
 		assert.Equal(t, gosnmp.Version2c, params.Version)
-		assert.Equal(t, "public", params.Community)
-		assert.Equal(t, 0, int(params.SecurityModel))
-		assert.Nil(t, params.SecurityParameters)
 	})
 
-	t.Run("explicit-v1", func(t *testing.T) {
+	t.Run("v2c-alias", func(t *testing.T) {
 		config := TrapListenerConfig{
+			Version:   "2c",
 			Port:      162,
-			Version:   "1",
-			Community: "public",
+			Community: []string{"public"},
 		}
 		params, err := config.BuildParams()
 		assert.NoError(t, err)
-
-		assert.Equal(t, gosnmp.Version1, params.Version)
-		assert.Equal(t, "public", params.Community)
-		assert.Equal(t, 0, int(params.SecurityModel))
-		assert.Nil(t, params.SecurityParameters)
+		assert.Equal(t, gosnmp.Version2c, params.Version)
 	})
 
 	t.Run("err-invalid-version", func(t *testing.T) {
 		config := TrapListenerConfig{
-			Port:      162,
 			Version:   "42",
-			Community: "public",
+			Port:      162,
+			Community: []string{"public"},
+		}
+		_, err := config.BuildParams()
+		assert.Error(t, err)
+	})
+
+	t.Run("err-v1-not-supported", func(t *testing.T) {
+		config := TrapListenerConfig{
+			Version:   "1",
+			Port:      162,
+			Community: []string{"public"},
 		}
 		_, err := config.BuildParams()
 		assert.Error(t, err)
@@ -86,9 +86,9 @@ func TestConfigVersion(t *testing.T) {
 
 	t.Run("err-v3-not-supported", func(t *testing.T) {
 		config := TrapListenerConfig{
-			Port:      162,
 			Version:   "3",
-			Community: "public",
+			Port:      162,
+			Community: []string{"public"},
 		}
 		_, err := config.BuildParams()
 		assert.Error(t, err)
@@ -99,21 +99,18 @@ func TestConfigV2(t *testing.T) {
 	t.Run("community", func(t *testing.T) {
 		config := TrapListenerConfig{
 			Port:      162,
-			Community: "public",
+			Community: []string{"public"},
 		}
 		params, err := config.BuildParams()
 		assert.NoError(t, err)
 
 		assert.Equal(t, gosnmp.Version2c, params.Version)
-		assert.Equal(t, "public", params.Community)
-		assert.Equal(t, 0, int(params.SecurityModel))
-		assert.Nil(t, params.SecurityParameters)
+		assert.Equal(t, "", params.Community) // Not copied over, we validate community strings manually
 	})
 
 	t.Run("err-community-missing", func(t *testing.T) {
 		config := TrapListenerConfig{
-			Port:    162,
-			Version: "2c",
+			Port: 162,
 		}
 		_, err := config.BuildParams()
 		assert.Error(t, err)
