@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/Microsoft/go-winio"
 )
 
@@ -20,23 +19,14 @@ import (
 // It listens to a given pipe name and sends back packets ready to be processed.
 // Origin detection is not implemented for named pipe.
 type NamedPipeListener struct {
-	pipe            net.Listener
-	packetsBuffer   *packetsBuffer
-	packetAssembler *packetAssembler
-	buffer          []byte
-	connections     []net.Conn
-	telemetry       *listenerTelemetry
+	pipe        net.Listener
+	packet      *listenerPacket
+	connections []net.Conn
+	telemetry   *listenerTelemetry
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketPool *PacketPool) (*NamedPipeListener, error) {
-	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
-	packetsBufferSize := config.Datadog.GetInt("dogstatsd_packet_buffer_size")
-	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
-
-	buffer := make([]byte, bufferSize)
-	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
-	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool)
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),
@@ -50,11 +40,9 @@ func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketP
 	}
 
 	listener := &NamedPipeListener{
-		pipe:            pipe,
-		packetsBuffer:   packetsBuffer,
-		packetAssembler: packetAssembler,
-		buffer:          buffer,
-		telemetry:       newListenerTelemetry("named pipe", "named_pipe"),
+		pipe:      pipe,
+		packet:    newListenerPacket(packetOut, sharedPacketPool),
+		telemetry: newListenerTelemetry("named pipe", "named_pipe"),
 	}
 
 	log.Debugf("dogstatsd-named-pipe: %s successfully initialized", pipe.Addr())
@@ -83,7 +71,7 @@ func (l *NamedPipeListener) Listen() {
 func (l *NamedPipeListener) listenConnection(conn net.Conn) {
 	log.Infof("dogstatsd-named-pipes: start listening a new named pipe client on %s", conn.LocalAddr())
 	for {
-		n, err := conn.Read(l.buffer)
+		n, err := conn.Read(l.packet.buffer)
 		if err != nil {
 			if err == io.EOF {
 				log.Infof("dogstatsd-named-pipes: client disconnected from %s", conn.LocalAddr())
@@ -101,7 +89,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn) {
 			l.telemetry.onReadSuccess(n)
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
-			l.packetAssembler.addMessage(l.buffer[:n])
+			l.packet.packetAssembler.addMessage(l.packet.buffer[:n])
 		}
 	}
 	conn.Close()
@@ -114,7 +102,6 @@ func (l *NamedPipeListener) Stop() {
 		conn.SetReadDeadline(time.Now())
 	}
 
-	l.packetAssembler.close()
-	l.packetsBuffer.close()
+	l.packet.close()
 	l.pipe.Close()
 }
