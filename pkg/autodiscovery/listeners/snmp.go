@@ -388,8 +388,6 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 	switch string(key) {
 	case "version":
 		return []byte(s.config.Version), nil
-	case "network":
-		return []byte(s.config.Network), nil
 	case "timeout":
 		return []byte(fmt.Sprintf("%d", s.config.Timeout)), nil
 	case "retries":
@@ -410,6 +408,8 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.ContextEngineID), nil
 	case "context_name":
 		return []byte(s.config.ContextName), nil
+	case "autodiscovery_subnet":
+		return []byte(s.config.Network), nil
 	}
 	return []byte{}, ErrNotSupported
 }
