@@ -2,6 +2,7 @@ package listeners
 
 import (
 	"expvar"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
@@ -14,16 +15,16 @@ type listenerTelemetry struct {
 	tlmPacketsBytes     telemetry.Counter
 }
 
-func newListenerTelemetry() *listenerTelemetry {
-	expvars := expvar.NewMap("dogstatsd-named-pipe")
+func newListenerTelemetry(metricName string, name string) *listenerTelemetry {
+	expvars := expvar.NewMap("dogstatsd-" + metricName)
 	packetReadingErrors := expvar.Int{}
 	packets := expvar.Int{}
 	bytes := expvar.Int{}
 
-	tlmPackets := telemetry.NewCounter("dogstatsd", "named_pipe_packets",
-		[]string{"state"}, "Dogstatsd named pipe packets count")
-	tlmPacketsBytes := telemetry.NewCounter("dogstatsd", "named_pipe_packets_bytes",
-		nil, "Dogstatsd named pipe packets bytes count")
+	tlmPackets := telemetry.NewCounter("dogstatsd", metricName+"_packets",
+		[]string{"state"}, fmt.Sprintf("Dogstatsd %s packets count", name))
+	tlmPacketsBytes := telemetry.NewCounter("dogstatsd", metricName+"_packets_bytes",
+		nil, fmt.Sprintf("Dogstatsd %s packets bytes count", name))
 	expvars.Set("PacketReadingErrors", &packetReadingErrors)
 	expvars.Set("Packets", &packets)
 	expvars.Set("Bytes", &bytes)

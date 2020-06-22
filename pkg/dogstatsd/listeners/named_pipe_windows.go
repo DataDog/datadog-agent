@@ -54,7 +54,7 @@ func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketP
 		packetsBuffer:   packetsBuffer,
 		packetAssembler: packetAssembler,
 		buffer:          buffer,
-		telemetry:       newListenerTelemetry(),
+		telemetry:       newListenerTelemetry("named pipe", "named_pipe"),
 	}
 
 	log.Debugf("dogstatsd-named-pipe: %s successfully initialized", pipe.Addr())
