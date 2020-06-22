@@ -289,7 +289,7 @@ run_tests_windows-x86:
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
-    - inv -e deps --verbose --dep-vendor-only --release-version "$RELEASE_VERSION"
+    - inv -e deps --verbose --dep-vendor-only --integrations-version "$INTEGRATIONS_VERSION"
 
 # run tests for deb-x64
 run_tests_deb-x64-py2:
@@ -298,7 +298,7 @@ run_tests_deb-x64-py2:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
-    RELEASE_VERSION: $RELEASE_VERSION_6
+    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
     CONDA_ENV: ddpy2
   <<: *run_tests_preparation
   script:
@@ -310,7 +310,7 @@ run_tests_deb-x64-py3:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
-    RELEASE_VERSION: $RELEASE_VERSION_7
+    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
     CONDA_ENV: ddpy3
   <<: *run_tests_preparation
   script:
@@ -323,7 +323,7 @@ run_tests_rpm-x64-py2:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
-    RELEASE_VERSION: $RELEASE_VERSION_6
+    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
     CONDA_ENV: ddpy2
   <<: *run_tests_preparation
   script:
@@ -338,7 +338,7 @@ run_tests_rpm-x64-py3:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
-    RELEASE_VERSION: $RELEASE_VERSION_7
+    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
     CONDA_ENV: ddpy3
   <<: *run_tests_preparation
   script:
