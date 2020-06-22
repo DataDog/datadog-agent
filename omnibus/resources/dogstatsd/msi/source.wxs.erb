@@ -154,9 +154,7 @@
           <RegistryValue Name="hostname_fqdn"
                          Type="string"
                          Value="[HOSTNAME_FQDN_ENABLED]" />
-
-
-        </RegistryKey>
+         </RegistryKey>
 
       </Component>
     </DirectoryRef>
@@ -229,7 +227,18 @@
             Name="dogstatsd.yaml"
             Source="$(var.EtcFiles)\dogstatsd.yaml.example"/>
       </Component>
+
       
+      <Component Id="install_info"
+                 Guid="260CEE46-E9E9-4EEF-A065-969524970B68"
+                 Permanent="no">
+        <Condition>
+          <![CDATA[UILevel > 2]]>
+        </Condition>
+        <File Id="install_info"
+            Name="install_info"
+            Source="Resources\assets\install_info"/>
+      </Component>
 
 
       <Directory Id="EXAMPLECONFSLOCATION" Name= "conf.d">
@@ -269,6 +278,7 @@
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentRef Id="conffolder" />
       <ComponentRef Id="datadog.yaml.example" />
+      <ComponentRef Id="install_info" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="DATADOGDSDSERVICE" />

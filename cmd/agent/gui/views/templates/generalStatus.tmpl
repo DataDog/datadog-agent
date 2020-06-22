@@ -3,6 +3,7 @@
     <span class="stat_title">Agent Info</span>
     <span class="stat_data">
       Version: {{.version}}
+      <br>Flavor: {{.flavor}}
       <br>PID: {{.pid}}
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}

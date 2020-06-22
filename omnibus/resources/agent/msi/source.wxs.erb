@@ -92,21 +92,21 @@
       directory.  Makes the comparison (below) easier.
     -->
     <SetProperty Id="PROJECTLOCATIONONCMDLINE" Value="[PROJECTLOCATION]" Before="AppSearch">PROJECTLOCATION </SetProperty>
-    <SetProperty Id="PROJECTLOCATIONONCMDLINESLASH" Value="[PROJECTLOCATION]\" Before="AppSearch">PROJECTLOCATION </SetProperty> 
+    <SetProperty Id="PROJECTLOCATIONONCMDLINESLASH" Value="[PROJECTLOCATION]\" Before="AppSearch">PROJECTLOCATION </SetProperty>
     <SetProperty Id="CONFDIRONCOMMANDLINE" Value="[APPLICATIONDATADIRECTORY]" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
-    <SetProperty Id="CONFDIRONCOMMANDLINESLASH" Value="[APPLICATIONDATADIRECTORY]\" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty> 
+    <SetProperty Id="CONFDIRONCOMMANDLINESLASH" Value="[APPLICATIONDATADIRECTORY]\" Before="AppSearch">APPLICATIONDATADIRECTORY </SetProperty>
 
     <!-- This condition allows the install if
         1) the user didn't supply the binary directory on the command line
         2) this is NOT an upgrade
-        3) it is an upgrade, but the supplied directory is the same as the originally installed one. 
-        
+        3) it is an upgrade, but the supplied directory is the same as the originally installed one.
+
       Case (3) is to allow automation tools to supply the same arguments regardless of whether it's an install or
       upgrade.-->
     <Condition
       Message="!(loc.NoMoveInstallDir)">
       <!-- Inside of conditional must be TRUE to meet the condition (to NOT fail the install) -->
-      <![CDATA[(NOT PROJECTLOCATIONONCMDLINE) OR (NOT PREVIOUSFOUND) 
+      <![CDATA[(NOT PROJECTLOCATIONONCMDLINE) OR (NOT PREVIOUSFOUND)
               OR ((PROJECTLOCATIONONCMDLINE~=PROJECTLOCATION) OR
                   (PROJECTLOCATIONONCMDLINESLASH~=PROJECTLOCATION))]]>
     </Condition>
@@ -115,7 +115,7 @@
     <Condition
       Message="!(loc.NoMoveConfDir)">
       <!-- Inside of conditional must be TRUE to meet the condition (to NOT fail the install) -->
-      <![CDATA[(NOT CONFDIRONCOMMANDLINE) OR (NOT PREVIOUSFOUND) 
+      <![CDATA[(NOT CONFDIRONCOMMANDLINE) OR (NOT PREVIOUSFOUND)
               OR ((CONFDIRONCOMMANDLINE~=APPLICATIONDATADIRECTORY) OR
                   (CONFDIRONCOMMANDLINESLASH~=APPLICATIONDATADIRECTORY))]]>
     </Condition>
@@ -258,7 +258,6 @@
           <RegistryValue Name="hostname_fqdn"
                          Type="string"
                          Value="[HOSTNAME_FQDN_ENABLED]" />
-
         </RegistryKey>
 
       </Component>
@@ -276,8 +275,8 @@
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/agent.exe"/>
-          
-          
+
+
           <!-- The "Name" field must match the argument to eventlog.Open() -->
           <util:EventSource Log="Application" Name="DatadogAgent"
                 EventMessageFile="[BIN]agent.exe"
@@ -305,10 +304,10 @@
                 Source="$(var.BinFiles)/libdatadog-agent-three.dll"/>
             <?endif ?>
         </Component>
-        
+
         <?if $(var.IncludePython2) = true ?>
         <Component Id="MSVCRUNTIME" Guid="30ce4f57-47ce-47c0-8564-e510d69787a9">
-        
+
             <Condition> <![CDATA[VersionNT <= 601]]> </Condition>
             <File Id="msvcm90.dll"
                 Name="msvcm90.dll"
@@ -331,10 +330,10 @@
                 Vital="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/Microsoft.VC90.CRT.manifest"/>
-        
+
         </Component>
         <?endif ?>
-        
+
         <Directory Id="AGENT" Name="agent">
           <?if $(var.Platform) = x64 ?>
             <!-- Windows service declaration for APM agent -->
@@ -401,7 +400,17 @@
             Name="datadog.yaml"
             Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
-      
+
+      <Component Id="install_info"
+                 Guid="260CEE46-E9E9-4EEF-A065-969524970B68"
+                 Permanent="no">
+        <Condition>
+          <![CDATA[UILevel > 2]]>
+        </Condition>
+        <File Id="install_info"
+            Name="install_info"
+            Source="Resources\assets\install_info"/>
+      </Component>
 
       <Directory Id="checks.d" Name="checks.d">
         <Component Id="checks.d"
@@ -447,7 +456,7 @@
                 <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
                 <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
             </CreateFolder>
-     
+
         </Component>
       </Directory>
     </DirectoryRef>
@@ -461,9 +470,9 @@
       <Custom Action='StopDDServices' After='StopServices'> </Custom>
 
       <!-- only run the FinalizeInstall action on INSTALL (for now) Note this
-           is from the perspective of the installer being run; on upgrade the 
-           installer is called twice; the existing (previously installed) 
-           installer is called with _UPGRADE, and then the new installer  
+           is from the perspective of the installer being run; on upgrade the
+           installer is called twice; the existing (previously installed)
+           installer is called with _UPGRADE, and then the new installer
            is called with _INSTALL -->
       <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" ]]> </Custom>
       <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" ]]> </Custom>
@@ -471,8 +480,8 @@
       <!-- Same deal here -->
       <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND IGNORESVCSTATUS="" ]]></Custom>
       <Custom Action='StartDDServicesAllowStartFail' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND IGNORESVCSTATUS<>"" ]]></Custom>
-      
-      <!-- only do the uninstall (which removes the user state and file perms) 
+
+      <!-- only do the uninstall (which removes the user state and file perms)
            on a full uninstall -->
       <Custom Action='SetUninstallProperty' Before='DoUninstall'> <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
       <Custom Action='DoUninstall' Before='RemoveRegistryValues'>      <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
@@ -485,6 +494,7 @@
       <ComponentRef Id="conffolder" />
       <ComponentGroupRef Id="ProjectDir" />
       <ComponentRef Id="datadog.yaml.example" />
+      <ComponentRef Id="install_info" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="checks.d" />
@@ -613,16 +623,16 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
-    <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall' 
+    <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
         Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServicesAllowStartFail' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
 
-    <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall' 
+    <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall'
         Value='PROJECTLOCATION=[PROJECTLOCATION];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
-    
+
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
 
     <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' />
@@ -635,12 +645,12 @@
     <CustomAction Id='verifyregperms' BinaryKey='wixcadll' DllEntry='VerifyDatadogRegistryPerms' Execute='immediate' Return='check'/>
     <CustomAction Id='InstallationRollback' BinaryKey='wixcadll' DllEntry='RollbackInstallation' Execute='rollback' />
     -->
-    <!-- the following custom action is a testing custom action.  Set WIXFAILWHENDEFERRED=1 on the command line, and it will FirstFailureActionType   
+    <!-- the following custom action is a testing custom action.  Set WIXFAILWHENDEFERRED=1 on the command line, and it will FirstFailureActionType
          the install at the end, to allow for testing of rollback -->
     <CustomActionRef Id="WixFailWhenDeferred" />
-  
+
     <Binary Id='wixcadll' SourceFile='$(var.BinFiles)\customaction.dll'/>
-    
+
     <Binary Id="BannerBmp" SourceFile="Resources\assets\banner_background.bmp" />
     <Binary Id="BackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
     <Binary Id="PrepBackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
