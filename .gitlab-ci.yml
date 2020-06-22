@@ -231,7 +231,6 @@ build_libbcc_arm64:
   needs: ["fail_on_non_triggered_tag"]
   script:
     - inv -e deps --verbose --dep-vendor-only --no-checks
-    - inv -e lint-licenses
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
