@@ -6,34 +6,14 @@
 package listeners
 
 import (
-	"expvar"
 	"fmt"
 	"net"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
-
-var (
-	udpExpvars             = expvar.NewMap("dogstatsd-udp")
-	udpPacketReadingErrors = expvar.Int{}
-	udpPackets             = expvar.Int{}
-	udpBytes               = expvar.Int{}
-
-	tlmUDPPackets = telemetry.NewCounter("dogstatsd", "udp_packets",
-		[]string{"state"}, "Dogstatsd UDP packets count")
-	tlmUDPPacketsBytes = telemetry.NewCounter("dogstatsd", "udp_packets_bytes",
-		nil, "Dogstatsd UDP packets bytes count")
-)
-
-func init() {
-	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
-	udpExpvars.Set("Packets", &udpPackets)
-	udpExpvars.Set("Bytes", &udpBytes)
-}
 
 // UDPListener implements the StatsdListener interface for UDP protocol.
 // It listens to a given UDP address and sends back packets ready to be
@@ -44,6 +24,7 @@ type UDPListener struct {
 	packetsBuffer   *packetsBuffer
 	packetAssembler *packetAssembler
 	buffer          []byte
+	telemetry       *listenerTelemetry
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
@@ -87,6 +68,7 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 		packetsBuffer:   packetsBuffer,
 		packetAssembler: packetAssembler,
 		buffer:          buffer,
+		telemetry:       newListenerTelemetry("udp", "UDP"),
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -96,7 +78,6 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 func (l *UDPListener) Listen() {
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		udpPackets.Add(1)
 		n, _, err := l.conn.ReadFrom(l.buffer)
 		if err != nil {
 			// connection has been closed
@@ -105,14 +86,10 @@ func (l *UDPListener) Listen() {
 			}
 
 			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
-			udpPacketReadingErrors.Add(1)
-			tlmUDPPackets.Inc("error")
+			l.telemetry.onReadError()
 			continue
 		}
-		tlmUDPPackets.Inc("ok")
-
-		udpBytes.Add(int64(n))
-		tlmUDPPacketsBytes.Add(float64(n))
+		l.telemetry.onReadSuccess(n)
 
 		// packetAssembler merges multiple packets together and sends them when its buffer is full
 		l.packetAssembler.addMessage(l.buffer[:n])
