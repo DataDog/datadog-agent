@@ -2,65 +2,19 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
-// +build windows
 
 package listeners
 
 import (
-	"expvar"
 	"io"
 	"net"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/Microsoft/go-winio"
 )
-
-type namedPipeTelemetry struct {
-	packetReadingErrors expvar.Int
-	packets             expvar.Int
-	bytes               expvar.Int
-	tlmPackets          telemetry.Counter
-	tlmPacketsBytes     telemetry.Counter
-}
-
-func newNamedPipeTelemetry() *namedPipeTelemetry {
-	expvars := expvar.NewMap("dogstatsd-named-pipe")
-	packetReadingErrors := expvar.Int{}
-	packets := expvar.Int{}
-	bytes := expvar.Int{}
-
-	tlmPackets := telemetry.NewCounter("dogstatsd", "named_pipe_packets",
-		[]string{"state"}, "Dogstatsd named pipe packets count")
-	tlmPacketsBytes := telemetry.NewCounter("dogstatsd", "named_pipe_packets_bytes",
-		nil, "Dogstatsd named pipe packets bytes count")
-	expvars.Set("PacketReadingErrors", &packetReadingErrors)
-	expvars.Set("Packets", &packets)
-	expvars.Set("Bytes", &bytes)
-
-	return &namedPipeTelemetry{
-		packetReadingErrors: packetReadingErrors,
-		tlmPackets:          tlmPackets,
-		packets:             packets,
-		bytes:               bytes,
-		tlmPacketsBytes:     tlmPacketsBytes,
-	}
-}
-
-func (t *namedPipeTelemetry) onReadSuccess(n int) {
-	t.packets.Add(1)
-	t.tlmPackets.Inc("ok")
-	t.bytes.Add(int64(n))
-	t.tlmPacketsBytes.Add(float64(n))
-}
-
-func (t *namedPipeTelemetry) onReadError() {
-	t.packetReadingErrors.Add(1)
-	t.tlmPackets.Inc("error")
-}
 
 // NamedPipeListener implements the StatsdListener interface for named pipe protocol.
 // It listens to a given pipe name and sends back packets ready to be processed.
@@ -71,7 +25,7 @@ type NamedPipeListener struct {
 	packetAssembler *packetAssembler
 	buffer          []byte
 	connections     []net.Conn
-	telemetry       *namedPipeTelemetry
+	telemetry       *listenerTelemetry
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
@@ -100,7 +54,7 @@ func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketP
 		packetsBuffer:   packetsBuffer,
 		packetAssembler: packetAssembler,
 		buffer:          buffer,
-		telemetry:       newNamedPipeTelemetry(),
+		telemetry:       newListenerTelemetry(),
 	}
 
 	log.Debugf("dogstatsd-named-pipe: %s successfully initialized", pipe.Addr())
