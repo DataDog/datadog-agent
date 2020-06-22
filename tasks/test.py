@@ -445,27 +445,33 @@ def make_simple_gitlab_yml(ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', 
         if job_name in data:
             job = data[job_name]
             jobs_processed.add(job_name)
-            needs = job.get("needs", None)
-            if needs is not None:
-                jobs_to_process.update(needs)
+
+            # Process dependencies
+            if not dont_include_deps:
+                needs = job.get("needs", None)
+                if needs is not None:
+                    jobs_to_process.update(needs)
+
+            # Process base jobs
             extends = job.get("extends", None)
             if extends is not None:
                 if isinstance(extends, str):
                     extends = [extends]
                 jobs_to_process.update(extends)
 
+            # Delete rules that may prevent our job from running
+            if 'rules' in job:
+                del job['rules']
+            if 'except' in job:
+                del job['except']
+            if 'only' in job:
+                del job['only']
+
     out = copy.deepcopy(data)
-    #stages = []
     for k,v in data.items():
         if k not in jobs_processed:
             del out[k]
             continue
-        if not isinstance(v, dict):
-            continue
-        stage = v.get('stage', None)
-        #if stage is not None and stage not in stages:
-        #    stages.append(stage)
-    #out['stages'] = stages
 
     with open(yml_file_dest, 'w') as f:
         documents = yaml.dump(out, f)
