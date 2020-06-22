@@ -20,11 +20,9 @@ import (
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn            *net.UDPConn
-	packetsBuffer   *packetsBuffer
-	packetAssembler *packetAssembler
-	buffer          []byte
-	telemetry       *listenerTelemetry
+	conn      *net.UDPConn
+	packet    *listenerPacket
+	telemetry *listenerTelemetry
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
@@ -55,20 +53,10 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
-	packetsBufferSize := config.Datadog.GetInt("dogstatsd_packet_buffer_size")
-	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
-
-	buffer := make([]byte, bufferSize)
-	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
-	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool)
-
 	listener := &UDPListener{
-		conn:            conn,
-		packetsBuffer:   packetsBuffer,
-		packetAssembler: packetAssembler,
-		buffer:          buffer,
-		telemetry:       newListenerTelemetry("udp", "UDP"),
+		conn:      conn,
+		packet:    newListenerPacket(packetOut, sharedPacketPool),
+		telemetry: newListenerTelemetry("udp", "UDP"),
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -78,7 +66,7 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 func (l *UDPListener) Listen() {
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		n, _, err := l.conn.ReadFrom(l.buffer)
+		n, _, err := l.conn.ReadFrom(l.packet.buffer)
 		if err != nil {
 			// connection has been closed
 			if strings.HasSuffix(err.Error(), " use of closed network connection") {
@@ -92,13 +80,12 @@ func (l *UDPListener) Listen() {
 		l.telemetry.onReadSuccess(n)
 
 		// packetAssembler merges multiple packets together and sends them when its buffer is full
-		l.packetAssembler.addMessage(l.buffer[:n])
+		l.packet.packetAssembler.addMessage(l.packet.buffer[:n])
 	}
 }
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
-	l.packetAssembler.close()
-	l.packetsBuffer.close()
+	l.packet.close()
 	l.conn.Close()
 }
