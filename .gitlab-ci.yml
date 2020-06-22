@@ -83,7 +83,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2424505-0439a40
-  DATADOG_AGENT_BUILDERS: v2649075-3e0d197
+  DATADOG_AGENT_BUILDERS: v2651165-ae5d814
   DATADOG_AGENT_WINBUILDIMAGES: v2468030-cbaf3fe
   DATADOG_AGENT_WINBUILDERS: v2348149-ba6640d
   DATADOG_AGENT_ARMBUILDIMAGES: v2424505-0439a40
@@ -1421,7 +1421,7 @@ dogstatsd_suse-x64:
 deploy_deb_testing-a6:
   stage: testkitchen_deploy
   needs: ["agent_deb-x64-a6"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_testkitchen_triggered
@@ -1446,7 +1446,7 @@ deploy_deb_testing-a6:
 deploy_deb_testing-a7:
   stage: testkitchen_deploy
   needs: ["agent_deb-x64-a7", "iot_agent_deb-x64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_testkitchen_triggered
@@ -1474,7 +1474,7 @@ deploy_rpm_testing-a6:
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
   needs: ["agent_rpm-x64-a6"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -1488,7 +1488,7 @@ deploy_rpm_testing-a7:
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
   needs: ["agent_rpm-x64-a7", "iot_agent_rpm-x64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -1503,7 +1503,7 @@ deploy_suse_rpm_testing-a6:
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
   needs: ["agent_suse-x64-a6"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   tags: [ "runner:main", "size:large" ]
@@ -1517,7 +1517,7 @@ deploy_suse_rpm_testing-a7:
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
   needs: ["agent_suse-x64-a7", "iot_agent_suse-x64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   tags: [ "runner:main", "size:large" ]
@@ -1532,7 +1532,7 @@ deploy_windows_testing-a6:
   <<: *skip_when_unwanted_on_6
   stage: testkitchen_deploy
   needs: ["windows_msi_x64-a6"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -1544,7 +1544,7 @@ deploy_windows_testing-a7:
   <<: *skip_when_unwanted_on_7
   stage: testkitchen_deploy
   needs: ["windows_msi_x64-a7"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -2177,7 +2177,7 @@ kitchen_debian_upgrade7_agent_agent-a7:
 
 .kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
   stage: testkitchen_cleanup
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   <<: *run_only_when_testkitchen_triggered
   <<: *skip_when_unwanted_on_6
   tags: [ "runner:main", "size:large" ]
@@ -3036,7 +3036,7 @@ check_already_deployed_version_6:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_6
   stage: check_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -3051,7 +3051,7 @@ check_already_deployed_version_7:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: check_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -3066,7 +3066,7 @@ check_already_deployed_version_7:
 check_if_build_only:
   <<: *run_only_when_triggered
   stage: check_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
@@ -3082,7 +3082,7 @@ deploy_staging_deb-6:
   <<: *skip_when_unwanted_on_6
   stage: deploy6
   resource_group: deb_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -3117,7 +3117,7 @@ deploy_staging_deb-7:
   <<: *skip_when_unwanted_on_7
   stage: deploy7
   resource_group: deb_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -3153,7 +3153,7 @@ deploy_staging_deb-7:
 # nightlies (6), deployed to bucket/master
 deploy_staging_windows_master-a6:
   stage: deploy6
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_triggered_on_nightly
@@ -3167,7 +3167,7 @@ deploy_staging_windows_master-a6:
 # nightlies (7 and dogstatsd), deployed to bucket/master
 deploy_staging_windows_master-a7:
   stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_triggered_on_nightly
@@ -3183,7 +3183,7 @@ deploy_staging_windows_master-a7:
 # nightlies latest (6), deployed to bucket/master
 deploy_staging_windows_master-latest-a6:
   stage: deploy6
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_triggered_on_nightly
@@ -3197,7 +3197,7 @@ deploy_staging_windows_master-latest-a6:
 # nightlies latest (7), deployed to bucket/master
 deploy_staging_windows_master-latest-a7:
   stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_triggered_on_nightly
@@ -3212,7 +3212,7 @@ deploy_staging_windows_master-latest-a7:
 # triggered builds (6), deployed to bucket/tagged
 deploy_staging_windows_tags-a6:
   stage: deploy6
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_triggered_on_tag_6
@@ -3225,7 +3225,7 @@ deploy_staging_windows_tags-a6:
 # triggered builds (7), deployed to bucket/tagged
 deploy_staging_windows_tags-a7:
   stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_triggered_on_tag_7
@@ -3239,7 +3239,7 @@ deploy_staging_windows_tags-a7:
 # triggered builds latest (6, x64 only), deployed to bucket/tagged
 deploy_staging_windows_tags-latest-a6:
   stage: deploy6
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_triggered_on_tag_6
@@ -3255,7 +3255,7 @@ deploy_staging_windows_tags-latest-a6:
 # triggered builds latest (7, x64 only), deployed to bucket/tagged
 deploy_staging_windows_tags-latest-a7:
   stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   <<: *run_only_when_triggered_on_tag_7
@@ -3272,7 +3272,7 @@ deploy_staging_windows_tags-latest-a7:
 # deploy android packages to a public s3 bucket when tagged
 deploy_staging_android_tags:
   stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   # This means this job is never run, but let's keep it around in case we need it one day
@@ -3290,7 +3290,7 @@ deploy_staging_rpm-6:
   <<: *skip_when_unwanted_on_6
   stage: deploy6
   resource_group: rpm_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -3306,7 +3306,7 @@ deploy_staging_rpm-7:
   <<: *skip_when_unwanted_on_7
   stage: deploy7
   resource_group: rpm_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -3327,7 +3327,7 @@ deploy_staging_suse_rpm-6:
   <<: *skip_when_unwanted_on_6
   stage: deploy6
   resource_group: suse_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   tags: [ "runner:main", "size:large" ]
@@ -3341,7 +3341,7 @@ deploy_staging_suse_rpm-7:
   <<: *skip_when_unwanted_on_7
   stage: deploy7
   resource_group: suse_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   tags: [ "runner:main", "size:large" ]
@@ -3357,7 +3357,7 @@ deploy_staging_dsd:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
@@ -3370,7 +3370,7 @@ deploy_staging_iot_agent:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
@@ -3383,7 +3383,7 @@ deploy_staging_datadog_agent_windows_zip:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
   dependencies: [ "windows_msi_x64-a7"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -3394,7 +3394,7 @@ deploy_cluster_agent_cloudfoundry:
   <<: *run_only_when_triggered
   <<: *skip_when_unwanted_on_7
   stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   dependencies:
     - cluster_agent_cloudfoundry-build_amd64
   before_script:
@@ -3408,7 +3408,7 @@ deploy_staging_datadog_agent_windows_binaries_zip:
   <<: *run_only_when_triggered_on_tag_7
   stage: deploy7
   dependencies: [ "windows_zip_agent_binaries_x64-a7"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   tags: [ "runner:main", "size:large" ]
@@ -3419,7 +3419,7 @@ deploy_staging_datadog_agent_windows_binaries_zip:
 deploy_staging_process_and_sysprobe:
   stage: internal_deploy
   when: manual
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   before_script:
     - cd $OMNIBUS_PACKAGE_DIR
     - ls
@@ -3658,7 +3658,7 @@ latest_release_7:
 .deploy_cloudfront_invalidate: &deploy_cloudfront_invalidate
   <<: *run_only_when_triggered
   stage: deploy_invalidate
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   script:
@@ -3707,7 +3707,7 @@ trigger_release_6:
 
 .pupernetes_template: &pupernetes_template
   stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
   dependencies: []
   before_script:
