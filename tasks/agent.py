@@ -450,7 +450,7 @@ def omnibus_build(ctx, iot=False, agent_binaries=False, log_level="info", base_d
             omnibus_elapsed = omnibus_done - omnibus_start
 
 
-        except Exception as e:
+        except Exception:
             if pfxfile:
                 os.remove(pfxfile)
             raise

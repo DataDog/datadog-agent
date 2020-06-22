@@ -11,6 +11,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 	"github.com/cihub/seelog"
@@ -47,16 +48,13 @@ func TestNewObfuscator(t *testing.T) {
 	assert.Nil(o.es)
 	assert.Nil(o.mongo)
 
-	o = NewObfuscator(&Config{
-		ES:    JSONSettings{},
-		Mongo: JSONSettings{},
-	})
+	o = NewObfuscator(nil)
 	assert.Nil(o.es)
 	assert.Nil(o.mongo)
 
-	o = NewObfuscator(&Config{
-		ES:    JSONSettings{Enabled: true},
-		Mongo: JSONSettings{Enabled: true},
+	o = NewObfuscator(&config.ObfuscationConfig{
+		ES:    config.JSONObfuscationConfig{Enabled: true},
+		Mongo: config.JSONObfuscationConfig{Enabled: true},
 	})
 	assert.NotNil(o.es)
 	assert.NotNil(o.mongo)
@@ -124,7 +122,7 @@ func TestObfuscateConfig(t *testing.T) {
 	// configuration and asserts that the new tag value matches exp.
 	testConfig := func(
 		typ, key, val, exp string,
-		cfg *Config,
+		cfg *config.ObfuscationConfig,
 	) func(*testing.T) {
 		return func(t *testing.T) {
 			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
@@ -138,7 +136,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET key ?",
-		&Config{Redis: true},
+		&config.ObfuscationConfig{Redis: config.Enablable{Enabled: true}},
 	))
 
 	t.Run("redis/disabled", testConfig(
@@ -146,7 +144,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET key val",
-		&Config{},
+		&config.ObfuscationConfig{},
 	))
 
 	t.Run("http/enabled", testConfig(
@@ -154,10 +152,10 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&Config{
+		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
 			RemovePathDigits:  true,
 			RemoveQueryString: true,
-		},
+		}},
 	))
 
 	t.Run("http/disabled", testConfig(
@@ -165,7 +163,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/1/2?q=asd",
-		&Config{},
+		&config.ObfuscationConfig{},
 	))
 
 	t.Run("web/enabled", testConfig(
@@ -173,10 +171,10 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&Config{
+		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
 			RemovePathDigits:  true,
 			RemoveQueryString: true,
-		},
+		}},
 	))
 
 	t.Run("web/disabled", testConfig(
@@ -184,7 +182,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/1/2?q=asd",
-		&Config{},
+		&config.ObfuscationConfig{},
 	))
 
 	t.Run("json/enabled", testConfig(
@@ -192,8 +190,8 @@ func TestObfuscateConfig(t *testing.T) {
 		"elasticsearch.body",
 		`{"role": "database"}`,
 		`{"role":"?"}`,
-		&Config{
-			ES: JSONSettings{Enabled: true},
+		&config.ObfuscationConfig{
+			ES: config.JSONObfuscationConfig{Enabled: true},
 		},
 	))
 
@@ -202,7 +200,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"elasticsearch.body",
 		`{"role": "database"}`,
 		`{"role": "database"}`,
-		&Config{},
+		&config.ObfuscationConfig{},
 	))
 
 	t.Run("memcached/enabled", testConfig(
@@ -210,7 +208,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"memcached.command",
 		"set key 0 0 0\r\nvalue",
 		"set key 0 0 0",
-		&Config{Memcached: true},
+		&config.ObfuscationConfig{Memcached: config.Enablable{Enabled: true}},
 	))
 
 	t.Run("memcached/disabled", testConfig(
@@ -218,7 +216,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"memcached.command",
 		"set key 0 0 0 noreply\r\nvalue",
 		"set key 0 0 0 noreply\r\nvalue",
-		&Config{},
+		&config.ObfuscationConfig{},
 	))
 }
 

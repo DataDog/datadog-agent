@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,6 +36,8 @@ type Tracer struct {
 	config          *Config
 	driverInterface *network.DriverInterface
 	stopChan        chan struct{}
+	state           network.State
+	reverseDNS      network.ReverseDNS
 
 	timerInterval int
 
@@ -52,17 +53,21 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
 
+	state := network.NewState(
+		config.ClientStateExpiry,
+		config.MaxClosedConnectionsBuffered,
+		config.MaxConnectionsStateBuffered,
+		config.MaxDNSStatsBufferred,
+	)
+
 	tr := &Tracer{
 		driverInterface: di,
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
+		state:           state,
+		reverseDNS:      network.NewNullReverseDNS(),
 	}
 
-	log.Infof("Starting flow polling")
-	err = tr.initFlowPolling(tr.stopChan)
-	if err != nil {
-		return nil, fmt.Errorf("issue polling packets from driver: %v", err)
-	}
 	go tr.expvarStats(tr.stopChan)
 	return tr, nil
 }
@@ -98,27 +103,7 @@ func (t *Tracer) expvarStats(exit <-chan struct{}) {
 	}
 }
 
-func (t *Tracer) initFlowPolling(exit <-chan struct{}) (err error) {
-	log.Debugf("Started flow polling")
-	go func() {
-		t.inTicker = time.NewTicker(time.Second * time.Duration(t.timerInterval))
-		defer t.inTicker.Stop()
-		for {
-			select {
-			case <-t.stopInTickerRoutine:
-				return
-			case <-t.inTicker.C:
-				connStats, err := t.driverInterface.GetConnectionStats()
-				if err != nil {
-					return
-				}
-				printStats(connStats)
-			}
-		}
-	}()
-	return nil
-}
-
+// printStats can be used to debug the stats we pull from the driver
 func printStats(stats []network.ConnectionStats) {
 	for _, stat := range stats {
 		log.Infof("%v", stat)
@@ -126,21 +111,21 @@ func printStats(stats []network.ConnectionStats) {
 }
 
 // GetActiveConnections returns all active connections
-func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
-	return &network.Connections{
-		DNS: map[util.Address][]string{
-			util.AddressFromString("127.0.0.1"): {"localhost"},
-		},
-		Conns: []network.ConnectionStats{
-			{
-				Source: util.AddressFromString("127.0.0.1"),
-				Dest:   util.AddressFromString("127.0.0.1"),
-				SPort:  35673,
-				DPort:  8000,
-				Type:   network.TCP,
-			},
-		},
-	}, nil
+func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
+	connStatsActive, connStatsClosed, err := t.driverInterface.GetConnectionStats()
+	if err != nil {
+		log.Errorf("failed to get connnections")
+		return nil, err
+	}
+
+	for _, connStat := range connStatsClosed {
+		t.state.StoreClosedConnection(connStat)
+	}
+
+	// check for expired clients in the state
+	t.state.RemoveExpiredClients(time.Now())
+	conns := t.state.Connections(clientID, uint64(time.Now().Nanosecond()), connStatsActive, t.reverseDNS.GetDNSStats())
+	return &network.Connections{Conns: conns}, nil
 }
 
 // getConnections returns all of the active connections in the ebpf maps along with the latest timestamp.  It takes

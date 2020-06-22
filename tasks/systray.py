@@ -5,7 +5,6 @@ from __future__ import print_function
 import os
 import sys
 
-import invoke
 from invoke import task
 
 from .utils import bin_name, get_version_numeric_only
