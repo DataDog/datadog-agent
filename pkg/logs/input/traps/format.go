@@ -21,6 +21,10 @@ const (
 
 // FormatPacketJSON converts an SNMP trap packet to a binary JSON log message content.
 func FormatPacketJSON(p *traps.SnmpPacket) ([]byte, error) {
+	// A trap PDU is composed of a list of variables with the following contents:
+	// [sysUpTime.0, snmpTrapOID.0, additionalVariables...]
+	// See: https://tools.ietf.org/html/rfc3416#section-4.2.6
+
 	if len(p.Content.Variables) < 2 {
 		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(p.Content.Variables))
 	}
@@ -55,24 +59,24 @@ func normalizeOID(value string) string {
 func parseTrap(p *traps.SnmpPacket) (map[string]interface{}, error) {
 	data := make(map[string]interface{})
 
-	uptime, err := parseUptime(p.Content)
+	uptime, err := parseSysUpTime(p.Content)
 	if err != nil {
 		return nil, err
 	}
 	data["uptime"] = uptime
 
-	oid, err := parseTrapOID(p.Content)
+	trapOID, err := parseSnmpTrapOID(p.Content)
 	if err != nil {
 		return nil, err
 	}
-	data["oid"] = oid
+	data["oid"] = trapOID
 
-	data["objects"] = parseObjects(p.Content)
+	data["variables"] = parseVariables(p.Content)
 
 	return data, nil
 }
 
-func parseUptime(p *gosnmp.SnmpPacket) (uint32, error) {
+func parseSysUpTime(p *gosnmp.SnmpPacket) (uint32, error) {
 	v := p.Variables[0]
 
 	if v.Type != gosnmp.TimeTicks {
@@ -92,7 +96,7 @@ func parseUptime(p *gosnmp.SnmpPacket) (uint32, error) {
 	return value * 100, nil
 }
 
-func parseTrapOID(p *gosnmp.SnmpPacket) (string, error) {
+func parseSnmpTrapOID(p *gosnmp.SnmpPacket) (string, error) {
 	v := p.Variables[1]
 
 	if v.Type != gosnmp.ObjectIdentifier {
@@ -111,18 +115,18 @@ func parseTrapOID(p *gosnmp.SnmpPacket) (string, error) {
 	return normalizeOID(value), nil
 }
 
-func parseObjects(p *gosnmp.SnmpPacket) []map[string]interface{} {
-	var objects []map[string]interface{}
+func parseVariables(p *gosnmp.SnmpPacket) []map[string]interface{} {
+	var variables []map[string]interface{}
 
 	for _, v := range p.Variables[2:] {
-		obj := make(map[string]interface{})
-		obj["name"] = normalizeOID(v.Name)
-		obj["type"] = formatType(v)
-		obj["value"] = formatValue(v)
-		objects = append(objects, obj)
+		variable := make(map[string]interface{})
+		variable["name"] = normalizeOID(v.Name)
+		variable["type"] = formatType(v)
+		variable["value"] = formatValue(v)
+		variables = append(variables, variable)
 	}
 
-	return objects
+	return variables
 }
 
 func formatType(v gosnmp.SnmpPDU) string {

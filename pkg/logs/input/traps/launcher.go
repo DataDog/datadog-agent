@@ -15,8 +15,8 @@ import (
 type Launcher struct {
 	pipelineProvider pipeline.Provider
 	sources          chan *config.LogSource
-	forwarder        *Forwarder
-	stop             chan bool
+	tailer           *Tailer
+	stop             chan interface{}
 }
 
 // NewLauncher returns an initialized Launcher
@@ -24,7 +24,7 @@ func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider)
 	return &Launcher{
 		pipelineProvider: pipelineProvider,
 		sources:          sources.GetAddedForType("traps"),
-		stop:             make(chan bool),
+		stop:             make(chan interface{}, 1),
 	}
 }
 
@@ -33,12 +33,18 @@ func (l *Launcher) Start() {
 	go l.run()
 }
 
-// Stop stops any running forwarder.
+func (l *Launcher) startNewTailer(source *config.LogSource, inputChan chan *traps.SnmpPacket) {
+	outputChan := l.pipelineProvider.NextPipelineChan()
+	l.tailer = NewTailer(source, inputChan, outputChan)
+	l.tailer.Start()
+}
+
+// Stop stops any running tailer.
 func (l *Launcher) Stop() {
 	l.stop <- true
-	if l.forwarder != nil {
-		l.forwarder.Stop()
-		l.forwarder = nil
+	if l.tailer != nil {
+		l.tailer.Stop()
+		l.tailer = nil
 	}
 }
 
@@ -46,11 +52,9 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
-			if traps.RunningServer != nil && l.forwarder == nil {
-				serverOutput := traps.RunningServer.Output()
-				forwarder := NewForwarder(serverOutput, source, l.pipelineProvider)
-				forwarder.Start()
-				l.forwarder = forwarder
+			if traps.RunningServer != nil && l.tailer == nil {
+				l.startNewTailer(source, traps.RunningServer.Output())
+				source.Status.Success()
 			}
 		case <-l.stop:
 			return

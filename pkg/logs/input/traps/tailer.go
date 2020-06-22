@@ -17,7 +17,7 @@ type Tailer struct {
 	source     *config.LogSource
 	inputChan  traps.OutputChannel
 	outputChan chan *message.Message
-	done       chan bool
+	done       chan interface{}
 }
 
 // NewTailer returns a new Tailer
@@ -26,7 +26,7 @@ func NewTailer(source *config.LogSource, inputChan traps.OutputChannel, outputCh
 		source:     source,
 		inputChan:  inputChan,
 		outputChan: outputChan,
-		done:       make(chan bool, 1),
+		done:       make(chan interface{}, 1),
 	}
 }
 
