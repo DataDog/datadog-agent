@@ -25,7 +25,6 @@ stages:
   - image_deploy
   - deploy6
   - deploy7
-  - deploy7-manifests
   - deploy_invalidate
   - trigger_release
   - e2e
@@ -3680,7 +3679,7 @@ tag_release_7_manifests:
       when: manual
       allow_failure: true
   <<: *docker_tag_job_definition
-  stage: deploy7-manifests
+  stage: deploy7
   # HACK: a job should not depend on manual jobs, otherwise it blocks
   # the next stages of the pipeline until said manual jobs are run
   # (the job remains in a pending state until all its dependencies
