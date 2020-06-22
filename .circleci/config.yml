@@ -268,6 +268,7 @@ jobs:
             echo 'eval `gimme '$GO_VERSION'`' >> .build_setup
       - run:
           name: Run omnibus build
+          no_output_timeout: 30m
           command: |
             source .build_setup
             pip install -r requirements.txt
