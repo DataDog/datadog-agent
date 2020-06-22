@@ -25,7 +25,6 @@ stages:
   - image_deploy
   - deploy6
   - deploy7
-  - deploy7-manifests
   - deploy_invalidate
   - trigger_release
   - e2e
@@ -167,10 +166,10 @@ variables:
   if: $RELEASE_VERSION_6 == ""
 
 .if_version_7: &if_version_7
-  if: $RELEASE_VERSION_6 != ""
+  if: $RELEASE_VERSION_7 != ""
 
 .if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_6 == ""
+  if: $RELEASE_VERSION_7 == ""
 
 # Fail if we're running a pipeline on a non-triggered tag build
 fail_on_non_triggered_tag:
@@ -1211,6 +1210,7 @@ windows_choco_online_7_x64:
   script:
     - $ErrorActionPreference = "Stop"
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\chocopack.bat online
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg .omnibus\pkg
   artifacts:
     expire_in: 2 weeks
@@ -1221,6 +1221,7 @@ windows_choco_offline_7_x64:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   stage: image_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["windows_msi_x64-a7"]
@@ -1231,6 +1232,7 @@ windows_choco_offline_7_x64:
     - Get-ChildItem .omnibus\pkg
     - copy .omnibus\pkg\*.msi .\chocolatey\tools-offline\
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\chocopack.bat offline
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg .omnibus\pkg
   artifacts:
     expire_in: 2 weeks
@@ -1241,6 +1243,7 @@ publish_choco_7_x64:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   stage: image_deploy
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["windows_choco_online_7_x64"]
@@ -1256,6 +1259,7 @@ publish_choco_7_x64:
     - copy .omnibus\pkg\*.nupkg nupkg\
     - Get-ChildItem nupkg
     - docker run --rm -v "$(Get-Location):c:\mnt" -e CHOCOLATEY_API_KEY=${chocolateyApiKey} 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDERS} c:\mnt\tasks\winbuildscripts\chocopush.bat
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 # build Agent package for android
 agent_android_apk:
@@ -2598,8 +2602,11 @@ docker_build_agent7_windows1809:
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   after_script:
     - docker image prune -f # Dangling images
     - docker builder prune -a -f # Build cache
@@ -2624,8 +2631,11 @@ docker_build_agent7_windows1809_jmx:
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1809-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   after_script:
     - docker image prune -f # Dangling images
     - docker builder prune -a -f # Build cache
@@ -2651,8 +2661,11 @@ docker_build_agent7_windows1909:
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   after_script:
     - docker image prune -f # Dangling images
     - docker builder prune -a -f # Build cache
@@ -2677,8 +2690,11 @@ docker_build_agent7_windows1909_jmx:
     - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${SHORT_CI_COMMIT_SHA}${TAG_SUFFIX}-win1909-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - powershell -Command "docker build ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   after_script:
     - docker image prune -f # Dangling images
     - docker builder prune -a -f # Build cache
@@ -2722,7 +2738,6 @@ docker_build_dogstatsd_amd64:
 twistlock_scan-6:
   rules:
     - <<: *if_version_6
-      when: on_success
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
@@ -2746,7 +2761,6 @@ twistlock_scan-6:
 twistlock_scan-7:
   rules:
     - <<: *if_version_7
-      when: on_success
   stage: image_deploy
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
@@ -2815,10 +2829,12 @@ twistlock_scan-7:
       # ECR Login
       `$AWS_ECR_PASSWORD = aws ecr get-login-password --region us-east-1
       docker login --username AWS --password "`${AWS_ECR_PASSWORD}" 486234852809.dkr.ecr.us-east-1.amazonaws.com
+      - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
       # DockerHub login
       `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_LOGIN_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
       `$DOCKER_REGISTRY_PWD = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
       docker login --username "`${DOCKER_REGISTRY_LOGIN}" --password "`${DOCKER_REGISTRY_PWD}" "${DOCKER_REGISTRY_URL}"
+      - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
       # DockerHub image signing
       `$Env:DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DELEGATION_PASS_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
       `$Env:NOTARY_DELEGATION_PASSPHRASE = `$Env:DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE
@@ -2826,17 +2842,22 @@ twistlock_scan-7:
       `$bytes = [System.Text.Encoding]::Unicode.GetBytes(`$Env:NOTARY_AUTH)
       `$Env:NOTARY_AUTH = [Convert]::ToBase64String(`$bytes)
       aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DELEGATION_KEY_SSM_KEY} --with-decryption --query "Parameter.Value" --out text | Set-Content -Encoding ASCII docker.key
+      - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
       docker trust key load `$PWD\docker.key
+      - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
       Remove-Item `$PWD\docker.key
       "@ | out-file ci-scripts/docker-publish.ps1
   after_script:
+    - $ErrorActionPreference = "Stop"
     - cat ci-scripts/docker-publish.ps1
     - docker run --rm -w C:\mnt -e IS_AWS_CONTAINER=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDERS} powershell -C C:\mnt\ci-scripts\docker-publish.ps1
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 dev_branch_docker_hub-a6:
   rules:
     - <<: *if_version_6
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
   - docker_build_agent6
@@ -2852,6 +2873,7 @@ dev_branch_docker_hub-a6:
 dev_branch_docker_hub-dogstatsd:
   rules:
     - when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_dogstatsd_amd64
@@ -2862,6 +2884,7 @@ dev_branch_docker_hub-a7:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_agent7
@@ -2874,6 +2897,7 @@ dev_branch_docker_hub-a7-windows:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   extends: .docker_tag_windows_job_definition
   variables:
     VARIANT: 1909
@@ -2900,6 +2924,7 @@ dev_branch_multiarch_docker_hub-a6:
   rules:
     - <<: *if_version_6
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_agent6
@@ -2925,6 +2950,7 @@ dev_branch_multiarch_docker_hub-a7:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_agent7
@@ -2943,6 +2969,7 @@ dev_branch_multiarch_docker_hub-dogstatsd:
   rules:
     - <<: *if_version_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - docker_build_dogstatsd_amd64
@@ -3022,6 +3049,7 @@ dca_dev_branch_docker_hub:
   rules:
     - <<: *if_not_master_branch
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - build_cluster_agent_amd64
@@ -3032,6 +3060,7 @@ dca_dev_branch_multiarch_docker_hub:
   rules:
     - <<: *if_not_master_branch
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   needs:
     - build_cluster_agent_amd64
@@ -3557,6 +3586,7 @@ deploy_staging_datadog_agent_windows_binaries_zip:
 deploy_staging_process_and_sysprobe:
   rules:
     - when: manual
+      allow_failure: true
   stage: internal_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   before_script:
@@ -3584,6 +3614,7 @@ tag_release_6:
   rules:
     - <<: *if_triggered_on_tag_6
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: deploy6
   dependencies:
@@ -3604,6 +3635,7 @@ latest_release_6:
   rules:
     - <<: *if_triggered_on_tag_6
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: deploy6
   dependencies:
@@ -3622,6 +3654,7 @@ tag_release_7_linux:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: deploy7
   dependencies:
@@ -3640,6 +3673,7 @@ tag_release_7_windows:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   stage: deploy7
   extends: .docker_tag_windows_job_definition
   variables:
@@ -3664,8 +3698,9 @@ tag_release_7_manifests:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
-  stage: deploy7-manifests
+  stage: deploy7
   # HACK: a job should not depend on manual jobs, otherwise it blocks
   # the next stages of the pipeline until said manual jobs are run
   # (the job remains in a pending state until all its dependencies
@@ -3693,6 +3728,7 @@ latest_release_7:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: deploy7
   dependencies:
@@ -3743,6 +3779,7 @@ latest_release_7:
 .latest_revert_to_previous_release_6:
   rules:
     - when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: source_test
   variables:
@@ -3756,6 +3793,7 @@ latest_release_7:
 .latest_revert_to_previous_release_7:
   rules:
     - when: manual
+      allow_failure: true
   <<: *docker_tag_job_definition
   stage: source_test
   variables:
@@ -3777,6 +3815,7 @@ latest_release_7:
 .delete_docker_tag:
   rules:
     - when: manual
+      allow_failure: true
   tags: [ "runner:docker", "size:large" ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:0.6.1
   before_script:
@@ -3878,6 +3917,7 @@ pupernetes-dev:
     - <<: *if_tagged_commit
       when: never
     - when: manual
+      allow_failure: true
   <<: *pupernetes_template
 
 pupernetes-master:
@@ -3892,6 +3932,7 @@ pupernetes-tags-6:
   rules:
     - <<: *if_triggered_on_tag_6
       when: manual
+      allow_failure: true
   <<: *pupernetes_template
   script:
   - VERSION=$(inv -e agent.version --major-version 6)
@@ -3901,6 +3942,7 @@ pupernetes-tags-7:
   rules:
     - <<: *if_triggered_on_tag_7
       when: manual
+      allow_failure: true
   <<: *pupernetes_template
   script:
   - VERSION=$(inv -e agent.version --major-version 7)
