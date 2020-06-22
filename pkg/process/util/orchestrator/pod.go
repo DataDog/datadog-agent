@@ -174,30 +174,40 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.RestartCount = 0
 	for _, cs := range p.Status.ContainerStatuses {
 		podModel.RestartCount += cs.RestartCount
-		cStatus := model.ContainerStatus{
-			Name:         cs.Name,
-			ContainerID:  cs.ContainerID,
-			Ready:        cs.Ready,
-			RestartCount: cs.RestartCount,
-		}
-		// detecting the current state
-		if cs.State.Waiting != nil {
-			cStatus.State = "Waiting"
-			cStatus.Message = cs.State.Waiting.Reason + " " + cs.State.Waiting.Message
-		} else if cs.State.Running != nil {
-			cStatus.State = "Running"
-		} else if cs.State.Terminated != nil {
-			cStatus.State = "Terminated"
-			exitString := "(exit: " + strconv.Itoa(int(cs.State.Terminated.ExitCode)) + ")"
-			cStatus.Message = cs.State.Terminated.Reason + " " + cs.State.Terminated.Message + " " + exitString
-		}
+		cStatus := convertContainerStatus(cs)
 		podModel.ContainerStatuses = append(podModel.ContainerStatuses, &cStatus)
 	}
 
+	for _, cs := range p.Status.InitContainerStatuses {
+		podModel.RestartCount += cs.RestartCount
+		cStatus := convertContainerStatus(cs)
+		podModel.InitContainerStatuses = append(podModel.InitContainerStatuses, &cStatus)
+	}
 	podModel.Status = ComputeStatus(p)
 	podModel.ConditionMessage = GetConditionMessage(p)
 
 	return &podModel
+}
+
+func convertContainerStatus(cs v1.ContainerStatus) model.ContainerStatus {
+	cStatus := model.ContainerStatus{
+		Name:         cs.Name,
+		ContainerID:  cs.ContainerID,
+		Ready:        cs.Ready,
+		RestartCount: cs.RestartCount,
+	}
+	// detecting the current state
+	if cs.State.Waiting != nil {
+		cStatus.State = "Waiting"
+		cStatus.Message = cs.State.Waiting.Reason + " " + cs.State.Waiting.Message
+	} else if cs.State.Running != nil {
+		cStatus.State = "Running"
+	} else if cs.State.Terminated != nil {
+		cStatus.State = "Terminated"
+		exitString := "(exit: " + strconv.Itoa(int(cs.State.Terminated.ExitCode)) + ")"
+		cStatus.Message = cs.State.Terminated.Reason + " " + cs.State.Terminated.Message + " " + exitString
+	}
+	return cStatus
 }
 
 // ComputeStatus is mostly copied from kubernetes to match what users see in kubectl
