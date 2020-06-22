@@ -474,7 +474,7 @@ def make_simple_gitlab_yml(ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', 
             continue
 
     with open(yml_file_dest, 'w') as f:
-        documents = yaml.dump(out, f)
+        yaml.dump(out, f)
 
 @task
 def make_kitchen_gitlab_yml(ctx):
