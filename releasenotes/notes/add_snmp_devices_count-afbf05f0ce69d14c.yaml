@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add network to available SNMP template extra configs
