@@ -8,6 +8,7 @@ import (
 )
 
 type listenerTelemetry struct {
+	expvars             *expvar.Map
 	packetReadingErrors expvar.Int
 	packets             expvar.Int
 	bytes               expvar.Int
@@ -30,6 +31,7 @@ func newListenerTelemetry(metricName string, name string) *listenerTelemetry {
 	expvars.Set("Bytes", &bytes)
 
 	return &listenerTelemetry{
+		expvars:             expvars,
 		packetReadingErrors: packetReadingErrors,
 		tlmPackets:          tlmPackets,
 		packets:             packets,
