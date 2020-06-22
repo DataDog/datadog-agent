@@ -3275,6 +3275,7 @@ deploy_staging_deb-7:
     - agent_deb-arm64-a7
     - iot_agent_deb-x64
     - iot_agent_deb-arm64
+    - iot_agent_deb-armhf
     - dogstatsd_deb-x64
   script:
     # We first check that the current version hasn't already been deployed
@@ -3300,6 +3301,7 @@ deploy_staging_deb-7:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a armhf --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*armhf.deb
 
 # nightlies (6), deployed to bucket/master
 deploy_staging_windows_master-a6:
@@ -3485,12 +3487,14 @@ deploy_staging_rpm-7:
     - agent_rpm-arm64-a7
     - iot_agent_rpm-x64
     - iot_agent_rpm-arm64
+    - iot_agent_rpm-armhf
     - dogstatsd_rpm-x64
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/x86_64/" $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/aarch64/" $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/armv7hl/" $OMNIBUS_PACKAGE_DIR/*-7.*armv7hl.rpm
 
 # deploy suse rpm packages to yum staging repo
 # NOTE: no SuSE ARM builds currently.
