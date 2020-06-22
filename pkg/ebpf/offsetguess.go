@@ -253,7 +253,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		if status.saddr == C.__u32(expected.saddr) {
 			status.what = guessDaddr
 			logSuccessfulGuess(guessSaddr, status.offset_saddr)
-			logGuessStart(guessDaddr, status.offset_daddr)
+			logStartGuess(guessDaddr)
 			break
 		}
 		status.offset_saddr++
@@ -262,7 +262,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		if status.daddr == C.__u32(expected.daddr) {
 			status.what = guessFamily
 			logSuccessfulGuess(guessDaddr, status.offset_daddr)
-			logGuessStart(guessFamily, status.offset_family)
+			logStartGuess(guessFamily)
 			break
 		}
 		status.offset_daddr++
@@ -274,7 +274,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 			// after the family field, so we start from there
 			status.offset_sport = status.offset_family
 			logSuccessfulGuess(guessFamily, status.offset_family)
-			logGuessStart(guessSport, status.offset_sport)
+			logStartGuess(guessSport)
 			break
 		}
 		status.offset_family++
@@ -282,7 +282,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		if status.sport == C.__u16(htons(expected.sport)) {
 			status.what = guessDport
 			logSuccessfulGuess(guessSport, status.offset_sport)
-			logGuessStart(guessDport, status.offset_dport)
+			logStartGuess(guessDport)
 			break
 		}
 		status.offset_sport++
@@ -290,7 +290,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		if status.dport == C.__u16(htons(expected.dport)) {
 			status.what = guessNetns
 			logSuccessfulGuess(guessDport, status.offset_dport)
-			logGuessStart(guessNetns, status.offset_netns)
+			logStartGuess(guessNetns)
 			break
 		}
 		status.offset_dport++
@@ -298,7 +298,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		if status.netns == C.__u32(expected.netns) {
 			status.what = guessRTT
 			logSuccessfulGuess(guessNetns, status.offset_netns)
-			logGuessStart(guessRTT, status.offset_rtt)
+			logStartGuess(guessRTT)
 			break
 		}
 		status.offset_ino++
@@ -313,7 +313,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 		if status.rtt>>3 == C.__u32(expected.rtt) && status.rtt_var>>2 == C.__u32(expected.rttVar) {
 			status.what = guessDaddrIPv6
 			logSuccessfulGuess(guessRTT, status.offset_rtt)
-			logGuessStart(guessDaddrIPv6, status.offset_daddr_ipv6)
+			logStartGuess(guessDaddrIPv6)
 			break
 		}
 		// We know that these two fields are always next to each other, 4 bytes apart:
@@ -329,7 +329,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tracer
 			status.what = guessDaddrIPv6
 			status.offset_rtt = 0
 			status.offset_rtt_var = 0
-			logGuessStart(guessDaddrIPv6, status.offset_daddr_ipv6)
+			logStartGuess(guessDaddrIPv6)
 			break
 		}
 	case guessDaddrIPv6:
@@ -572,6 +572,6 @@ func logSuccessfulGuess(guess C.__u64, offset C.__u64) {
 	log.Debugf("Successfully guessed %v with offset of %d bytes", whatString[guess], offset)
 }
 
-func logGuessStart(guess C.__u64, offset C.__u64) {
-	log.Debugf("Started offset guessing for %v at current offset of %d bytes", whatString[guess], offset)
+func logStartGuess(guess C.__u64) {
+	log.Debugf("Started offset guessing for %v", whatString[guess])
 }
