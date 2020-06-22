@@ -5,7 +5,11 @@
 
 package listeners
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 type listenerPacket struct {
 	packetsBuffer   *packetsBuffer
@@ -13,10 +17,20 @@ type listenerPacket struct {
 	buffer          []byte
 }
 
-func newListenerPacket(packetOut chan Packets, sharedPacketPool *PacketPool) *listenerPacket {
+func newListenerPacketFromConfig(packetOut chan Packets, sharedPacketPool *PacketPool) *listenerPacket {
 	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
 	packetsBufferSize := config.Datadog.GetInt("dogstatsd_packet_buffer_size")
 	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
+
+	return newListenerPacket(bufferSize, packetsBufferSize, flushTimeout, packetOut, sharedPacketPool)
+}
+
+func newListenerPacket(
+	bufferSize int,
+	packetsBufferSize int,
+	flushTimeout time.Duration,
+	packetOut chan Packets,
+	sharedPacketPool *PacketPool) *listenerPacket {
 
 	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
 

@@ -55,7 +55,7 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 
 	listener := &UDPListener{
 		conn:      conn,
-		packet:    newListenerPacket(packetOut, sharedPacketPool),
+		packet:    newListenerPacketFromConfig(packetOut, sharedPacketPool),
 		telemetry: newListenerTelemetry("udp", "UDP"),
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())

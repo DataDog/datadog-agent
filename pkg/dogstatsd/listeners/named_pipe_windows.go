@@ -10,6 +10,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/Microsoft/go-winio"
@@ -27,6 +28,19 @@ type NamedPipeListener struct {
 
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketPool *PacketPool) (*NamedPipeListener, error) {
+	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
+	return newNamedPipeListener(
+		pipeName,
+		bufferSize,
+		newListenerPacketFromConfig(
+			packetOut,
+			sharedPacketPool))
+}
+
+func newNamedPipeListener(
+	pipeName string,
+	bufferSize int,
+	listenerPacket *listenerPacket) (*NamedPipeListener, error) {
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),
@@ -41,7 +55,7 @@ func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketP
 
 	listener := &NamedPipeListener{
 		pipe:      pipe,
-		packet:    newListenerPacket(packetOut, sharedPacketPool),
+		packet:    listenerPacket,
 		telemetry: newListenerTelemetry("named pipe", "named_pipe"),
 	}
 
