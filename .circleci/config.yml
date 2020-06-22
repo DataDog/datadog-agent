@@ -234,42 +234,20 @@ jobs:
     macos:
       xcode: 10.1.0
     environment:
-      GO_VERSION: "1.13.8"
-      RUBY_VERSION: "2.4"
       RELEASE_VERSION: "nightly-a7"
       AGENT_MAJOR_VERSION: "7"
       PYTHON_RUNTIMES: "3"
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
-      - run: brew update
       - run:
           name: Setup builder
           command: |
-            brew install ruby@$RUBY_VERSION -f
-            export PATH="/usr/local/opt/ruby@$RUBY_VERSION/bin:/usr/local/lib/ruby/gems/$RUBY_VERSION.0/bin:$PATH"
-            echo 'export PATH="/usr/local/opt/ruby@'$RUBY_VERSION'/bin:/usr/local/lib/ruby/gems/'$RUBY_VERSION'.0/bin:$PATH"' >> .build_setup
-            gem install bundle -f
-
-            brew uninstall python@2 # Remove python2, we don't need it
-            brew upgrade python # Upgrade python3 to latest avilable on brew
-            ln -s /usr/local/bin/pip3 /usr/local/bin/pip # Use pip3 by default
-
-            brew install pkg-config -f
-            brew install cmake -f
-
-            mkdir -p $HOME/go
-            export GOPATH=$HOME/go
-            echo 'export GOPATH=$HOME/go' >> .build_setup
-            export PATH="$GOPATH/bin:$PATH"
-            echo 'export PATH="$GOPATH/bin:$PATH"' >> .build_setup
-
-            brew install gimme
-            echo 'eval `gimme '$GO_VERSION'`' >> .build_setup
+            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/31477a0c3095029c7b5d07a5f84b87a8b469e1ff/macos/builder_setup.sh)"
       - run:
           name: Run omnibus build
           command: |
-            source .build_setup
+            source ~/.build_setup
             pip install -r requirements.txt
             sudo rm -rf /opt/datadog-agent ./vendor ./vendor-new /var/cache/omnibus/src/* ./omnibus/Gemfile.lock
             sudo mkdir -p /opt/datadog-agent /var/cache/omnibus && sudo chown $USER /opt/datadog-agent /var/cache/omnibus
