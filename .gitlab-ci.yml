@@ -83,7 +83,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2424505-0439a40
-  DATADOG_AGENT_BUILDERS: v2641042-f6404c1
+  DATADOG_AGENT_BUILDERS: v2649075-3e0d197
   DATADOG_AGENT_WINBUILDIMAGES: v2468030-cbaf3fe
   DATADOG_AGENT_WINBUILDERS: v2348149-ba6640d
   DATADOG_AGENT_ARMBUILDIMAGES: v2424505-0439a40
@@ -1053,7 +1053,7 @@ iot_agent_rpm-arm64:
 agent_suse-x64-a6:
   stage: package_build
   needs: ["run_tests_rpm-x64-py2", "run_tests_rpm-x64-py3", "build_system-probe-x64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:v2448672-5304c3c
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
@@ -1070,7 +1070,7 @@ agent_suse-x64-a6:
 agent_suse-x64-a7:
   stage: package_build
   needs: ["run_tests_rpm-x64-py3", "build_system-probe-x64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:v2448672-5304c3c
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
@@ -1085,7 +1085,7 @@ agent_suse-x64-a7:
 
 iot_agent_suse-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:v2448672-5304c3c
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:2xlarge" ]
   needs: ["build_iot_agent-deb_x64"]
   variables:
@@ -1383,7 +1383,7 @@ dogstatsd_rpm-x64:
 # build Dogstastd package for rpm-x64
 dogstatsd_suse-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:v2448672-5304c3c
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
   needs: ["build_dogstatsd-deb_x64"]
   <<: *skip_when_unwanted_on_7
