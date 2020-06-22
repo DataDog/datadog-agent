@@ -29,27 +29,25 @@ func FormatPacketJSON(p *traps.SnmpPacket) ([]byte, error) {
 		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(p.Content.Variables))
 	}
 
-	data := make(map[string]interface{})
-
-	device := make(map[string]interface{})
-	device["ip"] = p.Addr.IP.String()
-	device["port"] = p.Addr.Port
-	data["device"] = device
-
-	snmp := make(map[string]interface{})
-	snmp["version"] = traps.VersionAsString(p.Content.Version)
-	if p.Content.Community != "" {
-		snmp["community"] = p.Content.Community
-	}
-	data["snmp"] = snmp
-
 	trap, err := parseTrap(p)
 	if err != nil {
 		return nil, err
 	}
-	data["trap"] = trap
 
-	return json.Marshal(data)
+	return json.Marshal(trap)
+}
+
+// FormatPacketTags returns a list of tags associated to an SNMP trap packet.
+func FormatPacketTags(p *traps.SnmpPacket) []string {
+	tags := []string{
+		fmt.Sprintf("device_port:%d", p.Addr.Port),
+		fmt.Sprintf("device_ip:%s", p.Addr.IP.String()),
+		fmt.Sprintf("snmp_version:%s", traps.VersionAsString(p.Content.Version)),
+	}
+	if p.Content.Community != "" {
+		tags = append(tags, fmt.Sprintf("community:%s", p.Content.Community))
+	}
+	return tags
 }
 
 func normalizeOID(value string) string {

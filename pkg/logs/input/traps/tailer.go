@@ -51,6 +51,8 @@ func (t *Tailer) run() {
 			log.Errorf("failed to format packet: %s", err)
 			continue
 		}
-		t.outputChan <- message.NewMessageWithSource(content, message.StatusInfo, t.source)
+		origin := message.NewOrigin(t.source)
+		origin.SetTags(FormatPacketTags(packet))
+		t.outputChan <- message.NewMessage(content, origin, message.StatusInfo)
 	}
 }

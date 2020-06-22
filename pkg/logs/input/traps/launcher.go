@@ -52,7 +52,7 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
-			if traps.RunningServer != nil && l.tailer == nil {
+			if l.tailer == nil {
 				l.startNewTailer(source, traps.RunningServer.Output())
 				source.Status.Success()
 			}

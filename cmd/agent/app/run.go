@@ -279,16 +279,25 @@ func StartAgent() error {
 	}
 	log.Debugf("statsd started")
 
-	// Start SNMP-related services
+	logsEnabled := config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled")
+
+	// Start SNMP trap server
 	if traps.IsEnabled() {
-		traps.RunningServer, err = traps.NewTrapServer()
-		if err != nil {
-			log.Errorf("snmp-traps: failed to start server: %s", err)
+		if logsEnabled {
+			traps.RunningServer, err = traps.NewTrapServer()
+			if err != nil {
+				log.Errorf("snmp-traps: failed to start server: %s", err)
+			}
+		} else {
+			log.Warn(
+				"snmp-traps: log collection is disabled, listeners will not start. " +
+					"Please enable log collection to collect and forward traps.",
+			)
 		}
 	}
 
 	// start logs-agent
-	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
+	if logsEnabled {
 		if config.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
