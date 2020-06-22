@@ -440,14 +440,13 @@ run_security_scan_test:
 # check consistency of go.mod file with project imports
 run_go_tidy_check:
   stage: source_test
-  needs: ["fail_on_non_triggered_tag"]
+  needs: ["fail_on_non_triggered_tag", "linux_x64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   before_script:
-    - cd $SRC_PATH
+    - *retrieve_linux_go_deps
     - pip install --upgrade --ignore-installed pip setuptools
     - pip install -r requirements.txt
-    - inv -e deps --no-dep-ensure --no-checks
   script:
     # Print a message and fail if "go mod tidy" modifies go.mod
     - go mod tidy
