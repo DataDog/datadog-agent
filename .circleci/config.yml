@@ -234,6 +234,7 @@ jobs:
     macos:
       xcode: 10.1.0
     environment:
+      BUILDIMAGES_VERSION: "fabf089e7a98f5a5347cec198a4720eff35fda71" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
       RELEASE_VERSION: "nightly-a7"
       AGENT_MAJOR_VERSION: "7"
       PYTHON_RUNTIMES: "3"
@@ -243,12 +244,12 @@ jobs:
       - run:
           name: Setup builder
           command: |
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/31477a0c3095029c7b5d07a5f84b87a8b469e1ff/macos/builder_setup.sh)"
+            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/builder_setup.sh)"
       - run:
           name: Run omnibus build
           command: |
             export VERSION=$CIRCLE_SHA1
-            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/31477a0c3095029c7b5d07a5f84b87a8b469e1ff/macos/build_script.sh)"
+            bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/$BUILDIMAGES_VERSION/macos/build_script.sh)"
       - run: mkdir -p ~/artifacts && cp omnibus/pkg/*.dmg ~/artifacts
       - store_artifacts:
           path: ~/artifacts
