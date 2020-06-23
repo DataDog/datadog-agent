@@ -79,7 +79,7 @@ func TestRun(t *testing.T) {
 		Framework:    "cis-kubernetes",
 		Version:      "1.5.0",
 		ResourceID:   "the-host",
-		ResourceType: "worker",
+		ResourceType: "kubernetesCluster",
 		Tags:         []string{"check_kind:file"},
 		Data: compliance.KVMap{
 			"permissions": "644",
@@ -150,7 +150,7 @@ func TestRunChecksFromFile(t *testing.T) {
 		Framework:    "cis-kubernetes",
 		Version:      "1.5.0",
 		ResourceID:   "the-host",
-		ResourceType: "worker",
+		ResourceType: "kubernetesCluster",
 		Tags:         []string{"check_kind:file"},
 		Data: compliance.KVMap{
 			"permissions": "644",
