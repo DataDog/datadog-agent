@@ -47,10 +47,10 @@ func TestCPUNrThrottled(t *testing.T) {
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
 
 	// No file
-	period, throttled, err := cgroup.CPUPeriods()
+	throttled, throttledTime, err := cgroup.CPUPeriods()
 	assert.Nil(t, err)
 	assert.Equal(t, throttled, uint64(0))
-	assert.Equal(t, period, uint64(0))
+	assert.Equal(t, throttledTime, float64(0))
 
 	// Invalid file
 	tempFolder.add("cpu/cpu.stat", "200")
@@ -64,10 +64,10 @@ func TestCPUNrThrottled(t *testing.T) {
 		"throttled_time": 18327,
 	}
 	tempFolder.add("cpu/cpu.stat", cpuStats.String())
-	period, throttled, err = cgroup.CPUPeriods()
+	throttled, throttledTime, err = cgroup.CPUPeriods()
 	assert.Nil(t, err)
-	assert.Equal(t, period, uint64(20))
 	assert.Equal(t, throttled, uint64(10))
+	assert.Equal(t, throttledTime, float64(18327)/NanoToUserHZDivisor)
 }
 
 func TestMemLimit(t *testing.T) {

@@ -105,8 +105,8 @@ type ContainerCPUStats struct {
 	Shares uint64
 
 	// docker.cpu.throttled
-	NrThrottled uint64
-	NrPeriod    uint64
+	NrThrottled   uint64
+	ThrottledTime float64
 
 	// docker.thread.count
 	ThreadCount uint64

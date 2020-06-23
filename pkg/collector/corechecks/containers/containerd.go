@@ -362,7 +362,7 @@ func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.Linu
 	timeDiff := float64(currentTime.Sub(startTime).Nanoseconds()) // cpu.total is in nanoseconds
 	if timeDiff > 0 {
 		cpuLimitPct := float64(runtime.NumCPU())
-		if cpuLimits != nil && cpuLimits.Period != nil && cpuLimits.Quota != nil && *cpuLimits.Quota > 0 {
+		if cpuLimits != nil && cpuLimits.Period != nil && *cpuLimits.Period > 0 && cpuLimits.Quota != nil && *cpuLimits.Quota > 0 {
 			cpuLimitPct = float64(*cpuLimits.Quota) / float64(*cpuLimits.Period)
 		}
 		sender.Rate("containerd.cpu.limit", cpuLimitPct*timeDiff, "", tags)

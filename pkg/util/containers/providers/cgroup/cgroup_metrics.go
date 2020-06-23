@@ -239,7 +239,7 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 // CPUPeriods returns the number of times the cgroup has been
 // throttle/limited because of CPU quota / limit
 // If the cgroup file does not exist then we just log debug and return 0.
-func (c ContainerCgroup) CPUPeriods() (periodNr uint64, throttledNr uint64, err error) {
+func (c ContainerCgroup) CPUPeriods() (throttledNr uint64, throttledTime float64, err error) {
 	statfile := c.cgroupFilePath("cpu", "cpu.stat")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
@@ -258,14 +258,14 @@ func (c ContainerCgroup) CPUPeriods() (periodNr uint64, throttledNr uint64, err 
 				return 0, 0, err
 			}
 		}
-		if fields[0] == "nr_periods" {
-			periodNr, err = strconv.ParseUint(fields[1], 10, 64)
+		if fields[0] == "throttled_time" {
+			throttledTime, err = strconv.ParseFloat(fields[1], 64)
 			if err != nil {
 				return 0, 0, err
 			}
 		}
 	}
-	return periodNr, throttledNr, nil
+	return throttledNr, throttledTime / NanoToUserHZDivisor, nil
 }
 
 // CPULimit would show CPU limit for this cgroup.

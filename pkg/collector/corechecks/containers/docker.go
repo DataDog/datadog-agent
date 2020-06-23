@@ -376,6 +376,7 @@ func (d *DockerCheck) reportCPUMetrics(cpu *cmetrics.ContainerCPUStats, limits *
 	sender.Rate("docker.cpu.usage", cpu.UsageTotal, "", tags)
 	sender.Gauge("docker.cpu.shares", float64(cpu.Shares), "", tags)
 	sender.Rate("docker.cpu.throttled", float64(cpu.NrThrottled), "", tags)
+	sender.Rate("docker.cpu.throttled.time", cpu.ThrottledTime, "", tags)
 	if cpu.ThreadCount != 0 {
 		sender.Gauge("docker.thread.count", float64(cpu.ThreadCount), "", tags)
 	}

@@ -70,7 +70,7 @@ func TestReportUptime(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.uptime", 60.0, "", tags)
 }
 
-func TestReportNormalizedCPUNoLimit(t *testing.T) {
+func TestReportCPUNoLimit(t *testing.T) {
 	dockerCheck := &DockerCheck{
 		instance: &DockerConfig{},
 	}
@@ -86,7 +86,6 @@ func TestReportNormalizedCPUNoLimit(t *testing.T) {
 		System:     10,
 		User:       10,
 		UsageTotal: 20.0,
-		NrPeriod:   10.0,
 	}
 
 	// 100% is 1 CPU, 200% is 2 CPUs, etc.
@@ -99,7 +98,7 @@ func TestReportNormalizedCPUNoLimit(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "docker.cpu.limit", 1000, "", tags)
 }
 
-func TestReportNormalizedCPULimit(t *testing.T) {
+func TestReportCPULimit(t *testing.T) {
 	dockerCheck := &DockerCheck{
 		instance: &DockerConfig{},
 	}
@@ -115,7 +114,6 @@ func TestReportNormalizedCPULimit(t *testing.T) {
 		System:     10,
 		User:       10,
 		UsageTotal: 20.0,
-		NrPeriod:   10.0,
 	}
 
 	limits := cmetrics.ContainerLimits{
