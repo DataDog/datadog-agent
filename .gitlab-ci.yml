@@ -82,7 +82,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v2424505-0439a40
-  DATADOG_AGENT_BUILDERS: v2651527-1cd6470
+  DATADOG_AGENT_BUILDERS: v2656676-91a77f7
   DATADOG_AGENT_WINBUILDIMAGES: v2468030-cbaf3fe
   DATADOG_AGENT_WINBUILDERS: v2348149-ba6640d
   DATADOG_AGENT_ARMBUILDIMAGES: v2631088-1129f60
@@ -281,15 +281,15 @@ run_tests_windows-x86:
   needs: ["fail_on_non_triggered_tag"]
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
-    - pip install wheel
-    - pip install -r requirements.txt
+    - python3 -m pip install wheel
+    - python3 -m pip install -r requirements.txt
     - GO111MODULE=off go get gopkg.in/yaml.v2
     - GO111MODULE=off go get github.com/stretchr/testify
     - inv -e rtloader.make --install-prefix=$SRC_PATH/dev --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
-    - inv -e deps --verbose --dep-vendor-only
+    - inv -e deps --verbose --dep-vendor-only --integrations-version "$INTEGRATIONS_VERSION"
 
 # run tests for deb-x64
 run_tests_deb-x64-py2:
@@ -298,6 +298,7 @@ run_tests_deb-x64-py2:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
+    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
     CONDA_ENV: ddpy2
   <<: *run_tests_preparation
   script:
@@ -309,6 +310,7 @@ run_tests_deb-x64-py3:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
+    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
     CONDA_ENV: ddpy3
   <<: *run_tests_preparation
   script:
@@ -321,6 +323,7 @@ run_tests_rpm-x64-py2:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '2'
+    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
     CONDA_ENV: ddpy2
   <<: *run_tests_preparation
   script:
@@ -335,6 +338,7 @@ run_tests_rpm-x64-py3:
   tags: [ "runner:main", "size:2xlarge" ]
   variables:
     PYTHON_RUNTIMES: '3'
+    INTEGRATIONS_VERSION: $RELEASE_VERSION_7
     CONDA_ENV: ddpy3
   <<: *run_tests_preparation
   script:
@@ -351,7 +355,7 @@ run_tests_ebpf:
   before_script:
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
-    - pip3 install -r requirements.txt
+    - python3 -m pip install -r requirements.txt
     - inv -e deps --verbose --dep-vendor-only --no-checks
     # Retrieve libbcc from S3
     - $S3_CP_CMD $S3_ARTIFACTS_URI/libbcc-amd64.tar.xz /tmp/libbcc.tar.xz
@@ -385,13 +389,13 @@ run_security_scan_test:
     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent
-    - pip install -r requirements.txt
+    - python3 -m pip install -r requirements.txt
     - inv -e deps --dep-vendor-only
   script:
     - set +x     # don't print the api key to the logs
     # send the list of the dependencies to snyk
     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-      snyk monitor --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
+      snyk monitor --command=python3 --project-name=datadog-agent-requirements.txt --file=requirements.txt --package-manager=pip
     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
       snyk monitor --project-name=datadog-agent-go.sum --file=go.mod
 
@@ -403,8 +407,8 @@ run_go_tidy_check:
   tags: [ "runner:main", "size:large" ]
   before_script:
     - cd $SRC_PATH
-    - pip install --upgrade --ignore-installed pip setuptools
-    - pip install -r requirements.txt
+    - python3 -m pip install --upgrade --ignore-installed pip setuptools
+    - python3 -m pip install -r requirements.txt
     - inv -e deps --no-dep-ensure --no-checks
   script:
     # Print a message and fail if "go mod tidy" modifies go.mod
@@ -701,7 +705,7 @@ agent_deb-x64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   <<: *agent_build_common_deb
 
-agent_deb-arm-a6:
+agent_deb-arm64-a6:
   rules:
     - <<: *if_version_6
   stage: package_build
@@ -720,7 +724,7 @@ agent_deb-arm-a6:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
   <<: *agent_build_common_deb
 
-agent_deb-arm-a7:
+agent_deb-arm64-a7:
   rules:
     - <<: *if_version_7
   stage: package_build
@@ -881,7 +885,7 @@ agent_rpm-x64-a7:
   <<: *agent_build_common_rpm
 
 # build Agent package for rpm-arm64
-agent_rpm-arm-a6:
+agent_rpm-arm64-a6:
   rules:
     - <<: *if_version_6
   stage: package_build
@@ -899,7 +903,7 @@ agent_rpm-arm-a6:
   <<: *agent_build_common_rpm
 
 # build Agent package for rpm-arm64
-agent_rpm-arm-a7:
+agent_rpm-arm64-a7:
   rules:
     - <<: *if_version_7
   stage: package_build
@@ -1277,8 +1281,7 @@ agent_android_apk:
   before_script:
     - echo running android before_script
     - cd $SRC_PATH
-    - pip install -U pip
-    - pip install -r requirements.txt
+    - python3 -m pip install -r requirements.txt
     - inv -e deps --android --dep-vendor-only --no-checks
     # Some Android license has changed, we have to accept the new version.
     # But on top of that, there is a bug in sdkmanager not updating correctly
@@ -2394,7 +2397,8 @@ send_pkg_size-a7:
     - BUILD_ARG=${BUILD_ARG:-}
     - TARGET_TAG=$IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX-$ARCH
     # Pull base image(s) with content trust enabled
-    - pip install -r requirements.txt
+    # FIXME: Use Python 3 when python3-pip is available in docker image
+    - python2 -m pip install -r requirements.txt
     - inv -e docker.pull-base-images --signed-pull $BUILD_CONTEXT/$ARCH/Dockerfile
     # Build testing stage if provided
     - test "$TESTING_ARG" && docker build --file $BUILD_CONTEXT/$ARCH/Dockerfile $TESTING_ARG $BUILD_CONTEXT
@@ -2438,7 +2442,7 @@ docker_build_agent6_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs:
-    - job: agent_deb-arm-a6
+    - job: agent_deb-arm64-a6
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2473,7 +2477,7 @@ docker_build_agent6_jmx_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs:
-    - job: agent_deb-arm-a6
+    - job: agent_deb-arm64-a6
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2525,7 +2529,7 @@ docker_build_agent7_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs:
-    - job: agent_deb-arm-a7
+    - job: agent_deb-arm64-a7
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2558,7 +2562,7 @@ docker_build_agent7_jmx_arm64:
   <<: *docker_build_job_definition
   extends: .docker_build_job_definition_arm64
   needs:
-    - job: agent_deb-arm-a7
+    - job: agent_deb-arm64-a7
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -2791,7 +2795,8 @@ twistlock_scan-7:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - pip install -r requirements.txt
+    # FIXME: Use Python 3 when python3-pip is available in docker image
+    - python2 -m pip install -r requirements.txt
     - if [[ -z "$DELEGATION_PASS_SSM_KEY" ]]; then echo "No signing key set"; exit 0; fi
     - echo "Importing delegation signing key"
     - export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DELEGATION_PASS_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
@@ -3147,7 +3152,7 @@ check_already_deployed_version_6:
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_deb-x64-a6
-    - agent_deb-arm-a6
+    - agent_deb-arm64-a6
   script:
     - cd $OMNIBUS_PACKAGE_DIR && ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_amd64.deb
     - cd $OMNIBUS_PACKAGE_DIR && ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_arm64.deb
@@ -3164,7 +3169,7 @@ check_already_deployed_version_7:
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_deb-x64-a7
-    - agent_deb-arm-a7
+    - agent_deb-arm64-a7
   script:
     - cd $OMNIBUS_PACKAGE_DIR && ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_amd64.deb
     - cd $OMNIBUS_PACKAGE_DIR && ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_arm64.deb
@@ -3198,7 +3203,7 @@ deploy_staging_deb-6:
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_deb-x64-a6
-    - agent_deb-arm-a6
+    - agent_deb-arm64-a6
   script:
     # We first check that the current version hasn't already been deployed
     # (same as the check_already_deployed_version). We do this twice to mitigate
@@ -3222,6 +3227,31 @@ deploy_staging_deb-6:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_6.*arm64.deb
 
+promote_install_script:
+  rules:
+    - <<: *if_test_kitchen_triggered
+      when: manual
+      allow_failure: true
+  stage: deploy7
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
+  tags: [ "runner:main", "size:large" ]
+  dependencies:
+    - kitchen_centos_install_script_agent-a6
+    - kitchen_centos_install_script_agent-a7
+    - kitchen_centos_install_script_iot_agent-a7
+    - kitchen_debian_install_script_agent-a6
+    - kitchen_debian_install_script_agent-a7
+    - kitchen_debian_install_script_iot_agent-a7
+    - kitchen_suse_install_script_agent-a6
+    - kitchen_suse_install_script_agent-a7
+    - kitchen_suse_install_script_iot_agent-a7
+    - kitchen_ubuntu_install_script_agent-a6
+    - kitchen_ubuntu_install_script_agent-a7
+    - kitchen_ubuntu_install_script_iot_agent-a7
+  script:
+    - $S3_CP_CMD ./cmd/agent/install_script.sh s3://dd-agent/scripts/install_script.sh --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD ./cmd/agent/install_mac_os.sh s3://dd-agent/scripts/install_mac_os.sh --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
 deploy_staging_deb-7:
   rules:
     - <<: *if_not_version_7
@@ -3235,9 +3265,10 @@ deploy_staging_deb-7:
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_deb-x64-a7
-    - agent_deb-arm-a7
+    - agent_deb-arm64-a7
     - iot_agent_deb-x64
     - iot_agent_deb-arm64
+    - iot_agent_deb-armhf
     - dogstatsd_deb-x64
   script:
     # We first check that the current version hasn't already been deployed
@@ -3261,6 +3292,7 @@ deploy_staging_deb-7:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a arm64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*arm64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 7 -b $DEB_S3_BUCKET -a armhf --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*_7.*armhf.deb
 
 # nightlies (6), deployed to bucket/master
 deploy_staging_windows_master-a6:
@@ -3423,7 +3455,7 @@ deploy_staging_rpm-6:
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_rpm-x64-a6
-    - agent_rpm-arm-a6
+    - agent_rpm-arm64-a6
   script:
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/x86_64/" $OMNIBUS_PACKAGE_DIR/*-6.*x86_64.rpm
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/6/aarch64/" $OMNIBUS_PACKAGE_DIR/*-6.*aarch64.rpm
@@ -3441,13 +3473,15 @@ deploy_staging_rpm-7:
   tags: [ "runner:main", "size:large" ]
   dependencies:
     - agent_rpm-x64-a7
-    - agent_rpm-arm-a7
+    - agent_rpm-arm64-a7
     - iot_agent_rpm-x64
     - iot_agent_rpm-arm64
+    - iot_agent_rpm-armhf
     - dogstatsd_rpm-x64
   script:
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/x86_64/" $OMNIBUS_PACKAGE_DIR/*-7.*x86_64.rpm
     - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/aarch64/" $OMNIBUS_PACKAGE_DIR/*-7.*aarch64.rpm
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_S3_BUCKET -p "$DEB_RPM_BUCKET_BRANCH/7/armv7hl/" $OMNIBUS_PACKAGE_DIR/*-7.*armv7hl.rpm
 
 # deploy suse rpm packages to yum staging repo
 # NOTE: no SuSE ARM builds currently.
@@ -3498,22 +3532,7 @@ deploy_staging_dsd:
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
-    - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-
-# deploy iot-agent binary to staging bucket
-deploy_staging_iot_agent:
-  rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_triggered
-  stage: deploy7
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: [ "runner:main", "size:large" ]
-  dependencies: []
-  script:
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
-    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy agent windows zip to the staging bucket, currently used for cloudfoundry bosh
 deploy_staging_datadog_agent_windows_zip:
@@ -3795,7 +3814,8 @@ latest_release_7:
   before_script:
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - PASS=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - pip install -r requirements.txt
+    # FIXME: Use Python 3 when python3-pip is available in docker-notary image
+    - python2 -m pip install -r requirements.txt
     - |
       export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`
   dependencies: [] # Don't download Gitlab artefacts
@@ -3878,8 +3898,7 @@ trigger_release_6:
   dependencies: []
   before_script:
   - cd $SRC_PATH
-  - pip install --upgrade --ignore-installed pip setuptools
-  - pip install -r requirements.txt
+  - python3 -m pip install -r requirements.txt
   script:
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2
   - inv -e e2e-tests --image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3

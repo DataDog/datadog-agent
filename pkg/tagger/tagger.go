@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -67,6 +68,11 @@ func newTagger() *Tagger {
 // for this host. It then starts the collection logic and is ready for
 // requests.
 func (t *Tagger) Init(catalog collectors.Catalog) {
+	if config.Datadog.GetBool("clc_runner_enabled") {
+		log.Infof("Tagger not started on CLC")
+		return
+	}
+
 	t.Lock()
 
 	// Only register the health check when the tagger is started

@@ -8,6 +8,7 @@
 package apiserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -111,6 +112,30 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
+func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
+	if globalAPIClient == nil {
+		_, _ = GetAPIClient()
+	}
+
+	for {
+		_ = globalAPIClient.initRetry.TriggerRetry()
+		switch globalAPIClient.initRetry.RetryStatus() {
+		case retry.OK:
+			return globalAPIClient, nil
+		case retry.PermaFail:
+			return nil, fmt.Errorf("Permanent failure while waiting for Kubernetes APIServer")
+		default:
+			sleepFor := time.Now().UTC().Sub(globalAPIClient.initRetry.NextRetry().UTC()) + time.Second
+			log.Debugf("Waiting for APIServer, next retry: %v", sleepFor)
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("Context deadline reached while waiting for Kubernetes APIServer")
+			case <-time.After(sleepFor):
+			}
+		}
+	}
+}
+
 func getClientConfig() (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
@@ -145,15 +170,6 @@ func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(clientConfig)
 }
 
-func getDynamicKubeClient(timeout time.Duration) (dynamic.Interface, error) {
-	clientConfig, err := getClientConfig()
-	if err != nil {
-		return nil, err
-	}
-	clientConfig.Timeout = timeout
-	return dynamic.NewForConfig(clientConfig)
-}
-
 func getWPAClient(timeout time.Duration) (wpa_client.Interface, error) {
 	clientConfig, err := getClientConfig()
 	if err != nil {
@@ -161,6 +177,15 @@ func getWPAClient(timeout time.Duration) (wpa_client.Interface, error) {
 	}
 	clientConfig.Timeout = timeout
 	return wpa_client.NewForConfig(clientConfig)
+}
+
+func getKubeDynamicClient(timeout time.Duration) (dynamic.Interface, error) {
+	clientConfig, err := getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig.Timeout = timeout
+	return dynamic.NewForConfig(clientConfig)
 }
 
 func getWPAInformerFactory() (wpa_informers.SharedInformerFactory, error) {
@@ -222,6 +247,14 @@ func (c *APIClient) connect() error {
 		return err
 	}
 
+	if config.Datadog.GetBool("admission_controller.enabled") || config.Datadog.GetBool("compliance_config.enabled") {
+		c.DynamicCl, err = getKubeDynamicClient(time.Duration(c.timeoutSeconds) * time.Second)
+		if err != nil {
+			log.Infof("Could not get apiserver dynamic client: %v", err)
+			return err
+		}
+	}
+
 	// informer factory uses its own clientset with a larger timeout
 	c.InformerFactory, err = getInformerFactory()
 	if err != nil {
@@ -252,12 +285,6 @@ func (c *APIClient) connect() error {
 		c.WebhookConfigInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(optionsForWebhook),
 		)
-
-		c.DynamicCl, err = getDynamicKubeClient(time.Duration(c.timeoutSeconds) * time.Second)
-		if err != nil {
-			log.Infof("Could not get apiserver dynamic client: %v", err)
-			return err
-		}
 	}
 
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
