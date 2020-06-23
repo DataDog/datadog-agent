@@ -8,6 +8,7 @@ package listeners
 import (
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -24,7 +25,8 @@ var namedPipeTelemetry = newListenerTelemetry("named_pipe", "Named Pipe")
 type NamedPipeListener struct {
 	pipe        net.Listener
 	packet      *listenerPacket
-	connections []net.Conn
+	connections map[net.Conn]struct{}
+	mux         sync.Mutex
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
@@ -55,8 +57,9 @@ func newNamedPipeListener(
 	}
 
 	listener := &NamedPipeListener{
-		pipe:      pipe,
-		packet:    listenerPacket,
+		pipe:        pipe,
+		packet:      listenerPacket,
+		connections: make(map[net.Conn]struct{}),
 	}
 
 	log.Debugf("dogstatsd-named-pipe: %s successfully initialized", pipe.Addr())
@@ -69,10 +72,14 @@ func (l *NamedPipeListener) Listen() {
 		conn, err := l.pipe.Accept()
 		switch {
 		case err == nil:
-			l.connections = append(l.connections, conn)
+			l.mux.Lock()
+			l.connections[conn] = struct{}{}
+			l.mux.Unlock()
 			go l.listenConnection(conn)
+
 		case err.Error() == "use of closed network connection":
 			{
+				// Called when the pipe listener is closed from Stop()
 				log.Info("dogstatsd-named-pipes: stop listening")
 				return
 			}
@@ -107,15 +114,27 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn) {
 		}
 	}
 	conn.Close()
+	l.mux.Lock()
+	defer l.mux.Unlock()
+	delete(l.connections, conn)
 }
 
 // Stop closes the connection and stops listening
 func (l *NamedPipeListener) Stop() {
-	for _, conn := range l.connections {
+	l.mux.Lock()
+	defer l.mux.Unlock()
+	for conn := range l.connections {
 		// Stop the current execution of net.Conn.Read() and exit listen loop.
 		conn.SetReadDeadline(time.Now())
 	}
 
 	l.packet.close()
 	l.pipe.Close()
+}
+
+// GetActiveConnectionsCount returns the number of active connections.
+func (l *NamedPipeListener) GetActiveConnectionsCount() int {
+	l.mux.Lock()
+	defer l.mux.Unlock()
+	return len(l.connections)
 }
