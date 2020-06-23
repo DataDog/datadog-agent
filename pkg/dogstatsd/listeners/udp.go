@@ -15,14 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+var udpTelemetry = newListenerTelemetry("udp", "UDP")
+
 // UDPListener implements the StatsdListener interface for UDP protocol.
 // It listens to a given UDP address and sends back packets ready to be
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn      *net.UDPConn
-	packet    *listenerPacket
-	telemetry *listenerTelemetry
+	conn   *net.UDPConn
+	packet *listenerPacket
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
@@ -54,9 +55,8 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 	}
 
 	listener := &UDPListener{
-		conn:      conn,
-		packet:    newListenerPacketFromConfig(packetOut, sharedPacketPool),
-		telemetry: newListenerTelemetry("udp", "UDP"),
+		conn:   conn,
+		packet: newListenerPacketFromConfig(packetOut, sharedPacketPool),
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -74,10 +74,10 @@ func (l *UDPListener) Listen() {
 			}
 
 			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
-			l.telemetry.onReadError()
+			udpTelemetry.onReadError()
 			continue
 		}
-		l.telemetry.onReadSuccess(n)
+		udpTelemetry.onReadSuccess(n)
 
 		// packetAssembler merges multiple packets together and sends them when its buffer is full
 		l.packet.packetAssembler.addMessage(l.packet.buffer[:n])

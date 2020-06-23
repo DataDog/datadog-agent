@@ -16,6 +16,8 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
+var namedPipeTelemetry = newListenerTelemetry("named_pipe", "Named Pipe")
+
 // NamedPipeListener implements the StatsdListener interface for named pipe protocol.
 // It listens to a given pipe name and sends back packets ready to be processed.
 // Origin detection is not implemented for named pipe.
@@ -23,7 +25,6 @@ type NamedPipeListener struct {
 	pipe        net.Listener
 	packet      *listenerPacket
 	connections []net.Conn
-	telemetry   *listenerTelemetry
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
@@ -56,7 +57,6 @@ func newNamedPipeListener(
 	listener := &NamedPipeListener{
 		pipe:      pipe,
 		packet:    listenerPacket,
-		telemetry: newListenerTelemetry("named pipe", "named_pipe"),
 	}
 
 	log.Debugf("dogstatsd-named-pipe: %s successfully initialized", pipe.Addr())
@@ -98,9 +98,9 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn) {
 				break
 			}
 			log.Errorf("dogstatsd-named-pipe: error reading packet: %v", err.Error())
-			l.telemetry.onReadError()
+			namedPipeTelemetry.onReadError()
 		} else {
-			l.telemetry.onReadSuccess(n)
+			namedPipeTelemetry.onReadSuccess(n)
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
 			l.packet.packetAssembler.addMessage(l.packet.buffer[:n])

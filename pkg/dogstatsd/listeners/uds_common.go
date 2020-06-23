@@ -19,10 +19,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-type udpListenerTelemetry struct {
+type udsListenerTelemetry struct {
 	*listenerTelemetry
 	udsOriginDetectionErrors   expvar.Int
 	tlmUDSOriginDetectionError telemetry.Counter
+}
+
+var udsTelemetry udsListenerTelemetry
+
+func init() {
+	udsTelemetry = udsListenerTelemetry{
+		listenerTelemetry:        newListenerTelemetry("uds", "UDS"),
+		udsOriginDetectionErrors: expvar.Int{},
+		tlmUDSOriginDetectionError: telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",
+			nil, "Dogstatsd UDS origin detection error count"),
+	}
+
+	udsTelemetry.expvars.Set("OriginDetectionErrors", &udsTelemetry.udsOriginDetectionErrors)
 }
 
 // UDSListener implements the StatsdListener interface for Unix Domain
@@ -35,7 +48,6 @@ type UDSListener struct {
 	sharedPacketPool *PacketPool
 	oobPool          *sync.Pool // For origin detection ancilary data
 	OriginDetection  bool
-	telemetry        udpListenerTelemetry
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
@@ -86,22 +98,12 @@ func NewUDSListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDSL
 		}
 	}
 
-	var telemetry = udpListenerTelemetry{
-		listenerTelemetry:        newListenerTelemetry("uds", "UDS"),
-		udsOriginDetectionErrors: expvar.Int{},
-		tlmUDSOriginDetectionError: telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",
-			nil, "Dogstatsd UDS origin detection error count"),
-	}
-
-	telemetry.expvars.Set("OriginDetectionErrors", &telemetry.udsOriginDetectionErrors)
-
 	listener := &UDSListener{
 		OriginDetection: originDetection,
 		conn:            conn,
 		packetsBuffer: newPacketsBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
 		sharedPacketPool: sharedPacketPool,
-		telemetry:        telemetry,
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -135,8 +137,8 @@ func (l *UDSListener) Listen() {
 			container, taggingErr := processUDSOrigin(oob[:oobn])
 			if taggingErr != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
-				l.telemetry.udsOriginDetectionErrors.Add(1)
-				l.telemetry.tlmUDSOriginDetectionError.Inc()
+				udsTelemetry.udsOriginDetectionErrors.Add(1)
+				udsTelemetry.tlmUDSOriginDetectionError.Inc()
 			} else {
 				packet.Origin = container
 			}
@@ -154,10 +156,10 @@ func (l *UDSListener) Listen() {
 			}
 
 			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
-			l.telemetry.onReadError()
+			udsTelemetry.onReadError()
 			continue
 		}
-		l.telemetry.onReadSuccess(n)
+		udsTelemetry.onReadSuccess(n)
 
 		packet.Contents = packet.buffer[:n]
 
