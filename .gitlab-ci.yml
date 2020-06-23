@@ -3242,6 +3242,7 @@ promote_install_script:
   rules:
     - <<: *if_test_kitchen_triggered
       when: manual
+      allow_failure: true
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:$DATADOG_AGENT_BUILDERS
   tags: [ "runner:main", "size:large" ]
