@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1138
+      - image: datadog/datadog-agent-runner-circle:go11311
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -234,7 +234,7 @@ jobs:
     macos:
       xcode: 10.1.0
     environment:
-      GO_VERSION: "1.13.8"
+      GO_VERSION: "1.13.11"
       RUBY_VERSION: "2.4"
       RELEASE_VERSION: "nightly-a7"
       AGENT_MAJOR_VERSION: "7"
