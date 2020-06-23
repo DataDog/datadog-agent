@@ -8,20 +8,36 @@ package compliance
 
 // Rule defines a rule in a compliance config
 type Rule struct {
-	ID        string     `yaml:"id"`
-	Scope     Scope      `yaml:"scope,omitempty"`
-	Resources []Resource `yaml:"resources,omitempty"`
+	ID           string        `yaml:"id"`
+	Scope        Scope         `yaml:"scope"`
+	HostSelector *HostSelector `yaml:"hostSelector,omitempty"`
+	Resources    []Resource    `yaml:"resources,omitempty"`
 }
+
+const (
+	// DockerScope const
+	DockerScope string = "docker"
+	// KubernetesNodeScope const
+	KubernetesNodeScope string = "kubernetesNode"
+	// KubernetesClusterScope const
+	KubernetesClusterScope string = "kubernetesCluster"
+)
 
 // Scope defines when a rule can be run based on observed properties of the environment
 type Scope struct {
-	Docker     bool               `yaml:"docker"`
-	Kubernetes []KubeNodeSelector `yaml:"kubernetes,omitempty"`
+	Docker            bool `yaml:"docker"`
+	KubernetesNode    bool `yaml:"kubernetesNode"`
+	KubernetesCluster bool `yaml:"kubernetesCluster"`
+}
+
+// HostSelector allows to activate/deactivate dynamically based on host properties
+type HostSelector struct {
+	KubernetesNodeLabels []KubeNodeSelector `yaml:"kubernetesRole,omitempty"`
+	KubernetesNodeRole   string             `yaml:"kubernetesNodeRole,omitempty"`
 }
 
 // KubeNodeSelector defines selector for a Kubernetes node
 type KubeNodeSelector struct {
-	Label      string `yaml:"label,omitempty"`
-	Annotation string `yaml:"annotation,omitempty"`
-	Value      string `yaml:"value,omitempty"`
+	Label string `yaml:"label,omitempty"`
+	Value string `yaml:"value,omitempty"`
 }
