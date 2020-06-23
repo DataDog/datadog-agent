@@ -7,7 +7,6 @@ package settings
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -19,6 +18,10 @@ type profilingRuntimeSetting string
 
 func (l profilingRuntimeSetting) Description() string {
 	return "Enable/disable profiling on the agent, valid values are: true, false"
+}
+
+func (l profilingRuntimeSetting) Hidden() bool {
+	return true
 }
 
 func (l profilingRuntimeSetting) Name() string {
@@ -33,16 +36,10 @@ func (l profilingRuntimeSetting) Set(v interface{}) error {
 	var profile bool
 	var err error
 
-	switch p := v.(type) {
-	case bool:
-		profile = p
-	case string:
-		profile, err = strconv.ParseBool(p)
-		if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("Unsupported type for profile runtime setting")
+	profile, err = getBool(v)
+
+	if err != nil {
+		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)
 	}
 
 	if profile {

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"html"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -132,14 +133,16 @@ func listRuntimeConfigurableValue(cmd *cobra.Command, args []string) error {
 		}
 		return err
 	}
-	var settings = make(map[string]string)
+	var settings = make(map[string]settings.RuntimeSettingResponse)
 	err = json.Unmarshal(r, &settings)
 	if err != nil {
 		return err
 	}
 	fmt.Println("=== Settings that can be changed at runtime ===")
-	for setting, desc := range settings {
-		fmt.Printf("%s:\t\t\t%s\n", setting, desc)
+	for setting, details := range settings {
+		if !details.Hidden {
+			fmt.Printf("%s:\t\t\t%s\n", setting, details.Description)
+		}
 	}
 	return nil
 }

@@ -338,9 +338,13 @@ func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
-	configurableSettings := make(map[string]string)
+
+	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
 	for name, setting := range settings.RuntimeSettings() {
-		configurableSettings[name] = setting.Description()
+		configurableSettings[name] = settings.RuntimeSettingResponse{
+			Description: setting.Description(),
+			Hidden:      setting.Hidden(),
+		}
 	}
 	body, err := json.Marshal(configurableSettings)
 	if err != nil {
