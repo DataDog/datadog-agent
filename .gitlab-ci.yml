@@ -1774,7 +1774,7 @@ deploy_windows_testing-a7:
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
 
-.kitchen_test_upgrade_iot_agent:
+.kitchen_test_upgrade7_iot_agent:
   extends:
     - .kitchen_test_upgrade7
     - .kitchen_datadog_iot_agent_flavor
@@ -1985,11 +1985,11 @@ kitchen_centos_upgrade7_agent-a7:
     - .kitchen_scenario_centos_a7
     - .kitchen_test_upgrade7_agent
 
-kitchen_centos_upgrade_iot_agent-a7:
+kitchen_centos_upgrade7_iot_agent-a7:
   allow_failure: false
   extends:
     - .kitchen_scenario_centos_a7
-    - .kitchen_test_upgrade_iot_agent
+    - .kitchen_test_upgrade7_iot_agent
 
 # run dd-agent-testing on ubuntu
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
@@ -2065,11 +2065,11 @@ kitchen_ubuntu_upgrade7_agent-a7:
     - .kitchen_scenario_ubuntu_a7
     - .kitchen_test_upgrade7_agent
 
-kitchen_ubuntu_upgrade_iot_agent-a7:
+kitchen_ubuntu_upgrade7_iot_agent-a7:
   allow_failure: false
   extends:
     - .kitchen_scenario_ubuntu_a7
-    - .kitchen_test_upgrade_iot_agent
+    - .kitchen_test_upgrade7_iot_agent
 
 # run dd-agent-testing on suse
 kitchen_suse_chef_agent-a6:
@@ -2144,11 +2144,11 @@ kitchen_suse_upgrade7_agent-a7:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_upgrade7_agent
 
-kitchen_suse_upgrade_iot_agent-a7:
+kitchen_suse_upgrade7_iot_agent-a7:
   allow_failure: false
   extends:
     - .kitchen_scenario_suse_a7
-    - .kitchen_test_upgrade_iot_agent
+    - .kitchen_test_upgrade7_iot_agent
 
 # run dd-agent-testing on debian
 # Could fail if we encounter the issue with apt locks/azure agent, but should be investigated if that's the case
@@ -2224,11 +2224,11 @@ kitchen_debian_upgrade7_agent-a7:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_upgrade7_agent
 
-kitchen_debian_upgrade_iot_agent-a7:
+kitchen_debian_upgrade7_iot_agent-a7:
   allow_failure: false
   extends:
     - .kitchen_scenario_debian_a7
-    - .kitchen_test_upgrade_iot_agent
+    - .kitchen_test_upgrade7_iot_agent
 
 .kitchen_cleanup_s3_common: &kitchen_cleanup_s3_common
   stage: testkitchen_cleanup
