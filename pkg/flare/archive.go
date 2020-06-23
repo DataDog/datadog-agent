@@ -566,6 +566,8 @@ func zipTaggerList(tempDir, hostname string) error {
 	}
 	defer w.Close()
 
+	c := api_util.GetClient(false) // FIX: get certificates right then make this true
+
 	err = api_util.SetAuthToken()
 	if err != nil {
 		return err
@@ -576,7 +578,6 @@ func zipTaggerList(tempDir, hostname string) error {
 		return err
 	}
 
-	c := api_util.GetClient(false)
 	if taggerListURL == "" {
 		taggerListURL = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
