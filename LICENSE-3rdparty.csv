@@ -68,6 +68,8 @@ core,"github.com/NYTimes/gziphandler",Apache-2.0
 core,"github.com/PuerkitoBio/purell",NewBSD
 core,"github.com/PuerkitoBio/urlesc",NewBSD
 core,"github.com/StackExchange/wmi",MIT
+core,"github.com/alecthomas/participle",MIT
+core,"github.com/alecthomas/participle/lexer",MIT
 core,"github.com/armon/go-metrics",MIT
 core,"github.com/aws/aws-sdk-go/aws",Apache-2.0
 core,"github.com/aws/aws-sdk-go/aws/awserr",Apache-2.0
@@ -320,6 +322,8 @@ core,"github.com/iovisor/gobpf/bcc",Apache-2.0
 core,"github.com/iovisor/gobpf/elf",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/bpffs",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
+core,"github.com/itchyny/astgen-go",MIT
+core,"github.com/itchyny/gojq",MIT
 core,"github.com/jmespath/go-jmespath",Apache-2.0
 core,"github.com/json-iterator/go",MIT
 core,"github.com/kardianos/osext",NewBSD
@@ -334,6 +338,7 @@ core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/dynamicmapper
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider",Apache-2.0
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/registry/custom_metrics",Apache-2.0
 core,"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/registry/external_metrics",Apache-2.0
+core,"github.com/lestrrat-go/strftime",MIT
 core,"github.com/lxn/walk",FreeBSD
 core,"github.com/lxn/win",FreeBSD
 core,"github.com/magiconair/properties",FreeBSD
@@ -730,6 +735,7 @@ core,"k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/t
 core,"k8s.io/client-go/discovery",Apache-2.0
 core,"k8s.io/client-go/discovery/fake",Apache-2.0
 core,"k8s.io/client-go/dynamic",Apache-2.0
+core,"k8s.io/client-go/dynamic/fake",Apache-2.0
 core,"k8s.io/client-go/informers",Apache-2.0
 core,"k8s.io/client-go/informers/admissionregistration",Apache-2.0
 core,"k8s.io/client-go/informers/admissionregistration/v1",Apache-2.0
