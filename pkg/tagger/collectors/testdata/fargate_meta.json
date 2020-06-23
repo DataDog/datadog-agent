@@ -113,5 +113,6 @@
     "Memory": 512
   },
   "PullStartedAt": "2018-07-31T16:31:38.886779279Z",
-  "PullStoppedAt": "2018-07-31T16:32:54.107116743Z"
+  "PullStoppedAt": "2018-07-31T16:32:54.107116743Z",
+  "AvailabilityZone": "eu-central-1a"
 }

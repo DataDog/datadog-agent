@@ -15,6 +15,7 @@ type Task struct {
 	Version               string             `json:"Revision"`
 	Limits                map[string]float64 `json:"Limits"`
 	DesiredStatus         string             `json:"DesiredStatus"`
+	AvailabilityZone      string             `json:"AvailabilityZone"`
 	ContainerInstanceTags map[string]string  `json:"ContainerInstanceTags,omitempty"` // undocumented
 	TaskTags              map[string]string  `json:"TaskTags,omitempty"`              // undocumented
 }
