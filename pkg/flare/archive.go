@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	api_util "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -196,6 +197,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	err = zipEnvvars(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip env vars: %s", err)
+	}
+
+	err = zipTaggerList(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip tagger list: %s", err)
 	}
 
 	err = zipHealth(tempDir, hostname)
@@ -541,6 +547,45 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 	defer w.Close()
 
 	_, err = w.Write(data)
+	return err
+}
+
+// Used for testing mock HTTP server
+var taggerListURL string
+
+func zipTaggerList(tempDir, hostname string) error {
+	f := filepath.Join(tempDir, hostname, "tagger-list.log")
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	w, err := newRedactingWriter(f, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	err = api_util.SetAuthToken()
+	if err != nil {
+		return err
+	}
+
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	c := api_util.GetClient(false)
+	if taggerListURL == "" {
+		taggerListURL = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	}
+	r, err := api_util.DoGet(c, taggerListURL)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(r)
 	return err
 }
 
