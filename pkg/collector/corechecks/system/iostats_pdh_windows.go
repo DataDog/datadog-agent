@@ -123,7 +123,8 @@ func (c *IOCheck) Run() error {
 			tagbuff.WriteString(inst)
 			tags := []string{tagbuff.String()}
 
-			if matched, _ := regexp.MatchString(`^[A-z]:`, inst); !matched {
+			if !driveLetterPattern.MatchString(inst) {
+				// if this is not a drive letter, add device_name to tags
 				tags = append(tags, "device_name:"+inst)
 			}
 
