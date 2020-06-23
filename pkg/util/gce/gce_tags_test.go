@@ -16,36 +16,13 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func mockMetadataRequest(t *testing.T) *httptest.Server {
-	lastRequests := []*http.Request{}
-	content, err := ioutil.ReadFile("test/gce_metadata.json")
-	if err != nil {
-		assert.Fail(t, fmt.Sprintf("Error getting test data: %v", err))
-	}
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Contains(t, r.URL.String(), "/?recursive=true")
-		assert.Equal(t, "Google", r.Header.Get("Metadata-Flavor"))
-		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, string(content))
-		lastRequests = append(lastRequests, r)
-	}))
-	metadataURL = ts.URL
-	return ts
-}
-
-func TestGetHostTags(t *testing.T) {
-	server := mockMetadataRequest(t)
-	defer server.Close()
-	tags, err := GetTags()
-	if err != nil {
-		assert.Fail(t, fmt.Sprintf("Error getting tags: %v", err))
-	}
-
-	expectedTags := []string{
+var (
+	expectedFullTags = []string{
 		"tag",
 		"zone:us-east1-b",
 		"instance-type:n1-standard-1",
@@ -61,28 +38,7 @@ func TestGetHostTags(t *testing.T) {
 		"google-compute-enable-pcid:true",
 		"instance-template:projects/111111111111/global/instanceTemplates/gke-test-cluster-default-pool-0012834b",
 	}
-	require.Len(t, tags, len(expectedTags))
-	for _, tag := range tags {
-		assert.Contains(t, expectedTags, tag)
-	}
-}
-
-func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
-	mockConfig := config.Mock()
-	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
-	defer mockConfig.Set("exclude_gce_tags", defaultExclude)
-
-	mockConfig.Set("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
-
-	server := mockMetadataRequest(t)
-	defer server.Close()
-
-	tags, err := GetTags()
-	if err != nil {
-		assert.Fail(t, fmt.Sprintf("Error getting tags: %v", err))
-	}
-
-	expectedTags := []string{
+	expectedExcludedTags = []string{
 		"tag",
 		"zone:us-east1-b",
 		"instance-type:n1-standard-1",
@@ -97,8 +53,77 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 		"google-compute-enable-pcid:true",
 		"instance-template:projects/111111111111/global/instanceTemplates/gke-test-cluster-default-pool-0012834b",
 	}
+)
+
+func mockMetadataRequest(t *testing.T) *httptest.Server {
+	content, err := ioutil.ReadFile("test/gce_metadata.json")
+	if err != nil {
+		assert.Fail(t, fmt.Sprintf("Error getting test data: %v", err))
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.String(), "/?recursive=true")
+		assert.Equal(t, "Google", r.Header.Get("Metadata-Flavor"))
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, string(content))
+	}))
+	metadataURL = ts.URL
+	return ts
+}
+
+func mockMetadataRequestError(t *testing.T) *httptest.Server {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.String(), "/?recursive=true")
+		assert.Equal(t, "Google", r.Header.Get("Metadata-Flavor"))
+		w.Header().Set("Content-Type", "application/json")
+		http.Error(w, "some GCE error", http.StatusInternalServerError)
+	}))
+	metadataURL = ts.URL
+	return ts
+}
+
+func testTags(t *testing.T, tags []string, expectedTags []string) {
 	require.Len(t, tags, len(expectedTags))
 	for _, tag := range tags {
 		assert.Contains(t, expectedTags, tag)
 	}
+}
+
+func TestGetHostTags(t *testing.T) {
+	server := mockMetadataRequest(t)
+	defer server.Close()
+	defer cache.Cache.Delete(tagsCacheKey)
+	tags, err := GetTags()
+	require.Nil(t, err)
+	testTags(t, tags, expectedFullTags)
+}
+
+func TestGetHostTagsSuccessThenError(t *testing.T) {
+	server := mockMetadataRequest(t)
+	tags, err := GetTags()
+	require.NotNil(t, tags)
+	require.Nil(t, err)
+	server.Close()
+
+	server = mockMetadataRequestError(t)
+	defer server.Close()
+	defer cache.Cache.Delete(tagsCacheKey)
+	tags, err = GetTags()
+	require.Nil(t, err)
+	testTags(t, tags, expectedFullTags)
+}
+
+func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
+	mockConfig := config.Mock()
+	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
+	defer mockConfig.Set("exclude_gce_tags", defaultExclude)
+
+	mockConfig.Set("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
+
+	server := mockMetadataRequest(t)
+	defer server.Close()
+	defer cache.Cache.Delete(tagsCacheKey)
+
+	tags, err := GetTags()
+	require.Nil(t, err)
+	testTags(t, tags, expectedExcludedTags)
 }

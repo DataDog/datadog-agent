@@ -21,35 +21,55 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-const agentHostEnvVarName = "DD_AGENT_HOST"
+const (
+	agentHostEnvVarName  = "DD_AGENT_HOST"
+	ddEntityIDEnvVarName = "DD_ENTITY_ID"
+)
 
-var agentHostEnvVar = corev1.EnvVar{
-	Name:  agentHostEnvVarName,
-	Value: "",
-	ValueFrom: &corev1.EnvVarSource{
-		FieldRef: &corev1.ObjectFieldSelector{
-			FieldPath: "status.hostIP",
+var (
+	agentHostEnvVar = corev1.EnvVar{
+		Name:  agentHostEnvVarName,
+		Value: "",
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: "status.hostIP",
+			},
 		},
-	},
-}
+	}
 
-// InjectConfig adds the DD_AGENT_HOST env var to the pod template if it doesn't exist
+	ddEntityIDEnvVar = corev1.EnvVar{
+		Name:  ddEntityIDEnvVarName,
+		Value: "",
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: "metadata.uid",
+			},
+		},
+	}
+)
+
+// InjectConfig adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
 func InjectConfig(req *admiv1beta1.AdmissionRequest, dc dynamic.Interface) (*admiv1beta1.AdmissionResponse, error) {
 	return mutate(req, injectConfig, dc)
 }
 
-// injectConfig injects DD_AGENT_HOST into a pod template if needed
+// injectConfig injects DD_AGENT_HOST and DD_ENTITY_ID into a pod template if needed
 func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
+	var injectedHost, injectedEntity bool
+	defer func() {
+		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedHost || injectedEntity))
+	}()
+
 	if pod == nil {
-		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(false))
 		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod")
 		return errors.New("cannot inject config into nil pod")
 	}
-	injected := false
+
 	if shouldInjectConf(pod) {
-		injected = injectEnv(pod, agentHostEnvVar)
+		injectedHost = injectEnv(pod, agentHostEnvVar)
+		injectedEntity = injectEnv(pod, ddEntityIDEnvVar)
 	}
-	metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injected))
+
 	return nil
 }
 

@@ -18,5 +18,5 @@ func getCurrentGeneration(genLength time.Duration, nowNanos int64) uint8 {
 
 func getNthGeneration(genLength time.Duration, nowNanos int64, n uint8) uint8 {
 	curr := getCurrentGeneration(genLength, nowNanos)
-	return uint8((curr + n) % maxUint8)
+	return (curr + n) % maxUint8
 }

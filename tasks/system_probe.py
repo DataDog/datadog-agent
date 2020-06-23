@@ -7,6 +7,7 @@ import shutil
 import tempfile
 
 from invoke import task
+from invoke.exceptions import Exit
 from subprocess import check_output, CalledProcessError
 
 from .utils import bin_name, get_build_flags, REPO_PATH, get_version, get_git_branch_name, get_go_version, get_git_commit
@@ -153,7 +154,7 @@ def test(ctx, skip_object_files=False, only_check_bpf_bytes=False):
 
 
 @task
-def nettop(ctx, incremental_build=False):
+def nettop(ctx, incremental_build=False, go_mod="vendor"):
     """
     Build and run the `nettop` utility for testing
     """
@@ -301,10 +302,8 @@ def build_object_files(ctx, install=True):
     ))
 
     if install:
-        # Now update the assets stored in the go code
-        commands.append("go get -u github.com/jteeuwen/go-bindata/...")
-
         assets_cmd = os.environ["GOPATH"]+"/bin/go-bindata -pkg bytecode -prefix '{c_dir}' -modtime 1 -o '{go_file}' '{obj_file}' '{debug_obj_file}' '{tcp_queue_length_kern_c_file}' '{tcp_queue_length_kern_user_h_file}' '{oom_kill_kern_c_file}' '{oom_kill_kern_user_h_file}' '{bpf_common_h_file}'"
+
         go_file = os.path.join(bpf_dir, "bytecode", "tracer-ebpf.go")
         commands.append(assets_cmd.format(
             c_dir=c_dir,

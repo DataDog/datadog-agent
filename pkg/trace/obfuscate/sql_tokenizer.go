@@ -429,6 +429,9 @@ exponent:
 	}
 
 exit:
+	if buffer.Len() == 0 {
+		return LexError, nil
+	}
 	return Number, buffer.Bytes()
 }
 
@@ -552,7 +555,7 @@ func digitVal(ch rune) int {
 	return 16 // larger than any legal digit val
 }
 
-func isDigit(ch rune) bool { return unicode.IsDigit(ch) }
+func isDigit(ch rune) bool { return '0' <= ch && ch <= '9' }
 
 // runeBytes converts the given rune to a slice of bytes.
 func runeBytes(r rune) []byte {
