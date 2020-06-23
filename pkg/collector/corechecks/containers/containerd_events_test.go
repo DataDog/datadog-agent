@@ -18,6 +18,7 @@ import (
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/events"
+	"github.com/containerd/containerd/oci"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,7 @@ type mockItf struct {
 	mockTaskPids    func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
 	mockInfo        func(ctn containerd.Container) (containers.Container, error)
 	mockNamespace   func() string
+	mockSpec        func(ctn containerd.Container) (*oci.Spec, error)
 }
 
 func (m *mockItf) ImageSize(ctn containerd.Container) (int64, error) {
@@ -66,6 +68,10 @@ func (m *mockItf) Containers() ([]containerd.Container, error) {
 
 func (m *mockItf) GetEvents() containerd.EventService {
 	return m.mockEvents()
+}
+
+func (m *mockItf) Spec(ctn containerd.Container) (*oci.Spec, error) {
+	return m.mockSpec(ctn)
 }
 
 type mockEvt struct {

@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add `docker.cpu.normalized_pct` metric which reports CPU as a % of container limit (or machine cpu if no limit). Only support Linux.
+    Add `docker.cpu.limit` and `containerd.cpu.limit` metrics, reporting maximum cpu time (hz or ns) available for each container based on their limits. (Only supported on Linux)

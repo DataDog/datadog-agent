@@ -360,7 +360,7 @@ func (d *DockerCheck) Run() error {
 	return nil
 }
 
-func (d *DockerCheck) reportUptime(startTime int64, currentUnixTime int64, tags []string, sender aggregator.Sender) {
+func (d *DockerCheck) reportUptime(startTime, currentUnixTime int64, tags []string, sender aggregator.Sender) {
 	if startTime != 0 && currentUnixTime-startTime > 0 {
 		sender.Gauge("docker.uptime", float64(currentUnixTime-startTime), "", tags)
 	}
@@ -381,9 +381,9 @@ func (d *DockerCheck) reportCPUMetrics(cpu *cmetrics.ContainerCPUStats, limits *
 	}
 
 	// limits.CPULimit is a percentage (i.e. 100.0%, not 1.0)
-	if limits.CPULimit > 0 {
-		timeDiff := float64(cpu.Timestsamp.Unix() - startTime)
-		availableCPUTimeHz := 100 * timeDiff // Converted to Hz to be consistent with UsageTotal
+	timeDiff := cpu.Timestsamp.Unix() - startTime
+	if limits.CPULimit > 0 && timeDiff > 0 {
+		availableCPUTimeHz := 100 * float64(timeDiff) // Converted to Hz to be consistent with UsageTotal
 		sender.Rate("docker.cpu.limit", limits.CPULimit/100*availableCPUTimeHz, "", tags)
 	}
 }
