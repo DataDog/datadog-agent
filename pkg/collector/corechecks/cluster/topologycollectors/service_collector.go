@@ -66,7 +66,11 @@ func (sc *ServiceCollector) CollectorFunction() error {
 						switch kind := address.TargetRef.Kind; kind {
 						// add endpoint url as identifier, will be used for service -> pod relation
 						case "Pod":
-							endpointID.RefExternalID = sc.buildPodExternalID(address.TargetRef.Name)
+							if address.TargetRef.Namespace != "" {
+								endpointID.RefExternalID = sc.buildPodExternalID(address.TargetRef.Namespace, address.TargetRef.Name)
+							} else {
+								endpointID.RefExternalID = sc.buildPodExternalID(endpoint.Namespace, address.TargetRef.Name)
+							}
 						// ignore different Kind's for now, create no relation
 						default:
 						}
@@ -114,7 +118,6 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service) *to
 	log.Tracef("Mapping kubernetes pod service to StackState component: %s", service.String())
 	// create identifier list to merge with StackState components
 	identifiers := make([]string, 0)
-	serviceID := buildServiceID(service.Namespace, service.Name)
 
 	// all external ip's which are associated with this service, but are not managed by kubernetes
 	for _, ip := range service.Spec.ExternalIPs {
@@ -175,11 +178,12 @@ func (sc *ServiceCollector) serviceToStackStateComponent(service v1.Service) *to
 	}
 
 	// add identifier for this service name
+	serviceID := buildServiceID(service.Namespace, service.Name)
 	identifiers = append(identifiers, fmt.Sprintf("urn:service:/%s:%s", sc.GetInstance().URL, serviceID))
 
 	log.Tracef("Created identifiers for %s: %v", service.Name, identifiers)
 
-	serviceExternalID := sc.buildServiceExternalID(serviceID)
+	serviceExternalID := sc.buildServiceExternalID(service.Namespace, service.Name)
 
 	tags := sc.initTags(service.ObjectMeta)
 

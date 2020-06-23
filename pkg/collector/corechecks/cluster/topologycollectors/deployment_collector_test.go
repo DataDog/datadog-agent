@@ -37,7 +37,7 @@ func TestDeploymentCollector(t *testing.T) {
 		{
 			testCase: "Test Deployment 1",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:deployment:test-namespace:test-deployment-1",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:deployment/test-deployment-1",
 				Type:       topology.Type{Name: "deployment"},
 				Data: topology.Data{
 					"name":               "test-deployment-1",
@@ -52,7 +52,7 @@ func TestDeploymentCollector(t *testing.T) {
 		{
 			testCase: "Test Deployment 2",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:deployment:test-namespace:test-deployment-2",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:deployment/test-deployment-2",
 				Type:       topology.Type{Name: "deployment"},
 				Data: topology.Data{
 					"name":               "test-deployment-2",
@@ -67,7 +67,7 @@ func TestDeploymentCollector(t *testing.T) {
 		{
 			testCase: "Test Deployment 3 - Kind + Generate Name",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:deployment:test-namespace:test-deployment-3",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:deployment/test-deployment-3",
 				Type:       topology.Type{Name: "deployment"},
 				Data: topology.Data{
 					"name":               "test-deployment-3",

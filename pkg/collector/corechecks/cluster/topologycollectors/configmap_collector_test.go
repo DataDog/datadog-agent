@@ -41,7 +41,7 @@ func TestConfigMapCollector(t *testing.T) {
 		{
 			testCase: "Test ConfigMap 1 - Complete",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-1",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:configmap/test-configmap-1",
 				Type:       topology.Type{Name: "configmap"},
 				Data: topology.Data{
 					"name":              "test-configmap-1",
@@ -49,35 +49,35 @@ func TestConfigMapCollector(t *testing.T) {
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-configmap-1"),
 					"data":              map[string]string{"key1": "value1", "key2": "longersecretvalue2"},
-					"identifiers":       []string{"urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-1"},
+					"identifiers":       []string{"urn:kubernetes:/test-cluster-name:test-namespace:configmap/test-configmap-1"},
 				},
 			},
 		},
 		{
 			testCase: "Test ConfigMap 2 - Without Data",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-2",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:configmap/test-configmap-2",
 				Type:       topology.Type{Name: "configmap"},
 				Data: topology.Data{
 					"name":              "test-configmap-2",
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-configmap-2"),
-					"identifiers":       []string{"urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-2"},
+					"identifiers":       []string{"urn:kubernetes:/test-cluster-name:test-namespace:configmap/test-configmap-2"},
 				},
 			},
 		},
 		{
 			testCase: "Test ConfigMap 3 - Minimal",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-3",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:configmap/test-configmap-3",
 				Type:       topology.Type{Name: "configmap"},
 				Data: topology.Data{
 					"name":              "test-configmap-3",
 					"creationTimestamp": creationTime,
 					"tags":              map[string]string{"cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 					"uid":               types.UID("test-configmap-3"),
-					"identifiers":       []string{"urn:/kubernetes:test-cluster-name:configmap:test-namespace:test-configmap-3"},
+					"identifiers":       []string{"urn:kubernetes:/test-cluster-name:test-namespace:configmap/test-configmap-3"},
 				},
 			},
 		},

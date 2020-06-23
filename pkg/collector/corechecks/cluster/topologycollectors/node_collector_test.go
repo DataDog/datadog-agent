@@ -49,7 +49,7 @@ func TestNodeCollector(t *testing.T) {
 				func() {
 					component := <-componentChannel
 					expectedComponent := &topology.Component{
-						ExternalID: "urn:/kubernetes:test-cluster-name:node:test-node-1",
+						ExternalID: "urn:kubernetes:/test-cluster-name:node/test-node-1",
 						Type:       topology.Type{Name: "node"},
 						Data: topology.Data{
 							"name":              "test-node-1",
@@ -73,9 +73,9 @@ func TestNodeCollector(t *testing.T) {
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
-						ExternalID: "urn:/kubernetes:test-cluster-name:node:test-node-1->urn:cluster:/kubernetes:test-cluster-name",
+						ExternalID: "urn:kubernetes:/test-cluster-name:node/test-node-1->urn:cluster:/kubernetes:test-cluster-name",
 						Type:       topology.Type{Name: "belongs_to"},
-						SourceID:   "urn:/kubernetes:test-cluster-name:node:test-node-1",
+						SourceID:   "urn:kubernetes:/test-cluster-name:node/test-node-1",
 						TargetID:   "urn:cluster:/kubernetes:test-cluster-name",
 						Data:       map[string]interface{}{},
 					}
@@ -90,7 +90,7 @@ func TestNodeCollector(t *testing.T) {
 					component := <-componentChannel
 					expectedComponent := &topology.Component{
 
-						ExternalID: "urn:/kubernetes:test-cluster-name:node:test-node-2",
+						ExternalID: "urn:kubernetes:/test-cluster-name:node/test-node-2",
 						Type:       topology.Type{Name: "node"},
 						Data: topology.Data{
 							"name":              "test-node-2",
@@ -116,9 +116,9 @@ func TestNodeCollector(t *testing.T) {
 				func() {
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
-						ExternalID: "urn:/kubernetes:test-cluster-name:node:test-node-2->urn:cluster:/kubernetes:test-cluster-name",
+						ExternalID: "urn:kubernetes:/test-cluster-name:node/test-node-2->urn:cluster:/kubernetes:test-cluster-name",
 						Type:       topology.Type{Name: "belongs_to"},
-						SourceID:   "urn:/kubernetes:test-cluster-name:node:test-node-2",
+						SourceID:   "urn:kubernetes:/test-cluster-name:node/test-node-2",
 						TargetID:   "urn:cluster:/kubernetes:test-cluster-name",
 						Data:       map[string]interface{}{},
 					}
@@ -132,7 +132,7 @@ func TestNodeCollector(t *testing.T) {
 				func() {
 					component := <-componentChannel
 					expectedComponent := &topology.Component{
-						ExternalID: "urn:/kubernetes:test-cluster-name:node:test-node-3",
+						ExternalID: "urn:kubernetes:/test-cluster-name:node/test-node-3",
 						Type:       topology.Type{Name: "node"},
 						Data: topology.Data{
 							"name":              "test-node-3",
@@ -162,9 +162,9 @@ func TestNodeCollector(t *testing.T) {
 
 					relation := <-relationChannel
 					expectedRelation := &topology.Relation{
-						ExternalID: "urn:/kubernetes:test-cluster-name:node:test-node-3->urn:cluster:/kubernetes:test-cluster-name",
+						ExternalID: "urn:kubernetes:/test-cluster-name:node/test-node-3->urn:cluster:/kubernetes:test-cluster-name",
 						Type:       topology.Type{Name: "belongs_to"},
-						SourceID:   "urn:/kubernetes:test-cluster-name:node:test-node-3",
+						SourceID:   "urn:kubernetes:/test-cluster-name:node/test-node-3",
 						TargetID:   "urn:cluster:/kubernetes:test-cluster-name",
 						Data:       map[string]interface{}{},
 					}

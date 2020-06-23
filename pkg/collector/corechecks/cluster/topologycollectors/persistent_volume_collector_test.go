@@ -47,7 +47,7 @@ func TestPersistentVolumeCollector(t *testing.T) {
 		{
 			testCase: "Test Persistent Volume 1 - AWS Elastic Block Store",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:persistent-volume:test-persistent-volume-1",
+				ExternalID: "urn:kubernetes:/test-cluster-name:persistent-volume/test-persistent-volume-1",
 				Type:       topology.Type{Name: "persistent-volume"},
 				Data: topology.Data{
 					"name":              "test-persistent-volume-1",
@@ -67,7 +67,7 @@ func TestPersistentVolumeCollector(t *testing.T) {
 		{
 			testCase: "Test Persistent Volume 2 - GCE Persistent Disk",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:persistent-volume:test-persistent-volume-2",
+				ExternalID: "urn:kubernetes:/test-cluster-name:persistent-volume/test-persistent-volume-2",
 				Type:       topology.Type{Name: "persistent-volume"},
 				Data: topology.Data{
 					"name":              "test-persistent-volume-2",
@@ -87,7 +87,7 @@ func TestPersistentVolumeCollector(t *testing.T) {
 		{
 			testCase: "Test Persistent Volume 3 - Host Path + Kind + Generate Name",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:persistent-volume:test-persistent-volume-3",
+				ExternalID: "urn:kubernetes:/test-cluster-name:persistent-volume/test-persistent-volume-3",
 				Type:       topology.Type{Name: "persistent-volume"},
 				Data: topology.Data{
 					"name":              "test-persistent-volume-3",

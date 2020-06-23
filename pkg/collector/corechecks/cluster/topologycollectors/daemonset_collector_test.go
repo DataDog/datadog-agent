@@ -36,7 +36,7 @@ func TestDaemonSetCollector(t *testing.T) {
 		{
 			testCase: "Test DaemonSet 1",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:daemonset:test-daemonset-1",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:daemonset/test-daemonset-1",
 				Type:       topology.Type{Name: "daemonset"},
 				Data: topology.Data{
 					"name":              "test-daemonset-1",
@@ -50,7 +50,7 @@ func TestDaemonSetCollector(t *testing.T) {
 		{
 			testCase: "Test DaemonSet 2",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:daemonset:test-daemonset-2",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:daemonset/test-daemonset-2",
 				Type:       topology.Type{Name: "daemonset"},
 				Data: topology.Data{
 					"name":              "test-daemonset-2",
@@ -64,7 +64,7 @@ func TestDaemonSetCollector(t *testing.T) {
 		{
 			testCase: "Test DaemonSet 3 - Kind + Generate Name",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:daemonset:test-daemonset-3",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:daemonset/test-daemonset-3",
 				Type:       topology.Type{Name: "daemonset"},
 				Data: topology.Data{
 					"name":              "test-daemonset-3",

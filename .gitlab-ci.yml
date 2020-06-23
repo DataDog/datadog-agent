@@ -146,6 +146,8 @@ unit_tests:
     - gofmt -l -w -s ./pkg ./cmd
 
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubelet
+  tags:
+    - sts-aws
 
 integration_tests:
   stage: build_and_test

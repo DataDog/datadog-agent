@@ -40,7 +40,7 @@ func TestIngressCollector(t *testing.T) {
 		{
 			testCase: "Test Service 1 - Minimal",
 			expectedComponent: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-1",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-1",
 				Type:       topology.Type{Name: "ingress"},
 				Data: topology.Data{
 					"name":              "test-ingress-1",
@@ -56,7 +56,7 @@ func TestIngressCollector(t *testing.T) {
 		{
 			testCase: "Test Service 2 - Default Backend",
 			expectedComponent: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-2",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-2",
 				Type:       topology.Type{Name: "ingress"},
 				Data: topology.Data{
 					"name":              "test-ingress-2",
@@ -69,18 +69,19 @@ func TestIngressCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-2->urn:/kubernetes:test-cluster-name:service:test-namespace:test-service",
-					Type:       topology.Type{Name: "routes"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-2",
-					TargetID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service",
-					Data:       map[string]interface{}{},
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-2->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service",
+					Type:     topology.Type{Name: "routes"},
+					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-2",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service",
+					Data:     map[string]interface{}{},
 				},
 			},
 		},
 		{
 			testCase: "Test Service 3 - Ingress Rules",
 			expectedComponent: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-3",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3",
 				Type:       topology.Type{Name: "ingress"},
 				Data: topology.Data{
 					"name":              "test-ingress-3",
@@ -95,25 +96,28 @@ func TestIngressCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-3->urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-1",
-					Type:       topology.Type{Name: "routes"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-3",
-					TargetID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-1",
-					Data:       map[string]interface{}{},
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
+					Type:     topology.Type{Name: "routes"},
+					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-1",
+					Data:     map[string]interface{}{},
 				},
 				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-3->urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-2",
-					Type:       topology.Type{Name: "routes"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-3",
-					TargetID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-2",
-					Data:       map[string]interface{}{},
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-2",
+					Type:     topology.Type{Name: "routes"},
+					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-2",
+					Data:     map[string]interface{}{},
 				},
 				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-3->urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-3",
-					Type:       topology.Type{Name: "routes"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:ingress:test-namespace:test-ingress-3",
-					TargetID:   "urn:/kubernetes:test-cluster-name:service:test-namespace:test-service-3",
-					Data:       map[string]interface{}{},
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-3",
+					Type:     topology.Type{Name: "routes"},
+					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:ingress/test-ingress-3",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:service/test-service-3",
+					Data:     map[string]interface{}{},
 				},
 			},
 		},

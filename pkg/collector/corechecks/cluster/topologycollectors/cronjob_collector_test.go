@@ -36,7 +36,7 @@ func TestCronJobCollector(t *testing.T) {
 		{
 			testCase: "Test Cron Job 1 - Kind + Generate Name",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:cronjob/test-cronjob-1",
 				Type:       topology.Type{Name: "cronjob"},
 				Data: topology.Data{
 					"schedule":          "0 0 * * *",
@@ -53,7 +53,7 @@ func TestCronJobCollector(t *testing.T) {
 		{
 			testCase: "Test Cron Job 2 - Minimal",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-2",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:cronjob/test-cronjob-2",
 				Type:       topology.Type{Name: "cronjob"},
 				Data: topology.Data{
 					"schedule":          "0 0 * * *",

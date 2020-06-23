@@ -44,7 +44,7 @@ func (jc *JobCollector) CollectorFunction() error {
 		for _, ref := range job.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case CronJob:
-				cronJobExternalID := jc.buildCronJobExternalID(ref.Name)
+				cronJobExternalID := jc.buildCronJobExternalID(job.Namespace, ref.Name)
 				jc.RelationChan <- jc.cronJobToJobStackStateRelation(cronJobExternalID, component.ExternalID)
 			}
 		}
@@ -59,7 +59,7 @@ func (jc *JobCollector) jobToStackStateComponent(job v1.Job) *topology.Component
 
 	tags := jc.initTags(job.ObjectMeta)
 
-	jobExternalID := jc.buildJobExternalID(job.Name)
+	jobExternalID := jc.buildJobExternalID(job.Namespace, job.Name)
 	component := &topology.Component{
 		ExternalID: jobExternalID,
 		Type:       topology.Type{Name: "job"},

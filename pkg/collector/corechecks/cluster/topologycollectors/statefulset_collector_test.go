@@ -38,7 +38,7 @@ func TestStatefulSetCollector(t *testing.T) {
 		{
 			testCase: "Test StatefulSet 1",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:statefulset:test-statefulset-1",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:statefulset/test-statefulset-1",
 				Type:       topology.Type{Name: "statefulset"},
 				Data: topology.Data{
 					"name":                "test-statefulset-1",
@@ -55,7 +55,7 @@ func TestStatefulSetCollector(t *testing.T) {
 		{
 			testCase: "Test StatefulSet 2",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:statefulset:test-statefulset-2",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:statefulset/test-statefulset-2",
 				Type:       topology.Type{Name: "statefulset"},
 				Data: topology.Data{
 					"name":                "test-statefulset-2",
@@ -72,7 +72,7 @@ func TestStatefulSetCollector(t *testing.T) {
 		{
 			testCase: "Test StatefulSet 3 - Kind + Generate Name",
 			expected: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:statefulset:test-statefulset-3",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:statefulset/test-statefulset-3",
 				Type:       topology.Type{Name: "statefulset"},
 				Data: topology.Data{
 					"name":                "test-statefulset-3",

@@ -3,7 +3,6 @@
 package topologycollectors
 
 import (
-	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"k8s.io/api/extensions/v1beta1"
@@ -43,7 +42,7 @@ func (ic *IngressCollector) CollectorFunction() error {
 		ic.ComponentChan <- component
 		// submit relation to service name for correlation
 		if in.Spec.Backend != nil && in.Spec.Backend.ServiceName != "" {
-			serviceExternalID := ic.buildServiceExternalID(buildServiceID(in.Namespace, in.Spec.Backend.ServiceName))
+			serviceExternalID := ic.buildServiceExternalID(in.Namespace, in.Spec.Backend.ServiceName)
 
 			// publish the ingress -> service relation
 			relation := ic.ingressToServiceStackStateRelation(component.ExternalID, serviceExternalID)
@@ -53,7 +52,7 @@ func (ic *IngressCollector) CollectorFunction() error {
 		// submit relation to service name in the ingress rules for correlation
 		for _, rules := range in.Spec.Rules {
 			for _, path := range rules.HTTP.Paths {
-				serviceExternalID := ic.buildServiceExternalID(buildServiceID(in.Namespace, path.Backend.ServiceName))
+				serviceExternalID := ic.buildServiceExternalID(in.Namespace, path.Backend.ServiceName)
 
 				// publish the ingress -> service relation
 				relation := ic.ingressToServiceStackStateRelation(component.ExternalID, serviceExternalID)
@@ -83,7 +82,7 @@ func (ic *IngressCollector) ingressToStackStateComponent(ingress v1beta1.Ingress
 		}
 	}
 
-	ingressExternalID := ic.buildIngressExternalID(buildIngressID(ingress.Namespace, ingress.Name))
+	ingressExternalID := ic.buildIngressExternalID(ingress.Namespace, ingress.Name)
 	component := &topology.Component{
 		ExternalID: ingressExternalID,
 		Type:       topology.Type{Name: "ingress"},
@@ -113,9 +112,4 @@ func (ic *IngressCollector) ingressToServiceStackStateRelation(ingressExternalID
 	log.Tracef("Created StackState ingress -> service relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
-}
-
-// buildIngressID - combination of the ingress namespace and ingress name
-func buildIngressID(ingressNamespace, ingressName string) string {
-	return fmt.Sprintf("%s:%s", ingressNamespace, ingressName)
 }

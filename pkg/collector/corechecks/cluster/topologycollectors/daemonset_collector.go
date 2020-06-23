@@ -47,7 +47,7 @@ func (dsc *DaemonSetCollector) daemonSetToStackStateComponent(daemonSet v1.Daemo
 
 	tags := dsc.initTags(daemonSet.ObjectMeta)
 
-	daemonSetExternalID := dsc.buildDaemonSetExternalID(daemonSet.Name)
+	daemonSetExternalID := dsc.buildDaemonSetExternalID(daemonSet.Namespace, daemonSet.Name)
 	component := &topology.Component{
 		ExternalID: daemonSetExternalID,
 		Type:       topology.Type{Name: "daemonset"},

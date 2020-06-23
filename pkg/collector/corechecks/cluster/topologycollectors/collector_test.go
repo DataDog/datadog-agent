@@ -22,59 +22,64 @@ func TestCollectorInterface(t *testing.T) {
 	actualClusterExternalID := testCollector.buildClusterExternalID()
 	assert.Equal(t, "urn:cluster:/kubernetes:Test-Cluster-Name", actualClusterExternalID)
 
+	testNameSpace := "test-namespace"
+
 	podName := "test-pod-name"
 	containerName := "test-container-name"
-	actualContainerExternalID := testCollector.buildContainerExternalID(podName, containerName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:pod:test-pod-name:container:test-container-name", actualContainerExternalID)
+	actualContainerExternalID := testCollector.buildContainerExternalID(testNameSpace, podName, containerName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:pod/test-pod-name:container/test-container-name", actualContainerExternalID)
 
 	daemonSetName := "test-daemonset"
-	actualDaemonSetExternalID := testCollector.buildDaemonSetExternalID(daemonSetName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:daemonset:test-daemonset", actualDaemonSetExternalID)
+	actualDaemonSetExternalID := testCollector.buildDaemonSetExternalID(testNameSpace, daemonSetName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:daemonset/test-daemonset", actualDaemonSetExternalID)
 
-	deploymentNamespace := "test-namespace"
 	deploymentName := "test-deployment"
-	actualDeploymentExternalID := testCollector.buildDeploymentExternalID(deploymentNamespace, deploymentName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:deployment:test-namespace:test-deployment", actualDeploymentExternalID)
+	actualDeploymentExternalID := testCollector.buildDeploymentExternalID(testNameSpace, deploymentName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:deployment/test-deployment", actualDeploymentExternalID)
 
 	nodeName := "test-node"
 	actualNodeExternalID := testCollector.buildNodeExternalID(nodeName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:node:test-node", actualNodeExternalID)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:node/test-node", actualNodeExternalID)
 
-	actualPodExternalID := testCollector.buildPodExternalID(podName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:pod:test-pod-name", actualPodExternalID)
+	actualPodExternalID := testCollector.buildPodExternalID(testNameSpace, podName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:pod/test-pod-name", actualPodExternalID)
 
 	replicaSetName := "test-replicaset"
-	actualReplicaSetExternalID := testCollector.buildReplicaSetExternalID(replicaSetName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:replicaset:test-replicaset", actualReplicaSetExternalID)
+	actualReplicaSetExternalID := testCollector.buildReplicaSetExternalID(testNameSpace, replicaSetName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:replicaset/test-replicaset", actualReplicaSetExternalID)
 
-	serviceID := "test-service"
-	actualServiceExternalID := testCollector.buildServiceExternalID(serviceID)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:service:test-service", actualServiceExternalID)
+	serviceName := "test-service"
+	actualServiceExternalID := testCollector.buildServiceExternalID(testNameSpace, serviceName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:service/test-service", actualServiceExternalID)
 
 	statefulSetName := "test-statefulset"
-	actualStatefulSetExternalID := testCollector.buildStatefulSetExternalID(statefulSetName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:statefulset:test-statefulset", actualStatefulSetExternalID)
+	actualStatefulSetExternalID := testCollector.buildStatefulSetExternalID(testNameSpace, statefulSetName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:statefulset/test-statefulset", actualStatefulSetExternalID)
 
 	configMapNamespace := "test-namespace"
 	configMapName := "test-configmap"
 	actualConfigMapExternalID := testCollector.buildConfigMapExternalID(configMapNamespace, configMapName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:configmap:test-namespace:test-configmap", actualConfigMapExternalID)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:configmap/test-configmap", actualConfigMapExternalID)
 
 	cronJobName := "test-cronjob"
-	actualCronJobExternalID := testCollector.buildCronJobExternalID(cronJobName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:cronjob:test-cronjob", actualCronJobExternalID)
+	actualCronJobExternalID := testCollector.buildCronJobExternalID(testNameSpace, cronJobName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:cronjob/test-cronjob", actualCronJobExternalID)
 
 	jobName := "test-job"
-	actualJobExternalID := testCollector.buildJobExternalID(jobName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:job:test-job", actualJobExternalID)
+	actualJobExternalID := testCollector.buildJobExternalID(testNameSpace, jobName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:job/test-job", actualJobExternalID)
 
 	ingressName := "test-ingress"
-	actualIngressExternalID := testCollector.buildIngressExternalID(ingressName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:ingress:test-ingress", actualIngressExternalID)
+	actualIngressExternalID := testCollector.buildIngressExternalID(testNameSpace, ingressName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:ingress/test-ingress", actualIngressExternalID)
 
 	volumeName := "test-volume"
-	actualVolumeExternalID := testCollector.buildVolumeExternalID(volumeName)
-	assert.Equal(t, "urn:/kubernetes:Test-Cluster-Name:volume:test-volume", actualVolumeExternalID)
+	actualVolumeExternalID := testCollector.buildVolumeExternalID(testNameSpace, volumeName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:test-namespace:volume/test-volume", actualVolumeExternalID)
+
+	persistentVolumeName := "test-persistent-volume"
+	actualPersistentVolumeExternalID := testCollector.buildPersistentVolumeExternalID(persistentVolumeName)
+	assert.Equal(t, "urn:kubernetes:/Test-Cluster-Name:persistent-volume/test-persistent-volume", actualPersistentVolumeExternalID)
 
 	endpointName := "test-url"
 	actualEndpointExternalID := testCollector.buildEndpointExternalID(endpointName)

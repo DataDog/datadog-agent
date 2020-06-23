@@ -60,7 +60,7 @@ func (rsc *ReplicaSetCollector) replicaSetToStackStateComponent(replicaSet v1.Re
 
 	tags := rsc.initTags(replicaSet.ObjectMeta)
 
-	replicaSetExternalID := rsc.buildReplicaSetExternalID(replicaSet.Name)
+	replicaSetExternalID := rsc.buildReplicaSetExternalID(replicaSet.Namespace, replicaSet.Name)
 	component := &topology.Component{
 		ExternalID: replicaSetExternalID,
 		Type:       topology.Type{Name: "replicaset"},

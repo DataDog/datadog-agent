@@ -48,7 +48,7 @@ func (cjc *CronJobCollector) cronJobToStackStateComponent(cronJob v1beta1.CronJo
 
 	tags := cjc.initTags(cronJob.ObjectMeta)
 
-	cronJobExternalID := cjc.buildCronJobExternalID(cronJob.Name)
+	cronJobExternalID := cjc.buildCronJobExternalID(cronJob.Namespace, cronJob.Name)
 	component := &topology.Component{
 		ExternalID: cronJobExternalID,
 		Type:       topology.Type{Name: "cronjob"},

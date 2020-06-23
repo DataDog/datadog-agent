@@ -65,19 +65,19 @@ func (pc *PodCollector) CollectorFunction() error {
 		for _, ref := range pod.OwnerReferences {
 			switch kind := ref.Kind; kind {
 			case DaemonSet:
-				controllerExternalID = pc.buildDaemonSetExternalID(ref.Name)
+				controllerExternalID = pc.buildDaemonSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
 			case Deployment:
 				controllerExternalID = pc.buildDeploymentExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
 			case ReplicaSet:
-				controllerExternalID = pc.buildReplicaSetExternalID(ref.Name)
+				controllerExternalID = pc.buildReplicaSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
 			case StatefulSet:
-				controllerExternalID = pc.buildStatefulSetExternalID(ref.Name)
+				controllerExternalID = pc.buildStatefulSetExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
 			case Job:
-				controllerExternalID = pc.buildJobExternalID(ref.Name)
+				controllerExternalID = pc.buildJobExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
 			}
 		}
@@ -155,20 +155,20 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	log.Tracef("Mapping kubernetes pod to StackState Component: %s", pod.String())
 
 	identifiers := make([]string, 0)
-	// if the pod is using the host network do not map it as a identifier, this will cause all pods to merge.
+
 	if pod.Status.PodIP != "" {
-		if pod.Spec.HostNetwork {
-			// create identifier list to merge with StackState components
+		// if the pod is not using the host network map it as cluster-name:pod-ip because PodIP is unique.
+		if !pod.Spec.HostNetwork {
 			identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s", pc.GetInstance().URL, pod.Status.PodIP))
 		}
 
-		// map the pod ip (which is the host ip) with the pod name
-		identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s:%s", pc.GetInstance().URL, pod.Name, pod.Status.PodIP))
+		// PodIP is not unique (most-likely the HostIP), so we map it with namespace and podName
+		identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s:%s:%s", pc.GetInstance().URL, pod.Namespace, pod.Name, pod.Status.PodIP))
 	}
 
 	log.Tracef("Created identifiers for %s: %v", pod.Name, identifiers)
 
-	podExternalID := pc.buildPodExternalID(pod.Name)
+	podExternalID := pc.buildPodExternalID(pod.Namespace, pod.Name)
 
 	// clear out the unnecessary status array values
 	podStatus := pod.Status
@@ -206,7 +206,7 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 
 // Creates a StackState relation from a Kubernetes / OpenShift Pod to Node relation
 func (pc *PodCollector) podToNodeStackStateRelation(pod v1.Pod) *topology.Relation {
-	podExternalID := pc.buildPodExternalID(pod.Name)
+	podExternalID := pc.buildPodExternalID(pod.Namespace, pod.Name)
 	nodeExternalID := pc.buildNodeExternalID(pod.Spec.NodeName)
 
 	log.Tracef("Mapping kubernetes pod to node relation: %s -> %s", podExternalID, nodeExternalID)
@@ -256,7 +256,7 @@ func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume
 	// creates a StackState component for the kubernetes pod
 	log.Tracef("Mapping kubernetes volume to StackState Component: %s", pod.String())
 
-	volumeExternalID := pc.buildVolumeExternalID(volume.Name)
+	volumeExternalID := pc.buildVolumeExternalID(pod.Namespace, volume.Name)
 
 	identifiers := make([]string, 0)
 	if volume.EmptyDir != nil {

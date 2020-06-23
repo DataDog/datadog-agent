@@ -44,7 +44,7 @@ func TestJobCollector(t *testing.T) {
 		{
 			testCase: "Test Job 1 + Cron Job Relations",
 			expectedComponent: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:job:test-job-1",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:job/test-job-1",
 				Type:       topology.Type{Name: "job"},
 				Data: topology.Data{
 					"name":              "test-job-1",
@@ -57,18 +57,19 @@ func TestJobCollector(t *testing.T) {
 			},
 			expectedRelations: []*topology.Relation{
 				{
-					ExternalID: "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1->urn:/kubernetes:test-cluster-name:job:test-job-1",
-					Type:       topology.Type{Name: "creates"},
-					SourceID:   "urn:/kubernetes:test-cluster-name:cronjob:test-cronjob-1",
-					TargetID:   "urn:/kubernetes:test-cluster-name:job:test-job-1",
-					Data:       map[string]interface{}{},
+					ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:cronjob/test-cronjob-1->" +
+						"urn:kubernetes:/test-cluster-name:test-namespace:job/test-job-1",
+					Type:     topology.Type{Name: "creates"},
+					SourceID: "urn:kubernetes:/test-cluster-name:test-namespace:cronjob/test-cronjob-1",
+					TargetID: "urn:kubernetes:/test-cluster-name:test-namespace:job/test-job-1",
+					Data:     map[string]interface{}{},
 				},
 			},
 		},
 		{
 			testCase: "Test Job 2",
 			expectedComponent: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:job:test-job-2",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:job/test-job-2",
 				Type:       topology.Type{Name: "job"},
 				Data: topology.Data{
 					"name":              "test-job-2",
@@ -83,7 +84,7 @@ func TestJobCollector(t *testing.T) {
 		{
 			testCase: "Test Job 3 - Kind + Generate Name",
 			expectedComponent: &topology.Component{
-				ExternalID: "urn:/kubernetes:test-cluster-name:job:test-job-3",
+				ExternalID: "urn:kubernetes:/test-cluster-name:test-namespace:job/test-job-3",
 				Type:       topology.Type{Name: "job"},
 				Data: topology.Data{
 					"name":              "test-job-3",
