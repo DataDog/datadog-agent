@@ -9,11 +9,17 @@
 
 struct oom_stats {
   char cgroup_name[64];
+  // Pid of triggering process
   __u32 pid;
+  // Pid of killed process
   __u32 tpid;
+  // Name of triggering process
   char fcomm[TASK_COMM_LEN];
+  // Name of killed process
   char tcomm[TASK_COMM_LEN];
+  // Total number of pages
   __u64 pages;
+  // Tracks if the OOM kill was triggered by a cgroup
   __u32 memcg_oom;
 };
 

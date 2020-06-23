@@ -47,7 +47,7 @@ static inline int check_sock(struct sock *sk) {
   if (s->pid == 0) {
     s->pid = bpf_get_current_pid_tgid() >> 32;
     // From bpf-common.h
-    set_cgroup_name(s->cgroup_name, sizeof(s->cgroup_name));
+    get_cgroup_name(s->cgroup_name, sizeof(s->cgroup_name));
 
     const struct inet_sock *ip = inet_sk(sk);
     bpf_probe_read(&s->conn.saddr, sizeof(s->conn.saddr), &ip->inet_saddr);

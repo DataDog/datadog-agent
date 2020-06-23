@@ -11,7 +11,8 @@
  */
 BPF_HASH(oomStats, u32, struct oom_stats);
 
-static inline bool is_memcg_oom(struct oom_control *oc)
+static inline __attribute__((always_inline))
+bool is_memcg_oom(struct oom_control *oc)
 {
   return oc->memcg != NULL;
 }
@@ -24,7 +25,7 @@ int kprobe__oom_kill_process(struct pt_regs *ctx, struct oom_control *oc, const 
     if (s == NULL) return 0;
 
     // From bpf-common.h
-    set_cgroup_name(s->cgroup_name, sizeof(s->cgroup_name));
+    get_cgroup_name(s->cgroup_name, sizeof(s->cgroup_name));
 
     struct task_struct *p = oc->chosen;
     unsigned long totalpages;
@@ -32,12 +33,10 @@ int kprobe__oom_kill_process(struct pt_regs *ctx, struct oom_control *oc, const 
     s->pid = pid;
     s->tpid = p->pid;
     bpf_get_current_comm(&s->fcomm, sizeof(s->fcomm));
-    bpf_probe_read(&s->tcomm, sizeof(s->tcomm), p->comm);
+    bpf_probe_read_str(&s->tcomm, sizeof(s->tcomm), p->comm);
     s->pages = oc->totalpages;
 
-    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)
-      s->memcg_oom = is_memcg_oom(oc) ? 1 : 0;
-    #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
       s->memcg_oom = oc->memcg != NULL ? 1 : 0;
     #endif
 

@@ -3,11 +3,11 @@
 
 #include <linux/bpf.h>
 #include <linux/tcp.h>
-#include <linux/oom.h>
+// #include <linux/oom.h>
 
 
 static inline __attribute__((always_inline))
-int set_cgroup_name(char *buf, size_t sz) {
+int get_cgroup_name(char *buf, size_t sz) {
     struct task_struct *cur_tskd = (struct task_struct *)bpf_get_current_task();
     struct css_set *css_set;
     if (!bpf_probe_read(&css_set, sizeof(css_set), &cur_tskd->cgroups)) {
@@ -18,7 +18,7 @@ int set_cgroup_name(char *buf, size_t sz) {
         if (!bpf_probe_read(&cgrp, sizeof(cgrp), &css->cgroup)) {
           struct kernfs_node *kn;
           if (!bpf_probe_read(&kn, sizeof(kn), &cgrp->kn)) {
-            if (!bpf_probe_read(buf, sz, &kn->name)) {
+            if (!bpf_probe_read_str(buf, sz, &kn->name)) {
               return 0;
             }
           }
