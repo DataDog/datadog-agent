@@ -249,7 +249,7 @@ func TestCleanDirectoryName(t *testing.T) {
 }
 
 func TestZipTaggerList(t *testing.T) {
-	if _, err := os.Stat(security.GetAuthTokenFilepath()); err == nil && !os.IsNotExist(err) {
+	if _, err := os.Stat(security.GetAuthTokenFilepath()); err == nil {
 		tagMap := make(map[string]response.TaggerListEntity)
 		tagMap["random_entity_name"] = response.TaggerListEntity{
 			Sources: []string{"docker_source_name"},
