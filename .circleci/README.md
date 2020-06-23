@@ -16,9 +16,9 @@ should have it).
 Example:
 ```bash
 cd .circleci/images/runner
-docker build -t datadog/datadog-agent-runner-circle:go1128 .
+docker build -t datadog/datadog-agent-runner-circle:go1138 .
 docker login
-docker push datadog/datadog-agent-runner-circle:go1128
+docker push datadog/datadog-agent-runner-circle:go1138
 ```
 
 Once your image is pushed, update this file:

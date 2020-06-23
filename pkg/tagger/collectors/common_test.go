@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-// +build docker kunelet
-
 package collectors
 
 import (
@@ -17,6 +15,7 @@ import (
 )
 
 func requireMatchInfo(t *testing.T, expected []*TagInfo, item *TagInfo) bool {
+	t.Helper()
 	for _, template := range expected {
 		if template.Entity != item.Entity {
 			continue
@@ -42,6 +41,7 @@ func requireMatchInfo(t *testing.T, expected []*TagInfo, item *TagInfo) bool {
 }
 
 func assertTagInfoEqual(t *testing.T, expected *TagInfo, item *TagInfo) bool {
+	t.Helper()
 	sort.Strings(expected.LowCardTags)
 	sort.Strings(item.LowCardTags)
 
@@ -55,6 +55,7 @@ func assertTagInfoEqual(t *testing.T, expected *TagInfo, item *TagInfo) bool {
 }
 
 func assertTagInfoListEqual(t *testing.T, expectedUpdates []*TagInfo, updates []*TagInfo) {
+	t.Helper()
 	assert.Equal(t, len(expectedUpdates), len(updates))
 	for i := 0; i < len(expectedUpdates); i++ {
 		assertTagInfoEqual(t, expectedUpdates[i], updates[i])

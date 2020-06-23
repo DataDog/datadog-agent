@@ -7,9 +7,13 @@
 package host
 
 import (
+	"io/ioutil"
+	"os"
+	"path"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -22,10 +26,12 @@ import (
 func TestGetPayload(t *testing.T) {
 	p := GetPayload(util.HostnameData{Hostname: "myhostname", Provider: ""})
 	assert.NotEmpty(t, p.Os)
+	assert.NotEmpty(t, p.AgentFlavor)
 	assert.NotEmpty(t, p.PythonVersion)
 	assert.NotNil(t, p.SystemStats)
 	assert.NotNil(t, p.Meta)
 	assert.NotNil(t, p.HostTags)
+	assert.NotNil(t, p.InstallMethod)
 }
 
 func TestGetSystemStats(t *testing.T) {
@@ -96,4 +102,66 @@ func TestGetContainerMetaTimeout(t *testing.T) {
 
 	meta := getContainerMeta(50 * time.Millisecond)
 	assert.Equal(t, map[string]string{"foo": "bar"}, meta)
+}
+
+func TestGetLogsMeta(t *testing.T) {
+	// No transport
+	logs.CurrentTransport = ""
+	meta := getLogsMeta()
+	assert.Equal(t, &LogsMeta{Transport: ""}, meta)
+	// TCP transport
+	logs.CurrentTransport = logs.TransportTCP
+	meta = getLogsMeta()
+	assert.Equal(t, &LogsMeta{Transport: "TCP"}, meta)
+	// HTTP transport
+	logs.CurrentTransport = logs.TransportHTTP
+	meta = getLogsMeta()
+	assert.Equal(t, &LogsMeta{Transport: "HTTP"}, meta)
+}
+
+func TestGetInstallMethod(t *testing.T) {
+	dir, err := ioutil.TempDir("", "test_install_method")
+	assert.Nil(t, err)
+	defer os.RemoveAll(dir)
+
+	installInfoPath := path.Join(dir, "install_info")
+
+	// ------------- Without file, the install is considered private
+	installMethod := getInstallMethod(installInfoPath)
+	require.Equal(t, "undefined", installMethod.ToolVersion)
+	assert.Nil(t, installMethod.Tool)
+	assert.Nil(t, installMethod.InstallerVersion)
+
+	// ------------- with a correct file
+	var installInfoContent = `
+---
+install_method:
+  tool_version: chef-15
+  tool: chef
+  installer_version: datadog-cookbook-4.2.1
+`
+	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+
+	// the install is considered coming from chef (example)
+	installMethod = getInstallMethod(installInfoPath)
+	require.Equal(t, "chef-15", installMethod.ToolVersion)
+	assert.NotNil(t, installMethod.Tool)
+	require.Equal(t, "chef", *installMethod.Tool)
+	assert.NotNil(t, installMethod.InstallerVersion)
+	require.Equal(t, "datadog-cookbook-4.2.1", *installMethod.InstallerVersion)
+
+	// ------------- with an incorrect file
+	installInfoContent = `
+---
+install_methodlol:
+  name: chef-15
+  version: datadog-cookbook-4.2.1
+`
+	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+
+	// the parsing does not occur and the install is kept undefined
+	installMethod = getInstallMethod(installInfoPath)
+	require.Equal(t, "undefined", installMethod.ToolVersion)
+	assert.Nil(t, installMethod.Tool)
+	assert.Nil(t, installMethod.InstallerVersion)
 }

@@ -12,17 +12,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 const (
-	basePath   = "/var/log/pods"
-	anyLogFile = "*.log"
+	basePath      = "/var/log/pods"
+	anyLogFile    = "*.log"
+	anyV19LogFile = "%s_*.log"
 )
 
 var errCollectAllDisabled = fmt.Errorf("%s disabled", config.ContainerCollectAll)
@@ -143,12 +143,19 @@ func (l *Launcher) removeSource(service *service.Service) {
 	}
 }
 
-// kubernetesIntegration represents the name of the integration.
-const kubernetesIntegration = "kubernetes"
+const (
+	// kubernetesIntegration represents the name of the integration.
+	kubernetesIntegration          = "kubernetes"
+	podStandardLabelPrefix         = "tags.datadoghq.com/"
+	tagKeyService                  = "service"
+	podContainerLabelServiceFormat = podStandardLabelPrefix + "%s." + tagKeyService
+	podStandardLabelService        = podStandardLabelPrefix + tagKeyService
+)
 
 // getSource returns a new source for the container in pod.
 func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
+	serviceLabel := getServiceLabel(pod, container)
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
 		if err != nil || len(configs) == 0 {
@@ -159,18 +166,28 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		if !l.collectAll {
 			return nil, errCollectAllDisabled
 		}
-		shortImageName, err := l.getShortImageName(container)
-		if err != nil {
+		if serviceLabel != "" {
 			cfg = &config.LogsConfig{
 				Source:  kubernetesIntegration,
-				Service: kubernetesIntegration,
+				Service: serviceLabel,
 			}
 		} else {
-			cfg = &config.LogsConfig{
-				Source:  shortImageName,
-				Service: shortImageName,
+			shortImageName, err := l.getShortImageName(container)
+			if err != nil {
+				cfg = &config.LogsConfig{
+					Source:  kubernetesIntegration,
+					Service: kubernetesIntegration,
+				}
+			} else {
+				cfg = &config.LogsConfig{
+					Source:  shortImageName,
+					Service: shortImageName,
+				}
 			}
 		}
+	}
+	if cfg.Service == "" && serviceLabel != "" {
+		cfg.Service = serviceLabel
 	}
 	cfg.Type = config.FileType
 	cfg.Path = l.getPath(basePath, pod, container)
@@ -217,6 +234,23 @@ func (l *Launcher) getAnnotation(pod *kubelet.Pod, container kubelet.ContainerSt
 	return ""
 }
 
+// getServiceLabel returns the standard service label for container if present
+// Order of preference is first "tags.datadoghq.com/<container-name>.service" then "tags.datadoghq.com/service"
+func getServiceLabel(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+	if pod.Metadata.Labels != nil {
+		if containerServiceLabel, exists := pod.Metadata.Labels[fmt.Sprintf(podContainerLabelServiceFormat, container.Name)]; exists {
+			return containerServiceLabel
+		}
+
+		if standardServiceLabel, exists := pod.Metadata.Labels[podStandardLabelService]; exists {
+			return standardServiceLabel
+		}
+
+	}
+
+	return ""
+}
+
 // getSourceName returns the source name of the container to tail.
 func (l *Launcher) getSourceName(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	return fmt.Sprintf("%s/%s/%s", pod.Metadata.Namespace, pod.Metadata.Name, container.Name)
@@ -225,14 +259,38 @@ func (l *Launcher) getSourceName(pod *kubelet.Pod, container kubelet.ContainerSt
 // getPath returns a wildcard matching with any logs file of container in pod.
 func (l *Launcher) getPath(basePath string, pod *kubelet.Pod, container kubelet.ContainerStatus) string {
 	// the pattern for container logs is different depending on the version of Kubernetes
-	// so we need to try both format,
-	// until v1.13 it was `/var/log/pods/{pod_uid}/{container_name}/{n}.log`,
+	// so we need to try three possbile formats
+	// until v1.9 it was `/var/log/pods/{pod_uid}/{container_name_n}.log`,
+	// v.1.10 to v1.13 it was `/var/log/pods/{pod_uid}/{container_name}/{n}.log`,
 	// since v1.14 it is `/var/log/pods/{pod_namespace}_{pod_name}_{pod_uid}/{container_name}/{n}.log`.
 	// see: https://github.com/kubernetes/kubernetes/pull/74441 for more information.
 	oldDirectory := filepath.Join(basePath, l.getPodDirectoryUntil1_13(pod))
 	if _, err := os.Stat(oldDirectory); err == nil {
-		return filepath.Join(oldDirectory, container.Name, anyLogFile)
+		v110Dir := filepath.Join(oldDirectory, container.Name)
+		_, err := os.Stat(v110Dir)
+		if err == nil {
+			log.Debugf("Logs path found for container %s, v1.13 >= kubernetes version >= v1.10", container.Name)
+			return filepath.Join(v110Dir, anyLogFile)
+		}
+		if !os.IsNotExist(err) {
+			log.Debugf("Cannot get file info for %s: %v", v110Dir, err)
+		}
+
+		v19Files := filepath.Join(oldDirectory, fmt.Sprintf(anyV19LogFile, container.Name))
+		files, err := filepath.Glob(v19Files)
+		if err == nil && len(files) > 0 {
+			log.Debugf("Logs path found for container %s, kubernetes version <= v1.9", container.Name)
+			return v19Files
+		}
+		if err != nil {
+			log.Debugf("Cannot get file info for %s: %v", v19Files, err)
+		}
+		if len(files) == 0 {
+			log.Debugf("Files matching %s not found", v19Files)
+		}
 	}
+
+	log.Debugf("Using the latest kubernetes logs path for container %s", container.Name)
 	return filepath.Join(basePath, l.getPodDirectorySince1_14(pod), container.Name, anyLogFile)
 }
 

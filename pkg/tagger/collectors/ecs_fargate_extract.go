@@ -28,22 +28,31 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 	if meta.KnownStatus != "RUNNING" {
 		return output, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
 	}
-	globalTags := config.Datadog.GetStringSlice("tags")
+
+	c.doOnceOrchScope.Do(func() {
+		tags := utils.NewTagList()
+		tags.AddOrchestrator("task_arn", meta.TaskARN)
+		low, orch, high := tags.Compute()
+		info := &TagInfo{
+			Source:               ecsFargateCollectorName,
+			Entity:               OrchestratorScopeEntityID,
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+		}
+		output = append(output, info)
+	})
 
 	for _, ctr := range meta.Containers {
 		if c.expire.Update(ctr.DockerID, now) || parseAll {
 			tags := utils.NewTagList()
 
-			// global tags
-			for _, value := range globalTags {
-				if strings.Contains(value, ":") {
-					tag := strings.SplitN(value, ":", 2)
-					tags.AddLow(tag[0], tag[1])
-				}
-			}
-
 			// cluster
-			tags.AddLow("cluster_name", parseECSClusterName(meta.ClusterName))
+			clusterName := parseECSClusterName(meta.ClusterName)
+			if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+				tags.AddLow("cluster_name", clusterName)
+			}
+			tags.AddLow("ecs_cluster_name", clusterName)
 
 			// aws region from cluster arn
 			region := parseFargateRegion(meta.ClusterName)
@@ -76,6 +85,15 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 			}
 
 			for labelName, labelValue := range ctr.Labels {
+				switch labelName {
+				case dockerLabelEnv:
+					tags.AddLow(tagKeyEnv, labelValue)
+				case dockerLabelVersion:
+					tags.AddLow(tagKeyVersion, labelValue)
+				case dockerLabelService:
+					tags.AddLow(tagKeyService, labelValue)
+				}
+
 				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
 					tags.AddAuto(tagName, labelValue)
 				}

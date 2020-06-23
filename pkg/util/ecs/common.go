@@ -54,11 +54,8 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 		// TODO: add metrics - complete for https://github.com/DataDog/datadog-process-agent/blob/970729924e6b2b6fe3a912b62657c297621723cc/checks/container_rt.go#L110-L128
 		// start with a hack (translate ecs stats to docker cgroup stuff)
 		// then support ecs stats natively
-		cpu, mem, io, memLimit := convertMetaV2ContainerStats(stats)
-		ctr.CPU = &cpu
-		ctr.Memory = &mem
-		ctr.IO = &io
-
+		cm, memLimit := convertMetaV2ContainerStats(stats)
+		ctr.SetMetrics(&cm)
 		if ctr.MemLimit == 0 {
 			ctr.MemLimit = memLimit
 		}
@@ -106,24 +103,24 @@ func convertMetaV2Container(c v2.Container) *containers.Container {
 
 // convertMetaV2Container returns internal metrics representations from an ECS
 // metadata v2 container stats object.
-func convertMetaV2ContainerStats(s *v2.ContainerStats) (cpu metrics.CgroupTimesStat, mem metrics.CgroupMemStat, io metrics.CgroupIOStat, memLimit uint64) {
-	// CPU
-	cpu.User = s.CPU.Usage.Usermode
-	cpu.System = s.CPU.Usage.Kernelmode
-	cpu.SystemUsage = s.CPU.System
-
-	// Memory
-	mem.Cache = s.Memory.Details.Cache
-	mem.MemUsageInBytes = s.Memory.Usage
-	mem.Pgfault = s.Memory.Details.PgFault
-	mem.RSS = s.Memory.Details.RSS
-	memLimit = s.Memory.Limit
-
-	// IO
-	io.ReadBytes = s.IO.ReadBytes
-	io.WriteBytes = s.IO.WriteBytes
-
-	return
+func convertMetaV2ContainerStats(s *v2.ContainerStats) (metrics.ContainerMetrics, uint64) {
+	return metrics.ContainerMetrics{
+		CPU: &metrics.ContainerCPUStats{
+			User:        s.CPU.Usage.Usermode,
+			System:      s.CPU.Usage.Kernelmode,
+			SystemUsage: s.CPU.System,
+		},
+		Memory: &metrics.ContainerMemStats{
+			Cache:           s.Memory.Details.Cache,
+			MemUsageInBytes: s.Memory.Usage,
+			Pgfault:         s.Memory.Details.PgFault,
+			RSS:             s.Memory.Details.RSS,
+		},
+		IO: &metrics.ContainerIOStats{
+			ReadBytes:  s.IO.ReadBytes,
+			WriteBytes: s.IO.WriteBytes,
+		},
+	}, s.Memory.Limit
 }
 
 // parseContainerNetworkAddresses converts ECS container ports

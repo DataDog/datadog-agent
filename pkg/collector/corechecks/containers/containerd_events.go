@@ -56,7 +56,7 @@ func (s *subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
 	ev := ctrItf.GetEvents()
 	log.Info("Starting routine to collect Containerd events ...")
 	ctxNamespace := namespaces.WithNamespace(ctx, s.Namespace)
-	go s.run(ctxNamespace, ev)
+	go s.run(ctxNamespace, ev) //nolint:errcheck
 }
 
 func processMessage(id string, message *containerdevents.Envelope) containerdEvent {

@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -26,6 +27,7 @@ var templateVariables = map[string]variableGetter{
 	"pid":      getPid,
 	"port":     getPort,
 	"hostname": getHostname,
+	"extra":    getExtra,
 }
 
 // SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
@@ -76,18 +78,20 @@ func SubstituteTemplateEnvVars(config *integration.Config) error {
 func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
-		Name:          tpl.Name,
-		Instances:     make([]integration.Data, len(tpl.Instances)),
-		InitConfig:    make(integration.Data, len(tpl.InitConfig)),
-		MetricConfig:  tpl.MetricConfig,
-		LogsConfig:    tpl.LogsConfig,
-		ADIdentifiers: tpl.ADIdentifiers,
-		ClusterCheck:  tpl.ClusterCheck,
-		Provider:      tpl.Provider,
-		Entity:        svc.GetEntity(),
-		CreationTime:  svc.GetCreationTime(),
-		NodeName:      tpl.NodeName,
-		Source:        tpl.Source,
+		Name:            tpl.Name,
+		Instances:       make([]integration.Data, len(tpl.Instances)),
+		InitConfig:      make(integration.Data, len(tpl.InitConfig)),
+		MetricConfig:    tpl.MetricConfig,
+		LogsConfig:      tpl.LogsConfig,
+		ADIdentifiers:   tpl.ADIdentifiers,
+		ClusterCheck:    tpl.ClusterCheck,
+		Provider:        tpl.Provider,
+		Entity:          svc.GetEntity(),
+		CreationTime:    svc.GetCreationTime(),
+		NodeName:        tpl.NodeName,
+		Source:          tpl.Source,
+		MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+		LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
@@ -238,6 +242,15 @@ func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		return nil, fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetEntity(), err)
 	}
 	return []byte(name), nil
+}
+
+// getExtra returns specific data
+func getExtra(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	value, err := svc.GetExtraConfig(tplVar)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get extra info for service %s, skipping config - %s", svc.GetEntity(), err)
+	}
+	return value, nil
 }
 
 // getEnvvar returns a system environment variable if found

@@ -39,7 +39,8 @@ RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGE
     # ditto for this older libsystemd
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
     # self-test certificates that are detected (false positive) as private keys
-    opt/datadog-agent/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest \
+    opt/datadog-agent/embedded/lib/python*/site-packages/Cryptodome/SelfTest \
+    opt/datadog-agent/embedded/lib/python*/site-packages/future/backports/test \
  && if [ "$PYTHON_VERSION" = "2" ]; then \
         rm -rf \
             opt/datadog-agent/embedded/bin/2to3-3* \
@@ -68,6 +69,8 @@ RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGE
 #   - copy default config files
 COPY datadog*.yaml etc/datadog-agent/
 
+# Installation information
+COPY install_info etc/datadog-agent/
 
 ######################################
 #  Actual docker image construction  #
@@ -154,12 +157,14 @@ RUN if [ ! -z "$PYTHON_VERSION" ]; then \
 
 
 # Override the exit script by ours to fix --pid=host operations
-COPY init-stage3 /etc/s6/init/init-stage3
+RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
+COPY init-stage3          /etc/s6/init/init-stage3
+COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
 
-HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
+HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag

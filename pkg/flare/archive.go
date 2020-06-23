@@ -176,6 +176,13 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Errorf("Could not zip exp var: %s", err)
 	}
 
+	if config.Datadog.GetBool("system_probe_config.enabled") {
+		err = zipSystemProbeStats(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not zip system probe exp var stats: %s", err)
+		}
+	}
+
 	err = zipDiagnose(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip diagnose: %s", err)
@@ -236,6 +243,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		log.Errorf("Could not zip logs: %s", err)
 	}
 
+	err = zipInstallInfo(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip install_info: %s", err)
+	}
+
 	// gets files infos and write the permissions.log file
 	if err := permsInfos.commit(tempDir, hostname, os.ModePerm); err != nil {
 		log.Errorf("Could not write permissions.log file: %s", err)
@@ -275,8 +287,25 @@ func writeStatusFile(tempDir, hostname string, data []byte) error {
 	return err
 }
 
+func addParentPerms(dirPath string, permsInfos permissionsInfos) {
+	parent := filepath.Dir(dirPath)
+	for parent != "." {
+		if parent == "/" {
+			permsInfos.add(parent)
+			break
+		}
+		permsInfos.add(parent)
+		parent = filepath.Dir(parent)
+	}
+}
+
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
 	logFileDir := filepath.Dir(logFilePath)
+
+	if permsInfos != nil {
+		addParentPerms(logFileDir, permsInfos)
+	}
+
 	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
@@ -304,7 +333,7 @@ func zipExpVar(tempDir, hostname string) error {
 	var variables = make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
 		var variable = make(map[string]interface{})
-		json.Unmarshal([]byte(kv.Value.String()), &variable)
+		json.Unmarshal([]byte(kv.Value.String()), &variable) //nolint:errcheck
 		variables[kv.Key] = variable
 	})
 
@@ -339,6 +368,10 @@ func zipExpVar(tempDir, hostname string) error {
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		apmPort = config.Datadog.GetString("apm_config.receiver_port")
 	}
+	// TODO(gbbr): Remove this once we use BindEnv for trace-agent
+	if v := os.Getenv("DD_APM_RECEIVER_PORT"); v != "" {
+		apmPort = v
+	}
 	f := filepath.Join(tempDir, hostname, "expvar", "trace-agent")
 	w, err := newRedactingWriter(f, os.ModePerm, true)
 	if err != nil {
@@ -368,6 +401,23 @@ func zipExpVar(tempDir, hostname string) error {
 		return err
 	}
 	_, err = w.Write(v)
+	return err
+}
+
+func zipSystemProbeStats(tempDir, hostname string) error {
+	sysProbeStats := status.GetSystemProbeStats(config.Datadog.GetString("system_probe_config.sysprobe_socket"))
+	sysProbeFile := filepath.Join(tempDir, hostname, "expvar", "system-probe")
+	sysProbeWriter, err := newRedactingWriter(sysProbeFile, os.ModePerm, true)
+	if err != nil {
+		return err
+	}
+	defer sysProbeWriter.Close()
+
+	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
+	if err != nil {
+		return err
+	}
+	_, err = sysProbeWriter.Write(sysProbeBuf)
 	return err
 }
 
@@ -448,7 +498,7 @@ func zipDiagnose(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	diagnose.RunAll(writer)
+	diagnose.RunAll(writer) //nolint:errcheck
 	writer.Flush()
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
@@ -471,7 +521,7 @@ func zipConfigCheck(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetConfigCheck(writer, true)
+	GetConfigCheck(writer, true) //nolint:errcheck
 	writer.Flush()
 
 	return writeConfigCheck(tempDir, hostname, b.Bytes())
@@ -495,7 +545,7 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 }
 
 func zipHealth(tempDir, hostname string) error {
-	s := health.GetStatus()
+	s := health.GetReady()
 	sort.Strings(s.Healthy)
 	sort.Strings(s.Unhealthy)
 
@@ -517,6 +567,30 @@ func zipHealth(tempDir, hostname string) error {
 	defer w.Close()
 
 	_, err = w.Write(yamlValue)
+	return err
+}
+
+func zipInstallInfo(tempDir, hostname string) error {
+	originalPath := filepath.Join(config.FileUsedDir(), "install_info")
+	original, err := os.Open(originalPath)
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	zippedPath := filepath.Join(tempDir, hostname, "install_info")
+	err = ensureParentDirsExist(zippedPath)
+	if err != nil {
+		return err
+	}
+
+	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer zipped.Close()
+
+	_, err = io.Copy(zipped, original)
 	return err
 }
 
@@ -566,6 +640,7 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 
 func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, permsInfos permissionsInfos) error {
 	for prefix, filePath := range confSearchPaths {
+
 		err := filepath.Walk(filePath, func(src string, f os.FileInfo, err error) error {
 			if f == nil {
 				return nil
@@ -601,6 +676,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 				if permsInfos != nil {
 					permsInfos.add(src)
+					addParentPerms(filePath, permsInfos)
 				}
 			}
 

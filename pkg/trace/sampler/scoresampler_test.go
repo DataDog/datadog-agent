@@ -25,7 +25,7 @@ func getTestScoreEngine() *ScoreEngine {
 	extraRate := 1.0
 	maxTPS := 0.0
 
-	return NewScoreEngine(extraRate, maxTPS)
+	return NewErrorsEngine(extraRate, maxTPS)
 }
 
 func getTestTrace() (pb.Trace, *pb.Span) {
@@ -55,6 +55,25 @@ func TestExtraSampleRate(t *testing.T) {
 	s.Sampler.extraRate = 0.33
 
 	assert.Equal(s.Sampler.GetSampleRate(trace, root, signature), s.Sampler.extraRate*sRate)
+}
+
+func TestErrorSampleThresholdTo1(t *testing.T) {
+	assert := assert.New(t)
+	env := defaultEnv
+
+	s := getTestScoreEngine()
+	for i := 0; i < 1e2; i++ {
+		trace, root := getTestTrace()
+		_, rate := s.Sample(trace, root, env)
+		assert.Equal(1.0, rate)
+	}
+	for i := 0; i < 1e3; i++ {
+		trace, root := getTestTrace()
+		_, rate := s.Sample(trace, root, env)
+		if rate < 1 {
+			assert.True(rate < errorSamplingRateThresholdTo1)
+		}
+	}
 }
 
 func TestMaxTPS(t *testing.T) {

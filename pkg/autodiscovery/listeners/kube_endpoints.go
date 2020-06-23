@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
@@ -26,6 +27,7 @@ import (
 
 const (
 	kubeEndpointsAnnotationFormat = "ad.datadoghq.com/endpoints.instances"
+	leaderAnnotation              = "control-plane.alpha.kubernetes.io/leader"
 )
 
 // KubeEndpointsListener listens to kubernetes endpoints creation
@@ -61,14 +63,17 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
 		return nil, fmt.Errorf("cannot get endpoints informer: %s", err)
 	}
+
 	serviceInformer := ac.InformerFactory.Core().V1().Services()
 	if serviceInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
+
 	return &KubeEndpointsListener{
 		endpoints:         make(map[types.UID][]*KubeEndpointService),
 		endpointsInformer: endpointsInformer,
@@ -114,6 +119,10 @@ func (l *KubeEndpointsListener) endpointsAdded(obj interface{}) {
 		log.Errorf("Expected an Endpoints type, got: %v", obj)
 		return
 	}
+	if isLockForLE(castedObj) {
+		// Ignore Endpoints objects used for leader election
+		return
+	}
 	l.createService(castedObj, false, true)
 }
 
@@ -121,6 +130,10 @@ func (l *KubeEndpointsListener) endpointsDeleted(obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		return
+	}
+	if isLockForLE(castedObj) {
+		// Ignore Endpoints objects used for leader election
 		return
 	}
 	l.removeService(castedObj)
@@ -131,6 +144,10 @@ func (l *KubeEndpointsListener) endpointsUpdated(old, obj interface{}) {
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected an Endpoints type, got: %v", obj)
+		return
+	}
+	if isLockForLE(castedObj) {
+		// Ignore Endpoints objects used for leader election
 		return
 	}
 	// Cast the old object, consider it an add on cast failure
@@ -162,8 +179,16 @@ func (l *KubeEndpointsListener) serviceUpdated(old, obj interface{}) {
 		return
 	}
 
-	if !isServiceEndpointsAnnotated(castedOld) && isServiceEndpointsAnnotated(castedObj) {
+	// Detect if new annotations are added
+	if !isServiceAnnotated(castedOld, kubeEndpointsAnnotationFormat) && isServiceAnnotated(castedObj, kubeEndpointsAnnotationFormat) {
 		l.createService(l.endpointsForService(castedObj), true, false)
+	}
+
+	// Detect changes of AD labels for standard tags if the Service is annotated
+	if isServiceAnnotated(castedObj, kubeEndpointsAnnotationFormat) && (standardTagsDigest(castedOld.GetLabels()) != standardTagsDigest(castedObj.GetLabels())) {
+		kep := l.endpointsForService(castedObj)
+		l.removeService(kep)
+		l.createService(kep, true, false)
 	}
 }
 
@@ -185,11 +210,30 @@ func (l *KubeEndpointsListener) endpointsDiffer(first, second *v1.Endpoints) boo
 	if first.ResourceVersion == second.ResourceVersion {
 		return false
 	}
-	// AD annotations on the corresponding service
-	if l.isEndpointsAnnotated(first) != l.isEndpointsAnnotated(second) {
+
+	ksvcFirst, err := l.serviceLister.Services(first.Namespace).Get(first.Name)
+	if err != nil {
+		log.Tracef("Cannot get Kubernetes service: %s", err)
 		return true
 	}
-	// Subsets
+
+	ksvcSecond, err := l.serviceLister.Services(second.Namespace).Get(second.Name)
+	if err != nil {
+		log.Tracef("Cannot get Kubernetes service: %s", err)
+		return true
+	}
+
+	// AD annotations on the corresponding services
+	if isServiceAnnotated(ksvcFirst, kubeEndpointsAnnotationFormat) != isServiceAnnotated(ksvcSecond, kubeEndpointsAnnotationFormat) {
+		return true
+	}
+
+	// AD labels - standard tags on the corresponding services
+	if standardTagsDigest(ksvcFirst.GetLabels()) != standardTagsDigest(ksvcSecond.GetLabels()) {
+		return true
+	}
+
+	// Endpoint subsets
 	return subsetsDiffer(first, second)
 }
 
@@ -206,21 +250,7 @@ func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	if err != nil {
 		log.Tracef("Cannot get Kubernetes service: %s", err)
 	}
-	if ksvc != nil {
-		if _, found := ksvc.Annotations[kubeEndpointsAnnotationFormat]; found {
-			return true
-		}
-	}
-	return false
-}
-
-func isServiceEndpointsAnnotated(ksvc *v1.Service) bool {
-	if ksvc != nil {
-		if _, found := ksvc.Annotations[kubeEndpointsAnnotationFormat]; found {
-			return true
-		}
-	}
-	return false
+	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat)
 }
 
 func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExistingService, checkServiceAnnotations bool) {
@@ -234,7 +264,14 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExisting
 		return
 	}
 
-	eps := processEndpoints(kep, alreadyExistingService)
+	// Look for standard tags
+	tags, err := l.getStandardTagsForEndpoints(kep)
+	if err != nil {
+		log.Debugf("Couldn't get standard tags for %s/%s: %v", kep.Namespace, kep.Name, err)
+		tags = []string{}
+	}
+
+	eps := processEndpoints(kep, alreadyExistingService, tags)
 
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
@@ -248,7 +285,7 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExisting
 
 // processEndpoints parses a kubernetes Endpoints object
 // and returns a slice of KubeEndpointService per endpoint
-func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool) []*KubeEndpointService {
+func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool, tags []string) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 	for i := range kep.Subsets {
 		ports := []ContainerPort{}
@@ -270,6 +307,7 @@ func processEndpoints(kep *v1.Endpoints, alreadyExistingService bool) []*KubeEnd
 					fmt.Sprintf("kube_endpoint_ip:%s", host.IP),
 				},
 			}
+			ep.tags = append(ep.tags, tags...)
 			if alreadyExistingService {
 				ep.creationTime = integration.Before
 			}
@@ -297,6 +335,26 @@ func (l *KubeEndpointsListener) removeService(kep *v1.Endpoints) {
 	} else {
 		log.Debugf("Entity %s not found, not removing", kep.UID)
 	}
+}
+
+// isLockForLE returns true if the Endpoints object is used for leader election.
+func isLockForLE(kep *v1.Endpoints) bool {
+	if kep != nil {
+		if _, found := kep.GetAnnotations()[leaderAnnotation]; found {
+			return true
+		}
+	}
+	return false
+}
+
+// getStandardTagsForEndpoints returns the standard tags defined in the labels
+// of the Service that corresponds to a given Endpoints object.
+func (l *KubeEndpointsListener) getStandardTagsForEndpoints(kep *v1.Endpoints) ([]string, error) {
+	ksvc, err := l.serviceLister.Services(kep.Namespace).Get(kep.Name)
+	if err != nil {
+		return nil, err
+	}
+	return getStandardTags(ksvc.GetLabels()), nil
 }
 
 // GetEntity returns the unique entity name linked to that service
@@ -362,4 +420,15 @@ func (s *KubeEndpointService) IsReady() bool {
 // KubeEndpointService doesn't implement this method
 func (s *KubeEndpointService) GetCheckNames() []string {
 	return nil
+}
+
+// HasFilter always return false
+// KubeEndpointService doesn't implement this method
+func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
+	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *KubeEndpointService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

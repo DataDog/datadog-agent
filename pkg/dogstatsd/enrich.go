@@ -20,11 +20,7 @@ var (
 	getTags tagRetriever = tagger.Tag
 )
 
-func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []string) ([]string, string) {
-	if len(tags) == 0 {
-		return nil, defaultHostname
-	}
-
+func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) ([]string, string) {
 	host := defaultHostname
 
 	n := 0
@@ -40,10 +36,11 @@ func enrichTags(tags []string, defaultHostname string, originTagsFunc func() []s
 		}
 	}
 	tags = tags[:n]
-	if entityIDValue == "" {
+	if entityIDValue == "" || !entityIDPrecedenceEnabled {
 		// Add origin tags only if the entity id tags is not provided
 		tags = append(tags, originTagsFunc()...)
-	} else if entityIDValue != entityIDIgnoreValue {
+	}
+	if entityIDValue != "" && entityIDValue != entityIDIgnoreValue {
 		// Check if the value is not "none" in order to avoid calling
 		// the tagger for entity that doesn't exist.
 
@@ -87,9 +84,9 @@ func isBlacklisted(metricName, namespace string, namespaceBlacklist []string) bo
 	return false
 }
 
-func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string, originTagsFunc func() []string) metrics.MetricSample {
+func enrichMetricSample(metricSample dogstatsdMetricSample, namespace string, namespaceBlacklist []string, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) metrics.MetricSample {
 	metricName := metricSample.name
-	tags, hostname := enrichTags(metricSample.tags, defaultHostname, originTagsFunc)
+	tags, hostname := enrichTags(metricSample.tags, defaultHostname, originTagsFunc, entityIDPrecedenceEnabled)
 
 	if !isBlacklisted(metricName, namespace, namespaceBlacklist) {
 		metricName = namespace + metricName
@@ -130,8 +127,8 @@ func enrichEventAlertType(dogstatsdAlertType alertType) metrics.EventAlertType {
 	return metrics.EventAlertTypeSuccess
 }
 
-func enrichEvent(event dogstatsdEvent, defaultHostname string, originTagsFunc func() []string) *metrics.Event {
-	tags, hostFromTags := enrichTags(event.tags, defaultHostname, originTagsFunc)
+func enrichEvent(event dogstatsdEvent, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) *metrics.Event {
+	tags, hostFromTags := enrichTags(event.tags, defaultHostname, originTagsFunc, entityIDPrecedenceEnabled)
 
 	enrichedEvent := &metrics.Event{
 		Title:          event.title,
@@ -166,8 +163,8 @@ func enrichServiceCheckStatus(status serviceCheckStatus) metrics.ServiceCheckSta
 	return metrics.ServiceCheckUnknown
 }
 
-func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string, originTagsFunc func() []string) *metrics.ServiceCheck {
-	tags, hostFromTags := enrichTags(serviceCheck.tags, defaultHostname, originTagsFunc)
+func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string, originTagsFunc func() []string, entityIDPrecedenceEnabled bool) *metrics.ServiceCheck {
+	tags, hostFromTags := enrichTags(serviceCheck.tags, defaultHostname, originTagsFunc, entityIDPrecedenceEnabled)
 
 	enrichedServiceCheck := &metrics.ServiceCheck{
 		CheckName: serviceCheck.name,

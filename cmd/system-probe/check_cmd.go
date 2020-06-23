@@ -25,7 +25,7 @@ var (
 )
 
 func querySocketEndpoint(cfg *config.AgentConfig, check string, client string) error {
-	if cfg.SystemProbeSocketPath == "" {
+	if cfg.SystemProbeAddress == "" {
 		return errors.New("no sysprobe_socket has been specified in system-probe.yaml")
 	}
 
@@ -35,7 +35,7 @@ func querySocketEndpoint(cfg *config.AgentConfig, check string, client string) e
 			MaxIdleConns:    2,
 			IdleConnTimeout: 30 * time.Second,
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", cfg.SystemProbeSocketPath)
+				return net.Dial("unix", cfg.SystemProbeAddress)
 			},
 			TLSHandshakeTimeout:   1 * time.Second,
 			ResponseHeaderTimeout: 5 * time.Second,
@@ -66,8 +66,8 @@ func querySocketEndpoint(cfg *config.AgentConfig, check string, client string) e
 
 	// print json to stdout
 	var out bytes.Buffer
-	json.Indent(&out, body, "", "  ")
-	out.WriteTo(os.Stdout)
+	json.Indent(&out, body, "", "  ") //nolint:errcheck
+	out.WriteTo(os.Stdout)            //nolint:errcheck
 
 	return nil
 }

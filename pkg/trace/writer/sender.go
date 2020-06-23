@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -21,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +33,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
-	client := cfg.HTTPClient()
+	client := httputils.NewResetClient(cfg.ConnectionResetInterval, cfg.HTTPClient)
 	// spread out the the maximum connection limit (climit) between senders
 	maxConns := math.Max(1, float64(climit/len(cfg.Endpoints)))
 	senders := make([]*sender, len(cfg.Endpoints))
@@ -109,7 +112,7 @@ type eventData struct {
 // senderConfig specifies the configuration for the sender.
 type senderConfig struct {
 	// client specifies the HTTP client to use when sending requests.
-	client *http.Client
+	client *httputils.ResetClient
 	// url specifies the URL to send requests too.
 	url *url.URL
 	// apiKey specifies the Datadog API key to use.
@@ -312,6 +315,12 @@ func (s *sender) do(req *http.Request) error {
 		// should thus be retried.
 		return &retriableError{err}
 	}
+	// From https://golang.org/pkg/net/http/#Response:
+	// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive"
+	// TCP connections if the Body is not read to completion and closed.
+	io.Copy(ioutil.Discard, resp.Body)
+	resp.Body.Close()
+
 	if resp.StatusCode/100 == 5 {
 		// 5xx errors can be retried
 		return &retriableError{
@@ -351,6 +360,16 @@ func newPayload(headers map[string]string) *payload {
 	return p
 }
 
+func (p *payload) clone() *payload {
+	headers := make(map[string]string, len(p.headers))
+	for k, v := range p.headers {
+		headers[k] = v
+	}
+	clone := newPayload(headers)
+	clone.body.ReadFrom(bytes.NewBuffer(p.body.Bytes()))
+	return clone
+}
+
 // httpRequest returns an HTTP request based on the payload, targeting the given URL.
 func (p *payload) httpRequest(url *url.URL) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodPost, url.String(), bytes.NewReader(p.body.Bytes()))
@@ -376,6 +395,30 @@ func stopSenders(senders []*sender) {
 		}(s)
 	}
 	wg.Wait()
+}
+
+// sendPayloads sends the payload p to all senders.
+func sendPayloads(senders []*sender, p *payload) {
+	if len(senders) == 1 {
+		// fast path
+		senders[0].Push(p)
+		return
+	}
+	// Create a clone for each payload because each sender places payloads
+	// back onto the pool after they are sent.
+	payloads := make([]*payload, 0, len(senders))
+	// Perform all the clones before any sends are to ensure the original
+	// payload body is completely unread.
+	for i := range senders {
+		if i == 0 {
+			payloads = append(payloads, p)
+		} else {
+			payloads = append(payloads, p.clone())
+		}
+	}
+	for i, sender := range senders {
+		sender.Push(payloads[i])
+	}
 }
 
 const (

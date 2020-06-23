@@ -22,6 +22,13 @@ type Config struct {
 	// Notice this does *not* depend on CollectLocalDNS
 	DNSInspection bool
 
+	// CollectDNSStats specifies whether the tracer should enhance connection data with relevant DNS stats
+	// It is relevant *only* when DNSInspection is enabled.
+	CollectDNSStats bool
+
+	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
+	DNSTimeout time.Duration
+
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
 	// connection as inactive.
 	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
@@ -33,12 +40,20 @@ type Config struct {
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
 
+	// TCPClosedTimeout represents the maximum amount of time a closed TCP connection can remain buffered in eBPF before
+	// being marked as idle and flushed to the perf ring.
+	TCPClosedTimeout time.Duration
+
 	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
 	MaxTrackedConnections uint
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
 	// get flushed on every client request (default 30s check interval)
 	MaxClosedConnectionsBuffered int
+
+	// MaxDNSStatsBufferred represents the maximum number of DNS stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxDNSStatsBufferred int
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
@@ -59,9 +74,9 @@ type Config struct {
 	// ConntrackMaxStateSize specifies the maximum number of connections with NAT we can track
 	ConntrackMaxStateSize int
 
-	// ConntrackShortTermBufferSize is the maximum number of short term conntracked connections that will
-	// held in memory at once
-	ConntrackShortTermBufferSize int
+	// ConntrackRateLimit specifies the maximum number of netlink messages *per second* that can be processed
+	// Setting it to -1 disables the limit and can result in a high CPU usage.
+	ConntrackRateLimit int
 
 	// DebugPort specifies a port to run golang's expvar and pprof debug endpoint
 	DebugPort int
@@ -79,60 +94,28 @@ type Config struct {
 // NewDefaultConfig enables traffic collection for all connection types
 func NewDefaultConfig() *Config {
 	return &Config{
-		CollectTCPConns:              true,
-		CollectUDPConns:              true,
-		CollectIPv6Conns:             true,
-		CollectLocalDNS:              false,
-		DNSInspection:                true,
-		UDPConnTimeout:               30 * time.Second,
-		TCPConnTimeout:               2 * time.Minute,
-		MaxTrackedConnections:        65536,
-		ConntrackMaxStateSize:        65536,
-		ConntrackShortTermBufferSize: 100,
-		ProcRoot:                     "/proc",
-		BPFDebug:                     false,
-		EnableConntrack:              true,
+		CollectTCPConns:       true,
+		CollectUDPConns:       true,
+		CollectIPv6Conns:      true,
+		CollectLocalDNS:       false,
+		DNSInspection:         true,
+		UDPConnTimeout:        30 * time.Second,
+		TCPConnTimeout:        2 * time.Minute,
+		TCPClosedTimeout:      20 * time.Second,
+		MaxTrackedConnections: 65536,
+		ConntrackMaxStateSize: 65536,
+		ConntrackRateLimit:    500,
+		ProcRoot:              "/proc",
+		BPFDebug:              false,
+		EnableConntrack:       true,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
+		MaxDNSStatsBufferred:         75000,
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
+		// DNS Stats related configurations
+		CollectDNSStats: false,
+		DNSTimeout:      15 * time.Second,
 	}
-}
-
-// EnabledKProbes returns a map of kprobes that are enabled per config settings.
-// This map does not include the probes used exclusively in the offset guessing process.
-func (c *Config) EnabledKProbes(pre410Kernel bool) map[KProbeName]struct{} {
-	enabled := make(map[KProbeName]struct{}, 0)
-
-	if c.CollectTCPConns {
-		if pre410Kernel {
-			enabled[TCPSendMsgPre410] = struct{}{}
-		} else {
-			enabled[TCPSendMsg] = struct{}{}
-		}
-		enabled[TCPCleanupRBuf] = struct{}{}
-		enabled[TCPClose] = struct{}{}
-		enabled[TCPRetransmit] = struct{}{}
-		enabled[InetCskAcceptReturn] = struct{}{}
-		enabled[TCPv4DestroySock] = struct{}{}
-
-		if c.BPFDebug {
-			enabled[TCPSendMsgReturn] = struct{}{}
-		}
-	}
-
-	if c.CollectUDPConns {
-		enabled[UDPRecvMsgReturn] = struct{}{}
-		if pre410Kernel {
-			enabled[UDPSendMsgPre410] = struct{}{}
-			enabled[UDPRecvMsgPre410] = struct{}{}
-		} else {
-			enabled[UDPRecvMsg] = struct{}{}
-			enabled[UDPSendMsg] = struct{}{}
-		}
-
-	}
-
-	return enabled
 }

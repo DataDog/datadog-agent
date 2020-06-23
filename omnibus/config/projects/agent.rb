@@ -28,6 +28,9 @@ else
     unless ENV['SKIP_SIGN_MAC'] == 'true'
       code_signing_identity 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'
     end
+    if ENV['HARDENED_RUNTIME_MAC'] == 'true'
+      entitlements_file "#{files_path}/macos/Entitlements.plist"
+    end
   end
 
   install_dir '/opt/datadog-agent'
@@ -99,6 +102,7 @@ package :zip do
     ]
 
     additional_sign_files [
+        "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
         "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
@@ -127,6 +131,7 @@ package :msi do
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
 
   additional_sign_files [
+      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
       "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
@@ -211,6 +216,7 @@ if linux?
   extra_package_file '/etc/init/datadog-agent-process.conf'
   extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
   extra_package_file '/etc/init/datadog-agent-trace.conf'
+  extra_package_file '/etc/init/datadog-agent-security.conf'
   systemd_directory = "/usr/lib/systemd/system"
   if debian?
     systemd_directory = "/lib/systemd/system"
@@ -218,16 +224,19 @@ if linux?
     extra_package_file "/etc/init.d/datadog-agent"
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
+    extra_package_file "/etc/init.d/datadog-agent-security"
   end
   if suse?
     extra_package_file "/etc/init.d/datadog-agent"
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
+    extra_package_file "/etc/init.d/datadog-agent-security"
   end
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"
   extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
   extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
+  extra_package_file "#{systemd_directory}/datadog-agent-security.service"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'

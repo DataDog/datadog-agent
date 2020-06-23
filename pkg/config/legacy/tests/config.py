@@ -6,22 +6,16 @@
 # stdlib
 import ConfigParser
 from cStringIO import StringIO
-import glob
-import imp
-import inspect
-import itertools
 import logging
 import logging.config
 import logging.handlers
-from optparse import OptionParser, Values
 import os
-import platform
 import re
 from socket import gaierror, gethostbyname
 import string
 import sys
-import traceback
 from urlparse import urlparse
+from urllib.request import getproxies
 
 # 3p
 import json
@@ -44,6 +38,7 @@ SDK_INTEGRATIONS_DIR = 'integrations'
 SD_PIPE_NAME = "dd-service_discovery"
 SD_PIPE_UNIX_PATH = '/opt/datadog-agent/run'
 SD_PIPE_WIN_PATH = "\\\\.\\pipe\\{pipename}"
+SD_TEMPLATE_DIR = "/datadog/check_configs"
 
 log = logging.getLogger(__name__)
 
@@ -358,7 +353,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
             try:
                 additional_config = extract_agent_config(config)
                 agentConfig.update(additional_config)
-            except:
+            except Exception:
                 log.error('Failed to load the agent configuration related to '
                           'service discovery. It will not be used.')
 
@@ -409,7 +404,7 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
             'dogstatsd_port': 8125,
             'dogstatsd_target': 'http://' + agentConfig['bind_host'] + ':17123',
         }
-        for key, value in dogstatsd_defaults.iteritems():
+        for key, value in dogstatsd_defaults.items():
             if config.has_option('Main', key):
                 agentConfig[key] = config.get('Main', key)
             else:
@@ -500,11 +495,11 @@ def get_config(cfg_path=None, options=None, can_query_registry=True):
         if config.has_option("Main", "gce_updated_hostname"):
             agentConfig["gce_updated_hostname"] = _is_affirmative(config.get("Main", "gce_updated_hostname"))
 
-    except ConfigParser.NoSectionError as e:
+    except ConfigParser.NoSectionError:
         sys.stderr.write('Config file not found or incorrectly formatted.\n')
         sys.exit(2)
 
-    except ConfigParser.ParsingError as e:
+    except ConfigParser.ParsingError:
         sys.stderr.write('Config file not found or incorrectly formatted.\n')
         sys.exit(2)
 
@@ -618,11 +613,8 @@ def get_proxy(agentConfig):
 
 def main():
     res = {}
-    for k, v in get_config().iteritems():
-        if v == None:
-            res[k] = "None"
-        else:
-            res[k] = str(v)
+    for k, v in get_config().items():
+        res[k] = str(v)
     return json.dumps(res, sort_keys=True)
 
 

@@ -50,11 +50,12 @@ bool CustomActionData::present(const std::wstring& key) const {
     return this->values.count(key) != 0 ? true : false;
 }
 
-bool CustomActionData::value(std::wstring& key, std::wstring &val)  {
-    if (this->values.count(key) == 0) {
+bool CustomActionData::value(const std::wstring& key, std::wstring &val) const {
+    const auto kvp = values.find(key);
+    if (kvp == values.end()) {
         return false;
     }
-    val = this->values[key];
+    val = kvp->second;
     return true;
 }
 
@@ -84,6 +85,16 @@ bool CustomActionData::parseUsernameData()
         computed_domain = computername;
         this->domainUser = false;
     } else {
+        WCHAR netBiosDomainName[256];
+        DWORD size = sizeof netBiosDomainName/sizeof(WCHAR);
+        if (DnsHostnameToComputerName(computed_domain.c_str(), netBiosDomainName, &size))
+        {
+            WcaLog(LOGMSG_VERBOSE, "Computed domain was %S. Equivalent NetBIOS name: %S", computed_domain.c_str(), netBiosDomainName);
+            computed_domain = netBiosDomainName;
+        } else {
+            WcaLog(LOGMSG_STANDARD, "Warning: DnsHostnameToComputerName(%S) did not return success: %d", computed_domain.c_str(), GetLastError());
+        }
+
         if(0 == _wcsicmp(computed_domain.c_str(), computername.c_str())){
             WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
             this->domainUser = false;

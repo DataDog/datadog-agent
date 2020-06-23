@@ -36,8 +36,10 @@ func init() {
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***********************************$1`),
 	}
+	// URI Generic Syntax
+	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
-		Regex: regexp.MustCompile(`([A-Za-z]+\:\/\/|\b)([A-Za-z0-9_]+)\:([^\s-]+)\@`),
+		Regex: regexp.MustCompile(`([A-Za-z][A-Za-z0-9+-.]+\:\/\/|\b)([^\:]+)\:([^\s]+)\@`),
 		Repl:  []byte(`$1$2:********@`),
 	}
 	passwordReplacer := Replacer{
@@ -46,7 +48,7 @@ func init() {
 		Repl:  []byte(`$1 ********`),
 	}
 	tokenReplacer := Replacer{
-		Regex: matchYAMLKeyPart(`token`),
+		Regex: matchYAMLKeyEnding(`token`),
 		Hints: []string{"token"},
 		Repl:  []byte(`$1 ********`),
 	}
@@ -70,6 +72,12 @@ func matchYAMLKeyPart(part string) *regexp.Regexp {
 
 func matchYAMLKey(key string) *regexp.Regexp {
 	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
+}
+
+// matchYAMLKeyEnding returns a regexp matching a single YAML line with a key ending by the string passed as argument.
+// The returned regexp catches only the key and not the value.
+func matchYAMLKeyEnding(ending string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s\s*:).+`, ending))
 }
 
 func matchCert() *regexp.Regexp {

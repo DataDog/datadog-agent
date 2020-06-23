@@ -129,6 +129,18 @@ func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`   random_url_key:   'http://user:password@host:port'   `,
 		`   random_url_key:   'http://user:********@host:port'   `)
+	assertClean(t,
+		`   random_url_key:   'mongodb+s.r-v://user:password@host:port'   `,
+		`   random_url_key:   'mongodb+s.r-v://user:********@host:port'   `)
+	assertClean(t,
+		`   random_url_key:   'mongodb+srv://user:pass-with-hyphen@abc.example.com/database'   `,
+		`   random_url_key:   'mongodb+srv://user:********@abc.example.com/database'   `)
+	assertClean(t,
+		`   random_url_key:   'http://user-with-hyphen:pass-with-hyphen@abc.example.com/database'   `,
+		`   random_url_key:   'http://user-with-hyphen:********@abc.example.com/database'   `)
+	assertClean(t,
+		`   random_url_key:   'http://user-with-hyphen:pass@abc.example.com/database'   `,
+		`   random_url_key:   'http://user-with-hyphen:********@abc.example.com/database'   `)
 }
 
 func TestTextStripApiKey(t *testing.T) {
@@ -312,6 +324,8 @@ api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 proxy: http://user:password@host:port
 password: foo
 auth_token: bar
+auth_token_file_path: /foo/bar/baz
+kubelet_auth_token_path: /foo/bar/kube_token
 # comment to strip
 log_level: info`,
 		`dd_url: https://app.datadoghq.com
@@ -319,6 +333,8 @@ api_key: ***************************aaaaa
 proxy: http://user:********@host:port
 password: ********
 auth_token: ********
+auth_token_file_path: /foo/bar/baz
+kubelet_auth_token_path: /foo/bar/kube_token
 log_level: info`)
 }
 
